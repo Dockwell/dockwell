@@ -285,6 +285,27 @@ func TestDatabasesAreReadInReach(t *testing.T) {
 		if err != nil || len(listed.Msg.GetDatabases()) != 1 {
 			t.Errorf("default's viewer listing databases: %v, %v, want db", listed.Msg.GetDatabases(), err)
 		}
+
+		// A user is a plan in the database's project: out of reach it's not found,
+		// a viewer plans nothing, and a developer's call goes on to planning, where
+		// the engine checks each item as it does any change's.
+		addUser := func(req *dockwellv1.CreateDatabaseUserRequest) error {
+			req.User = "shop"
+			_, err := dc.CreateDatabaseUser(ctx, connect.NewRequest(req))
+			return err
+		}
+		needsRole(t, "default's viewer adding a user to its database", addUser(&dockwellv1.CreateDatabaseUserRequest{Id: "db"}))
+		s.hold(in(s.blogID, store.RoleDeveloper))
+		for _, req := range []*dockwellv1.CreateDatabaseUserRequest{{Id: db}, {Id: "db"}, {Id: "db", Project: "default"}} {
+			notFound(t, "blog's developer adding a user to default's database as "+req.String(), addUser(req))
+		}
+		s.hold(in(s.defaultID, store.RoleDeveloper))
+		// The stand's image has no psql, so planning stops on the server: past the
+		// role and the scope, which is what this checks.
+		err = addUser(&dockwellv1.CreateDatabaseUserRequest{Id: "db"})
+		if reasonOf(err) == "needs_role" || reasonOf(err) == "not_found" || err != nil && !strings.Contains(err.Error(), "can't plan database.user shop") {
+			t.Errorf("default's developer adding a user by the database's name: %v, want it planned on the server", err)
+		}
 	})
 }
 

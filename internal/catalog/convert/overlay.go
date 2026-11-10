@@ -98,6 +98,7 @@ func applyOverlay(e *catalogv1.Entry, o Overlay) error {
 	for to, from := range map[*string]string{
 		&e.Name: w.GetName(), &e.Summary: w.GetSummary(), &e.Category: w.GetCategory(), &e.Homepage: w.GetHomepage(),
 		&e.AppLicense: w.GetAppLicense(), &e.FirstSteps: w.GetFirstSteps(), &e.HostAccess: w.GetHostAccess(),
+		&e.Description: w.GetDescription(), &e.Icon: w.GetIcon(), &e.Documentation: w.GetDocumentation(), &e.AppSource: w.GetAppSource(),
 	} {
 		if from != "" {
 			*to = from
@@ -105,6 +106,15 @@ func applyOverlay(e *catalogv1.Entry, o Overlay) error {
 	}
 	if w.GetWeb() != nil {
 		e.Web = proto.CloneOf(w.GetWeb())
+	}
+	if len(w.GetFeatures()) > 0 {
+		e.Features = slices.Clone(w.GetFeatures())
+	}
+	if len(w.GetScreenshots()) > 0 {
+		e.Screenshots = make([]*catalogv1.Screenshot, len(w.GetScreenshots()))
+		for i, shot := range w.GetScreenshots() {
+			e.Screenshots[i] = proto.CloneOf(shot)
+		}
 	}
 	for _, in := range w.GetInputs() {
 		i := slices.IndexFunc(e.GetInputs(), func(have *catalogv1.Input) bool { return have.GetName() == in.GetName() })

@@ -63,12 +63,14 @@ var ErrUnknown = errors.New("can't say where this belongs")
 
 // Resource kinds whose IDs say what they are, beside internal/id's: each is a
 // resource, placed where its scope is. A destination's scope is the
-// organization, so it's the install's.
+// organization, so it's the install's, as an alert's rule and channel are. A
+// database's user is in its database's environment.
 const (
 	volumePrefix      = "vol"
 	networkPrefix     = "net"
 	policyPrefix      = "bpl"
 	destinationPrefix = "bds"
+	databaseUser      = "dbu"
 )
 
 // Named reports an object seen by name on the install, as servers and backup
@@ -133,7 +135,8 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 		p, err := pl.scoped(ctx, b.EnvironmentID)
 		return []Place{p}, err
 	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource,
-		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix():
+		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix(),
+		databaseUser, id.AlertRule, id.AlertChannel:
 		r, err := tx.GetResourceByID(ctx, objectID)
 		if err != nil {
 			return nil, err

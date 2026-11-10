@@ -204,6 +204,38 @@ func TestInlineJSONRefusesASecretsValueAlone(t *testing.T) {
 	}
 }
 
+// JSON on the command line can't give an alert channel what signs in to it, such
+// as a Slack URL, which shell history would keep; a file or standard input can.
+// What it sends to without signing in, an email's server and addresses, goes inline.
+func TestInlineJSONRefusesWhatSignsInToAChannel(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "channel.json")
+	slack := `{"slack":{"url":"https://hooks.slack.com/services/T/B/s3cret"}}`
+	if err := os.WriteFile(file, []byte(slack), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fields := []Field{{Path: "channel", Help: "The channel."}}
+	for what, c := range map[string]struct {
+		value, in string
+		ok        bool
+	}{
+		"a Slack URL inline":          {value: slack},
+		"an SMTP password inline":     {value: `{"email":{"host":"smtp.example.com","password":"s3cret"}}`},
+		"a Slack URL from a file":     {value: "@" + file, ok: true},
+		"a Slack URL from stdin":      {value: "-", in: slack, ok: true},
+		"an email's addresses inline": {value: `{"email":{"host":"smtp.example.com","from":"a@example.com","to":["b@example.com"]}}`, ok: true},
+	} {
+		env := &Env{Getenv: func(string) string { return "" }, In: strings.NewReader(c.in)}
+		var req dockwellv1.TestAlertChannelRequest
+		err := parse(t, env, &req, fields, "--channel", c.value)
+		switch {
+		case c.ok && err != nil:
+			t.Errorf("%s = %v, want it read", what, err)
+		case !c.ok && (err == nil || !strings.Contains(err.Error(), "signs in to an alert channel") || !strings.Contains(err.Error(), "pass --channel @file, or pipe it in with --channel -") || strings.Contains(err.Error(), "s3cret")):
+			t.Errorf("%s = %v, want it refused", what, err)
+		}
+	}
+}
+
 // A CIFS mount's password goes in a volume's o option, so it reaches the CLI as a
 // secret's value does: never from a flag's text, where shell history and the
 // process list keep it. An option that gives one comes from the environment, and

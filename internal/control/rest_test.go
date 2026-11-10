@@ -34,7 +34,9 @@ type restMethod struct {
 	verb      string
 	path      string // with {id} and other variables as they are in the rule
 	body      string
-	md        protoreflect.MethodDescriptor
+	// responseBody is the field of the answer that's its body, if it's not all of it.
+	responseBody string
+	md           protoreflect.MethodDescriptor
 }
 
 // restMethods lists every REST path in dockwell.v1, from the schema.
@@ -54,7 +56,7 @@ func restMethods(t *testing.T) []restMethod {
 				verb, path := httpRule(rule)
 				out = append(out, restMethod{
 					procedure: "/" + string(sd.FullName()) + "/" + string(md.Name()),
-					verb:      verb, path: path, body: rule.GetBody(), md: md,
+					verb:      verb, path: path, body: rule.GetBody(), responseBody: rule.GetResponseBody(), md: md,
 				})
 			}
 		}
@@ -162,8 +164,26 @@ func TestEveryMethodHasARESTPath(t *testing.T) {
 				procedure := "/" + string(sd.FullName()) + "/" + string(md.Name())
 				m, ok := rules[procedure]
 				if md.IsStreamingClient() || md.IsStreamingServer() {
-					if ok {
-						t.Errorf("%s streams, so it can't have a REST path, but has %s %s", md.FullName(), m.verb, m.path)
+					// REST carries a stream of bytes, and nothing else: an upload as a PUT
+					// whose body is the bytes, and a download as a GET that only reads.
+					if !ok {
+						continue
+					}
+					opts, _ := md.Options().(*descriptorpb.MethodOptions)
+					effect, _ := proto.GetExtension(opts, dockwellv1.E_Effect).(dockwellv1.Effect)
+					upload := md.IsStreamingClient() && !md.IsStreamingServer() && m.verb == http.MethodPut &&
+						md.Input().Fields().ByName(protoreflect.Name(m.body)) != nil &&
+						md.Input().Fields().ByName(protoreflect.Name(m.body)).Message().FullName() == "google.api.HttpBody"
+					download := md.IsStreamingServer() && !md.IsStreamingClient() && m.verb == http.MethodGet && m.body == "" &&
+						md.Output().Fields().ByName(protoreflect.Name(m.responseBody)) != nil &&
+						md.Output().Fields().ByName(protoreflect.Name(m.responseBody)).Message().FullName() == "google.api.HttpBody" &&
+						effect == dockwellv1.Effect_EFFECT_READ &&
+						opts.GetIdempotencyLevel() == descriptorpb.MethodOptions_NO_SIDE_EFFECTS
+					if !upload && !download {
+						t.Errorf("%s streams, so it can't have a REST path, but has %s %s: only a stream of google.api.HttpBody can, as a PUT or a read's GET", md.FullName(), m.verb, m.path)
+					}
+					if !strings.HasPrefix(m.path, authapi.RESTPrefix) {
+						t.Errorf("%s's REST path %s isn't under %s", md.FullName(), m.path, authapi.RESTPrefix)
 					}
 					continue
 				}

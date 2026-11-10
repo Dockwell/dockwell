@@ -48,7 +48,7 @@ export interface FleetGridProps {
   className?: string;
 }
 
-const ORDER: readonly Status[] = ["healthy", "degraded", "down", "deploying", "stopped"];
+const ORDER: readonly Status[] = ["healthy", "degraded", "down", "deploying", "stopped", "unknown"];
 
 /**
  * The id of the hovered or focused server, outside React state, so moving

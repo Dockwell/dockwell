@@ -97,6 +97,11 @@
   border: 1px dashed var(--line-strong);
   color: var(--idle);
 }
+/* Nobody can say how it is, as when the panel hasn't heard from the control plane: never as healthy. */
+.dw-tile-unknown {
+  border: 1px dashed var(--unknown);
+  color: var(--unknown);
+}
 .dw-tile.is-selected {
   box-shadow:
     0 0 0 2px var(--surface),

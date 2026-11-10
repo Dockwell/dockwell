@@ -2,9 +2,25 @@
 id: home-assistant
 name: Home Assistant
 summary: Run your home's devices from one place, on your own server
+description: |-
+  Home Assistant brings smart-home devices and automations together on your own server. Build dashboards for your rooms, connect supported integrations, and make devices respond to schedules or changes around the home.
+
+  This is Home Assistant Container. It uses the server's network for device discovery. Add-ons from Home Assistant OS are not part of this installation.
+icon: /catalog-media/home-assistant-icon.webp
+documentation: https://www.home-assistant.io/docs/
+appSource: https://github.com/home-assistant/core
+features:
+  - "Dashboards for devices and rooms"
+  - "Automations, scenes and schedules"
+  - "A broad collection of device integrations"
+  - "Local control where devices support it"
+screenshots:
+  - path: /catalog-media/home-assistant-dashboard.webp
+    caption: "Home Assistant controls and household status"
+    source: https://raw.githubusercontent.com/home-assistant/frontend/008adf1533115004b38c1ae4ba9c81bef5882666/docs/screenshot.png
 category: automation
 version: "2026.10.4"
-release: 1
+release: 2
 homepage: https://www.home-assistant.io
 license: AGPL-3.0-only
 appLicense: Apache-2.0

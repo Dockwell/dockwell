@@ -2,9 +2,21 @@
 id: cloudflared
 name: Cloudflare Tunnel
 summary: Reach apps on this server with no open port
+description: |-
+  Cloudflare Tunnel connects services on your server to Cloudflare through an outbound connection. It is useful when your server has no public address or you want to avoid opening an inbound port.
+
+  This entry runs the cloudflared connector. Create a tunnel in your Cloudflare account and provide its token during setup. This is a background service with no local web interface; you manage its routes in Cloudflare.
+icon: /catalog-media/cloudflared-icon.webp
+documentation: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+appSource: https://github.com/cloudflare/cloudflared
+features:
+  - "Outbound tunnel connections"
+  - "No inbound port required for the tunnel"
+  - "Works with a tunnel in your Cloudflare account"
+  - "Runs as a background connector"
 category: networking
 version: "2026.10.3"
-release: 1
+release: 2
 homepage: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
 license: AGPL-3.0-only
 appLicense: Apache-2.0

@@ -190,6 +190,21 @@ const (
 	// target is the server's ID, or for a shell in a container, the server's ID and
 	// the container as the request names it, as "srv_…:web".
 	StepUpAction_STEP_UP_ACTION_OPEN_TERMINAL StepUpAction = 10
+	// Making a file or a folder that's a way back onto a server, with
+	// FileService.MakeFile. The target is the server's ID and the path, as
+	// "srv_…:/path". Numbered apart, as open work adds to this enum.
+	StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN StepUpAction = 90
+	// Moving or renaming a file or a folder where either end is a way back
+	// onto a server, with FileService.MoveFile. The target is the server's ID
+	// and both paths, on two lines, as "srv_…:/from\n/to".
+	StepUpAction_STEP_UP_ACTION_MOVE_WAY_BACK_IN StepUpAction = 91
+	// Deleting a file or a folder that's a way back onto a server, or holds
+	// one, with FileService.DeleteFile. The target is "srv_…:/path".
+	StepUpAction_STEP_UP_ACTION_DELETE_WAY_BACK_IN StepUpAction = 92
+	// Putting back a file or a folder where it's a way back onto a server,
+	// with FileService.RestoreFile. The target is "srv_…:/path", the path it
+	// goes back to.
+	StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN StepUpAction = 93
 	// Approving someone else's change in a protected environment, as an admin
 	// or the owner, by applying it with ChangeService.ApplyChange. The target is
 	// the change's ID and the fingerprint of the plan reviewed, as
@@ -213,6 +228,10 @@ var (
 		9:   "STEP_UP_ACTION_SAVE_WAY_BACK_IN",
 		20:  "STEP_UP_ACTION_END_PROCESS",
 		10:  "STEP_UP_ACTION_OPEN_TERMINAL",
+		90:  "STEP_UP_ACTION_MAKE_WAY_BACK_IN",
+		91:  "STEP_UP_ACTION_MOVE_WAY_BACK_IN",
+		92:  "STEP_UP_ACTION_DELETE_WAY_BACK_IN",
+		93:  "STEP_UP_ACTION_RESTORE_WAY_BACK_IN",
 		114: "STEP_UP_ACTION_APPROVE_CHANGE",
 	}
 	StepUpAction_value = map[string]int32{
@@ -228,6 +247,10 @@ var (
 		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
 		"STEP_UP_ACTION_END_PROCESS":               20,
 		"STEP_UP_ACTION_OPEN_TERMINAL":             10,
+		"STEP_UP_ACTION_MAKE_WAY_BACK_IN":          90,
+		"STEP_UP_ACTION_MOVE_WAY_BACK_IN":          91,
+		"STEP_UP_ACTION_DELETE_WAY_BACK_IN":        92,
+		"STEP_UP_ACTION_RESTORE_WAY_BACK_IN":       93,
 		"STEP_UP_ACTION_APPROVE_CHANGE":            114,
 	}
 )
@@ -3332,7 +3355,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x16SIGN_IN_METHOD_PASSKEY\x10\x02\x12%\n" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
-	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xd5\x03\n" +
+	"\x13SIGN_IN_METHOD_LINK\x10\x05*\xee\x04\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -3346,7 +3369,11 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fSTEP_UP_ACTION_SAVE_WAY_BACK_IN\x10\t\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_END_PROCESS\x10\x14\x12 \n" +
 	"\x1cSTEP_UP_ACTION_OPEN_TERMINAL\x10\n" +
-	"\x12!\n" +
+	"\x12#\n" +
+	"\x1fSTEP_UP_ACTION_MAKE_WAY_BACK_IN\x10Z\x12#\n" +
+	"\x1fSTEP_UP_ACTION_MOVE_WAY_BACK_IN\x10[\x12%\n" +
+	"!STEP_UP_ACTION_DELETE_WAY_BACK_IN\x10\\\x12&\n" +
+	"\"STEP_UP_ACTION_RESTORE_WAY_BACK_IN\x10]\x12!\n" +
 	"\x1dSTEP_UP_ACTION_APPROVE_CHANGE\x10r2\xca'\n" +
 	"\vAuthService\x12}\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12\x89\x01\n" +

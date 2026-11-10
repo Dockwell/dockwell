@@ -2,9 +2,28 @@
 id: nginx-proxy-manager
 name: Nginx Proxy Manager
 summary: Reverse proxy with a web console and Let's Encrypt
+description: |-
+  Nginx Proxy Manager gives you a web interface for reverse-proxy routes and TLS certificates. Point hostnames at the services you run, manage access lists, and configure redirects without editing Nginx files by hand.
+
+  This is a separate proxy server. Check its published ports alongside Dockwell's own ingress before applying the installation plan.
+icon: /catalog-media/nginx-proxy-manager-icon.webp
+documentation: https://nginxproxymanager.com/guide/
+appSource: https://github.com/NginxProxyManager/nginx-proxy-manager
+features:
+  - "Proxy hosts and redirects"
+  - "Let's Encrypt certificate management"
+  - "Access lists for protected services"
+  - "A web console for proxy configuration"
+screenshots:
+  - path: /catalog-media/nginx-proxy-manager-hosts.webp
+    caption: "Manage proxy hosts in Nginx Proxy Manager"
+    source: https://raw.githubusercontent.com/NginxProxyManager/nginx-proxy-manager/5b7e34eb67d35aa91dd3fe3818525caa42cfeca5/docs/src/public/screenshots/light/04_proxy-hosts.png
+  - path: /catalog-media/nginx-proxy-manager-dashboard.webp
+    caption: "Proxy hosts, streams and access lists at a glance"
+    source: https://raw.githubusercontent.com/NginxProxyManager/nginx-proxy-manager/5b7e34eb67d35aa91dd3fe3818525caa42cfeca5/docs/src/public/screenshots/light/03_dashboard.png
 category: networking
 version: "2.16.0"
-release: 1
+release: 2
 homepage: https://nginxproxymanager.com
 license: AGPL-3.0-only
 appLicense: MIT

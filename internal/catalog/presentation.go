@@ -1,0 +1,66 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package catalog
+
+import (
+	"errors"
+	"fmt"
+	"net/url"
+	"regexp"
+	"strings"
+	"unicode/utf8"
+
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+)
+
+// Media is local to the panel. An entry cannot turn opening the catalog into a
+// request to another server, an API procedure or a path outside the media folder.
+var mediaPath = regexp.MustCompile(`^/catalog-media/[a-z0-9]+(?:[-_/][a-z0-9]+)*\.(svg|png|jpg|jpeg|webp|avif)$`)
+
+func checkPresentation(e *catalogv1.Entry) error {
+	if utf8.RuneCountInString(e.GetDescription()) > 6000 {
+		return errors.New("its description is longer than 6000 characters. Keep the app's overview within that length")
+	}
+	if icon := e.GetIcon(); icon != "" && !mediaPath.MatchString(icon) {
+		return errors.New("its icon needs a local image path under /catalog-media/")
+	}
+	for name, address := range map[string]string{"documentation": e.GetDocumentation(), "app source": e.GetAppSource()} {
+		if address != "" && !presentationLink(address) {
+			return fmt.Errorf("its %s needs an HTTPS address without sign-in details", name)
+		}
+	}
+	if len(e.GetFeatures()) > 12 {
+		return errors.New("it lists more than 12 features. Keep the list to the app's main features")
+	}
+	for _, feature := range e.GetFeatures() {
+		if strings.TrimSpace(feature) == "" || utf8.RuneCountInString(feature) > 240 {
+			return errors.New("each feature needs between 1 and 240 characters")
+		}
+	}
+	if len(e.GetScreenshots()) > 8 {
+		return errors.New("it has more than 8 screenshots. Keep the previews to the app's main screens")
+	}
+	seen := map[string]bool{}
+	for _, shot := range e.GetScreenshots() {
+		p := shot.GetPath()
+		if !mediaPath.MatchString(p) || strings.HasSuffix(p, ".svg") {
+			return errors.New("each screenshot needs a local raster image path under /catalog-media/")
+		}
+		if seen[p] {
+			return fmt.Errorf("the screenshot %s is listed twice. Keep one copy", p)
+		}
+		seen[p] = true
+		if strings.TrimSpace(shot.GetCaption()) == "" || utf8.RuneCountInString(shot.GetCaption()) > 240 {
+			return errors.New("each screenshot needs a caption of 1 to 240 characters saying what it shows")
+		}
+		if !presentationLink(shot.GetSource()) {
+			return errors.New("each screenshot needs an HTTPS source address without sign-in details")
+		}
+	}
+	return nil
+}
+
+func presentationLink(address string) bool {
+	u, err := url.Parse(address)
+	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && !strings.ContainsAny(address, "\r\n\t ")
+}

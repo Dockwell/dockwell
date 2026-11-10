@@ -93,10 +93,12 @@ type Manager struct {
 	logger *slog.Logger
 	now    func() time.Time
 
-	mu    sync.Mutex
-	open  map[string]*Terminal
-	ended []*agentv1.TerminalEnded // not yet told
-	ready chan struct{}            // signalled when ended has something
+	mu       sync.Mutex
+	open     map[string]*Terminal // nil reserves a place while its shell starts
+	starting sync.WaitGroup
+	stopping bool
+	ended    []*agentv1.TerminalEnded // not yet told
+	ready    chan struct{}            // signalled when ended has something
 }
 
 // New returns a Manager with no terminals. Run it for its timeouts to apply.
@@ -155,6 +157,12 @@ func (m *Manager) expire() {
 }
 
 func (m *Manager) closeAll() {
+	m.mu.Lock()
+	m.stopping = true
+	m.mu.Unlock()
+	// No more starts can be added. Those in flight must finish before their
+	// shells can be hung up, including one Docker hasn't opened yet.
+	m.starting.Wait()
 	var wg sync.WaitGroup
 	for _, t := range m.terminals() {
 		wg.Go(func() {
@@ -169,7 +177,9 @@ func (m *Manager) terminals() []*Terminal {
 	defer m.mu.Unlock()
 	out := make([]*Terminal, 0, len(m.open))
 	for _, t := range m.open {
-		out = append(out, t)
+		if t != nil {
+			out = append(out, t)
+		}
 	}
 	return out
 }
@@ -189,8 +199,10 @@ func (m *Manager) Known() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	out := make([]string, 0, len(m.open)+len(m.ended))
-	for id := range m.open {
-		out = append(out, id)
+	for id, t := range m.open {
+		if t != nil {
+			out = append(out, id)
+		}
 	}
 	for _, e := range m.ended {
 		out = append(out, e.GetId())
@@ -239,6 +251,10 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		return nil, errors.New("a terminal needs an ID; the control plane gives it one")
 	}
 	m.mu.Lock()
+	if m.stopping {
+		m.mu.Unlock()
+		return nil, errors.New("the agent is stopping, so it can't open a terminal. Wait for it to reconnect, then open another")
+	}
 	if _, taken := m.open[id]; taken {
 		m.mu.Unlock()
 		return nil, fmt.Errorf("there's a terminal %s on this server already", id)
@@ -247,10 +263,11 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		m.mu.Unlock()
 		return nil, fmt.Errorf("this server has %d terminals open, which is as many as it keeps. Close one, then open another", MaxOpen)
 	}
-	// Held until the shell starts, so two opens can't both take the last place.
-	t := &Terminal{m: m, id: id, record: call.GetRecord(), out: newOutput(Keep), changed: make(chan struct{}), exited: make(chan struct{})}
-	m.open[id] = t
+	// Reserve the place, without publishing an uninitialized process or timers.
+	m.open[id] = nil
+	m.starting.Add(1)
 	m.mu.Unlock()
+	defer m.starting.Done()
 	cols, rows := clampColumns(call.GetColumns()), clampRows(call.GetRows())
 	var (
 		proc  process
@@ -272,7 +289,11 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		}
 		return nil, err
 	}
+	m.mu.Lock()
+	t := &Terminal{m: m, id: id, record: call.GetRecord(), out: newOutput(Keep), changed: make(chan struct{}), exited: make(chan struct{})}
 	t.begin(proc, title)
+	m.open[id] = t
+	m.mu.Unlock()
 	m.logger.Info("opened a terminal", slog.String("terminal", id), slog.String("as", title))
 	return &agentv1.OpenTerminalResult{Title: t.title, Opened: timestamppb.New(t.opened), ContainerId: in.id, ContainerName: in.name}, nil
 }

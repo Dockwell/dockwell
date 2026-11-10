@@ -156,3 +156,43 @@
     min-height: 44px;
   }
 }
+
+/* The fleet's map of servers beside what changed, as Overview-Fleet lays them out. */
+.overview-fleet-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  align-items: stretch;
+}
+
+.overview-fleet-map {
+  flex: 3 1 560px;
+  min-width: 0;
+}
+
+.overview-fleet-changes {
+  flex: 2 1 340px;
+  min-width: 0;
+}
+
+/* Where an app runs: how many servers, then their names, quieter. */
+.overview-runs {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.overview-runs > span {
+  flex: none;
+}
+
+.overview-runs code {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+/* A phone's callout action fills the row under its words. */
+.overview-callout-action {
+  flex: 1 1 0;
+}

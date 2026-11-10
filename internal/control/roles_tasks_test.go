@@ -196,3 +196,44 @@ func TestTaskNamesAndRunsStayWithinTheirProjects(t *testing.T) {
 		}
 	})
 }
+
+// A shell task runs as root on its server, so what it runs is an admin's to
+// change once it's there, as it was an admin's to make: a developer who plans
+// another command for one in an open environment waits for an admin, and one
+// who plans another schedule for it doesn't (ADR 0048, ADR 0049).
+func TestAShellTasksCommandIsAnAdminsToChange(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newReachStand(t, backend)
+		ctx := t.Context()
+		edit := func(command, schedule string) *dockwellv1.Edit {
+			spec := shellTask(command, schedule)
+			spec.Paused = true
+			e := taskEdit("tidy", spec)
+			e.Resource.Scope = s.staging
+			return e
+		}
+		applyAsRoot(t, s.b, propose(t, s.c, "Make tidy", edit("echo tidy", "@daily")))
+
+		s.hold(in(s.blogID, store.RoleDeveloper))
+		tryApply := func(ch *dockwellv1.Change) error {
+			_, err := s.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()}))
+			return err
+		}
+		other := propose(t, s.c, "Run something else as root", edit("cat /etc/shadow", "@daily"))
+		if other.GetWaits() == "" {
+			t.Errorf("a developer's plan for another command in a shell task waits for nobody: %v", other.GetPlan().GetResources())
+		}
+		needsRole(t, "a developer applying another command for a shell task", tryApply(other))
+		if _, err := s.c.DiscardChange(ctx, connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: other.GetId()})); err != nil {
+			t.Fatal(err)
+		}
+
+		when := propose(t, s.c, "Run tidy weekly", edit("echo tidy", "@weekly"))
+		if when.GetWaits() != "" {
+			t.Errorf("a developer's plan for another schedule waits: %q", when.GetWaits())
+		}
+		if err := tryApply(when); reasonOf(err) == "needs_role" {
+			t.Errorf("a developer applying another schedule for a shell task: %v", err)
+		}
+	})
+}

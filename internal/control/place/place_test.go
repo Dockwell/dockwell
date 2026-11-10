@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
@@ -38,6 +40,9 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		scope.ProjectType{},
 		scope.EnvironmentType{},
 		&task.Driver{},
+		&database.UserDriver{},
+		alert.Rule{},
+		alert.Channel{},
 	}
 	err := db.View(t.Context(), func(tx *store.Tx) error {
 		for _, k := range kinds {

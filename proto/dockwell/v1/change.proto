@@ -245,6 +245,22 @@ message Edit {
   // without its project is an error that names the projects. Other kinds
   // name their project, if they live in one, in resource.scope.
   string project = 5;
+  // The revision of the resource the spec was made from, as a list gave it,
+  // for an edit that read the spec and changed part of it. If the resource has
+  // changed since, the edit is stale, an error with the reason "plan_stale", as
+  // planning it would quietly undo what came between: read it again, and edit
+  // that. 0 checks nothing, for an edit that says the whole spec itself.
+  int64 base_revision = 6;
+  // A service's own environment variables to keep as they are, by name, for a
+  // client that can't read their values back, as no response carries them:
+  // it sends the rest of the spec, and names these instead of setting them.
+  // Each must be one the service has now, and not one the spec sets too. Only
+  // an edit of a service that's there takes it, and only with base_revision,
+  // the revision the rest was read at: without one the edit is refused, as a
+  // change since the read would be undone. A value kept goes nowhere it hasn't
+  // been, so the edit can't place the service on another server: set the value
+  // again in the edit to run it there.
+  repeated string keep_env = 7;
 }
 
 // ResourceRef names a resource.

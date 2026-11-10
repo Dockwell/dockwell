@@ -1,4 +1,12 @@
 # service.method                                effect       min_role   protected  reach    session
+AlertService.ListAlertChannels                 read         admin      admin      install
+AlertService.ListAlertDeliveries               read         admin      admin      install
+AlertService.ListAlertMutes                    read         admin      admin      install
+AlertService.ListAlertRules                    read         admin      admin      install
+AlertService.ListAlerts                        read         admin      admin      install
+AlertService.MuteAlerts                        apply        admin      admin      install
+AlertService.TestAlertChannel                  apply        admin      admin      install
+AlertService.UnmuteAlerts                      apply        admin      admin      install
 AuditService.ListAuditEvents                   read         admin      admin      install  session
 AuthService.BeginAddPasskey                    read         viewer     viewer     self
 AuthService.BeginClaim                         read         nothing    nothing    anyone
@@ -56,15 +64,27 @@ ComposeService.ExportCompose                   read         viewer     viewer   
 ComposeService.ImportCompose                   plan         developer  developer  project
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
+DatabaseService.CreateDatabaseUser             plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
 DomainService.CheckDomain                      plan         developer  developer  named
 DomainService.ListDomains                      read         viewer     viewer     project
 EventService.ListEvents                        read         viewer     viewer     project
 EventService.WatchEvents                       read         viewer     viewer     project
+FileService.BeginUpload                        apply        admin      admin      install  session
+FileService.CancelUpload                       destructive  admin      admin      install  session
+FileService.DeleteFile                         destructive  admin      admin      install  session
+FileService.DownloadFile                       read         admin      admin      install  session
+FileService.FinishUpload                       apply        admin      admin      install  session
+FileService.ListDeletedFiles                   read         admin      admin      install  session
 FileService.ListFiles                          read         admin      admin      install  session
+FileService.MakeFile                           apply        admin      admin      install  session
+FileService.MoveFile                           apply        admin      admin      install  session
+FileService.PurgeDeletedFile                   destructive  admin      admin      install  session
 FileService.ReadFile                           read         admin      admin      install  session
+FileService.RestoreFile                        apply        admin      admin      install  session
 FileService.SaveFile                           destructive  admin      admin      install  session
+FileService.UploadFile                         apply        admin      admin      install  session
 HealthService.ListHealth                       read         viewer     viewer     project
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project

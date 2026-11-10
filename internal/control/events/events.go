@@ -21,12 +21,15 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/actors"
+	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/paging"
@@ -75,6 +78,20 @@ const (
 	changeApplyUnconfirmed = "change.apply_unconfirmed"
 )
 
+// fileWrites are what a person makes, moves, deletes and puts back on a server, and
+// what stopped them (ADR 0045). Each is on the timeline, as a save is.
+var fileWrites = []string{
+	"file.make", "file.make_failed", "file.make_unconfirmed",
+	"file.move", "file.move_failed", "file.move_unconfirmed",
+	"file.delete", "file.delete_failed", "file.delete_unconfirmed",
+	"file.restore", "file.restore_failed", "file.restore_unconfirmed",
+	"file.upload", "file.upload_failed", "file.upload_unconfirmed",
+	"file.change_unknown",
+}
+
+// fileDownload is a file or a folder downloaded, which is on Activity as a read is.
+const fileDownload = "file.download"
+
 // The audit log's actions that belong on the timeline, by kind. What the
 // timeline leaves out stays in the audit log: refusals, such as wrong codes
 // and refused tokens, a token's first use from an address, signing out,
@@ -85,14 +102,16 @@ var (
 		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
-		terminals.Actions)
+		terminals.Actions, fileWrites)
 	healthActions = []string{health.Action}
 	// A setting of the install isn't managed state, so it's an event, not a change (ADR 0042).
 	settingsActions = settings.Actions
 	// Taking a backup is an event, and a restore is a change (ADR 0033).
 	backupActions = backups.Actions
 	// A scheduled task's run is an event; making or changing the task is a change (ADR 0053).
-	taskActions   = tasks.Actions
+	taskActions = tasks.Actions
+	// An alert is the control plane's record, and a mute no change (ADR 0044).
+	alertActions  = alerts.Actions
 	accessActions = []string{
 		"owner.claim", "auth.sign_in", "session.revoke",
 		"passkey.add", "passkey.add_with_recovery_code", "passkey.add_with_authenticator_code", "passkey.remove",
@@ -100,7 +119,7 @@ var (
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
-		fileRead, fileRefuse, changeApplyUnconfirmed,
+		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 	}
 )
 
@@ -523,7 +542,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		Actor: look.Actor(a.Actor), Surface: changes.Surfaces[a.Surface],
 	}
 	if strings.HasPrefix(a.Action, "server.") || strings.HasPrefix(a.Action, "process.") || a.Action == fileSave || a.Action == fileSaveWayBackIn || a.Action == fileSaveFailed || a.Action == fileSaveUnknown || a.Action == fileSaveUnconfirmed ||
-		slices.Contains(terminals.Actions, a.Action) {
+		slices.Contains(terminals.Actions, a.Action) || slices.Contains(fileWrites, a.Action) {
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_SERVER
 	}
 	if slices.Contains(terminals.Actions, a.Action) {
@@ -572,6 +591,32 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		}
 		return e
 	}
+	if slices.Contains(alertActions, a.Action) {
+		// As for health: only internal/control/alerts writes these, and what it
+		// writes holds nothing that signs in, nor any address.
+		e.Kind = dockwellv1.EventKind_EVENT_KIND_ALERT
+		if a.Subject != "" {
+			e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject), Scope: look.Scope(a.Subject)}
+		}
+		e.Alert = &dockwellv1.EventAlert{ServerId: a.Target, ServerName: look.Name(a.Target)}
+		if told, ok := alerts.ReadTold(a.Detail); ok {
+			e.Alert.Id, e.Alert.Rule, e.Alert.Title, e.Alert.Path = told.ID, told.Rule, told.Title, told.Path
+			e.Alert.Reason, e.Alert.Detail = told.Reason, told.Detail
+			e.Alert.Condition, e.Alert.SubjectName = resourcev1.AlertRule_Condition(told.Condition), told.SubjectName
+			e.Alert.Variant, e.Alert.Where, e.Alert.Value = told.Facts.Variant, told.Facts.Where, told.Facts.Value
+			if told.Facts.Server != "" && e.Alert.GetServerName() == "" {
+				e.Alert.ServerName = told.Facts.Server
+			}
+			e.Alert.Severity = resourcev1.AlertRule_Severity(told.Severity)
+			if told.OpenedAt != nil {
+				e.Alert.OpenTime = timestamppb.New(*told.OpenedAt)
+			}
+			if told.Until != nil {
+				e.Alert.Until = timestamppb.New(*told.Until)
+			}
+		}
+		return e
+	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
@@ -592,6 +637,10 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
 		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files
+		// A write's detail leaves the store too: where it went, and what it took.
+		if told, ok := controlfiles.ReadTold(a.Detail); ok && (slices.Contains(fileWrites, a.Action) || a.Action == fileDownload) {
+			e.Subject.ToPath, e.Subject.WayBackIn, e.Subject.ForGood, e.Subject.SizeBytes = told.To, told.WayBackIn, told.ForGood, told.Size
+		}
 	}
 	return e
 }
@@ -626,7 +675,10 @@ func filter(kinds []dockwellv1.EventKind, serverID, resourceID, actorID string, 
 	if every || want[dockwellv1.EventKind_EVENT_KIND_TASK] {
 		f.Actions = append(f.Actions, taskActions...)
 	}
-	f.ResourceActions = append(append(slices.Clone(healthActions), backupActions...), taskActions...)
+	if every || want[dockwellv1.EventKind_EVENT_KIND_ALERT] {
+		f.Actions = append(f.Actions, alertActions...)
+	}
+	f.ResourceActions = slices.Concat(healthActions, backupActions, alertActions, taskActions)
 	if actorID != "" {
 		a, ok := actors.Store(actorID)
 		if !ok {

@@ -9,6 +9,7 @@ import type { Page } from "playwright-core";
 
 import { type DockerProbe, dockerRemove, dockerRun, dockerStarted } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 
 export interface ContainersFlowOptions {
   origin: string;
@@ -44,9 +45,7 @@ export async function containersFlow(
   try {
     const before = await dockerStarted(socket, id);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(`${origin}/`);
-    const link = await page.locator('a[href^="/servers/srv_"]').first().getAttribute("href");
-    if (!link) fail("the shell has no link to a server");
+    const link = await ownServerPath(page, origin);
     await page.goto(`${origin}${link}`);
     const panel = page.getByRole("region", { name: PANEL });
     const row = panel.getByRole("row", { name: new RegExp(`\\b${NAME}\\b`) });

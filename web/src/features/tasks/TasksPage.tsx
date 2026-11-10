@@ -302,7 +302,8 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
               <span
                 key={a.label}
                 className={a.strong ? "tasks-axis-label is-strong" : "tasks-axis-label"}
-                style={{ left: `${a.at}%` }}
+                // A label anchors by its position, from left-aligned to right-aligned, to stay on the track.
+                style={{ left: `${a.at}%`, transform: `translateX(-${a.at}%)` }}
               >
                 {a.label}
               </span>

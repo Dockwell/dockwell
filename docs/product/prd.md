@@ -201,7 +201,7 @@ Launch (P0) makes Dockwell the best single-server panel with real CI/CD across a
 | Automate | Config as code: a dockwell.toml or Compose file round-trips with the UI; GitOps sync | P1 · Team |
 | Automate | MCP server with plan-first semantics: agents propose plans, humans approve destructive steps | P1 · Team |
 | Automate | Ops assistant that explains failed deploys and proposes fixes as plans | P1 · Team |
-| Catalog | Curated catalog of 200+ apps; versioned templates; upgrades take a backup first | P0 · Launch |
+| Catalog | Curated catalog of 200+ apps; browse each app's logo, description, features and genuine screenshots before choosing to install; versioned templates; upgrades take a backup first | P0 · Launch |
 | Catalog | Custom catalogs from a Git URL; import Coolify and Dokploy templates and any Compose file | P1 · Team |
 
 ## Signature experiences

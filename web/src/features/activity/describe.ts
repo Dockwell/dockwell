@@ -3,6 +3,8 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   ActorKind,
+  AlertRule_Condition,
+  AlertRule_Severity,
   type Change,
   ChangeState,
   type Event,
@@ -17,6 +19,7 @@ import { msg, plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 
 /** How an event shows on the timeline. */
@@ -41,6 +44,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       if (event.kind === EventKind.CHANGE && change) return describeChange(change, summaries, i18n);
       const name = event.subject?.name ?? "";
       if (event.kind === EventKind.HEALTH) return describeHealth(event, i18n);
+      if (event.kind === EventKind.ALERT) return describeAlert(event, i18n);
       const volume = event.backup?.volume ?? name;
       if (event.action === "backup.taken") return { title: t`Backed up ${volume}`, icon: "archive" };
       if (event.action === "backup.failed") {
@@ -236,6 +240,133 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             tone: "warning",
           };
         }
+        // What a person makes, moves, deletes and puts back (ADR 0045). What can let
+        // someone back in reads as a warning, passkey or not, as a stolen session would do it.
+        case "file.make": {
+          const path = event.subject?.path ?? "";
+          return event.subject?.wayBackIn
+            ? { title: t`Made ${path} on ${server}, which can let someone back in`, icon: "file", tone: "warning" }
+            : { title: t`Made ${path} on ${server}`, icon: "file" };
+        }
+        case "file.move": {
+          const path = event.subject?.path ?? "";
+          const to = event.subject?.toPath ?? "";
+          return event.subject?.wayBackIn
+            ? {
+                title: t`Moved ${path} to ${to} on ${server}, which can let someone back in`,
+                icon: "file",
+                tone: "warning",
+              }
+            : { title: t`Moved ${path} to ${to} on ${server}`, icon: "file" };
+        }
+        case "file.delete": {
+          const path = event.subject?.path ?? "";
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Deleted ${path} on ${server}, which can let someone back in`,
+              icon: "trash",
+              tone: "warning",
+            };
+          }
+          return event.subject?.forGood
+            ? { title: t`Deleted ${path} on ${server} for good`, icon: "trash" }
+            : { title: t`Deleted ${path} on ${server}`, icon: "trash" };
+        }
+        case "file.restore": {
+          const path = event.subject?.path ?? "";
+          return event.subject?.wayBackIn
+            ? { title: t`Put back ${path} on ${server}, which can let someone back in`, icon: "undo", tone: "warning" }
+            : { title: t`Put back ${path} on ${server}`, icon: "undo" };
+        }
+        case "file.make_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't make ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "file.move_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't move ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
+        case "file.delete_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't delete ${path} on ${server}`, icon: "trash", tone: "warning" };
+        }
+        case "file.restore_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't put back ${path} on ${server}`, icon: "undo", tone: "warning" };
+        }
+        case "file.make_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to make ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
+        case "file.move_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to move ${path} on ${server}, and none came`,
+            icon: "file",
+            tone: "warning",
+          };
+        }
+        case "file.delete_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to delete ${path} on ${server}, and none came`,
+            icon: "trash",
+            tone: "warning",
+          };
+        }
+        case "file.restore_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to put back ${path} on ${server}, and none came`,
+            icon: "undo",
+            tone: "warning",
+          };
+        }
+        // An upload is a make with what's in it, and says as much (ADR 0045).
+        case "file.upload": {
+          const path = event.subject?.path ?? "";
+          const size = formatBytes(event.subject?.sizeBytes ?? 0n, i18n.locale);
+          const to = event.subject?.toPath ?? "";
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Uploaded ${path} to ${server}, which can let someone back in`,
+              icon: "upload",
+              tone: "warning",
+            };
+          }
+          return to
+            ? { title: t`Uploaded ${path} to ${server}, ${size}, and unpacked it into ${to}`, icon: "upload" }
+            : { title: t`Uploaded ${path} to ${server}, ${size}`, icon: "upload" };
+        }
+        case "file.upload_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't upload ${path} to ${server}`, icon: "upload", tone: "warning" };
+        }
+        case "file.upload_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to upload ${path} to ${server}, and none came`,
+            icon: "upload",
+            tone: "warning",
+          };
+        }
+        case "file.download": {
+          // A folder goes as a .zip made as it's sent, so its size isn't known first.
+          const path = event.subject?.path ?? "";
+          const bytes = event.subject?.sizeBytes ?? 0n;
+          const size = formatBytes(bytes, i18n.locale);
+          return bytes > 0n
+            ? { title: t`Downloaded ${path} from ${server}, ${size}`, icon: "download" }
+            : { title: t`Downloaded ${path} from ${server}`, icon: "download" };
+        }
+        case "file.change_unknown": {
+          const path = event.subject?.path ?? "";
+          return { title: t`May have changed ${path} on ${server}`, icon: "file", tone: "warning" };
+        }
         case "change.apply_unconfirmed": {
           const change = event.subject?.id ?? "";
           return { title: t`Asked for a passkey to apply ${change}, and none came`, icon: "key", tone: "warning" };
@@ -328,6 +459,105 @@ export function happenedAt(event: Event): Date {
  * happened, and of a service that keeps changing as one event, which says how often
  * since when (useHealthEventWords), and what it keeps falling to.
  */
+/** An alert that fired or resolved, or a mute that began or ended, as Activity's mock says them. */
+/**
+ * What an alert says, in the panel's language, from its fields: the condition, what
+ * it's about, where, and a value. An event from before alerts carried them says
+ * its title as it was sent, in English.
+ */
+export function alertTitle(
+  a: Pick<
+    NonNullable<Event["alert"]>,
+    "condition" | "subjectName" | "serverName" | "variant" | "where" | "value" | "title"
+  >,
+  i18n: I18n,
+): string {
+  const subject = a.subjectName;
+  const server = a.serverName;
+  const where = a.where;
+  const value = a.value;
+  switch (a.condition) {
+    case AlertRule_Condition.SERVICE_DOWN:
+      switch (a.variant) {
+        case "unhealthy":
+          return i18n._(msg`${subject} fails its health check on ${server}`);
+        case "not_running":
+          return i18n._(msg`${subject} isn't running on ${server}`);
+        case "flapping":
+          return i18n._(msg`${subject} keeps going down on ${server}`);
+        case "restarting":
+          return i18n._(msg`${subject} keeps restarting on ${server}`);
+      }
+      break;
+    case AlertRule_Condition.SERVER_UNREACHABLE:
+      return i18n._(msg`${server} can't be reached`);
+    case AlertRule_Condition.DISK_FULL:
+      return i18n._(msg`${server}'s disk ${where} is ${value}% full`);
+    case AlertRule_Condition.MEMORY_HIGH:
+      return i18n._(msg`${server} uses ${value}% of its memory`);
+    case AlertRule_Condition.CERTIFICATE_EXPIRING:
+      return value <= 0
+        ? i18n._(msg`${subject}'s certificate has ended`)
+        : plural(value, {
+            one: `${subject}'s certificate ends within a day`,
+            other: `${subject}'s certificate ends in # days`,
+          });
+    case AlertRule_Condition.CERTIFICATE_FAILED:
+      return i18n._(msg`${subject} has no certificate`);
+    case AlertRule_Condition.BACKUP_FAILED:
+      return a.variant === "copy"
+        ? i18n._(msg`The backup of ${subject} didn't reach ${where}`)
+        : i18n._(msg`The backup of ${subject} failed`);
+    case AlertRule_Condition.BACKUP_LATE:
+      return i18n._(msg`The backup of ${subject} is late`);
+    case AlertRule_Condition.CHANGE_FAILED:
+      return i18n._(msg`A change failed: ${subject}`);
+  }
+  return a.title;
+}
+
+function describeAlert(event: Event, i18n: I18n): Described {
+  const a = event.alert;
+  const title = a ? alertTitle(a, i18n) : "";
+  const rule = a?.rule ?? "";
+  const server = a?.serverName || event.subject?.name || i18n._(msg`a server`);
+  const until = a?.until ? formatDateTime(timestampDate(a.until), i18n.locale) : "";
+  switch (event.action) {
+    case "alert.firing":
+      return {
+        title: i18n._(msg`Alert opened: ${title}`),
+        icon: "alert",
+        tone: a?.severity === AlertRule_Severity.CRITICAL ? "critical" : "warning",
+      };
+    case "alert.resolved":
+      return { title: i18n._(msg`Resolved: ${title}`), icon: "alert" };
+    case "alert.mute":
+      return rule
+        ? { title: i18n._(msg`Muted the alert rule ${rule} until ${until}`), icon: "alert" }
+        : { title: i18n._(msg`Muted the alerts of ${server} until ${until}`), icon: "alert" };
+    case "alert.unmute":
+      return rule
+        ? { title: i18n._(msg`Ended the mute of the alert rule ${rule}`), icon: "alert" }
+        : { title: i18n._(msg`Ended the mute of ${server}'s alerts`), icon: "alert" };
+    case "alert.test": {
+      // Who tested which channel, of which type, at which host, and whether it arrived.
+      const name = a?.subjectName ?? "";
+      const kind = a?.variant ?? "";
+      const host = a?.where ?? "";
+      const arrived = a?.value === 1;
+      const title = name
+        ? arrived
+          ? i18n._(msg`Sent a test to ${name} (${kind}, ${host}), which arrived`)
+          : i18n._(msg`Sent a test to ${name} (${kind}, ${host}), which didn't arrive`)
+        : arrived
+          ? i18n._(msg`Sent a test to a new ${kind} channel at ${host}, which arrived`)
+          : i18n._(msg`Sent a test to a new ${kind} channel at ${host}, which didn't arrive`);
+      return arrived ? { title, icon: "alert" } : { title, icon: "alert", tone: "warning" };
+    }
+  }
+  return { title: event.action, icon: "alert" };
+}
+
 function describeHealth(event: Event, i18n: I18n): Described {
   const name = event.subject?.name || event.subject?.id || i18n._(msg`A service`);
   const server = event.health?.serverName || i18n._(msg`its server`);

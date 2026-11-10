@@ -155,20 +155,20 @@ func TestRoleRank(t *testing.T) {
 // nobody can claim it again.
 func TestUpgradeKeepsTheOwner(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
-		for _, version := range []int{24, 25} {
+		for _, version := range []int{24, 25, 26} {
 			t.Run(fmt.Sprintf("from_%d", version), func(t *testing.T) {
 				location := storetest.New(t, b)
 				old, err := store.OpenAt(t.Context(), location, version)
 				if err != nil {
 					t.Fatal(err)
 				}
-				// Version 25 is main with scheduled tasks, before grants. Its task runs
+				// Version 25 is main with scheduled tasks, and 26 adds alerts, before grants. Task runs
 				// must survive, so the task migration cannot be replaced or run again.
 				encoded, err := proto.Marshal(&dockwellv1.TaskRun{Id: "run_before_grants", TaskId: "tsk_before_grants", State: dockwellv1.TaskRunState_TASK_RUN_STATE_SUCCEEDED})
 				if err != nil {
 					t.Fatal(err)
 				}
-				if version == 25 {
+				if version >= 25 {
 					err = old.Update(t.Context(), func(tx *store.Tx) error {
 						return tx.PutTaskRun(t.Context(), store.TaskRun{ID: "run_before_grants", TaskID: "tsk_before_grants", ServerID: "srv_web", State: 2, StartedAt: time.UnixMilli(6), Run: encoded})
 					})
@@ -196,7 +196,7 @@ func TestUpgradeKeepsTheOwner(t *testing.T) {
 					if err != nil || len(got) != 1 || got[0].Role != store.RoleOwner || got[0].ProjectID != store.Install || got[0].CreatedAt.UnixMilli() != 5 {
 						t.Errorf("after the upgrade the owner holds %+v, %v, want the install, since they were made", got, err)
 					}
-					if version == 25 {
+					if version >= 25 {
 						run, err := tx.GetTaskRun(t.Context(), "run_before_grants")
 						if err != nil || run.TaskID != "tsk_before_grants" || run.State != 2 || !bytes.Equal(run.Run, encoded) {
 							t.Errorf("task run after granting the owner = %+v, %v", run, err)

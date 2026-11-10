@@ -9,6 +9,7 @@ import {
   ChangeService,
   ChangeState,
   type Event,
+  type EventAlert,
   type EventBackup,
   EventKind,
   type EventTerminal,
@@ -34,7 +35,7 @@ import {
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useCallback, useMemo, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatClock, formatDateTime, formatWeekday } from "../../lib/format";
@@ -47,6 +48,7 @@ import { useFieldRows } from "../changes/fields";
 import { canUndo, failedStep, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
 import { type StepLook, useChangeWords } from "../changes/words";
+import { parentOf } from "../files/paths";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
@@ -60,7 +62,7 @@ import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
 
 /** The kinds of event Activity filters by, as its search names them. */
-export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups";
+export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups" | "alerts";
 
 /** Activity's place, in its URL: the filters and the event open beside the list. */
 export interface ActivitySearch {
@@ -78,6 +80,7 @@ const KINDS: Readonly<Record<ActivityKind, EventKind>> = {
   access: EventKind.ACCESS,
   health: EventKind.HEALTH,
   backups: EventKind.BACKUP,
+  alerts: EventKind.ALERT,
 };
 
 /** Dockwell, in the actor filter. */
@@ -131,6 +134,21 @@ export function ActivityPage({
   const select = (id: string | undefined) => onSearch({ ...search, event: id });
   // Below the list, where a narrow screen puts it, an event chosen comes into view.
   const layout = useRef<HTMLDivElement>(null);
+  const filters = useRef<HTMLDivElement>(null);
+  // On a phone the kinds scroll sideways: keep the one chosen in sight, as a link
+  // may open Activity on any of them.
+  const kind = search.kind ?? "all";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: it runs when the kind changes, and reads the segment that kind checked from the page
+  useEffect(() => {
+    const row = filters.current?.querySelector<HTMLElement>(".dw-seg");
+    const on = row?.querySelector<HTMLElement>(`[aria-checked="true"]`);
+    if (!row || !on) return;
+    const edge = row.getBoundingClientRect();
+    const box = on.getBoundingClientRect();
+    if (box.left < edge.left || box.right > edge.right) {
+      row.scrollLeft += box.left - edge.left - (edge.width - box.width) / 2;
+    }
+  }, [kind]);
   const reveal = (tries = 10) =>
     requestAnimationFrame(() => {
       const detail = layout.current?.querySelector<HTMLElement>(".activity-detail");
@@ -149,6 +167,7 @@ export function ActivityPage({
     { value: "access", label: t`Access` },
     { value: "health", label: t`Health` },
     { value: "backups", label: t`Backups` },
+    { value: "alerts", label: t`Alerts` },
   ];
 
   let body: ReactNode;
@@ -226,14 +245,14 @@ export function ActivityPage({
   return (
     <Page
       title={t`Activity`}
-      lead={t`Every change, server event, access grant, change of health and backup, newest first`}
+      lead={t`Every change, server event, access grant, change of health, backup and alert, newest first`}
       status={status}
       className="activity"
     >
-      <div className="activity-filters">
+      <div ref={filters} className="activity-filters">
         <SegmentedControl
           options={kindOptions}
-          value={search.kind ?? "all"}
+          value={kind}
           label={t`Event type`}
           onChange={(value) =>
             onSearch({ ...search, kind: value === "all" ? undefined : (value as ActivityKind), event: undefined })
@@ -374,6 +393,9 @@ function useMeta() {
       if (event.kind === EventKind.HEALTH) {
         const said = health.flips(event);
         return { look: health.look(event), parts: said ? [said] : [] };
+      }
+      if (event.kind === EventKind.ALERT && event.alert?.reason) {
+        return { look: undefined, parts: [words.via(event.surface), event.alert.reason] };
       }
       if (!change) return { look: undefined, parts: [words.via(event.surface)] };
       const parts: string[] = [];
@@ -712,6 +734,27 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
       <Trans>Open the file</Trans>
     </RouterButtonLink>
   ) : null;
+  // What was made, moved or put back is in a folder, which a file link might not open.
+  const placed =
+    event.action === "file.make" ||
+    event.action === "file.move" ||
+    event.action === "file.restore" ||
+    event.action === "file.upload"
+      ? event.subject
+      : undefined;
+  const placedAt = placed ? placed.toPath || placed.path : "";
+  const toFolder =
+    placed && placedAt ? (
+      <RouterButtonLink
+        to="/servers/$serverId/files"
+        params={{ serverId: placed.id }}
+        search={{ path: parentOf(placedAt) }}
+        variant="ghost"
+        icon="folder"
+      >
+        <Trans>Open the folder</Trans>
+      </RouterButtonLink>
+    ) : null;
   return (
     <div className="activity-detail">
       <Panel
@@ -784,7 +827,8 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
                 ) : null}
               </>
             ) : null}
-            {!change && event.subject ? (
+            {/* A mute's subject is its rule, which the Rule row names. */}
+            {!change && event.subject && (event.subject.name || !event.alert) ? (
               <>
                 <dt>{t`About`}</dt>
                 <dd>{event.subject.name || <code className="activity-code">{event.subject.id}</code>}</dd>
@@ -792,6 +836,7 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
             {event.backup ? <BackupFacts backup={event.backup} /> : null}
+            {event.alert ? <AlertFacts alert={event.alert} /> : null}
             {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
           </dl>
           {change?.because ? <BecauseNotice because={change.because} /> : null}
@@ -841,10 +886,11 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
                 {change.state === ChangeState.PLANNED ? <Trans>Review plan</Trans> : <Trans>Open plan</Trans>}
               </Button>
             </div>
-          ) : toVariables || toFile ? (
+          ) : toVariables || toFile || toFolder ? (
             <div className="activity-detail-actions">
               {toVariables}
               {toFile}
+              {toFolder}
             </div>
           ) : event.health && event.subject?.id ? (
             <div className="activity-detail-actions">
@@ -861,6 +907,43 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
         </div>
       </Panel>
     </div>
+  );
+}
+
+/** An alert, or a mute, in the facts of an event: its rule, where, why it was muted, and what it said. */
+function AlertFacts({ alert }: { alert: EventAlert }) {
+  const { t } = useLingui();
+  return (
+    <>
+      {alert.rule ? (
+        <>
+          <dt>{t`Rule`}</dt>
+          <dd>
+            <code className="activity-code">{alert.rule}</code>
+          </dd>
+        </>
+      ) : null}
+      {alert.serverName ? (
+        <>
+          <dt>{t`Server`}</dt>
+          <dd>
+            <code className="activity-code">{alert.serverName}</code>
+          </dd>
+        </>
+      ) : null}
+      {alert.reason ? (
+        <>
+          <dt>{t`Why`}</dt>
+          <dd>{alert.reason}</dd>
+        </>
+      ) : null}
+      {alert.detail ? (
+        <>
+          <dt>{t`What it said`}</dt>
+          <dd>{alert.detail}</dd>
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -931,7 +1014,7 @@ function TerminalFacts({ terminal }: { terminal: EventTerminal }) {
       ) : null}
       {terminal.openTime && terminal.end ? (
         <>
-          <dt>{t`Opened`}</dt>
+          <dt>{t({ message: "Opened", context: "terminal" })}</dt>
           <dd>{formatDateTime(timestampDate(terminal.openTime), i18n.locale)}</dd>
         </>
       ) : null}

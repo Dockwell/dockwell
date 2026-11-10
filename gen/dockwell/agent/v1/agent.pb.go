@@ -55,21 +55,57 @@ const (
 	// The file is a way back onto the server, and no passkey confirmed saving
 	// where the walk ended, so nothing was written.
 	FileRefusal_KIND_NEEDS_STEP_UP FileRefusal_Kind = 9
+	// Something is already at the path a make, move or put back would take.
+	// Numbered apart, as open work adds to this enum.
+	FileRefusal_KIND_EXISTS FileRefusal_Kind = 120
+	// A move would cross to another filesystem, which a rename can't.
+	FileRefusal_KIND_OTHER_DISK FileRefusal_Kind = 121
+	// A delete can't go to Recently deleted, as it's on another filesystem,
+	// so it can only be deleted for good, which the call didn't say.
+	FileRefusal_KIND_FOR_GOOD FileRefusal_Kind = 122
+	// What's put back has nowhere to go, as the folder it was in is gone.
+	FileRefusal_KIND_FOLDER_GONE FileRefusal_Kind = 123
+	// An upload is larger than a server takes, or than its disk has room for.
+	FileRefusal_KIND_TOO_LARGE FileRefusal_Kind = 124
+	// An upload's ID is unknown, finished, or past the day it's kept.
+	FileRefusal_KIND_UPLOAD_GONE FileRefusal_Kind = 125
+	// A write starts somewhere other than where its upload got to, so nothing
+	// was written. Ask where with begin_upload.
+	FileRefusal_KIND_OFFSET FileRefusal_Kind = 126
+	// An archive holds what can't be unpacked here, such as a way back in, a
+	// path that leaves its folder, or more than an upload may be.
+	FileRefusal_KIND_UNPACK_REFUSED FileRefusal_Kind = 127
+	// Every upload and download the agent runs at once is under way, and one
+	// didn't end in time for this one to start.
+	FileRefusal_KIND_BUSY FileRefusal_Kind = 128
+	// The disk filled while an upload was written or unpacked. What was
+	// written so far is kept.
+	FileRefusal_KIND_NO_SPACE FileRefusal_Kind = 129
 )
 
 // Enum value maps for FileRefusal_Kind.
 var (
 	FileRefusal_Kind_name = map[int32]string{
-		0: "KIND_UNSPECIFIED",
-		1: "KIND_NOT_FOUND",
-		2: "KIND_REFUSED",
-		3: "KIND_NOT_A_DIRECTORY",
-		4: "KIND_NOT_A_FILE",
-		5: "KIND_DENIED",
-		6: "KIND_NOT_ANSWERING",
-		7: "KIND_CHANGED",
-		8: "KIND_MAY_LAND",
-		9: "KIND_NEEDS_STEP_UP",
+		0:   "KIND_UNSPECIFIED",
+		1:   "KIND_NOT_FOUND",
+		2:   "KIND_REFUSED",
+		3:   "KIND_NOT_A_DIRECTORY",
+		4:   "KIND_NOT_A_FILE",
+		5:   "KIND_DENIED",
+		6:   "KIND_NOT_ANSWERING",
+		7:   "KIND_CHANGED",
+		8:   "KIND_MAY_LAND",
+		9:   "KIND_NEEDS_STEP_UP",
+		120: "KIND_EXISTS",
+		121: "KIND_OTHER_DISK",
+		122: "KIND_FOR_GOOD",
+		123: "KIND_FOLDER_GONE",
+		124: "KIND_TOO_LARGE",
+		125: "KIND_UPLOAD_GONE",
+		126: "KIND_OFFSET",
+		127: "KIND_UNPACK_REFUSED",
+		128: "KIND_BUSY",
+		129: "KIND_NO_SPACE",
 	}
 	FileRefusal_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED":     0,
@@ -82,6 +118,16 @@ var (
 		"KIND_CHANGED":         7,
 		"KIND_MAY_LAND":        8,
 		"KIND_NEEDS_STEP_UP":   9,
+		"KIND_EXISTS":          120,
+		"KIND_OTHER_DISK":      121,
+		"KIND_FOR_GOOD":        122,
+		"KIND_FOLDER_GONE":     123,
+		"KIND_TOO_LARGE":       124,
+		"KIND_UPLOAD_GONE":     125,
+		"KIND_OFFSET":          126,
+		"KIND_UNPACK_REFUSED":  127,
+		"KIND_BUSY":            128,
+		"KIND_NO_SPACE":        129,
 	}
 )
 
@@ -1228,8 +1274,16 @@ type Hello struct {
 	// True when the agent reads what 1Panel keeps on the server (ReadOnePanelCall).
 	// The importer takes 180 to 189 in agent messages.
 	ReadsOnepanel bool `protobuf:"varint,180,opt,name=reads_onepanel,json=readsOnepanel,proto3" json:"reads_onepanel,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// True when the agent makes, moves, deletes and puts back files, each
+	// with the care ADR 0045 says, a passkey where one is a way back in among
+	// it. The control plane sends none of those calls to one that doesn't.
+	// Numbered apart, as open work adds to this message.
+	ManagesFiles bool `protobuf:"varint,120,opt,name=manages_files,json=managesFiles,proto3" json:"manages_files,omitempty"`
+	// True when the agent uploads and downloads files, in bounded chunks over
+	// ReceiveFile and SendFile, as ADR 0045 says.
+	TransfersFiles bool `protobuf:"varint,121,opt,name=transfers_files,json=transfersFiles,proto3" json:"transfers_files,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -1349,6 +1403,20 @@ func (x *Hello) GetContainerTerminals() bool {
 func (x *Hello) GetReadsOnepanel() bool {
 	if x != nil {
 		return x.ReadsOnepanel
+	}
+	return false
+}
+
+func (x *Hello) GetManagesFiles() bool {
+	if x != nil {
+		return x.ManagesFiles
+	}
+	return false
+}
+
+func (x *Hello) GetTransfersFiles() bool {
+	if x != nil {
+		return x.TransfersFiles
 	}
 	return false
 }
@@ -2162,6 +2230,16 @@ type Call struct {
 	//	*Call_TaskRuns
 	//	*Call_RunTask
 	//	*Call_ReadOnepanel
+	//	*Call_MakeFile
+	//	*Call_MoveFile
+	//	*Call_DeleteFile
+	//	*Call_ListDeleted
+	//	*Call_RestoreFile
+	//	*Call_PurgeDeleted
+	//	*Call_BeginUpload
+	//	*Call_WriteUpload
+	//	*Call_FinishUpload
+	//	*Call_DownloadFile
 	Call          isCall_Call `protobuf_oneof:"call"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2470,6 +2548,96 @@ func (x *Call) GetReadOnepanel() *ReadOnePanelCall {
 	return nil
 }
 
+func (x *Call) GetMakeFile() *MakeFileCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_MakeFile); ok {
+			return x.MakeFile
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetMoveFile() *MoveFileCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_MoveFile); ok {
+			return x.MoveFile
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetDeleteFile() *DeleteFileCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_DeleteFile); ok {
+			return x.DeleteFile
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetListDeleted() *ListDeletedCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_ListDeleted); ok {
+			return x.ListDeleted
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetRestoreFile() *RestoreFileCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_RestoreFile); ok {
+			return x.RestoreFile
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetPurgeDeleted() *PurgeDeletedCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_PurgeDeleted); ok {
+			return x.PurgeDeleted
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetBeginUpload() *BeginUploadCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_BeginUpload); ok {
+			return x.BeginUpload
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetWriteUpload() *WriteUploadCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_WriteUpload); ok {
+			return x.WriteUpload
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetFinishUpload() *FinishUploadCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_FinishUpload); ok {
+			return x.FinishUpload
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetDownloadFile() *DownloadFileCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_DownloadFile); ok {
+			return x.DownloadFile
+		}
+	}
+	return nil
+}
+
 type isCall_Call interface {
 	isCall_Call()
 }
@@ -2622,6 +2790,57 @@ type Call_ReadOnepanel struct {
 	ReadOnepanel *ReadOnePanelCall `protobuf:"bytes,180,opt,name=read_onepanel,json=readOnepanel,proto3,oneof"`
 }
 
+type Call_MakeFile struct {
+	// Make an empty file or a folder. Numbered apart, as open work adds to
+	// this message.
+	MakeFile *MakeFileCall `protobuf:"bytes,120,opt,name=make_file,json=makeFile,proto3,oneof"`
+}
+
+type Call_MoveFile struct {
+	// Move or rename a file or a folder.
+	MoveFile *MoveFileCall `protobuf:"bytes,121,opt,name=move_file,json=moveFile,proto3,oneof"`
+}
+
+type Call_DeleteFile struct {
+	// Delete a file or a folder, to Recently deleted or for good.
+	DeleteFile *DeleteFileCall `protobuf:"bytes,122,opt,name=delete_file,json=deleteFile,proto3,oneof"`
+}
+
+type Call_ListDeleted struct {
+	// List what's in Recently deleted.
+	ListDeleted *ListDeletedCall `protobuf:"bytes,123,opt,name=list_deleted,json=listDeleted,proto3,oneof"`
+}
+
+type Call_RestoreFile struct {
+	// Put back what was deleted.
+	RestoreFile *RestoreFileCall `protobuf:"bytes,124,opt,name=restore_file,json=restoreFile,proto3,oneof"`
+}
+
+type Call_PurgeDeleted struct {
+	// Delete for good what's in Recently deleted.
+	PurgeDeleted *PurgeDeletedCall `protobuf:"bytes,125,opt,name=purge_deleted,json=purgeDeleted,proto3,oneof"`
+}
+
+type Call_BeginUpload struct {
+	// Start an upload, or say how far one got.
+	BeginUpload *BeginUploadCall `protobuf:"bytes,126,opt,name=begin_upload,json=beginUpload,proto3,oneof"`
+}
+
+type Call_WriteUpload struct {
+	// Write what's uploaded, from ReceiveFile.
+	WriteUpload *WriteUploadCall `protobuf:"bytes,127,opt,name=write_upload,json=writeUpload,proto3,oneof"`
+}
+
+type Call_FinishUpload struct {
+	// Put what was uploaded in place, and unpack it if it was asked to.
+	FinishUpload *FinishUploadCall `protobuf:"bytes,128,opt,name=finish_upload,json=finishUpload,proto3,oneof"`
+}
+
+type Call_DownloadFile struct {
+	// Send a file, or a folder as an archive, over SendFile.
+	DownloadFile *DownloadFileCall `protobuf:"bytes,129,opt,name=download_file,json=downloadFile,proto3,oneof"`
+}
+
 func (*Call_Plan) isCall_Call() {}
 
 func (*Call_Apply) isCall_Call() {}
@@ -2677,6 +2896,26 @@ func (*Call_TaskRuns) isCall_Call() {}
 func (*Call_RunTask) isCall_Call() {}
 
 func (*Call_ReadOnepanel) isCall_Call() {}
+
+func (*Call_MakeFile) isCall_Call() {}
+
+func (*Call_MoveFile) isCall_Call() {}
+
+func (*Call_DeleteFile) isCall_Call() {}
+
+func (*Call_ListDeleted) isCall_Call() {}
+
+func (*Call_RestoreFile) isCall_Call() {}
+
+func (*Call_PurgeDeleted) isCall_Call() {}
+
+func (*Call_BeginUpload) isCall_Call() {}
+
+func (*Call_WriteUpload) isCall_Call() {}
+
+func (*Call_FinishUpload) isCall_Call() {}
+
+func (*Call_DownloadFile) isCall_Call() {}
 
 // ProbeCall asks whether something answers, from the server, as a website's
 // traffic would find it: a port on the server, as the ingress dials it, or a URL,
@@ -4882,6 +5121,1342 @@ func (x *FileRefusal) GetPath() string {
 	return ""
 }
 
+// MakeFileCall makes an empty file or a folder, never over what's there.
+type MakeFileCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The absolute path to make.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// A file or a directory.
+	Type v1.FileType `protobuf:"varint,2,opt,name=type,proto3,enum=dockwell.v1.FileType" json:"type,omitempty"`
+	// The path a person confirmed with a passkey, where it's a way back in.
+	ConfirmedPath string `protobuf:"bytes,3,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeFileCall) Reset() {
+	*x = MakeFileCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeFileCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeFileCall) ProtoMessage() {}
+
+func (x *MakeFileCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeFileCall.ProtoReflect.Descriptor instead.
+func (*MakeFileCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *MakeFileCall) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *MakeFileCall) GetType() v1.FileType {
+	if x != nil {
+		return x.Type
+	}
+	return v1.FileType(0)
+}
+
+func (x *MakeFileCall) GetConfirmedPath() string {
+	if x != nil {
+		return x.ConfirmedPath
+	}
+	return ""
+}
+
+// MakeFileResult answers a MakeFileCall.
+type MakeFileResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What was made. Unset when the agent refused.
+	Made *v1.MakeFileResponse `protobuf:"bytes,1,opt,name=made,proto3" json:"made,omitempty"`
+	// Why it made nothing.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MakeFileResult) Reset() {
+	*x = MakeFileResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MakeFileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MakeFileResult) ProtoMessage() {}
+
+func (x *MakeFileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MakeFileResult.ProtoReflect.Descriptor instead.
+func (*MakeFileResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *MakeFileResult) GetMade() *v1.MakeFileResponse {
+	if x != nil {
+		return x.Made
+	}
+	return nil
+}
+
+func (x *MakeFileResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// MoveFileCall moves or renames what's at a path, never over what's there.
+type MoveFileCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The absolute path it's at.
+	From string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+	// The absolute path it goes to.
+	To string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+	// The path it's at, as a person confirmed it with a passkey, where either
+	// end is a way back in.
+	ConfirmedFrom string `protobuf:"bytes,3,opt,name=confirmed_from,json=confirmedFrom,proto3" json:"confirmed_from,omitempty"`
+	// The path it goes to, as a person confirmed it with the same passkey.
+	ConfirmedTo   string `protobuf:"bytes,4,opt,name=confirmed_to,json=confirmedTo,proto3" json:"confirmed_to,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveFileCall) Reset() {
+	*x = MoveFileCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveFileCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveFileCall) ProtoMessage() {}
+
+func (x *MoveFileCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveFileCall.ProtoReflect.Descriptor instead.
+func (*MoveFileCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *MoveFileCall) GetFrom() string {
+	if x != nil {
+		return x.From
+	}
+	return ""
+}
+
+func (x *MoveFileCall) GetTo() string {
+	if x != nil {
+		return x.To
+	}
+	return ""
+}
+
+func (x *MoveFileCall) GetConfirmedFrom() string {
+	if x != nil {
+		return x.ConfirmedFrom
+	}
+	return ""
+}
+
+func (x *MoveFileCall) GetConfirmedTo() string {
+	if x != nil {
+		return x.ConfirmedTo
+	}
+	return ""
+}
+
+// MoveFileResult answers a MoveFileCall.
+type MoveFileResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it went. Unset when the agent refused.
+	Moved *v1.MoveFileResponse `protobuf:"bytes,1,opt,name=moved,proto3" json:"moved,omitempty"`
+	// Why it moved nothing.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveFileResult) Reset() {
+	*x = MoveFileResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveFileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveFileResult) ProtoMessage() {}
+
+func (x *MoveFileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveFileResult.ProtoReflect.Descriptor instead.
+func (*MoveFileResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *MoveFileResult) GetMoved() *v1.MoveFileResponse {
+	if x != nil {
+		return x.Moved
+	}
+	return nil
+}
+
+func (x *MoveFileResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// DeleteFileCall deletes what's at a path, to Recently deleted, or for good.
+type DeleteFileCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The absolute path.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// True to delete it for good, which frees its space at once.
+	ForGood bool `protobuf:"varint,2,opt,name=for_good,json=forGood,proto3" json:"for_good,omitempty"`
+	// The path a person confirmed with a passkey, where it's a way back in.
+	ConfirmedPath string `protobuf:"bytes,3,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteFileCall) Reset() {
+	*x = DeleteFileCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteFileCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteFileCall) ProtoMessage() {}
+
+func (x *DeleteFileCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteFileCall.ProtoReflect.Descriptor instead.
+func (*DeleteFileCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *DeleteFileCall) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *DeleteFileCall) GetForGood() bool {
+	if x != nil {
+		return x.ForGood
+	}
+	return false
+}
+
+func (x *DeleteFileCall) GetConfirmedPath() string {
+	if x != nil {
+		return x.ConfirmedPath
+	}
+	return ""
+}
+
+// DeleteFileResult answers a DeleteFileCall.
+type DeleteFileResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What was deleted. Unset when the agent refused.
+	Deleted *v1.DeleteFileResponse `protobuf:"bytes,1,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	// Why it deleted nothing.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteFileResult) Reset() {
+	*x = DeleteFileResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteFileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteFileResult) ProtoMessage() {}
+
+func (x *DeleteFileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteFileResult.ProtoReflect.Descriptor instead.
+func (*DeleteFileResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *DeleteFileResult) GetDeleted() *v1.DeleteFileResponse {
+	if x != nil {
+		return x.Deleted
+	}
+	return nil
+}
+
+func (x *DeleteFileResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// ListDeletedCall asks what's in Recently deleted.
+type ListDeletedCall struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDeletedCall) Reset() {
+	*x = ListDeletedCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDeletedCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDeletedCall) ProtoMessage() {}
+
+func (x *ListDeletedCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDeletedCall.ProtoReflect.Descriptor instead.
+func (*ListDeletedCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{69}
+}
+
+// ListDeletedResult answers a ListDeletedCall.
+type ListDeletedResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What's there, newest first.
+	Listing       *v1.ListDeletedFilesResponse `protobuf:"bytes,1,opt,name=listing,proto3" json:"listing,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListDeletedResult) Reset() {
+	*x = ListDeletedResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[70]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListDeletedResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListDeletedResult) ProtoMessage() {}
+
+func (x *ListDeletedResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[70]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListDeletedResult.ProtoReflect.Descriptor instead.
+func (*ListDeletedResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{70}
+}
+
+func (x *ListDeletedResult) GetListing() *v1.ListDeletedFilesResponse {
+	if x != nil {
+		return x.Listing
+	}
+	return nil
+}
+
+// RestoreFileCall puts back what was deleted, where it was.
+type RestoreFileCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its ID in Recently deleted.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The path a person confirmed with a passkey, where it's a way back in.
+	ConfirmedPath string `protobuf:"bytes,2,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreFileCall) Reset() {
+	*x = RestoreFileCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[71]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreFileCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreFileCall) ProtoMessage() {}
+
+func (x *RestoreFileCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[71]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreFileCall.ProtoReflect.Descriptor instead.
+func (*RestoreFileCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{71}
+}
+
+func (x *RestoreFileCall) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RestoreFileCall) GetConfirmedPath() string {
+	if x != nil {
+		return x.ConfirmedPath
+	}
+	return ""
+}
+
+// RestoreFileResult answers a RestoreFileCall.
+type RestoreFileResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where it went back. Unset when the agent refused.
+	Restored *v1.RestoreFileResponse `protobuf:"bytes,1,opt,name=restored,proto3" json:"restored,omitempty"`
+	// Why it put nothing back.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreFileResult) Reset() {
+	*x = RestoreFileResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreFileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreFileResult) ProtoMessage() {}
+
+func (x *RestoreFileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreFileResult.ProtoReflect.Descriptor instead.
+func (*RestoreFileResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *RestoreFileResult) GetRestored() *v1.RestoreFileResponse {
+	if x != nil {
+		return x.Restored
+	}
+	return nil
+}
+
+func (x *RestoreFileResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// PurgeDeletedCall deletes for good what's in Recently deleted.
+type PurgeDeletedCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its ID in Recently deleted.
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PurgeDeletedCall) Reset() {
+	*x = PurgeDeletedCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PurgeDeletedCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PurgeDeletedCall) ProtoMessage() {}
+
+func (x *PurgeDeletedCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PurgeDeletedCall.ProtoReflect.Descriptor instead.
+func (*PurgeDeletedCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *PurgeDeletedCall) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// PurgeDeletedResult answers a PurgeDeletedCall.
+type PurgeDeletedResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What went. Unset when the agent refused.
+	Purged *v1.DeletedFile `protobuf:"bytes,1,opt,name=purged,proto3" json:"purged,omitempty"`
+	// Why nothing went.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PurgeDeletedResult) Reset() {
+	*x = PurgeDeletedResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PurgeDeletedResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PurgeDeletedResult) ProtoMessage() {}
+
+func (x *PurgeDeletedResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PurgeDeletedResult.ProtoReflect.Descriptor instead.
+func (*PurgeDeletedResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *PurgeDeletedResult) GetPurged() *v1.DeletedFile {
+	if x != nil {
+		return x.Purged
+	}
+	return nil
+}
+
+func (x *PurgeDeletedResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// BeginUploadCall starts an upload of size_bytes to path, never over what's
+// there, or says how far the upload upload_id got.
+type BeginUploadCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The absolute path the file takes once it's all there.
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// How large it is.
+	SizeBytes uint64 `protobuf:"varint,2,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// The path a person confirmed with a passkey, where it's a way back in.
+	ConfirmedPath string `protobuf:"bytes,3,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
+	// An upload to pick up again. With it, the rest is left out.
+	UploadId string `protobuf:"bytes,4,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	// What to unpack it as, once it's all there.
+	Unpack v1.Unpack `protobuf:"varint,5,opt,name=unpack,proto3,enum=dockwell.v1.Unpack" json:"unpack,omitempty"`
+	// Who asks: the user and the session, as the control plane names them. An
+	// upload is its beginner's: every later call for it has to come from the
+	// same, and the agent answers any other as if there were no such upload.
+	Owner         string `protobuf:"bytes,6,opt,name=owner,proto3" json:"owner,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BeginUploadCall) Reset() {
+	*x = BeginUploadCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BeginUploadCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BeginUploadCall) ProtoMessage() {}
+
+func (x *BeginUploadCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BeginUploadCall.ProtoReflect.Descriptor instead.
+func (*BeginUploadCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *BeginUploadCall) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *BeginUploadCall) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *BeginUploadCall) GetConfirmedPath() string {
+	if x != nil {
+		return x.ConfirmedPath
+	}
+	return ""
+}
+
+func (x *BeginUploadCall) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *BeginUploadCall) GetUnpack() v1.Unpack {
+	if x != nil {
+		return x.Unpack
+	}
+	return v1.Unpack(0)
+}
+
+func (x *BeginUploadCall) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+// UploadResult is an upload as it stands.
+type UploadResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The upload. Unset when the agent refused.
+	Upload *v1.Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
+	// Why it refused.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UploadResult) Reset() {
+	*x = UploadResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UploadResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UploadResult) ProtoMessage() {}
+
+func (x *UploadResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UploadResult.ProtoReflect.Descriptor instead.
+func (*UploadResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *UploadResult) GetUpload() *v1.Upload {
+	if x != nil {
+		return x.Upload
+	}
+	return nil
+}
+
+func (x *UploadResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// WriteUploadCall writes what ReceiveFile carries to an upload, from offset.
+type WriteUploadCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The ReceiveFile stream that carries it.
+	Stream uint64 `protobuf:"varint,1,opt,name=stream,proto3" json:"stream,omitempty"`
+	// The upload.
+	UploadId string `protobuf:"bytes,2,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	// Where it starts, which has to be how far the upload got.
+	Offset uint64 `protobuf:"varint,3,opt,name=offset,proto3" json:"offset,omitempty"`
+	// Who asks, as BeginUploadCall says.
+	Owner         string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteUploadCall) Reset() {
+	*x = WriteUploadCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[77]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteUploadCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteUploadCall) ProtoMessage() {}
+
+func (x *WriteUploadCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[77]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteUploadCall.ProtoReflect.Descriptor instead.
+func (*WriteUploadCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{77}
+}
+
+func (x *WriteUploadCall) GetStream() uint64 {
+	if x != nil {
+		return x.Stream
+	}
+	return 0
+}
+
+func (x *WriteUploadCall) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *WriteUploadCall) GetOffset() uint64 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+func (x *WriteUploadCall) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+// FinishUploadCall puts an upload in place, once it's all there, or with
+// cancel, removes what it has so far.
+type FinishUploadCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The upload.
+	UploadId string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	// Who asks, as BeginUploadCall says.
+	Owner string `protobuf:"bytes,2,opt,name=owner,proto3" json:"owner,omitempty"`
+	// Remove what's there of it, rather than put it in place.
+	Cancel        bool `protobuf:"varint,3,opt,name=cancel,proto3" json:"cancel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishUploadCall) Reset() {
+	*x = FinishUploadCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[78]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishUploadCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishUploadCall) ProtoMessage() {}
+
+func (x *FinishUploadCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[78]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishUploadCall.ProtoReflect.Descriptor instead.
+func (*FinishUploadCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{78}
+}
+
+func (x *FinishUploadCall) GetUploadId() string {
+	if x != nil {
+		return x.UploadId
+	}
+	return ""
+}
+
+func (x *FinishUploadCall) GetOwner() string {
+	if x != nil {
+		return x.Owner
+	}
+	return ""
+}
+
+func (x *FinishUploadCall) GetCancel() bool {
+	if x != nil {
+		return x.Cancel
+	}
+	return false
+}
+
+// FinishUploadResult answers a FinishUploadCall.
+type FinishUploadResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// What was put in place. Unset when the agent refused.
+	Finished *v1.FinishUploadResponse `protobuf:"bytes,1,opt,name=finished,proto3" json:"finished,omitempty"`
+	// Why it didn't.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FinishUploadResult) Reset() {
+	*x = FinishUploadResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[79]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FinishUploadResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FinishUploadResult) ProtoMessage() {}
+
+func (x *FinishUploadResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[79]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FinishUploadResult.ProtoReflect.Descriptor instead.
+func (*FinishUploadResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{79}
+}
+
+func (x *FinishUploadResult) GetFinished() *v1.FinishUploadResponse {
+	if x != nil {
+		return x.Finished
+	}
+	return nil
+}
+
+func (x *FinishUploadResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// DownloadFileCall sends what's at path over SendFile: a file as it is, or a
+// folder as a zip archive.
+type DownloadFileCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The SendFile stream to send it on.
+	Stream uint64 `protobuf:"varint,1,opt,name=stream,proto3" json:"stream,omitempty"`
+	// The absolute path.
+	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadFileCall) Reset() {
+	*x = DownloadFileCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadFileCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadFileCall) ProtoMessage() {}
+
+func (x *DownloadFileCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadFileCall.ProtoReflect.Descriptor instead.
+func (*DownloadFileCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *DownloadFileCall) GetStream() uint64 {
+	if x != nil {
+		return x.Stream
+	}
+	return 0
+}
+
+func (x *DownloadFileCall) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// DownloadFileResult answers a DownloadFileCall, once it's all sent.
+type DownloadFileResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How many bytes went. Zero when the agent refused.
+	SentBytes uint64 `protobuf:"varint,1,opt,name=sent_bytes,json=sentBytes,proto3" json:"sent_bytes,omitempty"`
+	// Why it sent nothing, or stopped.
+	Refusal       *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadFileResult) Reset() {
+	*x = DownloadFileResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadFileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadFileResult) ProtoMessage() {}
+
+func (x *DownloadFileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadFileResult.ProtoReflect.Descriptor instead.
+func (*DownloadFileResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *DownloadFileResult) GetSentBytes() uint64 {
+	if x != nil {
+		return x.SentBytes
+	}
+	return 0
+}
+
+func (x *DownloadFileResult) GetRefusal() *FileRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// ReceiveFileRequest asks for what an upload's write carries.
+type ReceiveFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The WriteUploadCall's stream.
+	Stream        uint64 `protobuf:"varint,1,opt,name=stream,proto3" json:"stream,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReceiveFileRequest) Reset() {
+	*x = ReceiveFileRequest{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReceiveFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReceiveFileRequest) ProtoMessage() {}
+
+func (x *ReceiveFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReceiveFileRequest.ProtoReflect.Descriptor instead.
+func (*ReceiveFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *ReceiveFileRequest) GetStream() uint64 {
+	if x != nil {
+		return x.Stream
+	}
+	return 0
+}
+
+// ReceiveFileResponse is part of what's uploaded.
+type ReceiveFileResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The next bytes, 1 MiB at most.
+	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReceiveFileResponse) Reset() {
+	*x = ReceiveFileResponse{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReceiveFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReceiveFileResponse) ProtoMessage() {}
+
+func (x *ReceiveFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReceiveFileResponse.ProtoReflect.Descriptor instead.
+func (*ReceiveFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *ReceiveFileResponse) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// SendFileRequest is part of what's downloaded. The first says what it is.
+type SendFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The DownloadFileCall's stream, on every message.
+	Stream uint64 `protobuf:"varint,1,opt,name=stream,proto3" json:"stream,omitempty"`
+	// What it's called, on the first message: the file's name, or the folder's
+	// with .zip after it.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// How large it is, on the first message, for a file. Zero for an archive,
+	// which is made as it goes.
+	SizeBytes uint64 `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// Where the walk ended, with every link followed, on the first message.
+	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	// True for a folder, sent as a zip archive, on the first message.
+	Archive bool `protobuf:"varint,5,opt,name=archive,proto3" json:"archive,omitempty"`
+	// The next bytes, 1 MiB at most.
+	Data          []byte `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SendFileRequest) Reset() {
+	*x = SendFileRequest{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendFileRequest) ProtoMessage() {}
+
+func (x *SendFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendFileRequest.ProtoReflect.Descriptor instead.
+func (*SendFileRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *SendFileRequest) GetStream() uint64 {
+	if x != nil {
+		return x.Stream
+	}
+	return 0
+}
+
+func (x *SendFileRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SendFileRequest) GetSizeBytes() uint64 {
+	if x != nil {
+		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *SendFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *SendFileRequest) GetArchive() bool {
+	if x != nil {
+		return x.Archive
+	}
+	return false
+}
+
+func (x *SendFileRequest) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// SendFileResponse is empty.
+type SendFileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SendFileResponse) Reset() {
+	*x = SendFileResponse{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SendFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SendFileResponse) ProtoMessage() {}
+
+func (x *SendFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SendFileResponse.ProtoReflect.Descriptor instead.
+func (*SendFileResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{85}
+}
+
 // ListFilesResult answers a ListFilesCall.
 type ListFilesResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4895,7 +6470,7 @@ type ListFilesResult struct {
 
 func (x *ListFilesResult) Reset() {
 	*x = ListFilesResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[63]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4907,7 +6482,7 @@ func (x *ListFilesResult) String() string {
 func (*ListFilesResult) ProtoMessage() {}
 
 func (x *ListFilesResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[63]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4920,7 +6495,7 @@ func (x *ListFilesResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListFilesResult.ProtoReflect.Descriptor instead.
 func (*ListFilesResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{63}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *ListFilesResult) GetListing() *v1.ListFilesResponse {
@@ -4950,7 +6525,7 @@ type ReadFileResult struct {
 
 func (x *ReadFileResult) Reset() {
 	*x = ReadFileResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[64]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4962,7 +6537,7 @@ func (x *ReadFileResult) String() string {
 func (*ReadFileResult) ProtoMessage() {}
 
 func (x *ReadFileResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[64]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4975,7 +6550,7 @@ func (x *ReadFileResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadFileResult.ProtoReflect.Descriptor instead.
 func (*ReadFileResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{64}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *ReadFileResult) GetFile() *v1.ReadFileResponse {
@@ -5005,7 +6580,7 @@ type SaveFileResult struct {
 
 func (x *SaveFileResult) Reset() {
 	*x = SaveFileResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5017,7 +6592,7 @@ func (x *SaveFileResult) String() string {
 func (*SaveFileResult) ProtoMessage() {}
 
 func (x *SaveFileResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[65]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5030,7 +6605,7 @@ func (x *SaveFileResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveFileResult.ProtoReflect.Descriptor instead.
 func (*SaveFileResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{65}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *SaveFileResult) GetSaved() *v1.SaveFileResponse {
@@ -5063,7 +6638,7 @@ type LogSourcesCall struct {
 
 func (x *LogSourcesCall) Reset() {
 	*x = LogSourcesCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5075,7 +6650,7 @@ func (x *LogSourcesCall) String() string {
 func (*LogSourcesCall) ProtoMessage() {}
 
 func (x *LogSourcesCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[66]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5088,7 +6663,7 @@ func (x *LogSourcesCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogSourcesCall.ProtoReflect.Descriptor instead.
 func (*LogSourcesCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{66}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *LogSourcesCall) GetResource() *v1.ResourceRef {
@@ -5126,7 +6701,7 @@ type ForgottenCall struct {
 
 func (x *ForgottenCall) Reset() {
 	*x = ForgottenCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5138,7 +6713,7 @@ func (x *ForgottenCall) String() string {
 func (*ForgottenCall) ProtoMessage() {}
 
 func (x *ForgottenCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[67]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5151,7 +6726,7 @@ func (x *ForgottenCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgottenCall.ProtoReflect.Descriptor instead.
 func (*ForgottenCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{67}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *ForgottenCall) GetServices() []*ForgottenService {
@@ -5176,7 +6751,7 @@ type ForgottenService struct {
 
 func (x *ForgottenService) Reset() {
 	*x = ForgottenService{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5188,7 +6763,7 @@ func (x *ForgottenService) String() string {
 func (*ForgottenService) ProtoMessage() {}
 
 func (x *ForgottenService) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[68]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5201,7 +6776,7 @@ func (x *ForgottenService) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgottenService.ProtoReflect.Descriptor instead.
 func (*ForgottenService) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{68}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *ForgottenService) GetResource() *v1.ResourceRef {
@@ -5234,7 +6809,7 @@ type ForgottenResult struct {
 
 func (x *ForgottenResult) Reset() {
 	*x = ForgottenResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[69]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5246,7 +6821,7 @@ func (x *ForgottenResult) String() string {
 func (*ForgottenResult) ProtoMessage() {}
 
 func (x *ForgottenResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[69]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5259,7 +6834,7 @@ func (x *ForgottenResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForgottenResult.ProtoReflect.Descriptor instead.
 func (*ForgottenResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{69}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{92}
 }
 
 // LogsCall asks the agent to read a service's logs.
@@ -5322,7 +6897,7 @@ type LogsCall struct {
 
 func (x *LogsCall) Reset() {
 	*x = LogsCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[70]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5334,7 +6909,7 @@ func (x *LogsCall) String() string {
 func (*LogsCall) ProtoMessage() {}
 
 func (x *LogsCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[70]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5347,7 +6922,7 @@ func (x *LogsCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsCall.ProtoReflect.Descriptor instead.
 func (*LogsCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{70}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *LogsCall) GetStream() uint64 {
@@ -5507,7 +7082,7 @@ type LogCursor struct {
 
 func (x *LogCursor) Reset() {
 	*x = LogCursor{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[71]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5519,7 +7094,7 @@ func (x *LogCursor) String() string {
 func (*LogCursor) ProtoMessage() {}
 
 func (x *LogCursor) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[71]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5532,7 +7107,7 @@ func (x *LogCursor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogCursor.ProtoReflect.Descriptor instead.
 func (*LogCursor) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{71}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *LogCursor) GetSourceId() string {
@@ -5579,7 +7154,7 @@ type LogScan struct {
 
 func (x *LogScan) Reset() {
 	*x = LogScan{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[72]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5591,7 +7166,7 @@ func (x *LogScan) String() string {
 func (*LogScan) ProtoMessage() {}
 
 func (x *LogScan) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[72]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5604,7 +7179,7 @@ func (x *LogScan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogScan.ProtoReflect.Descriptor instead.
 func (*LogScan) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{72}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *LogScan) GetSourceId() string {
@@ -5671,7 +7246,7 @@ type SendLogsRequest struct {
 
 func (x *SendLogsRequest) Reset() {
 	*x = SendLogsRequest{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[73]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5683,7 +7258,7 @@ func (x *SendLogsRequest) String() string {
 func (*SendLogsRequest) ProtoMessage() {}
 
 func (x *SendLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[73]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5696,7 +7271,7 @@ func (x *SendLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendLogsRequest.ProtoReflect.Descriptor instead.
 func (*SendLogsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{73}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *SendLogsRequest) GetStream() uint64 {
@@ -5750,7 +7325,7 @@ type SendLogsResponse struct {
 
 func (x *SendLogsResponse) Reset() {
 	*x = SendLogsResponse{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[74]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5762,7 +7337,7 @@ func (x *SendLogsResponse) String() string {
 func (*SendLogsResponse) ProtoMessage() {}
 
 func (x *SendLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[74]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5775,7 +7350,7 @@ func (x *SendLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendLogsResponse.ProtoReflect.Descriptor instead.
 func (*SendLogsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{74}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{97}
 }
 
 // PlanCall asks what moving each resource to its desired spec would take.
@@ -5790,7 +7365,7 @@ type PlanCall struct {
 
 func (x *PlanCall) Reset() {
 	*x = PlanCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[75]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5802,7 +7377,7 @@ func (x *PlanCall) String() string {
 func (*PlanCall) ProtoMessage() {}
 
 func (x *PlanCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[75]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5815,7 +7390,7 @@ func (x *PlanCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanCall.ProtoReflect.Descriptor instead.
 func (*PlanCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{75}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *PlanCall) GetDesired() []*DesiredResource {
@@ -5857,7 +7432,7 @@ type ApplyCall struct {
 
 func (x *ApplyCall) Reset() {
 	*x = ApplyCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[76]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5869,7 +7444,7 @@ func (x *ApplyCall) String() string {
 func (*ApplyCall) ProtoMessage() {}
 
 func (x *ApplyCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[76]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5882,7 +7457,7 @@ func (x *ApplyCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyCall.ProtoReflect.Descriptor instead.
 func (*ApplyCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{76}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{99}
 }
 
 func (x *ApplyCall) GetStep() *v1.PlanStep {
@@ -5950,7 +7525,7 @@ type Deploy struct {
 
 func (x *Deploy) Reset() {
 	*x = Deploy{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[77]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5962,7 +7537,7 @@ func (x *Deploy) String() string {
 func (*Deploy) ProtoMessage() {}
 
 func (x *Deploy) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[77]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5975,7 +7550,7 @@ func (x *Deploy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Deploy.ProtoReflect.Descriptor instead.
 func (*Deploy) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{77}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *Deploy) GetRevision() int64 {
@@ -6011,7 +7586,7 @@ type Values struct {
 
 func (x *Values) Reset() {
 	*x = Values{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[78]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6023,7 +7598,7 @@ func (x *Values) String() string {
 func (*Values) ProtoMessage() {}
 
 func (x *Values) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[78]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6036,7 +7611,7 @@ func (x *Values) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Values.ProtoReflect.Descriptor instead.
 func (*Values) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{78}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *Values) GetValues() map[string]string {
@@ -6057,7 +7632,7 @@ type ObserveCall struct {
 
 func (x *ObserveCall) Reset() {
 	*x = ObserveCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[79]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6069,7 +7644,7 @@ func (x *ObserveCall) String() string {
 func (*ObserveCall) ProtoMessage() {}
 
 func (x *ObserveCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[79]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6082,7 +7657,7 @@ func (x *ObserveCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObserveCall.ProtoReflect.Descriptor instead.
 func (*ObserveCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{79}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *ObserveCall) GetResources() []*v1.ResourceRef {
@@ -6131,7 +7706,7 @@ type DesiredResource struct {
 
 func (x *DesiredResource) Reset() {
 	*x = DesiredResource{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[80]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6143,7 +7718,7 @@ func (x *DesiredResource) String() string {
 func (*DesiredResource) ProtoMessage() {}
 
 func (x *DesiredResource) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[80]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6156,7 +7731,7 @@ func (x *DesiredResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DesiredResource.ProtoReflect.Descriptor instead.
 func (*DesiredResource) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{80}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *DesiredResource) GetResource() *v1.ResourceRef {
@@ -6240,7 +7815,7 @@ type CancelCall struct {
 
 func (x *CancelCall) Reset() {
 	*x = CancelCall{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[81]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6252,7 +7827,7 @@ func (x *CancelCall) String() string {
 func (*CancelCall) ProtoMessage() {}
 
 func (x *CancelCall) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[81]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6265,7 +7840,7 @@ func (x *CancelCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelCall.ProtoReflect.Descriptor instead.
 func (*CancelCall) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{81}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{104}
 }
 
 func (x *CancelCall) GetId() uint64 {
@@ -6313,6 +7888,16 @@ type CallResult struct {
 	//	*CallResult_TaskRuns
 	//	*CallResult_RunTask
 	//	*CallResult_ReadOnepanel
+	//	*CallResult_MakeFile
+	//	*CallResult_MoveFile
+	//	*CallResult_DeleteFile
+	//	*CallResult_ListDeleted
+	//	*CallResult_RestoreFile
+	//	*CallResult_PurgeDeleted
+	//	*CallResult_BeginUpload
+	//	*CallResult_WriteUpload
+	//	*CallResult_FinishUpload
+	//	*CallResult_DownloadFile
 	Result        isCallResult_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6320,7 +7905,7 @@ type CallResult struct {
 
 func (x *CallResult) Reset() {
 	*x = CallResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[82]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6332,7 +7917,7 @@ func (x *CallResult) String() string {
 func (*CallResult) ProtoMessage() {}
 
 func (x *CallResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[82]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6345,7 +7930,7 @@ func (x *CallResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallResult.ProtoReflect.Descriptor instead.
 func (*CallResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{82}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *CallResult) GetId() uint64 {
@@ -6623,6 +8208,96 @@ func (x *CallResult) GetReadOnepanel() *ReadOnePanelResult {
 	return nil
 }
 
+func (x *CallResult) GetMakeFile() *MakeFileResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_MakeFile); ok {
+			return x.MakeFile
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetMoveFile() *MoveFileResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_MoveFile); ok {
+			return x.MoveFile
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetDeleteFile() *DeleteFileResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_DeleteFile); ok {
+			return x.DeleteFile
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetListDeleted() *ListDeletedResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_ListDeleted); ok {
+			return x.ListDeleted
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetRestoreFile() *RestoreFileResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_RestoreFile); ok {
+			return x.RestoreFile
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetPurgeDeleted() *PurgeDeletedResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_PurgeDeleted); ok {
+			return x.PurgeDeleted
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetBeginUpload() *UploadResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_BeginUpload); ok {
+			return x.BeginUpload
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetWriteUpload() *UploadResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_WriteUpload); ok {
+			return x.WriteUpload
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetFinishUpload() *FinishUploadResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_FinishUpload); ok {
+			return x.FinishUpload
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetDownloadFile() *DownloadFileResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_DownloadFile); ok {
+			return x.DownloadFile
+		}
+	}
+	return nil
+}
+
 type isCallResult_Result interface {
 	isCallResult_Result()
 }
@@ -6775,6 +8450,56 @@ type CallResult_ReadOnepanel struct {
 	ReadOnepanel *ReadOnePanelResult `protobuf:"bytes,180,opt,name=read_onepanel,json=readOnepanel,proto3,oneof"`
 }
 
+type CallResult_MakeFile struct {
+	// What make_file made. Numbered apart, as open work adds to this message.
+	MakeFile *MakeFileResult `protobuf:"bytes,120,opt,name=make_file,json=makeFile,proto3,oneof"`
+}
+
+type CallResult_MoveFile struct {
+	// Where move_file moved it.
+	MoveFile *MoveFileResult `protobuf:"bytes,121,opt,name=move_file,json=moveFile,proto3,oneof"`
+}
+
+type CallResult_DeleteFile struct {
+	// What delete_file deleted.
+	DeleteFile *DeleteFileResult `protobuf:"bytes,122,opt,name=delete_file,json=deleteFile,proto3,oneof"`
+}
+
+type CallResult_ListDeleted struct {
+	// What list_deleted found.
+	ListDeleted *ListDeletedResult `protobuf:"bytes,123,opt,name=list_deleted,json=listDeleted,proto3,oneof"`
+}
+
+type CallResult_RestoreFile struct {
+	// Where restore_file put it back.
+	RestoreFile *RestoreFileResult `protobuf:"bytes,124,opt,name=restore_file,json=restoreFile,proto3,oneof"`
+}
+
+type CallResult_PurgeDeleted struct {
+	// What purge_deleted deleted for good.
+	PurgeDeleted *PurgeDeletedResult `protobuf:"bytes,125,opt,name=purge_deleted,json=purgeDeleted,proto3,oneof"`
+}
+
+type CallResult_BeginUpload struct {
+	// The upload begin_upload started or found.
+	BeginUpload *UploadResult `protobuf:"bytes,126,opt,name=begin_upload,json=beginUpload,proto3,oneof"`
+}
+
+type CallResult_WriteUpload struct {
+	// How far write_upload got.
+	WriteUpload *UploadResult `protobuf:"bytes,127,opt,name=write_upload,json=writeUpload,proto3,oneof"`
+}
+
+type CallResult_FinishUpload struct {
+	// What finish_upload put in place.
+	FinishUpload *FinishUploadResult `protobuf:"bytes,128,opt,name=finish_upload,json=finishUpload,proto3,oneof"`
+}
+
+type CallResult_DownloadFile struct {
+	// What download_file sent.
+	DownloadFile *DownloadFileResult `protobuf:"bytes,129,opt,name=download_file,json=downloadFile,proto3,oneof"`
+}
+
 func (*CallResult_Error) isCallResult_Result() {}
 
 func (*CallResult_Plan) isCallResult_Result() {}
@@ -6833,6 +8558,26 @@ func (*CallResult_RunTask) isCallResult_Result() {}
 
 func (*CallResult_ReadOnepanel) isCallResult_Result() {}
 
+func (*CallResult_MakeFile) isCallResult_Result() {}
+
+func (*CallResult_MoveFile) isCallResult_Result() {}
+
+func (*CallResult_DeleteFile) isCallResult_Result() {}
+
+func (*CallResult_ListDeleted) isCallResult_Result() {}
+
+func (*CallResult_RestoreFile) isCallResult_Result() {}
+
+func (*CallResult_PurgeDeleted) isCallResult_Result() {}
+
+func (*CallResult_BeginUpload) isCallResult_Result() {}
+
+func (*CallResult_WriteUpload) isCallResult_Result() {}
+
+func (*CallResult_FinishUpload) isCallResult_Result() {}
+
+func (*CallResult_DownloadFile) isCallResult_Result() {}
+
 // ProbeResult says whether what a probe asked answered.
 type ProbeResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -6848,7 +8593,7 @@ type ProbeResult struct {
 
 func (x *ProbeResult) Reset() {
 	*x = ProbeResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[83]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6860,7 +8605,7 @@ func (x *ProbeResult) String() string {
 func (*ProbeResult) ProtoMessage() {}
 
 func (x *ProbeResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[83]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6873,7 +8618,7 @@ func (x *ProbeResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProbeResult.ProtoReflect.Descriptor instead.
 func (*ProbeResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{83}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *ProbeResult) GetAnswered() bool {
@@ -6921,7 +8666,7 @@ type AdoptionResult struct {
 
 func (x *AdoptionResult) Reset() {
 	*x = AdoptionResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[84]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6933,7 +8678,7 @@ func (x *AdoptionResult) String() string {
 func (*AdoptionResult) ProtoMessage() {}
 
 func (x *AdoptionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[84]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6946,7 +8691,7 @@ func (x *AdoptionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdoptionResult.ProtoReflect.Descriptor instead.
 func (*AdoptionResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{84}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *AdoptionResult) GetSpec() []byte {
@@ -7019,7 +8764,7 @@ type BackupPreviewResult struct {
 
 func (x *BackupPreviewResult) Reset() {
 	*x = BackupPreviewResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[85]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7031,7 +8776,7 @@ func (x *BackupPreviewResult) String() string {
 func (*BackupPreviewResult) ProtoMessage() {}
 
 func (x *BackupPreviewResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[85]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7044,7 +8789,7 @@ func (x *BackupPreviewResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupPreviewResult.ProtoReflect.Descriptor instead.
 func (*BackupPreviewResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{85}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *BackupPreviewResult) GetMethod() v1.BackupMethod {
@@ -7110,7 +8855,7 @@ type BackupResult struct {
 
 func (x *BackupResult) Reset() {
 	*x = BackupResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[86]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7122,7 +8867,7 @@ func (x *BackupResult) String() string {
 func (*BackupResult) ProtoMessage() {}
 
 func (x *BackupResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[86]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7135,7 +8880,7 @@ func (x *BackupResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupResult.ProtoReflect.Descriptor instead.
 func (*BackupResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{86}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *BackupResult) GetMethod() v1.BackupMethod {
@@ -7193,7 +8938,7 @@ type SendBackupResult struct {
 
 func (x *SendBackupResult) Reset() {
 	*x = SendBackupResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[87]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7205,7 +8950,7 @@ func (x *SendBackupResult) String() string {
 func (*SendBackupResult) ProtoMessage() {}
 
 func (x *SendBackupResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[87]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7218,7 +8963,7 @@ func (x *SendBackupResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendBackupResult.ProtoReflect.Descriptor instead.
 func (*SendBackupResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{87}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *SendBackupResult) GetKey() string {
@@ -7246,7 +8991,7 @@ type DeleteBackupResult struct {
 
 func (x *DeleteBackupResult) Reset() {
 	*x = DeleteBackupResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[88]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7258,7 +9003,7 @@ func (x *DeleteBackupResult) String() string {
 func (*DeleteBackupResult) ProtoMessage() {}
 
 func (x *DeleteBackupResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[88]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7271,7 +9016,7 @@ func (x *DeleteBackupResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteBackupResult.ProtoReflect.Descriptor instead.
 func (*DeleteBackupResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{88}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *DeleteBackupResult) GetCopyError() string {
@@ -7293,7 +9038,7 @@ type DatabaseResult struct {
 
 func (x *DatabaseResult) Reset() {
 	*x = DatabaseResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[89]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7305,7 +9050,7 @@ func (x *DatabaseResult) String() string {
 func (*DatabaseResult) ProtoMessage() {}
 
 func (x *DatabaseResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[89]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7318,7 +9063,7 @@ func (x *DatabaseResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DatabaseResult.ProtoReflect.Descriptor instead.
 func (*DatabaseResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{89}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *DatabaseResult) GetReadings() []*v1.DatabaseReading {
@@ -7345,7 +9090,7 @@ type ContainersResult struct {
 
 func (x *ContainersResult) Reset() {
 	*x = ContainersResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[90]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7357,7 +9102,7 @@ func (x *ContainersResult) String() string {
 func (*ContainersResult) ProtoMessage() {}
 
 func (x *ContainersResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[90]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7370,7 +9115,7 @@ func (x *ContainersResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainersResult.ProtoReflect.Descriptor instead.
 func (*ContainersResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{90}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *ContainersResult) GetContainers() []*v1.ServerContainer {
@@ -7405,7 +9150,7 @@ type LogSourcesResult struct {
 
 func (x *LogSourcesResult) Reset() {
 	*x = LogSourcesResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[91]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7417,7 +9162,7 @@ func (x *LogSourcesResult) String() string {
 func (*LogSourcesResult) ProtoMessage() {}
 
 func (x *LogSourcesResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[91]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7430,7 +9175,7 @@ func (x *LogSourcesResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogSourcesResult.ProtoReflect.Descriptor instead.
 func (*LogSourcesResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{91}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *LogSourcesResult) GetSources() []*v1.LogSource {
@@ -7449,7 +9194,7 @@ type LogsResult struct {
 
 func (x *LogsResult) Reset() {
 	*x = LogsResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[92]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7461,7 +9206,7 @@ func (x *LogsResult) String() string {
 func (*LogsResult) ProtoMessage() {}
 
 func (x *LogsResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[92]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7474,7 +9219,7 @@ func (x *LogsResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogsResult.ProtoReflect.Descriptor instead.
 func (*LogsResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{92}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{115}
 }
 
 // CallError says why a call failed.
@@ -7508,7 +9253,7 @@ type CallError struct {
 
 func (x *CallError) Reset() {
 	*x = CallError{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[93]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7520,7 +9265,7 @@ func (x *CallError) String() string {
 func (*CallError) ProtoMessage() {}
 
 func (x *CallError) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[93]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7533,7 +9278,7 @@ func (x *CallError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallError.ProtoReflect.Descriptor instead.
 func (*CallError) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{93}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *CallError) GetMessage() string {
@@ -7598,7 +9343,7 @@ type PlanResult struct {
 
 func (x *PlanResult) Reset() {
 	*x = PlanResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[94]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7610,7 +9355,7 @@ func (x *PlanResult) String() string {
 func (*PlanResult) ProtoMessage() {}
 
 func (x *PlanResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[94]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7623,7 +9368,7 @@ func (x *PlanResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanResult.ProtoReflect.Descriptor instead.
 func (*PlanResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{94}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *PlanResult) GetSteps() []*v1.PlanStep {
@@ -7659,7 +9404,7 @@ type PathVia struct {
 
 func (x *PathVia) Reset() {
 	*x = PathVia{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[95]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7671,7 +9416,7 @@ func (x *PathVia) String() string {
 func (*PathVia) ProtoMessage() {}
 
 func (x *PathVia) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[95]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7684,7 +9429,7 @@ func (x *PathVia) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PathVia.ProtoReflect.Descriptor instead.
 func (*PathVia) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{95}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *PathVia) GetPath() string {
@@ -7717,7 +9462,7 @@ type UnmanagedMounts struct {
 
 func (x *UnmanagedMounts) Reset() {
 	*x = UnmanagedMounts{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[96]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7729,7 +9474,7 @@ func (x *UnmanagedMounts) String() string {
 func (*UnmanagedMounts) ProtoMessage() {}
 
 func (x *UnmanagedMounts) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[96]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7742,7 +9487,7 @@ func (x *UnmanagedMounts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnmanagedMounts.ProtoReflect.Descriptor instead.
 func (*UnmanagedMounts) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{96}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *UnmanagedMounts) GetName() string {
@@ -7775,7 +9520,7 @@ type ApplyResult struct {
 
 func (x *ApplyResult) Reset() {
 	*x = ApplyResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[97]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7787,7 +9532,7 @@ func (x *ApplyResult) String() string {
 func (*ApplyResult) ProtoMessage() {}
 
 func (x *ApplyResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[97]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7800,7 +9545,7 @@ func (x *ApplyResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyResult.ProtoReflect.Descriptor instead.
 func (*ApplyResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{97}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{120}
 }
 
 // ObserveResult carries an observe call's resources.
@@ -7814,7 +9559,7 @@ type ObserveResult struct {
 
 func (x *ObserveResult) Reset() {
 	*x = ObserveResult{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[98]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7826,7 +9571,7 @@ func (x *ObserveResult) String() string {
 func (*ObserveResult) ProtoMessage() {}
 
 func (x *ObserveResult) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[98]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7839,7 +9584,7 @@ func (x *ObserveResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObserveResult.ProtoReflect.Descriptor instead.
 func (*ObserveResult) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{98}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *ObserveResult) GetResources() []*ObservedResource {
@@ -7861,7 +9606,7 @@ type ObservedResource struct {
 
 func (x *ObservedResource) Reset() {
 	*x = ObservedResource{}
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[99]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7873,7 +9618,7 @@ func (x *ObservedResource) String() string {
 func (*ObservedResource) ProtoMessage() {}
 
 func (x *ObservedResource) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[99]
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7886,7 +9631,7 @@ func (x *ObservedResource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ObservedResource.ProtoReflect.Descriptor instead.
 func (*ObservedResource) Descriptor() ([]byte, []int) {
-	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{99}
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *ObservedResource) GetSpec() []byte {
@@ -7966,7 +9711,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\n" +
 	"\n" +
-	"\bDraining\"\x9e\x04\n" +
+	"\bDraining\"\xec\x04\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -7980,7 +9725,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tterminals\x182 \x01(\bR\tterminals\x12%\n" +
 	"\x0eopen_terminals\x183 \x03(\tR\ropenTerminals\x12/\n" +
 	"\x13container_terminals\x184 \x01(\bR\x12containerTerminals\x12&\n" +
-	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\"\xee\x02\n" +
+	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x12#\n" +
+	"\rmanages_files\x18x \x01(\bR\fmanagesFiles\x12'\n" +
+	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\"\xee\x02\n" +
 	"\x0fConnectResponse\x126\n" +
 	"\awelcome\x18\x01 \x01(\v2\x1a.dockwell.agent.v1.WelcomeH\x00R\awelcome\x12-\n" +
 	"\x04call\x18\x02 \x01(\v2\x17.dockwell.agent.v1.CallH\x00R\x04call\x127\n" +
@@ -8028,7 +9775,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x17RenewCertificateRequest\x12\x10\n" +
 	"\x03csr\x18\x01 \x01(\fR\x03csr\"<\n" +
 	"\x18RenewCertificateResponse\x12 \n" +
-	"\vcertificate\x18\x01 \x01(\fR\vcertificate\"\x99\x0f\n" +
+	"\vcertificate\x18\x01 \x01(\fR\vcertificate\"\xe9\x14\n" +
 	"\x04Call\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x123\n" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x121\n" +
@@ -8066,7 +9813,18 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0eclose_terminal\x184 \x01(\v2$.dockwell.agent.v1.CloseTerminalCallH\x00R\rcloseTerminal\x12?\n" +
 	"\ttask_runs\x18\x96\x01 \x01(\v2\x1f.dockwell.agent.v1.TaskRunsCallH\x00R\btaskRuns\x12<\n" +
 	"\brun_task\x18\x97\x01 \x01(\v2\x1e.dockwell.agent.v1.RunTaskCallH\x00R\arunTask\x12K\n" +
-	"\rread_onepanel\x18\xb4\x01 \x01(\v2#.dockwell.agent.v1.ReadOnePanelCallH\x00R\freadOnepanelB\x06\n" +
+	"\rread_onepanel\x18\xb4\x01 \x01(\v2#.dockwell.agent.v1.ReadOnePanelCallH\x00R\freadOnepanel\x12>\n" +
+	"\tmake_file\x18x \x01(\v2\x1f.dockwell.agent.v1.MakeFileCallH\x00R\bmakeFile\x12>\n" +
+	"\tmove_file\x18y \x01(\v2\x1f.dockwell.agent.v1.MoveFileCallH\x00R\bmoveFile\x12D\n" +
+	"\vdelete_file\x18z \x01(\v2!.dockwell.agent.v1.DeleteFileCallH\x00R\n" +
+	"deleteFile\x12G\n" +
+	"\flist_deleted\x18{ \x01(\v2\".dockwell.agent.v1.ListDeletedCallH\x00R\vlistDeleted\x12G\n" +
+	"\frestore_file\x18| \x01(\v2\".dockwell.agent.v1.RestoreFileCallH\x00R\vrestoreFile\x12J\n" +
+	"\rpurge_deleted\x18} \x01(\v2#.dockwell.agent.v1.PurgeDeletedCallH\x00R\fpurgeDeleted\x12G\n" +
+	"\fbegin_upload\x18~ \x01(\v2\".dockwell.agent.v1.BeginUploadCallH\x00R\vbeginUpload\x12G\n" +
+	"\fwrite_upload\x18\x7f \x01(\v2\".dockwell.agent.v1.WriteUploadCallH\x00R\vwriteUpload\x12K\n" +
+	"\rfinish_upload\x18\x80\x01 \x01(\v2#.dockwell.agent.v1.FinishUploadCallH\x00R\ffinishUpload\x12K\n" +
+	"\rdownload_file\x18\x81\x01 \x01(\v2#.dockwell.agent.v1.DownloadFileCallH\x00R\fdownloadFileB\x06\n" +
 	"\x04call\"?\n" +
 	"\tProbeCall\x12\x14\n" +
 	"\x04port\x18\x01 \x01(\rH\x00R\x04port\x12\x12\n" +
@@ -8189,11 +9947,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x12%\n" +
-	"\x0econfirmed_path\x18\x05 \x01(\tR\rconfirmedPath\"\xce\x02\n" +
+	"\x0econfirmed_path\x18\x05 \x01(\tR\rconfirmedPath\"\x95\x04\n" +
 	"\vFileRefusal\x127\n" +
 	"\x04kind\x18\x01 \x01(\x0e2#.dockwell.agent.v1.FileRefusal.KindR\x04kind\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x12\n" +
-	"\x04path\x18\x03 \x01(\tR\x04path\"\xd7\x01\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"\x9e\x03\n" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eKIND_NOT_FOUND\x10\x01\x12\x10\n" +
@@ -8204,7 +9962,96 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x12KIND_NOT_ANSWERING\x10\x06\x12\x10\n" +
 	"\fKIND_CHANGED\x10\a\x12\x11\n" +
 	"\rKIND_MAY_LAND\x10\b\x12\x16\n" +
-	"\x12KIND_NEEDS_STEP_UP\x10\t\"\x85\x01\n" +
+	"\x12KIND_NEEDS_STEP_UP\x10\t\x12\x0f\n" +
+	"\vKIND_EXISTS\x10x\x12\x13\n" +
+	"\x0fKIND_OTHER_DISK\x10y\x12\x11\n" +
+	"\rKIND_FOR_GOOD\x10z\x12\x14\n" +
+	"\x10KIND_FOLDER_GONE\x10{\x12\x12\n" +
+	"\x0eKIND_TOO_LARGE\x10|\x12\x14\n" +
+	"\x10KIND_UPLOAD_GONE\x10}\x12\x0f\n" +
+	"\vKIND_OFFSET\x10~\x12\x17\n" +
+	"\x13KIND_UNPACK_REFUSED\x10\x7f\x12\x0e\n" +
+	"\tKIND_BUSY\x10\x80\x01\x12\x12\n" +
+	"\rKIND_NO_SPACE\x10\x81\x01\"t\n" +
+	"\fMakeFileCall\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12)\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12%\n" +
+	"\x0econfirmed_path\x18\x03 \x01(\tR\rconfirmedPath\"}\n" +
+	"\x0eMakeFileResult\x121\n" +
+	"\x04made\x18\x01 \x01(\v2\x1d.dockwell.v1.MakeFileResponseR\x04made\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"|\n" +
+	"\fMoveFileCall\x12\x12\n" +
+	"\x04from\x18\x01 \x01(\tR\x04from\x12\x0e\n" +
+	"\x02to\x18\x02 \x01(\tR\x02to\x12%\n" +
+	"\x0econfirmed_from\x18\x03 \x01(\tR\rconfirmedFrom\x12!\n" +
+	"\fconfirmed_to\x18\x04 \x01(\tR\vconfirmedTo\"\x7f\n" +
+	"\x0eMoveFileResult\x123\n" +
+	"\x05moved\x18\x01 \x01(\v2\x1d.dockwell.v1.MoveFileResponseR\x05moved\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"f\n" +
+	"\x0eDeleteFileCall\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x19\n" +
+	"\bfor_good\x18\x02 \x01(\bR\aforGood\x12%\n" +
+	"\x0econfirmed_path\x18\x03 \x01(\tR\rconfirmedPath\"\x87\x01\n" +
+	"\x10DeleteFileResult\x129\n" +
+	"\adeleted\x18\x01 \x01(\v2\x1f.dockwell.v1.DeleteFileResponseR\adeleted\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"\x11\n" +
+	"\x0fListDeletedCall\"T\n" +
+	"\x11ListDeletedResult\x12?\n" +
+	"\alisting\x18\x01 \x01(\v2%.dockwell.v1.ListDeletedFilesResponseR\alisting\"H\n" +
+	"\x0fRestoreFileCall\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
+	"\x0econfirmed_path\x18\x02 \x01(\tR\rconfirmedPath\"\x8b\x01\n" +
+	"\x11RestoreFileResult\x12<\n" +
+	"\brestored\x18\x01 \x01(\v2 .dockwell.v1.RestoreFileResponseR\brestored\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"\"\n" +
+	"\x10PurgeDeletedCall\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x80\x01\n" +
+	"\x12PurgeDeletedResult\x120\n" +
+	"\x06purged\x18\x01 \x01(\v2\x18.dockwell.v1.DeletedFileR\x06purged\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"\xcb\x01\n" +
+	"\x0fBeginUploadCall\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x02 \x01(\x04R\tsizeBytes\x12%\n" +
+	"\x0econfirmed_path\x18\x03 \x01(\tR\rconfirmedPath\x12\x1b\n" +
+	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12+\n" +
+	"\x06unpack\x18\x05 \x01(\x0e2\x13.dockwell.v1.UnpackR\x06unpack\x12\x14\n" +
+	"\x05owner\x18\x06 \x01(\tR\x05owner\"u\n" +
+	"\fUploadResult\x12+\n" +
+	"\x06upload\x18\x01 \x01(\v2\x13.dockwell.v1.UploadR\x06upload\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"t\n" +
+	"\x0fWriteUploadCall\x12\x16\n" +
+	"\x06stream\x18\x01 \x01(\x04R\x06stream\x12\x1b\n" +
+	"\tupload_id\x18\x02 \x01(\tR\buploadId\x12\x16\n" +
+	"\x06offset\x18\x03 \x01(\x04R\x06offset\x12\x14\n" +
+	"\x05owner\x18\x04 \x01(\tR\x05owner\"]\n" +
+	"\x10FinishUploadCall\x12\x1b\n" +
+	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x14\n" +
+	"\x05owner\x18\x02 \x01(\tR\x05owner\x12\x16\n" +
+	"\x06cancel\x18\x03 \x01(\bR\x06cancel\"\x8d\x01\n" +
+	"\x12FinishUploadResult\x12=\n" +
+	"\bfinished\x18\x01 \x01(\v2!.dockwell.v1.FinishUploadResponseR\bfinished\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\">\n" +
+	"\x10DownloadFileCall\x12\x16\n" +
+	"\x06stream\x18\x01 \x01(\x04R\x06stream\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"m\n" +
+	"\x12DownloadFileResult\x12\x1d\n" +
+	"\n" +
+	"sent_bytes\x18\x01 \x01(\x04R\tsentBytes\x128\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\",\n" +
+	"\x12ReceiveFileRequest\x12\x16\n" +
+	"\x06stream\x18\x01 \x01(\x04R\x06stream\")\n" +
+	"\x13ReceiveFileResponse\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\x9e\x01\n" +
+	"\x0fSendFileRequest\x12\x16\n" +
+	"\x06stream\x18\x01 \x01(\x04R\x06stream\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"size_bytes\x18\x03 \x01(\x04R\tsizeBytes\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12\x18\n" +
+	"\aarchive\x18\x05 \x01(\bR\aarchive\x12\x12\n" +
+	"\x04data\x18\x06 \x01(\fR\x04data\"\x12\n" +
+	"\x10SendFileResponse\"\x85\x01\n" +
 	"\x0fListFilesResult\x128\n" +
 	"\alisting\x18\x01 \x01(\v2\x1e.dockwell.v1.ListFilesResponseR\alisting\x128\n" +
 	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"}\n" +
@@ -8309,7 +10156,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05_spec\"\x1c\n" +
 	"\n" +
 	"CancelCall\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id\"\xcf\x0f\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"\xa9\x15\n" +
 	"\n" +
 	"CallResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x124\n" +
@@ -8348,7 +10195,18 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0eclose_terminal\x184 \x01(\v2&.dockwell.agent.v1.CloseTerminalResultH\x00R\rcloseTerminal\x12A\n" +
 	"\ttask_runs\x18\x96\x01 \x01(\v2!.dockwell.agent.v1.TaskRunsResultH\x00R\btaskRuns\x12>\n" +
 	"\brun_task\x18\x97\x01 \x01(\v2 .dockwell.agent.v1.RunTaskResultH\x00R\arunTask\x12M\n" +
-	"\rread_onepanel\x18\xb4\x01 \x01(\v2%.dockwell.agent.v1.ReadOnePanelResultH\x00R\freadOnepanelB\b\n" +
+	"\rread_onepanel\x18\xb4\x01 \x01(\v2%.dockwell.agent.v1.ReadOnePanelResultH\x00R\freadOnepanel\x12@\n" +
+	"\tmake_file\x18x \x01(\v2!.dockwell.agent.v1.MakeFileResultH\x00R\bmakeFile\x12@\n" +
+	"\tmove_file\x18y \x01(\v2!.dockwell.agent.v1.MoveFileResultH\x00R\bmoveFile\x12F\n" +
+	"\vdelete_file\x18z \x01(\v2#.dockwell.agent.v1.DeleteFileResultH\x00R\n" +
+	"deleteFile\x12I\n" +
+	"\flist_deleted\x18{ \x01(\v2$.dockwell.agent.v1.ListDeletedResultH\x00R\vlistDeleted\x12I\n" +
+	"\frestore_file\x18| \x01(\v2$.dockwell.agent.v1.RestoreFileResultH\x00R\vrestoreFile\x12L\n" +
+	"\rpurge_deleted\x18} \x01(\v2%.dockwell.agent.v1.PurgeDeletedResultH\x00R\fpurgeDeleted\x12D\n" +
+	"\fbegin_upload\x18~ \x01(\v2\x1f.dockwell.agent.v1.UploadResultH\x00R\vbeginUpload\x12D\n" +
+	"\fwrite_upload\x18\x7f \x01(\v2\x1f.dockwell.agent.v1.UploadResultH\x00R\vwriteUpload\x12M\n" +
+	"\rfinish_upload\x18\x80\x01 \x01(\v2%.dockwell.agent.v1.FinishUploadResultH\x00R\ffinishUpload\x12M\n" +
+	"\rdownload_file\x18\x81\x01 \x01(\v2%.dockwell.agent.v1.DownloadFileResultH\x00R\fdownloadFileB\b\n" +
 	"\x06result\"=\n" +
 	"\vProbeResult\x12\x1a\n" +
 	"\banswered\x18\x01 \x01(\bR\banswered\x12\x12\n" +
@@ -8421,13 +10279,15 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tresources\x18\x01 \x03(\v2#.dockwell.agent.v1.ObservedResourceR\tresources\"4\n" +
 	"\x10ObservedResource\x12\x17\n" +
 	"\x04spec\x18\x01 \x01(\fH\x00R\x04spec\x88\x01\x01B\a\n" +
-	"\x05_spec2\xe8\x03\n" +
+	"\x05_spec2\xab\x05\n" +
 	"\fAgentService\x12M\n" +
 	"\x04Join\x12\x1e.dockwell.agent.v1.JoinRequest\x1a\x1f.dockwell.agent.v1.JoinResponse\"\x04\xa0\xbb\x18\x03\x12q\n" +
 	"\x10RenewCertificate\x12*.dockwell.agent.v1.RenewCertificateRequest\x1a+.dockwell.agent.v1.RenewCertificateResponse\"\x04\xa0\xbb\x18\x03\x12Z\n" +
 	"\aConnect\x12!.dockwell.agent.v1.ConnectRequest\x1a\".dockwell.agent.v1.ConnectResponse\"\x04\xa0\xbb\x18\x03(\x010\x01\x12[\n" +
 	"\bSendLogs\x12\".dockwell.agent.v1.SendLogsRequest\x1a#.dockwell.agent.v1.SendLogsResponse\"\x04\xa0\xbb\x18\x01(\x01\x12]\n" +
-	"\bTerminal\x12\".dockwell.agent.v1.TerminalRequest\x1a#.dockwell.agent.v1.TerminalResponse\"\x04\xa0\xbb\x18\x04(\x010\x01B\xc5\x01\n" +
+	"\bTerminal\x12\".dockwell.agent.v1.TerminalRequest\x1a#.dockwell.agent.v1.TerminalResponse\"\x04\xa0\xbb\x18\x04(\x010\x01\x12d\n" +
+	"\vReceiveFile\x12%.dockwell.agent.v1.ReceiveFileRequest\x1a&.dockwell.agent.v1.ReceiveFileResponse\"\x04\xa0\xbb\x18\x030\x01\x12[\n" +
+	"\bSendFile\x12\".dockwell.agent.v1.SendFileRequest\x1a#.dockwell.agent.v1.SendFileResponse\"\x04\xa0\xbb\x18\x01(\x01B\xc5\x01\n" +
 	"\x15com.dockwell.agent.v1B\n" +
 	"AgentProtoP\x01Z:github.com/dockwell/dockwell/gen/dockwell/agent/v1;agentv1\xa2\x02\x03DAX\xaa\x02\x11Dockwell.Agent.V1\xca\x02\x11Dockwell\\Agent\\V1\xe2\x02\x1dDockwell\\Agent\\V1\\GPBMetadata\xea\x02\x13Dockwell::Agent::V1b\x06proto3"
 
@@ -8444,146 +10304,179 @@ func file_dockwell_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 102)
+var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 125)
 var file_dockwell_agent_v1_agent_proto_goTypes = []any{
-	(FileRefusal_Kind)(0),            // 0: dockwell.agent.v1.FileRefusal.Kind
-	(*ConnectRequest)(nil),           // 1: dockwell.agent.v1.ConnectRequest
-	(*TaskRunsReady)(nil),            // 2: dockwell.agent.v1.TaskRunsReady
-	(*TerminalEnded)(nil),            // 3: dockwell.agent.v1.TerminalEnded
-	(*Unstuck)(nil),                  // 4: dockwell.agent.v1.Unstuck
-	(*SaveEnded)(nil),                // 5: dockwell.agent.v1.SaveEnded
-	(*Network)(nil),                  // 6: dockwell.agent.v1.Network
-	(*Health)(nil),                   // 7: dockwell.agent.v1.Health
-	(*Domains)(nil),                  // 8: dockwell.agent.v1.Domains
-	(*CallProgress)(nil),             // 9: dockwell.agent.v1.CallProgress
-	(*StepOutcome)(nil),              // 10: dockwell.agent.v1.StepOutcome
-	(*Kinds)(nil),                    // 11: dockwell.agent.v1.Kinds
-	(*UnavailableKind)(nil),          // 12: dockwell.agent.v1.UnavailableKind
-	(*Draining)(nil),                 // 13: dockwell.agent.v1.Draining
-	(*Hello)(nil),                    // 14: dockwell.agent.v1.Hello
-	(*ConnectResponse)(nil),          // 15: dockwell.agent.v1.ConnectResponse
-	(*Pace)(nil),                     // 16: dockwell.agent.v1.Pace
-	(*PublicAddress)(nil),            // 17: dockwell.agent.v1.PublicAddress
-	(*KnownAddress)(nil),             // 18: dockwell.agent.v1.KnownAddress
-	(*Drained)(nil),                  // 19: dockwell.agent.v1.Drained
-	(*Welcome)(nil),                  // 20: dockwell.agent.v1.Welcome
-	(*JoinTicket)(nil),               // 21: dockwell.agent.v1.JoinTicket
-	(*JoinRequest)(nil),              // 22: dockwell.agent.v1.JoinRequest
-	(*JoinResponse)(nil),             // 23: dockwell.agent.v1.JoinResponse
-	(*RenewCertificateRequest)(nil),  // 24: dockwell.agent.v1.RenewCertificateRequest
-	(*RenewCertificateResponse)(nil), // 25: dockwell.agent.v1.RenewCertificateResponse
-	(*Call)(nil),                     // 26: dockwell.agent.v1.Call
-	(*ProbeCall)(nil),                // 27: dockwell.agent.v1.ProbeCall
-	(*ProcessesCall)(nil),            // 28: dockwell.agent.v1.ProcessesCall
-	(*ProcessesResult)(nil),          // 29: dockwell.agent.v1.ProcessesResult
-	(*EndProcessCall)(nil),           // 30: dockwell.agent.v1.EndProcessCall
-	(*EndProcessResult)(nil),         // 31: dockwell.agent.v1.EndProcessResult
-	(*DiskUseCall)(nil),              // 32: dockwell.agent.v1.DiskUseCall
-	(*TaskRunsCall)(nil),             // 33: dockwell.agent.v1.TaskRunsCall
-	(*TaskRunsResult)(nil),           // 34: dockwell.agent.v1.TaskRunsResult
-	(*AgentTaskRun)(nil),             // 35: dockwell.agent.v1.AgentTaskRun
-	(*RunTaskCall)(nil),              // 36: dockwell.agent.v1.RunTaskCall
-	(*RunTaskResult)(nil),            // 37: dockwell.agent.v1.RunTaskResult
-	(*OpenTerminalCall)(nil),         // 38: dockwell.agent.v1.OpenTerminalCall
-	(*OpenTerminalResult)(nil),       // 39: dockwell.agent.v1.OpenTerminalResult
-	(*AttachTerminalCall)(nil),       // 40: dockwell.agent.v1.AttachTerminalCall
-	(*AttachTerminalResult)(nil),     // 41: dockwell.agent.v1.AttachTerminalResult
-	(*CloseTerminalCall)(nil),        // 42: dockwell.agent.v1.CloseTerminalCall
-	(*CloseTerminalResult)(nil),      // 43: dockwell.agent.v1.CloseTerminalResult
-	(*TerminalRequest)(nil),          // 44: dockwell.agent.v1.TerminalRequest
-	(*TerminalResponse)(nil),         // 45: dockwell.agent.v1.TerminalResponse
-	(*AdoptionCall)(nil),             // 46: dockwell.agent.v1.AdoptionCall
-	(*BackupPreviewCall)(nil),        // 47: dockwell.agent.v1.BackupPreviewCall
-	(*BackupCall)(nil),               // 48: dockwell.agent.v1.BackupCall
-	(*ListUpdatesCall)(nil),          // 49: dockwell.agent.v1.ListUpdatesCall
-	(*ListUpdatesResult)(nil),        // 50: dockwell.agent.v1.ListUpdatesResult
-	(*ReadOnePanelCall)(nil),         // 51: dockwell.agent.v1.ReadOnePanelCall
-	(*ReadOnePanelResult)(nil),       // 52: dockwell.agent.v1.ReadOnePanelResult
-	(*SendBackupCall)(nil),           // 53: dockwell.agent.v1.SendBackupCall
-	(*FetchBackupCall)(nil),          // 54: dockwell.agent.v1.FetchBackupCall
-	(*DeleteBackupCall)(nil),         // 55: dockwell.agent.v1.DeleteBackupCall
-	(*RestoreSource)(nil),            // 56: dockwell.agent.v1.RestoreSource
-	(*DatabaseCall)(nil),             // 57: dockwell.agent.v1.DatabaseCall
-	(*DatabaseAsked)(nil),            // 58: dockwell.agent.v1.DatabaseAsked
-	(*ContainersCall)(nil),           // 59: dockwell.agent.v1.ContainersCall
-	(*ListFilesCall)(nil),            // 60: dockwell.agent.v1.ListFilesCall
-	(*ReadFileCall)(nil),             // 61: dockwell.agent.v1.ReadFileCall
-	(*SaveFileCall)(nil),             // 62: dockwell.agent.v1.SaveFileCall
-	(*FileRefusal)(nil),              // 63: dockwell.agent.v1.FileRefusal
-	(*ListFilesResult)(nil),          // 64: dockwell.agent.v1.ListFilesResult
-	(*ReadFileResult)(nil),           // 65: dockwell.agent.v1.ReadFileResult
-	(*SaveFileResult)(nil),           // 66: dockwell.agent.v1.SaveFileResult
-	(*LogSourcesCall)(nil),           // 67: dockwell.agent.v1.LogSourcesCall
-	(*ForgottenCall)(nil),            // 68: dockwell.agent.v1.ForgottenCall
-	(*ForgottenService)(nil),         // 69: dockwell.agent.v1.ForgottenService
-	(*ForgottenResult)(nil),          // 70: dockwell.agent.v1.ForgottenResult
-	(*LogsCall)(nil),                 // 71: dockwell.agent.v1.LogsCall
-	(*LogCursor)(nil),                // 72: dockwell.agent.v1.LogCursor
-	(*LogScan)(nil),                  // 73: dockwell.agent.v1.LogScan
-	(*SendLogsRequest)(nil),          // 74: dockwell.agent.v1.SendLogsRequest
-	(*SendLogsResponse)(nil),         // 75: dockwell.agent.v1.SendLogsResponse
-	(*PlanCall)(nil),                 // 76: dockwell.agent.v1.PlanCall
-	(*ApplyCall)(nil),                // 77: dockwell.agent.v1.ApplyCall
-	(*Deploy)(nil),                   // 78: dockwell.agent.v1.Deploy
-	(*Values)(nil),                   // 79: dockwell.agent.v1.Values
-	(*ObserveCall)(nil),              // 80: dockwell.agent.v1.ObserveCall
-	(*DesiredResource)(nil),          // 81: dockwell.agent.v1.DesiredResource
-	(*CancelCall)(nil),               // 82: dockwell.agent.v1.CancelCall
-	(*CallResult)(nil),               // 83: dockwell.agent.v1.CallResult
-	(*ProbeResult)(nil),              // 84: dockwell.agent.v1.ProbeResult
-	(*AdoptionResult)(nil),           // 85: dockwell.agent.v1.AdoptionResult
-	(*BackupPreviewResult)(nil),      // 86: dockwell.agent.v1.BackupPreviewResult
-	(*BackupResult)(nil),             // 87: dockwell.agent.v1.BackupResult
-	(*SendBackupResult)(nil),         // 88: dockwell.agent.v1.SendBackupResult
-	(*DeleteBackupResult)(nil),       // 89: dockwell.agent.v1.DeleteBackupResult
-	(*DatabaseResult)(nil),           // 90: dockwell.agent.v1.DatabaseResult
-	(*ContainersResult)(nil),         // 91: dockwell.agent.v1.ContainersResult
-	(*LogSourcesResult)(nil),         // 92: dockwell.agent.v1.LogSourcesResult
-	(*LogsResult)(nil),               // 93: dockwell.agent.v1.LogsResult
-	(*CallError)(nil),                // 94: dockwell.agent.v1.CallError
-	(*PlanResult)(nil),               // 95: dockwell.agent.v1.PlanResult
-	(*PathVia)(nil),                  // 96: dockwell.agent.v1.PathVia
-	(*UnmanagedMounts)(nil),          // 97: dockwell.agent.v1.UnmanagedMounts
-	(*ApplyResult)(nil),              // 98: dockwell.agent.v1.ApplyResult
-	(*ObserveResult)(nil),            // 99: dockwell.agent.v1.ObserveResult
-	(*ObservedResource)(nil),         // 100: dockwell.agent.v1.ObservedResource
-	nil,                              // 101: dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
-	nil,                              // 102: dockwell.agent.v1.Values.ValuesEntry
-	(*v1.ServerStats)(nil),           // 103: dockwell.v1.ServerStats
-	(*v1.TerminalEnd)(nil),           // 104: dockwell.v1.TerminalEnd
-	(*timestamppb.Timestamp)(nil),    // 105: google.protobuf.Timestamp
-	(v1.CloudProvider)(0),            // 106: dockwell.v1.CloudProvider
-	(*v1.InstanceHealth)(nil),        // 107: dockwell.v1.InstanceHealth
-	(*v1.DomainStatus)(nil),          // 108: dockwell.v1.DomainStatus
-	(*v1.IngressStatus)(nil),         // 109: dockwell.v1.IngressStatus
-	(v1.PlanAction)(0),               // 110: dockwell.v1.PlanAction
-	(*v1.BuildInfo)(nil),             // 111: dockwell.v1.BuildInfo
-	(*v1.ServerInventory)(nil),       // 112: dockwell.v1.ServerInventory
-	(*durationpb.Duration)(nil),      // 113: google.protobuf.Duration
-	(*v1.ProcessList)(nil),           // 114: dockwell.v1.ProcessList
-	(*v1.Process)(nil),               // 115: dockwell.v1.Process
-	(*v1.ResourceRef)(nil),           // 116: dockwell.v1.ResourceRef
-	(*v1.TaskRun)(nil),               // 117: dockwell.v1.TaskRun
-	(v1.TerminalEndReason)(0),        // 118: dockwell.v1.TerminalEndReason
-	(*v1.ServerUpdates)(nil),         // 119: dockwell.v1.ServerUpdates
-	(*v1.OnePanel)(nil),              // 120: dockwell.v1.OnePanel
-	(v1.DatabaseEngine)(0),           // 121: dockwell.v1.DatabaseEngine
-	(*v1.ListFilesResponse)(nil),     // 122: dockwell.v1.ListFilesResponse
-	(*v1.ReadFileResponse)(nil),      // 123: dockwell.v1.ReadFileResponse
-	(*v1.SaveFileResponse)(nil),      // 124: dockwell.v1.SaveFileResponse
-	(v1.LogLevel)(0),                 // 125: dockwell.v1.LogLevel
-	(*v1.LogSource)(nil),             // 126: dockwell.v1.LogSource
-	(*v1.LogChunk)(nil),              // 127: dockwell.v1.LogChunk
-	(*v1.PlanStep)(nil),              // 128: dockwell.v1.PlanStep
-	(*v1.ServerDiskUse)(nil),         // 129: dockwell.v1.ServerDiskUse
-	(v1.BackupMethod)(0),             // 130: dockwell.v1.BackupMethod
-	(*v1.DatabaseReading)(nil),       // 131: dockwell.v1.DatabaseReading
-	(*v1.ServerContainer)(nil),       // 132: dockwell.v1.ServerContainer
+	(FileRefusal_Kind)(0),               // 0: dockwell.agent.v1.FileRefusal.Kind
+	(*ConnectRequest)(nil),              // 1: dockwell.agent.v1.ConnectRequest
+	(*TaskRunsReady)(nil),               // 2: dockwell.agent.v1.TaskRunsReady
+	(*TerminalEnded)(nil),               // 3: dockwell.agent.v1.TerminalEnded
+	(*Unstuck)(nil),                     // 4: dockwell.agent.v1.Unstuck
+	(*SaveEnded)(nil),                   // 5: dockwell.agent.v1.SaveEnded
+	(*Network)(nil),                     // 6: dockwell.agent.v1.Network
+	(*Health)(nil),                      // 7: dockwell.agent.v1.Health
+	(*Domains)(nil),                     // 8: dockwell.agent.v1.Domains
+	(*CallProgress)(nil),                // 9: dockwell.agent.v1.CallProgress
+	(*StepOutcome)(nil),                 // 10: dockwell.agent.v1.StepOutcome
+	(*Kinds)(nil),                       // 11: dockwell.agent.v1.Kinds
+	(*UnavailableKind)(nil),             // 12: dockwell.agent.v1.UnavailableKind
+	(*Draining)(nil),                    // 13: dockwell.agent.v1.Draining
+	(*Hello)(nil),                       // 14: dockwell.agent.v1.Hello
+	(*ConnectResponse)(nil),             // 15: dockwell.agent.v1.ConnectResponse
+	(*Pace)(nil),                        // 16: dockwell.agent.v1.Pace
+	(*PublicAddress)(nil),               // 17: dockwell.agent.v1.PublicAddress
+	(*KnownAddress)(nil),                // 18: dockwell.agent.v1.KnownAddress
+	(*Drained)(nil),                     // 19: dockwell.agent.v1.Drained
+	(*Welcome)(nil),                     // 20: dockwell.agent.v1.Welcome
+	(*JoinTicket)(nil),                  // 21: dockwell.agent.v1.JoinTicket
+	(*JoinRequest)(nil),                 // 22: dockwell.agent.v1.JoinRequest
+	(*JoinResponse)(nil),                // 23: dockwell.agent.v1.JoinResponse
+	(*RenewCertificateRequest)(nil),     // 24: dockwell.agent.v1.RenewCertificateRequest
+	(*RenewCertificateResponse)(nil),    // 25: dockwell.agent.v1.RenewCertificateResponse
+	(*Call)(nil),                        // 26: dockwell.agent.v1.Call
+	(*ProbeCall)(nil),                   // 27: dockwell.agent.v1.ProbeCall
+	(*ProcessesCall)(nil),               // 28: dockwell.agent.v1.ProcessesCall
+	(*ProcessesResult)(nil),             // 29: dockwell.agent.v1.ProcessesResult
+	(*EndProcessCall)(nil),              // 30: dockwell.agent.v1.EndProcessCall
+	(*EndProcessResult)(nil),            // 31: dockwell.agent.v1.EndProcessResult
+	(*DiskUseCall)(nil),                 // 32: dockwell.agent.v1.DiskUseCall
+	(*TaskRunsCall)(nil),                // 33: dockwell.agent.v1.TaskRunsCall
+	(*TaskRunsResult)(nil),              // 34: dockwell.agent.v1.TaskRunsResult
+	(*AgentTaskRun)(nil),                // 35: dockwell.agent.v1.AgentTaskRun
+	(*RunTaskCall)(nil),                 // 36: dockwell.agent.v1.RunTaskCall
+	(*RunTaskResult)(nil),               // 37: dockwell.agent.v1.RunTaskResult
+	(*OpenTerminalCall)(nil),            // 38: dockwell.agent.v1.OpenTerminalCall
+	(*OpenTerminalResult)(nil),          // 39: dockwell.agent.v1.OpenTerminalResult
+	(*AttachTerminalCall)(nil),          // 40: dockwell.agent.v1.AttachTerminalCall
+	(*AttachTerminalResult)(nil),        // 41: dockwell.agent.v1.AttachTerminalResult
+	(*CloseTerminalCall)(nil),           // 42: dockwell.agent.v1.CloseTerminalCall
+	(*CloseTerminalResult)(nil),         // 43: dockwell.agent.v1.CloseTerminalResult
+	(*TerminalRequest)(nil),             // 44: dockwell.agent.v1.TerminalRequest
+	(*TerminalResponse)(nil),            // 45: dockwell.agent.v1.TerminalResponse
+	(*AdoptionCall)(nil),                // 46: dockwell.agent.v1.AdoptionCall
+	(*BackupPreviewCall)(nil),           // 47: dockwell.agent.v1.BackupPreviewCall
+	(*BackupCall)(nil),                  // 48: dockwell.agent.v1.BackupCall
+	(*ListUpdatesCall)(nil),             // 49: dockwell.agent.v1.ListUpdatesCall
+	(*ListUpdatesResult)(nil),           // 50: dockwell.agent.v1.ListUpdatesResult
+	(*ReadOnePanelCall)(nil),            // 51: dockwell.agent.v1.ReadOnePanelCall
+	(*ReadOnePanelResult)(nil),          // 52: dockwell.agent.v1.ReadOnePanelResult
+	(*SendBackupCall)(nil),              // 53: dockwell.agent.v1.SendBackupCall
+	(*FetchBackupCall)(nil),             // 54: dockwell.agent.v1.FetchBackupCall
+	(*DeleteBackupCall)(nil),            // 55: dockwell.agent.v1.DeleteBackupCall
+	(*RestoreSource)(nil),               // 56: dockwell.agent.v1.RestoreSource
+	(*DatabaseCall)(nil),                // 57: dockwell.agent.v1.DatabaseCall
+	(*DatabaseAsked)(nil),               // 58: dockwell.agent.v1.DatabaseAsked
+	(*ContainersCall)(nil),              // 59: dockwell.agent.v1.ContainersCall
+	(*ListFilesCall)(nil),               // 60: dockwell.agent.v1.ListFilesCall
+	(*ReadFileCall)(nil),                // 61: dockwell.agent.v1.ReadFileCall
+	(*SaveFileCall)(nil),                // 62: dockwell.agent.v1.SaveFileCall
+	(*FileRefusal)(nil),                 // 63: dockwell.agent.v1.FileRefusal
+	(*MakeFileCall)(nil),                // 64: dockwell.agent.v1.MakeFileCall
+	(*MakeFileResult)(nil),              // 65: dockwell.agent.v1.MakeFileResult
+	(*MoveFileCall)(nil),                // 66: dockwell.agent.v1.MoveFileCall
+	(*MoveFileResult)(nil),              // 67: dockwell.agent.v1.MoveFileResult
+	(*DeleteFileCall)(nil),              // 68: dockwell.agent.v1.DeleteFileCall
+	(*DeleteFileResult)(nil),            // 69: dockwell.agent.v1.DeleteFileResult
+	(*ListDeletedCall)(nil),             // 70: dockwell.agent.v1.ListDeletedCall
+	(*ListDeletedResult)(nil),           // 71: dockwell.agent.v1.ListDeletedResult
+	(*RestoreFileCall)(nil),             // 72: dockwell.agent.v1.RestoreFileCall
+	(*RestoreFileResult)(nil),           // 73: dockwell.agent.v1.RestoreFileResult
+	(*PurgeDeletedCall)(nil),            // 74: dockwell.agent.v1.PurgeDeletedCall
+	(*PurgeDeletedResult)(nil),          // 75: dockwell.agent.v1.PurgeDeletedResult
+	(*BeginUploadCall)(nil),             // 76: dockwell.agent.v1.BeginUploadCall
+	(*UploadResult)(nil),                // 77: dockwell.agent.v1.UploadResult
+	(*WriteUploadCall)(nil),             // 78: dockwell.agent.v1.WriteUploadCall
+	(*FinishUploadCall)(nil),            // 79: dockwell.agent.v1.FinishUploadCall
+	(*FinishUploadResult)(nil),          // 80: dockwell.agent.v1.FinishUploadResult
+	(*DownloadFileCall)(nil),            // 81: dockwell.agent.v1.DownloadFileCall
+	(*DownloadFileResult)(nil),          // 82: dockwell.agent.v1.DownloadFileResult
+	(*ReceiveFileRequest)(nil),          // 83: dockwell.agent.v1.ReceiveFileRequest
+	(*ReceiveFileResponse)(nil),         // 84: dockwell.agent.v1.ReceiveFileResponse
+	(*SendFileRequest)(nil),             // 85: dockwell.agent.v1.SendFileRequest
+	(*SendFileResponse)(nil),            // 86: dockwell.agent.v1.SendFileResponse
+	(*ListFilesResult)(nil),             // 87: dockwell.agent.v1.ListFilesResult
+	(*ReadFileResult)(nil),              // 88: dockwell.agent.v1.ReadFileResult
+	(*SaveFileResult)(nil),              // 89: dockwell.agent.v1.SaveFileResult
+	(*LogSourcesCall)(nil),              // 90: dockwell.agent.v1.LogSourcesCall
+	(*ForgottenCall)(nil),               // 91: dockwell.agent.v1.ForgottenCall
+	(*ForgottenService)(nil),            // 92: dockwell.agent.v1.ForgottenService
+	(*ForgottenResult)(nil),             // 93: dockwell.agent.v1.ForgottenResult
+	(*LogsCall)(nil),                    // 94: dockwell.agent.v1.LogsCall
+	(*LogCursor)(nil),                   // 95: dockwell.agent.v1.LogCursor
+	(*LogScan)(nil),                     // 96: dockwell.agent.v1.LogScan
+	(*SendLogsRequest)(nil),             // 97: dockwell.agent.v1.SendLogsRequest
+	(*SendLogsResponse)(nil),            // 98: dockwell.agent.v1.SendLogsResponse
+	(*PlanCall)(nil),                    // 99: dockwell.agent.v1.PlanCall
+	(*ApplyCall)(nil),                   // 100: dockwell.agent.v1.ApplyCall
+	(*Deploy)(nil),                      // 101: dockwell.agent.v1.Deploy
+	(*Values)(nil),                      // 102: dockwell.agent.v1.Values
+	(*ObserveCall)(nil),                 // 103: dockwell.agent.v1.ObserveCall
+	(*DesiredResource)(nil),             // 104: dockwell.agent.v1.DesiredResource
+	(*CancelCall)(nil),                  // 105: dockwell.agent.v1.CancelCall
+	(*CallResult)(nil),                  // 106: dockwell.agent.v1.CallResult
+	(*ProbeResult)(nil),                 // 107: dockwell.agent.v1.ProbeResult
+	(*AdoptionResult)(nil),              // 108: dockwell.agent.v1.AdoptionResult
+	(*BackupPreviewResult)(nil),         // 109: dockwell.agent.v1.BackupPreviewResult
+	(*BackupResult)(nil),                // 110: dockwell.agent.v1.BackupResult
+	(*SendBackupResult)(nil),            // 111: dockwell.agent.v1.SendBackupResult
+	(*DeleteBackupResult)(nil),          // 112: dockwell.agent.v1.DeleteBackupResult
+	(*DatabaseResult)(nil),              // 113: dockwell.agent.v1.DatabaseResult
+	(*ContainersResult)(nil),            // 114: dockwell.agent.v1.ContainersResult
+	(*LogSourcesResult)(nil),            // 115: dockwell.agent.v1.LogSourcesResult
+	(*LogsResult)(nil),                  // 116: dockwell.agent.v1.LogsResult
+	(*CallError)(nil),                   // 117: dockwell.agent.v1.CallError
+	(*PlanResult)(nil),                  // 118: dockwell.agent.v1.PlanResult
+	(*PathVia)(nil),                     // 119: dockwell.agent.v1.PathVia
+	(*UnmanagedMounts)(nil),             // 120: dockwell.agent.v1.UnmanagedMounts
+	(*ApplyResult)(nil),                 // 121: dockwell.agent.v1.ApplyResult
+	(*ObserveResult)(nil),               // 122: dockwell.agent.v1.ObserveResult
+	(*ObservedResource)(nil),            // 123: dockwell.agent.v1.ObservedResource
+	nil,                                 // 124: dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
+	nil,                                 // 125: dockwell.agent.v1.Values.ValuesEntry
+	(*v1.ServerStats)(nil),              // 126: dockwell.v1.ServerStats
+	(*v1.TerminalEnd)(nil),              // 127: dockwell.v1.TerminalEnd
+	(*timestamppb.Timestamp)(nil),       // 128: google.protobuf.Timestamp
+	(v1.CloudProvider)(0),               // 129: dockwell.v1.CloudProvider
+	(*v1.InstanceHealth)(nil),           // 130: dockwell.v1.InstanceHealth
+	(*v1.DomainStatus)(nil),             // 131: dockwell.v1.DomainStatus
+	(*v1.IngressStatus)(nil),            // 132: dockwell.v1.IngressStatus
+	(v1.PlanAction)(0),                  // 133: dockwell.v1.PlanAction
+	(*v1.BuildInfo)(nil),                // 134: dockwell.v1.BuildInfo
+	(*v1.ServerInventory)(nil),          // 135: dockwell.v1.ServerInventory
+	(*durationpb.Duration)(nil),         // 136: google.protobuf.Duration
+	(*v1.ProcessList)(nil),              // 137: dockwell.v1.ProcessList
+	(*v1.Process)(nil),                  // 138: dockwell.v1.Process
+	(*v1.ResourceRef)(nil),              // 139: dockwell.v1.ResourceRef
+	(*v1.TaskRun)(nil),                  // 140: dockwell.v1.TaskRun
+	(v1.TerminalEndReason)(0),           // 141: dockwell.v1.TerminalEndReason
+	(*v1.ServerUpdates)(nil),            // 142: dockwell.v1.ServerUpdates
+	(*v1.OnePanel)(nil),                 // 143: dockwell.v1.OnePanel
+	(v1.DatabaseEngine)(0),              // 144: dockwell.v1.DatabaseEngine
+	(v1.FileType)(0),                    // 145: dockwell.v1.FileType
+	(*v1.MakeFileResponse)(nil),         // 146: dockwell.v1.MakeFileResponse
+	(*v1.MoveFileResponse)(nil),         // 147: dockwell.v1.MoveFileResponse
+	(*v1.DeleteFileResponse)(nil),       // 148: dockwell.v1.DeleteFileResponse
+	(*v1.ListDeletedFilesResponse)(nil), // 149: dockwell.v1.ListDeletedFilesResponse
+	(*v1.RestoreFileResponse)(nil),      // 150: dockwell.v1.RestoreFileResponse
+	(*v1.DeletedFile)(nil),              // 151: dockwell.v1.DeletedFile
+	(v1.Unpack)(0),                      // 152: dockwell.v1.Unpack
+	(*v1.Upload)(nil),                   // 153: dockwell.v1.Upload
+	(*v1.FinishUploadResponse)(nil),     // 154: dockwell.v1.FinishUploadResponse
+	(*v1.ListFilesResponse)(nil),        // 155: dockwell.v1.ListFilesResponse
+	(*v1.ReadFileResponse)(nil),         // 156: dockwell.v1.ReadFileResponse
+	(*v1.SaveFileResponse)(nil),         // 157: dockwell.v1.SaveFileResponse
+	(v1.LogLevel)(0),                    // 158: dockwell.v1.LogLevel
+	(*v1.LogSource)(nil),                // 159: dockwell.v1.LogSource
+	(*v1.LogChunk)(nil),                 // 160: dockwell.v1.LogChunk
+	(*v1.PlanStep)(nil),                 // 161: dockwell.v1.PlanStep
+	(*v1.ServerDiskUse)(nil),            // 162: dockwell.v1.ServerDiskUse
+	(v1.BackupMethod)(0),                // 163: dockwell.v1.BackupMethod
+	(*v1.DatabaseReading)(nil),          // 164: dockwell.v1.DatabaseReading
+	(*v1.ServerContainer)(nil),          // 165: dockwell.v1.ServerContainer
 }
 var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	14,  // 0: dockwell.agent.v1.ConnectRequest.hello:type_name -> dockwell.agent.v1.Hello
-	103, // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
-	83,  // 2: dockwell.agent.v1.ConnectRequest.result:type_name -> dockwell.agent.v1.CallResult
+	126, // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
+	106, // 2: dockwell.agent.v1.ConnectRequest.result:type_name -> dockwell.agent.v1.CallResult
 	13,  // 3: dockwell.agent.v1.ConnectRequest.draining:type_name -> dockwell.agent.v1.Draining
 	9,   // 4: dockwell.agent.v1.ConnectRequest.progress:type_name -> dockwell.agent.v1.CallProgress
 	11,  // 5: dockwell.agent.v1.ConnectRequest.kinds:type_name -> dockwell.agent.v1.Kinds
@@ -8594,42 +10487,42 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	6,   // 10: dockwell.agent.v1.ConnectRequest.network:type_name -> dockwell.agent.v1.Network
 	3,   // 11: dockwell.agent.v1.ConnectRequest.terminal_ended:type_name -> dockwell.agent.v1.TerminalEnded
 	2,   // 12: dockwell.agent.v1.ConnectRequest.task_runs_ready:type_name -> dockwell.agent.v1.TaskRunsReady
-	104, // 13: dockwell.agent.v1.TerminalEnded.end:type_name -> dockwell.v1.TerminalEnd
-	105, // 14: dockwell.agent.v1.TerminalEnded.opened:type_name -> google.protobuf.Timestamp
-	106, // 15: dockwell.agent.v1.Network.provider:type_name -> dockwell.v1.CloudProvider
-	105, // 16: dockwell.agent.v1.Network.looked_up_time:type_name -> google.protobuf.Timestamp
-	106, // 17: dockwell.agent.v1.Network.machine_provider:type_name -> dockwell.v1.CloudProvider
-	107, // 18: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
-	105, // 19: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
-	105, // 20: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
-	105, // 21: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
-	108, // 22: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
-	109, // 23: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
+	127, // 13: dockwell.agent.v1.TerminalEnded.end:type_name -> dockwell.v1.TerminalEnd
+	128, // 14: dockwell.agent.v1.TerminalEnded.opened:type_name -> google.protobuf.Timestamp
+	129, // 15: dockwell.agent.v1.Network.provider:type_name -> dockwell.v1.CloudProvider
+	128, // 16: dockwell.agent.v1.Network.looked_up_time:type_name -> google.protobuf.Timestamp
+	129, // 17: dockwell.agent.v1.Network.machine_provider:type_name -> dockwell.v1.CloudProvider
+	130, // 18: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
+	128, // 19: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
+	128, // 20: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
+	128, // 21: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	131, // 22: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
+	132, // 23: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
 	10,  // 24: dockwell.agent.v1.CallProgress.outcome:type_name -> dockwell.agent.v1.StepOutcome
-	110, // 25: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
-	87,  // 26: dockwell.agent.v1.StepOutcome.backup:type_name -> dockwell.agent.v1.BackupResult
+	133, // 25: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
+	110, // 26: dockwell.agent.v1.StepOutcome.backup:type_name -> dockwell.agent.v1.BackupResult
 	12,  // 27: dockwell.agent.v1.Kinds.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
-	111, // 28: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
-	112, // 29: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
+	134, // 28: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
+	135, // 29: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
 	12,  // 30: dockwell.agent.v1.Hello.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
 	20,  // 31: dockwell.agent.v1.ConnectResponse.welcome:type_name -> dockwell.agent.v1.Welcome
 	26,  // 32: dockwell.agent.v1.ConnectResponse.call:type_name -> dockwell.agent.v1.Call
-	82,  // 33: dockwell.agent.v1.ConnectResponse.cancel:type_name -> dockwell.agent.v1.CancelCall
+	105, // 33: dockwell.agent.v1.ConnectResponse.cancel:type_name -> dockwell.agent.v1.CancelCall
 	19,  // 34: dockwell.agent.v1.ConnectResponse.drained:type_name -> dockwell.agent.v1.Drained
 	17,  // 35: dockwell.agent.v1.ConnectResponse.public_address:type_name -> dockwell.agent.v1.PublicAddress
 	16,  // 36: dockwell.agent.v1.ConnectResponse.pace:type_name -> dockwell.agent.v1.Pace
-	113, // 37: dockwell.agent.v1.Pace.stats_interval:type_name -> google.protobuf.Duration
+	136, // 37: dockwell.agent.v1.Pace.stats_interval:type_name -> google.protobuf.Duration
 	18,  // 38: dockwell.agent.v1.PublicAddress.addresses:type_name -> dockwell.agent.v1.KnownAddress
-	106, // 39: dockwell.agent.v1.PublicAddress.provider:type_name -> dockwell.v1.CloudProvider
-	113, // 40: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
-	111, // 41: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
-	113, // 42: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
-	76,  // 43: dockwell.agent.v1.Call.plan:type_name -> dockwell.agent.v1.PlanCall
-	77,  // 44: dockwell.agent.v1.Call.apply:type_name -> dockwell.agent.v1.ApplyCall
-	80,  // 45: dockwell.agent.v1.Call.observe:type_name -> dockwell.agent.v1.ObserveCall
-	67,  // 46: dockwell.agent.v1.Call.log_sources:type_name -> dockwell.agent.v1.LogSourcesCall
-	71,  // 47: dockwell.agent.v1.Call.logs:type_name -> dockwell.agent.v1.LogsCall
-	68,  // 48: dockwell.agent.v1.Call.forgotten:type_name -> dockwell.agent.v1.ForgottenCall
+	129, // 39: dockwell.agent.v1.PublicAddress.provider:type_name -> dockwell.v1.CloudProvider
+	136, // 40: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
+	134, // 41: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
+	136, // 42: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
+	99,  // 43: dockwell.agent.v1.Call.plan:type_name -> dockwell.agent.v1.PlanCall
+	100, // 44: dockwell.agent.v1.Call.apply:type_name -> dockwell.agent.v1.ApplyCall
+	103, // 45: dockwell.agent.v1.Call.observe:type_name -> dockwell.agent.v1.ObserveCall
+	90,  // 46: dockwell.agent.v1.Call.log_sources:type_name -> dockwell.agent.v1.LogSourcesCall
+	94,  // 47: dockwell.agent.v1.Call.logs:type_name -> dockwell.agent.v1.LogsCall
+	91,  // 48: dockwell.agent.v1.Call.forgotten:type_name -> dockwell.agent.v1.ForgottenCall
 	59,  // 49: dockwell.agent.v1.Call.containers:type_name -> dockwell.agent.v1.ContainersCall
 	60,  // 50: dockwell.agent.v1.Call.list_files:type_name -> dockwell.agent.v1.ListFilesCall
 	61,  // 51: dockwell.agent.v1.Call.read_file:type_name -> dockwell.agent.v1.ReadFileCall
@@ -8652,114 +10545,156 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	33,  // 68: dockwell.agent.v1.Call.task_runs:type_name -> dockwell.agent.v1.TaskRunsCall
 	36,  // 69: dockwell.agent.v1.Call.run_task:type_name -> dockwell.agent.v1.RunTaskCall
 	51,  // 70: dockwell.agent.v1.Call.read_onepanel:type_name -> dockwell.agent.v1.ReadOnePanelCall
-	114, // 71: dockwell.agent.v1.ProcessesResult.list:type_name -> dockwell.v1.ProcessList
-	115, // 72: dockwell.agent.v1.EndProcessResult.process:type_name -> dockwell.v1.Process
-	35,  // 73: dockwell.agent.v1.TaskRunsResult.runs:type_name -> dockwell.agent.v1.AgentTaskRun
-	116, // 74: dockwell.agent.v1.AgentTaskRun.task:type_name -> dockwell.v1.ResourceRef
-	117, // 75: dockwell.agent.v1.AgentTaskRun.run:type_name -> dockwell.v1.TaskRun
-	116, // 76: dockwell.agent.v1.RunTaskCall.task:type_name -> dockwell.v1.ResourceRef
-	117, // 77: dockwell.agent.v1.RunTaskResult.run:type_name -> dockwell.v1.TaskRun
-	105, // 78: dockwell.agent.v1.OpenTerminalResult.opened:type_name -> google.protobuf.Timestamp
-	104, // 79: dockwell.agent.v1.AttachTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
-	118, // 80: dockwell.agent.v1.CloseTerminalCall.reason:type_name -> dockwell.v1.TerminalEndReason
-	104, // 81: dockwell.agent.v1.CloseTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
-	116, // 82: dockwell.agent.v1.AdoptionCall.resource:type_name -> dockwell.v1.ResourceRef
-	116, // 83: dockwell.agent.v1.BackupPreviewCall.volume:type_name -> dockwell.v1.ResourceRef
-	116, // 84: dockwell.agent.v1.BackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	119, // 85: dockwell.agent.v1.ListUpdatesResult.updates:type_name -> dockwell.v1.ServerUpdates
-	120, // 86: dockwell.agent.v1.ReadOnePanelResult.found:type_name -> dockwell.v1.OnePanel
-	116, // 87: dockwell.agent.v1.SendBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	116, // 88: dockwell.agent.v1.FetchBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	116, // 89: dockwell.agent.v1.DeleteBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	58,  // 90: dockwell.agent.v1.DatabaseCall.databases:type_name -> dockwell.agent.v1.DatabaseAsked
-	116, // 91: dockwell.agent.v1.DatabaseAsked.service:type_name -> dockwell.v1.ResourceRef
-	121, // 92: dockwell.agent.v1.DatabaseAsked.engine:type_name -> dockwell.v1.DatabaseEngine
-	0,   // 93: dockwell.agent.v1.FileRefusal.kind:type_name -> dockwell.agent.v1.FileRefusal.Kind
-	122, // 94: dockwell.agent.v1.ListFilesResult.listing:type_name -> dockwell.v1.ListFilesResponse
-	63,  // 95: dockwell.agent.v1.ListFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	123, // 96: dockwell.agent.v1.ReadFileResult.file:type_name -> dockwell.v1.ReadFileResponse
-	63,  // 97: dockwell.agent.v1.ReadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	124, // 98: dockwell.agent.v1.SaveFileResult.saved:type_name -> dockwell.v1.SaveFileResponse
-	63,  // 99: dockwell.agent.v1.SaveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	116, // 100: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
-	69,  // 101: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
-	116, // 102: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
-	116, // 103: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
-	105, // 104: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
-	105, // 105: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
-	125, // 106: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
-	72,  // 107: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
-	72,  // 108: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
-	105, // 109: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
-	113, // 110: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
-	105, // 111: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
-	105, // 112: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
-	126, // 113: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
-	127, // 114: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
-	73,  // 115: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
-	105, // 116: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
-	81,  // 117: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	128, // 118: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
-	81,  // 119: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	78,  // 120: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
-	101, // 121: dockwell.agent.v1.ApplyCall.planned_leads:type_name -> dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
-	102, // 122: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
-	116, // 123: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
-	116, // 124: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
-	56,  // 125: dockwell.agent.v1.DesiredResource.restore:type_name -> dockwell.agent.v1.RestoreSource
-	94,  // 126: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
-	95,  // 127: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
-	98,  // 128: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
-	99,  // 129: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
-	92,  // 130: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
-	93,  // 131: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
-	70,  // 132: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
-	91,  // 133: dockwell.agent.v1.CallResult.containers:type_name -> dockwell.agent.v1.ContainersResult
-	64,  // 134: dockwell.agent.v1.CallResult.list_files:type_name -> dockwell.agent.v1.ListFilesResult
-	65,  // 135: dockwell.agent.v1.CallResult.read_file:type_name -> dockwell.agent.v1.ReadFileResult
-	66,  // 136: dockwell.agent.v1.CallResult.save_file:type_name -> dockwell.agent.v1.SaveFileResult
-	85,  // 137: dockwell.agent.v1.CallResult.adoption:type_name -> dockwell.agent.v1.AdoptionResult
-	86,  // 138: dockwell.agent.v1.CallResult.backup_preview:type_name -> dockwell.agent.v1.BackupPreviewResult
-	87,  // 139: dockwell.agent.v1.CallResult.backup:type_name -> dockwell.agent.v1.BackupResult
-	89,  // 140: dockwell.agent.v1.CallResult.delete_backup:type_name -> dockwell.agent.v1.DeleteBackupResult
-	87,  // 141: dockwell.agent.v1.CallResult.fetch_backup:type_name -> dockwell.agent.v1.BackupResult
-	88,  // 142: dockwell.agent.v1.CallResult.send_backup:type_name -> dockwell.agent.v1.SendBackupResult
-	50,  // 143: dockwell.agent.v1.CallResult.list_updates:type_name -> dockwell.agent.v1.ListUpdatesResult
-	90,  // 144: dockwell.agent.v1.CallResult.database:type_name -> dockwell.agent.v1.DatabaseResult
-	84,  // 145: dockwell.agent.v1.CallResult.probe:type_name -> dockwell.agent.v1.ProbeResult
-	129, // 146: dockwell.agent.v1.CallResult.disk_use:type_name -> dockwell.v1.ServerDiskUse
-	29,  // 147: dockwell.agent.v1.CallResult.processes:type_name -> dockwell.agent.v1.ProcessesResult
-	31,  // 148: dockwell.agent.v1.CallResult.end_process:type_name -> dockwell.agent.v1.EndProcessResult
-	39,  // 149: dockwell.agent.v1.CallResult.open_terminal:type_name -> dockwell.agent.v1.OpenTerminalResult
-	41,  // 150: dockwell.agent.v1.CallResult.attach_terminal:type_name -> dockwell.agent.v1.AttachTerminalResult
-	43,  // 151: dockwell.agent.v1.CallResult.close_terminal:type_name -> dockwell.agent.v1.CloseTerminalResult
-	34,  // 152: dockwell.agent.v1.CallResult.task_runs:type_name -> dockwell.agent.v1.TaskRunsResult
-	37,  // 153: dockwell.agent.v1.CallResult.run_task:type_name -> dockwell.agent.v1.RunTaskResult
-	52,  // 154: dockwell.agent.v1.CallResult.read_onepanel:type_name -> dockwell.agent.v1.ReadOnePanelResult
-	130, // 155: dockwell.agent.v1.BackupPreviewResult.method:type_name -> dockwell.v1.BackupMethod
-	130, // 156: dockwell.agent.v1.BackupResult.method:type_name -> dockwell.v1.BackupMethod
-	131, // 157: dockwell.agent.v1.DatabaseResult.readings:type_name -> dockwell.v1.DatabaseReading
-	132, // 158: dockwell.agent.v1.ContainersResult.containers:type_name -> dockwell.v1.ServerContainer
-	126, // 159: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
-	128, // 160: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
-	97,  // 161: dockwell.agent.v1.PlanResult.unmanaged:type_name -> dockwell.agent.v1.UnmanagedMounts
-	96,  // 162: dockwell.agent.v1.PlanResult.via:type_name -> dockwell.agent.v1.PathVia
-	100, // 163: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
-	22,  // 164: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	24,  // 165: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	1,   // 166: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
-	74,  // 167: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
-	44,  // 168: dockwell.agent.v1.AgentService.Terminal:input_type -> dockwell.agent.v1.TerminalRequest
-	23,  // 169: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	25,  // 170: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	15,  // 171: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
-	75,  // 172: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
-	45,  // 173: dockwell.agent.v1.AgentService.Terminal:output_type -> dockwell.agent.v1.TerminalResponse
-	169, // [169:174] is the sub-list for method output_type
-	164, // [164:169] is the sub-list for method input_type
-	164, // [164:164] is the sub-list for extension type_name
-	164, // [164:164] is the sub-list for extension extendee
-	0,   // [0:164] is the sub-list for field type_name
+	64,  // 71: dockwell.agent.v1.Call.make_file:type_name -> dockwell.agent.v1.MakeFileCall
+	66,  // 72: dockwell.agent.v1.Call.move_file:type_name -> dockwell.agent.v1.MoveFileCall
+	68,  // 73: dockwell.agent.v1.Call.delete_file:type_name -> dockwell.agent.v1.DeleteFileCall
+	70,  // 74: dockwell.agent.v1.Call.list_deleted:type_name -> dockwell.agent.v1.ListDeletedCall
+	72,  // 75: dockwell.agent.v1.Call.restore_file:type_name -> dockwell.agent.v1.RestoreFileCall
+	74,  // 76: dockwell.agent.v1.Call.purge_deleted:type_name -> dockwell.agent.v1.PurgeDeletedCall
+	76,  // 77: dockwell.agent.v1.Call.begin_upload:type_name -> dockwell.agent.v1.BeginUploadCall
+	78,  // 78: dockwell.agent.v1.Call.write_upload:type_name -> dockwell.agent.v1.WriteUploadCall
+	79,  // 79: dockwell.agent.v1.Call.finish_upload:type_name -> dockwell.agent.v1.FinishUploadCall
+	81,  // 80: dockwell.agent.v1.Call.download_file:type_name -> dockwell.agent.v1.DownloadFileCall
+	137, // 81: dockwell.agent.v1.ProcessesResult.list:type_name -> dockwell.v1.ProcessList
+	138, // 82: dockwell.agent.v1.EndProcessResult.process:type_name -> dockwell.v1.Process
+	35,  // 83: dockwell.agent.v1.TaskRunsResult.runs:type_name -> dockwell.agent.v1.AgentTaskRun
+	139, // 84: dockwell.agent.v1.AgentTaskRun.task:type_name -> dockwell.v1.ResourceRef
+	140, // 85: dockwell.agent.v1.AgentTaskRun.run:type_name -> dockwell.v1.TaskRun
+	139, // 86: dockwell.agent.v1.RunTaskCall.task:type_name -> dockwell.v1.ResourceRef
+	140, // 87: dockwell.agent.v1.RunTaskResult.run:type_name -> dockwell.v1.TaskRun
+	128, // 88: dockwell.agent.v1.OpenTerminalResult.opened:type_name -> google.protobuf.Timestamp
+	127, // 89: dockwell.agent.v1.AttachTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
+	141, // 90: dockwell.agent.v1.CloseTerminalCall.reason:type_name -> dockwell.v1.TerminalEndReason
+	127, // 91: dockwell.agent.v1.CloseTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
+	139, // 92: dockwell.agent.v1.AdoptionCall.resource:type_name -> dockwell.v1.ResourceRef
+	139, // 93: dockwell.agent.v1.BackupPreviewCall.volume:type_name -> dockwell.v1.ResourceRef
+	139, // 94: dockwell.agent.v1.BackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	142, // 95: dockwell.agent.v1.ListUpdatesResult.updates:type_name -> dockwell.v1.ServerUpdates
+	143, // 96: dockwell.agent.v1.ReadOnePanelResult.found:type_name -> dockwell.v1.OnePanel
+	139, // 97: dockwell.agent.v1.SendBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	139, // 98: dockwell.agent.v1.FetchBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	139, // 99: dockwell.agent.v1.DeleteBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	58,  // 100: dockwell.agent.v1.DatabaseCall.databases:type_name -> dockwell.agent.v1.DatabaseAsked
+	139, // 101: dockwell.agent.v1.DatabaseAsked.service:type_name -> dockwell.v1.ResourceRef
+	144, // 102: dockwell.agent.v1.DatabaseAsked.engine:type_name -> dockwell.v1.DatabaseEngine
+	0,   // 103: dockwell.agent.v1.FileRefusal.kind:type_name -> dockwell.agent.v1.FileRefusal.Kind
+	145, // 104: dockwell.agent.v1.MakeFileCall.type:type_name -> dockwell.v1.FileType
+	146, // 105: dockwell.agent.v1.MakeFileResult.made:type_name -> dockwell.v1.MakeFileResponse
+	63,  // 106: dockwell.agent.v1.MakeFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	147, // 107: dockwell.agent.v1.MoveFileResult.moved:type_name -> dockwell.v1.MoveFileResponse
+	63,  // 108: dockwell.agent.v1.MoveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	148, // 109: dockwell.agent.v1.DeleteFileResult.deleted:type_name -> dockwell.v1.DeleteFileResponse
+	63,  // 110: dockwell.agent.v1.DeleteFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	149, // 111: dockwell.agent.v1.ListDeletedResult.listing:type_name -> dockwell.v1.ListDeletedFilesResponse
+	150, // 112: dockwell.agent.v1.RestoreFileResult.restored:type_name -> dockwell.v1.RestoreFileResponse
+	63,  // 113: dockwell.agent.v1.RestoreFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	151, // 114: dockwell.agent.v1.PurgeDeletedResult.purged:type_name -> dockwell.v1.DeletedFile
+	63,  // 115: dockwell.agent.v1.PurgeDeletedResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	152, // 116: dockwell.agent.v1.BeginUploadCall.unpack:type_name -> dockwell.v1.Unpack
+	153, // 117: dockwell.agent.v1.UploadResult.upload:type_name -> dockwell.v1.Upload
+	63,  // 118: dockwell.agent.v1.UploadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	154, // 119: dockwell.agent.v1.FinishUploadResult.finished:type_name -> dockwell.v1.FinishUploadResponse
+	63,  // 120: dockwell.agent.v1.FinishUploadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	63,  // 121: dockwell.agent.v1.DownloadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	155, // 122: dockwell.agent.v1.ListFilesResult.listing:type_name -> dockwell.v1.ListFilesResponse
+	63,  // 123: dockwell.agent.v1.ListFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	156, // 124: dockwell.agent.v1.ReadFileResult.file:type_name -> dockwell.v1.ReadFileResponse
+	63,  // 125: dockwell.agent.v1.ReadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	157, // 126: dockwell.agent.v1.SaveFileResult.saved:type_name -> dockwell.v1.SaveFileResponse
+	63,  // 127: dockwell.agent.v1.SaveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	139, // 128: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
+	92,  // 129: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
+	139, // 130: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
+	139, // 131: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
+	128, // 132: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
+	128, // 133: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
+	158, // 134: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
+	95,  // 135: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
+	95,  // 136: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
+	128, // 137: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
+	136, // 138: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
+	128, // 139: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
+	128, // 140: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
+	159, // 141: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
+	160, // 142: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
+	96,  // 143: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
+	128, // 144: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
+	104, // 145: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	161, // 146: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
+	104, // 147: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	101, // 148: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
+	124, // 149: dockwell.agent.v1.ApplyCall.planned_leads:type_name -> dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
+	125, // 150: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
+	139, // 151: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
+	139, // 152: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
+	56,  // 153: dockwell.agent.v1.DesiredResource.restore:type_name -> dockwell.agent.v1.RestoreSource
+	117, // 154: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
+	118, // 155: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
+	121, // 156: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
+	122, // 157: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
+	115, // 158: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
+	116, // 159: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
+	93,  // 160: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
+	114, // 161: dockwell.agent.v1.CallResult.containers:type_name -> dockwell.agent.v1.ContainersResult
+	87,  // 162: dockwell.agent.v1.CallResult.list_files:type_name -> dockwell.agent.v1.ListFilesResult
+	88,  // 163: dockwell.agent.v1.CallResult.read_file:type_name -> dockwell.agent.v1.ReadFileResult
+	89,  // 164: dockwell.agent.v1.CallResult.save_file:type_name -> dockwell.agent.v1.SaveFileResult
+	108, // 165: dockwell.agent.v1.CallResult.adoption:type_name -> dockwell.agent.v1.AdoptionResult
+	109, // 166: dockwell.agent.v1.CallResult.backup_preview:type_name -> dockwell.agent.v1.BackupPreviewResult
+	110, // 167: dockwell.agent.v1.CallResult.backup:type_name -> dockwell.agent.v1.BackupResult
+	112, // 168: dockwell.agent.v1.CallResult.delete_backup:type_name -> dockwell.agent.v1.DeleteBackupResult
+	110, // 169: dockwell.agent.v1.CallResult.fetch_backup:type_name -> dockwell.agent.v1.BackupResult
+	111, // 170: dockwell.agent.v1.CallResult.send_backup:type_name -> dockwell.agent.v1.SendBackupResult
+	50,  // 171: dockwell.agent.v1.CallResult.list_updates:type_name -> dockwell.agent.v1.ListUpdatesResult
+	113, // 172: dockwell.agent.v1.CallResult.database:type_name -> dockwell.agent.v1.DatabaseResult
+	107, // 173: dockwell.agent.v1.CallResult.probe:type_name -> dockwell.agent.v1.ProbeResult
+	162, // 174: dockwell.agent.v1.CallResult.disk_use:type_name -> dockwell.v1.ServerDiskUse
+	29,  // 175: dockwell.agent.v1.CallResult.processes:type_name -> dockwell.agent.v1.ProcessesResult
+	31,  // 176: dockwell.agent.v1.CallResult.end_process:type_name -> dockwell.agent.v1.EndProcessResult
+	39,  // 177: dockwell.agent.v1.CallResult.open_terminal:type_name -> dockwell.agent.v1.OpenTerminalResult
+	41,  // 178: dockwell.agent.v1.CallResult.attach_terminal:type_name -> dockwell.agent.v1.AttachTerminalResult
+	43,  // 179: dockwell.agent.v1.CallResult.close_terminal:type_name -> dockwell.agent.v1.CloseTerminalResult
+	34,  // 180: dockwell.agent.v1.CallResult.task_runs:type_name -> dockwell.agent.v1.TaskRunsResult
+	37,  // 181: dockwell.agent.v1.CallResult.run_task:type_name -> dockwell.agent.v1.RunTaskResult
+	52,  // 182: dockwell.agent.v1.CallResult.read_onepanel:type_name -> dockwell.agent.v1.ReadOnePanelResult
+	65,  // 183: dockwell.agent.v1.CallResult.make_file:type_name -> dockwell.agent.v1.MakeFileResult
+	67,  // 184: dockwell.agent.v1.CallResult.move_file:type_name -> dockwell.agent.v1.MoveFileResult
+	69,  // 185: dockwell.agent.v1.CallResult.delete_file:type_name -> dockwell.agent.v1.DeleteFileResult
+	71,  // 186: dockwell.agent.v1.CallResult.list_deleted:type_name -> dockwell.agent.v1.ListDeletedResult
+	73,  // 187: dockwell.agent.v1.CallResult.restore_file:type_name -> dockwell.agent.v1.RestoreFileResult
+	75,  // 188: dockwell.agent.v1.CallResult.purge_deleted:type_name -> dockwell.agent.v1.PurgeDeletedResult
+	77,  // 189: dockwell.agent.v1.CallResult.begin_upload:type_name -> dockwell.agent.v1.UploadResult
+	77,  // 190: dockwell.agent.v1.CallResult.write_upload:type_name -> dockwell.agent.v1.UploadResult
+	80,  // 191: dockwell.agent.v1.CallResult.finish_upload:type_name -> dockwell.agent.v1.FinishUploadResult
+	82,  // 192: dockwell.agent.v1.CallResult.download_file:type_name -> dockwell.agent.v1.DownloadFileResult
+	163, // 193: dockwell.agent.v1.BackupPreviewResult.method:type_name -> dockwell.v1.BackupMethod
+	163, // 194: dockwell.agent.v1.BackupResult.method:type_name -> dockwell.v1.BackupMethod
+	164, // 195: dockwell.agent.v1.DatabaseResult.readings:type_name -> dockwell.v1.DatabaseReading
+	165, // 196: dockwell.agent.v1.ContainersResult.containers:type_name -> dockwell.v1.ServerContainer
+	159, // 197: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
+	161, // 198: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
+	120, // 199: dockwell.agent.v1.PlanResult.unmanaged:type_name -> dockwell.agent.v1.UnmanagedMounts
+	119, // 200: dockwell.agent.v1.PlanResult.via:type_name -> dockwell.agent.v1.PathVia
+	123, // 201: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
+	22,  // 202: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	24,  // 203: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	1,   // 204: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	97,  // 205: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
+	44,  // 206: dockwell.agent.v1.AgentService.Terminal:input_type -> dockwell.agent.v1.TerminalRequest
+	83,  // 207: dockwell.agent.v1.AgentService.ReceiveFile:input_type -> dockwell.agent.v1.ReceiveFileRequest
+	85,  // 208: dockwell.agent.v1.AgentService.SendFile:input_type -> dockwell.agent.v1.SendFileRequest
+	23,  // 209: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	25,  // 210: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	15,  // 211: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	98,  // 212: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
+	45,  // 213: dockwell.agent.v1.AgentService.Terminal:output_type -> dockwell.agent.v1.TerminalResponse
+	84,  // 214: dockwell.agent.v1.AgentService.ReceiveFile:output_type -> dockwell.agent.v1.ReceiveFileResponse
+	86,  // 215: dockwell.agent.v1.AgentService.SendFile:output_type -> dockwell.agent.v1.SendFileResponse
+	209, // [209:216] is the sub-list for method output_type
+	202, // [202:209] is the sub-list for method input_type
+	202, // [202:202] is the sub-list for extension type_name
+	202, // [202:202] is the sub-list for extension extendee
+	0,   // [0:202] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }
@@ -8819,13 +10754,23 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*Call_TaskRuns)(nil),
 		(*Call_RunTask)(nil),
 		(*Call_ReadOnepanel)(nil),
+		(*Call_MakeFile)(nil),
+		(*Call_MoveFile)(nil),
+		(*Call_DeleteFile)(nil),
+		(*Call_ListDeleted)(nil),
+		(*Call_RestoreFile)(nil),
+		(*Call_PurgeDeleted)(nil),
+		(*Call_BeginUpload)(nil),
+		(*Call_WriteUpload)(nil),
+		(*Call_FinishUpload)(nil),
+		(*Call_DownloadFile)(nil),
 	}
 	file_dockwell_agent_v1_agent_proto_msgTypes[26].OneofWrappers = []any{
 		(*ProbeCall_Port)(nil),
 		(*ProbeCall_Url)(nil),
 	}
-	file_dockwell_agent_v1_agent_proto_msgTypes[80].OneofWrappers = []any{}
-	file_dockwell_agent_v1_agent_proto_msgTypes[82].OneofWrappers = []any{
+	file_dockwell_agent_v1_agent_proto_msgTypes[103].OneofWrappers = []any{}
+	file_dockwell_agent_v1_agent_proto_msgTypes[105].OneofWrappers = []any{
 		(*CallResult_Error)(nil),
 		(*CallResult_Plan)(nil),
 		(*CallResult_Apply)(nil),
@@ -8855,15 +10800,25 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*CallResult_TaskRuns)(nil),
 		(*CallResult_RunTask)(nil),
 		(*CallResult_ReadOnepanel)(nil),
+		(*CallResult_MakeFile)(nil),
+		(*CallResult_MoveFile)(nil),
+		(*CallResult_DeleteFile)(nil),
+		(*CallResult_ListDeleted)(nil),
+		(*CallResult_RestoreFile)(nil),
+		(*CallResult_PurgeDeleted)(nil),
+		(*CallResult_BeginUpload)(nil),
+		(*CallResult_WriteUpload)(nil),
+		(*CallResult_FinishUpload)(nil),
+		(*CallResult_DownloadFile)(nil),
 	}
-	file_dockwell_agent_v1_agent_proto_msgTypes[99].OneofWrappers = []any{}
+	file_dockwell_agent_v1_agent_proto_msgTypes[122].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_agent_v1_agent_proto_rawDesc), len(file_dockwell_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   102,
+			NumMessages:   125,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

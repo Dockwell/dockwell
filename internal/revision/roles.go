@@ -345,7 +345,8 @@ func installWide(a resource.Access) string {
 	case resource.AccessTakesOn:
 		return "takes on a container Dockwell didn't make"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
-		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume:
+		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
+		resource.AccessServerShell: // as good as root, which the first check holds
 	}
 	return ""
 }

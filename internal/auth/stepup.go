@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,6 +80,17 @@ const (
 	// environment. Its target is the change's ID and its plan's fingerprint, as
 	// "chg_…:fingerprint".
 	StepUpApproveChange StepUpAction = "change.approve"
+	// StepUpMakeWayBackIn makes a file or a folder that's a way back onto a server.
+	// Its target is the server's ID and the path, as for a save.
+	StepUpMakeWayBackIn StepUpAction = "file.make_way_back_in"
+	// StepUpMoveWayBackIn moves what's at a path where either end is a way back onto
+	// a server. Its target is the server's ID and both paths, on two lines.
+	StepUpMoveWayBackIn StepUpAction = "file.move_way_back_in"
+	// StepUpDeleteWayBackIn deletes what's a way back onto a server, or holds one.
+	StepUpDeleteWayBackIn StepUpAction = "file.delete_way_back_in"
+	// StepUpRestoreWayBackIn puts back what was deleted where that's a way back
+	// onto a server. Its target is the server's ID and the path it goes back to.
+	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -99,13 +111,18 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpEndProcess:      {"ending process", true},
 	StepUpOpenTerminal:    {"opening a terminal on", true},
 	StepUpApproveChange:   {"approving", true},
+	// A move's target has its two paths on two lines, which doing puts in words.
+	StepUpMakeWayBackIn:    {"making", true},
+	StepUpMoveWayBackIn:    {"moving", true},
+	StepUpDeleteWayBackIn:  {"deleting", true},
+	StepUpRestoreWayBackIn: {"putting back", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
 func doing(action StepUpAction, target string) string {
 	a := stepUpActions[action]
 	if a.targeted {
-		return a.doing + " " + target
+		return a.doing + " " + strings.ReplaceAll(target, "\n", " to ")
 	}
 	return a.doing
 }

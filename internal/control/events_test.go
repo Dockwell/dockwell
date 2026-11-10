@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -432,9 +433,14 @@ func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
 	for _, r := range all.Msg.GetResources() {
 		made = append(made, r.GetResource().GetKind()+" "+r.GetResource().GetName())
 	}
-	if !slices.Equal(made, []string{
-		"project default", "environment production", "project shop", "environment production", "environment staging", "environment qa",
-	}) {
+	// An install starts with its alert rules too, after its default project.
+	var rules []string
+	for _, d := range alert.Defaults() {
+		rules = append(rules, "alert.rule "+d.Name)
+	}
+	if !slices.Equal(made, slices.Concat([]string{"project default", "environment production"}, rules, []string{
+		"project shop", "environment production", "environment staging", "environment qa",
+	})) {
 		t.Errorf("every resource, oldest first, is %v", made)
 	}
 	var paged []string

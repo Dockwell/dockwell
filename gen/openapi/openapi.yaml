@@ -6,6 +6,215 @@ info:
     title: Dockwell API
     version: v1
 paths:
+    /v1/alert-channels:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertChannels returns every channel, with how its last message went, and
+                 never what signs in to it.
+            operationId: AlertService_ListAlertChannels
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertChannelsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alert-channels:test:
+        post:
+            tags:
+                - AlertService
+            description: |-
+                TestAlertChannel sends a test message through a channel, one that exists or
+                 one a form holds, and says what the far end answered. It changes nothing.
+            operationId: AlertService_TestAlertChannel
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestAlertChannelRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestAlertChannelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alert-deliveries:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertDeliveries returns the newest messages to every channel, tests
+                 among them, newest first: what each was, and what the far end answered.
+            operationId: AlertService_ListAlertDeliveries
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: How many, 50 unless set, and at most 200.
+                  schema:
+                    type: integer
+                    format: int32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertDeliveriesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alert-mutes:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertMutes lists the mutes in force, soonest to end first, with who
+                 muted each, as Activity names them.
+            operationId: AlertService_ListAlertMutes
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertMutesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - AlertService
+            description: |-
+                MuteAlerts holds what a rule or a server would send until a time. Alerts
+                 still open and close, on Activity and here, and one whose firing message went
+                 out still gets its resolved one. When the mute ends, what's still firing is
+                 sent. Muting again what's muted moves its end.
+            operationId: AlertService_MuteAlerts
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MuteAlertsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MuteAlertsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alert-mutes:end:
+        post:
+            tags:
+                - AlertService
+            description: UnmuteAlerts ends a mute now, and sends what's still firing.
+            operationId: AlertService_UnmuteAlerts
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UnmuteAlertsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UnmuteAlertsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alert-rules:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertRules returns every rule, in the order Dockwell lists them, with
+                 what each is firing on now.
+            operationId: AlertService_ListAlertRules
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertRulesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/alerts:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlerts returns what's firing now, most severe and then newest first, and
+                 after it what fired and resolved, newest first, a page at a time.
+            operationId: AlertService_ListAlerts
+            parameters:
+                - name: pageSize
+                  in: query
+                  description: 'How many to return: 50 unless set, and at most 500.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: 'Where to start: the next_page_token of the page before.'
+                  schema:
+                    type: string
+                - name: firingOnly
+                  in: query
+                  description: Only what's firing now.
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/auditEvents:
         get:
             tags:
@@ -1127,6 +1336,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}/users:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                CreateDatabaseUser plans a database inside a database server, with a user who
+                 owns it, and a password for them that the control plane generates and keeps as a
+                 secret of the environment, which nobody sees unless they reveal it. The user is a
+                 resource, of kind "database.user", so it's a change with a plan, a revision and an
+                 undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
+                 and MariaDB have users of their own.
+            operationId: DatabaseService_CreateDatabaseUser
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateDatabaseUserRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateDatabaseUserResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -1314,6 +1561,7 @@ paths:
                             - EVENT_KIND_HEALTH
                             - EVENT_KIND_BACKUP
                             - EVENT_KIND_SETTINGS
+                            - EVENT_KIND_ALERT
                             - EVENT_KIND_TASK
                         type: string
                         format: enum
@@ -1830,6 +2078,110 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files:
+        get:
+            tags:
+                - FileService
+            description: |-
+                ListDeletedFiles returns what's in a server's Recently deleted, newest
+                 first. No API token can call it.
+            operationId: FileService_ListDeletedFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDeletedFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files/{id}:
+        delete:
+            tags:
+                - FileService
+            description: |-
+                PurgeDeletedFile deletes for good what's in Recently deleted, which
+                 frees its space at once. No API token can call it. Each one is on the
+                 timeline.
+            operationId: FileService_PurgeDeletedFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Its ID in Recently deleted.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PurgeDeletedFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/deleted-files/{id}:restore:
+        post:
+            tags:
+                - FileService
+            description: |-
+                RestoreFile puts back what was deleted, at the path it was deleted from,
+                 never over what's there now. No API token can call it. Each one is on
+                 the timeline.
+            operationId: FileService_RestoreFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: id
+                  in: path
+                  description: Its ID in Recently deleted.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RestoreFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RestoreFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -1867,6 +2219,167 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:delete:
+        post:
+            tags:
+                - FileService
+            description: |-
+                DeleteFile deletes a file or a folder. It goes to Recently deleted for 7
+                 days, from where RestoreFile puts it back, when it's on the same
+                 filesystem as Dockwell's data. Elsewhere it fails with the reason
+                 "delete_for_good" unless for_good is set. A symlink goes as itself. No
+                 API token can call it. Each one is on the timeline.
+            operationId: FileService_DeleteFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:download:
+        get:
+            tags:
+                - FileService
+            description: |-
+                DownloadFile sends a file as it is, or a folder as a zip archive, as it
+                 reads it. Over REST it's a GET whose body is the file, written as it's
+                 read, for a browser to save; one that stops partway cuts the connection,
+                 so it can't pass for the whole. What a read refuses, a download does, and
+                 one stops at a private key in what it sends. No API token can call it.
+                 Each one is on the timeline, before anything goes out.
+            operationId: FileService_DownloadFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: path
+                  in: query
+                  description: The absolute path of a file or a folder, without . or .. in it.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: 'The bytes, as they''re read: a file as it is, or a folder as a zip archive made as it goes. One that stops partway cuts the connection, so it can''t pass for the whole.'
+                    headers:
+                        Content-Disposition:
+                            description: attachment, with the file's name, or the folder's with .zip
+                            schema:
+                                type: string
+                        Content-Length:
+                            description: How large a file is. A folder's archive has none, as it's made as it goes.
+                            schema:
+                                type: integer
+                    content:
+                        application/octet-stream:
+                            schema:
+                                type: string
+                                format: binary
+                        application/zip:
+                            schema:
+                                type: string
+                                format: binary
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            x-dockwell-stream: response
+    /v1/servers/{serverId}/files:make:
+        post:
+            tags:
+                - FileService
+            description: |-
+                MakeFile makes an empty file, or a folder with nothing in it, never over
+                 what's there, which fails with the reason "file_exists". It takes its
+                 folder's owner and group. No API token can call it. Each one is on the
+                 timeline. See docs/adr/0045-a-file-manager-on-a-server.md.
+            operationId: FileService_MakeFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MakeFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MakeFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:move:
+        post:
+            tags:
+                - FileService
+            description: |-
+                MoveFile moves or renames a file or a folder, within one filesystem,
+                 never over what's there. A symlink moves as itself. A move to another
+                 disk fails with the reason "other_disk". No API token can call it. Each
+                 one is on the timeline.
+            operationId: FileService_MoveFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/MoveFileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MoveFileResponse'
                 default:
                     description: Default error response
                     content:
@@ -2097,6 +2610,177 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/OpenTerminalResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/uploads:
+        post:
+            tags:
+                - FileService
+            description: |-
+                BeginUpload starts an upload of a file of size_bytes to path, never over
+                 what's there, and says how far an upload got when upload_id names one,
+                 to pick it up again after a dropped connection. A file takes at most
+                 16 GB (max_bytes), and what the server's disk has room for. Send it with
+                 UploadFile, then put it in place with FinishUpload, or stop it with
+                 CancelUpload. An upload is the session's that began it: from any other,
+                 each of these says there's no such upload. An upload not finished within
+                 a day goes. No API token can call it. See
+                 docs/adr/0045-a-file-manager-on-a-server.md.
+            operationId: FileService_BeginUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginUploadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginUploadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/uploads/{uploadId}:
+        put:
+            tags:
+                - FileService
+            description: |-
+                UploadFile sends an upload's bytes, from offset, which has to be how far
+                 it got, as BeginUpload says. The agent writes them as they come, a part at
+                 a time. Over REST it's a PUT whose body is the bytes, which the control
+                 plane passes on a frame at a time, and it answers with how far the upload
+                 got. A large file can go as several PUTs, each from where the last ended,
+                 as a proxy in front may limit how large a request is. A write from
+                 elsewhere fails with the reason "upload_offset", and writes nothing. No
+                 API token can call it.
+            operationId: FileService_UploadFile
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, on the first message.
+                  required: true
+                  schema:
+                    type: string
+                - name: uploadId
+                  in: path
+                  description: The upload, on the first message.
+                  required: true
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  description: 'Where these bytes start, on the first message: how far the upload got.'
+                  schema:
+                    type: string
+            requestBody:
+                description: 'The bytes, from offset, as they come: not JSON. Send a large file as several requests, each from where the last ended.'
+                required: true
+                content:
+                    application/octet-stream:
+                        schema:
+                            type: string
+                            format: binary
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UploadFileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            x-dockwell-stream: request
+        delete:
+            tags:
+                - FileService
+            description: |-
+                CancelUpload stops an upload and removes what it has so far, from the
+                 session that began it. An upload left alone goes after a day anyway. No API
+                 token can call it.
+            operationId: FileService_CancelUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: uploadId
+                  in: path
+                  description: The upload.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelUploadResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/uploads/{uploadId}:finish:
+        post:
+            tags:
+                - FileService
+            description: |-
+                FinishUpload puts an upload in place, once all of it is there, and
+                 unpacks it into a new folder beside it when BeginUpload asked to. It takes
+                 its folder's owner and group. No API token can call it. Each one is on the
+                 timeline.
+            operationId: FileService_FinishUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: uploadId
+                  in: path
+                  description: The upload.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishUploadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishUploadResponse'
                 default:
                     description: Default error response
                     content:
@@ -3782,6 +4466,408 @@ components:
                         The URLs a server elsewhere reaches it at, in the order a ticket tries
                          them. Empty when that isn't known, and for an API token.
             description: AgentListener is where servers' agents reach the control plane.
+        Alert:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The alert's ID, "alt_…".
+                ruleId:
+                    type: string
+                    description: The rule, by ID and by name. A deleted rule keeps its name here.
+                ruleName:
+                    type: string
+                condition:
+                    enum:
+                        - CONDITION_UNSPECIFIED
+                        - CONDITION_SERVICE_DOWN
+                        - CONDITION_SERVER_UNREACHABLE
+                        - CONDITION_DISK_FULL
+                        - CONDITION_MEMORY_HIGH
+                        - CONDITION_CERTIFICATE_EXPIRING
+                        - CONDITION_CERTIFICATE_FAILED
+                        - CONDITION_BACKUP_FAILED
+                        - CONDITION_BACKUP_LATE
+                        - CONDITION_CHANGE_FAILED
+                    type: string
+                    description: What the rule watches for, and how much it matters, as it did when it fired.
+                    format: enum
+                severity:
+                    enum:
+                        - SEVERITY_UNSPECIFIED
+                        - SEVERITY_WARNING
+                        - SEVERITY_CRITICAL
+                    type: string
+                    format: enum
+                state:
+                    enum:
+                        - ALERT_STATE_UNSPECIFIED
+                        - ALERT_STATE_FIRING
+                        - ALERT_STATE_RESOLVED
+                    type: string
+                    description: Where it is.
+                    format: enum
+                title:
+                    type: string
+                    description: What's wrong, in a line, such as "web-1's disk is 93% full".
+                detail:
+                    type: string
+                    description: What it means and what fixes it, in a sentence or two.
+                serverId:
+                    type: string
+                    description: The server it's on, when it's on one.
+                serverName:
+                    type: string
+                subjectId:
+                    type: string
+                    description: |-
+                        What else it's about, by ID and name: a service, a domain, a volume or a
+                         change. Empty for a server's own.
+                subjectName:
+                    type: string
+                path:
+                    type: string
+                    description: Where the panel shows it, such as "/servers/srv_…".
+                openTime:
+                    type: string
+                    description: When it fired, and when it resolved.
+                    format: date-time
+                resolveTime:
+                    type: string
+                    format: date-time
+                sentTime:
+                    type: string
+                    description: |-
+                        When a message last went out for it. Unset when none has: no channel yet,
+                         or a mute held it.
+                    format: date-time
+                muted:
+                    type: boolean
+                    description: Whether a mute holds what it sends now.
+                variant:
+                    type: string
+                    description: |-
+                        What its title says, apart, for the panel to say in its own language, as
+                         EventAlert has it: which of its condition's titles it is, where, and a value.
+                where:
+                    type: string
+                value:
+                    type: integer
+                    format: int32
+            description: |-
+                Alert is one rule holding for one thing, such as a server's disk, from when
+                 it fired until it resolved.
+        AlertChannel:
+            type: object
+            properties:
+                webhook:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertWebhook'
+                    description: An HTTP endpoint of your own, sent JSON.
+                email:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertEmail'
+                    description: Email, through an SMTP server.
+                ntfy:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertNtfy'
+                    description: A topic on an ntfy server, which pushes to phones.
+                slack:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertSlack'
+                    description: A Slack channel, through an incoming webhook.
+                discord:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertDiscord'
+                    description: A Discord channel, through a webhook.
+                telegram:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertTelegram'
+                    description: A Telegram chat, through a bot.
+            description: |-
+                AlertChannel is somewhere alerts are sent. It lives in the organization. What
+                 signs in to it is sealed, and a plan says only that it changed (ADR 0022).
+        AlertChannelInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The channel's ID, "ach_…", and its name.
+                name:
+                    type: string
+                type:
+                    type: string
+                    description: What sort of channel it is, such as "webhook".
+                target:
+                    type: string
+                    description: Where it sends, with nothing that signs in, such as the webhook's host.
+                rules:
+                    type: integer
+                    description: How many rules send to it, naming it or naming none.
+                    format: int32
+                last:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertDelivery'
+                    description: How its last message went. Unset when it has sent none.
+                channel:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertChannel'
+                    description: Its spec, with every field that signs in left empty, for a form to change.
+                sealed:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The fields that sign in which it has, such as "email.password". They're
+                         sealed and never shown; an update that leaves one empty keeps it.
+            description: AlertChannelInfo is a channel, with nothing that signs in to it.
+        AlertDelivery:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it was sent.
+                    format: date-time
+                ok:
+                    type: boolean
+                    description: Whether the far end took it.
+                said:
+                    type: string
+                    description: |-
+                        What the far end answered, in a line, such as "202 Accepted", or why it
+                         couldn't be reached. Nothing that signs in.
+                about:
+                    type: string
+                    description: What it was, such as "Disk above 90% on web-1" or "Test message".
+                channel:
+                    type: string
+                    description: The channel it went to, by name, as it was named then.
+            description: AlertDelivery is how one message to a channel went.
+        AlertDiscord:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The webhook's URL, such as "https://discord.com/api/webhooks/0000/XXXX".
+                         It's what lets anyone post there, so it's sealed, and lists show only its
+                         host.
+            description: |-
+                AlertDiscord posts each alert to a Discord channel, through a webhook the
+                 channel's settings give.
+        AlertEmail:
+            type: object
+            properties:
+                host:
+                    type: string
+                    description: The SMTP server's name or address, such as "smtp.example.com".
+                port:
+                    type: integer
+                    description: 'Its port: 587 for STARTTLS and 465 for TLS unless set, and 25 for none.'
+                    format: uint32
+                security:
+                    enum:
+                        - SECURITY_UNSPECIFIED
+                        - SECURITY_STARTTLS
+                        - SECURITY_TLS
+                        - SECURITY_NONE
+                    type: string
+                    description: How Dockwell secures the connection.
+                    format: enum
+                username:
+                    type: string
+                    description: |-
+                        Who Dockwell signs in as, when the server asks for that. Empty signs in as
+                         no one.
+                password:
+                    type: string
+                    description: |-
+                        The password Dockwell signs in with. Changing the server, its port, its
+                         security or the user needs it again.
+                from:
+                    type: string
+                    description: Who the emails come from, such as "Dockwell <alerts@example.com>".
+                to:
+                    type: array
+                    items:
+                        type: string
+                    description: 'Who they go to, such as "ops@example.com": one to ten addresses.'
+            description: |-
+                AlertEmail sends each alert as an email, through an SMTP server such as your
+                 mail provider's. Dockwell talks TLS to it, unless it's on this server or its
+                 private network, and sends its password only over TLS.
+        AlertMute:
+            type: object
+            properties:
+                rule:
+                    type: string
+                    description: 'The rule, by name, or the server, by ID and name: one of the two.'
+                serverId:
+                    type: string
+                serverName:
+                    type: string
+                until:
+                    type: string
+                    description: When it ends.
+                    format: date-time
+                by:
+                    type: string
+                    description: Who muted it, as Activity names them.
+                reason:
+                    type: string
+                    description: Why, in their words. Empty when they gave none.
+            description: AlertMute holds what a rule or a server sends, until a time.
+        AlertNtfy:
+            type: object
+            properties:
+                server:
+                    type: string
+                    description: The server, such as "https://ntfy.sh", which it is unless set.
+                topic:
+                    type: string
+                    description: |-
+                        The topic, such as "dockwell-alerts-x7f2". On a public server anyone who
+                         knows it can read what's sent, so it's sealed like a password, and lists
+                         show only the server.
+                token:
+                    type: string
+                    description: |-
+                        An access token, for a server or topic that asks for one. Changing the
+                         server needs it again.
+            description: |-
+                AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
+                 or one of your own, which pushes it to the phones that subscribe.
+        AlertRule:
+            type: object
+            properties:
+                condition:
+                    enum:
+                        - CONDITION_UNSPECIFIED
+                        - CONDITION_SERVICE_DOWN
+                        - CONDITION_SERVER_UNREACHABLE
+                        - CONDITION_DISK_FULL
+                        - CONDITION_MEMORY_HIGH
+                        - CONDITION_CERTIFICATE_EXPIRING
+                        - CONDITION_CERTIFICATE_FAILED
+                        - CONDITION_BACKUP_FAILED
+                        - CONDITION_BACKUP_LATE
+                        - CONDITION_CHANGE_FAILED
+                    type: string
+                    description: What it watches for.
+                    format: enum
+                threshold:
+                    type: integer
+                    description: |-
+                        The level, for a condition that has one: a percent for disk and memory, 1 to
+                         100, and days for a certificate, 1 to 90. Others leave it 0.
+                    format: uint32
+                duration:
+                    type: string
+                    description: |-
+                        How long the condition holds before the alert fires, such as "5m". Empty
+                         fires at once. For a late backup, how long after its time a run may start.
+                severity:
+                    enum:
+                        - SEVERITY_UNSPECIFIED
+                        - SEVERITY_WARNING
+                        - SEVERITY_CRITICAL
+                    type: string
+                    description: 'How much it matters: warning unless set.'
+                    format: enum
+                channels:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The channels it sends to, by name. Empty sends to every channel, so a rule
+                         tells someone as soon as there is one.
+                repeat:
+                    type: string
+                    description: |-
+                        Sends an alert that's still firing again this often, such as "4h". Empty
+                         sends it once, and once more when it resolves.
+                disabled:
+                    type: boolean
+                    description: Keeps the rule without evaluating it.
+            description: |-
+                AlertRule is something Dockwell watches for, on every server or app it
+                 applies to, and who it tells when it holds. It lives in the organization, and
+                 the control plane evaluates it, from what it hears of servers already. See
+                 docs/adr/0044-alerts.md.
+        AlertRuleInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The rule's ID, "alr_…", and its name.
+                name:
+                    type: string
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertRule'
+                    description: What it is.
+                title:
+                    type: string
+                    description: What it watches for, in words, such as "Disk above 90%".
+                expression:
+                    type: string
+                    description: Its condition as an expression, such as "disk.percent > 90".
+                firing:
+                    type: integer
+                    description: How many alerts of it are firing now.
+                    format: int32
+                lastFiredTime:
+                    type: string
+                    description: When it last fired. Unset when it never has.
+                    format: date-time
+                mutedUntil:
+                    type: string
+                    description: Until when a mute holds what it sends. Unset when none does.
+                    format: date-time
+                builtIn:
+                    type: boolean
+                    description: Whether Dockwell made it, as one of an install's first rules.
+            description: AlertRuleInfo is a rule, as it stands, with what it's doing now.
+        AlertSlack:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The webhook's URL, such as "https://hooks.slack.com/services/T000/B000/XXXX".
+                         It's what lets anyone post there, so it's sealed, and lists show only its
+                         host.
+            description: |-
+                AlertSlack posts each alert to a Slack channel, through an incoming webhook
+                 a Slack app gives.
+        AlertTelegram:
+            type: object
+            properties:
+                botToken:
+                    type: string
+                    description: The bot's token, such as "123456789:AAE…", which BotFather gives.
+                chatId:
+                    type: string
+                    description: |-
+                        The chat, by its ID, such as "-1001234567890" for a group, or a channel's
+                         name, such as "@example_alerts". The bot has to be in it.
+            description: |-
+                AlertTelegram sends each alert to a Telegram chat, as a bot you made with
+                 @BotFather.
+        AlertWebhook:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The URL, such as "https://hooks.example.com/dockwell". It may hold a token,
+                         so it's sealed, and lists show only its host.
+                secret:
+                    type: string
+                    description: |-
+                        What signs each request, in a Dockwell-Signature header, so the endpoint
+                         can tell it came from this install. Empty signs nothing.
+            description: AlertWebhook sends each alert, and each that resolves, as JSON in a POST.
         ApplyChangeRequest:
             type: object
             properties:
@@ -4270,6 +5356,10 @@ components:
                         - STEP_UP_ACTION_SAVE_WAY_BACK_IN
                         - STEP_UP_ACTION_END_PROCESS
                         - STEP_UP_ACTION_OPEN_TERMINAL
+                        - STEP_UP_ACTION_MAKE_WAY_BACK_IN
+                        - STEP_UP_ACTION_MOVE_WAY_BACK_IN
+                        - STEP_UP_ACTION_DELETE_WAY_BACK_IN
+                        - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
                     type: string
                     description: The action.
@@ -4310,6 +5400,49 @@ components:
                     type: string
                     description: The otpauth:// URI, for a QR code.
             description: BeginTotpSetupResponse carries the new secret.
+        BeginUploadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The absolute path the file takes, without . or .. in it. Its folder must
+                         exist, and nothing may be at it.
+                sizeBytes:
+                    type: string
+                    description: How large the file is, in bytes.
+                unpack:
+                    enum:
+                        - UNPACK_UNSPECIFIED
+                        - UNPACK_ZIP
+                        - UNPACK_TAR_GZ
+                    type: string
+                    description: |-
+                        To unpack it into a new folder beside it, named as it is without .zip,
+                         .tar.gz or .tgz, once it's all there.
+                    format: enum
+                uploadId:
+                    type: string
+                    description: |-
+                        An upload to pick up again, from BeginUpload. With it, path, size_bytes
+                         and unpack are left out.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, with the action STEP_UP_ACTION_MAKE_WAY_BACK_IN,
+                         for making this path on this server, where it's a way back onto it.
+            description: BeginUploadRequest starts an upload, or asks how far one got.
+        BeginUploadResponse:
+            type: object
+            properties:
+                upload:
+                    allOf:
+                        - $ref: '#/components/schemas/Upload'
+                    description: The upload.
+            description: BeginUploadResponse is the upload begun, or as it stands.
         BuildInfo:
             type: object
             properties:
@@ -4355,6 +5488,10 @@ components:
             type: object
             properties: {}
             description: CancelTotpSetupResponse is empty.
+        CancelUploadResponse:
+            type: object
+            properties: {}
+            description: 'CancelUploadResponse is empty: the upload and what it had are gone.'
         CatalogInstall:
             type: object
             properties:
@@ -5165,6 +6302,47 @@ components:
                         - $ref: '#/components/schemas/Backup'
                     description: The backup.
             description: CreateBackupResponse is the backup, running.
+        CreateDatabaseUserRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                user:
+                    type: string
+                    description: |-
+                        The user's name, such as "shop": lowercase letters, digits and underscores,
+                         starting with a letter, at most 32.
+                database:
+                    type: string
+                    description: The database they own, named as a user is. Empty takes the user's name.
+                secret:
+                    type: string
+                    description: |-
+                        The secret their password goes in, such as "SHOP_DATABASE_PASSWORD". Empty
+                         takes the user's name in capitals, then "_DATABASE_PASSWORD". It must not be
+                         there already.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one has a
+                         service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project has
+                         more than one.
+            description: |-
+                CreateDatabaseUserRequest names a database server, and the user and database to
+                 make in it.
+        CreateDatabaseUserResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: CreateDatabaseUserResponse carries the planned change.
         CreateTokenRequest:
             type: object
             properties:
@@ -5381,6 +6559,19 @@ components:
                 system:
                     type: boolean
                     description: True for one the server made for itself, such as mysql.sys.
+                secret:
+                    type: string
+                    description: |-
+                        For a user Dockwell made, a resource of kind "database.user": the secret their
+                         password is in, by name.
+                usedBy:
+                    type: array
+                    items:
+                        type: string
+                    description: The services that use that secret, by name, which are what signs in as them.
+                resourceId:
+                    type: string
+                    description: The resource's ID, for a user Dockwell made.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -5451,10 +6642,78 @@ components:
                     description: How many more databases or users it has than this lists.
                     format: int32
             description: DatabaseReading is what a database said of itself on one server.
+        DatabaseUser:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service that runs the database server, by name, such as "db".
+                databaseName:
+                    type: string
+                    description: |-
+                        The database the user owns, which is made with them, such as "shop". Empty
+                         takes the user's name. It can't change once made.
+                password:
+                    type: string
+                    description: |-
+                        The environment's secret the user's password is in, by name, such as
+                         "SHOP_DATABASE_PASSWORD".
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The revision of the secret the user was given. Dockwell sets it when a change
+                         is planned, so setting the secret anew gives the user its new password. An
+                         edit's is ignored.
+            description: |-
+                DatabaseUser is a database inside a database server that a service of its
+                 environment runs, with the user who owns it, who signs in with a secret of the
+                 environment. The service runs PostgreSQL, MySQL or MariaDB from its official image,
+                 and the user and the database are made in its own container, with its own tools,
+                 on the servers it runs on (ADR 0038). Its name is the user's, such as "shop".
+                 Setting the secret anew changes the user's password, and deleting one drops the
+                 user and the database, with everything in it.
         DeleteBackupResponse:
             type: object
             properties: {}
             description: DeleteBackupResponse says it's gone.
+        DeleteFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: The absolute path, without . or .. in it.
+                forGood:
+                    type: boolean
+                    description: |-
+                        True to delete it for good, which frees its space at once and can't be
+                         undone. What's on another filesystem than Dockwell's data needs it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for deleting this path on this server,
+                         where it's a way back onto the server or holds one. path then has to be
+                         where the server resolves it.
+            description: DeleteFileRequest deletes a file or a folder.
+        DeleteFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                deleted:
+                    allOf:
+                        - $ref: '#/components/schemas/DeletedFile'
+                    description: It in Recently deleted. Unset when it was deleted for good.
+                wayBackIn:
+                    type: boolean
+                    description: True when it was a way back onto the server, which took a passkey.
+            description: DeleteFileResponse says what was deleted.
         DeleteWebsiteRequest:
             type: object
             properties:
@@ -5473,6 +6732,37 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: DeleteWebsiteResponse carries the planned change.
+        DeletedFile:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, which RestoreFile and PurgeDeletedFile take.
+                path:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: What it is.
+                    format: enum
+                sizeBytes:
+                    type: string
+                    description: Its size in bytes, for a file. Zero for a folder.
+                deleteTime:
+                    type: string
+                    description: When it was deleted.
+                    format: date-time
+                purgeTime:
+                    type: string
+                    description: When it goes for good, unless it's put back first.
+                    format: date-time
+            description: DeletedFile is one file or folder in Recently deleted.
         DeployServiceRequest:
             type: object
             properties:
@@ -5741,6 +7031,13 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says of it.
             description: DomainStatus is where one domain's certificate and DNS stand on a server.
+        DownloadFileResponse:
+            type: object
+            properties:
+                body:
+                    type: string
+                    description: The bytes, as they come. Over REST they're the body.
+            description: DownloadFileResponse is part of what's downloaded.
         Drift:
             type: object
             properties:
@@ -5824,6 +7121,28 @@ components:
                          environment's ID; once there are several, an environment named
                          without its project is an error that names the projects. Other kinds
                          name their project, if they live in one, in resource.scope.
+                baseRevision:
+                    type: string
+                    description: |-
+                        The revision of the resource the spec was made from, as a list gave it,
+                         for an edit that read the spec and changed part of it. If the resource has
+                         changed since, the edit is stale, an error with the reason "plan_stale", as
+                         planning it would quietly undo what came between: read it again, and edit
+                         that. 0 checks nothing, for an edit that says the whole spec itself.
+                keepEnv:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        A service's own environment variables to keep as they are, by name, for a
+                         client that can't read their values back, as no response carries them:
+                         it sends the rest of the spec, and names these instead of setting them.
+                         Each must be one the service has now, and not one the spec sets too. Only
+                         an edit of a service that's there takes it, and only with base_revision,
+                         the revision the rest was read at: without one the edit is refused, as a
+                         change since the read would be undone. A value kept goes nowhere it hasn't
+                         been, so the edit can't place the service on another server: set the value
+                         again in the edit to run it there.
             description: Edit sets one resource's desired spec, or deletes it.
         EndProcessRequest:
             type: object
@@ -5933,6 +7252,34 @@ components:
                         The services its Compose file runs that are databases the app keeps its data
                          in, by name, such as "db". A page names each as a database rather than an app.
                          Empty leaves that to the images Dockwell knows as databases.
+                description:
+                    type: string
+                    description: |-
+                        What the app does and who it is for, in the catalog's own words. Plain
+                         text, with blank lines between paragraphs; never HTML or Markdown.
+                icon:
+                    type: string
+                    description: |-
+                        The app's own logo, used to identify it. A local image path under
+                         /catalog-media/, served with the panel. Empty when no artwork is available.
+                screenshots:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Screenshot'
+                    description: |-
+                        Genuine previews of the app, with captions identifying what they show.
+                         A command-line service need not have a screenshot.
+                documentation:
+                    type: string
+                    description: The app's documentation, at an HTTPS address.
+                appSource:
+                    type: string
+                    description: The app's source repository, distinct from the source of this entry.
+                features:
+                    type: array
+                    items:
+                        type: string
+                    description: A short list of things the app can do, in the catalog's own words.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -6015,6 +7362,7 @@ components:
                         - EVENT_KIND_HEALTH
                         - EVENT_KIND_BACKUP
                         - EVENT_KIND_SETTINGS
+                        - EVENT_KIND_ALERT
                         - EVENT_KIND_TASK
                     type: string
                     description: What sort of event it is.
@@ -6095,6 +7443,12 @@ components:
                     description: |-
                         A setting of the install someone changed, for a settings event. Numbered
                          apart, as open work adds to this message.
+                alert:
+                    allOf:
+                        - $ref: '#/components/schemas/EventAlert'
+                    description: |-
+                        The alert that fired or resolved, or the mute that began or ended, for an
+                         alert event. Numbered apart, as open work adds to this message.
                 taskRun:
                     allOf:
                         - $ref: '#/components/schemas/EventTaskRun'
@@ -6103,6 +7457,81 @@ components:
                          task. Numbered in the block scheduled tasks hold, as open work adds to this
                          message.
             description: Event is one thing that happened.
+        EventAlert:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The alert's ID, "alt_…". Empty for a mute.
+                rule:
+                    type: string
+                    description: The rule, by name.
+                severity:
+                    enum:
+                        - SEVERITY_UNSPECIFIED
+                        - SEVERITY_WARNING
+                        - SEVERITY_CRITICAL
+                    type: string
+                    description: How much it matters.
+                    format: enum
+                title:
+                    type: string
+                    description: What it said, such as "web-1's disk is 93% full".
+                serverId:
+                    type: string
+                    description: The server it's on, when it's on one.
+                serverName:
+                    type: string
+                path:
+                    type: string
+                    description: Where the panel shows it.
+                openTime:
+                    type: string
+                    description: When it fired, on a resolved alert's event.
+                    format: date-time
+                until:
+                    type: string
+                    description: When a mute ends, on a mute's event.
+                    format: date-time
+                reason:
+                    type: string
+                    description: Why someone muted it, in their words, on a mute's event.
+                detail:
+                    type: string
+                    description: What a firing alert means and how to fix it, as it was sent.
+                condition:
+                    enum:
+                        - CONDITION_UNSPECIFIED
+                        - CONDITION_SERVICE_DOWN
+                        - CONDITION_SERVER_UNREACHABLE
+                        - CONDITION_DISK_FULL
+                        - CONDITION_MEMORY_HIGH
+                        - CONDITION_CERTIFICATE_EXPIRING
+                        - CONDITION_CERTIFICATE_FAILED
+                        - CONDITION_BACKUP_FAILED
+                        - CONDITION_BACKUP_LATE
+                        - CONDITION_CHANGE_FAILED
+                    type: string
+                    description: |-
+                        What its title says, apart, for the panel to say in its own language: the
+                         rule's condition, the app, domain, volume or change it's about, which of the
+                         condition's titles it is ("unhealthy", "not_running", "restarting",
+                         "flapping"; "failed" or "copy" for a backup), where (a disk's mount point, a
+                         backup's destination) and a value (a percent, or days left).
+                    format: enum
+                subjectName:
+                    type: string
+                variant:
+                    type: string
+                where:
+                    type: string
+                value:
+                    type: integer
+                    format: int32
+            description: |-
+                EventAlert is an alert that fired or resolved, or a mute of a rule or a
+                 server that began or ended. Its subject is what the alert is about, and its
+                 server is the one it's on.
         EventBackup:
             type: object
             properties:
@@ -6266,6 +7695,22 @@ components:
                     description: |-
                         Which file on it, for a file read, saved or refused on a server. Empty
                          otherwise.
+                toPath:
+                    type: string
+                    description: |-
+                        Where it went, for a file or folder moved or renamed. Empty otherwise.
+                         Numbered apart, as open work adds to this message.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True for a file or folder made, moved, deleted or put back where it's a
+                         way back onto the server, which took a passkey.
+                forGood:
+                    type: boolean
+                    description: True for a file or folder deleted for good, which can't be put back.
+                sizeBytes:
+                    type: string
+                    description: How many bytes, for a file uploaded or downloaded.
             description: EventSubject names what an event is about.
         EventTaskRun:
             type: object
@@ -6591,6 +8036,36 @@ components:
                     description: When it stops working, a minute from now.
                     format: date-time
             description: FinishStepUpResponse carries the proof.
+        FinishUploadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                uploadId:
+                    type: string
+                    description: The upload.
+            description: FinishUploadRequest puts an upload in place.
+        FinishUploadResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where the file is, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: The file.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+                unpackedTo:
+                    type: string
+                    description: The folder it was unpacked into. Empty when it wasn't.
+                unpackedEntries:
+                    type: string
+                    description: How many files and folders that made.
+            description: FinishUploadResponse is what an upload put in place.
         FirewallRule:
             type: object
             properties:
@@ -7440,6 +8915,12 @@ components:
                     description: |-
                         Its ID in Docker. A replace can keep a container's name and number, and only
                          this says it's another container. Empty from an older agent.
+                finished:
+                    type: boolean
+                    description: |-
+                        It ran to its end: it exited 0, and Docker won't start it again, as its
+                         restart policy is no or on-failure. A one-shot job, such as a migration,
+                         that did its work. False from an older agent.
             description: InstanceHealth is how one container of a service is.
         Intent:
             type: object
@@ -7472,6 +8953,54 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        ListAlertChannelsResponse:
+            type: object
+            properties:
+                channels:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertChannelInfo'
+            description: ListAlertChannelsResponse lists the channels, by name.
+        ListAlertDeliveriesResponse:
+            type: object
+            properties:
+                deliveries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertDelivery'
+            description: ListAlertDeliveriesResponse lists them, newest first.
+        ListAlertMutesResponse:
+            type: object
+            properties:
+                mutes:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertMute'
+            description: ListAlertMutesResponse lists them.
+        ListAlertRulesResponse:
+            type: object
+            properties:
+                rules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertRuleInfo'
+            description: ListAlertRulesResponse lists the rules.
+        ListAlertsResponse:
+            type: object
+            properties:
+                alerts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Alert'
+                    description: What's firing, then what resolved, as ListAlerts orders them.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+                firing:
+                    type: integer
+                    description: How many are firing now, on every page.
+                    format: int32
+            description: ListAlertsResponse is a page of alerts.
         ListAuditEventsResponse:
             type: object
             properties:
@@ -7574,6 +9103,15 @@ components:
                         $ref: '#/components/schemas/Database'
                     description: The databases, by name.
             description: ListDatabasesResponse lists them.
+        ListDeletedFilesResponse:
+            type: object
+            properties:
+                deleted:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DeletedFile'
+                    description: Newest first.
+            description: ListDeletedFilesResponse is what's in a server's Recently deleted.
         ListDomainsResponse:
             type: object
             properties:
@@ -8024,6 +9562,50 @@ components:
             description: |-
                 LoggedService says which service logs are from, or which container, for one
                  Dockwell didn't make.
+        MakeFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: |-
+                        The absolute path to make, without . or .. in it, such as
+                         "/srv/site/index.html". Its folder must exist.
+                type:
+                    enum:
+                        - FILE_TYPE_UNSPECIFIED
+                        - FILE_TYPE_FILE
+                        - FILE_TYPE_DIRECTORY
+                        - FILE_TYPE_SYMLINK
+                        - FILE_TYPE_OTHER
+                    type: string
+                    description: FILE_TYPE_FILE or FILE_TYPE_DIRECTORY.
+                    format: enum
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for making this path on this server, where
+                         it's a way back onto the server. Call without it first: it checks
+                         everything else, then refuses with the reason needs_step_up. With it,
+                         path has to be where the server resolves it, as ListFiles gives a
+                         folder.
+            description: MakeFileRequest makes an empty file or a folder.
+        MakeFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it was made, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What was made.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: MakeFileResponse is what was made.
         ManagedElsewhere:
             type: object
             properties:
@@ -8150,6 +9732,68 @@ components:
                          as "82:82", with mode 0755. Docker would make it root's. A folder that's there
                          keeps its owner. Numbered apart, as open work adds to this message.
             description: Mount puts a volume, or a directory on the server, into a container.
+        MoveFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                from:
+                    type: string
+                    description: Where it is now, as an absolute path, without . or .. in it.
+                to:
+                    type: string
+                    description: |-
+                        Where it goes, as the whole new path, such as "/srv/site/old.html" to
+                         rename index.html in the same folder. Nothing may be there.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for this move on this server, where either
+                         end is a way back onto the server. Both paths then have to be where the
+                         server resolves them.
+            description: MoveFileRequest moves or renames a file or a folder.
+        MoveFileResponse:
+            type: object
+            properties:
+                from:
+                    type: string
+                    description: Where it was, with every symlink in its folder's path followed.
+                to:
+                    type: string
+                    description: Where it is now, the same way.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What moved.
+                wayBackIn:
+                    type: boolean
+                    description: |-
+                        True when either end is a way back onto the server, which took a
+                         passkey.
+            description: MoveFileResponse says where it went.
+        MuteAlertsRequest:
+            type: object
+            properties:
+                rule:
+                    type: string
+                    description: The rule to mute, by name. Give a rule or a server, not both.
+                server:
+                    type: string
+                    description: 'The server to mute, by ID or name: every rule''s alerts on it.'
+                duration:
+                    type: string
+                    description: 'For how long, such as "1h": at most 30 days.'
+                reason:
+                    type: string
+                    description: Why, for whoever reads Activity. Up to 200 characters, on one line.
+            description: MuteAlertsRequest mutes a rule or a server.
+        MuteAlertsResponse:
+            type: object
+            properties:
+                mute:
+                    $ref: '#/components/schemas/AlertMute'
+            description: MuteAlertsResponse is the mute as it now stands.
         Network:
             type: object
             properties:
@@ -9280,6 +10924,14 @@ components:
                         True when nothing shows the address is a way in, so it's named only with a
                          caveat: a way out, or a metadata service the machine doesn't confirm.
             description: PublicAddress is what's known of one public address of a server.
+        PurgeDeletedFileResponse:
+            type: object
+            properties:
+                deleted:
+                    allOf:
+                        - $ref: '#/components/schemas/DeletedFile'
+                    description: What was deleted for good.
+            description: PurgeDeletedFileResponse says what went.
         ReadFileRequest:
             type: object
             properties:
@@ -9509,6 +11161,35 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: RestoreBackupResponse is the change that restores it.
+        RestoreFileRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                id:
+                    type: string
+                    description: Its ID in Recently deleted.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for putting back its path on this server,
+                         where that's a way back onto the server.
+            description: RestoreFileRequest puts back what was deleted.
+        RestoreFileResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Where it is now, with every symlink in its folder's path followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: What went back.
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: RestoreFileResponse says where it went back.
         RestorePlan:
             type: object
             properties:
@@ -10072,6 +11753,21 @@ components:
                     type: boolean
                     description: True when the file is a way back onto the server, which took a passkey.
             description: SaveFileResponse is the file as saved.
+        Screenshot:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: A local raster image path under /catalog-media/.
+                caption:
+                    type: string
+                    description: What the screenshot shows, also used as its accessible description.
+                source:
+                    type: string
+                    description: Where the project published the original, at an HTTPS address.
+            description: |-
+                Screenshot is a preview a person can read before starting an installation.
+                 Media ships with the panel; browsing never asks a third-party host for it.
         Secret:
             type: object
             properties:
@@ -10867,6 +12563,19 @@ components:
                          do: it was changed, moved to another row, or sealed with keys this install
                          hasn't got. Then spec is unset, and the rest of this message and the rest of
                          the list stand.
+                hostAccess:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostAccess'
+                    description: |-
+                        What its latest revision reaches on its servers beyond its own containers,
+                         as its spec says and through the volumes it mounts, as a plan reads it: a
+                         server path, Docker's socket, the server's network, a capability. A path is
+                         as written, as no agent says here where it leads, so a plan can say more.
+                         While one is same_as_root, a change that keeps it, other than another tag
+                         of its image or a limit, asks for a passkey, which an editor can say before
+                         it plans; one that takes it away asks for none. Empty when it reaches
+                         nothing, or its spec can't be read.
             description: |-
                 ServiceInfo is what a service runs now and how that went, as its latest
                  revision has it.
@@ -11186,6 +12895,22 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/BackupDestination'
                     description: S3-compatible storage backups go to, kind "backup.destination".
+                databaseUser:
+                    allOf:
+                        - $ref: '#/components/schemas/DatabaseUser'
+                    description: |-
+                        A database and the user who owns it, in a database server a service runs,
+                         kind "database.user". Numbered apart, as open work adds to this message.
+                alertRule:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertRule'
+                    description: |-
+                        What Dockwell watches for, and who it tells, kind "alert.rule". Numbered
+                         apart, as open work adds to this message.
+                alertChannel:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertChannel'
+                    description: Where alerts are sent, kind "alert.channel".
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'
@@ -11685,6 +13410,25 @@ components:
                     type: string
                     description: What happened, for people, such as "The shell exited with code 0".
             description: TerminalEnd says how a terminal ended.
+        TestAlertChannelRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        A channel that exists, by name. With channel too, channel's fields that
+                         sign in, left empty, take this one's.
+                channel:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertChannel'
+                    description: A channel as a form holds it, before it's planned.
+            description: TestAlertChannelRequest names a channel to test, or gives one a form holds.
+        TestAlertChannelResponse:
+            type: object
+            properties:
+                delivery:
+                    $ref: '#/components/schemas/AlertDelivery'
+            description: TestAlertChannelResponse says how the test went.
         Tmpfs:
             type: object
             properties:
@@ -11817,6 +13561,20 @@ components:
             type: object
             properties: {}
             description: UnlockCodeSignInResponse is empty.
+        UnmuteAlertsRequest:
+            type: object
+            properties:
+                rule:
+                    type: string
+                    description: The rule whose mute ends, by name. Give a rule or a server, not both.
+                server:
+                    type: string
+                    description: The server whose mute ends, by ID or name.
+            description: UnmuteAlertsRequest ends a rule's or a server's mute.
+        UnmuteAlertsResponse:
+            type: object
+            properties: {}
+            description: UnmuteAlertsResponse says nothing more.
         UpdateWebsiteRequest:
             type: object
             properties:
@@ -11864,6 +13622,44 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: UpgradeCatalogInstallResponse carries the planned change.
+        Upload:
+            type: object
+            properties:
+                uploadId:
+                    type: string
+                    description: Its ID, which UploadFile and FinishUpload take.
+                path:
+                    type: string
+                    description: Where the file goes, with every symlink in its folder's path followed.
+                sizeBytes:
+                    type: string
+                    description: How large it is.
+                receivedBytes:
+                    type: string
+                    description: How much of it is there. Pick it up again from here.
+                maxBytes:
+                    type: string
+                    description: The most a file can be, so a person can be told before they start.
+                unpack:
+                    enum:
+                        - UNPACK_UNSPECIFIED
+                        - UNPACK_ZIP
+                        - UNPACK_TAR_GZ
+                    type: string
+                    description: What it's to be unpacked as.
+                    format: enum
+                wayBackIn:
+                    type: boolean
+                    description: True when it's a way back onto the server, which took a passkey.
+            description: Upload is an upload as it stands.
+        UploadFileResponse:
+            type: object
+            properties:
+                upload:
+                    allOf:
+                        - $ref: '#/components/schemas/Upload'
+                    description: The upload.
+            description: UploadFileResponse is how far an upload got once its bytes stopped coming.
         User:
             type: object
             properties:
@@ -12199,6 +13995,16 @@ components:
                          write's end when it hadn't room for all of it.
             description: WriteTerminalResponse says how much the terminal has taken.
 tags:
+    - name: AlertService
+      description: |-
+        AlertService says what's wrong now and what was, the rules that decide it
+         and the channels that tell you. Rules and channels are resources, the kinds
+         alert.rule and alert.channel, so ChangeService plans each change to them, as
+         it does any edit. The control plane evaluates the rules from what it hears
+         of servers already, and an install starts with a rule for each condition,
+         which sends to every channel once there is one. Muting a rule or a server is
+         no change: it holds what's sent for a while, and goes on Activity. See
+         docs/adr/0044-alerts.md.
     - name: AuditService
       description: |-
         AuditService reads the audit log: every event Dockwell records of who did
@@ -12329,10 +14135,12 @@ tags:
          same credentials.
     - name: FileService
       description: |-
-        FileService browses, reads and saves the files on a server, through its
-         agent. Files on a server aren't managed state, so nothing here is a revision
-         or has a plan, and a save can't be undone. See
-         docs/adr/0032-files-on-a-server.md.
+        FileService browses, reads, saves, makes, moves and deletes the files on a
+         server, through its agent. Files on a server aren't managed state, so
+         nothing here is a revision or has a plan. A save can't be undone, and a
+         delete can for 7 days where it's on the same filesystem as Dockwell's data.
+         See docs/adr/0032-files-on-a-server.md and
+         docs/adr/0045-a-file-manager-on-a-server.md.
 
          Every method needs a signed-in session: no API token can call them, whatever
          its scope. The agent refuses what holds Dockwell's keys, secrets' values and
