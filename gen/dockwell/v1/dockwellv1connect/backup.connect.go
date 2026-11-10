@@ -55,6 +55,9 @@ const (
 	// BackupServiceListBackupDestinationsProcedure is the fully-qualified name of the BackupService's
 	// ListBackupDestinations RPC.
 	BackupServiceListBackupDestinationsProcedure = "/dockwell.v1.BackupService/ListBackupDestinations"
+	// BackupServiceTestBackupDestinationProcedure is the fully-qualified name of the BackupService's
+	// TestBackupDestination RPC.
+	BackupServiceTestBackupDestinationProcedure = "/dockwell.v1.BackupService/TestBackupDestination"
 	// BackupServiceFetchBackupProcedure is the fully-qualified name of the BackupService's FetchBackup
 	// RPC.
 	BackupServiceFetchBackupProcedure = "/dockwell.v1.BackupService/FetchBackup"
@@ -91,6 +94,13 @@ type BackupServiceClient interface {
 	// never what signs in to it. A destination is a resource: create and delete one as
 	// a change, of kind "backup.destination".
 	ListBackupDestinations(context.Context, *connect.Request[v1.ListBackupDestinationsRequest]) (*connect.Response[v1.ListBackupDestinationsResponse], error)
+	// TestBackupDestination signs in to storage with what a destination form holds,
+	// before anything is planned, and says what it found: the buckets the keys may
+	// list, and, given a bucket, whether a file can be written there, which it writes
+	// under the destination's prefix and deletes. It reaches the storage from the
+	// control server, as servers would. It keeps nothing, and it's on the activity log
+	// without what signs in.
+	TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error)
 	// FetchBackup brings a backup back from its destination onto a server that has the
 	// volume, to restore there: the one it came from, or another once that's gone. It
 	// returns the backup, whose server is the one it's fetching to. It reads the backup
@@ -162,6 +172,12 @@ func NewBackupServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		testBackupDestination: connect.NewClient[v1.TestBackupDestinationRequest, v1.TestBackupDestinationResponse](
+			httpClient,
+			baseURL+BackupServiceTestBackupDestinationProcedure,
+			connect.WithSchema(backupServiceMethods.ByName("TestBackupDestination")),
+			connect.WithClientOptions(opts...),
+		),
 		fetchBackup: connect.NewClient[v1.FetchBackupRequest, v1.FetchBackupResponse](
 			httpClient,
 			baseURL+BackupServiceFetchBackupProcedure,
@@ -186,6 +202,7 @@ type backupServiceClient struct {
 	deleteBackup           *connect.Client[v1.DeleteBackupRequest, v1.DeleteBackupResponse]
 	listBackupPolicies     *connect.Client[v1.ListBackupPoliciesRequest, v1.ListBackupPoliciesResponse]
 	listBackupDestinations *connect.Client[v1.ListBackupDestinationsRequest, v1.ListBackupDestinationsResponse]
+	testBackupDestination  *connect.Client[v1.TestBackupDestinationRequest, v1.TestBackupDestinationResponse]
 	fetchBackup            *connect.Client[v1.FetchBackupRequest, v1.FetchBackupResponse]
 	restoreBackup          *connect.Client[v1.RestoreBackupRequest, v1.RestoreBackupResponse]
 }
@@ -223,6 +240,11 @@ func (c *backupServiceClient) ListBackupPolicies(ctx context.Context, req *conne
 // ListBackupDestinations calls dockwell.v1.BackupService.ListBackupDestinations.
 func (c *backupServiceClient) ListBackupDestinations(ctx context.Context, req *connect.Request[v1.ListBackupDestinationsRequest]) (*connect.Response[v1.ListBackupDestinationsResponse], error) {
 	return c.listBackupDestinations.CallUnary(ctx, req)
+}
+
+// TestBackupDestination calls dockwell.v1.BackupService.TestBackupDestination.
+func (c *backupServiceClient) TestBackupDestination(ctx context.Context, req *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error) {
+	return c.testBackupDestination.CallUnary(ctx, req)
 }
 
 // FetchBackup calls dockwell.v1.BackupService.FetchBackup.
@@ -263,6 +285,13 @@ type BackupServiceHandler interface {
 	// never what signs in to it. A destination is a resource: create and delete one as
 	// a change, of kind "backup.destination".
 	ListBackupDestinations(context.Context, *connect.Request[v1.ListBackupDestinationsRequest]) (*connect.Response[v1.ListBackupDestinationsResponse], error)
+	// TestBackupDestination signs in to storage with what a destination form holds,
+	// before anything is planned, and says what it found: the buckets the keys may
+	// list, and, given a bucket, whether a file can be written there, which it writes
+	// under the destination's prefix and deletes. It reaches the storage from the
+	// control server, as servers would. It keeps nothing, and it's on the activity log
+	// without what signs in.
+	TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error)
 	// FetchBackup brings a backup back from its destination onto a server that has the
 	// volume, to restore there: the one it came from, or another once that's gone. It
 	// returns the backup, whose server is the one it's fetching to. It reads the backup
@@ -330,6 +359,12 @@ func NewBackupServiceHandler(svc BackupServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	backupServiceTestBackupDestinationHandler := connect.NewUnaryHandler(
+		BackupServiceTestBackupDestinationProcedure,
+		svc.TestBackupDestination,
+		connect.WithSchema(backupServiceMethods.ByName("TestBackupDestination")),
+		connect.WithHandlerOptions(opts...),
+	)
 	backupServiceFetchBackupHandler := connect.NewUnaryHandler(
 		BackupServiceFetchBackupProcedure,
 		svc.FetchBackup,
@@ -358,6 +393,8 @@ func NewBackupServiceHandler(svc BackupServiceHandler, opts ...connect.HandlerOp
 			backupServiceListBackupPoliciesHandler.ServeHTTP(w, r)
 		case BackupServiceListBackupDestinationsProcedure:
 			backupServiceListBackupDestinationsHandler.ServeHTTP(w, r)
+		case BackupServiceTestBackupDestinationProcedure:
+			backupServiceTestBackupDestinationHandler.ServeHTTP(w, r)
 		case BackupServiceFetchBackupProcedure:
 			backupServiceFetchBackupHandler.ServeHTTP(w, r)
 		case BackupServiceRestoreBackupProcedure:
@@ -397,6 +434,10 @@ func (UnimplementedBackupServiceHandler) ListBackupPolicies(context.Context, *co
 
 func (UnimplementedBackupServiceHandler) ListBackupDestinations(context.Context, *connect.Request[v1.ListBackupDestinationsRequest]) (*connect.Response[v1.ListBackupDestinationsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BackupService.ListBackupDestinations is not implemented"))
+}
+
+func (UnimplementedBackupServiceHandler) TestBackupDestination(context.Context, *connect.Request[v1.TestBackupDestinationRequest]) (*connect.Response[v1.TestBackupDestinationResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BackupService.TestBackupDestination is not implemented"))
 }
 
 func (UnimplementedBackupServiceHandler) FetchBackup(context.Context, *connect.Request[v1.FetchBackupRequest]) (*connect.Response[v1.FetchBackupResponse], error) {

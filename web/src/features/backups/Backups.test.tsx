@@ -6,6 +6,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type Backup,
   BackupCopy,
+  BackupDestinationProblem,
   BackupMethod,
   BackupPolicy_Every,
   BackupSchema,
@@ -19,6 +20,7 @@ import {
   PreviewBackupResponseSchema,
   type ProposeChangeRequest,
   type RestorePlanSchema,
+  type TestBackupDestinationRequest,
   type WatchChangeResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -554,7 +556,7 @@ describe("the backups page", () => {
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });
 
-  it("adds storage only once the passphrase is kept, and never shows what signs in again", async () => {
+  it("makes R2's endpoint from its account, finds and tests the bucket, and adds it once the passphrase is kept", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn((_: ProposeChangeRequest) => ({
       change: create(ChangeSchema, {
@@ -564,6 +566,11 @@ describe("the backups page", () => {
         plan: { fingerprint: "abc" },
       }),
     }));
+    const tested = vi.fn((req: TestBackupDestinationRequest) =>
+      req.destination?.bucket
+        ? { signedIn: true, listed: true, buckets: ["acme-backups", "media"], wrote: true }
+        : { signedIn: true, listed: true, buckets: ["acme-backups", "media"] },
+    );
     renderAt(
       "/backups",
       api([aBackup()], {
@@ -571,25 +578,71 @@ describe("the backups page", () => {
           listBackups: () => ({ backups: [aBackup()] }),
           listBackupPolicies: () => ({}),
           listBackupDestinations: () => ({}),
+          testBackupDestination: tested,
         },
         changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
       }),
     );
     const panel = await screen.findByRole("region", { name: "Destinations" });
     await user.click(within(panel).getByRole("button", { name: "Add" }));
-    await user.type(await screen.findByLabelText("Name"), "r2");
-    await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
-    await user.type(screen.getByLabelText("Bucket"), "acme-backups");
-    await user.type(screen.getByLabelText("Access key"), "AKIA");
-    await user.type(screen.getByLabelText("Secret key"), "the-secret");
-    const review = screen.getByRole("button", { name: "Review plan" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
+    expect(within(sheet).getByLabelText("Storage")).toHaveValue("r2");
+    // Only what can't be picked is typed: R2's account, and the keys.
+    expect(within(sheet).queryByLabelText("Endpoint")).toBeNull();
+    await user.type(within(sheet).getByLabelText("Account ID"), "abc123");
+    await user.type(within(sheet).getByLabelText("Access key"), "AKIA");
+    await user.type(within(sheet).getByLabelText("Secret key"), "the-secret");
+    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
+    expect(await within(sheet).findByText("Signed in · 2 buckets")).toBeVisible();
+    expect(within(sheet).getByLabelText("Bucket")).toHaveValue("acme-backups");
+    await user.click(within(sheet).getByRole("button", { name: "Test" }));
+    expect(await within(sheet).findByText("Wrote and deleted a test file in acme-backups")).toBeVisible();
+    expect(tested.mock.calls.map((c) => c[0].destination?.bucket)).toEqual(["", "acme-backups"]);
+    expect(tested.mock.calls[0]?.[0].destination).toMatchObject({
+      endpoint: "https://abc123.r2.cloudflarestorage.com",
+      region: "auto",
+    });
+
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
     expect(review).toBeDisabled();
-    await user.click(screen.getByLabelText("I've kept a copy of the passphrase"));
+    await user.click(within(sheet).getByLabelText("I've kept a copy of the passphrase"));
     await user.click(review);
     await waitFor(() => expect(proposed).toHaveBeenCalled());
-    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string; secretKey: string };
+    const edit = proposed.mock.calls[0]?.[0].edits[0];
+    expect(edit?.resource).toMatchObject({ kind: "backup.destination", name: "r2" });
+    const value = edit?.spec?.kind.value as { endpoint: string; bucket: string; secretKey: string; passphrase: string };
+    expect(value).toMatchObject({ endpoint: "https://abc123.r2.cloudflarestorage.com", bucket: "acme-backups" });
     expect(value.secretKey).toBe("the-secret");
     expect(value.passphrase.length).toBeGreaterThan(32);
+  });
+
+  it("says what the storage refused, in a word, with what it said", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          testBackupDestination: () => ({
+            problem: BackupDestinationProblem.KEYS_REFUSED,
+            said: "InvalidAccessKeyId: no",
+          }),
+        },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", { name: "Add" }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
+    await user.selectOptions(within(sheet).getByLabelText("Storage"), "b2");
+    expect(within(sheet).getByLabelText("Region")).toHaveValue("us-west-001");
+    await user.type(within(sheet).getByLabelText("Access key"), "AKIA");
+    await user.type(within(sheet).getByLabelText("Secret key"), "wrong");
+    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
+    expect(await within(sheet).findByText("The storage refused these keys")).toBeVisible();
+    expect(within(sheet).getByText("InvalidAccessKeyId: no")).toBeVisible();
   });
 
   it("fetches a backup its server lost, and offers no restore until then", async () => {
@@ -776,11 +829,13 @@ describe("the backups page", () => {
       copies([aBackup()], {}, { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream }),
     );
     await addDestination(user, "Add");
-    await user.type(await screen.findByLabelText("Name"), "r2");
+    await user.selectOptions(await screen.findByLabelText("Storage"), "other");
     await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
     await user.type(screen.getByLabelText("Bucket"), "acme-backups");
     await user.type(screen.getByLabelText("Access key"), "AKIA");
     await user.type(screen.getByLabelText("Secret key"), "the-secret");
+    // A passphrase of one's own is a step away, under Advanced.
+    await user.click(screen.getByRole("button", { name: "Advanced" }));
     await user.click(screen.getByRole("switch", { name: /Use a passphrase I already have/ }));
     expect(screen.queryByText("Keep this passphrase somewhere else")).toBeNull();
     const review = screen.getByRole("button", { name: "Review plan" });

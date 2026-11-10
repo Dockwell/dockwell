@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -224,5 +225,25 @@ func TestASlowRequestThatMovesIsLeftAlone(t *testing.T) {
 	}
 	if got := len(f.Objects()); got != 1 {
 		t.Errorf("stored %d", got)
+	}
+}
+
+func TestListBucketsAsksTheServiceItself(t *testing.T) {
+	srv := s3test.New(t)
+	srv.Buckets = []string{"backups", "media &amp; more"}
+	b := &Bucket{Endpoint: srv.URL(), Name: "backups", AccessKey: "AK", SecretKey: "SK", Client: srv.Client()}
+	got, err := b.ListBuckets(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"backups", "media & more"}; !slices.Equal(got, want) {
+		t.Errorf("listed %q, want %q", got, want)
+	}
+	// The bucket it's for is left alone: listing asks the service, at its root.
+	if b.Name != "backups" {
+		t.Errorf("listing changed the bucket to %q", b.Name)
+	}
+	if _, err := (&Bucket{Endpoint: srv.URL(), Name: "nope", AccessKey: "AK", SecretKey: "SK", Client: srv.Client()}).Size(t.Context(), "x"); !IsNotFound(err) {
+		t.Errorf("a bucket that isn't there: %v", err)
 	}
 }

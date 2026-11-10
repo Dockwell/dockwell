@@ -12,6 +12,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,7 +42,10 @@ type Server struct {
 	// path ends with that. Nil holds none.
 	Hold     chan struct{}
 	HoldOnly string
-	srv      *httptest.Server
+	// Buckets are the buckets it lists, and the only ones it holds objects in, when set.
+	// Nil lists none and takes any.
+	Buckets []string
+	srv     *httptest.Server
 }
 
 // New starts a fake that stops when the test ends.
@@ -92,6 +96,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.URL.Path
 	q := r.URL.Query()
+	if key == "/" && r.Method == http.MethodGet {
+		fmt.Fprint(w, "<ListAllMyBucketsResult><Buckets>")
+		for _, b := range s.Buckets {
+			fmt.Fprintf(w, "<Bucket><Name>%s</Name><CreationDate>2026-01-01T00:00:00Z</CreationDate></Bucket>", b)
+		}
+		fmt.Fprint(w, "</Buckets></ListAllMyBucketsResult>")
+		return
+	}
+	if bucket, _, _ := strings.Cut(strings.TrimPrefix(key, "/"), "/"); s.Buckets != nil && !slices.Contains(s.Buckets, bucket) {
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>")
+		return
+	}
 	id, inUpload := q["uploadId"]
 	switch {
 	case r.Method == http.MethodPost && q.Has("uploads"):

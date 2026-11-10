@@ -236,7 +236,12 @@ func (b *Bucket) do(ctx context.Context, method, key string, q url.Values, body 
 	if err != nil {
 		return nil, fmt.Errorf("the storage's address doesn't read as a URL: %w", err)
 	}
-	u.RawPath = u.EscapedPath() + "/" + escape(b.Name) + "/" + escapePath(key)
+	// No bucket is the service itself, as listing the buckets asks it.
+	if b.Name == "" {
+		u.RawPath = u.EscapedPath() + "/"
+	} else {
+		u.RawPath = u.EscapedPath() + "/" + escape(b.Name) + "/" + escapePath(key)
+	}
 	if u.Path, err = url.PathUnescape(u.RawPath); err != nil {
 		return nil, err
 	}
@@ -294,6 +299,30 @@ func (b *Bucket) Put(ctx context.Context, key string, body []byte) error {
 		return err
 	}
 	return res.Body.Close()
+}
+
+// ListBuckets names the buckets the keys may see, as the service lists them. A key
+// scoped to one bucket, as R2's and B2's often are, may see none and be refused:
+// that says nothing of the bucket it's for.
+func (b *Bucket) ListBuckets(ctx context.Context) ([]string, error) {
+	service := *b
+	service.Name = ""
+	res, err := service.do(ctx, http.MethodGet, "", nil, nil, 0, emptyHash)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, bucket := range tags(raw, "Bucket") {
+		if name := tag([]byte(bucket), "Name"); name != "" {
+			names = append(names, name)
+		}
+	}
+	return names, nil
 }
 
 // Size is how large an object is.
@@ -374,6 +403,23 @@ func tag(raw []byte, name string) string {
 		return ""
 	}
 	return unescapeXML.Replace(string(value))
+}
+
+// tags finds every element of a name, each as it's written, for tag to read inside.
+func tags(raw []byte, name string) []string {
+	var out []string
+	for {
+		_, rest, ok := bytes.Cut(raw, []byte("<"+name+">"))
+		if !ok {
+			return out
+		}
+		value, after, ok := bytes.Cut(rest, []byte("</"+name+">"))
+		if !ok {
+			return out
+		}
+		out = append(out, string(value))
+		raw = after
+	}
 }
 
 var (

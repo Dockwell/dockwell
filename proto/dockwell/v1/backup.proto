@@ -111,6 +111,27 @@ service BackupService {
     option (google.api.http) = {get: "/v1/backup-destinations"};
   }
 
+  // TestBackupDestination signs in to storage with what a destination form holds,
+  // before anything is planned, and says what it found: the buckets the keys may
+  // list, and, given a bucket, whether a file can be written there, which it writes
+  // under the destination's prefix and deletes. It reaches the storage from the
+  // control server, as servers would. It keeps nothing, and it's on the activity log
+  // without what signs in.
+  rpc TestBackupDestination(TestBackupDestinationRequest) returns (TestBackupDestinationResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "backups"
+      verb: "test-destination"
+    };
+    option (google.api.http) = {
+      post: "/v1/backup-destinations:test"
+      body: "*"
+    };
+  }
+
   // FetchBackup brings a backup back from its destination onto a server that has the
   // volume, to restore there: the one it came from, or another once that's gone. It
   // returns the backup, whose server is the one it's fetching to. It reads the backup
@@ -405,4 +426,40 @@ message RestoreBackupRequest {
 message RestoreBackupResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// TestBackupDestinationRequest is what a destination form holds. The passphrase is
+// left out: nothing is sealed in a test.
+message TestBackupDestinationRequest {
+  // The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+  dockwell.resource.v1alpha1.BackupDestination destination = 1;
+}
+
+// TestBackupDestinationResponse says what the storage answered.
+message TestBackupDestinationResponse {
+  // Whether the storage answered at the endpoint, and took the keys.
+  bool signed_in = 1;
+  // The buckets the keys may list, by name. A key scoped to one bucket may list none.
+  repeated string buckets = 2;
+  // Whether the keys may list buckets at all.
+  bool listed = 3;
+  // Whether a test file was written to the bucket and deleted again.
+  bool wrote = 4;
+  // What went wrong, when something did.
+  BackupDestinationProblem problem = 5;
+  // What the storage said of it, in its own words, with nothing that signs in.
+  string said = 6;
+}
+
+// BackupDestinationProblem is why a test didn't get as far as writing.
+enum BackupDestinationProblem {
+  BACKUP_DESTINATION_PROBLEM_UNSPECIFIED = 0;
+  // Nothing answered at the endpoint.
+  BACKUP_DESTINATION_PROBLEM_UNREACHABLE = 1 [(dockwell.v1.word) = "Unreachable"];
+  // The storage refused the keys.
+  BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED = 2 [(dockwell.v1.word) = "Keys refused"];
+  // The bucket isn't there.
+  BACKUP_DESTINATION_PROBLEM_NO_BUCKET = 3 [(dockwell.v1.word) = "No such bucket"];
+  // The keys may not write to the bucket.
+  BACKUP_DESTINATION_PROBLEM_CANT_WRITE = 4 [(dockwell.v1.word) = "Can't write"];
 }
