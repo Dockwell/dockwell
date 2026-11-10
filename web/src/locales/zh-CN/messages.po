@@ -29,6 +29,16 @@ msgstr "关闭"
 msgid "Command bar"
 msgstr "命令栏"
 
+#. The heading of a card that lists how to connect to a database or an app.
+msgid "Connect"
+msgstr "连接"
+
+msgid "Copy {what}"
+msgstr "复制{what}"
+
+msgid "Copy {what}, without the {without}"
+msgstr "复制{what}，不含{without}"
+
 msgid "Create"
 msgstr "创建"
 
@@ -68,6 +78,12 @@ msgstr "空闲"
 
 msgid "Healthy"
 msgstr "健康"
+
+msgid "Hidden"
+msgstr "已隐藏"
+
+msgid "Hide"
+msgstr "隐藏"
 
 msgid "Hover or focus a server to inspect it."
 msgstr "悬停或聚焦一台服务器以查看详情。"
@@ -116,6 +132,12 @@ msgstr "已重启"
 
 msgid "Results"
 msgstr "结果"
+
+msgid "Reveal"
+msgstr "显示"
+
+msgid "Reveal {what}"
+msgstr "显示{what}"
 
 msgid "Running"
 msgstr "正在运行"
@@ -298,6 +320,12 @@ msgstr "{count} 台已停止"
 
 msgid "{count} unknown"
 msgstr "{count} 个状态未知"
+
+msgid "{label} copied"
+msgstr "已复制{label}"
+
+msgid "{label} copied, without the {without}"
+msgstr "已复制{label}，不含{without}"
 
 msgid "{name}, {status}"
 msgstr "{name}，{status}"
@@ -1810,9 +1838,6 @@ msgstr "{name} 的环境变量"
 msgid "Every app that uses this variable gets the new value."
 msgstr "每个使用这个变量的应用都会得到新值。"
 
-msgid "Hidden"
-msgstr "已隐藏"
-
 msgid "Import .env"
 msgstr "导入 .env"
 
@@ -3163,9 +3188,6 @@ msgstr "为每个变量填写值后即可查看计划"
 
 msgid "Give {first} a value to review the plan"
 msgstr "为 {first} 填写值后即可查看计划"
-
-msgid "Hide"
-msgstr "隐藏"
 
 msgid "Hide the value"
 msgstr "隐藏值"
@@ -6592,29 +6614,29 @@ msgstr "正在询问它的服务器"
 msgid "Cache hit"
 msgstr "缓存命中率"
 
-msgid "Connection"
-msgstr "连接方式"
+msgid "Connection string"
+msgstr "连接字符串"
 
 msgid "Connections"
 msgstr "连接"
 
-msgid "Copied, without its password"
-msgstr "已复制，不含密码"
+msgid "From anywhere that reaches this server"
+msgstr "能访问此服务器的任何地方均可连接"
 
-msgid "Copy the internal URL, without its password"
-msgstr "复制内部地址，不含密码"
+msgid "From apps beside it"
+msgstr "同一环境中的应用可连接"
 
-msgid "External access"
-msgstr "外部访问"
+msgid "From apps in {place}"
+msgstr "{place} 中的应用可连接"
 
-msgid "Internal URL"
-msgstr "内部地址"
+msgid "From this server alone"
+msgstr "仅此服务器可连接"
+
+msgid "Host"
+msgstr "主机"
 
 msgid "It sets no most"
 msgstr "未设置上限"
-
-msgid "It takes no password Dockwell keeps."
-msgstr "它没有使用 Dockwell 保存的密码。"
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
@@ -6628,8 +6650,14 @@ msgstr "各项数值、数据库和用户来自 {server}，它运行在 {count} 
 msgid "Its numbers, databases and users show again once it does."
 msgstr "它报告后，这里会重新显示各项数值、数据库和用户。"
 
+msgid "Its password is in its own environment, sealed, so it has no secret to reveal."
+msgstr "它的密码保存在自己的环境中并已加密，因此没有可显示的密钥。"
+
 msgid "Its server didn't say"
 msgstr "它的服务器没有说明"
+
+msgid "Kept in the secret {secret}"
+msgstr "保存在密钥 {secret} 中"
 
 msgid "Kept on"
 msgstr "存放于"
@@ -6646,12 +6674,6 @@ msgstr "还没有"
 msgid "Nothing read yet"
 msgstr "尚未读取任何数据"
 
-msgid "Off. Only services on its server's networks can connect. Add a port on its app's page."
-msgstr "已关闭。只有其服务器网络上的服务可以连接。可在它的应用页面添加端口。"
-
-msgid "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
-msgstr "已开启。可通过其服务器的 {serverPort} 端口在{where}上访问。可在它的应用页面修改。"
-
 msgid "One is running now"
 msgstr "正在进行一次备份"
 
@@ -6660,12 +6682,6 @@ msgstr "从内存读取的比例"
 
 msgid "Restore the newest"
 msgstr "恢复最新备份"
-
-msgid "Services beside it reach it as <0>{host}</0>"
-msgstr "同环境的服务通过 <0>{host}</0> 访问它"
-
-msgid "Services in {place} reach it as <0>{host}</0>"
-msgstr "{place} 中的服务通过 <0>{host}</0> 访问它"
 
 msgid "Since"
 msgstr "此后"
@@ -6682,12 +6698,6 @@ msgstr "最近一次失败：{latestError}"
 
 msgid "The most it takes is {mostWords}"
 msgstr "最多可接受 {mostWords} 个"
-
-msgid "The password is in its own environment, which Dockwell keeps sealed and never shows."
-msgstr "密码在它自己的环境变量中，Dockwell 会加密保存且从不显示。"
-
-msgid "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
-msgstr "密码在密钥 <0>{secret}</0> 中，可在<1>变量和密钥</1>中用通行密钥查看。"
 
 msgid "This server's disk, unencrypted"
 msgstr "本服务器磁盘，未加密"
@@ -6706,9 +6716,6 @@ msgstr "升级是一个计划：先复制卷的文件来备份，这会让 {engi
 
 msgid "When you ask"
 msgstr "手动发起时"
-
-msgid "every address"
-msgstr "所有地址"
 
 msgid "of {mostWords}"
 msgstr "/ {mostWords}"
@@ -9198,6 +9205,9 @@ msgstr "无法读取 Docker"
 msgid "Connected"
 msgstr "已连接"
 
+msgid "Connection"
+msgstr "连接方式"
+
 msgid "Control plane"
 msgstr "控制平面"
 
@@ -9926,9 +9936,6 @@ msgstr "云服务商"
 
 msgid "Coming later"
 msgstr "之后推出"
-
-msgid "Connect"
-msgstr "连接"
 
 msgid "Connect storage"
 msgstr "连接存储"
@@ -11586,9 +11593,6 @@ msgstr "移除密钥 {name}"
 
 msgid "Remove the variable {name}"
 msgstr "移除变量 {name}"
-
-msgid "Reveal"
-msgstr "显示"
 
 msgid "Reveal {name}"
 msgstr "显示 {name}"

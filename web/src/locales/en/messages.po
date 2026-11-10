@@ -29,6 +29,16 @@ msgstr "Close"
 msgid "Command bar"
 msgstr "Command bar"
 
+#. The heading of a card that lists how to connect to a database or an app.
+msgid "Connect"
+msgstr "Connect"
+
+msgid "Copy {what}"
+msgstr "Copy {what}"
+
+msgid "Copy {what}, without the {without}"
+msgstr "Copy {what}, without the {without}"
+
 msgid "Create"
 msgstr "Create"
 
@@ -68,6 +78,12 @@ msgstr "Free"
 
 msgid "Healthy"
 msgstr "Healthy"
+
+msgid "Hidden"
+msgstr "Hidden"
+
+msgid "Hide"
+msgstr "Hide"
 
 msgid "Hover or focus a server to inspect it."
 msgstr "Hover or focus a server to inspect it."
@@ -116,6 +132,12 @@ msgstr "Restarted"
 
 msgid "Results"
 msgstr "Results"
+
+msgid "Reveal"
+msgstr "Reveal"
+
+msgid "Reveal {what}"
+msgstr "Reveal {what}"
 
 msgid "Running"
 msgstr "Running"
@@ -298,6 +320,12 @@ msgstr "{count} stopped"
 
 msgid "{count} unknown"
 msgstr "{count} unknown"
+
+msgid "{label} copied"
+msgstr "{label} copied"
+
+msgid "{label} copied, without the {without}"
+msgstr "{label} copied, without the {without}"
 
 msgid "{name}, {status}"
 msgstr "{name}, {status}"
@@ -1810,9 +1838,6 @@ msgstr "Environment variables of {name}"
 msgid "Every app that uses this variable gets the new value."
 msgstr "Every app that uses this variable gets the new value."
 
-msgid "Hidden"
-msgstr "Hidden"
-
 msgid "Import .env"
 msgstr "Import .env"
 
@@ -3163,9 +3188,6 @@ msgstr "Give each variable a value to review the plan"
 
 msgid "Give {first} a value to review the plan"
 msgstr "Give {first} a value to review the plan"
-
-msgid "Hide"
-msgstr "Hide"
 
 msgid "Hide the value"
 msgstr "Hide the value"
@@ -6592,29 +6614,29 @@ msgstr "Asking its server"
 msgid "Cache hit"
 msgstr "Cache hit"
 
-msgid "Connection"
-msgstr "Connection"
+msgid "Connection string"
+msgstr "Connection string"
 
 msgid "Connections"
 msgstr "Connections"
 
-msgid "Copied, without its password"
-msgstr "Copied, without its password"
+msgid "From anywhere that reaches this server"
+msgstr "From anywhere that reaches this server"
 
-msgid "Copy the internal URL, without its password"
-msgstr "Copy the internal URL, without its password"
+msgid "From apps beside it"
+msgstr "From apps beside it"
 
-msgid "External access"
-msgstr "External access"
+msgid "From apps in {place}"
+msgstr "From apps in {place}"
 
-msgid "Internal URL"
-msgstr "Internal URL"
+msgid "From this server alone"
+msgstr "From this server alone"
+
+msgid "Host"
+msgstr "Host"
 
 msgid "It sets no most"
 msgstr "It sets no most"
-
-msgid "It takes no password Dockwell keeps."
-msgstr "It takes no password Dockwell keeps."
 
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
 msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
@@ -6628,8 +6650,14 @@ msgstr "Its numbers, databases and users are as {server} says, one of the {count
 msgid "Its numbers, databases and users show again once it does."
 msgstr "Its numbers, databases and users show again once it does."
 
+msgid "Its password is in its own environment, sealed, so it has no secret to reveal."
+msgstr "Its password is in its own environment, sealed, so it has no secret to reveal."
+
 msgid "Its server didn't say"
 msgstr "Its server didn't say"
+
+msgid "Kept in the secret {secret}"
+msgstr "Kept in the secret {secret}"
 
 msgid "Kept on"
 msgstr "Kept on"
@@ -6646,12 +6674,6 @@ msgstr "None yet"
 msgid "Nothing read yet"
 msgstr "Nothing read yet"
 
-msgid "Off. Only services on its server's networks can connect. Add a port on its app's page."
-msgstr "Off. Only services on its server's networks can connect. Add a port on its app's page."
-
-msgid "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
-msgstr "On. Port {serverPort} of its server reaches it, on {where}. Change it on its app's page."
-
 msgid "One is running now"
 msgstr "One is running now"
 
@@ -6660,12 +6682,6 @@ msgstr "Reads served from memory"
 
 msgid "Restore the newest"
 msgstr "Restore the newest"
-
-msgid "Services beside it reach it as <0>{host}</0>"
-msgstr "Services beside it reach it as <0>{host}</0>"
-
-msgid "Services in {place} reach it as <0>{host}</0>"
-msgstr "Services in {place} reach it as <0>{host}</0>"
 
 msgid "Since"
 msgstr "Since"
@@ -6682,12 +6698,6 @@ msgstr "The last one failed: {latestError}"
 
 msgid "The most it takes is {mostWords}"
 msgstr "The most it takes is {mostWords}"
-
-msgid "The password is in its own environment, which Dockwell keeps sealed and never shows."
-msgstr "The password is in its own environment, which Dockwell keeps sealed and never shows."
-
-msgid "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
-msgstr "The password is in the secret <0>{secret}</0>, which you reveal with your passkey on <1>Variables and secrets</1>."
 
 msgid "This server's disk, unencrypted"
 msgstr "This server's disk, unencrypted"
@@ -6706,9 +6716,6 @@ msgstr "Upgrading is a plan that backs up its volumes before anything else, with
 
 msgid "When you ask"
 msgstr "When you ask"
-
-msgid "every address"
-msgstr "every address"
 
 msgid "of {mostWords}"
 msgstr "of {mostWords}"
@@ -9198,6 +9205,9 @@ msgstr "Can't read Docker"
 msgid "Connected"
 msgstr "Connected"
 
+msgid "Connection"
+msgstr "Connection"
+
 msgid "Control plane"
 msgstr "Control plane"
 
@@ -9926,9 +9936,6 @@ msgstr "Cloud providers"
 
 msgid "Coming later"
 msgstr "Coming later"
-
-msgid "Connect"
-msgstr "Connect"
 
 msgid "Connect storage"
 msgstr "Connect storage"
@@ -11586,9 +11593,6 @@ msgstr "Remove the secret {name}"
 
 msgid "Remove the variable {name}"
 msgstr "Remove the variable {name}"
-
-msgid "Reveal"
-msgstr "Reveal"
 
 msgid "Reveal {name}"
 msgstr "Reveal {name}"
