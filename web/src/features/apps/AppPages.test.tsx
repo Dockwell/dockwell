@@ -408,7 +408,7 @@ describe("an app's frame", () => {
     await expectAccessible(container);
   });
 
-  it("goes to the logs from its tab, and from the header beside Restart and Deploy but on the logs", async () => {
+  it("goes to the logs from its tab, and from the header between Restart and Deploy on every tab", async () => {
     const { router } = renderAt("/apps/svc_web", api());
     await screen.findByRole("heading", { level: 1, name: "web" });
     const tab = within(screen.getByRole("navigation", { name: "App sections" })).getByRole("link", { name: "Logs" });
@@ -421,7 +421,14 @@ describe("an app's frame", () => {
     expect(header.previousElementSibling).toHaveTextContent("Restart");
     expect(header.nextElementSibling).toHaveTextContent("Deploy");
     await act(() => router.navigate({ to: "/apps/$serviceId/logs", params: { serviceId: "svc_web" } }));
-    await waitFor(() => expect(screen.getAllByRole("link", { name: "Logs" })).toHaveLength(1));
+    // On the Logs tab it stays where it was, as App-Logs has it, and says it's this page.
+    await screen.findByRole("region", { name: "Logs" });
+    const there = screen.getAllByRole("link", { name: "Logs" });
+    expect(there).toHaveLength(2);
+    for (const link of there) expect(link).toHaveAttribute("aria-current", "page");
+    const kept = there.find((l) => l.classList.contains("dw-btn")) as HTMLElement;
+    expect(kept.previousElementSibling).toHaveTextContent("Restart");
+    expect(kept.nextElementSibling).toHaveTextContent("Deploy");
   });
 
   it("shows the project it's in, once there is more than one", async () => {

@@ -256,12 +256,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          {/* As App-Overview has it, beside Restart and Deploy: where to look next, from any tab but itself. */}
-          {onLogs ? null : (
-            <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
-              <Trans>Logs</Trans>
-            </RouterButtonLink>
-          )}
+          {/*
+            As App-Overview has it, between Restart and Deploy. It stays on the Logs tab too, as App-Logs has it,
+            so the buttons don't move from tab to tab; there the router marks it as the current page.
+          */}
+          <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal">
+            <Trans>Logs</Trans>
+          </RouterButtonLink>
           {changeable ? (
             <Button variant="primary" icon="deploy" onClick={() => setDeploying(true)}>
               <Trans>Deploy</Trans>
