@@ -9649,20 +9649,36 @@ msgstr "1 person signs in to this install, its owner"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "<0>dockwell recover</0> on the control server"
 
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it."
+msgstr "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it."
+
 msgid "All projects"
 msgstr "All projects"
 
 msgid "Apply in protected environments"
 msgstr "Apply in protected environments"
 
+msgid "Before anyone else signs in"
+msgstr "Before anyone else signs in"
+
+msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
+msgstr "Check each environment's protection first, then tick the box: it decides whose changes wait."
+
 msgid "Copy link"
 msgstr "Copy link"
+
+#. placeholder {0}: explain(environments.error)
+msgid "Dockwell can't list the environments: {0}"
+msgstr "Dockwell can't list the environments: {0}"
 
 msgid "Dockwell can't say who signs in"
 msgstr "Dockwell can't say who signs in"
 
 msgid "Enter an email address, such as ada@example.com."
 msgstr "Enter an email address, such as ada@example.com."
+
+msgid "Environments"
+msgstr "Environments"
 
 msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
 msgstr "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
@@ -9676,6 +9692,9 @@ msgstr "Expires in {0}"
 
 msgid "How you sign in"
 msgstr "How you sign in"
+
+msgid "I've checked which environments are protected"
+msgstr "I've checked which environments are protected"
 
 msgid "In open environments"
 msgstr "In open environments"
@@ -9715,6 +9734,9 @@ msgstr "Last resort"
 msgid "Link copied"
 msgstr "Link copied"
 
+msgid "Loading the environments"
+msgstr "Loading the environments"
+
 msgid "Loading who signs in"
 msgstr "Loading who signs in"
 
@@ -9738,6 +9760,9 @@ msgstr "Nobody was invited"
 
 msgid "Not accepted yet"
 msgstr "Not accepted yet"
+
+msgid "Not protected"
+msgstr "Not protected"
 
 msgid "Now"
 msgstr "Now"
@@ -9764,6 +9789,13 @@ msgstr "Plan and apply in open environments"
 msgid "Projects"
 msgstr "Projects"
 
+#. placeholder {0}: named(env)
+msgid "Protect {0}"
+msgstr "Protect {0}"
+
+msgid "Protect {where}"
+msgstr "Protect {where}"
+
 msgid "Read apps, plans, activity and logs"
 msgstr "Read apps, plans, activity and logs"
 
@@ -9789,6 +9821,9 @@ msgstr "Signed in on"
 
 msgid "Single sign-on"
 msgstr "Single sign-on"
+
+msgid "Stop protecting {where}"
+msgstr "Stop protecting {where}"
 
 msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
 msgstr "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
@@ -9846,6 +9881,10 @@ msgstr "{keys} and an authenticator app"
 
 msgid "{keys}, with codes locked"
 msgstr "{keys}, with codes locked"
+
+#. placeholder {0}: projectName(env.resource?.scope ?? "")
+msgid "{name} in {0}"
+msgstr "{name} in {0}"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{withPasskeys} of {count} sign in with a passkey"
@@ -10122,9 +10161,6 @@ msgstr "Delete a project"
 
 msgid "Delete the project {projectName}"
 msgstr "Delete the project {projectName}"
-
-msgid "Environments"
-msgstr "Environments"
 
 msgid "Finding your projects"
 msgstr "Finding your projects"

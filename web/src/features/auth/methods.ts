@@ -33,15 +33,18 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AuditService.listAuditEvents": "may",
 
   "AuthService.beginAddPasskey": "open",
+  "AuthService.beginAcceptInvite": "open",
   "AuthService.beginClaim": "open",
   "AuthService.beginPasskeySignIn": "open",
   "AuthService.beginStepUp": "open",
   "AuthService.beginTotpSetup": "open",
   "AuthService.cancelTotpSetup": "open",
   "AuthService.checkClaim": "open",
+  "AuthService.checkInvite": "open",
   "AuthService.confirmTotpSetup": "open",
   "AuthService.disableTotp": "open",
   "AuthService.finishAddPasskey": "open",
+  "AuthService.finishAcceptInvite": "open",
   "AuthService.finishClaim": "open",
   "AuthService.finishPasskeySignIn": "open",
   "AuthService.finishStepUp": "open",
@@ -131,7 +134,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "LogService.readLogs": "read",
   "LogService.watchLogs": "read",
 
+  "MemberService.createInvite": { within: "MemberService.listMembers" },
   "MemberService.listMembers": "may",
+  "MemberService.revokeInvite": { within: "MemberService.listMembers" },
 
   "ProcessService.endProcess": { within: "ProcessService.watchProcesses" },
   "ProcessService.watchProcesses": "may",

@@ -7,6 +7,8 @@ import {
   type Invite,
   type Member,
   MemberService,
+  Protection,
+  type Resource,
   ResourceService,
   Role,
   SignInKind,
@@ -19,6 +21,7 @@ import {
   Panel,
   PHONE_QUERY,
   SelectField,
+  Switch,
   Table,
   type TableColumn,
   TextField,
@@ -36,6 +39,7 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedIn } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
@@ -94,7 +98,7 @@ export function MembersPage() {
       </ul>
     );
   } else {
-    people = <MembersTable members={members} invites={invites} />;
+    people = <MembersTable members={members} invites={invites} places={!solo} />;
   }
 
   const invitesWord =
@@ -140,7 +144,7 @@ export function MembersPage() {
         {people}
       </section>
       <div className="members-panels">
-        <RolesCan />
+        {solo && !inviting ? null : <RolesCan />}
         <SignIn member={members.find((m) => m.you)} />
       </div>
     </Page>
@@ -179,6 +183,11 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<unknown>();
   const [sent, setSent] = useState<{ email: string; link: string; until?: Date }>();
+  // Before anyone else signs in, the owner checks which environments are
+  // protected, as that decides whose changes wait (ADR 0049).
+  const first = members.length <= 1;
+  const [protectionChecked, setProtectionChecked] = useState(false);
+  const [protectionUnchecked, setProtectionUnchecked] = useState(false);
 
   if (!domain) {
     return (
@@ -208,6 +217,10 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
       return;
     }
     setInvalid(undefined);
+    if (first && !protectionChecked) {
+      setProtectionUnchecked(true);
+      return;
+    }
     setBusy(true);
     setProblem(undefined);
     try {
@@ -234,6 +247,17 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
 
   return (
     <section className="dw-panel members-invite" aria-label={t`Invite people`}>
+      {first ? (
+        <ProtectionCheck
+          projects={list}
+          checked={protectionChecked}
+          unchecked={protectionUnchecked && !protectionChecked}
+          onCheck={(checked) => {
+            setProtectionChecked(checked);
+            setProtectionUnchecked(false);
+          }}
+        />
+      ) : null}
       <form className="members-invite-form" onSubmit={(e) => void submit(e)} noValidate>
         <div className="members-invite-email">
           <TextField
@@ -299,6 +323,124 @@ function InvitePanel({ members }: { members: readonly Member[] }) {
         </Callout>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Each environment and whether it's protected, for the owner to check before
+ * anyone else signs in (ADR 0049): a developer's change in a protected one
+ * waits for an admin or the owner. Protecting one, or no longer, is a change
+ * like any other, planned in the plan sheet.
+ */
+function ProtectionCheck({
+  projects,
+  checked,
+  unchecked,
+  onCheck,
+}: {
+  projects: readonly Resource[];
+  checked: boolean;
+  /** Inviting was asked for before the box was ticked. */
+  unchecked: boolean;
+  onCheck: (checked: boolean) => void;
+}) {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const explain = useAuthError();
+  const environments = useQuery(ResourceService.method.listResources, { kind: "environment" });
+  const several = projects.length > 1;
+  const projectName = (id: string) => {
+    const p = projects.find((r) => r.id === id);
+    return p ? p.displayName || p.resource?.name || id : id;
+  };
+  const named = (env: Resource) => {
+    const name = env.displayName || env.resource?.name || env.id;
+    return several ? t`${name} in ${projectName(env.resource?.scope ?? "")}` : name;
+  };
+  const change = (env: Resource) => {
+    const where = named(env);
+    sheet.open({
+      kind: "propose",
+      summary: env.protected ? t`Stop protecting ${where}` : t`Protect ${where}`,
+      edits: [
+        {
+          resource: { kind: "environment", scope: env.resource?.scope ?? "", name: env.resource?.name ?? "" },
+          // An environment's spec is its display name and its protection, so
+          // this keeps the one and changes the other.
+          spec: {
+            kind: {
+              case: "environment",
+              value: {
+                displayName: env.displayName,
+                protection: env.protected ? Protection.OPEN : Protection.PROTECTED,
+              },
+            },
+          },
+        },
+      ],
+    });
+  };
+
+  let list: ReactNode;
+  if (environments.error && !environments.data) {
+    list = (
+      <p className="members-problem" role="alert">
+        {t`Dockwell can't list the environments: ${explain(environments.error)}`}{" "}
+        <Button size="sm" variant="ghost" icon="refresh" onClick={() => void environments.refetch()}>
+          <Trans>Try again</Trans>
+        </Button>
+      </p>
+    );
+  } else if (!environments.data) {
+    list = (
+      <p className="members-muted" aria-busy="true">
+        {t`Loading the environments`}
+      </p>
+    );
+  } else {
+    list = (
+      <ul className="members-protection-list" aria-label={t`Environments`}>
+        {environments.data.resources.map((env) => (
+          <li key={env.id} className="members-protection-item">
+            <span className="members-protection-name">{named(env)}</span>
+            {/* As Settings draws it: switching opens a plan, and it shows the change once applied. */}
+            <Switch
+              checked={env.protected}
+              onChange={() => change(env)}
+              aria-label={t`Protect ${named(env)}`}
+              label={env.protected ? t`Protected` : t`Not protected`}
+            />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <fieldset className="members-protection">
+      <legend className="members-protection-head">{t`Before anyone else signs in`}</legend>
+      <p className="members-invite-note">
+        <Trans>
+          A developer's change in a protected environment waits for an admin or the owner, who applies it with a
+          passkey. Check that each environment is as you want it.
+        </Trans>
+      </p>
+      {list}
+      <label className="members-protection-ok">
+        <input
+          type="checkbox"
+          checked={checked}
+          aria-invalid={unchecked || undefined}
+          onChange={(e) => onCheck(e.target.checked)}
+        />
+        <Trans>I've checked which environments are protected</Trans>
+      </label>
+      {unchecked ? (
+        <p className="members-problem" role="alert">
+          {t`Check each environment's protection first, then tick the box: it decides whose changes wait.`}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }
 
@@ -456,7 +598,16 @@ function RevokeInvite({ invite }: { invite: Invite }) {
   );
 }
 
-function MembersTable({ members, invites }: { members: readonly Member[]; invites: readonly Invite[] }) {
+function MembersTable({
+  members,
+  invites,
+  places,
+}: {
+  members: readonly Member[];
+  invites: readonly Invite[];
+  /** Whether to show where each holds their role: not while one person signs in, alone (ADR 0049). */
+  places: boolean;
+}) {
   const { t } = useLingui();
   const signIn = useSignInWords();
   const lastActive = useLastActive();
@@ -478,12 +629,16 @@ function MembersTable({ members, invites }: { members: readonly Member[]; invite
       width: 112,
       render: (r) => <RoleTag role={r.member ? roleOf(r.member) : r.invite.role} />,
     },
-    {
-      key: "projects",
-      header: t`Projects`,
-      width: 140,
-      render: (r) => (r.member ? placesOf(r.member) : r.invite.projectName || t`All projects`),
-    },
+    ...(places
+      ? [
+          {
+            key: "projects",
+            header: t`Projects`,
+            width: 140,
+            render: (r: Row) => (r.member ? placesOf(r.member) : r.invite.projectName || t`All projects`),
+          },
+        ]
+      : []),
     {
       key: "signin",
       header: t`Sign-in`,
@@ -573,6 +728,9 @@ function InviteFacts({ invite }: { invite: Invite }) {
 }
 
 /** What each role may do, as ADR 0049's table has it. */
+/** The roles RolesCan compares, in its columns' order. */
+const ROLE_COLUMNS = ["owner", "admin", "developer", "viewer"] as const;
+
 function RolesCan() {
   const { t } = useLingui();
   const owner = useRoleName(Role.OWNER);
@@ -610,8 +768,7 @@ function RolesCan() {
             <tr key={row}>
               <th scope="row">{row}</th>
               {cells.map((cell, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: the columns are the four roles, in order
-                <td key={i} className="members-col">
+                <td key={ROLE_COLUMNS[i]} className="members-col">
                   {cell}
                 </td>
               ))}

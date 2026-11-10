@@ -1141,6 +1141,59 @@
   overflow-wrap: anywhere;
 }
 
+/* The first invite's check of each environment's protection (ADR 0049). */
+.members-protection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.members-protection-head {
+  padding: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.members-protection-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.members-protection-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 36px;
+  border-bottom: 1px solid var(--line);
+}
+
+.members-protection-item:last-child {
+  border-bottom: 0;
+}
+
+.members-protection-name {
+  flex: 1 1 160px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.members-protection-ok {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 13px;
+}
+
 /* An invite isn't a person yet: its avatar is a dashed ring around a letter. */
 .members-avatar-invite {
   border-style: dashed;

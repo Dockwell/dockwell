@@ -9649,20 +9649,36 @@ msgstr "1 人可以登录这个安装，即其所有者"
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it."
+msgstr "开发者在受保护环境中的更改会等待管理员或所有者，由其使用通行密钥应用。请检查每个环境是否符合你的预期。"
+
 msgid "All projects"
 msgstr "所有项目"
 
 msgid "Apply in protected environments"
 msgstr "在受保护的环境中应用"
 
+msgid "Before anyone else signs in"
+msgstr "在其他人登录之前"
+
+msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
+msgstr "请先检查每个环境的保护设置，再勾选此框：它决定谁的更改需要等待。"
+
 msgid "Copy link"
 msgstr "复制链接"
+
+#. placeholder {0}: explain(environments.error)
+msgid "Dockwell can't list the environments: {0}"
+msgstr "Dockwell 无法列出环境：{0}"
 
 msgid "Dockwell can't say who signs in"
 msgstr "Dockwell 无法得知谁可以登录"
 
 msgid "Enter an email address, such as ada@example.com."
 msgstr "请输入电子邮件地址，例如 ada@example.com。"
+
+msgid "Environments"
+msgstr "环境"
 
 msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
 msgstr "有角色的人都能在自己的项目中查看应用、日志和活动。开发者在受保护环境中的计划需要等待管理员或所有者。"
@@ -9676,6 +9692,9 @@ msgstr "{0}后过期"
 
 msgid "How you sign in"
 msgstr "你的登录方式"
+
+msgid "I've checked which environments are protected"
+msgstr "我已检查哪些环境受保护"
 
 msgid "In open environments"
 msgstr "在开放的环境中"
@@ -9715,6 +9734,9 @@ msgstr "最后手段"
 msgid "Link copied"
 msgstr "链接已复制"
 
+msgid "Loading the environments"
+msgstr "正在加载环境"
+
 msgid "Loading who signs in"
 msgstr "正在加载可以登录的人"
 
@@ -9738,6 +9760,9 @@ msgstr "未邀请任何人"
 
 msgid "Not accepted yet"
 msgstr "尚未接受"
+
+msgid "Not protected"
+msgstr "未受保护"
 
 msgid "Now"
 msgstr "现在"
@@ -9764,6 +9789,13 @@ msgstr "在开放的环境中计划并应用"
 msgid "Projects"
 msgstr "项目"
 
+#. placeholder {0}: named(env)
+msgid "Protect {0}"
+msgstr "保护 {0}"
+
+msgid "Protect {where}"
+msgstr "保护 {where}"
+
 msgid "Read apps, plans, activity and logs"
 msgstr "查看应用、计划、活动和日志"
 
@@ -9789,6 +9821,9 @@ msgstr "已登录于"
 
 msgid "Single sign-on"
 msgstr "单点登录"
+
+msgid "Stop protecting {where}"
+msgstr "停止保护 {where}"
 
 msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
 msgstr "受邀者要在该域名上接受邀请，并在那里创建通行密钥，因为 SSH 隧道只属于你自己。请为服务设置 <0>DOCKWELL_DOMAIN</0> 后再邀请他人。"
@@ -9846,6 +9881,10 @@ msgstr "{keys}和一个身份验证器应用"
 
 msgid "{keys}, with codes locked"
 msgstr "{keys}，验证码登录已锁定"
+
+#. placeholder {0}: projectName(env.resource?.scope ?? "")
+msgid "{name} in {0}"
+msgstr "{0} 中的 {name}"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
@@ -10122,9 +10161,6 @@ msgstr "删除项目"
 
 msgid "Delete the project {projectName}"
 msgstr "删除项目 {projectName}"
-
-msgid "Environments"
-msgstr "环境"
 
 msgid "Finding your projects"
 msgstr "正在查找你的项目"

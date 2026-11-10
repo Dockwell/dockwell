@@ -3,7 +3,15 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { type CreateInviteRequest, MemberSchema, Role, SignInKind, StepUpAction } from "@dockwell/api";
+import {
+  type CreateInviteRequest,
+  MemberSchema,
+  type ProposeChangeRequest,
+  Protection,
+  Role,
+  SignInKind,
+  StepUpAction,
+} from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -59,13 +67,18 @@ describe("Members", () => {
       "/profile",
     );
     expect(screen.getByText("all sign in with a passkey")).toBeVisible();
+    // Where a role is held, and what each can do, wait for a second person (ADR 0049).
+    expect(within(table).queryByRole("columnheader", { name: "Projects" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "What each role can do" })).toBeNull();
 
     const signIn = screen.getByRole("region", { name: "How you sign in" });
     expect(signIn).toHaveTextContent("2 · localhost · panel.example.com");
     expect(signIn).toHaveTextContent("On, 7 recovery codes left");
     expect(signIn).toHaveTextContent("2 browsers");
-    expect(screen.getByRole("region", { name: "What each role can do" })).toHaveTextContent("Transfer ownership");
     await expectAccessible(container);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Invite someone" }));
+    expect(screen.getByRole("region", { name: "What each role can do" })).toHaveTextContent("Transfer ownership");
   });
 
   it("says how anyone else signs in by its kinds alone, and how many sign in once it knows", async () => {
@@ -214,6 +227,15 @@ describe("Members", () => {
     });
     await user.click(await screen.findByRole("button", { name: "Invite someone" }));
     await user.type(screen.getByRole("textbox", { name: "Invite by email" }), " Ada@Example.com ");
+    // The first invite waits for the owner to check each environment's protection.
+    await user.click(screen.getByRole("button", { name: "Invite" }));
+    expect(
+      await screen.findByText(
+        "Check each environment's protection first, then tick the box: it decides whose changes wait.",
+      ),
+    ).toBeVisible();
+    expect(createInvite).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("checkbox", { name: "I've checked which environments are protected" }));
     await user.click(screen.getByRole("button", { name: "Invite" }));
     expect(await screen.findByText("Send this link to ada@example.com")).toBeVisible();
     expect(screen.getByText("https://panel.example.com/invite#s3cr3t")).toBeVisible();
@@ -225,6 +247,75 @@ describe("Members", () => {
       expect.objectContaining({ email: "ada@example.com", role: Role.DEVELOPER, project: "", proof: "proof_1" }),
       expect.anything(),
     );
+  });
+
+  it("lists each environment's protection before the first invite, and plans a change to one", async () => {
+    const user = userEvent.setup();
+    const proposeChange = vi.fn((_: ProposeChangeRequest) => ({}));
+    const environment = (id: string, name: string, project: string, isProtected: boolean, displayName = "") => ({
+      id,
+      resource: { kind: "environment", scope: project, name },
+      displayName,
+      protected: isProtected,
+    });
+    renderAt("/settings/members", {
+      auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
+      members: { listMembers: () => ({ members: [owner] }) },
+      changes: { proposeChange },
+      resources: {
+        listResources: (req: { kind: string }) =>
+          req.kind === "environment"
+            ? {
+                resources: [
+                  environment("env_1", "production", "prj_1", true),
+                  environment("env_2", "staging", "prj_1", false, "Staging"),
+                  environment("env_3", "production", "prj_2", true),
+                ],
+              }
+            : {
+                resources: [
+                  { id: "prj_1", resource: { kind: "project", name: "shop" } },
+                  { id: "prj_2", resource: { kind: "project", name: "blog" } },
+                ],
+              },
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Invite someone" }));
+    const list = await screen.findByRole("list", { name: "Environments" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items.map((i) => i.textContent)).toEqual([
+      "production in shopProtected",
+      "Staging in shopNot protected",
+      "production in blogProtected",
+    ]);
+    expect(within(list).getByRole("switch", { name: "Protect production in shop" })).toBeChecked();
+    const staging = within(list).getByRole("switch", { name: "Protect Staging in shop" });
+    expect(staging).not.toBeChecked();
+
+    await user.click(staging);
+    await waitFor(() => expect(proposeChange).toHaveBeenCalled());
+    const edit = proposeChange.mock.calls[0]?.[0].edits[0];
+    expect(edit?.resource).toMatchObject({ kind: "environment", scope: "prj_1", name: "staging" });
+    // Its display name stays as it is, as an edit replaces the whole spec.
+    expect(edit?.spec?.kind).toMatchObject({
+      case: "environment",
+      value: { displayName: "Staging", protection: Protection.PROTECTED },
+    });
+    // It changes once the plan is applied, not before.
+    expect(staging).not.toBeChecked();
+  });
+
+  it("doesn't ask about protection once someone else signs in", async () => {
+    const user = userEvent.setup();
+    renderAt("/settings/members", {
+      auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
+      members: { listMembers: () => ({ members: [owner, other] }) },
+      resources: { listResources: () => ({ resources: [] }) },
+    });
+    expect(await screen.findByRole("textbox", { name: "Invite by email" })).toBeVisible();
+    await user.type(screen.getByRole("textbox", { name: "Invite by email" }), "sam@example.com");
+    expect(screen.queryByRole("checkbox", { name: "I've checked which environments are protected" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Environments" })).toBeNull();
   });
 
   it("says invites need the panel's domain on an install without one", async () => {
@@ -246,7 +337,7 @@ describe("Members", () => {
       signIn: [SignInKind.PASSKEY],
       grants: [{ projectId: "prj_1", projectName: "shop", role: Role.DEVELOPER }],
     });
-    renderAt("/settings/members", {
+    const { container } = renderAt("/settings/members", {
       auth: { getAuthState: () => authState({ domain: "panel.example.com" }) },
       members: {
         listMembers: () => ({
@@ -278,6 +369,7 @@ describe("Members", () => {
     expect(invited).toHaveTextContent("Viewer");
     expect(invited).toHaveTextContent("Not accepted yet");
     expect(invited).toHaveTextContent("Expires in 6 days");
+    await expectAccessible(container);
     await user.click(
       within(invited as HTMLElement).getByRole("button", { name: "Revoke the invite for sam@example.com" }),
     );
