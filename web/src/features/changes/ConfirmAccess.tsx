@@ -9,6 +9,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 
@@ -39,6 +40,8 @@ export function ConfirmAccess({
   const me = useSignedInUser();
   // Someone else watching: the server would refuse them, so they aren't offered it.
   const theirs = appliedBy !== undefined && appliedBy !== "" && me !== undefined && me.id !== appliedBy;
+  // Keeping a change to who reaches a server is an admin's, on the install (ADR 0059).
+  const mayKeep = useMay()(ChangeService.method.confirmChange);
   const transport = useTransport();
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
   const now = useControlPlaneNow(1000);
@@ -80,7 +83,7 @@ export function ConfirmAccess({
       className="plan-confirm"
       actions={
         theirs ? undefined : (
-          <Button variant="primary" onClick={keep} disabled={busy || !open}>
+          <Button variant="primary" onClick={keep} disabled={busy || !open} {...mayKeep.off}>
             <Trans>Keep the change</Trans>
           </Button>
         )
