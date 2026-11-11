@@ -193,21 +193,21 @@ export function PolicySheet({
         ) : said && each > 0n ? (
           total > room ? (
             <Callout tone="warning" title={t`This may not fit`}>
-              {t`Keeping ${count} takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${formatBytes(room > 0n ? room : 0n, i18n.locale)} to give. A backup that won't fit fails, and says so on Activity.`}
+              {t`Keeping ${count} takes about ${formatBytes(total, i18n.locale)} while the next is taken; the disk has ${formatBytes(room > 0n ? room : 0n, i18n.locale)}. One that won't fit fails.`}
             </Callout>
           ) : (
             <p className="backup-sheet-note">
               {plural(count, {
-                one: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping one takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${toGive} to give.`,
-                other: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping # takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${toGive} to give.`,
+                one: `Each backup takes about ${formatBytes(each, i18n.locale)}; keeping one, about ${formatBytes(total, i18n.locale)}. The disk has ${toGive} to give.`,
+                other: `Each backup takes about ${formatBytes(each, i18n.locale)}; keeping #, about ${formatBytes(total, i18n.locale)}. The disk has ${toGive} to give.`,
               })}
             </p>
           )
         ) : said ? (
           <p className="backup-sheet-note">
             <Trans>
-              Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly.
-              The disk has {toGive} to give.
+              Dockwell can't size a backup yet: this volume is empty or too large to measure quickly. The disk has{" "}
+              {toGive}.
             </Trans>
           </p>
         ) : null}

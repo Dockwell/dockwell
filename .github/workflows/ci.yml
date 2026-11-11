@@ -168,6 +168,13 @@ jobs:
           sudo unshare -n env DOCKWELL_TEST=1 DOCKWELL_TEST_NFT="$(command -v nft)" \
             "$RUNNER_TEMP/nftables.test" -test.run 'TestTheTableLoadsInRealNftables' -test.v | tee "$RUNNER_TEMP/nftables.out"
           grep -q -- '--- PASS: TestTheTableLoadsInRealNftables' "$RUNNER_TEMP/nftables.out"
+          # The revert that fires without the agent: the agent is killed while a
+          # change waits, and the kernel's table goes back all the same. In the
+          # same kind of namespace, so only its own firewall is touched.
+          go test -c -o "$RUNNER_TEMP/access.test" ./internal/agent/access
+          sudo unshare -n env DOCKWELL_TEST=1 DOCKWELL_TEST_NFT="$(command -v nft)" \
+            "$RUNNER_TEMP/access.test" -test.run 'TestTheRevertOutsideTheAgentWorksOnRealNftablesWithTheAgentKilled' -test.v | tee "$RUNNER_TEMP/access.out"
+          grep -q -- '--- PASS: TestTheRevertOutsideTheAgentWorksOnRealNftablesWithTheAgentKilled' "$RUNNER_TEMP/access.out"
 
   caddy-go:
     name: Go on Caddy
@@ -266,6 +273,10 @@ jobs:
           - nextcloud rustfs grafana umami
           - plausible ghost wordpress memos
           - adminer jellyfin home-assistant
+          - openclaw
+          - hermes-agent
+          - new-api lobechat
+          - sftpgo openlist gotify linkding
     env:
       E2E_ROOT: "1"
     steps:
@@ -278,6 +289,11 @@ jobs:
             tools/go.sum
       - name: Docker
         run: docker version
+      - name: SFTP client
+        if: contains(matrix.apps, 'sftpgo')
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y sshpass
       - name: The apps end to end
         run: make catalog-e2e APPS="${{ matrix.apps }}"
 

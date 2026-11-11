@@ -32,6 +32,51 @@ function Picker({ start = "/var/www/new.example.com", note }: { start?: string; 
 }
 
 describe("FolderPicker", () => {
+  it("opens on what was refused, and stays open as it's fixed", async () => {
+    const user = userEvent.setup();
+    // A form that refuses an empty path, and forgets that as soon as anything is typed.
+    function Refusing() {
+      const [value, setValue] = useState("");
+      const [error, setError] = useState<string>();
+      return (
+        <>
+          <FolderPicker
+            label="Folder"
+            value={value}
+            error={error}
+            list={list}
+            onChange={(next) => {
+              setValue(next);
+              setError(undefined);
+            }}
+          />
+          <button type="button" onClick={() => setError("Give the folder that holds its files.")}>
+            Check
+          </button>
+        </>
+      );
+    }
+    render(<Refusing />);
+    expect(screen.queryByRole("textbox", { name: "Path" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Check" }));
+    const path = await screen.findByRole("textbox", { name: "Path" });
+    await user.type(path, "/srv/x");
+    expect(screen.getByRole("textbox", { name: "Path" })).toHaveValue("/srv/x");
+    expect(screen.getByRole("textbox", { name: "Path" })).toHaveFocus();
+  });
+
+  it("describes Change by what's known of the folder, and says it as it changes", () => {
+    render(<Picker note="Root owns it, so PHP can't save uploads there." />);
+    const change = screen.getByRole("button", { name: /^Change the folder/ });
+    expect(change).toHaveAccessibleDescription("Root owns it, so PHP can't save uploads there.");
+    expect(screen.getByText("Root owns it, so PHP can't save uploads there.")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("is off, with why, for a reader who may not look in the server's folders", () => {
+    render(<FolderPicker label="Folder" value="/var/www/x" list={list} onChange={() => {}} off="Only an admin can." />);
+    expect(screen.getByRole("button", { name: /^Change the folder/ })).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("is one line while closed: the folder, what's known of it, and Change", async () => {
     list.mockClear();
     const { container } = render(<Picker note="New, made with the site" />);
