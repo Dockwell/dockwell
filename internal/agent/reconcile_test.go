@@ -367,7 +367,7 @@ func TestAStoppedContainerThatsGoneWaits(t *testing.T) {
 	if err := s.e.Client().StopContainer(t.Context(), "web", time.Second); err != nil {
 		t.Fatal(err)
 	}
-	s.pass(t) // sees it stopped
+	s.noted(t) // the monitor sees it stopped, and Docker says someone did it
 	s.e.Remove("web")
 	s.pass(t)
 	if s.e.Container("web") != nil {
@@ -519,7 +519,7 @@ func TestAStartIsTriedTenTimes(t *testing.T) {
 	s.r.now = func() time.Time { return now }
 	f := &failingStart{}
 	for range 30 {
-		s.r.start(t.Context(), f, webRef, "it can't bind its port", "container-1")
+		s.r.start(t.Context(), f, webRef, "it can't bind its port", "container-1", "")
 		now = now.Add(lastRetry)
 	}
 	if f.starts != startTries {
@@ -531,8 +531,8 @@ func TestAStartIsTriedTenTimes(t *testing.T) {
 	// Within the wait, it doesn't try again.
 	g := &failingStart{}
 	s.r.tries = map[resource.Ref]*tries{}
-	s.r.start(t.Context(), g, webRef, "", "container-1")
-	s.r.start(t.Context(), g, webRef, "", "container-1")
+	s.r.start(t.Context(), g, webRef, "", "container-1", "")
+	s.r.start(t.Context(), g, webRef, "", "container-1", "")
 	if g.starts != 1 {
 		t.Errorf("started %d times within the wait", g.starts)
 	}
@@ -605,6 +605,8 @@ func (s *stand) noted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Twice, as a stop is settled only once it has stood for two lists.
+	s.r.noted(t.Context(), time.Now(), list)
 	s.r.noted(t.Context(), time.Now(), list)
 }
 

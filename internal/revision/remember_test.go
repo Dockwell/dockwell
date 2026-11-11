@@ -102,7 +102,9 @@ func fill(t *testing.T, e *Engine, want Filled) {
 var webRef = resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "web"}
 
 // An agent is sent what its server runs, at each latest revision live there, where
-// it doesn't keep that revision already, and nothing where it keeps a later one.
+// it doesn't keep that revision already, and nothing where it keeps a later one. A
+// firewall rule isn't sent: under the firewall's timer, the access manager keeps
+// what was confirmed (ADR 0052), so it isn't desired state.
 func TestRememberSendsWhatAnAgentLacks(t *testing.T) {
 	storetest.Each(t, testRememberSendsWhatAnAgentLacks)
 }
@@ -114,20 +116,19 @@ func testRememberSendsWhatAnAgentLacks(t *testing.T, backend store.Backend) {
 	k := &keeping{Agent: f["srv_A"].agent, keeps: true, cache: "c1", held: map[resource.Ref]int64{}, forgot: map[resource.Ref]int64{}}
 	f["srv_A"].agent = k
 
-	// An agent that keeps nothing yet is sent all of it.
-	fill(t, e, Filled{Kept: 2, FirstCache: true})
+	// An agent that keeps nothing yet is sent all of it but the firewall rule.
+	fill(t, e, Filled{Kept: 1, FirstCache: true})
 	got := k.sent()
-	if names := slices.Sorted(maps.Keys(got)); !slices.Equal(names, []string{"http", "web"}) {
-		t.Fatalf("sent %v, want http and web", names)
+	if names := slices.Sorted(maps.Keys(got)); !slices.Equal(names, []string{"web"}) {
+		t.Fatalf("sent %v, want web alone", names)
 	}
 	if w := got["web"]; w.revision != 1 || w.change != first.Change || w.spec.(*resourcev1.Container).GetImage() != "nginx:1.27" {
 		t.Errorf("sent web at revision %d of %s, running %v", w.revision, w.change, w.spec)
 	}
 	// Sent again while it says it lacks them: what it holds is its word alone.
-	fill(t, e, Filled{Kept: 2})
+	fill(t, e, Filled{Kept: 1})
 	k.sent()
-	http := resource.Ref{Kind: "firewall.rule", Scope: "srv_A", Name: "http"}
-	k.hold(map[resource.Ref]int64{webRef: 1, http: 1})
+	k.hold(map[resource.Ref]int64{webRef: 1})
 	fill(t, e, Filled{})
 	if got := k.sent(); len(got) != 0 {
 		t.Errorf("sent %v to an agent that keeps it all", slices.Sorted(maps.Keys(got)))
@@ -143,7 +144,7 @@ func testRememberSendsWhatAnAgentLacks(t *testing.T, backend store.Backend) {
 
 	// A later revision than the store has live there, as of a step that ended
 	// after its stream did: that's for resuming its change to decide.
-	k.hold(map[resource.Ref]int64{webRef: 7, http: 1})
+	k.hold(map[resource.Ref]int64{webRef: 7})
 	fill(t, e, Filled{})
 	if got := k.sent(); len(got) != 0 {
 		t.Errorf("sent %v over a later revision", slices.Sorted(maps.Keys(got)))
@@ -161,6 +162,28 @@ func testRememberSendsWhatAnAgentLacks(t *testing.T, backend store.Backend) {
 	fill(t, e, Filled{})
 	if got := k.sent(); len(got) != 0 {
 		t.Errorf("sent %v to an agent that keeps nothing, or isn't there", slices.Sorted(maps.Keys(got)))
+	}
+}
+
+// A firewall rule an agent keeps, as a fill sent before the rule above, is
+// forgotten, though it runs there: nothing reads it, and it holds no desired state.
+func TestRememberForgetsAFirewallRuleItKeeps(t *testing.T) {
+	storetest.Each(t, testRememberForgetsAFirewallRuleItKeeps)
+}
+
+func testRememberForgetsAFirewallRuleItKeeps(t *testing.T, backend store.Backend) {
+	e, f, _ := setup(t, backend, "srv_A")
+	apply(t, e, propose(t, e, "Run web", web("nginx:1.27"), rule("srv_A", "http", 80)))
+	k := &keeping{Agent: f["srv_A"].agent, keeps: true, cache: "c1", forgot: map[resource.Ref]int64{}}
+	f["srv_A"].agent = k
+	http := resource.Ref{Kind: "firewall.rule", Scope: "srv_A", Name: "http"}
+	k.hold(map[resource.Ref]int64{webRef: 1, http: 1})
+	fill(t, e, Filled{Forgot: 1, FirstCache: true})
+	if got := k.forgotten(); len(got) != 1 || got["http"] != 1 {
+		t.Errorf("forgot %v, want the firewall rule alone, at 1", got)
+	}
+	if got := k.sent(); len(got) != 0 {
+		t.Errorf("sent %v, want nothing", slices.Sorted(maps.Keys(got)))
 	}
 }
 

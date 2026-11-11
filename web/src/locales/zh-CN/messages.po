@@ -1082,11 +1082,8 @@ msgstr "{name} 在 {server} 上被暂停"
 msgid "{server} can't be reached"
 msgstr "无法连接到 {server}"
 
-msgid "{server} couldn't put anything back while the control plane was away"
-msgstr "控制平面离线期间，{server} 什么也无法恢复"
-
-msgid "{server} couldn't put {resourceName} back while the control plane was away"
-msgstr "控制平面离线期间，{server} 无法恢复 {resourceName}"
+msgid "{server} couldn't see or put back what it should run"
+msgstr "{server} 无法查看或恢复其应运行的内容"
 
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
@@ -1094,14 +1091,17 @@ msgstr "{server} 作为控制服务器加入"
 msgid "{server} joined the fleet"
 msgstr "{server} 加入了集群"
 
+msgid "{server} left {resourceName} as it is, and says why"
+msgstr "{server} 未改动 {resourceName}，并说明了原因"
+
 msgid "{server} made {resourceName} again while the control plane was away"
 msgstr "控制平面离线期间，{server} 重新创建了 {resourceName}"
 
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
 
-msgid "{server} started {resourceName} again while the control plane was away"
-msgstr "控制平面离线期间，{server} 重新启动了 {resourceName}"
+msgid "{server} started {resourceName} again on its own"
+msgstr "{server} 自行重新启动了 {resourceName}"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} 的内存已用 {value}%"

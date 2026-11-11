@@ -168,13 +168,22 @@ type reconciler struct {
 	every    time.Duration
 
 	tries map[resource.Ref]*tries
+
+	// sight is the container of each resource the monitor's last list showed
+	// stopped and unsettled, so a stop is settled only once it has stood for two
+	// lists: a kill on its way to a removal doesn't. A "!" after the ID marks
+	// one read already, whose start Docker couldn't make. Only noted touches it.
+	sight map[resource.Ref]string
+	// lost wakes the loop when noted finds something Docker stopped as it came
+	// back, so it's started soon and not at the next tick.
+	lost chan struct{}
 }
 
 func newReconciler(cfg Config, p *presence, held *unfinished) *reconciler {
 	return &reconciler{
 		cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, presence: p, held: held, now: time.Now,
 		after: cmp.Or(cfg.AwayAfter, DefaultAwayAfter), every: cmp.Or(cfg.ReconcileEvery, DefaultReconcileEvery),
-		tries: map[resource.Ref]*tries{},
+		tries: map[resource.Ref]*tries{}, sight: map[resource.Ref]string{}, lost: make(chan struct{}, 1),
 	}
 }
 
@@ -187,13 +196,38 @@ func (r *reconciler) run(ctx context.Context) {
 		r.recoverActions(ctx)
 		if r.presence.down() {
 			r.pass(ctx, r.presence.away(r.now(), r.after))
+		} else {
+			r.startLost(ctx)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
 		case <-r.presence.wake:
+		case <-r.lost:
 		}
+	}
+}
+
+// startLost starts what Docker stopped as it came back from being killed, while a
+// stream is up: the one thing the agent does on its own then, as nobody asked
+// for that stop and the control plane starts nothing by itself (ADR 0054). It
+// takes each resource's mark as a step does, and only ever starts a container
+// that's there.
+func (r *reconciler) startLost(ctx context.Context) {
+	for _, ref := range r.cfg.Desired.Refs() {
+		if ctx.Err() != nil || r.presence.down() {
+			return
+		}
+		if st, ok := r.cfg.Desired.Stands(ref); !ok || !st.Lost {
+			continue
+		}
+		mark, ok := r.held.claim(ref)
+		if !ok {
+			continue // a step on it is under way: it has the say
+		}
+		r.one(ctx, ref, false)
+		r.held.end(mark)
 	}
 }
 
@@ -333,8 +367,27 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 			}
 		}
 		r.seen(ref, st, at)
-		if act && !st.Running && st.Failed != "" && st.Wants {
-			r.start(look, rv, ref, st.Failed, st.ID)
+		switch {
+		case st.Running || !st.Wants:
+		case act && st.Failed != "":
+			r.start(look, rv, ref, st.Failed, st.ID, "")
+		case rec.Lost && st.Failed == "" && st.Sole:
+			// Whether or not the control plane is there, and at once: nobody
+			// asked for this stop, and nothing else starts it again. Only while
+			// it stands alone, as it did when the stop was settled: with another
+			// container beside it now, which is the service isn't the agent's
+			// to say. And only while it's still what Docker stopped: a person may
+			// have started and stopped it since, with no list seeing it run, as
+			// while the agent's start waits between tries, or the agent is down.
+			if r.startDue(ref) && !r.stillLost(look, ref, st.ID, st.Volumes, at) {
+				return
+			}
+			if r.start(look, rv, ref, "", st.ID, lostNote) {
+				// It runs now, so what was settled is over: noted running at once,
+				// a stop that comes before the monitor's next list sees it run is
+				// settled afresh from Docker's events, as a person's.
+				r.stands(ref, desired.Standing{Volumes: st.Volumes}, r.now())
+			}
 		}
 		return
 	}
@@ -344,6 +397,11 @@ func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.
 	if rec.Stopped {
 		r.journal(ref, desired.Waiting, "It was stopped, and is gone. The agent doesn't make it again on its own, as that would start it. "+
 			"Apply it again from the control plane to run it")
+		return
+	}
+	if rec.Unsure != "" {
+		r.journal(ref, desired.Waiting, "It wasn't running, the agent couldn't tell whether someone had stopped it, and it's gone now. "+
+			"The agent doesn't make it again on its own, as that would start it. Apply it again from the control plane to run it")
 		return
 	}
 	// The image first: where it keeps data is read from the image, so the one
@@ -403,11 +461,19 @@ func (r *reconciler) imageTie(ctx context.Context, rec desired.Record, image str
 	return docker.ImageOther
 }
 
-// seen notes how a resource stands, as of a look at at: stopped when it isn't
-// running and Docker had no error starting it, as someone stopped it or it
-// exited where its policy leaves it.
+// seen notes that a resource runs, as of a look at at, and the volumes Docker made
+// for its image's paths. Of one that doesn't run it notes nothing: why it's down
+// is settled from what Docker says happened (noted, whyDown), never from its
+// being down.
 func (r *reconciler) seen(ref resource.Ref, st resource.RunState, at time.Time) {
-	standing := desired.Standing{Stopped: !st.Running && st.Failed == "", Volumes: st.Volumes}
+	if !st.Running {
+		return
+	}
+	r.stands(ref, desired.Standing{Volumes: st.Volumes}, at)
+}
+
+// stands keeps how a resource stands.
+func (r *reconciler) stands(ref resource.Ref, standing desired.Standing, at time.Time) {
 	if err := r.cfg.Desired.Seen(ref, standing, at); err != nil {
 		r.cfg.Logger.Warn("can't note how a resource stands, so it may be put back as it last stood while the control plane is away",
 			slog.String("resource", ref.String()), slog.String("error", err.Error()))
@@ -423,11 +489,13 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 	// Which of each service's containers stands for it is docker.Pick's to say,
 	// as it is for the driver's own look, so the two can't disagree: never one
 	// that's leaving, which beside a live one would hide it and a stop of it.
-	type standing struct {
+	type stood struct {
 		pick docker.Pick
 		c    *docker.ContainerSummary
+		// others are the rest that answer to the service and aren't leaving.
+		others []string
 	}
-	byLabels := make(map[[2]string]*standing, len(list))
+	byLabels := make(map[[2]string]*stood, len(list))
 	for i := range list {
 		c := &list[i]
 		if c.Labels[docker.LabelOneoff] == "True" {
@@ -436,11 +504,19 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 		key := [2]string{c.Labels[docker.LabelProject], c.Labels[docker.LabelService]}
 		s := byLabels[key]
 		if s == nil {
-			s = &standing{}
+			s = &stood{}
 			byLabels[key] = s
 		}
-		if s.pick.Add(c.Stand()) {
+		switch {
+		case c.Stand().Leaving():
+			s.pick.Add(c.Stand())
+		case s.pick.Add(c.Stand()):
+			if s.c != nil {
+				s.others = append(s.others, s.c.ID)
+			}
 			s.c = c
+		default:
+			s.others = append(s.others, c.ID)
 		}
 	}
 	for _, ref := range r.cfg.Desired.Refs() {
@@ -453,34 +529,69 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			// Gone, or with nothing but a container on its way out, as a forced
 			// removal leaves it for a moment after its kill: it stays as it
 			// was last seen.
+			delete(r.sight, ref)
 			continue
 		}
 		c := of.c
-		st := resource.RunState{Exists: true, Running: c.State == "running" || c.State == "restarting" || c.State == "paused", Volumes: map[string]string{}}
+		st := resource.RunState{Exists: true, Running: c.Stand().Runs(), Volumes: map[string]string{}}
 		for _, m := range c.Mounts {
 			if m.Type == "volume" && docker.AnonymousVolume(m.Name) {
 				st.Volumes[m.Destination] = m.Name
 			}
 		}
-		if !st.Running && !was.Stopped && r.cfg.Docker != nil {
-			// Only Docker's own state says whether it couldn't start it, which is
-			// read only as it's seen to stop.
-			look, cancel := context.WithTimeout(ctx, lookTimeout)
-			full, err := r.cfg.Docker.InspectContainer(look, c.ID)
+		if st.Running {
+			delete(r.sight, ref)
+			r.seen(ref, st, at)
+			continue
+		}
+		// Not running. One whose stop is settled stays as it's settled until it
+		// runs again, and one that's only made hasn't stopped.
+		if was.Down() || r.cfg.Docker == nil || c.State != "exited" {
+			continue
+		}
+		switch r.sight[ref] {
+		case c.ID + "!":
+			continue // Docker couldn't start it, as already read
+		case c.ID:
+		default:
+			r.sight[ref] = c.ID // settled at the next list, if it still stands so
+			continue
+		}
+		look, cancel := context.WithTimeout(ctx, lookTimeout)
+		full, err := r.cfg.Docker.InspectContainer(look, c.ID)
+		if err != nil {
 			cancel()
-			if err != nil {
-				continue
-			}
-			// Docker's error is news of the service only from a container that
-			// stands alone (docker.CouldntStart). Beside another, it's as none:
-			// the service is noted as stopped. Alone, it isn't a stop, whether
-			// or not its record covers it, which the reconciler's own look
-			// goes into before it starts anything.
-			if of.pick.Sole() {
-				st.Failed = full.State.Error
+			continue
+		}
+		if full.State.Error != "" && of.pick.Sole() {
+			// Docker tried to start it and couldn't, on a container that stands
+			// alone: not a stop. Whether its record covers it, and so whether
+			// the agent may start it, the reconciler's own look says
+			// (docker.CouldntStart). Read once, not every list. An error beside
+			// another container is as none: why it's down is settled below.
+			cancel()
+			r.sight[ref] = c.ID + "!"
+			continue
+		}
+		standing, err := whyDown(look, r.cfg.Docker, append([]string{c.ID}, of.others...), at, full.State)
+		cancel()
+		if err != nil {
+			continue // Docker didn't answer: the next list asks again
+		}
+		delete(r.sight, ref)
+		standing.Volumes = st.Volumes
+		r.stands(ref, standing, at)
+		switch {
+		case standing.Unsure != "":
+			r.cfg.Logger.Warn("a container that should run isn't running, and the agent can't tell whether someone stopped it, so it leaves it. Start it from the control plane if it should run",
+				slog.String("resource", ref.String()), slog.String("why", standing.Unsure))
+			r.journal(ref, desired.Waiting, standing.Unsure)
+		case standing.Lost:
+			select {
+			case r.lost <- struct{}{}:
+			default:
 			}
 		}
-		r.seen(ref, st, at)
 	}
 }
 
@@ -538,22 +649,59 @@ func (r *reconciler) madeNothing(ctx context.Context, ref resource.Ref) bool {
 }
 
 // start starts a container Docker couldn't, at most startTries times each boot,
-// waiting longer between each.
-func (r *reconciler) start(ctx context.Context, rv resource.Reviver, ref resource.Ref, failed, target string) {
+// waiting longer between each, and says whether it did.
+func (r *reconciler) start(ctx context.Context, rv resource.Reviver, ref resource.Ref, failed, target, note string) (started bool) {
 	if !r.canStart(ref, failed) {
-		return
+		return false
 	}
-	e, ok := r.beginAction(ref, desired.Started, "", target)
+	e, ok := r.beginAction(ref, desired.Started, note, target)
 	if !ok {
-		return
+		return false
 	}
 	if why := r.tryStart(ctx, rv, ref); why != "" {
 		// The receipt ends here, with why: left pending, the next look would
 		// take it for a start the agent was stopped in, which it wasn't.
 		r.endAction(e, desired.Waiting, why)
-		return
+		return false
 	}
-	r.endAction(e, desired.Started, "")
+	r.endAction(e, desired.Started, note)
+	return true
+}
+
+// startDue says whether a start of ref may be tried now, as canStart would let it,
+// with nothing written down.
+func (r *reconciler) startDue(ref resource.Ref) bool {
+	t := r.tries[ref]
+	return t == nil || t.n < startTries && !r.now().Before(t.next)
+}
+
+// stillLost asks Docker's events again whether the container with id is still what
+// Docker stopped as it came back, before the agent starts it. Settled since as
+// anything else, as a person's start and stop of it would, it's noted so, said on
+// Activity if the agent can't tell, and isn't started. Docker not answering starts
+// nothing either: the next look asks again. It's asked only when a start is due,
+// as Docker can hold the question for up to a second.
+func (r *reconciler) stillLost(ctx context.Context, ref resource.Ref, id string, volumes map[string]string, at time.Time) bool {
+	if r.cfg.Docker == nil {
+		return false
+	}
+	full, err := r.cfg.Docker.InspectContainer(ctx, id)
+	if err != nil {
+		return false
+	}
+	standing, err := whyDown(ctx, r.cfg.Docker, []string{id}, at, full.State)
+	switch {
+	case err != nil:
+		return false
+	case standing.Lost:
+		return true
+	}
+	standing.Volumes = volumes
+	r.stands(ref, standing, at)
+	if standing.Unsure != "" {
+		r.journal(ref, desired.Waiting, standing.Unsure)
+	}
+	return false
 }
 
 // canStart and tryStart share the retry limit with the first start of a creation
@@ -567,6 +715,9 @@ func (r *reconciler) canStart(ref resource.Ref, failed string) bool {
 	now := r.now()
 	switch {
 	case t.n >= startTries:
+		if failed == "" {
+			failed = "after Docker stopped it as it came back from being killed"
+		}
 		r.journal(ref, desired.Waiting, fmt.Sprintf("Docker couldn't start it (%s), nor could the agent in %d tries since this server or the agent started. "+
 			"Fix what stops it, then start it from the control plane", failed, startTries))
 		return false

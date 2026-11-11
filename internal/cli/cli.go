@@ -69,6 +69,11 @@ const (
 	// to, such as the fake engine's, under DOCKWELL_TEST, and only then: without
 	// it, a test reads no image from a registry (ADR 0062).
 	envTestRegistry = "DOCKWELL_TEST_REGISTRY"
+	// envTestAway is how long the agent goes without a stream before it puts back
+	// what its server should run, and how often it looks then, as a duration such
+	// as "2s", under DOCKWELL_TEST, and only then, so the chaos tests needn't wait
+	// a minute for each (docs/testing/chaos.md).
+	envTestAway = "DOCKWELL_TEST_AWAY"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

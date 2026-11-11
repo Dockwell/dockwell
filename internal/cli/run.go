@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -104,6 +105,9 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	})
 	cfg.Desired, cfg.Journal = keptDesired(logger, dir, id)
 	lookups(&cfg, stdio, g)
+	if err := testAway(&cfg, stdio); err != nil {
+		return err
+	}
 	err := agent.Run(ctx, cfg)
 	if cfg.Tasks != nil && ctx.Err() != nil {
 		// Stopping stops the tasks' runs too; what each came to is kept before the
@@ -155,6 +159,22 @@ func hostTools(stdio IO) *hosttool.Runner {
 		return &hosttool.Runner{Root: dir}
 	}
 	return &hosttool.Runner{Off: true}
+}
+
+// testAway shortens how long the agent waits without a stream before it acts on
+// its own, and how often it looks then, for a test that sets DOCKWELL_TEST_AWAY.
+// Without DOCKWELL_TEST it's ignored, so no server waits less than ADR 0054 says.
+func testAway(cfg *agent.Config, stdio IO) error {
+	v := stdio.Getenv(envTestAway)
+	if v == "" || !isSet(stdio.Getenv(envTest)) {
+		return nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return usageError{fmt.Errorf("%s=%q isn't a duration, such as 2s. Set it to one, or unset it", envTestAway, v)}
+	}
+	cfg.AwayAfter, cfg.ReconcileEvery = d, d
+	return nil
 }
 
 // keptDesired is the agent's cache of what this server should run, sealed in its

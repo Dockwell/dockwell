@@ -372,12 +372,12 @@ describe("Activity", () => {
     );
     renderActivity(watch, {}, "/activity?event=evt_wait");
     await screen.findByRole("row", { name: /hz-1 made web again while the control plane was away/ });
-    await screen.findByRole("row", { name: /hz-1 started web again while the control plane was away/ });
+    await screen.findByRole("row", { name: /hz-1 started web again on its own/ });
     await screen.findByRole("row", {
       name: /hz-1 dropped 4 entries of what it did while the control plane was away, as it keeps 500/,
     });
     const detail = await screen.findByRole("region", {
-      name: /hz-1 couldn't put web back while the control plane was away/,
+      name: /hz-1 left web as it is, and says why/,
     });
     expect(within(detail).getByText("its image is gone")).toBeVisible();
   });
