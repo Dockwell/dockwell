@@ -339,16 +339,31 @@
   text-overflow: ellipsis;
 }
 
-.website-folder-holds {
-  margin-top: calc(-1 * var(--space-2));
-  font-size: 12.5px;
-  line-height: 18px;
-  color: var(--ink-muted);
+/* What's known of a website's folder, beside it in the folder picker: a word of state. */
+.website-folder-state.is-ok {
+  color: var(--ink-2);
 }
 
-.website-folder-holds a,
-.website-folder-note a {
+.website-folder-state.is-warning {
+  color: var(--warning);
+}
+
+/* What puts a state right, beside it, as a link reads. */
+.website-folder-action {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.website-folder-action:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* The runtimes, as Websites-List draws them under the list. */
