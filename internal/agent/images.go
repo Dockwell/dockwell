@@ -50,10 +50,10 @@ const (
 	searchLimit = 25
 	// imageReadTimeout bounds a whole read (ADR 0062).
 	imageReadTimeout = 8 * time.Second
-	// imageCalls is how many reads may reach registries at once, and turnWait
-	// how long one waits for its turn before it's refused.
+	// imageCalls is how many reads may reach registries at once. Another waits
+	// for its turn for as long as it may take, as a form sends its search, its
+	// check and its tags close together.
 	imageCalls = 2
-	turnWait   = 500 * time.Millisecond
 )
 
 // What a read says when it doesn't go.
@@ -211,18 +211,15 @@ func (im *images) forgetLocked() {
 	im.forgets = nil
 }
 
-// turn waits a moment for one of the imageCalls places to reach registries
-// from, and says to try again when none comes free.
+// turn waits for one of the imageCalls places to reach registries from, for as
+// long as the read may take, and says to try again when its time runs out first.
 func (im *images) turn(ctx context.Context) (func(), error) {
-	wait := time.NewTimer(turnWait)
-	defer wait.Stop()
 	select {
 	case im.calls <- struct{}{}:
 		return func() { <-im.calls }, nil
-	case <-wait.C:
 	case <-ctx.Done():
+		return nil, errBusy
 	}
-	return nil, errBusy
 }
 
 // answer says what an error from a registry says of an image.
@@ -595,8 +592,12 @@ func strs(words []string) int {
 	return n
 }
 
+// configStruct is about what a Config takes beside its strings: its slices' headers
+// and its fields, so a budget of small configs means what it says.
+const configStruct = 256
+
 func configSize(c *registry.Config) int {
-	n := strs(c.Volumes) + strs(c.Cmd) + strs(c.Entrypoint) + strs(c.Healthcheck) + len(c.User) + len(c.WorkingDir) + 8*len(c.Ports)
+	n := configStruct + strs(c.Volumes) + strs(c.Cmd) + strs(c.Entrypoint) + strs(c.Healthcheck) + len(c.User) + len(c.WorkingDir) + 8*len(c.Ports)
 	for _, v := range c.Env {
 		n += len(v.Name) + len(v.Value) + 32
 	}

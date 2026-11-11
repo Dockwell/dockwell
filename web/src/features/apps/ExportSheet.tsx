@@ -2,7 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { ComposeService } from "@dockwell/api";
-import { Button, Callout, cx, PHONE_QUERY, SegmentedControl, Sheet, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, CopyButton, cx, PHONE_QUERY, SegmentedControl, Sheet, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
 
@@ -30,7 +30,8 @@ export function envLeftOut(omitted: readonly string[]): string[] {
 /**
  * A service or an environment as a Compose file, to read, copy or save (PRD
  * principle 6). It never holds a secret: what it leaves out, it lists, and
- * saves as an .env to fill in.
+ * copies as the lines of an .env to fill in. Copied, as a browser saves a
+ * download called .env as env.txt.
  */
 export function ExportSheet({
   environment,
@@ -80,7 +81,6 @@ export function ExportSheet({
       whole || !service ? "compose.yaml" : `${service}.compose.yaml`,
     );
   const left = envLeftOut(omitted);
-  const saveEnv = () => save(new Blob([left.map((name) => `${name}=\n`).join("")], { type: "text/plain" }), ".env");
 
   return (
     <Sheet
@@ -135,11 +135,11 @@ export function ExportSheet({
             title={t`Left out as they may hold secrets`}
             actions={
               left.length > 0 ? (
-                <Button size="sm" icon="download" onClick={saveEnv}>
-                  <Trans>
-                    Save an <code>.env</code> to fill in
-                  </Trans>
-                </Button>
+                <CopyButton
+                  text={left.map((name) => `${name}=\n`).join("")}
+                  label={t`Copy as .env`}
+                  copiedLabel={t`Copied as .env`}
+                />
               ) : undefined
             }
           >

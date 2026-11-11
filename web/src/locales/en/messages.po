@@ -2149,8 +2149,8 @@ msgstr "{shown} matches the latest revision. If what runs has drifted from it, r
 msgid "A change is applying to {name}. Review this once it ends."
 msgstr "A change is applying to {name}. Review this once it ends."
 
-msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
-msgstr "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
+msgid "A name the app has gets the new value."
+msgstr "A name the app has gets the new value."
 
 msgid "A variable or secret of the environment"
 msgstr "A variable or secret of the environment"
@@ -2196,6 +2196,9 @@ msgstr "Every app that uses this variable gets the new value."
 
 msgid "Import .env"
 msgstr "Import .env"
+
+msgid "It runs with only what its image sets."
+msgstr "It runs with only what its image sets."
 
 msgid "Keep the new ones as secrets"
 msgstr "Keep the new ones as secrets"
@@ -2263,23 +2266,20 @@ msgstr "The environment has a secret {trimmed} already. Use it as it is, or choo
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 
-msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
-msgstr "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+msgid "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
+msgstr "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
 
-msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
-msgstr "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
-
-msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
-msgstr "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
+msgid "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
+msgstr "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "Their values are hidden, and revealing one takes your passkey."
 
-msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
-msgstr "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
+msgid "Their values stay hidden, and Add waits until they load."
+msgstr "Their values stay hidden, and Add waits until they load."
 
-msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
-msgstr "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
+msgid "Type the whole value: every app that uses this secret gets it."
+msgstr "Type the whole value: every app that uses this secret gets it."
 
 msgid "Unapplied changes"
 msgstr "Unapplied changes"
@@ -3356,11 +3356,17 @@ msgstr "Compose file"
 msgid "Copied"
 msgstr "Copied"
 
+msgid "Copied as .env"
+msgstr "Copied as .env"
+
 msgid "Copied the Compose file"
 msgstr "Copied the Compose file"
 
 msgid "Copy"
 msgstr "Copy"
+
+msgid "Copy as .env"
+msgstr "Copy as .env"
 
 msgid "Its whole project"
 msgstr "Its whole project"
@@ -3370,9 +3376,6 @@ msgstr "Left out as they may hold secrets"
 
 msgid "Save"
 msgstr "Save"
-
-msgid "Save an <0>.env</0> to fill in"
-msgstr "Save an <0>.env</0> to fill in"
 
 msgid "This app"
 msgstr "This app"
@@ -3719,6 +3722,9 @@ msgstr "Paste a Compose file to review its plan"
 msgid "Paste it, or drop the file here."
 msgstr "Paste it, or drop the file here."
 
+msgid "Pick a folder on the server"
+msgstr "Pick a folder on the server"
+
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
 
@@ -3776,6 +3782,9 @@ msgstr "Say where the file is to review the plan"
 msgid "Say which directory it's in"
 msgstr "Say which directory it's in"
 
+msgid "Server folder"
+msgstr "Server folder"
+
 msgid "Show"
 msgstr "Show"
 
@@ -3811,6 +3820,9 @@ msgstr "Up to {memory}"
 
 msgid "Up to {memory} and {cpus} CPUs"
 msgstr "Up to {memory} and {cpus} CPUs"
+
+msgid "Use a volume instead"
+msgstr "Use a volume instead"
 
 msgid "Use an absolute path, such as /data."
 msgstr "Use an absolute path, such as /data."
