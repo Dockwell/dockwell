@@ -278,33 +278,40 @@ export function useInstallFacts(
       });
     }
   }
-  // Before a domain, it opens through the panel on localhost (ADR 0061). On the panel's
-  // domain, which doesn't open apps yet, the way in is a tunnel: a command to copy with
-  // what only the panel knows filled in, not a paragraph.
+  // Before a domain, it opens through the panel on localhost (ADR 0061), with a tunnel
+  // one step away beside it, as an app that takes only its own address needs. On the
+  // panel's domain, which doesn't open apps yet, the way in is the tunnel alone: a
+  // command to copy with what only the panel knows filled in, not a paragraph.
   const local = web && domains.length === 0 ? appOf(web)?.ports.find((p) => p.hostIp === "127.0.0.1") : undefined;
   const server = servers?.find((s) => s.id === web?.deployments[0]?.serverId);
   const address = server?.address;
   if (local && web && (onLocalhost || address)) {
     const port = String(local.hostPort);
-    const tunnel = `ssh -N -L ${port}:127.0.0.1:${port} ${address ?? ""}`;
+    // The tunnel needs the server's address, which a server doesn't always know.
+    const tunnel = address ? (
+      <CopyButton
+        text={`ssh -N -L ${port}:127.0.0.1:${port} ${address}`}
+        label={t`Copy the SSH tunnel command`}
+        copiedLabel={t`SSH tunnel command copied`}
+        variant="ghost"
+      />
+    ) : null;
     out.push({
       key: "local",
       icon: "lock",
       text: t`Answers on this server alone, on port ${port}, until it has a domain`,
       action: onLocalhost ? (
-        <OpenAppButton
-          serviceId={web.id}
-          environment={install.environmentId}
-          port={local.containerPort}
-          app={entry.category === "databases" ? nameOf(web) : app}
-        />
+        <>
+          <OpenAppButton
+            serviceId={web.id}
+            environment={install.environmentId}
+            port={local.containerPort}
+            app={entry.category === "databases" ? nameOf(web) : app}
+          />
+          {tunnel}
+        </>
       ) : (
-        <CopyButton
-          text={tunnel}
-          label={t`Copy the SSH tunnel command`}
-          copiedLabel={t`SSH tunnel command copied`}
-          variant="ghost"
-        />
+        tunnel
       ),
     });
   } else if (web && onLocalhost) {

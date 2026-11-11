@@ -71,9 +71,9 @@ func presentationLink(address string) bool {
 }
 
 // FirstWords is what an install's plan says a person needs, in words, as the CLI
-// shows a plan as the panel does: how to sign in, that its first account owns it, and
-// its first steps, a short sentence each. The panel shows the same as state on the
-// app's page once it runs.
+// shows a plan as the panel does: how to sign in, that its first account owns it, its
+// notes and its first steps, a short sentence each. The panel shows the same as state
+// on the app's page once it runs.
 func FirstWords(e *catalogv1.Entry) string {
 	var out []string
 	if s := e.GetSignIn(); s != nil {
@@ -102,6 +102,14 @@ func FirstWords(e *catalogv1.Entry) string {
 	}
 	if e.GetFirstVisitorOwns() {
 		out = append(out, "Its first account is its owner, so make yours before it has a domain.")
+	}
+	for _, note := range e.GetNotes() {
+		if note = strings.TrimSpace(note); note != "" {
+			if !strings.HasSuffix(note, ".") {
+				note += "."
+			}
+			out = append(out, note)
+		}
 	}
 	if steps := strings.TrimSpace(e.GetFirstSteps()); steps != "" {
 		out = append(out, steps)

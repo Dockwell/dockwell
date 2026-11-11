@@ -34,7 +34,7 @@ signIn:
   passwordInput: "HERMES_PASSWORD"
 notes:
   - "Add a domain only behind your VPN: a public one needs Hermes's OAuth provider in place of basic auth."
-  - "Its API is on the API port, at /v1, with the API_KEY secret."
+  - "Its API answers on the API port, on this server alone, at /v1 with the API_KEY secret."
 inputs:
   - name: PORT
     label: Web port on this server
@@ -42,7 +42,7 @@ inputs:
     defaultValue: "9119"
   - name: API_PORT
     label: API port on this server
-    hint: The API, at /v1, with the API_KEY secret.
+    hint: The API, on this server alone.
     type: INPUT_TYPE_PORT
     defaultValue: "8642"
   - name: HERMES_PASSWORD

@@ -33,6 +33,7 @@ signIn:
   passwordInput: "ACCESS_CODE"
 notes:
   - "Chats stay in each browser at its address, not on the server: export them before you change either."
+  - "It asks for the access code when you first chat, or in its settings."
 inputs:
   - name: PORT
     label: Port on this server

@@ -44,7 +44,7 @@ inputs:
     defaultValue: "9090"
   - name: URL
     label: Site address
-    hint: The full HTTPS address of your domain, if you have one.
+    hint: Empty until it has a domain.
     type: INPUT_TYPE_TEXT
     optional: true
   - name: LINKDING_PASSWORD

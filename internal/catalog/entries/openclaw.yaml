@@ -36,7 +36,8 @@ addressVariables:
     variable: OPENCLAW_CONTROL_UI_ORIGIN
     value: "https://{domain}"
 notes:
-  - "A new device waits for approval: node /app/dist/index.js devices list, then devices approve with its ID."
+  - "Its Control UI takes only its own address, not the panel's Open: reach it through the SSH tunnel to its port."
+  - "New devices wait for approval: in its container, node /app/dist/index.js devices list, then devices approve with its ID."
 inputs:
   - name: PORT
     label: Port on this server
@@ -44,7 +45,7 @@ inputs:
     defaultValue: "18789"
   - name: URL
     label: Site address
-    hint: The exact HTTPS address of your domain, if you have one.
+    hint: The address its Control UI takes. Empty until it has a domain.
     type: INPUT_TYPE_TEXT
     optional: true
   - name: GATEWAY_TOKEN

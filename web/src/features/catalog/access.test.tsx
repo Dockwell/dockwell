@@ -270,7 +270,18 @@ describe("What an installed app says of itself", () => {
       { id: "svc_gitea", port: 3000, proof: "proof_1" },
     ]);
     expect(tab.opener).toBeNull();
-    expect(within(panel).queryByRole("button", { name: "Copy the SSH tunnel command" })).toBeNull();
+  });
+
+  it("keeps the tunnel beside Open on localhost, for an app that takes only its own address", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt("/apps/svc_gitea", openable(() => {}).api);
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const local = (await within(panel).findByText("Answers on this server alone, on port 3000, until it has a domain"))
+      .parentElement as HTMLElement;
+    expect(within(local).getByRole("button", { name: "Open Gitea" })).toBeVisible();
+    await user.click(within(local).getByRole("button", { name: "Copy the SSH tunnel command" }));
+    expect(writeText).toHaveBeenCalledWith("ssh -N -L 3000:127.0.0.1:3000 203.0.113.7");
   });
 
   it("gives the address as a link to press when the browser holds the tab back", async () => {

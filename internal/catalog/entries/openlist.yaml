@@ -31,7 +31,7 @@ web:
   service: openlist
 firstVisitorOwns: true
 notes:
-  - "Add storage at /@manage, and turn off guest access there if your files are private."
+  - "Add storage at /@manage, where guest access stays off until you turn it on."
   - "Leave OPENLIST_ADMIN_PASSWORD unset: OpenList prints it in its log."
 inputs:
   - name: PORT

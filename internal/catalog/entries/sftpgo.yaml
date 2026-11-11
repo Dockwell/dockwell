@@ -35,7 +35,7 @@ signIn:
   changedIn: "Change password"
 notes:
   - "Its web admin is at /web/admin, where you make a user for transfers."
-  - "SFTP answers on its SFTP port, on this server alone: a domain doesn't publish it."
+  - "SFTP answers on its SFTP port, on this server alone: reach it from your computer through an SSH tunnel."
 inputs:
   - name: PORT
     label: Web port on this server
