@@ -258,3 +258,28 @@ func TestErrorsSayWhetherARegistryAnswered(t *testing.T) {
 type doerFunc func(*http.Request) (*http.Response, error)
 
 func (f doerFunc) Do(req *http.Request) (*http.Response, error) { return f(req) }
+
+// A config keeps a handful of what an image declares: the first MaxEnv
+// variables, and maxListed ports and volumes, in order.
+func TestConfigsKeepWhatAFormShows(t *testing.T) {
+	env := make([]string, 0, MaxEnv+10)
+	exposed := map[string]struct{}{}
+	volumes := map[string]struct{}{}
+	for i := range MaxEnv + 10 {
+		env = append(env, fmt.Sprintf("V%d=x", i))
+		exposed[fmt.Sprintf("%d/tcp", 1000+i)] = struct{}{}
+		volumes[fmt.Sprintf("/data/%05d", i)] = struct{}{}
+	}
+	if got := Vars(env); len(got) != MaxEnv || got[0].Name != "V0" {
+		t.Errorf("Vars kept %d, first %v", len(got), got[0])
+	}
+	if got := Ports(exposed); len(got) != maxListed || got[0].Number != 1000 {
+		t.Errorf("Ports kept %d, first %v", len(got), got[0])
+	}
+	if got := Volumes(volumes); len(got) != maxListed || got[0] != "/data/00000" {
+		t.Errorf("Volumes kept %d, first %v", len(got), got[0])
+	}
+	if got := Ports(map[string]struct{}{"53/udp": {}, "53/tcp": {}, "80/tcp": {}}); got[0] != (Port{53, false}) || got[1] != (Port{53, true}) {
+		t.Errorf("Ports in order = %v, want TCP before UDP on one port", got)
+	}
+}

@@ -23,7 +23,7 @@ screenshots:
     source: https://raw.githubusercontent.com/dizys/t3code-docker/a6831ef592a26a301ed7a7052111874a04ef7e8f/docs/media/setup-light.png
 category: ai
 version: "0.26.5"
-release: 3
+release: 4
 homepage: https://github.com/dizys/t3code-docker
 license: AGPL-3.0-only
 appLicense: MIT
@@ -32,16 +32,14 @@ source:
   path: internal/catalog/entries/t3code.yaml
 web:
   service: t3code
-firstSteps: >-
-  It answers only on this server until you add a domain, as anyone who reaches it
-  unencrypted gets a shell. Add one on its page, over HTTPS or behind your tunnel,
-  then open /__setup on it and sign in with the T3_SETUP_KEY secret. From there, pair
-  your devices and sign in your agents, which install in the background on first
-  start and bring their own licences and accounts.
+firstSteps: "Open /__setup on its domain and sign in with the setup key."
+signIn:
+  passwordInput: "T3_SETUP_KEY"
+notes:
+  - "Anyone who reaches it over plain HTTP gets a shell, so it needs a domain over HTTPS."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "3773"
   - name: T3_SETUP_KEY

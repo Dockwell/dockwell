@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -18,9 +19,11 @@ import (
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/jails"
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
@@ -36,6 +39,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -94,14 +98,18 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // plane beside it listens on, which no route may send to; a server that joined
 // has none, as its agent opens no ports.
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
-	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts)
+	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.OnePanel = serverOnePanel(stdio)
 	cfg.Images = imageReads(stdio)
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
+	cfg.Desired, cfg.Journal = keptDesired(logger, dir, id)
 	lookups(&cfg, stdio, g)
+	if err := testAway(&cfg, stdio); err != nil {
+		return err
+	}
 	err := agent.Run(ctx, cfg)
 	if cfg.Tasks != nil && ctx.Err() != nil {
 		// Stopping stops the tasks' runs too; what each came to is kept before the
@@ -153,6 +161,43 @@ func hostTools(stdio IO) *hosttool.Runner {
 		return &hosttool.Runner{Root: dir}
 	}
 	return &hosttool.Runner{Off: true}
+}
+
+// testAway shortens how long the agent waits without a stream before it acts on
+// its own, and how often it looks then, for a test that sets DOCKWELL_TEST_AWAY.
+// Without DOCKWELL_TEST it's ignored, so no server waits less than ADR 0054 says.
+func testAway(cfg *agent.Config, stdio IO) error {
+	v := stdio.Getenv(envTestAway)
+	if v == "" || !isSet(stdio.Getenv(envTest)) {
+		return nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return usageError{fmt.Errorf("%s=%q isn't a duration, such as 2s. Set it to one, or unset it", envTestAway, v)}
+	}
+	cfg.AwayAfter, cfg.ReconcileEvery = d, d
+	return nil
+}
+
+// keptDesired is the agent's cache of what this server should run, sealed in its
+// data folder, and the journal of what it puts back on its own while the control
+// plane is away (ADR 0054), or neither if they can't be opened, which the log
+// says: the server then runs as it does, and isn't put back while the control
+// plane is away.
+func keptDesired(logger *slog.Logger, dir datadir.Dir, id *enroll.Identity) (agent.Desired, *desired.Journal) {
+	if id == nil {
+		return nil, nil
+	}
+	store, err := desired.Open(dir.Agent(), id.ServerID, logger)
+	if err == nil {
+		var journal *desired.Journal
+		if journal, err = desired.OpenJournal(dir.Agent()); err == nil {
+			return store, journal
+		}
+	}
+	logger.Warn("can't keep what this server should run, so it can't be put back while the control plane is away. Check that the agent's data folder is writable",
+		slog.String("folder", dir.Agent()), slog.String("error", err.Error()))
+	return nil, nil
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the
@@ -258,7 +303,7 @@ const ingressEvery = time.Minute
 // ctx is done. The collector reads the same Docker's version, and the log reader
 // the same Docker's logs, with what the server kept of the containers a change
 // removed.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int) agent.Config {
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, controlURL string) agent.Config {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -280,7 +325,10 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		},
 	}
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive}}
+	containers := container.Driver{Runtime: &container.Docker{
+		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive,
+		BeforeReplace: database.Reader{Client: client}.BeforeReplace,
+	}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
 	backups := &backup.Runner{Client: client, Root: filepath.Join(dir.Agent(), "backups"), Paths: paths, Logger: logger}
@@ -302,6 +350,13 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		exposed = agent.ExposedPorts(nil)
 	}
 	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
+	// Who is signed in over SSH from outside now, as the firewall's pins read it:
+	// a jail's plan says which of them it could ban.
+	sessions := sshSessions(&access.PinReader{Proc: os.DirFS("/proc"), Tools: tools})
+	jailed := &jails.Manager{
+		Dir: filepath.Join(dir.Agent(), "fail2ban"), Root: tools.Root, Tools: tools,
+		Control: jails.ControlAddresses(controlURL, nil), Sessions: sessions, Logger: logger,
+	}
 	packages := serverUpdates(stdio, logger, dir.Agent())
 	// A server's host installs its updates in a unit of systemd's own (ADR 0064).
 	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
@@ -309,10 +364,28 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Passwords: &database.FirstPasswords{Client: client}},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
-			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}, &host.Driver{Backend: updates.Host{Installer: installs}}),
+			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
+			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}}),
 		Updates:   packages,
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks, Tools: tools, Access: firewalls,
+		Jails: jailed.Stored, SSHSessions: sessions,
+	}
+}
+
+// sshSessions says the addresses signed in to the server over SSH from outside
+// it now, or none where the server's processes can't be read.
+func sshSessions(r *access.PinReader) func(context.Context) []string {
+	return func(ctx context.Context) []string {
+		pins, err := r.Read(ctx)
+		if err != nil {
+			return nil
+		}
+		out := make([]string, 0, len(pins.SSHFrom))
+		for _, p := range pins.SSHFrom {
+			out = append(out, p.Addr().String())
+		}
+		return out
 	}
 }
 
@@ -344,6 +417,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
 		Pins: pins.Read, Docker: networks, Exposed: exposed,
 		PanelOverSSH: panelOverSSH,
+		DeadMan:      access.NewDeadMan(tools, filepath.Join(dir.Agent(), "access")),
 		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
 	}
 	if err := m.Ready(ctx); err != nil {

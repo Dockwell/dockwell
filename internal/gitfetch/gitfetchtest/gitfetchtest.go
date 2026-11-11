@@ -106,6 +106,13 @@ func (r *Repo) Commit(files map[string]string) string {
 	return r.git("rev-parse", "HEAD")
 }
 
+// Branch renames the branch checked out, which HEAD names, so its default is
+// name, as a repository whose default isn't main has it.
+func (r *Repo) Branch(name string) {
+	r.t.Helper()
+	r.git("branch", "-m", name)
+}
+
 // Tag tags the newest commit, as an annotated tag, which names a tag object that
 // names the commit.
 func (r *Repo) Tag(name string) {

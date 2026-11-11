@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { type BackupDestinationInfo, BackupService } from "@dockwell/api";
+import { type BackupDestinationInfo, BackupService, ChangeService } from "@dockwell/api";
 import { Button, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -11,6 +11,7 @@ import { formatBytes, formatDateTime } from "../../lib/format";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { DestinationSheet } from "./DestinationSheet";
 import "./Backups.css";
+import { useMay } from "../auth/may";
 
 /** The storage backups can go to. */
 export function useDestinations() {
@@ -27,12 +28,14 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const [adding, setAdding] = useState(false);
+  // A destination belongs to no project, so it's an admin's to add or remove: off, with why, otherwise (ADR 0059).
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   return (
     <Panel
       title={t`Destinations`}
       flush
       actions={
-        <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)}>
+        <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
           <Trans>Add</Trans>
         </Button>
       }
@@ -66,6 +69,7 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
                 variant="ghost"
                 icon="trash"
                 aria-label={t`Remove this destination`}
+                {...mayPlan.off}
                 onClick={() =>
                   sheet.open({
                     kind: "propose",

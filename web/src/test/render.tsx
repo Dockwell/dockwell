@@ -122,7 +122,13 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(DomainService, { listDomains: () => ({}), ...api.domains });
       service(ServiceService, { listServices: () => ({}), ...api.services });
       service(ComposeService, api.compose ?? {});
-      service(CatalogService, { listCatalogEntries: () => ({}), listCatalogInstalls: () => ({}), ...api.catalog });
+      service(CatalogService, {
+        listCatalogEntries: () => ({}),
+        listCatalogInstalls: () => ({}),
+        listCatalogSources: () => ({}),
+        listCatalogSourceRefs: () => ({}),
+        ...api.catalog,
+      });
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
@@ -133,7 +139,12 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         getImage: () => ({}),
         ...api.images,
       });
-      service(FirewallService, { getServerFirewall: () => ({ firewall: {} }), ...api.firewall });
+      service(FirewallService, {
+        getServerFirewall: () => ({ firewall: {} }),
+        getServerSsh: () => ({ ssh: {} }),
+        getServerFail2ban: () => ({ fail2ban: {} }),
+        ...api.firewall,
+      });
       service(FileService, api.files ?? {});
       service(ProcessService, { watchProcesses: quietWatch, ...api.processes });
       service(AuditService, { listAuditEvents: () => ({}), ...api.audit });

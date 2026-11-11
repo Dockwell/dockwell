@@ -244,7 +244,12 @@ function words(msg: ReflectMessage, flag: FlagField, inline: Inline): string[] {
         const name = String(key);
         if (flag.sensitive && !inline(flag.path, name)) out.push(`--${flag.flag}`, shellWord(name));
         else {
-          const text = field.mapKind === "message" ? messageWord(value as ReflectMessage) : String(value);
+          const text =
+            field.mapKind === "message"
+              ? messageWord(value as ReflectMessage)
+              : field.mapKind === "enum"
+                ? enumWord(field.enum, value as number)
+                : String(value);
           out.push(...one(`${name}=${text}`));
         }
       }

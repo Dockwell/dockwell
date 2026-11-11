@@ -64,7 +64,7 @@ const (
 )
 
 // Actions are all of them.
-var Actions = []string{ActionTaken, ActionFailed, ActionDeleted, ActionCopyFailed, ActionFetched, ActionFetchFailed, ActionServerCopyRemoved, ActionCopyKept}
+var Actions = []string{ActionTaken, ActionFailed, ActionDeleted, ActionCopyFailed, ActionFetched, ActionFetchFailed, ActionServerCopyRemoved, ActionCopyKept, ActionDrilled}
 
 // Told is what an audit event says of a backup, in its detail, which the timeline
 // reads. It holds no path and nothing of what's in the backup.
@@ -76,6 +76,9 @@ type Told struct {
 	Error  string `json:"error,omitempty"`
 	// Destination is where it went or didn't, by name.
 	Destination string `json:"destination,omitempty"`
+	// Drill is how a restore drill of it went, for ActionDrilled: passed, failed or
+	// not_checked, with Error saying why (ADR 0068).
+	Drill string `json:"drill,omitempty"`
 }
 
 // ReadTold reads an audit event's detail.
@@ -107,6 +110,8 @@ type Handler struct {
 	mu       sync.Mutex
 	progress map[string]string        // how each backup under way is going
 	turns    map[string]chan struct{} // whose turn it is on each server, for scheduled runs
+	// drilling is the backup each server's one restore drill checks, by server ID.
+	drilling map[string]string
 }
 
 var _ dockwellv1connect.BackupServiceHandler = (*Handler)(nil)
@@ -177,6 +182,7 @@ func (h *Handler) Recover(ctx context.Context) {
 		}
 		return
 	}
+	h.recoverDrills(ctx)
 	for i := range running {
 		b := running[i]
 		switch {
@@ -501,6 +507,13 @@ func (h *Handler) ListBackups(ctx context.Context, req *connect.Request[dockwell
 		if err != nil {
 			return err
 		}
+		ids := make([]string, 0, len(list))
+		for i := range list {
+			ids = append(ids, list[i].ID)
+		}
+		if f.drills, err = tx.NewestDrills(ctx, ids); err != nil {
+			return err
+		}
 		for i := range list {
 			row, err := h.protoIn(ctx, tx, f, &list[i])
 			if err != nil {
@@ -533,6 +546,16 @@ func (h *Handler) DeleteBackup(ctx context.Context, req *connect.Request[dockwel
 	if sending(&b) {
 		// What's on its way would land with no record of it, for nobody to delete.
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is on its way to %s. Wait for that to end, then delete it", b.ID, b.Destination), "sending")
+	}
+	var drilled map[string]bool
+	if err := h.db.View(ctx, func(tx *store.Tx) (err error) {
+		drilled, err = drillsRunning(ctx, tx)
+		return err
+	}); err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	if drilled[b.ID] {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("a restore check of %s is running. Delete it once that ends", b.ID), "drill_running")
 	}
 	actor, surface := p.Actor(), client.Surface(p)
 	serverOnly := req.Msg.GetServerOnly()
@@ -717,6 +740,9 @@ type rowFacts struct {
 	// placed is the servers each volume read so far is on, by ID, and nil for one
 	// that's deleted.
 	placed map[string][]string
+	// drills are each backup's newest drill, by its ID, read for a page. Nil reads
+	// each row's own.
+	drills map[string]store.Drill
 }
 
 func (h *Handler) facts(ctx context.Context, tx *store.Tx) (*rowFacts, error) {
@@ -849,6 +875,15 @@ func (h *Handler) protoIn(ctx context.Context, tx *store.Tx, f *rowFacts, b *sto
 	}
 	if b.FinishedAt != nil {
 		out.FinishedAt = timestamppb.New(*b.FinishedAt)
+	}
+	drills := f.drills
+	if drills == nil {
+		if drills, err = tx.NewestDrills(ctx, []string{b.ID}); err != nil {
+			return nil, err
+		}
+	}
+	if d, ok := drills[b.ID]; ok {
+		out.Drill = drillProto(&d, f)
 	}
 	h.mu.Lock()
 	out.Progress = h.progress[b.ID] // a run's, and a send's or a fetch's after one

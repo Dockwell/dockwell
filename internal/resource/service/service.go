@@ -19,6 +19,7 @@ package service
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"maps"
@@ -67,6 +68,8 @@ var (
 	_ resource.Binder   = (*Driver)(nil)
 	_ resource.Rebinder = (*Driver)(nil)
 	_ resource.Adopter  = (*Driver)(nil)
+	_ resource.Imaged   = (*Driver)(nil)
+	_ resource.Reviver  = (*Driver)(nil)
 )
 
 // Kind returns "service".
@@ -91,6 +94,25 @@ func (*Driver) CheckName(name string) error { return resource.CheckLabel("servic
 // that mean the same compare equal.
 func (d *Driver) Validate(spec proto.Message) error {
 	svc := spec.(*resourcev1.Service)
+	if rt := svc.GetRuntime(); rt != nil {
+		// An app from a folder: what its runtime decides of its container is written
+		// from it, whatever an edit sends there (ADR 0058).
+		if _, ok := svc.GetVariables()["PORT"]; ok {
+			return errors.New("an app from a folder is given PORT by its runtime. Set the runtime's port instead of using a variable as PORT")
+		}
+		if _, ok := svc.GetSecrets()["PORT"]; ok {
+			return errors.New("an app from a folder is given PORT by its runtime. Set the runtime's port instead of using a secret as PORT")
+		}
+		app, err := WriteRuntime(rt, svc.GetApp(), func(name string) bool {
+			_, v := svc.GetVariables()[name]
+			_, s := svc.GetSecrets()[name]
+			return v || s
+		})
+		if err != nil {
+			return err
+		}
+		svc.Runs = &resourcev1.Service_App{App: app}
+	}
 	app := svc.GetApp()
 	if app == nil {
 		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27")
@@ -321,6 +343,26 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 	return binding.Restore(c.(*resourcev1.Container))
 }
 
+// RunsImage is the image the service's container runs.
+func (d *Driver) RunsImage(ctx context.Context, ref resource.Ref) (resource.Image, error) {
+	return d.Containers.ImageAt(ctx, TargetIn(ctx, ref))
+}
+
+// RunState is how the service's container stands.
+func (d *Driver) RunState(ctx context.Context, ref resource.Ref) (resource.RunState, error) {
+	return d.Containers.RunStateAt(ctx, TargetIn(ctx, ref))
+}
+
+// Start starts the service's container, as it is.
+func (d *Driver) Start(ctx context.Context, ref resource.Ref) error {
+	return d.Containers.StartAt(ctx, TargetIn(ctx, ref))
+}
+
+// Hold says why the service's container can't be made again now, if it can't.
+func (d *Driver) Hold(ctx context.Context, ref resource.Ref, spec proto.Message, volumes map[string]string) (string, error) {
+	return d.Containers.HoldAt(ctx, TargetIn(ctx, ref), spec.(*resourcev1.Service).GetApp(), volumes)
+}
+
 // NotRunning says how the service's container isn't running, in a word.
 func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, error) {
 	return d.Containers.NotRunningAt(ctx, TargetIn(ctx, ref))
@@ -430,6 +472,80 @@ func (*Driver) NamedAsText(spec proto.Message) map[string][]string {
 // Normalize orders the app, as Validate would.
 func (*Driver) Normalize(spec proto.Message) {
 	container.Normalize(spec.(*resourcev1.Service).GetApp())
+}
+
+// CheckNew refuses a new app on a version Dockwell no longer offers (ADR 0058).
+func (*Driver) CheckNew(spec proto.Message) error {
+	return checkOffered(spec.(*resourcev1.Service).GetRuntime(), nil)
+}
+
+// CheckInChange refuses moving an app to a version Dockwell no longer offers; an
+// app already on one keeps changing.
+func (*Driver) CheckInChange(current, desired proto.Message, _ []resource.Ref) error {
+	var was *resourcev1.Runtime
+	if c, ok := current.(*resourcev1.Service); ok {
+		was = c.GetRuntime()
+	}
+	return checkOffered(desired.(*resourcev1.Service).GetRuntime(), was)
+}
+
+// checkOffered refuses a runtime on a retired version, unless it was already on it.
+func checkOffered(rt, was *resourcev1.Runtime) error {
+	if rt == nil || !Retired(rt.GetLanguage(), rt.GetVersion()) {
+		return nil
+	}
+	if was != nil && was.GetLanguage() == rt.GetLanguage() && was.GetVersion() == rt.GetVersion() {
+		return nil
+	}
+	lang, _ := LanguageOf(rt.GetLanguage())
+	return fmt.Errorf("%s %s is no longer offered for an app, so nothing new runs on it. Choose %s", lang.Name, rt.GetVersion(), Offered(rt.GetLanguage()))
+}
+
+// WriterOf names the code that writes an app from a folder's folder: its
+// language's image, running its install and start commands as its user. For a
+// runtime the image is stock and the commands are the code, as the image is for
+// an image app, so a change to any of them is new reach a person approves, as a
+// new image repository is (ADR 0032, ADR 0058). Empty for an image app.
+func (*Driver) WriterOf(spec proto.Message) string {
+	svc := spec.(*resourcev1.Service)
+	rt := svc.GetRuntime()
+	if rt == nil {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(rt.GetInstall() + "\x00" + rt.GetStart() + "\x00" + rt.GetUser()))
+	return fmt.Sprintf("%s, running its commands (%x) as %s", docker.Repository(svc.GetApp().GetImage()), sum[:4], rt.GetUser())
+}
+
+// OnServer is a service as its server has it: without its runtime, which only
+// the control plane keeps, as the container it decides is written already (ADR
+// 0058).
+func (*Driver) OnServer(spec proto.Message) proto.Message {
+	svc := spec.(*resourcev1.Service)
+	if svc.GetRuntime() == nil {
+		return spec
+	}
+	out := proto.CloneOf(svc)
+	out.Runtime = nil
+	return out
+}
+
+// Readopted puts an app's runtime back on what its server has, when its runtime
+// still writes that, so drift kept in the rest of its container leaves it an app
+// from a folder. Drift in what the runtime decides, such as its image, leaves it
+// an app that runs an image, as what the server has is no longer what the
+// runtime writes.
+func (d *Driver) Readopted(current, observed proto.Message) proto.Message {
+	rt := current.(*resourcev1.Service).GetRuntime()
+	if rt == nil {
+		return observed
+	}
+	out := proto.CloneOf(observed.(*resourcev1.Service))
+	out.Runtime = proto.CloneOf(rt)
+	written := proto.CloneOf(out)
+	if err := d.Validate(written); err != nil || !resource.Equal(d.OnServer(written), observed) {
+		return observed
+	}
+	return out
 }
 
 // app is a service's app, or nil.

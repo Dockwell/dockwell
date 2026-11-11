@@ -357,10 +357,26 @@ const ORDER: Readonly<Record<ChangeState, number>> = {
   [ChangeState.DISCARDED]: 3,
 };
 
+/**
+ * The change as the newer of two reads says it. A read can arrive after a newer one, as an
+ * apply's own answer, read before its step began to wait, does behind the watch that said it
+ * waits: a state behind is never taken, and at the same state, a step the other read says
+ * waits keeps that, as what a running step waits for goes only as the step moves on, and the
+ * server says it once.
+ */
 function later(was: Change | undefined, next: Change | undefined): Change | undefined {
   if (!next) return was;
-  if (was && was.id === next.id && ORDER[was.state] > ORDER[next.state]) return was;
-  return next;
+  if (!was || was.id !== next.id) return next;
+  if (ORDER[was.state] > ORDER[next.state]) return was;
+  if (ORDER[was.state] < ORDER[next.state] || was.steps.length !== next.steps.length) return next;
+  let kept = false;
+  const steps = next.steps.map((step, i) => {
+    const before = was.steps[i];
+    if (!before?.confirmation || step.confirmation || before.state !== step.state) return step;
+    kept = true;
+    return { ...step, confirmation: before.confirmation };
+  });
+  return kept ? { ...next, steps } : next;
 }
 
 type Busy = "apply" | "discard" | undefined;
@@ -1335,7 +1351,8 @@ function TopNotice({
       </>
     );
   }
-  const notices: Notice[] = [...warnings];
+  // With nothing worse to say first, what a plan warns of in amber leads.
+  const notices: Notice[] = [...risks.filter((risk) => risk.amber), ...warnings];
   if (offline.length > 0) {
     notices.push({
       key: "offline",
@@ -2222,10 +2239,11 @@ function Effects({
     });
   }
   // What the Callout has no room for, as something worse has it.
-  if (risks.length > 0) {
+  const worse = risks.some((risk) => !risk.amber);
+  if (worse) {
     for (const warning of warnings) rows.push({ ...warning, warn: true });
   }
-  if (risks.length > 0 && offline.length > 0) {
+  if (worse && offline.length > 0) {
     rows.push({
       key: "offline",
       warn: true,

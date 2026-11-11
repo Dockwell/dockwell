@@ -146,6 +146,30 @@ type AccessStays struct {
 	PanelPorts []uint32 `json:",omitempty"`
 }
 
+// DecidesWhoGetsIn is a kind that decides who gets onto a server without
+// being able to lock anyone out of a new session on its own, as a fail2ban
+// jail does: a change to one takes a person and a passkey, as an AccessGuard's
+// does, and applies with no timer (ADR 0052).
+type DecidesWhoGetsIn interface {
+	DecidesWhoGetsIn()
+}
+
+// TakesAPerson says whether a change to a kind takes a signed-in person and a
+// passkey, as what decides who gets onto a server does.
+func TakesAPerson(t Type) bool {
+	_, decides := t.(DecidesWhoGetsIn)
+	return decides || GuardsAccess(t)
+}
+
+// JailPlan is whom a fail2ban jail, as planned, never bans; the addresses
+// signed in over SSH as it was planned that it doesn't ignore; and whether
+// what it ignores covers every address.
+type JailPlan struct {
+	NeverBans          []string `json:",omitempty"`
+	SignedInNotIgnored []string `json:",omitempty"`
+	IgnoresEverything  bool     `json:",omitempty"`
+}
+
 // Decision is a driver's judgement of one step.
 type Decision struct {
 	// PlannedLeads says where the server paths the resource mounts led when this
@@ -283,6 +307,9 @@ type Decision struct {
 	// Stays is who still reaches the server's SSH once a step that narrows it is
 	// kept (ADR 0052). It never stops a plan.
 	Stays *AccessStays `json:",omitempty"`
+	// Jail is whom a step that sets a fail2ban jail never bans, and who is
+	// signed in now that it could (ADR 0052). It never stops a plan.
+	Jail *JailPlan `json:",omitempty"`
 	// Goes says what someone visiting a route finds once the step takes it away, as
 	// a route stops nothing the plan counts as downtime and yet stops people reaching
 	// what it served. It never stops a plan, and a fingerprint leaves it out, as it
@@ -1119,6 +1146,13 @@ type ChangeChecker interface {
 	CheckInChange(current, desired proto.Message, others []Ref) error
 }
 
+// WriterNamer is a kind whose code isn't its image's alone: it names what writes
+// what a spec mounts read-write, for a person to approve, in place of the image's
+// repository. Empty says the image's repository is.
+type WriterNamer interface {
+	WriterOf(spec proto.Message) string
+}
+
 // NewDefaulter is a kind whose new resources take a default from their ref
 // where their edit leaves it out, such as an environment's protection from its
 // name. An edit of one that's there keeps what's there instead (Keeper).
@@ -1430,6 +1464,43 @@ func (r *Registry) HostAccess(kind Kind, spec proto.Message) []Access {
 		return h.HostAccess(spec)
 	}
 	return nil
+}
+
+// ControlOnly is a kind whose spec says something only the control plane keeps,
+// such as how an app from a folder was made (ADR 0058). Its servers never see
+// that, so they neither plan on it nor read it back, and drift is what differs
+// without it.
+type ControlOnly interface {
+	// OnServer is a copy of spec without what only the control plane keeps, or
+	// spec itself when it has none of that.
+	OnServer(spec proto.Message) proto.Message
+	// Readopted is what a server has, read back as observed, with what only the
+	// control plane keeps of current put back, where that still holds of it: as
+	// drift that's kept becomes the latest revision.
+	Readopted(current, observed proto.Message) proto.Message
+}
+
+// OnServer is spec as its server sees it (ControlOnly).
+func (r *Registry) OnServer(kind Kind, spec proto.Message) proto.Message {
+	if spec == nil {
+		return nil
+	}
+	if c, ok := r.types[kind].(ControlOnly); ok {
+		return c.OnServer(spec)
+	}
+	return spec
+}
+
+// Readopted is what a server has, with what only the control plane keeps of
+// current put back where that still holds (ControlOnly).
+func (r *Registry) Readopted(kind Kind, current, observed proto.Message) proto.Message {
+	if current == nil || observed == nil {
+		return observed
+	}
+	if c, ok := r.types[kind].(ControlOnly); ok {
+		return c.Readopted(current, observed)
+	}
+	return observed
 }
 
 // notHere is why a driver can't run on a server that doesn't have what its

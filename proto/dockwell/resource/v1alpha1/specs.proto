@@ -321,6 +321,40 @@ message FirewallPolicy {
   bool deny_everything_else = 1;
 }
 
+// Jail is one of fail2ban's jails on a server, as Dockwell writes it in
+// its own file, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such
+// as sshd (ADR 0052). fail2ban keeps the last value it reads, so a person's
+// jail.local can set it otherwise, and the server's Firewall tab says each jail
+// as fail2ban runs it.
+message Jail {
+  // The filter that says what counts as a failure, as fail2ban names it, such
+  // as "sshd".
+  string filter = 1;
+  // The ports a ban closes to the address, such as 22. Empty closes every
+  // port.
+  repeated uint32 ports = 2;
+  // How many failures within find_time ban an address. 0 takes fail2ban's
+  // default, 5.
+  uint32 max_retry = 3;
+  // How far back failures count, such as "10m". Empty takes fail2ban's
+  // default, 10 min.
+  string find_time = 4;
+  // How long a ban lasts, such as "1h". Empty takes fail2ban's default,
+  // 10 min.
+  string ban_time = 5;
+  // True bans for good, in place of ban_time.
+  bool ban_for_good = 6;
+  // Where it reads failures: "systemd" for the journal, as an SSH jail does on
+  // a server with no /var/log/auth.log, or empty for log_paths.
+  string backend = 7;
+  // The log files it reads failures from, when it doesn't read the journal.
+  repeated string log_paths = 8;
+  // Addresses or ranges it never bans, such as 203.0.113.0/24, beside the
+  // server's own loopback and the control server's addresses, which it never
+  // bans either.
+  repeated string ignore = 9;
+}
+
 // FirewallAction is what a rule does with matching traffic.
 enum FirewallAction {
   // Allow, the default.
@@ -513,6 +547,49 @@ message Service {
   // service whose variable or secret changes gets a revision of its own,
   // and restarts with the new value. An edit's is ignored.
   map<string, int64> revisions = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // How an app from a folder on the server runs: a language's official image of
+  // a version, with the folder mounted, and the commands that install and start
+  // it. With it, the parts of app it decides are written from it whenever the
+  // spec is checked, whatever an edit sends there: the image, command,
+  // entrypoint, working folder, user, the mount at /app, PORT, what's exposed,
+  // the check and the capabilities dropped. The rest of app, such as its
+  // environment, ports and networks, is the app's own, as an image app's is. See
+  // docs/adr/0058-runtimes-an-app-from-a-folder.md.
+  Runtime runtime = 150;
+}
+
+// Runtime is an app from a folder on the server, run in a language's official
+// image of the version chosen, as a person who edits it there wants it.
+message Runtime {
+  // The language: "node", "python", "go" or "java".
+  string language = 1;
+  // Its version, such as "24" for Node.js or "3.14" for Python. Empty takes the
+  // newest, and is written as it.
+  string version = 2;
+  // The folder on the server that holds the app, such as "/srv/shop". It's
+  // mounted at /app, read-write, as what the app installs goes there. A folder
+  // that isn't there is made as user's.
+  string folder = 3;
+  // What installs what the app needs, run in /app before each start, such as
+  // "npm ci". Empty takes the language's: npm ci or npm install, a virtual
+  // environment and pip install -r requirements.txt, go build, or ./mvnw
+  // package. "-" installs nothing.
+  string install = 4;
+  // What starts the app, in /app, such as "npm start". Empty takes the
+  // language's: npm start, python app.py, the binary go build made, or java
+  // -jar app.jar.
+  string start = 5;
+  // The port the app listens on, which its domain sends to and its check
+  // knocks at, given to it as PORT: 3000 for Node.js, 8000 for Python and 8080
+  // for Go and Java unless set.
+  uint32 port = 6;
+  // Who it runs as, as uid:gid, such as "1000:1000": the folder owner's, as
+  // the panel fills it in. Never root's.
+  string user = 7;
+  // What the runtime wrote into the app's environment, by name: PORT, HOME and
+  // where the language's tools keep caches, where the app sets nothing of its own.
+  // None of it is secret. Dockwell writes it each time the spec is checked.
+  map<string, string> wrote = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Variable is a value of an environment that its services use, such as
@@ -607,6 +684,19 @@ message BackupPolicy {
   // The backup destination each backup also goes to, by name. Empty keeps them on
   // the server alone, so they go if it does.
   string destination = 8;
+  // How often a restore drill checks the newest of its backups that read back
+  // whole, on each server it runs on: an hour after its own time on its weekday,
+  // Sunday for a daily or hourly policy, or an hour after the month's first run
+  // (ADR 0068).
+  enum Drill {
+    // Never, for a policy made before drills. A policy that's new drills weekly
+    // unless it says otherwise.
+    DRILL_UNSPECIFIED = 0;
+    DRILL_NEVER = 1;
+    DRILL_WEEKLY = 2;
+    DRILL_MONTHLY = 3;
+  }
+  Drill drill = 9;
 }
 
 // BackupDestination is S3-compatible storage that backups go to as well as the
@@ -744,6 +834,9 @@ message Spec {
     // What a server's firewall does with what no rule lets in, kind
     // "firewall.policy". Numbered apart, as open work adds to this message.
     FirewallPolicy firewall_policy = 40;
+    // One of fail2ban's jails on a server, kind "fail2ban.jail". Numbered
+    // apart, as open work adds to this message.
+    Jail fail2ban_jail = 41;
     // A volume in an environment, kind "volume".
     Volume volume = 6;
     // A network in an environment, kind "network".
@@ -880,6 +973,12 @@ message AlertRule {
     // An address a check watches doesn't answer as it should, as many runs in a
     // row as the check says (ADR 0066).
     CONDITION_CHECK_DOWN = 10;
+    // The newest backup of a volume that has been drilled failed its drill: it
+    // didn't restore, or didn't hold what it should (ADR 0068).
+    CONDITION_RESTORE_DRILL_FAILED = 20;
+    // A policy that drills has gone two of its periods without a drill that
+    // passed, whether its drills weren't checked or never ran (ADR 0068).
+    CONDITION_RESTORE_DRILL_LATE = 21;
   }
   // How much it matters, which a message says and a channel can choose by.
   enum Severity {

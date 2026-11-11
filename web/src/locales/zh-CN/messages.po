@@ -467,6 +467,12 @@ msgstr "正在加载动态"
 msgid "Loading the plan"
 msgstr "正在加载计划"
 
+msgid "New cache"
+msgstr "新缓存"
+
+msgid "Not on record"
+msgstr "无记录"
+
 msgid "Nothing here yet"
 msgstr "这里还没有内容"
 
@@ -501,6 +507,9 @@ msgstr "提议者"
 msgid "Ran as"
 msgstr "运行身份"
 
+msgid "Resources sent"
+msgstr "已发送的资源"
+
 msgid "Review plan"
 msgstr "审查计划"
 
@@ -527,6 +536,9 @@ msgstr "状态"
 
 msgid "Terminal"
 msgstr "终端"
+
+msgid "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
+msgstr "控制平面的数据是从这些资源创建或修改之前恢复或重建的，因此 {server} 的 agent 保留的这些资源（包括其中的值）可能是那里运行内容的唯一副本。请从控制平面重新应用它们，以更新其记录。"
 
 msgid "Times"
 msgstr "次数"
@@ -573,6 +585,9 @@ msgstr "原因"
 msgid "Why it failed"
 msgstr "失败原因"
 
+msgid "With variables and secrets"
+msgstr "含变量和密钥"
+
 msgid "Yesterday"
 msgstr "昨天"
 
@@ -591,6 +606,9 @@ msgstr "{count} 次，在 {first}"
 msgid "{count}, from {first} to {last}"
 msgstr "{count} 次，{first} 至 {last}"
 
+msgid "{server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove {server} from the fleet and join it again, which gives it a new one."
+msgstr "{server} 的 agent 用一把新密钥保存缓存，这把密钥是在控制平面上次向它发送内容之后生成的，比如重新安装之后，或数据目录丢失之后。如果两者都没有发生，可能有别的程序持有这台服务器的身份：请将 {server} 从集群中移除，再重新加入，以获得新的身份。"
+
 msgid "{times, plural, one {# time} other {# times}}"
 msgstr "{times, plural, other {# 次}}"
 
@@ -608,6 +626,12 @@ msgstr "某人"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
+
+msgid "A backup of {volume} didn't restore in its check"
+msgstr "{volume} 的一个备份在检查中未能恢复"
+
+msgid "A backup of {volume} wasn't checked"
+msgstr "{volume} 的一个备份未能检查"
 
 msgid "A change failed: {subject}"
 msgstr "变更失败：{subject}"
@@ -684,8 +708,14 @@ msgstr "请求运行 {task}"
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
 
+msgid "Checked that a backup of {volume} restores"
+msgstr "已检查 {volume} 的一个备份可以恢复"
+
 msgid "Claimed this install"
 msgstr "认领了这个安装"
+
+msgid "Cleared the panel's domain"
+msgstr "清除了面板的域名"
 
 msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "清除了 {server} 的公网地址，原地址为 {previous}"
@@ -774,6 +804,11 @@ msgstr "结束了 {server} 告警的静音"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
+#. placeholder {0}: m?.email ?? ""
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
+msgid "Invited {0} as {1}"
+msgstr "邀请 {0} 成为 {1}"
+
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 秒内没有停止"
 
@@ -822,6 +857,9 @@ msgstr "将此安装命名为 {value}"
 msgid "Named this install {value}, which was {previous}"
 msgstr "将这个安装命名为 {value}（原为 {previous}）"
 
+msgid "No restore check of {subject} has passed lately"
+msgstr "{subject} 最近没有通过的恢复检查"
+
 msgid "Not running"
 msgstr "没有运行"
 
@@ -833,6 +871,12 @@ msgstr "在 {server} 上打开了终端"
 
 msgid "Opened a terminal on {server}, as {as}"
 msgstr "在 {server} 上以 {as} 打开了终端"
+
+msgid "Opened an app through the panel"
+msgstr "通过面板打开了一个应用"
+
+msgid "Opened {name} through the panel"
+msgstr "通过面板打开了 {name}"
 
 msgid "Put back {path} on {server}"
 msgstr "已放回 {server} 上的 {path}"
@@ -870,6 +914,10 @@ msgstr "撤销了 API 令牌"
 msgid "Revoked the API token {name}"
 msgstr "撤销了 API 令牌 {name}"
 
+#. placeholder {0}: event.member?.email ?? ""
+msgid "Revoked the invite for {0}"
+msgstr "撤销了给 {0} 的邀请"
+
 msgid "Roll back: {reverted}"
 msgstr "回滚：{reverted}"
 
@@ -894,6 +942,12 @@ msgstr "向 {name}（{kind}，{host}）发送了测试，已送达"
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "向 {name}（{kind}，{host}）发送了测试，未送达"
 
+msgid "Set the panel's domain to {value}"
+msgstr "将面板的域名设置为 {value}"
+
+msgid "Set the panel's domain to {value}, which was {previous}"
+msgstr "将面板的域名设置为 {value}，原域名为 {previous}"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "将 {server} 的公网地址设置为 {address}"
 
@@ -911,6 +965,9 @@ msgstr "登录了"
 
 msgid "Signed out other sessions"
 msgstr "退出了其他会话"
+
+msgid "Stopped serving the panel on {previous}"
+msgstr "不再在 {previous} 上提供面板"
 
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "已在 {server} 上停止 {what}（PID {pid}）"
@@ -938,6 +995,9 @@ msgstr "{volume} 的备份失败了"
 
 msgid "The health of {name} changed on {server}"
 msgstr "{name} 在 {server} 上的健康状态发生了变化"
+
+msgid "The newest checked backup of {subject} doesn't restore"
+msgstr "{subject} 最新检查过的备份无法恢复"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "已撤回对告警的确认：{title}"
@@ -1004,6 +1064,21 @@ msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
 
+msgid "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
+msgstr "{count, plural, other {已向 {server} 的 agent 发送它运行的 # 个资源的变量和密钥，供控制平面离线时保留}}"
+
+msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, other {已向此前未保留任何内容的 {server} 的 agent 发送它运行的 # 个资源的变量和密钥}}"
+
+msgid "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+msgstr "{count, plural, other {{server} 丢弃了控制平面离线期间它所做之事的 # 条记录，因为它最多保留 500 条}}"
+
+msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, other {{server} 的 agent 有了新的缓存，并收到了它运行的 # 个资源的变量和密钥}}"
+
+msgid "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+msgstr "{count, plural, other {{server} 的 agent 保留着 # 个控制平面在该修订版本上没有记录的资源，已原样保留}}"
+
 msgid "{destination} kept a backup of {volume} that was to go"
 msgstr "{destination} 保留了本应删除的 {volume} 备份"
 
@@ -1028,14 +1103,26 @@ msgstr "{name} 在 {server} 上被暂停"
 msgid "{server} can't be reached"
 msgstr "无法连接到 {server}"
 
+msgid "{server} couldn't see or put back what it should run"
+msgstr "{server} 无法查看或恢复其应运行的内容"
+
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
 
 msgid "{server} joined the fleet"
 msgstr "{server} 加入了集群"
 
+msgid "{server} left {resourceName} as it is, and says why"
+msgstr "{server} 未改动 {resourceName}，并说明了原因"
+
+msgid "{server} made {resourceName} again while the control plane was away"
+msgstr "控制平面离线期间，{server} 重新创建了 {resourceName}"
+
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
+
+msgid "{server} started {resourceName} again on its own"
+msgstr "{server} 自行重新启动了 {resourceName}"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} 的内存已用 {value}%"
@@ -1072,6 +1159,12 @@ msgstr "{total, plural, other {已完成 {done}/# 个步骤}}"
 
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, other {{subject} 的证书将在 # 天内过期}}"
+
+msgid "{who} joined as {as}"
+msgstr "{who} 已加入，成为 {as}"
+
+msgid "{who} joined as {as}, from {from}"
+msgstr "{who} 已加入，成为 {as}，来自 {from}"
 
 msgid "Acknowledge"
 msgstr "确认"
@@ -1868,14 +1961,18 @@ msgstr "Webhook"
 msgid "ntfy"
 msgstr "ntfy"
 
-msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "一条路由只在一台服务器上运行，因为证书只会发到 DNS 指向的那台服务器。"
+msgid "A route runs on the one server its DNS points at."
+msgstr "路由运行在其 DNS 指向的那台服务器上。"
 
 msgid "Add a domain"
 msgstr "添加域名"
 
 msgid "Add a domain to {name}"
 msgstr "为 {name} 添加域名"
+
+msgctxt "a port typed in"
+msgid "Another port"
+msgstr "其他端口"
 
 msgid "App"
 msgstr "应用"
@@ -1892,11 +1989,14 @@ msgstr "域名"
 msgid "Edit and try again"
 msgstr "修改后重试"
 
-msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
-msgstr "它在服务器自身的网络上，因此填写它在那里监听的端口，例如 8080。80 端口由代理占用。"
+msgid "HTTPS"
+msgstr "HTTPS"
 
-msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
-msgstr "域名能到达此服务器后，证书会自动获取。DNS 在添加之前或之后设置都可以。"
+msgid "Handled in front of this server"
+msgstr "由此服务器前面的服务处理"
+
+msgid "Its certificate comes by itself once its DNS points here."
+msgstr "DNS 指向这里后，证书会自动获取。"
 
 msgid "Move {typed} behind what's in front"
 msgstr "将 {typed} 移到前面的代理之后"
@@ -1909,6 +2009,12 @@ msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "关闭：对任何人使用普通 HTTP"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "开启，证书自动签发"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "用户通过这个域名以 HTTPS 访问应用"
@@ -1925,6 +2031,9 @@ msgstr "将其 DNS 指向此服务器。"
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "将它的 DNS 指向你的隧道或代理。"
 
+msgid "Points {followsApp} at it too: {followsNames}"
+msgstr "同时让 {followsApp} 指向它：{followsNames}"
+
 msgid "Port in the app"
 msgstr "应用内端口"
 
@@ -1933,6 +2042,12 @@ msgstr "服务器上的端口"
 
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
+
+msgid "Send {wanted} to {name}, and point {followsApp} at it"
+msgstr "将 {wanted} 发送到 {name}，并让 {followsApp} 指向它"
+
+msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
+msgstr "它在服务器上监听的端口，例如 8080；80 端口归代理使用。"
 
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
@@ -2061,8 +2176,8 @@ msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不�
 msgid "A change is applying to {name}. Review this once it ends."
 msgstr "正在向 {name} 应用一项更改。等它结束后再审查这里。"
 
-msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
-msgstr "应用已有的名称会得到新值。在你审查并应用计划之前，什么都不会改变。"
+msgid "A name the app has gets the new value."
+msgstr "应用已有的名称会得到新值。"
 
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
@@ -2109,6 +2224,9 @@ msgstr "每个使用这个变量的应用都会得到新值。"
 msgid "Import .env"
 msgstr "导入 .env"
 
+msgid "It runs with only what its image sets."
+msgstr "它只使用镜像里设置的值运行。"
+
 msgid "Keep the new ones as secrets"
 msgstr "把新的保存为密钥"
 
@@ -2135,6 +2253,9 @@ msgstr "未应用"
 
 msgid "Not loaded"
 msgstr "未加载"
+
+msgid "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
+msgstr "PORT 由它的运行时设置，无法导入。请从此文件中移除 PORT。"
 
 msgid "Paste the file's text"
 msgstr "粘贴文件内容"
@@ -2163,6 +2284,9 @@ msgstr "密钥"
 msgid "Secret {from}"
 msgstr "密钥 {from}"
 
+msgid "Set by its runtime"
+msgstr "由它的运行时设置"
+
 msgid "Set on this app"
 msgstr "在此应用上设置"
 
@@ -2175,23 +2299,23 @@ msgstr "环境中已经有密钥 {trimmed}。可以直接使用它，或换一�
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有变量 {trimmed}。可以直接使用它，或换一个名称。"
 
-msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
-msgstr "环境中已经有 {usedList}，所以应用会直接使用它和它现有的值。要更改它，请到变量和密钥中修改，每个使用它的应用都会得到更改。"
+msgid "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
+msgstr "环境中已经有 {usedList}，所以应用使用它的值：请到变量和密钥中更改。"
 
-msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
-msgstr "环境中已经有 {usedList}，所以应用会直接使用它们和它们现有的值。要更改它们，请到变量和密钥中修改，每个使用它们的应用都会得到更改。"
-
-msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
-msgstr "密钥的值不会显示，所以请输入它应有的完整值。每个使用它的应用都会得到它。"
+msgid "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
+msgstr "环境中已经有 {usedList}，所以应用使用它们的值：请到变量和密钥中更改。"
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "它们的值会被隐藏，显示其中一个需要你的通行密钥。"
 
-msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
-msgstr "在读取成功之前，它们的值不会显示，添加也会暂停，以免新名称与已有的冲突。"
+msgid "Their values stay hidden, and Add waits until they load."
+msgstr "它们的值暂不显示，添加会等到读取完成。"
 
-msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
-msgstr "这个应用只使用镜像里设置的值运行。在上方添加一个变量，应用计划后它就会得到。"
+msgid "This app uses the new value instead of its runtime's default."
+msgstr "此应用使用新值，替代运行时提供的默认值。"
+
+msgid "Type the whole value: every app that uses this secret gets it."
+msgstr "请输入完整的值：每个使用这个密钥的应用都会得到它。"
 
 msgid "Unapplied changes"
 msgstr "未应用的更改"
@@ -2298,6 +2422,9 @@ msgstr "面包屑导航"
 msgid "Can't load this app"
 msgstr "无法加载此应用"
 
+msgid "Change version"
+msgstr "更改版本"
+
 msgid "Deploy"
 msgstr "部署"
 
@@ -2353,6 +2480,10 @@ msgstr "由 Dockwell 回滚于 {ago}"
 msgid "{name} logs"
 msgstr "{name} 日志"
 
+#. placeholder {0}: runtime.folder
+msgid "{runsOn} from <0>{0}</0>"
+msgstr "{runsOn}，来自 <0>{0}</0>"
+
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
@@ -2369,6 +2500,10 @@ msgstr "全部部署"
 
 msgid "All of it"
 msgstr "查看全部"
+
+#. placeholder {0}: runtime.version
+msgid "An older build of {0}"
+msgstr "{0} 的较旧构建"
 
 msgid "Checks"
 msgstr "检查内容"
@@ -2415,11 +2550,17 @@ msgstr "Dockwell 无法读取 {name} 运行的内容"
 msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 msgstr "在代理重新连接之前，Dockwell 无法在那里查看或更改 {name}。它很可能仍在运行。"
 
+msgid "Dockwell no longer offers this version, so no new app runs on it"
+msgstr "Dockwell 不再提供这个版本，所以不会有新应用运行在它上面"
+
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell 已恢复 <0>{image}</0>，与那次部署之前一样。"
 
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无法在那里查看或更改它，它的容器可能仍在那些服务器上运行。部署它，即可在集群中的服务器上运行。"
+
+msgid "Each start installs again, so what you change in its folder runs once you restart it."
+msgstr "每次启动都会重新安装，所以你在它文件夹里的改动会在重启后生效。"
 
 msgid "Entrypoint"
 msgstr "入口点"
@@ -2434,11 +2575,17 @@ msgstr "未通过"
 msgid "Fix what stopped the deploy, then deploy again."
 msgstr "请修复导致部署失败的问题，然后重新部署。"
 
+msgid "Folder"
+msgstr "文件夹"
+
 msgid "Follow it"
 msgstr "查看进度"
 
 msgid "Health check"
 msgstr "健康检查"
+
+msgid "Installs with"
+msgstr "安装命令"
 
 msgid "It keeps going whether or not you stay here. Its steps show in the plan."
 msgstr "无论你是否留在此页，部署都会继续。步骤显示在计划中。"
@@ -2473,6 +2620,9 @@ msgstr "未设置"
 msgid "None."
 msgstr "无。"
 
+msgid "Nothing"
+msgstr "无"
+
 msgid "Nothing outside the server reaches it yet."
 msgstr "服务器外部暂时无法访问它。"
 
@@ -2487,6 +2637,9 @@ msgstr "暂无。部署完成后开始运行。"
 
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
 msgstr "重新连接后，Dockwell 会在部署失败后恢复 <0>{image}</0>。"
+
+msgid "Open in Files"
+msgstr "在“文件”中打开"
 
 msgid "Open the plan"
 msgstr "打开计划"
@@ -2533,6 +2686,9 @@ msgstr "回滚失败于 {when}"
 msgid "Runs with"
 msgstr "一同运行的应用"
 
+msgid "Runtime"
+msgstr "运行时"
+
 msgid "See its logs"
 msgstr "查看日志"
 
@@ -2547,6 +2703,9 @@ msgstr "设置"
 
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
+
+msgid "Starts with"
+msgstr "启动命令"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "{server} 上的代理最近没有报告它的运行情况。它很可能仍在运行。"
@@ -2587,6 +2746,11 @@ msgstr "{away} 重新连接前无法确定"
 
 msgid "Unknown, as putting it back failed"
 msgstr "未知，因为恢复失败了"
+
+#. placeholder {0}: newer.release
+#. placeholder {0}: runtime.release
+msgid "Update to {0}"
+msgstr "更新到 {0}"
 
 msgid "Volumes"
 msgstr "卷"
@@ -2789,6 +2953,15 @@ msgstr "它没有发布端口。添加一个，就能从服务器外访问它。
 msgid "It publishes this port already."
 msgstr "它已经发布了这个端口。"
 
+msgid "Its runtime checks its port by TCP, with 10 minutes to start."
+msgstr "它的运行时通过 TCP 检查端口，并留出 10 分钟供应用启动。"
+
+msgid "Its runtime mounts this folder at /app."
+msgstr "它的运行时将此文件夹挂载到 /app。"
+
+msgid "Its runtime sets the command, entrypoint, user and directory."
+msgstr "它的运行时设置命令、入口点、用户和目录。"
+
 msgid "Keep no more for it than its limit, {memory}."
 msgstr "为它预留的不能超过它的限制 {memory}。"
 
@@ -2951,6 +3124,7 @@ msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "镜像自带"
 
+#. placeholder {0}: cpus[part.service]
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
@@ -3133,8 +3307,8 @@ msgstr "无上报"
 msgid "No server"
 msgstr "无服务器"
 
-msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
-msgstr "已没有服务器运行它，因此没有任何响应。请移除它，或将其放到一台服务器上。"
+msgid "No server runs this any more: remove it, or place it on a server."
+msgstr "已没有服务器运行它：请移除它，或将它放到一台服务器上。"
 
 msgid "Not connected"
 msgstr "未连接"
@@ -3154,8 +3328,8 @@ msgstr "续期失败"
 msgid "TLS ends in front"
 msgstr "TLS 在前端终止"
 
-msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
-msgstr "<0>{server}</0> 上的证书已于{when}过期，因此浏览器会拒绝访问这个域名。Dockwell 会自动续期。如果一直是这样，请<1>查看它的页面</1>。"
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
+msgstr "<0>{server}</0> 上的证书已于 {when} 过期，浏览器会拒绝访问。<1>查看其页面</1>"
 
 msgid "Valid"
 msgstr "有效"
@@ -3172,29 +3346,23 @@ msgstr "{days, plural, other {有效期还有 # 天}}"
 msgid "Can't read DNS"
 msgstr "无法读取 DNS"
 
-msgid "Copy {address}"
-msgstr "复制 {address}"
+msgid "Can't tell"
+msgstr "无法判断"
 
-msgid "DNS has this record"
-msgstr "DNS 已有此记录"
-
-msgid "DNS points at a private address that isn't this server's"
-msgstr "DNS 指向一个不属于此服务器的私有地址"
-
-msgid "DNS points at {found}"
-msgstr "DNS 指向 {found}"
-
-msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
-msgstr "DNS 指向 {found}，Dockwell 无法判断那是否就是此服务器"
-
-msgid "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell 不知道此服务器的公网地址。服务商控制台会显示它。请添加指向该地址的 A 记录，并在此服务器页面的“网络”中设置它。"
-
-msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell 不知道此服务器的公网地址。{provider} 控制台会显示它。请添加指向该地址的 A 记录，并在此服务器页面的“网络”中设置它。"
+msgid "How to open it"
+msgstr "如何开放"
 
 msgid "Install Cloudflare Tunnel from the Catalog"
 msgstr "从目录安装 Cloudflare Tunnel"
+
+msgid "It points at a private address that isn't this server's."
+msgstr "它指向一个不属于此服务器的私有地址。"
+
+msgid "It points at {found}, which may be this server."
+msgstr "它指向 {found}，可能就是此服务器。"
+
+msgid "It points at {found}."
+msgstr "它指向 {found}。"
 
 msgid "Make these records at your DNS provider."
 msgstr "请在 DNS 服务商处添加这些记录。"
@@ -3202,44 +3370,65 @@ msgstr "请在 DNS 服务商处添加这些记录。"
 msgid "Make this record at your DNS provider."
 msgstr "请在 DNS 服务商处添加这条记录。"
 
+msgid "Not set yet"
+msgstr "尚未设置"
+
+msgid "Only a tunnel reaches it."
+msgstr "只有隧道能访问到它。"
+
 msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
 msgstr "或者在路由器上将 80 和 443 端口转发到此服务器，并添加这条记录。"
 
 msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
 msgstr "或者在路由器上将 80 和 443 端口转发到此服务器的 {forwardTo}，并添加这条记录。"
 
-msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
-msgstr "或者添加这条记录，因为此服务器自己有公网 IPv6 地址。只有使用 IPv6 的访问者能通过这种方式访问。"
+msgid "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
+msgstr "或者为它自己的 IPv6 地址添加此记录，使用 IPv6 的访问者可以访问。"
+
+msgid "Point an A record at this server's public address, which your provider's console shows."
+msgstr "将 A 记录指向此服务器的公网地址，该地址可在服务商的控制台中查看。"
+
+msgid "Point an A record at this server's public address, which {provider}'s console shows."
+msgstr "将 A 记录指向此服务器的公网地址，该地址可在 {provider} 的控制台中查看。"
 
 msgid "Point an A record at your router's public address."
 msgstr "请添加指向路由器公网地址的 A 记录。"
 
-msgid "Recommended. It needs no public address and no forwarded port."
-msgstr "推荐。无需公网地址，也无需端口转发。"
+msgid "Points elsewhere"
+msgstr "指向别处"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
-msgstr "这是此服务器访问互联网所用的地址，不一定是入站地址。请在服务商的控制台中核对。"
+msgid "Points here"
+msgstr "指向此服务器"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
-msgstr "这是此服务器访问互联网所用的地址，不一定是入站地址。请在 {provider} 的控制台中核对。"
+msgid "Set it on the server"
+msgstr "在服务器上设置"
 
-msgid "That's your router's address, as far as Dockwell can tell."
-msgstr "据 Dockwell 判断，这是你路由器的地址。"
+msgid "Set the record to DNS only, or turn on \"{tunnelName}\"."
+msgstr "请将记录设为仅 DNS，或开启“{tunnelName}”。"
 
-msgid "This looks like a home or office network, so the internet can't reach this server by itself."
-msgstr "这看起来是家庭或办公网络，互联网无法直接访问此服务器。"
+msgid "That's its way out, which may not be its way in: check it in your provider's console."
+msgstr "这是它的出口地址，不一定是入口地址：请在服务商的控制台中核对。"
 
-msgid "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
-msgstr "此服务器位于运营商级 NAT 之后，DNS 记录和端口转发都无法到达它。隧道两者都不需要。"
+msgid "That's its way out, which may not be its way in: check it in {provider}'s console."
+msgstr "这是它的出口地址，不一定是入口地址：请在 {provider} 的控制台中核对。"
 
-msgid "Waiting for DNS"
-msgstr "正在等待 DNS"
+msgid "The internet can't reach {serverName} on ports 80 and 443."
+msgstr "互联网无法通过 80 和 443 端口访问 {serverName}。"
+
+msgid "This server is behind carrier NAT"
+msgstr "此服务器位于运营商 NAT 之后"
+
+msgid "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
+msgstr "此服务器位于家庭或办公网络中：隧道无需端口转发即可访问它。"
+
+msgid "Your router's address, as far as Dockwell can tell."
+msgstr "这是 Dockwell 判断出的路由器地址。"
 
 msgid "your domain"
 msgstr "你的域名"
 
-msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
-msgstr "{name} 指向 Cloudflare 的代理，这可能会阻止证书验证。请打开“{tunnelName}”，或将该记录设为仅 DNS。"
+msgid "{name} points at Cloudflare's proxy"
+msgstr "{name} 指向 Cloudflare 的代理"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
@@ -3253,11 +3442,17 @@ msgstr "Compose 文件"
 msgid "Copied"
 msgstr "已复制"
 
+msgid "Copied as .env"
+msgstr "已复制为 .env"
+
 msgid "Copied the Compose file"
 msgstr "已复制 Compose 文件"
 
 msgid "Copy"
 msgstr "复制"
+
+msgid "Copy as .env"
+msgstr "复制为 .env"
 
 msgid "Its whole project"
 msgstr "整个项目"
@@ -3268,14 +3463,101 @@ msgstr "因可能包含机密而未导出"
 msgid "Save"
 msgstr "保存"
 
-msgid "Save an <0>.env</0> to fill in"
-msgstr "保存待填写的 <0>.env</0>"
-
 msgid "This app"
 msgstr "此应用"
 
 msgid "What to export"
 msgstr "要导出的内容"
+
+msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+msgstr "应用不会以 root 运行。请使用文件夹所有者的 uid:gid，例如 1000:1000。"
+
+msgid "Choose the folder that holds the app."
+msgstr "请选择存放应用的文件夹。"
+
+msgid "Dockwell makes it, owned by <0>{user}</0>"
+msgstr "Dockwell 会创建它，所有者为 <0>{user}</0>"
+
+#. placeholder {0}: PORT_FILES[detected.language] ?? ""
+msgid "From {0}. The app gets it as PORT."
+msgstr "来自 {0}。应用通过 PORT 获得它。"
+
+msgid "Holds {found}"
+msgstr "包含 {found}"
+
+msgid "It has no <0>{first}</0>. Put the app's files there."
+msgstr "其中没有 <0>{first}</0>。请把应用的文件放进去。"
+
+msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+msgstr "它属于 <0>{theirs}</0>，而应用以 <1>{user}</1> 运行。"
+
+#. placeholder {0}: dir.mode
+msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgstr "它的权限是 <0>{0}</0>。请在服务器上运行 <1>chmod u+w {path}</1>。"
+
+msgid "Language"
+msgstr "语言"
+
+msgid "Name the app, or give its folder on the server, such as /srv/shop."
+msgstr "请为应用命名，或填写它在服务器上的文件夹，例如 /srv/shop。"
+
+msgctxt "a folder that isn't there yet"
+msgid "New"
+msgstr "新建"
+
+msgid "No {languageWord} app in {path} yet"
+msgstr "{path} 中还没有 {languageWord} 应用"
+
+msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
+msgstr "请在服务器上运行 <0>sudo chown -R {user} {path}</0>。"
+
+msgid "Run as {theirs}"
+msgstr "以 {theirs} 运行"
+
+msgid "Runs as"
+msgstr "运行用户"
+
+msgid "Runs before each start. Write - to install nothing."
+msgstr "每次启动前运行。填 - 表示不安装。"
+
+msgid "The app can't write to {path}"
+msgstr "应用无法写入 {path}"
+
+msgid "The app gets it as PORT."
+msgstr "应用通过 PORT 获得它。"
+
+msgid "Use a folder of its own, not the server's root."
+msgstr "请使用它自己的文件夹，不要用服务器的根目录。"
+
+msgid "Use a full path on the server, such as /srv/shop."
+msgstr "请使用服务器上的完整路径，例如 /srv/shop。"
+
+msgid "Version"
+msgstr "版本"
+
+msgid "Write it as uid:gid, such as 1000:1000."
+msgstr "请写成 uid:gid，例如 1000:1000。"
+
+msgid "as {user}"
+msgstr "以 {user} 运行"
+
+msgid "from {from}"
+msgstr "来自 {from}"
+
+msgid "port {port}"
+msgstr "端口 {port}"
+
+msgid "uid:gid of the folder's owner."
+msgstr "文件夹所有者的 uid:gid。"
+
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
+
+msgid "{path} is a file"
+msgstr "{path} 是文件"
+
+msgid "{path} is root's, and an app never runs as root"
+msgstr "{path} 属于 root，而应用不会以 root 运行"
 
 msgid "A tunnel on this server"
 msgstr "此服务器上的隧道"
@@ -3295,17 +3577,14 @@ msgstr "Cloudflare 连接此服务器的 80 端口。"
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare 代理"
 
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
+msgid "For a private network with nothing in front."
+msgstr "用于前面没有其他服务的私有网络。"
 
 msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
 
-msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "例如在服务器自身网络上运行的 cloudflared。网站转发到的目标能读取访问者的地址和 https。在桥接网络上的隧道在这里算作其他代理，按该网络的范围填写。"
-
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
+msgid "Such as cloudflared on the server's own network."
+msgstr "例如服务器自身网络上的 cloudflared。"
 
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
@@ -3321,6 +3600,9 @@ msgstr "前面是什么"
 
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
+
+msgid "A connection to port {port} was taken."
+msgstr "连接端口 {port} 成功。"
 
 msgid "Checking"
 msgstr "正在检查"
@@ -3619,6 +3901,9 @@ msgstr "粘贴 Compose 文件后即可查看计划"
 msgid "Paste it, or drop the file here."
 msgstr "粘贴文件内容，或将文件拖到此处。"
 
+msgid "Pick a folder on the server"
+msgstr "选择服务器上的目录"
+
 msgid "Plans say a value changed, and never show it."
 msgstr "计划只说明值已更改，绝不显示内容。"
 
@@ -3661,6 +3946,9 @@ msgstr "除非手动停止否则重启"
 msgid "Run a Compose file"
 msgstr "运行 Compose 文件"
 
+msgid "Run {name} from {path}"
+msgstr "从 {path} 运行 {name}"
+
 msgid "Run {projectName} from a Compose file"
 msgstr "通过 Compose 文件运行 {projectName}"
 
@@ -3675,6 +3963,9 @@ msgstr "请说明文件所在位置后再查看计划"
 
 msgid "Say which directory it's in"
 msgstr "说明它所在的目录"
+
+msgid "Server folder"
+msgstr "服务器目录"
 
 msgid "Show"
 msgstr "显示"
@@ -3711,6 +4002,9 @@ msgstr "最多 {memory}"
 
 msgid "Up to {memory} and {cpus} CPUs"
 msgstr "最多 {memory}、{cpus} 个 CPU"
+
+msgid "Use a volume instead"
+msgstr "改用卷"
 
 msgid "Use an absolute path, such as /data."
 msgstr "请使用绝对路径，例如 /data。"
@@ -3787,6 +4081,46 @@ msgstr "{count, plural, other {显示}}"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
+
+msgid "Change {name}'s version"
+msgstr "更改 {name} 的版本"
+
+msgid "Check its logs for what the install or the start said, then try again."
+msgstr "查看它的日志，看安装或启动时输出了什么，然后重试。"
+
+msgid "Choose again"
+msgstr "重新选择"
+
+msgid "Each start installs again, so check the app's lockfile works with the new version."
+msgstr "每次启动都会重新安装，所以请确认应用的锁文件适用于新版本。"
+
+#. placeholder {0}: newer.release
+msgid "It runs an older build of {current}. The plan updates it to {0}."
+msgstr "它运行的是 {current} 的较旧构建。该计划会把它更新到 {0}。"
+
+msgid "It runs this version's newest build already"
+msgstr "它已在运行这个版本的最新构建"
+
+msgid "It runs what's in its folder on the new version, with the rest as it is"
+msgstr "它会用新版本运行文件夹里的内容，其余保持不变"
+
+msgid "Run {name} on {word} {version}, from {current}"
+msgstr "在 {word} {version} 上运行 {name}（原为 {current}）"
+
+msgid "Update {name} to {word} {release}"
+msgstr "把 {name} 更新到 {word} {release}"
+
+#. placeholder {0}: v.version
+#. placeholder {1}: v.release
+msgid "{0} · {1}, the one it runs"
+msgstr "{0} · {1}，当前运行的版本"
+
+#. placeholder {0}: v.version
+msgid "{0}, the one it runs"
+msgstr "{0}，当前运行的版本"
+
+msgid "{word} version"
+msgstr "{word} 版本"
 
 msgid "Changed {field}"
 msgstr "已更改 {field}"
@@ -3955,6 +4289,63 @@ msgstr "工作目录"
 msgid "{servers} offline"
 msgstr "{servers} 离线"
 
+msgid "Accept an invite"
+msgstr "接受邀请"
+
+msgid "An invite makes someone new. Sign out, or open the link in a private window."
+msgstr "邀请会创建一个新成员。请先退出登录，或在隐私窗口中打开链接。"
+
+msgid "Create passkey and join"
+msgstr "创建通行密钥并加入"
+
+msgid "Creating passkey"
+msgstr "正在创建通行密钥"
+
+msgid "Enter your name."
+msgstr "请输入你的姓名。"
+
+#. placeholder {0}: invite.email
+#. placeholder {1}: formatDateTime(timestampDate(invite.expireTime), i18n.locale)
+msgid "For {0}, until {1}. You sign in with a passkey this browser, phone or security key makes for this address."
+msgstr "发给 {0}，有效期至 {1}。你将使用此浏览器、手机或安全密钥为这个地址创建的通行密钥登录。"
+
+msgid "Open the link in a browser that makes passkeys, such as a recent Chrome, Safari or Firefox."
+msgstr "请在支持通行密钥的浏览器中打开链接，例如较新版本的 Chrome、Safari 或 Firefox。"
+
+msgid "Open the link you were sent, including the part after “#”. Whoever invited you can make a new one."
+msgstr "请打开你收到的完整链接，包括“#”之后的部分。邀请你的人可以再生成一个新的。"
+
+msgid "Passkeys don't work in this browser"
+msgstr "此浏览器无法使用通行密钥"
+
+msgid "Reading the invite"
+msgstr "正在读取邀请"
+
+msgid "Sign out"
+msgstr "退出登录"
+
+msgid "This invite didn't work"
+msgstr "此邀请无法使用"
+
+msgid "This page needs the whole link from your invite"
+msgstr "此页面需要你邀请中的完整链接"
+
+msgid "You're signed in as {name}"
+msgstr "你已以 {name} 的身份登录"
+
+msgid "Your account"
+msgstr "你的账户"
+
+msgid "Your account wasn't created"
+msgstr "你的账户未能创建"
+
+msgid "Your name"
+msgstr "你的姓名"
+
+#. placeholder {0}: invite.invitedBy
+msgid "{0} invited you as {where}"
+msgstr "{0} 邀请你成为 {where}"
+
 msgid "Add a passkey here"
 msgstr "在此添加通行密钥"
 
@@ -4031,17 +4422,11 @@ msgstr "用 Touch ID、Windows Hello 或安全密钥确认。"
 msgid "Create passkey"
 msgstr "创建通行密钥"
 
-msgid "Creating passkey"
-msgstr "正在创建通行密钥"
-
 msgid "Deploy your first app"
 msgstr "部署你的第一个应用"
 
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "请输入邮箱地址，例如 mira@acme.dev。"
-
-msgid "Enter your name."
-msgstr "请输入你的姓名。"
 
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "来自 Git、Docker 镜像、Compose 文件或应用目录。"
@@ -4124,9 +4509,6 @@ msgstr "使用验证码登录时需要它。"
 
 msgid "Your domain gets a certificate automatically."
 msgstr "你的域名会自动获得证书。"
-
-msgid "Your name"
-msgstr "你的姓名"
 
 msgid "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
 msgstr "你的通行密钥只在此地址有效。之后可以在设置中添加带 HTTPS 的域名。"
@@ -4229,9 +4611,6 @@ msgstr "{rpId} 上还没有可用的通行密钥"
 
 msgid "Profile and security"
 msgstr "个人资料和安全"
-
-msgid "Sign out"
-msgstr "退出登录"
 
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "有人为你的账户连续输错了 {count} 次验证码，最后一次在{when}。只有确认是你本人时才解锁验证码登录。否则可能有人知道了你的邮箱；你的通行密钥和恢复码仍然可用。"
@@ -4495,6 +4874,9 @@ msgstr "添加通行密钥需要用你在此地址已有的通行密钥确认，
 msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 msgstr "连续输错 10 次验证码后，验证码登录已锁定。请用通行密钥或恢复码登录，或在服务器上运行 dockwell recover，然后在“个人资料和安全”中解锁。"
 
+msgid "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
+msgstr "邀请需要面板的域名，因为链接使用该域名，受邀者的通行密钥也在那里创建。请为服务设置 DOCKWELL_DOMAIN，然后再邀请。"
+
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "通行密钥需要主机名，不能用 IP 地址。请在同一端口上打开 http://localhost 访问面板。"
 
@@ -4528,6 +4910,9 @@ msgstr "这个通行密钥没有为此地址注册，或无法验证。请尝试
 msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 msgstr "这个通行密钥报告的使用次数比之前少，这在通行密钥被复制时会发生，所以它已不能再用于登录。请用其他方式登录，然后在“个人资料和安全”中移除它。"
 
+msgid "That person signs in here already. Change what they hold in Members instead."
+msgstr "此人已经可以登录这里。请改为在“成员”中更改其角色。"
+
 msgid "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
 msgstr "这需要通行密钥，而此地址还没有。请在“个人资料和安全”中添加。"
 
@@ -4558,6 +4943,9 @@ msgstr "通行密钥请求已过期。请重试。"
 msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 msgstr "这个浏览器无法在此地址使用通行密钥。请通过 SSH 隧道在 http://localhost 打开面板，或通过 HTTPS 在它的域名上打开。"
 
+msgid "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+msgstr "此浏览器已登录，而邀请会创建一个新成员。请先退出登录，或在隐私窗口中打开链接。"
+
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 msgstr "这个认领链接无效、已使用、已被新链接取代或已过期。请在服务器上运行 {claimCommand} 获取新链接。"
 
@@ -4566,6 +4954,12 @@ msgstr "这台设备已经有你在此处账户的通行密钥。请直接使用
 
 msgid "This install already has an owner. Sign in instead."
 msgstr "这个安装已经有所有者。请直接登录。"
+
+msgid "This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one."
+msgstr "此邀请无效、已被使用、已撤销或已过期。请向邀请你的人要一个新的。"
+
+msgid "This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it."
+msgstr "此邀请只能在面板的域名上使用，安装会一直在那里提供服务。请按收到的原样打开链接。"
 
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "此次身份验证器应用的设置已结束：它只在开始设置的会话中有效，时限为 10 分钟。请关闭此处并重新设置。"
@@ -4600,6 +4994,30 @@ msgstr "所有者"
 
 msgid "Viewer"
 msgstr "查看者"
+
+msgid "a developer of every project"
+msgstr "所有项目的开发者"
+
+msgid "a developer of {project}"
+msgstr "{project} 的开发者"
+
+msgid "a project that's gone"
+msgstr "一个已不存在的项目"
+
+msgid "a viewer of every project"
+msgstr "所有项目的查看者"
+
+msgid "a viewer of {project}"
+msgstr "{project} 的查看者"
+
+msgid "an admin"
+msgstr "管理员"
+
+msgid "someone with no role"
+msgstr "没有角色的人"
+
+msgid "the owner"
+msgstr "所有者"
 
 msgid "All backups"
 msgstr "全部备份"
@@ -4678,6 +5096,19 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
 
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "现在无法检查：{0}"
+
+msgid "Check it restores"
+msgstr "检查能否恢复"
+
+msgid "Check weekly"
+msgstr "每周检查"
+
+msgid "Checking it restores"
+msgstr "正在检查能否恢复"
+
 msgid "Delete from both"
 msgstr "从两处都删除"
 
@@ -4722,6 +5153,9 @@ msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不
 msgid "No backups yet"
 msgstr "还没有备份"
 
+msgid "Not checked: {why}"
+msgstr "未检查：{why}"
+
 msgid "Nothing to back up yet"
 msgstr "还没有可备份的内容"
 
@@ -4746,6 +5180,12 @@ msgstr "仅从服务器移除"
 
 msgid "Restore"
 msgstr "恢复"
+
+msgid "Restore check failed {ago}: {why}"
+msgstr "恢复检查失败（{ago}）：{why}"
+
+msgid "Restored and checked {ago}"
+msgstr "已恢复并检查（{ago}）"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "使用较早的密码短语加密"
@@ -4779,9 +5219,20 @@ msgstr "这会将它从 {destination} 删除，那里是它最后所在的位置
 msgid "To fetch it, put {0} on a connected server first"
 msgstr "要取回它，请先将 {0} 部署到已连接的服务器上"
 
+msgid "Unpacked whole {ago}"
+msgstr "已完整解包（{ago}）"
+
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgstr "{0, plural, other {# 个计划从不检查恢复}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, other {每周检查 # 个计划的备份能否恢复}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
@@ -4938,6 +5389,15 @@ msgstr "停止将备份发送到 {0}"
 msgid "{0} backups, {1}"
 msgstr "{0} 份备份，{1}"
 
+msgid "Checks a restore monthly"
+msgstr "每月检查恢复"
+
+msgid "Checks a restore weekly"
+msgstr "每周检查恢复"
+
+msgid "Doesn't check a restore"
+msgstr "不检查恢复"
+
 msgid "Hasn't run yet"
 msgstr "尚未运行"
 
@@ -4988,6 +5448,12 @@ msgstr "按计划备份 {0}"
 msgid "Backups to keep"
 msgstr "保留的备份数"
 
+msgid "Check monthly"
+msgstr "每月检查"
+
+msgid "Check that it restores"
+msgstr "检查能否恢复"
+
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
 
@@ -5010,6 +5476,16 @@ msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。�
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
+
+msgid "Never check"
+msgstr "从不检查"
+
+msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，最长 6 小时。"
+
+#. placeholder {0}: formatBytes(each, i18n.locale)
+msgid "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
+msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，约 {0}，最长 6 小时。"
 
 msgid "Stop {running} for each backup"
 msgstr "每次备份时停止 {running}"
@@ -5072,8 +5548,17 @@ msgstr "应用目录"
 msgid "Category"
 msgstr "分类"
 
+msgid "Commit"
+msgstr "提交"
+
+msgid "Couldn't read the sources"
+msgstr "无法读取来源"
+
 msgid "Couldn't read this app"
 msgstr "无法读取此应用"
+
+msgid "Dockwell's own"
+msgstr "Dockwell 自带"
 
 msgid "Documentation"
 msgstr "文档"
@@ -5081,8 +5566,8 @@ msgstr "文档"
 msgid "Explore the app"
 msgstr "了解应用"
 
-msgid "Getting started"
-msgstr "开始使用"
+msgid "Good to know"
+msgstr "须知"
 
 msgid "Included in this install"
 msgstr "本次安装包含"
@@ -5099,6 +5584,9 @@ msgstr "安装 {app}"
 msgid "Licence"
 msgstr "许可证"
 
+msgid "Not tested by Dockwell"
+msgstr "未经 Dockwell 测试"
+
 msgid "On your servers"
 msgstr "在你的服务器上"
 
@@ -5114,6 +5602,9 @@ msgstr "持久存储"
 
 msgid "Reading this app"
 msgstr "正在读取此应用"
+
+msgid "Repository"
+msgstr "仓库"
 
 msgid "Screens may vary by version"
 msgstr "不同版本的界面可能有所差异"
@@ -5134,11 +5625,11 @@ msgstr "源代码"
 msgid "Source for: {0}"
 msgstr "来源：{0}"
 
-msgid "Version"
-msgstr "版本"
-
 msgid "Website"
 msgstr "网站"
+
+msgid "Where it comes from"
+msgstr "来源"
 
 msgid "You review the plan before anything runs."
 msgstr "运行前，你会先审核变更计划。"
@@ -5156,8 +5647,14 @@ msgstr "分类"
 msgid "Couldn't read the catalog"
 msgstr "无法读取应用目录"
 
+msgid "Couldn't read the sources, so apps from them aren't marked"
+msgstr "无法读取来源，因此未标记来自来源的应用"
+
 msgid "Find an app for your server. Explore what it does before you install."
 msgstr "为你的服务器寻找应用。安装前，先了解它的功能。"
+
+msgid "From the catalog {source}"
+msgstr "来自目录 {source}"
 
 msgid "No app matches that. Try another word, or all categories."
 msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。"
@@ -5165,11 +5662,17 @@ msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
 
+msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
+msgstr "也可以从 Git 仓库中的目录读取应用。<0>来源</0>"
+
 msgid "Reading the catalog"
 msgstr "正在读取应用目录"
 
 msgid "Search apps"
 msgstr "搜索应用"
+
+msgid "Sources"
+msgstr "来源"
 
 msgid "Update out"
 msgstr "有更新"
@@ -5201,6 +5704,17 @@ msgstr "数据库"
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
 
+msgid "Engine"
+msgstr "引擎"
+
+#. placeholder {0}: part.cpus
+#. placeholder {0}: part.memory
+msgid "Entry's: {0}"
+msgstr "条目默认：{0}"
+
+msgid "Fix the limits of {badService} to review the plan"
+msgstr "修正 {badService} 的限制后即可查看计划"
+
 msgid "Generated and sealed"
 msgstr "已生成，加密保存"
 
@@ -5213,11 +5727,27 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 msgid "Its site"
 msgstr "官网"
 
+msgid "Limits and restarts"
+msgstr "限制与重启"
+
+msgid "New database"
+msgstr "新建数据库"
+
 msgid "Open {app}"
 msgstr "打开 {app}"
 
 msgid "Reaches"
 msgstr "可访问"
+
+msgid "Reading the sources"
+msgstr "正在读取来源"
+
+#. placeholder {0}: inSentence(words.restart(restartOf(part)))
+msgid "Restarts {0}"
+msgstr "重启：{0}"
+
+msgid "Such as 512M or 2G."
+msgstr "例如 512M 或 2G。"
 
 msgid "What it installs"
 msgstr "安装内容"
@@ -5247,17 +5777,23 @@ msgstr "{0, plural, other {已生成 # 个密钥}}"
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
 
+msgid "{cpus} vCPU"
+msgstr "{cpus} 个 vCPU"
+
+msgid "{source} · Not tested by Dockwell"
+msgstr "{source} · 未经 Dockwell 测试"
+
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
 
 msgid "From the catalog"
 msgstr "来自应用目录"
 
+msgid "Its secrets"
+msgstr "它的密钥"
+
 msgid "Review the change"
 msgstr "查看更改"
-
-msgid "Show its secrets"
-msgstr "查看它的密钥"
 
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
@@ -5267,6 +5803,172 @@ msgstr "已发布版本 {next}。"
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "A source adds the apps in a public Git repository."
+msgstr "来源会加入公开 Git 仓库中的应用。"
+
+msgid "A source is already named {name}. Use another name."
+msgstr "已有名为 {name} 的来源。请换一个名称。"
+
+msgid "Add a catalog source"
+msgstr "添加目录来源"
+
+msgid "Add a source"
+msgstr "添加来源"
+
+msgid "Another commit"
+msgstr "其他提交"
+
+msgid "Apps from a public Git repository, pinned at one commit"
+msgstr "来自公开 Git 仓库的应用，固定在一个提交"
+
+#. placeholder {0}: chosen.commit.slice(0, 12)
+msgid "At {0} now. It stays there until you move it."
+msgstr "当前位于 {0}。在你切换之前不会变动。"
+
+msgid "Can't be read now, so its apps are out of the catalog"
+msgstr "暂时无法读取，其应用不在应用目录中"
+
+msgid "Catalog sources"
+msgstr "目录来源"
+
+msgid "Catalogs Dockwell reads apps from beside its own"
+msgstr "除自带目录外，Dockwell 读取应用的目录"
+
+msgid "Commit copied"
+msgstr "已复制提交"
+
+msgid "Copy the commit"
+msgstr "复制提交"
+
+#. placeholder {0}: sentence(err)
+msgid "Dockwell can't read that commit: {0}"
+msgstr "Dockwell 无法读取该提交：{0}"
+
+msgid "Dockwell's own catalog is all it reads"
+msgstr "目前只读取 Dockwell 自带的目录"
+
+msgid "Entries at {folderWords}"
+msgstr "条目位于 {folderWords}"
+
+msgid "Its top"
+msgstr "仓库根目录"
+
+msgctxt "catalog source"
+msgid "Move"
+msgstr "切换提交"
+
+msgid "Move to another commit"
+msgstr "切换到其他提交"
+
+msgid "Move {name} to another commit"
+msgstr "将 {name} 切换到其他提交"
+
+msgid "Named {name} · entries at {folderWords}"
+msgstr "名称 {name} · 条目位于 {folderWords}"
+
+msgid "No branch or tag is at this commit."
+msgstr "没有分支或标签位于此提交。"
+
+msgid "Pin to"
+msgstr "固定到"
+
+msgid "Read. It has {count} or more branches and tags."
+msgstr "已读取。共有 {count} 个或更多分支和标签。"
+
+msgid "Reading the repository"
+msgstr "正在读取仓库"
+
+msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
+msgstr "请使用小写字母、数字和短横线，并以字母开头，例如 community。"
+
+msgid "Use the commit in full, as 40 hex digits, or choose a branch."
+msgstr "请填写完整的 40 位十六进制提交，或选择一个分支。"
+
+msgid "Use the repository's https:// URL."
+msgstr "请填写仓库的 https:// 地址。"
+
+msgid "Where its entries are. Empty is its top."
+msgstr "条目所在位置。留空表示仓库根目录。"
+
+msgid "its top"
+msgstr "仓库根目录"
+
+#. placeholder {0}: at.join(", ")
+msgid "{0} is at this commit."
+msgstr "{0} 位于此提交。"
+
+msgid "{count, plural, =0 {No apps from here} one {# app from here} other {# apps from here}}"
+msgstr "{count, plural, =0 {这里没有应用} other {这里有 # 个应用}}"
+
+msgid "{count, plural, one {Read. It has # branch or tag.} other {Read. It has # branches and tags.}}"
+msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
+
+msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
+msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
+
+msgid "{short} (tag)"
+msgstr "{short}（标签）"
+
+msgid "Answers on this server alone, on port {port}, until it has a domain"
+msgstr "在有域名之前，只在此服务器的 {port} 端口上响应"
+
+msgid "Anyone who reaches it can make an account until sign-ups close"
+msgstr "在关闭注册之前，任何能访问它的人都可以创建账号"
+
+msgid "Anyone who reaches it can make an account, until you close sign-ups"
+msgstr "在你关闭注册之前，任何能访问它的人都可以创建账号"
+
+msgid "Close sign-ups"
+msgstr "关闭注册"
+
+msgid "Close sign-ups to {app}"
+msgstr "关闭 {app} 的注册"
+
+msgid "Copy the SSH tunnel command"
+msgstr "复制 SSH 隧道命令"
+
+msgid "Its first account is its owner"
+msgstr "它的第一个账号就是所有者"
+
+msgid "Its first account is its owner: make yours before it has a domain"
+msgstr "它的第一个账号就是所有者：请在它有域名之前创建你的账号"
+
+msgid "Its links follow its domain, {domain}: {names}"
+msgstr "它的链接跟随它的域名 {domain}：{names}"
+
+msgid "Its links follow the domain you add: {names}"
+msgstr "它的链接跟随你添加的域名：{names}"
+
+msgid "Open {app} in a new tab"
+msgstr "在新标签页中打开 {app}"
+
+msgid "Point {app} at {domain}"
+msgstr "将 {app} 指向 {domain}"
+
+msgid "Published on port {port}"
+msgstr "已发布在端口 {port}"
+
+msgid "SSH tunnel command copied"
+msgstr "已复制 SSH 隧道命令"
+
+msgid "Set as it first started: change it in {app}, in {where}"
+msgstr "首次启动时设定：请在 {app} 的「{where}」中修改"
+
+msgid "Set to {domain}"
+msgstr "设为 {domain}"
+
+msgid "Signs in as {user}"
+msgstr "以 {user} 登录"
+
+msgid "Signs in as {user}, with a password Dockwell generates and seals"
+msgstr "以 {user} 登录，密码由 Dockwell 生成并加密保存"
+
+msgid "Signs in with a key Dockwell generates and seals"
+msgstr "使用 Dockwell 生成并加密保存的密钥登录"
+
+msgid "Signs in with a key you give"
+msgstr "使用你提供的密钥登录"
 
 msgid "Open full size"
 msgstr "查看原图"
@@ -5656,6 +6358,9 @@ msgstr "从这里用你的密钥向端口 {port} 打开一个新的 SSH 会话�
 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
+
+msgid "The server couldn't keep it yet, so it still waits. Keep it again."
+msgstr "服务器还没能保留此更改，所以它仍在等待。请再次点击保留。"
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "然后在新标签页中用面板自己的地址打开面板。"
@@ -6055,6 +6760,12 @@ msgstr "文件中的同名服务会替换它，文件未提到的服务会被删
 msgid "A service of the same name in the file replaces it."
 msgstr "文件中的同名服务会替换它。"
 
+msgid "Add it to what the jail never bans first, or apply this knowing it."
+msgstr "请先把它加入这个 jail 永不封禁的地址，或在知情的情况下应用。"
+
+msgid "Adds {names}."
+msgstr "添加 {names}。"
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
 
@@ -6076,6 +6787,9 @@ msgstr "如有需要，请先备份：撤销可能无法恢复。"
 msgid "Back it up once from Backups, and the next plan goes by how large that was."
 msgstr "先在“备份”中备份一次，下次计划就会按那次的大小计算。"
 
+msgid "Back it up yourself before you apply this."
+msgstr "应用前请自行备份。"
+
 msgid "Back up what you can't lose before this."
 msgstr "请先备份不能丢失的内容。"
 
@@ -6084,6 +6798,12 @@ msgstr "请先备份不能丢失的内容，或者继续使用新版本。"
 
 msgid "Back up what you can't lose first."
 msgstr "请先备份不能丢失的内容。"
+
+msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
+msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果 {to} 无法运行，就停止，不做任何更改。"
+
+msgid "Check it's the commit you mean."
+msgstr "请确认这是你想要的提交。"
 
 msgid "Check that it reads its data, and restore a backup if it won't."
 msgstr "请检查它能否读取数据，如无法读取，请恢复备份。"
@@ -6116,6 +6836,9 @@ msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
 
+msgid "Dockwell couldn't list the repository's branches and tags"
+msgstr "Dockwell 无法列出该仓库的分支和标签"
+
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防火墙。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
 
@@ -6130,6 +6853,9 @@ msgstr "不要再次启动它的 Compose 项目。"
 
 msgid "Don't write a secret in a variable's name."
 msgstr "不要把机密写在变量名中。"
+
+msgid "Each keeps running as it is."
+msgstr "它们会照常运行。"
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
@@ -6160,6 +6886,12 @@ msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH �
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
+
+msgid "Installs of them keep running, with no upgrades."
+msgstr "已安装的会继续运行，但不再有升级。"
+
+msgid "It bans any other address that keeps failing to sign in, yours included."
+msgstr "其他任何多次登录失败的地址都会被它封禁，包括你的地址。"
 
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
@@ -6194,11 +6926,26 @@ msgstr "它会关闭 {closes}：要保持开放的，请为其添加规则。"
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
 
+msgid "It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data."
+msgstr "它的数据不在 Dockwell 创建的卷中。撤销会放回旧版本，但不会恢复新版本对数据所做的更改。"
+
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "它通过符号链接指向 <0>{leadsTo}</0>，而服务器的安全取决于那里的内容，所以能访问它就相当于拥有 root。"
+
+msgid "It may be an older commit, or a fork's."
+msgstr "它可能是较早的提交，或来自某个分叉。"
+
+msgid "It never bans the server itself or the control server."
+msgstr "它不会封禁服务器自身和控制服务器。"
+
+msgid "It never bans {never}."
+msgstr "它永不封禁 {never}。"
+
+msgid "It never bans {never}. {counts} {lifting}"
+msgstr "它永不封禁 {never}。{counts}{lifting}"
 
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
@@ -6224,8 +6971,14 @@ msgstr "它会相信该代理所说的请求来源。该范围内的其他任何
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其他内容都不会改动。"
 
+msgid "Its apps leave the catalog"
+msgstr "它的应用将离开应用目录"
+
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日志都不会显示其值，容器也会继续运行。"
+
+msgid "Its last reading says so. Applying this stops before it moves, with nothing changed."
+msgstr "这是它最近一次读数显示的。应用此更改会在迁移前停止，不做任何更改。"
 
 msgid "Its volumes are backed up first"
 msgstr "它的卷会先备份"
@@ -6239,8 +6992,23 @@ msgstr "从现在起不要在 1Panel 中操作它，也绝不要在那里卸载�
 msgid "Leave it alone in {tool} from now on."
 msgstr "从现在起不要在 {tool} 中操作它。"
 
+msgid "Leaves out {file}"
+msgstr "不收录 {file}"
+
+msgid "Lower its feature compatibility version to {to} first if it's higher."
+msgstr "如果它的功能兼容版本更高，请先降到 {to}。"
+
+msgid "Lower its feature compatibility version to {to} first."
+msgstr "请先把它的功能兼容版本降到 {to}。"
+
+msgid "MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to {from} first, and its data may then use {from}'s features."
+msgstr "MongoDB 只能从与当前版本一致的数据迁移，因此它的功能兼容版本会先提升到 {from}，此后它的数据可能用到 {from} 的功能。"
+
 msgid "More than one container answers to {shared} on {network}"
 msgstr "在 {network} 上有多个容器响应 {shared}"
+
+msgid "Moves {names} on, which an install of each can upgrade to."
+msgstr "更新 {names}，已安装的实例可以升级到新版本。"
 
 msgid "Name a network the proxy has to itself."
 msgstr "请指定一个由该代理独占的网络。"
@@ -6251,9 +7019,15 @@ msgstr "升级前不会创建备份"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "没有做过备份,数据保持现状"
 
+msgid "No branch or tag is at this commit now"
+msgstr "当前没有分支或标签指向这个提交"
+
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
+
+msgid "Nothing installed from this catalog upgrades to them."
+msgstr "从此目录安装的应用不会升级到它们。"
 
 msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "密码会恢复为当时的值。如果无法加载，现在的内容会恢复回来。服务器会将其副本保留 7 天，撤销此操作即可恢复。"
@@ -6287,6 +7061,15 @@ msgstr "{0} 上的 SSH 只对 {from} 开放"
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
 
+msgid "Take out the range that covers everything for it to ban anyone."
+msgstr "去掉覆盖所有地址的范围，它才能封禁任何人。"
+
+msgid "Takes away {names}"
+msgstr "移除 {names}"
+
+msgid "Takes {ids} from another catalog"
+msgstr "从另一个目录接管 {ids}"
+
 msgid "That copy is {size}, and what was made since goes."
 msgstr "该副本大小为 {size}，之后产生的内容将丢失。"
 
@@ -6307,6 +7090,9 @@ msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 
 msgid "That's what the server kept on {taken}, {size}."
 msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。"
+
+msgid "The catalog shows no apps from this commit."
+msgstr "应用目录不会显示这个提交中的任何应用。"
 
 msgid "The data stays as it is now"
 msgstr "数据保持现状"
@@ -6350,8 +7136,27 @@ msgstr "它们在 {name} 运行的内容中运行，因此也能访问它在服�
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
 
+msgid "This catalog comes first, so the catalog shows its apps."
+msgstr "此目录优先，因此应用目录显示它的应用。"
+
 msgid "This copy was taken with the app running"
 msgstr "此副本是在应用运行时复制的"
+
+#. placeholder {0}: server.serverName
+msgid "This jail can ban your own address on {0}"
+msgstr "在 {0} 上，这个 jail 可能封禁你自己的地址"
+
+#. placeholder {0}: server.serverName
+msgid "This jail can ban {exposed}, signed in to {0} over SSH now"
+msgstr "这个 jail 可能封禁 {exposed}，它现在正通过 SSH 登录 {0}"
+
+#. placeholder {0}: server.serverName
+msgid "This jail ignores every address on {0}, so it bans nobody"
+msgstr "{0} 上的这个 jail 忽略所有地址，所以不会封禁任何人"
+
+#. placeholder {0}: server.serverName
+msgid "This jail never bans {never} on {0}"
+msgstr "{0} 上的这个 jail 永不封禁 {never}"
 
 #. placeholder {0}: server.serverName
 msgid "This may cut off access to {0}"
@@ -6396,6 +7201,12 @@ msgstr "两个容器可能同时写入 {shared}，这可能损坏数据库"
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
 
+msgid "Undoing this puts back {from}. The release before it can't run the data."
+msgstr "撤销会放回 {from}。更早的版本无法运行这些数据。"
+
+msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
+msgstr "撤销此变更或移除这个 jail，都不会解除已经生效的封禁：请从其他地址或服务商的控制台登录，然后运行 fail2ban-client unban 加上该地址。"
+
 msgid "What asks for {shared} there can reach either."
 msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
 
@@ -6420,15 +7231,30 @@ msgstr "在启用 SELinux 的服务器上，Docker 会重新标记那里的所�
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 msgstr "你选择了不备份。撤销会恢复旧版本，但不会恢复新版本对数据的改动，例如已迁移的数据库。"
 
+msgid "fail2ban counts the failures from just before this applies, so a ban can land as it does."
+msgstr "fail2ban 会计入本次变更应用前不久的失败，所以变更一应用就可能封禁。"
+
 msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
 msgstr "https:// 地址将报错，已看到其 HSTS 的浏览器在 HSTS 过期前会拒绝明文 HTTP。"
+
+#. placeholder {0}: ref.slice("refs/heads/".length)
+msgid "the branch {0}"
+msgstr "分支 {0}"
 
 msgid "the folder it runs from"
 msgstr "它运行所在的目录"
 
+#. placeholder {0}: ref.slice("refs/tags/".length)
+msgid "the tag {0}"
+msgstr "标签 {0}"
+
 #. placeholder {0}: all.length
 msgid "{0, plural, one {# resource} other {# resources}}"
 msgstr "{0, plural, other {# 项资源}}"
+
+#. placeholder {0}: note.names.length
+msgid "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at} are at.}}"
+msgstr "{0, plural, other {这是 {at} 所在的提交。}}"
 
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
@@ -6446,11 +7272,20 @@ msgstr "{by} 以 root 在那里写入，所以无论文件属于谁都能修改�
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} 在那里写入。换成其他镜像的代码时需要重新确认，因为任何镜像中的程序都可能以 root 运行。"
 
+msgid "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
+msgstr "{count, plural, other {应用目录将显示这个提交中的 # 个应用：{names}。}}"
+
+msgid "{counts} {lifting}"
+msgstr "{counts}{lifting}"
+
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 msgstr "{database} 会在空卷上重新开始并加载转储（{size}），因此之后产生的内容将丢失。"
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
+
+msgid "{ids} will come from another catalog"
+msgstr "{ids} 将改由另一个目录提供"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
@@ -6504,6 +7339,9 @@ msgstr "{name} 在 {server} 上挂载卷 {path}"
 msgid "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 msgstr "{name} 挂载了 {heldIn} 中的 {path}，而 {heldBy} 可以写入 {heldIn}。"
 
+msgid "{name} moves back to {to} only if its data allows"
+msgstr "只有数据允许时，{name} 才会退回 {to}"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
@@ -6534,6 +7372,15 @@ msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} 在 {server} 上接管容器 {path}"
 
+msgid "{name}'s data isn't backed up first"
+msgstr "{name} 的数据不会先备份"
+
+msgid "{name}'s data uses {features}'s features, which {to} can't run"
+msgstr "{name} 的数据用到了 {features} 的功能，{to} 无法运行"
+
+msgid "{name}'s features go up to {from} before it moves to {to}"
+msgstr "{name} 在升级到 {to} 之前，功能先提升到 {from}"
+
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
 
@@ -6562,6 +7409,12 @@ msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
 #. placeholder {0}: line.text
 msgid "{name}: {0}"
 msgstr "{name}：{0}"
+
+msgid "{projects} can upgrade again, from the catalog each came from."
+msgstr "{projects} 可以再次从各自的来源目录升级。"
+
+msgid "{projects} will have no upgrades"
+msgstr "{projects} 将不再有升级"
 
 msgid "{project} already runs {names}"
 msgstr "{project} 已在运行 {names}"
@@ -7247,6 +8100,9 @@ msgstr "连接字符串"
 msgid "Connections"
 msgstr "连接"
 
+msgid "Data at {features}'s features, which its next upgrade raises"
+msgstr "数据处于 {features} 的功能，下次升级会先提升"
+
 msgid "From anywhere that reaches this server"
 msgstr "能访问此服务器的任何地方均可连接"
 
@@ -7259,6 +8115,9 @@ msgstr "{place} 中的应用可连接"
 msgid "From this server alone"
 msgstr "仅此服务器可连接"
 
+msgid "Give it a <0>--keyFile</0> every member of {set} shares, make a root user, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2>."
+msgstr "请先为它配置 {set} 所有成员共用的 <0>--keyFile</0>，创建一个 root 用户，再设置 <1>MONGO_INITDB_ROOT_USERNAME</1> 和 <2>MONGO_INITDB_ROOT_PASSWORD</2>。"
+
 msgid "Give it a volume"
 msgstr "为它添加卷"
 
@@ -7268,11 +8127,17 @@ msgstr "主机"
 msgid "It sets no most"
 msgstr "未设置上限"
 
+msgid "It takes no password, as it checks no one."
+msgstr "它未开启身份验证，因此不需要密码。"
+
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 msgstr "其数据位于 <0>{volume}</0>，这个卷不是 Dockwell 创建的，因此不会备份。"
 
 msgid "Its data isn't in a volume, so it goes with its container."
 msgstr "其数据不在卷中，会随容器一起消失。"
+
+msgid "Its environment"
+msgstr "它的环境变量"
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "各项数值、数据库和用户来自 {server}，它运行在 {count} 台服务器上，这是其中一台。"
@@ -7298,6 +8163,9 @@ msgstr "存放于"
 msgid "Keys asked for that were there"
 msgstr "查询的键中命中的比例"
 
+msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT_USERNAME</0> 和 <1>MONGO_INITDB_ROOT_PASSWORD</1>。"
+
 msgid "Newest"
 msgstr "最新"
 
@@ -7313,8 +8181,14 @@ msgstr "正在进行一次备份"
 msgid "Reads served from memory"
 msgstr "从内存读取的比例"
 
+msgid "Replica set {set}: each backup is one moment, and can't be restored into a member yet"
+msgstr "副本集 {set}：每次备份都是同一时刻的快照，暂时无法恢复到成员中"
+
 msgid "Restore the newest"
 msgstr "恢复最新备份"
+
+msgid "Runs alone: a backup isn't one moment while something writes"
+msgstr "单独运行：有写入时，备份不是同一时刻的快照"
 
 msgid "Since"
 msgstr "此后"
@@ -7357,6 +8231,9 @@ msgstr "{dumpOf} 自带的转储，运行中进行：不会停止任何服务"
 msgid "{engine} didn't say how it is"
 msgstr "{engine} 没有报告它的状况"
 
+msgid "{engine} lets anyone in"
+msgstr "{engine} 允许任何人登录"
+
 msgid "{engine} {next} is out"
 msgstr "{engine} {next} 已发布"
 
@@ -7384,8 +8261,14 @@ msgstr "修改 {who} 的密码"
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
 
+msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
+msgstr "Dockwell 暂时无法添加 MongoDB 用户。请在 <1>mongosh</1> 中用 <0>db.createUser</0> 添加。"
+
 msgid "Granted on"
 msgstr "已授权"
+
+msgid "Has roles in"
+msgstr "拥有角色于"
 
 msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
 msgstr "在其容器内部，PostgreSQL 镜像允许任何进程无需密码以任意用户登录。"
@@ -7419,6 +8302,9 @@ msgstr "角色"
 
 msgid "Signs in"
 msgstr "可登录"
+
+msgid "Signs in to"
+msgstr "登录到"
 
 msgid "Users of {name}"
 msgstr "{name} 的用户"
@@ -7474,9 +8360,6 @@ msgstr "最近运行"
 msgid "Loading the databases"
 msgstr "正在加载数据库"
 
-msgid "New database"
-msgstr "新建数据库"
-
 msgid "No databases yet"
 msgstr "还没有数据库"
 
@@ -7485,9 +8368,6 @@ msgstr "没有卷"
 
 msgid "No volume, so its data goes with its container"
 msgstr "没有卷，数据会随容器一起丢失"
-
-msgid "Nothing"
-msgstr "无"
 
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "服务器上没有任何改动。页面会自动重试。"
@@ -7631,12 +8511,6 @@ msgstr "还没有记录"
 
 msgid "Not read yet"
 msgstr "尚未读取"
-
-msgid "Points elsewhere"
-msgstr "指向别处"
-
-msgid "Points here"
-msgstr "指向此服务器"
 
 msgid "Proxied by Cloudflare"
 msgstr "由 Cloudflare 代理"
@@ -8244,9 +9118,6 @@ msgstr "读取 1Panel 保存的内容"
 msgid "Review the plan"
 msgstr "查看计划"
 
-msgid "Runtime"
-msgstr "运行环境"
-
 msgid "Stays with 1Panel"
 msgstr "保留在 1Panel 中"
 
@@ -8838,9 +9709,6 @@ msgstr "文件"
 msgid "No servers yet"
 msgstr "还没有服务器"
 
-msgid "{cpus} vCPU"
-msgstr "{cpus} 个 vCPU"
-
 msgid "Apps on this server"
 msgstr "此服务器上的应用"
 
@@ -9240,6 +10108,232 @@ msgstr "{name} 在 10 秒内没有停止，因此已被强制结束。"
 msgid "{name} stopped."
 msgstr "{name} 已停止。"
 
+msgid "<0>Match {criteria}</0> · {file}, line {line}"
+msgstr "<0>Match {criteria}</0> · {file}，第 {line} 行"
+
+msgid "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+msgstr "<0>Match {criteria}</0> · {file}，第 {line} 行 · 设置 {sets}"
+
+msgid "An address or a range to never ban"
+msgstr "永不封禁的地址或范围"
+
+msgid "As it is: {s}"
+msgstr "保持现值：{s}"
+
+msgid "Banned for"
+msgstr "封禁时长"
+
+msgid "Banned now"
+msgstr "当前封禁"
+
+msgid "Bans an address that keeps failing to sign in over SSH."
+msgstr "封禁多次通过 SSH 登录失败的地址。"
+
+msgid "Change the sshd jail on {name}"
+msgstr "更改 {name} 上的 sshd jail"
+
+msgid "Copy {command}"
+msgstr "复制 {command}"
+
+msgid "Counted within"
+msgstr "统计时间范围"
+
+msgid "Dockwell writes this jail."
+msgstr "此 jail 由 Dockwell 写入。"
+
+#. placeholder {0}: j.name
+msgid "Edit the {0} jail"
+msgstr "编辑 {0} jail"
+
+msgid "Fail2ban"
+msgstr "Fail2ban"
+
+msgid "Failed sign-ins that ban an address"
+msgstr "封禁一个地址的登录失败次数"
+
+msgid "For good"
+msgstr "永久"
+
+msgid "Forced commands only"
+msgstr "仅限强制命令"
+
+msgid "Jails"
+msgstr "Jail"
+
+msgid "Keys only"
+msgstr "仅限密钥"
+
+msgid "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
+msgstr "请填写永不封禁的地址或范围，例如 203.0.113.7 或 198.51.100.0/24。"
+
+msgid "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
+msgstr "请填写封禁一个地址所需的登录失败次数，从 1 到 100，例如 5。"
+
+msgid "Never banned"
+msgstr "永不封禁"
+
+msgid "No"
+msgstr "否"
+
+msgid "Not installed"
+msgstr "未安装"
+
+msgid "Nowhere"
+msgstr "无来源"
+
+msgid "Password login"
+msgstr "密码登录"
+
+msgid "Plan it"
+msgstr "生成计划"
+
+msgid "Protect SSH"
+msgstr "保护 SSH"
+
+msgid "Protect SSH on {name}"
+msgstr "保护 {name} 上的 SSH"
+
+msgid "Protect SSH on {name} with fail2ban"
+msgstr "用 fail2ban 保护 {name} 上的 SSH"
+
+msgid "Reading fail2ban on {name}"
+msgstr "正在读取 {name} 上的 fail2ban"
+
+msgid "Reading how SSH lets people in on {name}"
+msgstr "正在读取 {name} 上 SSH 的登录方式"
+
+msgid "Recent bans"
+msgstr "最近的封禁"
+
+msgid "Root login"
+msgstr "root 登录"
+
+msgid "SSH"
+msgstr "SSH"
+
+msgid "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
+msgstr "无法读取 SSH 的端口：这会关闭 fail2ban 自带 sshd jail 的端口，除非另有设置，否则是 22。"
+
+#. placeholder {0}: j.name
+msgid "Stop writing the {0} jail"
+msgstr "停止写入 {0} jail"
+
+msgid "Stop writing the {jail} jail on {name}"
+msgstr "停止写入 {name} 上的 {jail} jail"
+
+msgid "Take out"
+msgstr "去掉"
+
+msgid "Take {address} out"
+msgstr "去掉 {address}"
+
+msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+msgstr "{name} 上的代理比控制平面旧，因此无法读取 SSH。请在 {name} 上再次运行安装脚本来更新它。"
+
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+msgstr "{name} 上的代理比控制平面旧，因此无法读取 fail2ban。请在 {name} 上再次运行安装脚本来更新它。"
+
+msgid "The sshd jail on {name}"
+msgstr "{name} 上的 sshd jail"
+
+msgid "The sshd that listens may not use these files"
+msgstr "正在监听的 sshd 可能并不使用这些文件"
+
+msgid "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+msgstr "以上是 sshd 配置文件的内容；sshd 使用的是它上次启动或重新加载时读取的配置。"
+
+msgid "This can ban {takenOutList} as it applies"
+msgstr "应用时可能封禁 {takenOutList}"
+
+msgid "Until it reloads, it may still accept what this says is off."
+msgstr "重新加载之前，它可能仍接受此处显示为关闭的登录方式。"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "fail2ban counts the failures from just before."
+msgstr "fail2ban 会计入此前不久的失败。"
+
+msgid "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+msgstr "{name} 上没有安装 fail2ban，因此反复登录失败的地址不会被封禁。"
+
+msgid "fail2ban isn't running on {name}, so it bans nobody: {why}"
+msgstr "{name} 上的 fail2ban 没有运行，所以不会封禁任何人：{why}"
+
+msgid "fail2ban runs with no jails, so it bans nobody."
+msgstr "fail2ban 正在运行，但没有任何 jail，因此不会封禁任何人。"
+
+msgid "ignored now"
+msgstr "目前已忽略"
+
+msgid "on {iface}"
+msgstr "经 {iface}"
+
+msgid "signed in over SSH now"
+msgstr "现在通过 SSH 登录"
+
+msgid "sshd hasn't read {files} since it changed"
+msgstr "{files} 更改后，sshd 还没有读取过"
+
+msgid "sshd lets in only who these allow: {lists}."
+msgstr "sshd 只放行以下规则允许的人：{lists}。"
+
+msgid "sshd's default"
+msgstr "sshd 默认值"
+
+msgid "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+msgstr "sshd_config 没有引入配置片段目录，所以 Dockwell 不会在这里更改 SSH。"
+
+msgid "systemd holds SSH's port, through {unit}."
+msgstr "systemd 通过 {unit} 占用 SSH 的端口。"
+
+msgid "where you are now"
+msgstr "你现在所在的地址"
+
+#. placeholder {0}: ssh.ports.length
+msgid "{0, plural, one {Port} other {Ports}}"
+msgstr "{0, plural, other {端口}}"
+
+msgid "{bannedNow, plural, one {address} other {addresses}}"
+msgstr "{bannedNow, plural, other {个地址}}"
+
+msgid "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+msgstr "{bannedTotal, plural, other {自 fail2ban 启动以来共封禁 # 次}}"
+
+msgid "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+msgstr "{count, plural, other {所有连接的默认值：有 # 个 Match 块可以另行设置}}"
+
+msgid "{failures} · bans for good"
+msgstr "{failures} · 永久封禁"
+
+msgid "{failures} · bans for {span}"
+msgstr "{failures} · 封禁 {span}"
+
+msgid "{file}, line {line}"
+msgstr "{file}，第 {line} 行"
+
+msgid "{file}, line {line} · not in effect until sshd reloads"
+msgstr "{file}，第 {line} 行 · sshd 重新加载后才生效"
+
+#. placeholder {0}: time.ago(timestampDate(ban.since), now)
+msgid "{jail} · {0}"
+msgstr "{jail} · {0}"
+
+msgid "{more, plural, one {and # more} other {and # more}}"
+msgstr "{more, plural, other {以及另外 # 个}}"
+
+msgid "{name} itself and the control server are never banned either."
+msgstr "{name} 自身和控制服务器也永远不会被封禁。"
+
+msgid "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+msgstr "{tries, plural, other {{within}内登录失败 # 次}}"
+
+msgid "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+msgstr "{tries, plural, other {登录失败 # 次}}"
+
+msgid "{ways} also let people in, which Dockwell can't check."
+msgstr "{ways} 也能让人登录，Dockwell 无法检查这些方式。"
+
 msgid "Action"
 msgstr "操作"
 
@@ -9254,9 +10348,6 @@ msgstr "任意 {proto} 端口"
 
 msgid "Anywhere, IPv6"
 msgstr "任意来源，IPv6"
-
-msgid "Can't tell"
-msgstr "无法判断"
 
 msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 msgstr "无法判断：Docker 没有响应，这可能是它发布的端口，而 {by} 不覆盖这类端口"
@@ -9447,9 +10538,6 @@ msgstr "nftables"
 msgid "nftables table {0}"
 msgstr "nftables 表 {0}"
 
-msgid "on {iface}"
-msgstr "经 {iface}"
-
 msgid "ufw"
 msgstr "ufw"
 
@@ -9535,9 +10623,6 @@ msgstr "请填写 1 到 65535 之间的端口，例如 443。"
 
 msgid "Nothing listens"
 msgstr "没有监听"
-
-msgid "Plan it"
-msgstr "生成计划"
 
 msgid "Removal waiting for Keep"
 msgstr "移除等待保留"
@@ -9645,6 +10730,7 @@ msgstr "已运行 {uptime}"
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
 
+#. placeholder {0}: apps.length
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, other {# 个应用}}"
@@ -10158,9 +11244,6 @@ msgstr "查询所得，{when}。这是它的出站地址，不一定能从这里
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "查询所得，{when}。这可能是你路由器的地址，只能出站，不能入站"
 
-msgid "No"
-msgstr "否"
-
 msgid "Not checked"
 msgstr "未检查"
 
@@ -10208,9 +11291,6 @@ msgstr "证书颁发机构无法通过 80 或 443 端口连接 {domain}，截至
 
 msgid "The cloud's metadata says so, {when}"
 msgstr "云服务商的元数据服务给出此地址，{when}"
-
-msgid "Yes"
-msgstr "是"
 
 msgid "{provider}'s metadata says so, {when}"
 msgstr "{provider} 的元数据服务给出此地址，{when}"
@@ -10401,9 +11481,6 @@ msgstr "目前需手动"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell 无法获知其控制平面的状态"
 
-msgid "Engine"
-msgstr "引擎"
-
 msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
 msgstr "要安装特定版本，请将结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
 
@@ -10573,12 +11650,6 @@ msgstr "Caddy，即服务器的入口，在服务器有路由期间占用 80 和
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell 自身，使用 {ca} 签发并由它续期的证书"
 
-msgid "HTTPS"
-msgstr "HTTPS"
-
-msgid "Language"
-msgstr "语言"
-
 msgid "Loopback"
 msgstr "本机回环"
 
@@ -10597,12 +11668,6 @@ msgstr "暂无：面板还没有域名"
 msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
 msgstr "只更改此浏览器。你的其他浏览器和命令行保持各自的设置。"
 
-msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
-msgstr "要获取证书，80 和 443 端口必须能访问到这台服务器；如果这台服务器的某条路由已在使用该域名，Dockwell 将无法启动。通行密钥属于创建它的地址，旧域名的通行密钥在新域名上不可用：请通过 SSH 在服务器上运行 <0>dockwell recover</0>，在新域名上打开它给出的链接，然后在那里添加通行密钥。"
-
-msgid "Run by hand, <0>dockwell run --domain …</0>."
-msgstr "手动运行时，使用 <0>dockwell run --domain …</0>。"
-
 msgid "Same as this browser ({browser})"
 msgstr "与此浏览器相同（{browser}）"
 
@@ -10618,29 +11683,17 @@ msgstr "面板显示语言"
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "显示在登录页和浏览器标签页上。"
 
-msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-msgstr "域名在 Dockwell 运行的地方以 <0>DOCKWELL_DOMAIN</0> 设置，并在启动时读取。请在那里修改并重启 Dockwell："
-
 msgid "This install"
 msgstr "此安装"
 
 msgid "Time zone"
 msgstr "时区"
 
-msgid "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
-msgstr "要通过你自己的域名以 HTTPS 访问面板，请将该域名的 DNS 指向这台服务器，在 Dockwell 运行的地方设置 <0>DOCKWELL_DOMAIN=panel.example.com</0>，然后重启："
-
 msgid "What this install is called, its time zone and how its panel is served"
 msgstr "此安装的名称、时区以及面板的访问方式"
 
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "此安装的名称、时区以及面板的访问方式 · 设置于 {since}"
-
-msgid "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
-msgstr "使用 OpenRC 时，在 <1>/etc/conf.d/dockwell</1> 中写入 <0>export DOCKWELL_DOMAIN=…</0>，然后运行 <2>sudo rc-service dockwell restart</2>。"
-
-msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
-msgstr "使用 systemd 时，用 <0>sudo systemctl edit dockwell</0> 添加 <1>Environment=DOCKWELL_DOMAIN=…</1> 这一行，然后运行 <2>sudo systemctl restart dockwell</2>。"
 
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
@@ -10729,35 +11782,99 @@ msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路�
 msgid "1 browser"
 msgstr "1 个浏览器"
 
+msgid "1 open invite"
+msgstr "1 个待接受的邀请"
+
 msgid "1 passkey"
 msgstr "1 个通行密钥"
 
-msgid "1 person signs in to this install, its owner · inviting others comes later"
-msgstr "1 人可以登录这个安装，即其所有者 · 邀请他人将在之后推出"
+msgid "1 person signs in to this install · {invitesWord}"
+msgstr "1 人可以登录这个安装 · {invitesWord}"
+
+msgid "1 person signs in to this install, its owner"
+msgstr "1 人可以登录这个安装，即其所有者"
 
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
-msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
-msgstr "目前一个安装只有一个人，即认领它的所有者，因为还没有任何机制能把管理员、开发者或查看者与所有者区分开。脚本和集成使用 API 令牌登录。<0>成员和角色需要什么</0>"
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+msgstr "开发者在受保护环境中的更改会等待管理员或所有者，由其使用通行密钥应用。请检查每个环境是否符合你的预期。这是一条提醒，在有其他人登录之前会一直显示：Dockwell 不会记录这个勾选。"
 
-msgid "Change the install's settings"
-msgstr "更改这个安装的设置"
+msgid "A project that's gone"
+msgstr "已不存在的项目"
 
-msgid "Deploy, and apply any plan"
-msgstr "部署，并应用任何计划"
+msgid "All projects"
+msgstr "所有项目"
+
+msgid "Apply in protected environments"
+msgstr "在受保护的环境中应用"
+
+msgid "Before anyone else signs in"
+msgstr "在其他人登录之前"
+
+msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
+msgstr "请先检查每个环境的保护设置，再勾选此框：它决定谁的更改需要等待。"
+
+msgid "Copy link"
+msgstr "复制链接"
+
+#. placeholder {0}: explain(environments.error)
+msgid "Dockwell can't list the environments: {0}"
+msgstr "Dockwell 无法列出环境：{0}"
 
 msgid "Dockwell can't say who signs in"
 msgstr "Dockwell 无法得知谁可以登录"
 
-msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
-msgstr "在每台服务器上拥有全部权限。管理员、开发者和查看者各自能看到和执行的更少，并按项目划分范围，将随成员功能推出。"
+msgid "Enter an email address, such as ada@example.com."
+msgstr "请输入电子邮件地址，例如 ada@example.com。"
+
+msgid "Environments"
+msgstr "环境"
+
+msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
+msgstr "有角色的人都能在自己的项目中查看应用、日志和活动。开发者在受保护环境中的计划需要等待管理员或所有者。"
+
+msgid "Expires"
+msgstr "过期时间"
+
+#. placeholder {0}: words.span(left >= DAY ? Math.round(left / DAY) * DAY : left)
+msgid "Expires in {0}"
+msgstr "{0}后过期"
 
 msgid "How you sign in"
 msgstr "你的登录方式"
 
-msgid "Inviting someone comes in a later release"
-msgstr "邀请他人将在之后的版本中推出"
+msgid "I've checked which environments are protected"
+msgstr "我已检查哪些环境受保护"
+
+msgid "In open environments"
+msgstr "在开放的环境中"
+
+msgid "Invite"
+msgstr "邀请"
+
+msgid "Invite by email"
+msgstr "通过电子邮件邀请"
+
+msgid "Invite people"
+msgstr "邀请他人"
+
+msgid "Invite people and change roles"
+msgstr "邀请他人并更改角色"
+
+msgid "Invite someone"
+msgstr "邀请他人"
+
+#. placeholder {0}: invite.invitedBy
+msgid "Invited by {0} {when}"
+msgstr "由 {0} 于{when}邀请"
+
+msgid "Invites need the panel's domain"
+msgstr "邀请需要面板的域名"
+
+#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
+msgid "It works once, until {0}, for whoever has it. Dockwell can't show it again."
+msgstr "它只能使用一次，有效期至 {0}，任何拿到链接的人都可以使用。Dockwell 无法再次显示它。"
 
 msgid "Last active"
 msgstr "上次活动"
@@ -10765,17 +11882,20 @@ msgstr "上次活动"
 msgid "Last resort"
 msgstr "最后手段"
 
+msgid "Link copied"
+msgstr "链接已复制"
+
+msgid "Loading the environments"
+msgstr "正在加载环境"
+
 msgid "Loading who signs in"
 msgstr "正在加载可以登录的人"
 
 msgid "Locked after too many wrong codes, until you lift it in Profile and security"
 msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
 
-msgid "Make and revoke API tokens"
-msgstr "创建和撤销 API 令牌"
-
-msgid "Manage servers and their files"
-msgstr "管理服务器及其文件"
+msgid "Make projects, manage servers and settings"
+msgstr "创建项目、管理服务器和设置"
 
 msgid "Member"
 msgstr "成员"
@@ -10785,6 +11905,15 @@ msgstr "成员"
 
 msgid "No way in that works now"
 msgstr "当前没有可用的登录方式"
+
+msgid "Nobody was invited"
+msgstr "未邀请任何人"
+
+msgid "Not accepted yet"
+msgstr "尚未接受"
+
+msgid "Not protected"
+msgstr "未受保护"
 
 msgid "Now"
 msgstr "现在"
@@ -10805,8 +11934,35 @@ msgstr "通行密钥和身份验证器应用"
 msgid "Permission"
 msgstr "权限"
 
-msgid "Read the audit log"
-msgstr "读取审计日志"
+msgid "Plan and apply in open environments"
+msgstr "在开放的环境中计划并应用"
+
+msgid "Projects"
+msgstr "项目"
+
+#. placeholder {0}: named(env)
+msgid "Protect {0}"
+msgstr "保护 {0}"
+
+msgid "Protect {where}"
+msgstr "保护 {where}"
+
+msgid "Read apps, plans, activity and logs"
+msgstr "查看应用、计划、活动和日志"
+
+msgid "Reveal a secret's value"
+msgstr "查看密钥的值"
+
+msgid "Revoke"
+msgstr "撤销"
+
+#. placeholder {0}: invite.email
+msgid "Revoke the invite for {0}"
+msgstr "撤销给 {0} 的邀请"
+
+#. placeholder {0}: sent.email
+msgid "Send this link to {0}"
+msgstr "把此链接发给 {0}"
 
 msgid "Sign-in"
 msgstr "登录"
@@ -10817,8 +11973,26 @@ msgstr "已登录于"
 msgid "Single sign-on"
 msgstr "单点登录"
 
-msgid "What the owner can do"
-msgstr "所有者可以做什么"
+msgid "Stop protecting {where}"
+msgstr "停止保护 {where}"
+
+msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
+msgstr "受邀者要在该域名上接受邀请，并在那里创建通行密钥，因为 SSH 隧道只属于你自己。请为服务设置 <0>DOCKWELL_DOMAIN</0> 后再邀请他人。"
+
+msgid "Their projects"
+msgstr "其项目"
+
+msgid "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
+msgstr "对方在 <0>{domain}</0> 上用通行密钥接受邀请。Dockwell 不会发送邮件：请把生成的链接发给对方。邀请时需要验证你的通行密钥。"
+
+msgid "Transfer ownership"
+msgstr "转移所有权"
+
+msgid "Up to admin"
+msgstr "最高到管理员"
+
+msgid "What each role can do"
+msgstr "各角色可以做什么"
 
 msgid "Who signs in"
 msgstr "谁可以登录"
@@ -10836,12 +12010,22 @@ msgstr "全部使用通行密钥登录"
 msgid "{0} browsers"
 msgstr "{0} 个浏览器"
 
+#. placeholder {0}: invites.length
+msgid "{0} open invites"
+msgstr "{0} 个待接受的邀请"
+
 #. placeholder {0}: m.passkeys
 msgid "{0} passkeys"
 msgstr "{0} 个通行密钥"
 
+msgid "{address} signs in here already."
+msgstr "{address} 已经可以登录这里。"
+
 msgid "{count} people sign in to this install"
 msgstr "{count} 人可以登录这个安装"
+
+msgid "{count} people sign in to this install · {invitesWord}"
+msgstr "{count} 人可以登录这个安装 · {invitesWord}"
 
 msgid "{keys} and an authenticator app"
 msgstr "{keys}和一个身份验证器应用"
@@ -10849,8 +12033,82 @@ msgstr "{keys}和一个身份验证器应用"
 msgid "{keys}, with codes locked"
 msgstr "{keys}，验证码登录已锁定"
 
+#. placeholder {0}: projectName(env.resource?.scope ?? "")
+msgid "{name} in {0}"
+msgstr "{0} 中的 {name}"
+
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{count} 人中有 {withPasskeys} 人使用通行密钥登录"
+
+msgid "Apps and websites keep running. It asks for your passkey."
+msgstr "应用和网站会继续运行。此操作需要验证你的通行密钥。"
+
+msgid "DNS doesn't point here yet"
+msgstr "DNS 尚未指向这里"
+
+msgid "Dockwell can't tell whether {domain} leads here"
+msgstr "Dockwell 无法判断 {domain} 是否指向这里"
+
+msgid "Dockwell restarts to answer on loopback alone. Apps and websites keep running…"
+msgstr "Dockwell 正在重启，之后只在本机回环上响应。应用和网站会继续运行…"
+
+#. placeholder {0}: restarting.to
+msgid "Dockwell restarts to serve {0}. Apps and websites keep running…"
+msgstr "Dockwell 正在重启以提供 {0}。应用和网站会继续运行…"
+
+msgid "Dockwell restarts to serve {domain}"
+msgstr "Dockwell 将重启以提供 {domain}"
+
+msgid "Getting a certificate for {domain}…"
+msgstr "正在为 {domain} 获取证书…"
+
+#. placeholder {0}: found.addresses.join(", ")
+msgid "It leads to {0}"
+msgstr "它指向 {0}"
+
+msgid "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
+msgstr "只要 DNS 指向这里，并且端口 80 和 443 能到达这台服务器，证书会自动获取。"
+
+msgid "Only the owner sets it."
+msgstr "只有所有者可以设置。"
+
+msgid "Open {domain}"
+msgstr "打开 {domain}"
+
+msgid "Passkeys belong to the address they were made on: open it, and add one there."
+msgstr "通行密钥属于创建它的地址：请打开该地址，并在那里添加一个。"
+
+msgid "Restart and serve it"
+msgstr "重启并提供它"
+
+msgid "Serve the panel there"
+msgstr "在此域名上提供面板"
+
+msgid "Stop using it"
+msgstr "停止使用"
+
+msgid "The panel answers on {domain}"
+msgstr "面板已在 {domain} 上响应"
+
+msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
+msgstr "面板也会通过 HTTPS 在那里响应。SSH 隧道仍可继续使用。"
+
+msgid "This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
+
+msgid "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
+msgstr "dockwell run 启动时已指定此域名（<0>DOCKWELL_DOMAIN</0> 或 <1>--domain</1>），它优先于设置。请在那里更改。"
+
+#. placeholder {0}: p.program
+#. placeholder {1}: p.port
+msgid "{0} holds port {1} on this server, so no certificate can come until it's freed."
+msgstr "{0} 占用了这台服务器的端口 {1}，在释放之前无法获取证书。"
+
+msgid "{domain} isn't served"
+msgstr "{domain} 未在提供"
+
+msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "{leads}。尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
 
 msgid "Account"
 msgstr "账户"
@@ -10887,9 +12145,6 @@ msgstr "Dockwell 无法列出你的令牌"
 
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "每次从新地址使用都会记入<0>审计日志</0>"
-
-msgid "Expires"
-msgstr "过期时间"
 
 msgid "Hide the token"
 msgstr "隐藏令牌"
@@ -10930,9 +12185,6 @@ msgstr "读取应用日志，其中常含有应用不该打印的内容。"
 
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
-
-msgid "Revoke"
-msgstr "撤销"
 
 #. placeholder {0}: token.name
 msgid "Revoke {0}"
@@ -11131,9 +12383,6 @@ msgstr "删除项目"
 msgid "Delete the project {projectName}"
 msgstr "删除项目 {projectName}"
 
-msgid "Environments"
-msgstr "环境"
-
 msgid "Finding your projects"
 msgstr "正在查找你的项目"
 
@@ -11184,9 +12433,6 @@ msgstr "会打开计划"
 
 msgid "Pages"
 msgstr "页面"
-
-msgid "Projects"
-msgstr "项目"
 
 msgid "Show the activity of {name}"
 msgstr "显示 {name} 的动态"
@@ -11289,9 +12535,6 @@ msgstr "（有未提交的修改）"
 
 msgid "Check it from a terminal"
 msgstr "在终端中检查"
-
-msgid "Commit"
-msgstr "提交"
 
 msgid "Committed"
 msgstr "提交时间"
@@ -12427,20 +13670,11 @@ msgstr "请选择它运行的服务器。"
 msgid "Go to the website"
 msgstr "前往该网站"
 
-msgid "Handled in front of this server"
-msgstr "由此服务器前面的服务处理"
-
 msgid "Name the domain, such as blog.example.com."
 msgstr "请填写域名，例如 blog.example.com。"
 
 msgid "New website"
 msgstr "新建网站"
-
-msgid "Off: plain HTTP to anyone"
-msgstr "关闭：对任何人使用普通 HTTP"
-
-msgid "On, with a certificate that comes by itself"
-msgstr "开启，证书自动签发"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "访问者通过 HTTPS 在其域名上访问它"
@@ -12464,11 +13698,18 @@ msgstr "提供的内容"
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> 运行的是 {0} 的旧构建"
 
+msgid "<0>{name}</0> runs an older build of {version}"
+msgstr "<0>{name}</0> 运行的是 {version} 的较旧构建"
+
 msgid "Build"
 msgstr "构建"
 
 msgid "Extensions"
 msgstr "扩展"
+
+#. placeholder {0}: newest.version
+msgid "New app on {language} {0}"
+msgstr "在 {language} {0} 上新建应用"
 
 #. placeholder {0}: runtime.version
 msgid "New website on {0}"
@@ -12477,18 +13718,20 @@ msgstr "用 {0} 新建网站"
 msgid "No website yet"
 msgstr "还没有网站"
 
-msgid "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
-msgstr "Node.js、Python 等其他语言以应用的形式运行，来自镜像或<0>应用目录</0>，并有自己的域名。"
-
 msgid "Not used"
 msgstr "未使用"
+
+msgid "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
+msgstr "其他语言以来自镜像或<0>应用目录</0>的应用运行，并有各自的域名。"
 
 msgid "Runtimes"
 msgstr "运行环境"
 
-#. placeholder {0}: runtime.release
-msgid "Update to {0}"
-msgstr "更新到 {0}"
+msgid "Update to {release}"
+msgstr "更新到 {release}"
+
+msgid "Update {name} to {language} {release}"
+msgstr "把 {name} 更新到 {language} {release}"
 
 #. placeholder {0}: runtime.release
 msgid "Update {name}'s PHP to {0}"
@@ -12501,11 +13744,8 @@ msgstr "{0, plural, other {# 个网站}}"
 msgid "{extra, plural, one {and # more} other {and # more}}"
 msgstr "{extra, plural, other {以及另外 # 个}}"
 
-msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-msgstr "{inUse, plural, other {# 个正在使用 · 每个 PHP 网站各自运行一个}}"
-
-msgid "{more, plural, one {and # more} other {and # more}}"
-msgstr "{more, plural, other {以及另外 # 个}}"
+msgid "{inUse, plural, one {# in use · each website and app runs its own} other {# in use · each website and app runs its own}}"
+msgstr "{inUse, plural, other {# 个在用 · 每个网站和应用各自运行自己的}}"
 
 msgid "Can't reach {host}"
 msgstr "无法访问 {host}"
@@ -12677,9 +13917,6 @@ msgstr "Web 服务器无法访问（{mode}），因此会返回 403。"
 msgid "Files in a folder"
 msgstr "文件夹中的文件"
 
-msgid "Folder"
-msgstr "文件夹"
-
 msgid "For a backend that serves several names. Off, it gets this website's domain."
 msgstr "适用于服务多个主机名的后端。关闭时，它收到此网站的域名。"
 
@@ -12706,9 +13943,6 @@ msgstr "交给 index.php，符合 WordPress 和 Laravel 的要求"
 
 msgid "Holds index.php, which only a PHP site runs."
 msgstr "包含 index.php，只有 PHP 网站才会运行它。"
-
-msgid "Holds {found}"
-msgstr "包含 {found}"
 
 msgid "Index files"
 msgstr "首页文件"
@@ -12758,12 +13992,6 @@ msgstr "PHP {0} · {1}"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
-
-msgid "Run as {theirs}"
-msgstr "以 {theirs} 运行"
-
-msgid "Runs as"
-msgstr "运行用户"
 
 msgid "Runs as {who} · {mb} MiB uploads"
 msgstr "以 {who} 运行 · 上传上限 {mb} MiB"
@@ -12833,9 +14061,6 @@ msgstr "{edited, plural, other {已更改 # 项}}"
 msgid "{index} · single-page app"
 msgstr "{index} · 单页应用"
 
-msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
-
 msgid "Change the folder"
 msgstr "更改文件夹"
 
@@ -12853,9 +14078,6 @@ msgstr "权限"
 
 msgid "No folder of its own"
 msgstr "没有自己的文件夹"
-
-msgid "Open in Files"
-msgstr "在“文件”中打开"
 
 msgid "The folder is empty"
 msgstr "文件夹是空的"

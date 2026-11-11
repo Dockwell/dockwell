@@ -477,20 +477,22 @@ export function nameFromImage(image: string): string {
 /** Something a service runs with, by the name it sees. */
 export interface ServiceValue {
   name: string;
-  /** Its environment's variable or secret, or its spec's own. */
-  kind: "variable" | "secret" | "own";
+  /** Its environment's variable or secret, its spec's own, or what its runtime gives it (ADR 0058). */
+  kind: "variable" | "secret" | "own" | "runtime";
   /** What its environment calls it: a service can see one under another name. */
   from: string;
 }
 
 /** What a service runs with, sorted. No API response holds a secret's value. */
-export function valuesOf(service: ServiceInfo): ServiceValue[] {
+export function valuesOf(service: ServiceInfo, fromRuntime?: ReadonlySet<string>): ServiceValue[] {
   const used = (kind: "variable" | "secret", names: { [name: string]: string } | undefined): ServiceValue[] =>
     Object.entries(names ?? {}).map(([name, from]) => ({ name, kind, from: from || name }));
   return [
     ...used("variable", service.spec?.variables),
     ...used("secret", service.spec?.secrets),
-    ...Object.keys(appOf(service)?.env ?? {}).map((name): ServiceValue => ({ name, kind: "own", from: name })),
+    ...Object.keys(appOf(service)?.env ?? {}).map(
+      (name): ServiceValue => ({ name, kind: fromRuntime?.has(name) ? "runtime" : "own", from: name }),
+    ),
   ].sort((a, b) => a.name.localeCompare(b.name));
 }
 

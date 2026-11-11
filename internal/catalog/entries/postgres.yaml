@@ -20,7 +20,7 @@ screenshots:
     source: https://www.adminer.org/static/screenshots/table.webp
 category: databases
 version: "17.11"
-release: 3
+release: 4
 homepage: https://www.postgresql.org
 license: AGPL-3.0-only
 appLicense: PostgreSQL
@@ -29,15 +29,15 @@ source:
   path: internal/catalog/entries/postgres.yaml
 web:
   service: adminer
-firstSteps: >-
-  Adminer answers over plain HTTP, so signing in from outside this server sends the
-  database's password in clear. Add a domain first, or reach it another way, such as
-  a VPN or an SSH tunnel. Then open Adminer and choose PostgreSQL as its system. Sign
-  in to server db as user postgres, with the password in the POSTGRES_PASSWORD secret.
+signIn:
+  user: "postgres"
+  passwordInput: "POSTGRES_PASSWORD"
+  server: "db"
+notes:
+  - "Choose PostgreSQL as Adminer's system."
 inputs:
   - name: ADMIN_PORT
     label: Adminer port
-    hint: You open Adminer on this port of the server. It asks for the database's password.
     type: INPUT_TYPE_PORT
     defaultValue: "8081"
   - name: POSTGRES_PASSWORD

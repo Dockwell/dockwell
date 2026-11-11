@@ -38,6 +38,12 @@ const (
 	// FirewallServiceGetServerFirewallProcedure is the fully-qualified name of the FirewallService's
 	// GetServerFirewall RPC.
 	FirewallServiceGetServerFirewallProcedure = "/dockwell.v1.FirewallService/GetServerFirewall"
+	// FirewallServiceGetServerSshProcedure is the fully-qualified name of the FirewallService's
+	// GetServerSsh RPC.
+	FirewallServiceGetServerSshProcedure = "/dockwell.v1.FirewallService/GetServerSsh"
+	// FirewallServiceGetServerFail2BanProcedure is the fully-qualified name of the FirewallService's
+	// GetServerFail2ban RPC.
+	FirewallServiceGetServerFail2BanProcedure = "/dockwell.v1.FirewallService/GetServerFail2ban"
 )
 
 // FirewallServiceClient is a client for the dockwell.v1.FirewallService service.
@@ -52,6 +58,20 @@ type FirewallServiceClient interface {
 	// the whole server's, not a project's, so reading it is an admin's (ADR
 	// 0049), as reading its updates is.
 	GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error)
+	// GetServerSsh reads, through the server's agent, how SSH lets people in: the
+	// values sshd's files say, with sshd -T, which file sets each, the
+	// Match blocks that may set them otherwise for some, and whether sshd_config
+	// includes the drop-in folder Dockwell would write to. Reading it changes
+	// nothing. How SSH lets people in is the whole server's, so reading it is an
+	// admin's (ADR 0049), as reading its firewall is.
+	GetServerSsh(context.Context, *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error)
+	// GetServerFail2ban reads, through the server's agent, what fail2ban does:
+	// whether it's installed and running, each jail as fail2ban says it runs,
+	// and the addresses each has banned now, through fail2ban-client. Reading it
+	// changes nothing. fail2ban is the whole server's, and its bans name the
+	// addresses of people who tried to sign in, so reading it is an admin's (ADR
+	// 0049).
+	GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error)
 }
 
 // NewFirewallServiceClient constructs a client for the dockwell.v1.FirewallService service. By
@@ -72,17 +92,43 @@ func NewFirewallServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		getServerSsh: connect.NewClient[v1.GetServerSshRequest, v1.GetServerSshResponse](
+			httpClient,
+			baseURL+FirewallServiceGetServerSshProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("GetServerSsh")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getServerFail2Ban: connect.NewClient[v1.GetServerFail2BanRequest, v1.GetServerFail2BanResponse](
+			httpClient,
+			baseURL+FirewallServiceGetServerFail2BanProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("GetServerFail2ban")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // firewallServiceClient implements FirewallServiceClient.
 type firewallServiceClient struct {
 	getServerFirewall *connect.Client[v1.GetServerFirewallRequest, v1.GetServerFirewallResponse]
+	getServerSsh      *connect.Client[v1.GetServerSshRequest, v1.GetServerSshResponse]
+	getServerFail2Ban *connect.Client[v1.GetServerFail2BanRequest, v1.GetServerFail2BanResponse]
 }
 
 // GetServerFirewall calls dockwell.v1.FirewallService.GetServerFirewall.
 func (c *firewallServiceClient) GetServerFirewall(ctx context.Context, req *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error) {
 	return c.getServerFirewall.CallUnary(ctx, req)
+}
+
+// GetServerSsh calls dockwell.v1.FirewallService.GetServerSsh.
+func (c *firewallServiceClient) GetServerSsh(ctx context.Context, req *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error) {
+	return c.getServerSsh.CallUnary(ctx, req)
+}
+
+// GetServerFail2Ban calls dockwell.v1.FirewallService.GetServerFail2ban.
+func (c *firewallServiceClient) GetServerFail2Ban(ctx context.Context, req *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error) {
+	return c.getServerFail2Ban.CallUnary(ctx, req)
 }
 
 // FirewallServiceHandler is an implementation of the dockwell.v1.FirewallService service.
@@ -97,6 +143,20 @@ type FirewallServiceHandler interface {
 	// the whole server's, not a project's, so reading it is an admin's (ADR
 	// 0049), as reading its updates is.
 	GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error)
+	// GetServerSsh reads, through the server's agent, how SSH lets people in: the
+	// values sshd's files say, with sshd -T, which file sets each, the
+	// Match blocks that may set them otherwise for some, and whether sshd_config
+	// includes the drop-in folder Dockwell would write to. Reading it changes
+	// nothing. How SSH lets people in is the whole server's, so reading it is an
+	// admin's (ADR 0049), as reading its firewall is.
+	GetServerSsh(context.Context, *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error)
+	// GetServerFail2ban reads, through the server's agent, what fail2ban does:
+	// whether it's installed and running, each jail as fail2ban says it runs,
+	// and the addresses each has banned now, through fail2ban-client. Reading it
+	// changes nothing. fail2ban is the whole server's, and its bans name the
+	// addresses of people who tried to sign in, so reading it is an admin's (ADR
+	// 0049).
+	GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error)
 }
 
 // NewFirewallServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -113,10 +173,28 @@ func NewFirewallServiceHandler(svc FirewallServiceHandler, opts ...connect.Handl
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	firewallServiceGetServerSshHandler := connect.NewUnaryHandler(
+		FirewallServiceGetServerSshProcedure,
+		svc.GetServerSsh,
+		connect.WithSchema(firewallServiceMethods.ByName("GetServerSsh")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	firewallServiceGetServerFail2BanHandler := connect.NewUnaryHandler(
+		FirewallServiceGetServerFail2BanProcedure,
+		svc.GetServerFail2Ban,
+		connect.WithSchema(firewallServiceMethods.ByName("GetServerFail2ban")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.FirewallService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FirewallServiceGetServerFirewallProcedure:
 			firewallServiceGetServerFirewallHandler.ServeHTTP(w, r)
+		case FirewallServiceGetServerSshProcedure:
+			firewallServiceGetServerSshHandler.ServeHTTP(w, r)
+		case FirewallServiceGetServerFail2BanProcedure:
+			firewallServiceGetServerFail2BanHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -128,4 +206,12 @@ type UnimplementedFirewallServiceHandler struct{}
 
 func (UnimplementedFirewallServiceHandler) GetServerFirewall(context.Context, *connect.Request[v1.GetServerFirewallRequest]) (*connect.Response[v1.GetServerFirewallResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.GetServerFirewall is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) GetServerSsh(context.Context, *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.GetServerSsh is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.GetServerFail2ban is not implemented"))
 }

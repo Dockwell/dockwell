@@ -1,0 +1,9 @@
+Status for the jail: nginx-http-auth
+|- Filter
+|  |- Currently failed:	0
+|  |- Total failed:	3
+|  `- File list:	/var/log/nginx/error.log
+`- Actions
+   |- Currently banned:	1
+   |- Total banned:	1
+   `- Banned IP list:	203.0.113.50

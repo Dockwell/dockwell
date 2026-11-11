@@ -24,6 +24,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -35,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/processes"
+	"github.com/dockwell/dockwell/internal/control/reconciled"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/tasks"
 	"github.com/dockwell/dockwell/internal/control/terminals"
@@ -99,7 +101,8 @@ const fileDownload = "file.download"
 var (
 	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
-		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed,
+		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
+		reconciled.ActionMade, reconciled.ActionStarted, reconciled.ActionWaiting, reconciled.ActionDropped,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites)
@@ -121,7 +124,10 @@ var (
 		"secret.reveal", "secrets.rotate_key",
 		// A test of a destination's keys, before any plan: who tried which storage.
 		backups.ActionTestDestination,
+		// An app opened through the panel, which is as much as a secret revealed (ADR 0061).
+		"service.open",
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
+		"member.invite", "member.invite_revoke", "member.join",
 	}
 )
 
@@ -590,6 +596,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		if told, ok := backups.ReadTold(a.Detail); ok {
 			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error, e.Backup.Destination = told.ID, told.Volume, told.Size, told.Error, told.Destination
 			e.Backup.Method = resourcepb.BackupMethod(told.Method)
+			e.Backup.Drill = backups.DrillResult(told.Drill)
 		}
 		return e
 	}
@@ -625,6 +632,15 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
 	}
+	if strings.HasPrefix(a.Action, "member.") {
+		// Who, with what role, where (ADR 0049): only internal/auth writes these.
+		if m, ok := auth.ReadMemberDetail(a.Detail); ok {
+			e.Member = &dockwellv1.EventMember{Email: m.Email, Name: m.Name, Role: authapi.RoleProto(m.Role), ProjectId: m.Project, Address: m.From}
+			if m.Project != store.Install {
+				e.Member.ProjectName = look.Name(m.Project)
+			}
+		}
+	}
 	if setting, ok := settings.ReadEvent(a.Action, a.Detail); ok {
 		e.Kind, e.Setting = dockwellv1.EventKind_EVENT_KIND_SETTINGS, setting
 	}
@@ -638,6 +654,26 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	if strings.HasPrefix(a.Action, "process.") {
 		if d, ok := processes.ReadDetail(a.Detail); ok {
 			e.Process = d
+		}
+	}
+	if a.Action == revision.ActionDesiredSent || a.Action == revision.ActionDesiredUnknown {
+		// Its detail leaves the store as counts: only the engine writes it, and it
+		// holds no value, no spec, and the cache's ID stays behind.
+		if sent, ok := revision.ReadDesiredSent(a.Detail); ok {
+			e.DesiredSent = &dockwellv1.EventDesiredSent{
+				Resources: uint32(max(sent.Resources, 0)), WithValues: uint32(max(sent.WithValues, 0)), Unknown: uint32(max(sent.Unknown, 0)), //nolint:gosec // counts of resources
+				NewCache: sent.NewCache, FirstCache: sent.FirstCache, ServerName: look.Name(a.Target),
+			}
+		}
+	}
+	if slices.Contains(reconciled.Actions, a.Action) {
+		// What a server's agent did on its own, which internal/control/reconciled
+		// made fit to show before it kept it.
+		if told, ok := reconciled.ReadTold(a.Detail); ok {
+			e.Reconciled = &dockwellv1.EventReconciled{
+				ServerName: look.Name(a.Target), Kind: told.Kind, Name: told.Name, Reason: told.Reason,
+				Dropped: uint32(max(told.Dropped, 0)), //nolint:gosec // at most 1<<20
+			}
 		}
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {

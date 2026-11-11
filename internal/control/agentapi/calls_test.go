@@ -26,6 +26,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
@@ -87,12 +88,18 @@ func (g *gate) stopped() error {
 // and waits until the control plane can reach it.
 func runAgent(t *testing.T, s *stack, id *enroll.Identity, drivers *resource.Registry) (stop func()) {
 	t.Helper()
+	return runKeepingAgent(t, s, id, drivers, nil)
+}
+
+// runKeepingAgent is runAgent with a cache of desired state, or none if kept is nil.
+func runKeepingAgent(t *testing.T, s *stack, id *enroll.Identity, drivers *resource.Registry, kept agent.Desired) (stop func()) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
 		_ = agent.Run(ctx, agent.Config{
 			Logger: slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: id, Build: buildinfo.Read(),
-			Collector: fakeCollector(), Drivers: drivers,
+			Collector: fakeCollector(), Drivers: drivers, Desired: kept,
 		})
 		close(done)
 	}()
@@ -431,6 +438,182 @@ type fixedValues map[string]string
 
 func (v fixedValues) Values(context.Context, string, resource.Ref, proto.Message) (map[string]string, error) {
 	return maps.Clone(v), nil
+}
+
+// An agent keeps what each step leaves, with the step's values and revision; its
+// hello says what it keeps, after a restart too; and the control plane can have it
+// keep what runs, sealed to the stream as a step's values are, but never put an
+// older revision over a later one (ADR 0054).
+func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	s.agents.SendValues(fixedValues{"TOKEN": "kept-s3cret"})
+	dir := t.TempDir()
+	store, err := desired.Open(dir, id.ServerID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drivers := resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: containertest.NewFake()}})
+	stop := runKeepingAgent(t, s, id, drivers, store)
+	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	if held, cache, keeps := session.Holds(); !keeps || len(held) != 0 || cache == "" || cache != store.Holds().GetCache() {
+		t.Fatalf("a new agent's hello says it keeps %v in %q, %t; want nothing, in its cache, and that it keeps", held, cache, keeps)
+	}
+	web := resource.Ref{Kind: service.Kind, Scope: "env_01JD6Z3R8M9QF2K7T4XW5BNC0V", Name: "web"}
+	svc := &resourcev1.Service{
+		Runs:      &resourcev1.Service_App{App: &resourcev1.Container{Image: "acme/web:1"}},
+		Secrets:   map[string]string{"TOKEN": "API_TOKEN"},
+		Revisions: map[string]int64{"TOKEN": 1},
+	}
+	if err := (&service.Driver{}).Validate(svc); err != nil {
+		t.Fatal(err)
+	}
+	ctx := resource.WithDeploy(t.Context(), resource.Deploy{Revision: 2, Change: "chg_2"})
+	if err := session.Apply(ctx, resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}, svc); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := store.Read(web)
+	if err != nil || !ok || got.Revision != 2 || got.Change != "chg_2" || got.Values["TOKEN"] != "kept-s3cret" {
+		t.Fatalf("after the step it keeps %+v, %v, %v", got, ok, err)
+	}
+	// The session knows it too, so a fill on this stream doesn't send it again.
+	if held, _, _ := session.Holds(); held[web] != 2 {
+		t.Fatalf("after the step the session says it keeps %v, want web at 2", held)
+	}
+
+	// A restart: the next hello says what it keeps.
+	stop()
+	waitForAgent(t, s.agents, id.ServerID, false)
+	if store, err = desired.Open(dir, id.ServerID, nil); err != nil {
+		t.Fatal(err)
+	}
+	runKeepingAgent(t, s, id, drivers, store)
+	session = waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	if held, _, keeps := session.Holds(); !keeps || held[web] != 2 {
+		t.Fatalf("after a restart its hello says it keeps %v, %t; want web at 2", held, keeps)
+	}
+	s.agents.SendValues(fixedValues{"TOKEN": "rotated"})
+	if kept, err := session.Remember(t.Context(), web, svc, 3, "chg_3", ""); err != nil || !kept {
+		t.Fatalf("remembering revision 3 = %t, %v; want it kept", kept, err)
+	}
+	if kept, err := session.Remember(t.Context(), web, svc, 1, "chg_1", ""); err != nil || kept {
+		t.Fatalf("remembering revision 1 over 3 = %t, %v; want it answered, and not kept", kept, err)
+	}
+	if got, _, err := store.Read(web); err != nil || got.Revision != 3 || got.Change != "chg_3" || got.Values["TOKEN"] != "rotated" {
+		t.Errorf("it keeps %+v, %v; want revision 3 with the rotated value", got, err)
+	}
+	if held, _, _ := session.Holds(); held[web] != 3 {
+		t.Errorf("after remembering 3 the session says it keeps %v", held)
+	}
+	// Forgetting goes only at the revision the control plane saw.
+	if gone, err := session.Forget(t.Context(), web, 2); err != nil || gone {
+		t.Fatalf("forgetting at 2 = %t, %v; want it answered, and kept", gone, err)
+	}
+	if gone, err := session.Forget(t.Context(), web, 3); err != nil || !gone {
+		t.Fatalf("forgetting at 3 = %t, %v", gone, err)
+	}
+	if held, _, _ := session.Holds(); len(held) != 0 {
+		t.Errorf("after forgetting it the session says it keeps %v", held)
+	}
+	if _, ok, err := store.Read(web); ok || err != nil {
+		t.Errorf("the agent still keeps it: %v, %v", ok, err)
+	}
+}
+
+// What only the control plane keeps of a spec, such as how an app from a folder was
+// made (ADR 0058), never reaches the agent's keeping: what it keeps is what its step
+// ran, so the agent puts back the same container while the control plane is away.
+func TestAnAgentKeepsAnAppFromAFolderAsItRuns(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	store, err := desired.Open(t.TempDir(), id.ServerID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drivers := resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: containertest.NewFake()}})
+	runKeepingAgent(t, s, id, drivers, store)
+	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	shop := resource.Ref{Kind: service.Kind, Scope: "env_01JD6Z3R8M9QF2K7T4XW5BNC0V", Name: "shop"}
+	svc := &resourcev1.Service{
+		Runtime: &resourcev1.Runtime{Language: "node", Version: "24", Folder: "/srv/shop", User: "1001:1001"},
+		Runs:    &resourcev1.Service_App{App: &resourcev1.Container{}},
+	}
+	if err := (&service.Driver{}).Validate(svc); err != nil {
+		t.Fatal(err)
+	}
+	if svc.GetRuntime() == nil || svc.GetApp().GetImage() == "" {
+		t.Fatalf("the runtime didn't write the app: %v", svc)
+	}
+	if kept, err := session.Remember(t.Context(), shop, svc, 1, "chg_1", ""); err != nil || !kept {
+		t.Fatalf("remembering it = %t, %v; want it kept", kept, err)
+	}
+	got, ok, err := store.Read(shop)
+	if err != nil || !ok {
+		t.Fatalf("it keeps nothing of shop: %v, %v", ok, err)
+	}
+	kept := &resourcev1.Service{}
+	if err := proto.Unmarshal(got.Spec, kept); err != nil {
+		t.Fatal(err)
+	}
+	if kept.GetRuntime() != nil || kept.GetApp().GetImage() != svc.GetApp().GetImage() || kept.GetApp().GetWorkingDir() != "/app" {
+		t.Errorf("the agent keeps %v; want the app as it runs, with no runtime", kept)
+	}
+	if svc.GetRuntime() == nil {
+		t.Error("remembering it took the runtime off the control plane's copy")
+	}
+}
+
+// A step that passes but can't be kept leaves the session saying the agent lacks
+// it, so the next fill sends it again.
+func TestAStepThatCantBeKeptIsLacking(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	dir := t.TempDir()
+	store, err := desired.Open(dir, id.ServerID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runKeepingAgent(t, s, id, resource.NewRegistry(&container.Driver{Runtime: containertest.NewFake()}), store)
+	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	web := resource.Ref{Kind: container.Kind, Scope: id.ServerID, Name: "web"}
+	spec := &resourcev1.Container{Image: "nginx:1.27"}
+	step := func(revision int) {
+		t.Helper()
+		ctx := resource.WithDeploy(t.Context(), resource.Deploy{Revision: revision, Change: "chg"})
+		if err := session.Apply(ctx, resource.Step{Ref: web, Decision: resource.Decision{Action: resource.ActionCreate}}, spec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	step(1)
+	if held, _, _ := session.Holds(); held[web] != 1 {
+		t.Fatalf("after the first step the session says %v", held)
+	}
+	records, _ := filepath.Glob(filepath.Join(dir, desired.Folder, "*.rec"))
+	if len(records) != 1 {
+		t.Fatalf("records %v", records)
+	}
+	// Nothing can be renamed over a folder, so the next record can't be written.
+	if err := os.Remove(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(records[0], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	step(2)
+	if held, _, _ := session.Holds(); len(held) != 0 {
+		t.Errorf("after a step that couldn't be kept the session says %v, want nothing", held)
+	}
+}
+
+// An agent with no cache says so by saying nothing, and is sent nothing to keep.
+func TestAnAgentThatKeepsNothingSaysSo(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	runAgent(t, s, id, resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: containertest.NewFake()}}))
+	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	if held, cache, keeps := session.Holds(); keeps || held != nil || cache != "" {
+		t.Errorf("an agent with no cache: %v in %q, %t; want nothing kept, and that it keeps none", held, cache, keeps)
+	}
 }
 
 // Values are sealed to one stream's delivery key, which the agent drops
@@ -886,9 +1069,9 @@ type planSeeing struct {
 	rollback atomic.Bool
 }
 
-func (d *planSeeing) Judge(ctx context.Context, _ resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+func (d *planSeeing) Judge(ctx context.Context, _ resource.Ref, actual, want proto.Message, changes []resource.Change) (resource.Decision, error) {
 	d.rollback.Store(resource.DeployOf(ctx).Rollback)
-	return d.Plan(actual, desired, changes)
+	return d.Plan(actual, want, changes)
 }
 
 // What a rollback may take, and that a step is only finishing, are said over the stream
@@ -1486,21 +1669,28 @@ func TestAnOlderAgentIsToUpdate(t *testing.T) {
 	if !ok {
 		t.Fatal("no session")
 	}
-	done := make(chan error, 1)
-	go func() {
-		_, err := session.Firewall(t.Context())
-		done <- err
-	}()
-	msg, err := nextCall(stream)
-	if err != nil || msg.GetCall().GetFirewall() == nil {
-		t.Fatalf("the control plane sent %v, %v, want a firewall read", msg, err)
+	reads := map[string]struct {
+		read func() error
+		is   func(*agentv1.Call) bool
+	}{
+		"firewall": {func() error { _, err := session.Firewall(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetFirewall() != nil }},
+		"ssh":      {func() error { _, err := session.SSH(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetSsh() != nil }},
+		"fail2ban": {func() error { _, err := session.Fail2ban(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetFail2Ban() != nil }},
 	}
-	if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
-		Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "this agent doesn't know that call; update it to the control plane's version"}},
-	}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-done; !errors.Is(err, agentapi.ErrAgentOutdated) {
-		t.Errorf("an older agent's answer reads as %v", err)
+	for name, r := range reads {
+		done := make(chan error, 1)
+		go func() { done <- r.read() }()
+		msg, err := nextCall(stream)
+		if err != nil || !r.is(msg.GetCall()) {
+			t.Fatalf("the control plane sent %v, %v, want a %s read", msg, err, name)
+		}
+		if err := stream.Send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Result{Result: &agentv1.CallResult{
+			Id: msg.GetCall().GetId(), Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: "this agent doesn't know that call; update it to the control plane's version"}},
+		}}}); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; !errors.Is(err, agentapi.ErrAgentOutdated) {
+			t.Errorf("an older agent's answer to a %s read reads as %v", name, err)
+		}
 	}
 }

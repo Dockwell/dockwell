@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { clone, create } from "@bufbuild/protobuf";
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
-import { type Backup, BackupCopy, BackupMethod, BackupService, BackupState } from "@dockwell/api";
+import {
+  type Backup,
+  BackupCopy,
+  BackupMethod,
+  BackupPolicy_Drill,
+  type BackupPolicyInfo,
+  BackupPolicySchema,
+  BackupService,
+  BackupState,
+  ChangeService,
+  DrillResult,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
+  cx,
   Panel,
   PHONE_QUERY,
   SelectField,
@@ -81,6 +94,7 @@ export function BackupsPage() {
       ) : null}
       <div className="backups-columns">
         <div className="backups-main">
+          <UncheckedSchedules policies={policies} />
           {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
           {query.isPending ? null : backups.length === 0 ? (
             <Panel>
@@ -133,6 +147,35 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
   const [deleting, setDeleting] = useState<Backup>();
   const [choosing, setChoosing] = useState<Backup>();
   const [bringBackFailure, setBringBackFailure] = useState<string>();
+  // A check in flight, and why one was refused, each on its own row.
+  const [checking, setChecking] = useState<ReadonlySet<string>>(new Set());
+  const [refused, setRefused] = useState<ReadonlyMap<string, string>>(new Map());
+  const listed = () =>
+    queries.invalidateQueries({
+      queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+    });
+  // A drill runs on its server and says how it went on the backup's row (ADR 0068).
+  const check = async (backup: Backup) => {
+    if (checking.has(backup.id)) return;
+    setChecking((was) => new Set(was).add(backup.id));
+    setRefused((was) => {
+      const next = new Map(was);
+      next.delete(backup.id);
+      return next;
+    });
+    try {
+      await client.drillBackup({ id: backup.id });
+      await listed();
+    } catch (error) {
+      setRefused((was) => new Map(was).set(backup.id, sentence(error)));
+    } finally {
+      setChecking((was) => {
+        const next = new Set(was);
+        next.delete(backup.id);
+        return next;
+      });
+    }
+  };
   const restore = (backup: Backup) => {
     sheet.open({ kind: "plan", make: () => client.restoreBackup({ id: backup.id }) });
   };
@@ -161,6 +204,9 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
         onRestore={restore}
         onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
         onDelete={setDeleting}
+        onCheck={(b) => void check(b)}
+        checking={checking}
+        refused={refused}
       />
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
       {choosing ? (
@@ -180,12 +226,18 @@ function BackupsList({
   onRestore,
   onFetch,
   onDelete,
+  onCheck,
+  checking,
+  refused,
 }: {
   backups: readonly Backup[];
   caption: string;
   onRestore: (backup: Backup) => void;
   onFetch: (backup: Backup) => void;
   onDelete: (backup: Backup) => void;
+  onCheck: (backup: Backup) => void;
+  checking: ReadonlySet<string>;
+  refused: ReadonlyMap<string, string>;
 }) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -220,6 +272,17 @@ function BackupsList({
         <span className="backup-why">{t`To fetch it, put ${b.volume} on a connected server first`}</span>
       ) : null}
       {b.fetchError ? <span className="backup-why">{t`It couldn't be fetched: ${b.fetchError}`}</span> : null}
+      <DrillLine
+        backup={b}
+        // Only a whole backup its server has now can be checked there.
+        onCheck={b.onServer && b.state === BackupState.DONE ? () => onCheck(b) : undefined}
+        pending={checking.has(b.id)}
+      />
+      {refused.get(b.id) ? (
+        <span className="backup-why is-failed" role="alert">
+          {t`Can't check it now: ${refused.get(b.id)}`}
+        </span>
+      ) : null}
       {b.copy === BackupCopy.PENDING ? <span className="backup-why">{t`Sending to ${b.destination}`}</span> : null}
       {b.copy === BackupCopy.FAILED ? (
         <span className="backup-why">{t`It didn't reach ${b.destination}: ${b.copyError}`}</span>
@@ -448,5 +511,100 @@ function DeleteSheet({
         ) : null}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * How a backup's newest restore drill went, in a line (ADR 0068): restored and
+ * checked, unpacked whole, failed with what failed, or not checked with why, which
+ * says nothing of the backup.
+ */
+function DrillLine({ backup, onCheck, pending }: { backup: Backup; onCheck?: () => void; pending?: boolean }) {
+  const { t } = useLingui();
+  const time = useTimeWords();
+  // An action on what you can see stays where it is, off, with why (ADR 0059).
+  const may = useMay();
+  const drill = backup.drill;
+  const check = (label: string) =>
+    onCheck ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="backup-drill-action"
+        onClick={onCheck}
+        loading={pending}
+        {...may(BackupService.method.drillBackup, { environment: backup.environmentId }).off}
+      >
+        {label}
+      </Button>
+    ) : null;
+  if (!drill) return onCheck ? <span className="backup-why backup-drill">{check(t`Check it restores`)}</span> : null;
+  const ago = drill.finishedAt ? time.ago(timestampDate(drill.finishedAt), Date.now()) : "";
+  const why = drill.why.replace(/\.$/, "");
+  const again = check(t`Check again`);
+  // What it says is two lines at most, whole on hover, and its action stays in sight after it.
+  const said = (text: string, failed = false) => (
+    <span className={cx("backup-why", "backup-drill", failed && "is-failed")}>
+      <span className="backup-drill-said" title={text}>
+        {text}
+      </span>
+      {again}
+    </span>
+  );
+  switch (drill.result) {
+    case DrillResult.RUNNING:
+      return <span className="backup-why backup-drill">{t`Checking it restores`}</span>;
+    case DrillResult.PASSED:
+      return said(drill.unpackedOnly ? t`Unpacked whole ${ago}` : t`Restored and checked ${ago}`);
+    case DrillResult.FAILED:
+      return said(t`Restore check failed ${ago}: ${why}`, true);
+  }
+  return said(t`Not checked: ${why}`);
+}
+
+/**
+ * Schedules made before restore drills check none (ADR 0068). One button plans
+ * weekly checks for all of them, for a person to review and apply; nothing turns
+ * them on by itself, as a check costs disk and time their owner didn't plan for.
+ */
+function UncheckedSchedules({ policies }: { policies: readonly BackupPolicyInfo[] }) {
+  const sheet = useChangeSheet();
+  const may = useMay();
+  const unchecked = policies.filter((p) => p.spec && p.spec.drill === BackupPolicy_Drill.UNSPECIFIED);
+  if (unchecked.length === 0) return null;
+  const plan = () =>
+    sheet.open({
+      kind: "propose",
+      summary: plural(unchecked.length, {
+        one: "Check a restore of # schedule's backups weekly",
+        other: "Check a restore of # schedules' backups weekly",
+      }),
+      edits: unchecked.map((p) => {
+        // The whole policy as it is, but its check.
+        const value = clone(BackupPolicySchema, p.spec ?? create(BackupPolicySchema));
+        value.drill = BackupPolicy_Drill.WEEKLY;
+        return {
+          resource: { kind: "backup.policy", scope: p.environmentId, name: p.name },
+          spec: { kind: { case: "backupPolicy" as const, value } },
+        };
+      }),
+    });
+  return (
+    <Callout
+      tone="info"
+      title={plural(unchecked.length, {
+        one: "# schedule never checks a restore",
+        other: "# schedules never check a restore",
+      })}
+      actions={
+        <Button
+          size="sm"
+          onClick={plan}
+          {...may(ChangeService.method.proposeChange, { environment: unchecked[0]?.environmentId ?? "" }).off}
+        >
+          <Trans>Check weekly</Trans>
+        </Button>
+      }
+    />
   );
 }

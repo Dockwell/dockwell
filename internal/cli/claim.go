@@ -399,7 +399,7 @@ func newRecoverCmd(stdio IO, g *globalFlags) *cobra.Command {
 		Short: "Print a one-time sign-in link, for when you lost your passkey",
 		Long: "Prints a link that signs you in once, without a passkey or a code, and expires in " + human.Duration(auth.SignInLinkTTL) +
 			". It replaces any earlier link for the same person. Use it to add a passkey after losing yours, " +
-			"or for a new address after adding a domain.\n\n" +
+			"or for a new address after adding a domain. When a domain set in the panel doesn't answer, dockwell panel-domain --clear stops using it.\n\n" +
 			"Run it on the control server, as the user that runs dockwell: with sudo, when it runs as the system service. Anyone who can run it already controls this server.",
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

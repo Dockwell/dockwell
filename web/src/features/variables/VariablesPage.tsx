@@ -5,6 +5,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   type EditSchema,
   type EnvironmentVariable,
   ListVariablesResponseSchema,
@@ -38,6 +39,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { RevealsProvider, useReveal, useReveals } from "./useReveal";
 import "./VariablesPage.css";
+import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 
 /** A name a process's environment takes, as the control plane checks it. */
@@ -136,6 +138,7 @@ export function VariablesPage({ environment, onEnvironment }: VariablesPageProps
   const [editing, setEditing] = useState<EnvironmentVariable>();
   // Kept here, so a value revealed stays revealed when the layout changes, as when a phone turns.
   const reveals = useReveals(chosen?.id);
+  const may = useMay();
   const envName = chosen ? environmentLabel(chosen, projects) : "";
   const variables = list.data?.variables ?? [];
   const secrets = variables.filter((v) => v.secret).length;
@@ -178,13 +181,16 @@ export function VariablesPage({ environment, onEnvironment }: VariablesPageProps
           </div>
 
           {chosen ? (
-            <ValueForm
-              key={editing ? `${editing.id}:${editing.revision}` : "add"}
-              scope={chosen.id}
-              envName={envName}
-              editing={editing}
-              onDone={() => setEditing(undefined)}
-            />
+            // For someone who may not plan here, the form is there to read, with why (ADR 0059).
+            <MayEdit offer={may(ChangeService.method.proposeChange, { environment: chosen.id })}>
+              <ValueForm
+                key={editing ? `${editing.id}:${editing.revision}` : "add"}
+                scope={chosen.id}
+                envName={envName}
+                editing={editing}
+                onDone={() => setEditing(undefined)}
+              />
+            </MayEdit>
           ) : null}
 
           {failed ? (
@@ -401,6 +407,7 @@ function RowActions({ variable, scope, onEdit }: RowActionsProps) {
   const sheet = useChangeSheet();
   const name = variable.name;
   const kind: Kind = variable.secret ? "secret" : "variable";
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: scope });
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -409,8 +416,15 @@ function RowActions({ variable, scope, onEdit }: RowActionsProps) {
     });
   return (
     <span className="variables-actions">
-      <Button size="sm" variant="ghost" icon="edit" aria-label={t`Change ${name}`} onClick={() => onEdit(variable)} />
-      <Button size="sm" variant="ghost" icon="trash" aria-label={t`Remove ${name}`} onClick={remove} />
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="edit"
+        aria-label={t`Change ${name}`}
+        onClick={() => onEdit(variable)}
+        {...mayPlan.off}
+      />
+      <Button size="sm" variant="ghost" icon="trash" aria-label={t`Remove ${name}`} onClick={remove} {...mayPlan.off} />
     </span>
   );
 }

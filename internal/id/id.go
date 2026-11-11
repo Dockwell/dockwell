@@ -9,6 +9,7 @@ package id
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -38,12 +39,14 @@ const (
 	Secret       = "sec"
 	Route        = "rte"
 	Backup       = "bkp"
+	Drill        = "drl"
 	TaskRun      = "run"
 	AlertRule    = "alr"
 	AlertChannel = "ach"
 	AlertCheck   = "chk"
 	Alert        = "alt"
 	Terminal     = "trm"
+	Invite       = "inv"
 
 	// Keys that seal what may be secret at rest (ADR 0022).
 	KeyEncryptionKey = "kek"
@@ -61,6 +64,19 @@ const ulidLen = 26
 // millisecond, so they sort in the order they were made.
 func New(prefix string) string {
 	return gen.next(prefix, time.Now())
+}
+
+// At is an ID for something that happened at t, named by seed: the same t and seed
+// make the same ID, as for an entry a server sends again, so it's kept once.
+func At(prefix string, t time.Time, seed string) string {
+	ms := uint64(max(t.UnixMilli(), 0))
+	sum := sha256.Sum256([]byte(seed))
+	var b [16]byte
+	// The 48-bit timestamp is split across 2 and 4 bytes; truncation is the point.
+	binary.BigEndian.PutUint16(b[0:2], uint16(ms>>32)) //nolint:gosec // see above
+	binary.BigEndian.PutUint32(b[2:6], uint32(ms))     //nolint:gosec // see above
+	copy(b[6:], sum[:10])
+	return prefix + "_" + encode(b)
 }
 
 // generator makes monotonic ULIDs: within one millisecond it increments the

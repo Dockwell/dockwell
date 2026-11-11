@@ -87,6 +87,158 @@ func (DeploymentState) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{0}
 }
 
+// OpenServiceRequest names a service and the port of its web UI.
+type OpenServiceRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The port in its container that answers HTTP, such as 80. Empty takes the
+	// one port it publishes, where it publishes one.
+	Port uint32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	// The project of a service named by name, by name or ID, when more than one
+	// has a service of that name.
+	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID, when its
+	// project has more than one.
+	Environment string `protobuf:"bytes,4,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The proof from FinishStepUp, for opening this service, by its ID. It works
+	// once, within a minute, in the session that made it. Without one, the call
+	// is refused with needs_step_up once nothing else refuses it.
+	Proof         string `protobuf:"bytes,5,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenServiceRequest) Reset() {
+	*x = OpenServiceRequest{}
+	mi := &file_dockwell_v1_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenServiceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenServiceRequest) ProtoMessage() {}
+
+func (x *OpenServiceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenServiceRequest.ProtoReflect.Descriptor instead.
+func (*OpenServiceRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *OpenServiceRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *OpenServiceRequest) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *OpenServiceRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *OpenServiceRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *OpenServiceRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// OpenServiceResponse carries where to open it.
+type OpenServiceResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Where a browser opens it, such as "http://abcde23456.localhost:7600/.dockwell/open?ticket=…".
+	// It works once.
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// When the address stops working, if it hasn't been opened.
+	ExpireTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	// The origin the app answers on, such as "http://abcde23456.localhost:7600".
+	Origin        string `protobuf:"bytes,3,opt,name=origin,proto3" json:"origin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenServiceResponse) Reset() {
+	*x = OpenServiceResponse{}
+	mi := &file_dockwell_v1_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenServiceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenServiceResponse) ProtoMessage() {}
+
+func (x *OpenServiceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenServiceResponse.ProtoReflect.Descriptor instead.
+func (*OpenServiceResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *OpenServiceResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *OpenServiceResponse) GetExpireTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpireTime
+	}
+	return nil
+}
+
+func (x *OpenServiceResponse) GetOrigin() string {
+	if x != nil {
+		return x.Origin
+	}
+	return ""
+}
+
 // ListServicesRequest asks for a page of services.
 type ListServicesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -107,7 +259,7 @@ type ListServicesRequest struct {
 
 func (x *ListServicesRequest) Reset() {
 	*x = ListServicesRequest{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[0]
+	mi := &file_dockwell_v1_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +271,7 @@ func (x *ListServicesRequest) String() string {
 func (*ListServicesRequest) ProtoMessage() {}
 
 func (x *ListServicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[0]
+	mi := &file_dockwell_v1_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +284,7 @@ func (x *ListServicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServicesRequest.ProtoReflect.Descriptor instead.
 func (*ListServicesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListServicesRequest) GetProject() string {
@@ -176,7 +328,7 @@ type ListServicesResponse struct {
 
 func (x *ListServicesResponse) Reset() {
 	*x = ListServicesResponse{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[1]
+	mi := &file_dockwell_v1_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -188,7 +340,7 @@ func (x *ListServicesResponse) String() string {
 func (*ListServicesResponse) ProtoMessage() {}
 
 func (x *ListServicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[1]
+	mi := &file_dockwell_v1_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -201,7 +353,7 @@ func (x *ListServicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServicesResponse.ProtoReflect.Descriptor instead.
 func (*ListServicesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListServicesResponse) GetServices() []*ServiceInfo {
@@ -268,7 +420,7 @@ type ServiceInfo struct {
 
 func (x *ServiceInfo) Reset() {
 	*x = ServiceInfo{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[2]
+	mi := &file_dockwell_v1_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -280,7 +432,7 @@ func (x *ServiceInfo) String() string {
 func (*ServiceInfo) ProtoMessage() {}
 
 func (x *ServiceInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[2]
+	mi := &file_dockwell_v1_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -293,7 +445,7 @@ func (x *ServiceInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceInfo.ProtoReflect.Descriptor instead.
 func (*ServiceInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ServiceInfo) GetId() string {
@@ -396,7 +548,7 @@ type ServiceDeployment struct {
 
 func (x *ServiceDeployment) Reset() {
 	*x = ServiceDeployment{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[3]
+	mi := &file_dockwell_v1_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -408,7 +560,7 @@ func (x *ServiceDeployment) String() string {
 func (*ServiceDeployment) ProtoMessage() {}
 
 func (x *ServiceDeployment) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[3]
+	mi := &file_dockwell_v1_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -421,7 +573,7 @@ func (x *ServiceDeployment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceDeployment.ProtoReflect.Descriptor instead.
 func (*ServiceDeployment) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ServiceDeployment) GetServerId() string {
@@ -488,7 +640,7 @@ type ListServiceRevisionsRequest struct {
 
 func (x *ListServiceRevisionsRequest) Reset() {
 	*x = ListServiceRevisionsRequest{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[4]
+	mi := &file_dockwell_v1_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -500,7 +652,7 @@ func (x *ListServiceRevisionsRequest) String() string {
 func (*ListServiceRevisionsRequest) ProtoMessage() {}
 
 func (x *ListServiceRevisionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[4]
+	mi := &file_dockwell_v1_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -513,7 +665,7 @@ func (x *ListServiceRevisionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServiceRevisionsRequest.ProtoReflect.Descriptor instead.
 func (*ListServiceRevisionsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListServiceRevisionsRequest) GetId() string {
@@ -564,7 +716,7 @@ type ListServiceRevisionsResponse struct {
 
 func (x *ListServiceRevisionsResponse) Reset() {
 	*x = ListServiceRevisionsResponse{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[5]
+	mi := &file_dockwell_v1_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +728,7 @@ func (x *ListServiceRevisionsResponse) String() string {
 func (*ListServiceRevisionsResponse) ProtoMessage() {}
 
 func (x *ListServiceRevisionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[5]
+	mi := &file_dockwell_v1_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +741,7 @@ func (x *ListServiceRevisionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListServiceRevisionsResponse.ProtoReflect.Descriptor instead.
 func (*ListServiceRevisionsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListServiceRevisionsResponse) GetRevisions() []*ServiceRevision {
@@ -643,7 +795,7 @@ type ServiceRevision struct {
 
 func (x *ServiceRevision) Reset() {
 	*x = ServiceRevision{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[6]
+	mi := &file_dockwell_v1_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -655,7 +807,7 @@ func (x *ServiceRevision) String() string {
 func (*ServiceRevision) ProtoMessage() {}
 
 func (x *ServiceRevision) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[6]
+	mi := &file_dockwell_v1_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +820,7 @@ func (x *ServiceRevision) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceRevision.ProtoReflect.Descriptor instead.
 func (*ServiceRevision) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ServiceRevision) GetNumber() int64 {
@@ -769,7 +921,7 @@ type DeployServiceRequest struct {
 
 func (x *DeployServiceRequest) Reset() {
 	*x = DeployServiceRequest{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[7]
+	mi := &file_dockwell_v1_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -781,7 +933,7 @@ func (x *DeployServiceRequest) String() string {
 func (*DeployServiceRequest) ProtoMessage() {}
 
 func (x *DeployServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[7]
+	mi := &file_dockwell_v1_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -794,7 +946,7 @@ func (x *DeployServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployServiceRequest.ProtoReflect.Descriptor instead.
 func (*DeployServiceRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeployServiceRequest) GetId() string {
@@ -843,7 +995,7 @@ type DeployServiceResponse struct {
 
 func (x *DeployServiceResponse) Reset() {
 	*x = DeployServiceResponse{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[8]
+	mi := &file_dockwell_v1_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -855,7 +1007,7 @@ func (x *DeployServiceResponse) String() string {
 func (*DeployServiceResponse) ProtoMessage() {}
 
 func (x *DeployServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[8]
+	mi := &file_dockwell_v1_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -868,7 +1020,7 @@ func (x *DeployServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeployServiceResponse.ProtoReflect.Descriptor instead.
 func (*DeployServiceResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeployServiceResponse) GetChange() *Change {
@@ -900,7 +1052,7 @@ type RollBackServiceRequest struct {
 
 func (x *RollBackServiceRequest) Reset() {
 	*x = RollBackServiceRequest{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[9]
+	mi := &file_dockwell_v1_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -912,7 +1064,7 @@ func (x *RollBackServiceRequest) String() string {
 func (*RollBackServiceRequest) ProtoMessage() {}
 
 func (x *RollBackServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[9]
+	mi := &file_dockwell_v1_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -925,7 +1077,7 @@ func (x *RollBackServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollBackServiceRequest.ProtoReflect.Descriptor instead.
 func (*RollBackServiceRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RollBackServiceRequest) GetId() string {
@@ -974,7 +1126,7 @@ type RollBackServiceResponse struct {
 
 func (x *RollBackServiceResponse) Reset() {
 	*x = RollBackServiceResponse{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[10]
+	mi := &file_dockwell_v1_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -986,7 +1138,7 @@ func (x *RollBackServiceResponse) String() string {
 func (*RollBackServiceResponse) ProtoMessage() {}
 
 func (x *RollBackServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[10]
+	mi := &file_dockwell_v1_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -999,7 +1151,7 @@ func (x *RollBackServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RollBackServiceResponse.ProtoReflect.Descriptor instead.
 func (*RollBackServiceResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RollBackServiceResponse) GetChange() *Change {
@@ -1037,7 +1189,7 @@ type AddServicePortRequest struct {
 
 func (x *AddServicePortRequest) Reset() {
 	*x = AddServicePortRequest{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[11]
+	mi := &file_dockwell_v1_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1049,7 +1201,7 @@ func (x *AddServicePortRequest) String() string {
 func (*AddServicePortRequest) ProtoMessage() {}
 
 func (x *AddServicePortRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[11]
+	mi := &file_dockwell_v1_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1062,7 +1214,7 @@ func (x *AddServicePortRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddServicePortRequest.ProtoReflect.Descriptor instead.
 func (*AddServicePortRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AddServicePortRequest) GetId() string {
@@ -1132,7 +1284,7 @@ type AddServicePortResponse struct {
 
 func (x *AddServicePortResponse) Reset() {
 	*x = AddServicePortResponse{}
-	mi := &file_dockwell_v1_service_proto_msgTypes[12]
+	mi := &file_dockwell_v1_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1144,7 +1296,7 @@ func (x *AddServicePortResponse) String() string {
 func (*AddServicePortResponse) ProtoMessage() {}
 
 func (x *AddServicePortResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_proto_msgTypes[12]
+	mi := &file_dockwell_v1_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1157,10 +1309,142 @@ func (x *AddServicePortResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddServicePortResponse.ProtoReflect.Descriptor instead.
 func (*AddServicePortResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AddServicePortResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+// ChangeServiceRuntimeRequest names an app from a folder and the version to run
+// it on.
+type ChangeServiceRuntimeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID or by name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The version, such as "24" for Node.js, which ListWebsiteRuntimes lists.
+	// Empty, or the one it has, takes the newest build of that version.
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// What the change is for, for the timeline. Empty says what it changes.
+	Summary string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	// The project of a service named by name, by name or ID, when more than one
+	// has a service of that name.
+	Project string `protobuf:"bytes,4,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID, when its
+	// project has more than one.
+	Environment   string `protobuf:"bytes,5,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeServiceRuntimeRequest) Reset() {
+	*x = ChangeServiceRuntimeRequest{}
+	mi := &file_dockwell_v1_service_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeServiceRuntimeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeServiceRuntimeRequest) ProtoMessage() {}
+
+func (x *ChangeServiceRuntimeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeServiceRuntimeRequest.ProtoReflect.Descriptor instead.
+func (*ChangeServiceRuntimeRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ChangeServiceRuntimeRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *ChangeServiceRuntimeRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// ChangeServiceRuntimeResponse carries the planned change.
+type ChangeServiceRuntimeResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChangeServiceRuntimeResponse) Reset() {
+	*x = ChangeServiceRuntimeResponse{}
+	mi := &file_dockwell_v1_service_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChangeServiceRuntimeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChangeServiceRuntimeResponse) ProtoMessage() {}
+
+func (x *ChangeServiceRuntimeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChangeServiceRuntimeResponse.ProtoReflect.Descriptor instead.
+func (*ChangeServiceRuntimeResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ChangeServiceRuntimeResponse) GetChange() *Change {
 	if x != nil {
 		return x.Change
 	}
@@ -1171,7 +1455,18 @@ var File_dockwell_v1_service_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/service.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x01\n" +
+	"\x19dockwell/v1/service.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8a\x01\n" +
+	"\x12OpenServiceRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\rR\x04port\x12\x18\n" +
+	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x04 \x01(\tR\venvironment\x12\x14\n" +
+	"\x05proof\x18\x05 \x01(\tR\x05proof\"|\n" +
+	"\x13OpenServiceResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12;\n" +
+	"\vexpire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"expireTime\x12\x16\n" +
+	"\x06origin\x18\x03 \x01(\tR\x06origin\"\x8d\x01\n" +
 	"\x13ListServicesRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x1b\n" +
@@ -1255,20 +1550,30 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\aproject\x18\a \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\b \x01(\tR\venvironment\"E\n" +
 	"\x16AddServicePortResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9d\x01\n" +
+	"\x1bChangeServiceRuntimeRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12\x18\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12\x18\n" +
+	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x05 \x01(\tR\venvironment\"K\n" +
+	"\x1cChangeServiceRuntimeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change*\xaa\x01\n" +
 	"\x0fDeploymentState\x12 \n" +
 	"\x1cDEPLOYMENT_STATE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18DEPLOYMENT_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15DEPLOYMENT_STATE_LIVE\x10\x02\x12\x1b\n" +
 	"\x17DEPLOYMENT_STATE_FAILED\x10\x03\x12\x1f\n" +
-	"\x1bDEPLOYMENT_STATE_SUPERSEDED\x10\x042\x85\x06\n" +
+	"\x1bDEPLOYMENT_STATE_SUPERSEDED\x10\x042\xd8\b\n" +
 	"\x0eServiceService\x12|\n" +
 	"\fListServices\x12 .dockwell.v1.ListServicesRequest\x1a!.dockwell.v1.ListServicesResponse\"'\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/services\x90\x02\x01\x12\xb2\x01\n" +
 	"\x14ListServiceRevisions\x12(.dockwell.v1.ListServiceRevisionsRequest\x1a).dockwell.v1.ListServiceRevisionsResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\v\x12\trevisions\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/services/{id}/revisions\x90\x02\x01\x12\x8b\x01\n" +
 	"\rDeployService\x12!.dockwell.v1.DeployServiceRequest\x1a\".dockwell.v1.DeployServiceResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/services/{id}:deploy\x12\x93\x01\n" +
 	"\x0fRollBackService\x12#.dockwell.v1.RollBackServiceRequest\x1a$.dockwell.v1.RollBackServiceResponse\"5\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/services/{id}:rollback\x12\x9b\x01\n" +
 	"\x0eAddServicePort\x12\".dockwell.v1.AddServicePortRequest\x1a#.dockwell.v1.AddServicePortResponse\"@\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
-	"\x12\badd-port\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/services/{id}/portsB\xa5\x01\n" +
+	"\x12\badd-port\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/services/{id}/ports\x12\xbc\x01\n" +
+	"\x14ChangeServiceRuntime\x12(.dockwell.v1.ChangeServiceRuntimeRequest\x1a).dockwell.v1.ChangeServiceRuntimeResponse\"O\xa0\xbb\x18\x02\xaa\xbb\x18\x10\x12\x0echange-runtime\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02%:\x01*\" /v1/services/{id}:change-runtime\x12\x91\x01\n" +
+	"\vOpenService\x12\x1f.dockwell.v1.OpenServiceRequest\x1a .dockwell.v1.OpenServiceResponse\"?\xa0\xbb\x18\x01\xaa\xbb\x18\x06\x12\x04open\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/services/{id}:openB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fServiceProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -1284,65 +1589,75 @@ func file_dockwell_v1_service_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_dockwell_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_dockwell_v1_service_proto_goTypes = []any{
 	(DeploymentState)(0),                 // 0: dockwell.v1.DeploymentState
-	(*ListServicesRequest)(nil),          // 1: dockwell.v1.ListServicesRequest
-	(*ListServicesResponse)(nil),         // 2: dockwell.v1.ListServicesResponse
-	(*ServiceInfo)(nil),                  // 3: dockwell.v1.ServiceInfo
-	(*ServiceDeployment)(nil),            // 4: dockwell.v1.ServiceDeployment
-	(*ListServiceRevisionsRequest)(nil),  // 5: dockwell.v1.ListServiceRevisionsRequest
-	(*ListServiceRevisionsResponse)(nil), // 6: dockwell.v1.ListServiceRevisionsResponse
-	(*ServiceRevision)(nil),              // 7: dockwell.v1.ServiceRevision
-	(*DeployServiceRequest)(nil),         // 8: dockwell.v1.DeployServiceRequest
-	(*DeployServiceResponse)(nil),        // 9: dockwell.v1.DeployServiceResponse
-	(*RollBackServiceRequest)(nil),       // 10: dockwell.v1.RollBackServiceRequest
-	(*RollBackServiceResponse)(nil),      // 11: dockwell.v1.RollBackServiceResponse
-	(*AddServicePortRequest)(nil),        // 12: dockwell.v1.AddServicePortRequest
-	(*AddServicePortResponse)(nil),       // 13: dockwell.v1.AddServicePortResponse
-	(*ResourceRef)(nil),                  // 14: dockwell.v1.ResourceRef
-	(*timestamppb.Timestamp)(nil),        // 15: google.protobuf.Timestamp
-	(*v1alpha1.Service)(nil),             // 16: dockwell.resource.v1alpha1.Service
-	(ChangeState)(0),                     // 17: dockwell.v1.ChangeState
-	(*HostAccess)(nil),                   // 18: dockwell.v1.HostAccess
-	(*Change)(nil),                       // 19: dockwell.v1.Change
-	(*FieldChange)(nil),                  // 20: dockwell.v1.FieldChange
-	(v1alpha1.Protocol)(0),               // 21: dockwell.resource.v1alpha1.Protocol
+	(*OpenServiceRequest)(nil),           // 1: dockwell.v1.OpenServiceRequest
+	(*OpenServiceResponse)(nil),          // 2: dockwell.v1.OpenServiceResponse
+	(*ListServicesRequest)(nil),          // 3: dockwell.v1.ListServicesRequest
+	(*ListServicesResponse)(nil),         // 4: dockwell.v1.ListServicesResponse
+	(*ServiceInfo)(nil),                  // 5: dockwell.v1.ServiceInfo
+	(*ServiceDeployment)(nil),            // 6: dockwell.v1.ServiceDeployment
+	(*ListServiceRevisionsRequest)(nil),  // 7: dockwell.v1.ListServiceRevisionsRequest
+	(*ListServiceRevisionsResponse)(nil), // 8: dockwell.v1.ListServiceRevisionsResponse
+	(*ServiceRevision)(nil),              // 9: dockwell.v1.ServiceRevision
+	(*DeployServiceRequest)(nil),         // 10: dockwell.v1.DeployServiceRequest
+	(*DeployServiceResponse)(nil),        // 11: dockwell.v1.DeployServiceResponse
+	(*RollBackServiceRequest)(nil),       // 12: dockwell.v1.RollBackServiceRequest
+	(*RollBackServiceResponse)(nil),      // 13: dockwell.v1.RollBackServiceResponse
+	(*AddServicePortRequest)(nil),        // 14: dockwell.v1.AddServicePortRequest
+	(*AddServicePortResponse)(nil),       // 15: dockwell.v1.AddServicePortResponse
+	(*ChangeServiceRuntimeRequest)(nil),  // 16: dockwell.v1.ChangeServiceRuntimeRequest
+	(*ChangeServiceRuntimeResponse)(nil), // 17: dockwell.v1.ChangeServiceRuntimeResponse
+	(*timestamppb.Timestamp)(nil),        // 18: google.protobuf.Timestamp
+	(*ResourceRef)(nil),                  // 19: dockwell.v1.ResourceRef
+	(*v1alpha1.Service)(nil),             // 20: dockwell.resource.v1alpha1.Service
+	(ChangeState)(0),                     // 21: dockwell.v1.ChangeState
+	(*HostAccess)(nil),                   // 22: dockwell.v1.HostAccess
+	(*Change)(nil),                       // 23: dockwell.v1.Change
+	(*FieldChange)(nil),                  // 24: dockwell.v1.FieldChange
+	(v1alpha1.Protocol)(0),               // 25: dockwell.resource.v1alpha1.Protocol
 }
 var file_dockwell_v1_service_proto_depIdxs = []int32{
-	3,  // 0: dockwell.v1.ListServicesResponse.services:type_name -> dockwell.v1.ServiceInfo
-	14, // 1: dockwell.v1.ServiceInfo.resource:type_name -> dockwell.v1.ResourceRef
-	15, // 2: dockwell.v1.ServiceInfo.update_time:type_name -> google.protobuf.Timestamp
-	16, // 3: dockwell.v1.ServiceInfo.spec:type_name -> dockwell.resource.v1alpha1.Service
-	4,  // 4: dockwell.v1.ServiceInfo.deployments:type_name -> dockwell.v1.ServiceDeployment
-	17, // 5: dockwell.v1.ServiceInfo.change_state:type_name -> dockwell.v1.ChangeState
-	18, // 6: dockwell.v1.ServiceInfo.host_access:type_name -> dockwell.v1.HostAccess
-	0,  // 7: dockwell.v1.ServiceDeployment.state:type_name -> dockwell.v1.DeploymentState
-	15, // 8: dockwell.v1.ServiceDeployment.update_time:type_name -> google.protobuf.Timestamp
-	7,  // 9: dockwell.v1.ListServiceRevisionsResponse.revisions:type_name -> dockwell.v1.ServiceRevision
-	15, // 10: dockwell.v1.ServiceRevision.create_time:type_name -> google.protobuf.Timestamp
-	19, // 11: dockwell.v1.ServiceRevision.change:type_name -> dockwell.v1.Change
-	20, // 12: dockwell.v1.ServiceRevision.changes:type_name -> dockwell.v1.FieldChange
-	4,  // 13: dockwell.v1.ServiceRevision.deployments:type_name -> dockwell.v1.ServiceDeployment
-	19, // 14: dockwell.v1.DeployServiceResponse.change:type_name -> dockwell.v1.Change
-	19, // 15: dockwell.v1.RollBackServiceResponse.change:type_name -> dockwell.v1.Change
-	21, // 16: dockwell.v1.AddServicePortRequest.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	19, // 17: dockwell.v1.AddServicePortResponse.change:type_name -> dockwell.v1.Change
-	1,  // 18: dockwell.v1.ServiceService.ListServices:input_type -> dockwell.v1.ListServicesRequest
-	5,  // 19: dockwell.v1.ServiceService.ListServiceRevisions:input_type -> dockwell.v1.ListServiceRevisionsRequest
-	8,  // 20: dockwell.v1.ServiceService.DeployService:input_type -> dockwell.v1.DeployServiceRequest
-	10, // 21: dockwell.v1.ServiceService.RollBackService:input_type -> dockwell.v1.RollBackServiceRequest
-	12, // 22: dockwell.v1.ServiceService.AddServicePort:input_type -> dockwell.v1.AddServicePortRequest
-	2,  // 23: dockwell.v1.ServiceService.ListServices:output_type -> dockwell.v1.ListServicesResponse
-	6,  // 24: dockwell.v1.ServiceService.ListServiceRevisions:output_type -> dockwell.v1.ListServiceRevisionsResponse
-	9,  // 25: dockwell.v1.ServiceService.DeployService:output_type -> dockwell.v1.DeployServiceResponse
-	11, // 26: dockwell.v1.ServiceService.RollBackService:output_type -> dockwell.v1.RollBackServiceResponse
-	13, // 27: dockwell.v1.ServiceService.AddServicePort:output_type -> dockwell.v1.AddServicePortResponse
-	23, // [23:28] is the sub-list for method output_type
-	18, // [18:23] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	18, // 0: dockwell.v1.OpenServiceResponse.expire_time:type_name -> google.protobuf.Timestamp
+	5,  // 1: dockwell.v1.ListServicesResponse.services:type_name -> dockwell.v1.ServiceInfo
+	19, // 2: dockwell.v1.ServiceInfo.resource:type_name -> dockwell.v1.ResourceRef
+	18, // 3: dockwell.v1.ServiceInfo.update_time:type_name -> google.protobuf.Timestamp
+	20, // 4: dockwell.v1.ServiceInfo.spec:type_name -> dockwell.resource.v1alpha1.Service
+	6,  // 5: dockwell.v1.ServiceInfo.deployments:type_name -> dockwell.v1.ServiceDeployment
+	21, // 6: dockwell.v1.ServiceInfo.change_state:type_name -> dockwell.v1.ChangeState
+	22, // 7: dockwell.v1.ServiceInfo.host_access:type_name -> dockwell.v1.HostAccess
+	0,  // 8: dockwell.v1.ServiceDeployment.state:type_name -> dockwell.v1.DeploymentState
+	18, // 9: dockwell.v1.ServiceDeployment.update_time:type_name -> google.protobuf.Timestamp
+	9,  // 10: dockwell.v1.ListServiceRevisionsResponse.revisions:type_name -> dockwell.v1.ServiceRevision
+	18, // 11: dockwell.v1.ServiceRevision.create_time:type_name -> google.protobuf.Timestamp
+	23, // 12: dockwell.v1.ServiceRevision.change:type_name -> dockwell.v1.Change
+	24, // 13: dockwell.v1.ServiceRevision.changes:type_name -> dockwell.v1.FieldChange
+	6,  // 14: dockwell.v1.ServiceRevision.deployments:type_name -> dockwell.v1.ServiceDeployment
+	23, // 15: dockwell.v1.DeployServiceResponse.change:type_name -> dockwell.v1.Change
+	23, // 16: dockwell.v1.RollBackServiceResponse.change:type_name -> dockwell.v1.Change
+	25, // 17: dockwell.v1.AddServicePortRequest.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
+	23, // 18: dockwell.v1.AddServicePortResponse.change:type_name -> dockwell.v1.Change
+	23, // 19: dockwell.v1.ChangeServiceRuntimeResponse.change:type_name -> dockwell.v1.Change
+	3,  // 20: dockwell.v1.ServiceService.ListServices:input_type -> dockwell.v1.ListServicesRequest
+	7,  // 21: dockwell.v1.ServiceService.ListServiceRevisions:input_type -> dockwell.v1.ListServiceRevisionsRequest
+	10, // 22: dockwell.v1.ServiceService.DeployService:input_type -> dockwell.v1.DeployServiceRequest
+	12, // 23: dockwell.v1.ServiceService.RollBackService:input_type -> dockwell.v1.RollBackServiceRequest
+	14, // 24: dockwell.v1.ServiceService.AddServicePort:input_type -> dockwell.v1.AddServicePortRequest
+	16, // 25: dockwell.v1.ServiceService.ChangeServiceRuntime:input_type -> dockwell.v1.ChangeServiceRuntimeRequest
+	1,  // 26: dockwell.v1.ServiceService.OpenService:input_type -> dockwell.v1.OpenServiceRequest
+	4,  // 27: dockwell.v1.ServiceService.ListServices:output_type -> dockwell.v1.ListServicesResponse
+	8,  // 28: dockwell.v1.ServiceService.ListServiceRevisions:output_type -> dockwell.v1.ListServiceRevisionsResponse
+	11, // 29: dockwell.v1.ServiceService.DeployService:output_type -> dockwell.v1.DeployServiceResponse
+	13, // 30: dockwell.v1.ServiceService.RollBackService:output_type -> dockwell.v1.RollBackServiceResponse
+	15, // 31: dockwell.v1.ServiceService.AddServicePort:output_type -> dockwell.v1.AddServicePortResponse
+	17, // 32: dockwell.v1.ServiceService.ChangeServiceRuntime:output_type -> dockwell.v1.ChangeServiceRuntimeResponse
+	2,  // 33: dockwell.v1.ServiceService.OpenService:output_type -> dockwell.v1.OpenServiceResponse
+	27, // [27:34] is the sub-list for method output_type
+	20, // [20:27] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_service_proto_init() }
@@ -1358,7 +1673,7 @@ func file_dockwell_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_service_proto_rawDesc), len(file_dockwell_v1_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

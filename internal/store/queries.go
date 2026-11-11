@@ -43,6 +43,14 @@ const (
 // SettingPublicAddress is the key of what a person set of a server's public address.
 func SettingPublicAddress(server string) string { return "server.public_address." + server }
 
+// SettingDesiredCache is the key of the ID of the cache a server's agent last
+// said it keeps its desired state in (ADR 0054).
+func SettingDesiredCache(server string) string { return "server.desired_cache." + server }
+
+// SettingDesiredUnknown is the key of how many of what a server's agent keeps the
+// store had no record of, as last said on the timeline (ADR 0054).
+func SettingDesiredUnknown(server string) string { return "server.desired_unknown." + server }
+
 // SettingDomainProofs is the key of what a server's certificates proved of its domains.
 func SettingDomainProofs(server string) string { return "server.domain_proofs." + server }
 
@@ -309,6 +317,25 @@ func (t *Tx) RecordEvent(ctx context.Context, e Event) error {
 		*t.recorded = true
 	}
 	return nil
+}
+
+// RecordEventOnce records e unless an event of its ID is there, as for one a server
+// sends again, and says whether it recorded it.
+func (t *Tx) RecordEventOnce(ctx context.Context, e Event) (bool, error) {
+	res, err := t.exec(ctx, `INSERT INTO audit_events (id, at, actor, action, subject, detail, surface, target) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO NOTHING`,
+		e.ID, millis(e.At), e.Actor, e.Action, e.Subject, e.Detail, e.Surface, e.Target)
+	if err != nil {
+		return false, fmt.Errorf("can't record audit event %s: %w", e.Action, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil || n == 0 {
+		return false, err
+	}
+	if t.recorded != nil {
+		*t.recorded = true
+	}
+	return true, nil
 }
 
 // UpdateEvent rewrites an event that tells of something still going on, as a

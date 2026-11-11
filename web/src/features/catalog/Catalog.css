@@ -162,7 +162,38 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  flex: none;
   font-weight: 500;
+}
+
+/* The version, then the catalog a third-party entry comes from. */
+.catalog-card-about {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-card-from {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 20px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--ink);
+}
+
+.catalog-card-from > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-card-from > svg {
+  flex: none;
 }
 
 .catalog-note {
@@ -204,12 +235,6 @@
 .catalog-installed-line {
   margin: 0;
   font: 400 13px / 18px var(--font-mono);
-}
-
-.catalog-installed-steps {
-  margin: var(--space-2) 0 0;
-  font-size: 13px;
-  line-height: 20px;
 }
 
 .catalog-upgrade {
@@ -256,6 +281,37 @@
 .catalog-parts-head span {
   color: var(--ink-muted);
   font-size: 12.5px;
+}
+
+/* Limits and restarts, under a rule as what it installs is. */
+.catalog-limits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.catalog-limits h3 {
+  margin: 0;
+  font: var(--text-label);
+  letter-spacing: var(--text-label-tracking);
+}
+
+.catalog-limit {
+  margin: 0;
+  padding: 0 0 var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-limit legend {
+  padding: 0;
 }
 
 .catalog-back {
@@ -574,6 +630,50 @@
   flex: none;
 }
 
+/* Where a third-party entry comes from: its catalog, repository and commit. */
+.catalog-origin-facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.catalog-origin-facts dt {
+  margin-bottom: 2px;
+  color: var(--ink-muted);
+  font: var(--text-caption);
+}
+
+.catalog-origin-facts dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-origin-facts code {
+  font-size: 12.5px;
+}
+
+/* A third-party entry's standing, as a state above its facts. */
+.catalog-origin-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 2px var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.catalog-fact-from {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .catalog-installation {
   display: flex;
   align-items: center;
@@ -747,4 +847,124 @@
 .catalog-sheet.is-phone .catalog-chosen {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
+}
+
+/* What an entry or an install says of itself, as state: a line each, with its icon, and
+   the action that resolves it at the end of its line (#426). */
+.catalog-facts-list,
+.catalog-sheet-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.catalog-facts-list li,
+.catalog-sheet-facts li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--space-2);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.catalog-facts-list li > svg,
+.catalog-sheet-facts li > svg {
+  margin-top: 3px;
+}
+.catalog-facts-list {
+  margin-top: var(--space-3);
+}
+.catalog-fact-action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-top: -6px;
+}
+
+.catalog-open {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.catalog-open-problem {
+  max-width: 280px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--critical);
+  text-align: right;
+}
+
+/* New database's engine: one of the catalog's databases, picked, each with its newest version. */
+.catalog-engines {
+  display: grid;
+  grid-template-columns: minmax(96px, 9.5rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.catalog-engines .catalog-chosen-label {
+  padding-top: 8px;
+}
+
+.catalog-engines-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-engine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 7px var(--space-3);
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.catalog-engine input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catalog-engine.is-picked {
+  border-color: var(--cobalt);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
+}
+
+.catalog-engine:has(input:focus-visible) {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.catalog-engine-version {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.catalog-sheet.is-phone .catalog-engines {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+
+.catalog-sheet.is-phone .catalog-engines .catalog-chosen-label {
+  padding-top: 0;
 }

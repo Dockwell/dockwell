@@ -36,15 +36,18 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AuditService.listAuditEvents": "may",
 
   "AuthService.beginAddPasskey": "open",
+  "AuthService.beginAcceptInvite": "open",
   "AuthService.beginClaim": "open",
   "AuthService.beginPasskeySignIn": "open",
   "AuthService.beginStepUp": "open",
   "AuthService.beginTotpSetup": "open",
   "AuthService.cancelTotpSetup": "open",
   "AuthService.checkClaim": "open",
+  "AuthService.checkInvite": "open",
   "AuthService.confirmTotpSetup": "open",
   "AuthService.disableTotp": "open",
   "AuthService.finishAddPasskey": "open",
+  "AuthService.finishAcceptInvite": "open",
   "AuthService.finishClaim": "open",
   "AuthService.finishPasskeySignIn": "open",
   "AuthService.finishStepUp": "open",
@@ -63,6 +66,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "BackupService.createBackup": "may",
   "BackupService.deleteBackup": "may",
+  "BackupService.drillBackup": "may",
   "BackupService.fetchBackup": "may",
   "BackupService.getBackup": "unused",
   "BackupService.listBackupDestinations": "read",
@@ -76,10 +80,10 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "CatalogService.installCatalogEntry": "may",
   "CatalogService.listCatalogEntries": "read",
   "CatalogService.listCatalogInstalls": "read",
-  "CatalogService.listCatalogSourceRefs": "unused",
-  "CatalogService.listCatalogSources": "unused",
-  "CatalogService.removeCatalogSource": "unused",
-  "CatalogService.setCatalogSource": "unused",
+  "CatalogService.listCatalogSourceRefs": { within: "CatalogService.setCatalogSource" },
+  "CatalogService.listCatalogSources": "read",
+  "CatalogService.removeCatalogSource": "may",
+  "CatalogService.setCatalogSource": "may",
   "CatalogService.upgradeCatalogInstall": "may",
 
   "ChangeService.adoptDrift": "unused",
@@ -133,6 +137,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "FileService.uploadFile": { within: "FileService.listFiles" },
 
   "FirewallService.getServerFirewall": "may",
+  // The SSH and fail2ban cards are on the Firewall tab, offered where its read is.
+  "FirewallService.getServerFail2ban": { within: "FirewallService.getServerFirewall" },
+  "FirewallService.getServerSsh": { within: "FirewallService.getServerFirewall" },
 
   "HealthService.listHealth": "read",
 
@@ -146,7 +153,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "LogService.readLogs": "read",
   "LogService.watchLogs": "read",
 
+  "MemberService.createInvite": { within: "MemberService.listMembers" },
   "MemberService.listMembers": "may",
+  "MemberService.revokeInvite": { within: "MemberService.listMembers" },
 
   "ProcessService.endProcess": { within: "ProcessService.watchProcesses" },
   "ProcessService.watchProcesses": "may",
@@ -163,14 +172,19 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.watchServers": "read",
 
   "ServiceService.addServicePort": "may",
+  "ServiceService.changeServiceRuntime": "may",
   "ServiceService.deployService": "may",
   "ServiceService.listServiceRevisions": "read",
   "ServiceService.listServices": "read",
+  "ServiceService.openService": "may",
   "ServiceService.rollBackService": "may",
 
+  "SettingsService.checkPanelDomain": "may",
+  "SettingsService.createPanelSignInLink": "may",
   "SettingsService.getControlPlane": "may",
   "SettingsService.getSettings": "read",
   "SettingsService.setInstallName": "may",
+  "SettingsService.setPanelDomain": "may",
   "SettingsService.setTimeZone": "may",
 
   "SystemService.getVersion": "open",

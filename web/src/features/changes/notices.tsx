@@ -7,6 +7,7 @@ import {
   HostAccessKind,
   IntentKind,
   type Plan,
+  PlanAction,
   type PlanNote,
   PlanWarning,
   type RestorePlan,
@@ -621,6 +622,49 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
           more: t`Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up.`,
         });
       }
+      // A jail bans whoever keeps failing to sign in, whoever they are: the
+      // person applying it too, and for what they failed before it applied.
+      if (step.resource?.kind === "fail2ban.jail" && step.action !== PlanAction.DELETE && !applied) {
+        const jail = step.jail;
+        const never = (jail?.neverBans ?? []).join(", ");
+        const exposed = (jail?.signedInNotIgnored ?? []).join(", ");
+        // Undo puts the jail back as it was, and a ban stays where fail2ban made it.
+        const lifting = t`Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address.`;
+        const counts = t`fail2ban counts the failures from just before this applies, so a ban can land as it does.`;
+        if (jail?.ignoresEverything) {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail ignores every address on ${server.serverName}, so it bans nobody`,
+            detail: t`Take out the range that covers everything for it to ban anyone.`,
+            more: t`It never bans ${never}.`,
+          });
+        } else if (exposed) {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail can ban ${exposed}, signed in to ${server.serverName} over SSH now`,
+            detail: t`Add it to what the jail never bans first, or apply this knowing it.`,
+            more: t`It never bans ${never}. ${counts} ${lifting}`,
+          });
+        } else if (jail) {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail never bans ${never} on ${server.serverName}`,
+            detail: t`It bans any other address that keeps failing to sign in, yours included.`,
+            more: t`${counts} ${lifting}`,
+          });
+        } else {
+          out.push({
+            key: `bans-${key}`,
+            amber: true,
+            title: t`This jail can ban your own address on ${server.serverName}`,
+            detail: t`It never bans the server itself or the control server.`,
+            more: t`${counts} ${lifting}`,
+          });
+        }
+      }
     }
   }
   // A plan that says it destroys data, with no step of it to say which.
@@ -657,7 +701,8 @@ export function useDataLeft(
       more: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it.`,
     };
   }
-  if (!plan?.notes.some((note) => note.reason === "no_backup" || note.reason === "undo_no_backup")) return undefined;
+  if (!plan?.notes.some((note) => ["no_backup", "undo_no_backup", "unbacked_move"].includes(note.reason)))
+    return undefined;
   return {
     title: t`No backup was taken, and the data stays as it is now`,
     detail: t`Check that the app reads its data, and restore a backup of your own if it doesn't.`,
@@ -757,6 +802,15 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           detail: t`Back up what you can't lose first.`,
           more: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated.`,
         };
+      case "raises_features": {
+        const [from = "", to = ""] = note.names;
+        return {
+          key,
+          title: t`${name}'s features go up to ${from} before it moves to ${to}`,
+          detail: t`Undoing this puts back ${from}. The release before it can't run the data.`,
+          more: t`MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to ${from} first, and its data may then use ${from}'s features.`,
+        };
+      }
       case "tasks_as_root": {
         const tasks: string[] = [];
         for (let i = 0; i + 1 < note.names.length; i += 2) tasks.push(`${note.names[i]}: ${note.names[i + 1]}`);
@@ -768,6 +822,29 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           more: t`They run in what ${name} runs, so they reach what it reaches on its server too.`,
         };
       }
+      case "lowers_release": {
+        const [, to = "", features = ""] = note.names;
+        return features
+          ? {
+              key,
+              title: t`${name}'s data uses ${features}'s features, which ${to} can't run`,
+              detail: t`Lower its feature compatibility version to ${to} first.`,
+              more: t`Its last reading says so. Applying this stops before it moves, with nothing changed.`,
+            }
+          : {
+              key,
+              title: t`${name} moves back to ${to} only if its data allows`,
+              detail: t`Lower its feature compatibility version to ${to} first if it's higher.`,
+              more: t`Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if ${to} can't run them.`,
+            };
+      }
+      case "unbacked_move":
+        return {
+          key,
+          title: t`${name}'s data isn't backed up first`,
+          detail: t`Back it up yourself before you apply this.`,
+          more: t`It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data.`,
+        };
       case "tmpfs_no_size": {
         const [target = ""] = note.names;
         return {
@@ -850,6 +927,67 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`Revision ${revision} ran different images of ${image} on each server, so ${name} runs what ${image} is now`,
         };
       }
+      case "catalog_source_refuses": {
+        // The catalog's own check says why, in its words, after the file it's about.
+        const [file = ""] = note.names;
+        const at = note.message.indexOf(": ");
+        const why = at < 0 ? note.message : note.message.slice(at + 2);
+        return { key, title: t`Leaves out ${file}`, detail: why };
+      }
+      case "catalog_source_takes_away": {
+        const names = note.names.join(", ");
+        return {
+          key,
+          title: t`Takes away ${names}`,
+          more: t`Installs of them keep running, with no upgrades.`,
+        };
+      }
+      case "catalog_source_removed":
+        return {
+          key,
+          title: t`Its apps leave the catalog`,
+          more: t`Installs of them keep running, with no upgrades.`,
+        };
+      // A host such as GitHub serves a fork's commits through the repository it was forked from.
+      case "catalog_source_unnamed":
+        return {
+          key,
+          title: t`No branch or tag is at this commit now`,
+          detail: t`Check it's the commit you mean.`,
+          more: t`It may be an older commit, or a fork's.`,
+          notice: true,
+        };
+      case "catalog_source_unlisted":
+        return {
+          key,
+          title: t`Dockwell couldn't list the repository's branches and tags`,
+          detail: t`Check it's the commit you mean.`,
+          notice: true,
+        };
+      case "catalog_source_takes": {
+        const ids = note.names.join(", ");
+        return {
+          key,
+          title: t`Takes ${ids} from another catalog`,
+          more: t`This catalog comes first, so the catalog shows its apps.`,
+        };
+      }
+      case "catalog_source_gives": {
+        const ids = note.names.join(", ");
+        return {
+          key,
+          title: t`${ids} will come from another catalog`,
+          more: t`Nothing installed from this catalog upgrades to them.`,
+        };
+      }
+      case "catalog_source_strands": {
+        const projects = note.names.join(", ");
+        return {
+          key,
+          title: t`${projects} will have no upgrades`,
+          more: t`Each keeps running as it is.`,
+        };
+      }
       case "exposed_more":
         return {
           key,
@@ -914,7 +1052,17 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   );
   // These say what a pull does, which is no warning: there is nothing to weigh.
   // And what an edit kept of an app's own values: information, which an aside says once.
-  const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped", "keeps_env"]);
+  const quiet = new Set([
+    "pulls_again",
+    "leaves_pin",
+    "starts_stopped",
+    "keeps_env",
+    "catalog_source_reads",
+    "catalog_source_adds",
+    "catalog_source_changes",
+    "catalog_source_commit",
+    "catalog_source_restores",
+  ]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
     .map(
@@ -924,7 +1072,17 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         detail: line.lead ? `${line.text}.` : undefined,
       }),
     );
-  return [...rest, ...fromRollouts, ...routes, ...notes.filter((_, i) => !quiet.has(worthWarning[i]?.reason ?? ""))];
+  return [
+    ...rest,
+    ...fromRollouts,
+    ...routes,
+    ...notes.filter((_, i) => {
+      const note = worthWarning[i];
+      // Older source plans carry only a sentence, including unnamed-commit warnings.
+      if (note?.reason === "catalog_source_commit" && note.names.length === 0) return true;
+      return !quiet.has(note?.reason ?? "");
+    }),
+  ];
 }
 
 /**
@@ -956,6 +1114,56 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     if (note.reason === "keeps_env") {
       const key = `keeps-${note.resource?.scope ?? ""}/${name}`;
       if (!out.some((n) => n.key === key)) out.push({ key, title: `${note.message}.` });
+    }
+    // What a catalog's commit holds is what a person reviews it for, and no warning.
+    if (note.reason === "catalog_source_reads") {
+      const count = note.names.length;
+      const names = note.names.join(", ");
+      out.push({
+        key: `catalog-reads-${i}`,
+        title:
+          count === 0
+            ? t`The catalog shows no apps from this commit.`
+            : plural(count, {
+                one: `The catalog shows # app from this commit: ${names}.`,
+                other: `The catalog shows # apps from this commit: ${names}.`,
+              }),
+      });
+    }
+    if (note.reason === "catalog_source_adds") {
+      const names = note.names.join(", ");
+      out.push({ key: `catalog-adds-${i}`, title: t`Adds ${names}.` });
+    }
+    if (note.reason === "catalog_source_changes") {
+      const names = note.names.join(", ");
+      out.push({
+        key: `catalog-moves-${i}`,
+        title: note.names.length ? t`Moves ${names} on, which an install of each can upgrade to.` : note.message,
+      });
+    }
+    // Which branches and tags are at the commit, as refs/heads/main and refs/tags/v1.
+    if (note.reason === "catalog_source_commit" && note.names.length > 0) {
+      const at = note.names
+        .map((ref) =>
+          ref.startsWith("refs/tags/")
+            ? t`the tag ${ref.slice("refs/tags/".length)}`
+            : t`the branch ${ref.slice("refs/heads/".length)}`,
+        )
+        .join(", ");
+      out.push({
+        key: `catalog-commit-${i}`,
+        title: plural(note.names.length, {
+          one: `It's the commit ${at} is at.`,
+          other: `It's the commit ${at} are at.`,
+        }),
+      });
+    }
+    if (note.reason === "catalog_source_restores") {
+      const projects = note.names.join(", ");
+      out.push({
+        key: `catalog-restores-${i}`,
+        title: t`${projects} can upgrade again, from the catalog each came from.`,
+      });
     }
     if (note.reason !== "pulls_again") continue;
     // More than its image may differ on a server, and then the pull doesn't decide it.
