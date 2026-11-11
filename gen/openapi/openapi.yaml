@@ -1284,6 +1284,10 @@ paths:
             description: |-
                 CheckClaim checks a claim link without spending it, and describes the
                  server it claims.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
             operationId: AuthService_CheckClaim
             requestBody:
                 content:
@@ -2129,6 +2133,156 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListImageTagsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:begin:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginAcceptInvite starts creating the passkey of the person an invite
+                 names. It refuses while someone is signed in in the browser: accepting
+                 only ever makes a new person.
+            operationId: AuthService_BeginAcceptInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginAcceptInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginAcceptInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:check:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                CheckInvite reads an invite's link without spending it: who invited
+                 them, as what, and where. It works only at the panel's domain, where the
+                 passkey is made.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
+            operationId: AuthService_CheckInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:finish:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                FinishAcceptInvite spends the invite, makes the person with the role it
+                 names and the new passkey, and signs them in.
+            operationId: AuthService_FinishAcceptInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishAcceptInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishAcceptInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invites:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                CreateInvite invites someone by email to sign in with a role in a place,
+                 and returns the link to send them, once: Dockwell sends no mail. It takes a
+                 passkey step-up bound to the email, the role and the place
+                 (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+                 uses. Nobody is invited as owner, an admin's place is the install, and an
+                 admin invites no one above admin. An invite to someone who signs in here
+                 already is refused; a newer one to the same email replaces an open one.
+            operationId: MemberService_CreateInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invites/{id}:revoke:
+        post:
+            tags:
+                - MemberService
+            description: RevokeInvite stops an open invite working.
+            operationId: MemberService_RevokeInvite
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeInviteResponse'
                 default:
                     description: Default error response
                     content:
@@ -6075,6 +6229,24 @@ components:
                     type: string
                     description: How much those take, in bytes.
             description: BackupPolicyInfo is a schedule of backups, as it stands.
+        BeginAcceptInviteRequest:
+            type: object
+            properties:
+                secret:
+                    type: string
+                name:
+                    type: string
+                    description: Their name, such as "Ada Lovelace".
+            description: BeginAcceptInviteRequest names the person accepting.
+        BeginAcceptInviteResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                optionsJson:
+                    type: string
+                    description: PublicKeyCredentialCreationOptionsJSON, for navigator.credentials.create.
+            description: BeginAcceptInviteResponse carries the passkey ceremony to finish.
         BeginAddPasskeyRequest:
             type: object
             properties:
@@ -6156,6 +6328,7 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_INVITE
                         - STEP_UP_ACTION_ADD_SERVER
                     type: string
                     description: The action.
@@ -6853,6 +7026,44 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckInviteRequest:
+            type: object
+            properties:
+                secret:
+                    type: string
+            description: 'CheckInviteRequest carries an invite''s secret, from after the # in its link.'
+        CheckInviteResponse:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Who it names.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectName:
+                    type: string
+                    description: |-
+                        The project's name, for a developer or a viewer of one. Empty for the
+                         whole install.
+                invitedBy:
+                    type: string
+                    description: Who made it, by name.
+                expireTime:
+                    type: string
+                    format: date-time
+                projectId:
+                    type: string
+                    description: |-
+                        The project's ID, for a developer or a viewer of one. Empty for the whole
+                         install: what says "every project" is this, never an empty name.
+            description: CheckInviteResponse says what an invite offers.
         CheckServerPortsResponse:
             type: object
             properties:
@@ -7316,6 +7527,47 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateInviteRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: |-
+                        Who the invite names, such as "ada@example.com". Unverified: it names the
+                         invite in Members and on the page that accepts it.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: ROLE_ADMIN, ROLE_DEVELOPER or ROLE_VIEWER.
+                    format: enum
+                project:
+                    type: string
+                    description: |-
+                        The project's ID or name, for a developer or a viewer of one project.
+                         Empty is the whole install, which an admin's invite always is.
+                proof:
+                    type: string
+                    description: |-
+                        From FinishStepUp, for STEP_UP_ACTION_INVITE with the target the email,
+                         lowercased, the role's name and the place, apart by spaces, as "ada@example.com
+                         developer prj_…", or "install" for the whole install.
+            description: CreateInviteRequest says whom to invite, as what, and where.
+        CreateInviteResponse:
+            type: object
+            properties:
+                invite:
+                    $ref: '#/components/schemas/Invite'
+                link:
+                    type: string
+                    description: |-
+                        The link to send, as "https://panel.example.com/invite#…". Its secret
+                         isn't kept: it can't be shown again.
+            description: CreateInviteResponse carries the invite and its link, shown once.
         CreateJoinTicketRequest:
             type: object
             properties:
@@ -8500,6 +8752,12 @@ components:
                         What became of a scheduled task's run, for a task event. Its subject is the
                          task. Numbered in the block scheduled tasks hold, as open work adds to this
                          message.
+                member:
+                    allOf:
+                        - $ref: '#/components/schemas/EventMember'
+                    description: |-
+                        For a member's event, such as member.invite or member.join: who, with
+                         what role, where. Numbered in the block members hold.
                 desiredSent:
                     allOf:
                         - $ref: '#/components/schemas/EventDesiredSent'
@@ -8726,6 +8984,33 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventMember:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Who, by email, as an invite names them.
+                name:
+                    type: string
+                    description: Their name, once they sign in.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectId:
+                    type: string
+                    description: The project, for a role in one. Empty for the whole install.
+                projectName:
+                    type: string
+                address:
+                    type: string
+                    description: The address someone joined from, on member.join. Empty otherwise.
+            description: EventMember is who a member's event is about, with what role, where.
         EventProcess:
             type: object
             properties:
@@ -9073,6 +9358,30 @@ components:
                     type: integer
                     format: uint32
             description: FileEntry is one file or directory on a server.
+        FinishAcceptInviteRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginAcceptInvite.
+                secret:
+                    type: string
+                    description: 'The invite''s secret, again: it is spent only here.'
+                credentialJson:
+                    type: string
+                    description: RegistrationResponseJSON from navigator.credentials.create.
+                passkeyName:
+                    type: string
+                    description: What to call the passkey, such as "Chrome on macOS". Optional.
+            description: FinishAcceptInviteRequest finishes the passkey and spends the invite.
+        FinishAcceptInviteResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+            description: |-
+                FinishAcceptInviteResponse carries the new person. The response sets the
+                 session cookie.
         FinishAddPasskeyRequest:
             type: object
             properties:
@@ -9405,6 +9714,7 @@ components:
                         - SIGN_IN_METHOD_AUTHENTICATOR_CODE
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
+                        - SIGN_IN_METHOD_INVITE
                     type: string
                     description: How this session began. Unset when not signed in.
                     format: enum
@@ -10441,6 +10751,43 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        Invite:
+            type: object
+            properties:
+                id:
+                    type: string
+                email:
+                    type: string
+                    description: Who it names, unverified.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectId:
+                    type: string
+                    description: The project, for a developer or a viewer of one. Empty for the install.
+                projectName:
+                    type: string
+                    description: The project's name. Empty for the install.
+                invitedBy:
+                    type: string
+                    description: Who made it, by name.
+                createTime:
+                    type: string
+                    format: date-time
+                expireTime:
+                    type: string
+                    description: |-
+                        When it stops working: 7 days after it's made for a developer or a
+                         viewer, 24 hours for an admin, whose link is a bearer credential to the
+                         install.
+                    format: date-time
+            description: Invite is an open invitation to sign in.
         JoinAddress:
             type: object
             properties:
@@ -10619,10 +10966,17 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/CatalogSourceRef'
-                    description: 'Each branch, then each tag, by name. At most 500: more are left out.'
+                    description: |-
+                        The default branch, then each other branch, then each tag, by name. At most
+                         500: more are left out.
                 more:
                     type: boolean
                     description: Whether some were left out.
+                head:
+                    type: string
+                    description: |-
+                        The branch the repository's HEAD names, its default, such as
+                         "refs/heads/main", which leads refs. Empty when it names none.
             description: ListCatalogSourceRefsResponse is the repository's branches and tags.
         ListCatalogSourcesResponse:
             type: object
@@ -10806,6 +11160,11 @@ components:
                     items:
                         $ref: '#/components/schemas/Member'
                     description: Everyone who can sign in, oldest first.
+                invites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Invite'
+                    description: The invites that still work, newest first.
             description: ListMembersResponse lists who can sign in.
         ListPasskeysResponse:
             type: object
@@ -11281,10 +11640,34 @@ components:
                     description: |-
                         True when code sign-in is locked after too many wrong codes, until the
                          owner lifts it. Only for the person asking.
+                grants:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MemberGrant'
+                    description: |-
+                        The roles they hold in projects, by project name. Their role on the
+                         whole install, which covers every project, is user.role.
             description: |-
                 Member is a person who can sign in, and how. The details of how are the
                  person asking's alone: for anyone else, only the kinds of sign-in they have
                  and when they were last active are set.
+        MemberGrant:
+            type: object
+            properties:
+                projectId:
+                    type: string
+                projectName:
+                    type: string
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+            description: MemberGrant is a role someone holds in one project.
         Mount:
             type: object
             properties:
@@ -12948,6 +13331,16 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: A new change, planned, that puts the resource back.
             description: RevertDriftResponse carries the planned revert.
+        RevokeInviteRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+            description: RevokeInviteRequest names an open invite.
+        RevokeInviteResponse:
+            type: object
+            properties: {}
+            description: RevokeInviteResponse is empty.
         RevokeOtherSessionsRequest:
             type: object
             properties: {}
@@ -14478,6 +14871,7 @@ components:
                         - SIGN_IN_METHOD_AUTHENTICATOR_CODE
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
+                        - SIGN_IN_METHOD_INVITE
                     type: string
                     description: How it signed in.
                     format: enum
@@ -16114,10 +16508,12 @@ tags:
          same credentials.
     - name: MemberService
       description: |-
-        MemberService says who can sign in to the install, with their role and how
-         they sign in. Today that is one person, the owner, who claimed the install:
-         inviting others, and roles beyond the owner, come later. See
-         docs/adr/0048-members-as-far-as-one-owner-goes.md.
+        MemberService says who can sign in to the install, with their roles and how
+         they sign in, and invites others: the owner and admins invite someone with
+         a role in a place, the install or a project, and the person accepts with a
+         passkey (AuthService.FinishAcceptInvite). See
+         docs/adr/0048-members-as-far-as-one-owner-goes.md and
+         docs/adr/0049-roles-and-invites-by-project.md.
 
          It names people and their emails, so only a person signed in reads it, never
          an API token. How each person signs in is theirs: everyone sees the kinds of

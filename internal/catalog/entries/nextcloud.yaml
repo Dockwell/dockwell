@@ -45,8 +45,9 @@ firstSteps: >-
   Nextcloud's personal settings, under Security, then set the secret to match.
   Nextcloud reads the domain you gave on its first install only. To answer at
   another, run php occ config:system:set trusted_domains 2 --value=cloud.example.com
-  as www-data in the nextcloud container. The first start takes a minute
-  or two.
+  as www-data in the nextcloud container. Leave the POSTGRES_PASSWORD secret as it
+  is: Nextcloud keeps the password it installed with in its config.php, and would
+  then use one its database doesn't take. The first start takes a minute or two.
 inputs:
   - name: PORT
     label: Port on this server

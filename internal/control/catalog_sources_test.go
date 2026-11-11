@@ -341,7 +341,7 @@ func TestARepositorysBranchesAreListed(t *testing.T) {
 		return res.Msg, nil
 	}
 	got, err := refs(repo.URL)
-	if err != nil || len(got.GetRefs()) != 1 || got.GetRefs()[0].GetName() != "refs/heads/main" || got.GetRefs()[0].GetCommit() != commit || got.GetMore() {
+	if err != nil || len(got.GetRefs()) != 1 || got.GetRefs()[0].GetName() != "refs/heads/main" || got.GetRefs()[0].GetCommit() != commit || got.GetMore() || got.GetHead() != "refs/heads/main" {
 		t.Errorf("a repository's branches: %v, %v", got, err)
 	}
 	if _, err := refs(repo.URL + "-missing"); connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "unreadable" {
