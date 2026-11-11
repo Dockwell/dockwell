@@ -31,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
+	imagebuild "github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/datadir"
@@ -339,6 +340,8 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go routes.Watch(ctx)
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
+	builder := &imagebuild.Builder{Client: client, Logger: logger, StateDir: dir.Root}
+	go builder.Clean(ctx)
 	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
 	go tasks.Keep(ctx)
 	var reserved string
@@ -362,14 +365,14 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	// A server's host installs its updates in a unit of systemd's own (ADR 0064).
 	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
 	return agent.Config{
-		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Passwords: &database.FirstPasswords{Client: client}},
+		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}}),
 		Updates:   packages,
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Tasks: tasks, Tools: tools, Access: firewalls,
+		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: serverSystem(stdio),
 	}

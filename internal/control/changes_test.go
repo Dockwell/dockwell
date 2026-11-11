@@ -33,6 +33,7 @@ import (
 	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/backup"
+	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/database"
@@ -105,6 +106,8 @@ type testServer struct {
 	backups *backup.Runner
 	// updates reads its package updates, when set.
 	updates *agentupdates.Reader
+	// builds builds its services' images, when it has Docker.
+	builds *build.Builder
 	// onePanel reads what 1Panel keeps on it, when set.
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
 	// images is where its agent reads images from. Unset, it reads none, as a test
@@ -183,6 +186,9 @@ func (s *testServer) run(t *testing.T) {
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything
+	}
+	if s.builds != nil {
+		cfg.Builds = s.builds
 	}
 	cfg.Images = s.images
 	if cfg.Images.Test == "" {

@@ -433,6 +433,11 @@ export function withoutIds(message: string): string {
  * follows: "x can't be pulled. Check the name." The full stop of a machine
  * value, as in nginx:1.27, has no space after it, so it never ends a sentence.
  */
+/** A server's words as people read them: a quote inside what it quoted, such as a Dockerfile's step, without the backslash Go quotes it with. */
+export function shownQuotes(text: string): string {
+  return text.replace(/\\(["\\])/g, "$1");
+}
+
 export function factAndRest(message: string): [string, string] {
   // Go's errors start lowercase. A name a message starts with keeps its case, so only the common words change.
   const text = message.trim().replace(/^(the|a|an|another|this|there|can't)\b/, (word) => {

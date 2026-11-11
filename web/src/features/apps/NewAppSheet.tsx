@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient } from "@connectrpc/connect";
+import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  BuildService,
   type Change,
   ChangeService,
   ChangeState,
   type CheckComposeResponse,
   ComposeService,
   Connection,
+  DetectionProblem,
   type ExposedVariable,
+  ImageBuild_Builder,
   ResourceService,
   RestartPolicy,
 } from "@dockwell/api";
@@ -44,6 +47,7 @@ import {
   type ClipboardEvent,
   type FormEvent,
   Fragment,
+  type ReactNode,
   type Ref,
   useCallback,
   useEffect,
@@ -74,23 +78,30 @@ import {
   tidyMessage,
   toLabel,
 } from "./app";
+import { shownRepository } from "./Build";
 import { composeRefusal, type RefusedAt, waitsForValues, withCode } from "./composeWords";
+import { useDetectionWords } from "./detection";
 import { FolderFields, nameFromFolder, useFolderChecks } from "./FolderFields";
 import { useServerFolders } from "./folders";
 import {
   appEdits,
+  buildOf,
   changedSettings,
   checkPort,
   DEFAULT_SETTINGS,
   type EnvRow,
+  emptyGit,
   type FolderForm,
   type FormErrors,
   fieldOf,
   fillFromImage,
+  type GitForm,
+  gitFieldOf,
   type ImageForm,
   isServerPath,
   type MoreSettings,
   type MountRow,
+  nameFromRepository,
   type PortRow,
   parseEnv,
   pathReach,
@@ -102,8 +113,11 @@ import { joinWords, splitWords, validCpus, validMemory } from "./specEdit";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 
-/** Where a new app comes from. A Git repository (#336) will be one more choice beside these. */
-export type NewAppSource = "image" | "compose" | "folder";
+/**
+ * Where a new app comes from: a Git repository it builds (ADR 0046), an image, a
+ * Compose file, or a folder on the server with a runtime (ADR 0058).
+ */
+export type NewAppSource = "git" | "image" | "compose" | "folder";
 
 /** A running count that gives each row of the form a key of its own. */
 let rowKeys = 0;
@@ -126,9 +140,11 @@ const ENV_LINES = 6;
  * its name; ports, variables and volumes wait behind a button each, and
  * where it runs shows only once there is a choice. A Compose file gets a
  * project of its own, named from the file (ADR 0026); it is read as you type,
- * says what it would make, and says at the line what Dockwell can't run. A folder
- * on the server runs on a language's version, as Dockwell keeps it (ADR 0058). Git
- * sources come in phase 2, and the catalog has a page of its own.
+ * says what it would make, and says at the line what Dockwell can't run. A
+ * repository builds on the server it runs on, with its Dockerfile or Railpack, and
+ * the plan says which commit it builds (ADR 0046). A folder on the server runs on a
+ * language's version, as Dockwell keeps it (ADR 0058). The catalog has a page of its
+ * own.
  */
 export function NewAppSheet({
   source,
@@ -166,6 +182,8 @@ export function NewAppSheet({
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
 
   const [image, setImage] = useState<ImageForm>({ image: "", name: "", ports: [], env: [], mounts: [] });
+  const [git, setGit] = useState<GitForm>(emptyGit);
+  const [showBuild, setShowBuild] = useState(false);
   const [folder, setFolder] = useState<FolderForm>({
     language: runtime?.language ?? "node",
     version: runtime?.version ?? "",
@@ -222,7 +240,13 @@ export function NewAppSheet({
   const volumes = useQuery(ResourceService.method.listResources, { kind: "volume", scope }, { enabled: scope !== "" })
     .data?.resources;
   const volumeNames = useMemo(() => (volumes ?? []).map((v) => v.resource?.name ?? ""), [volumes]);
-  const name = image.name.trim() || (source === "folder" ? nameFromFolder(folder.folder) : nameFromImage(image.image));
+  const name =
+    image.name.trim() ||
+    (source === "git"
+      ? nameFromRepository(git.url)
+      : source === "folder"
+        ? nameFromFolder(folder.folder)
+        : nameFromImage(image.image));
   // What's free is read on the servers it will run on: the one there is, or those chosen.
   const onlyId = only?.id;
   const serverIds = useMemo(
@@ -287,11 +311,22 @@ export function NewAppSheet({
   /** Checks what a person can fix here, before asking the API. */
   const validate = (): FormErrors => {
     const out: Record<string, string> = source === "folder" ? folderChecks(folder) : {};
-    if (source === "image") {
+    if (source === "git") {
+      if (git.url.trim() === "") out["git.url"] = t`Paste the repository's URL, such as https://github.com/acme/web.`;
+      else if (/\s/.test(git.url.trim()))
+        out["git.url"] = t`A URL has no spaces. Write it as https://github.com/acme/web.`;
+      if (git.args.trim() !== "" && !parseEnv(git.args))
+        out["git.args"] = t`Write each as NAME=value, on a line of its own.`;
+    } else if (source === "image") {
       if (image.image.trim() === "") out["image"] = t`Name the image to run, such as nginx:1.27.`;
       else if (/\s/.test(image.image.trim())) out["image"] = t`An image has no spaces. Write it as nginx:1.27.`;
     }
-    const named = source === "folder" ? folder.folder.trim() !== "" : image.image.trim() !== "";
+    const named =
+      source === "git"
+        ? git.url.trim() !== ""
+        : source === "folder"
+          ? folder.folder.trim() !== ""
+          : image.image.trim() !== "";
     if (named && !SERVICE_NAME.test(name)) {
       out["name"] = t`Use lowercase letters, digits and dashes, starting with a letter, such as web.`;
     } else if (inEnvironment.some((s) => nameOf(s) === name)) {
@@ -341,8 +376,8 @@ export function NewAppSheet({
   }, [plan]);
 
   const fix = (reason: string) => {
-    // A Compose file has a command to check, which is what the server says. This form hasn't.
-    if (source === "compose") return undefined;
+    // A Compose file has a command to check, which is what the server says, and a build says what to fix in the repository.
+    if (source === "compose" || source === "git") return undefined;
     // A check that fails says what it answered, and what to do about that, which is the server's.
     if (reason === "exits") return t`Check the image and its variables, then try again.`;
     return reason === "command" ? t`Check the image and tag, then try again.` : undefined;
@@ -376,6 +411,10 @@ export function NewAppSheet({
               // What ran is what to change, unless it says what else was wrong.
               setErrors({ [fieldOf(message, shown, name) || "image"]: message });
               revealAfter.current = true;
+            } else if (source === "git" && gitFieldOf(message) === "git.dockerfile") {
+              setShowBuild(true);
+              setErrors({ "git.dockerfile": message });
+              revealAfter.current = true;
             } else setFailure(message);
           }
           setPlan(undefined);
@@ -384,7 +423,16 @@ export function NewAppSheet({
         // Undone in the same sheet, it has no page to open. Made, it opens at its log, which
         // starts from its first line, with where it answers in its head.
         if (open === "app" && service && after.reverts === "") {
-          void navigate({ to: "/apps/$serviceId/logs", params: { serviceId: service.id } });
+          // An app built from Git lands on its build, with its log as it comes, on a
+          // phone too, where a revision opens only when named. Its revision is the one
+          // after where the plan starts: a name an app had before goes on counting.
+          if (source === "git") {
+            void navigate({
+              to: "/apps/$serviceId/deployments",
+              params: { serviceId: service.id },
+              search: { revision: String(service.baseRevision + 1n) },
+            });
+          } else void navigate({ to: "/apps/$serviceId/logs", params: { serviceId: service.id } });
         } else void navigate({ to: "/apps" });
       },
     });
@@ -437,9 +485,15 @@ export function NewAppSheet({
     setBusy(true);
     try {
       const wanted = image.image.trim();
+      const repository = shownRepository(git.url.trim());
       const path = folder.folder.trim();
       const res = await changes.proposeChange({
-        summary: source === "folder" ? t`Run ${name} from ${path}` : t`Run ${wanted} as ${name}`,
+        summary:
+          source === "git"
+            ? t`Build ${repository} as ${name}`
+            : source === "folder"
+              ? t`Run ${name} from ${path}`
+              : t`Run ${wanted} as ${name}`,
         edits: appEdits(
           source === "folder" ? { ...shown, mounts: [] } : shown,
           name,
@@ -449,6 +503,7 @@ export function NewAppSheet({
             volumes: volumeNames,
           },
           source === "folder" ? folder : undefined,
+          source === "git" ? git : undefined,
         ),
       });
       review(res.change, "app");
@@ -459,7 +514,9 @@ export function NewAppSheet({
         ? ""
         : source === "folder"
           ? folderFieldOf(message, folder) || fieldOf(message, { ...shown, mounts: [] }, name)
-          : fieldOf(message, shown, name);
+          : (source === "git" ? gitFieldOf(message) : "") || fieldOf(message, shown, name);
+      // A field behind Change opens, so what's said of it shows.
+      if (field.startsWith("git.") && field !== "git.url" && field !== "git.ref") setShowBuild(true);
       if (field) {
         setErrors({ [field]: message });
         revealError();
@@ -473,6 +530,7 @@ export function NewAppSheet({
   const typed =
     folder.folder !== "" ||
     image.image !== "" ||
+    git.url !== "" ||
     image.name !== "" ||
     image.ports.length > 0 ||
     image.env.length > 0 ||
@@ -550,7 +608,7 @@ export function NewAppSheet({
       : "";
 
   const hostReach =
-    (source === "image" && image.mounts.some((m) => pathReach(m.source))) ||
+    ((source === "image" || source === "git") && image.mounts.some((m) => pathReach(m.source))) ||
     (source === "folder" && folder.folder.trim() !== "");
   const fileReach =
     source === "compose" &&
@@ -637,6 +695,7 @@ export function NewAppSheet({
               value={source}
               onChange={onSource}
               options={[
+                { value: "git", label: t`Git`, icon: "branch" },
                 { value: "image", label: t`Image`, icon: "layers" },
                 { value: "folder", label: t`Folder`, icon: "folder" },
                 { value: "compose", label: t`Compose`, icon: "file" },
@@ -644,7 +703,39 @@ export function NewAppSheet({
             />
           </div>
         </div>
-        {source === "image" ? (
+        {source === "git" ? (
+          <>
+            {choosesEnvironment ? (
+              <SelectField
+                label={places.showsEnvironment ? t`Environment` : t`Project`}
+                value={scope}
+                options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
+                onChange={(event) => setEnvironment(event.target.value)}
+              />
+            ) : null}
+            <GitFields
+              git={git}
+              onGit={(next, clear) => {
+                setGit((was) => ({ ...was, ...next }));
+                if (clear) setErrors(({ [clear]: _, ...rest }) => rest);
+              }}
+              server={chosenServers[0] ?? ""}
+              waitForServer={needsPlace}
+              serversKnown={servers !== undefined}
+              showBuild={showBuild}
+              onShowBuild={setShowBuild}
+              form={shown}
+              errors={errors}
+              update={update}
+              onError={setErrors}
+              fieldRef={firstField}
+              ports={ports}
+              address={address}
+              volumes={volumeNames}
+              folders={folders}
+            />
+          </>
+        ) : source === "image" ? (
           <ImageFields
             form={shown}
             errors={errors}
@@ -926,6 +1017,496 @@ function ImageFields({
         command={command}
       />
     </>
+  );
+}
+
+/**
+ * What an app that builds from Git asks for: the repository and its branch, then
+ * how it builds, which is its Dockerfile unless you change that, then what any app
+ * has (Apps-New). The plan says which commit it builds.
+ */
+function GitFields({
+  git,
+  onGit,
+  showBuild,
+  onShowBuild,
+  form,
+  errors,
+  update,
+  onError,
+  fieldRef,
+  server,
+  ports,
+  address,
+  volumes,
+  folders,
+  waitForServer,
+  serversKnown,
+}: {
+  git: GitForm;
+  onGit: (next: Partial<GitForm>, clear?: string) => void;
+  /** The server it runs on, when one is chosen, which reads how the repository builds. */
+  server: string;
+  /** What the servers it runs on hold, for the port each row follows. */
+  ports: ServerPorts;
+  /** Where it answers, for the port's line. */
+  address: string | undefined;
+  /** The environment's volumes, to choose from. */
+  volumes: readonly string[];
+  /** Lists a server's folders, for a volume's server path, where the reader may. */
+  folders: ((path: string) => Promise<FolderListing>) | undefined;
+  /** True while there's more than one server and none is chosen: nothing reads it yet. */
+  waitForServer: boolean;
+  /** False until the panel knows the servers, and so whether one must be chosen. */
+  serversKnown: boolean;
+  showBuild: boolean;
+  onShowBuild: (shown: boolean) => void;
+  fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
+  form: ImageForm;
+  errors: FormErrors;
+  update: (next: Partial<ImageForm>, clear?: string) => void;
+  onError: (errors: FormErrors) => void;
+}) {
+  const { t } = useLingui();
+  const clear = (key: string) => {
+    if (errors[key]) {
+      const { [key]: _, ...rest } = errors;
+      onError(rest);
+    }
+  };
+  const placeholderName = nameFromRepository(git.url) || "web";
+  const repository = useRepository(git.url);
+  // The default branch first, as the one it builds when none is chosen, then the
+  // rest, and a tag or commit someone typed, which the repository's branches don't list.
+  const branchOptions = [
+    ...repository.branches.map((name) =>
+      name === repository.defaultBranch ? { value: "", label: t`${name} (default)` } : { value: name, label: name },
+    ),
+    ...(git.ref !== "" && git.ref !== repository.defaultBranch && !repository.branches.includes(git.ref)
+      ? [{ value: git.ref, label: git.ref }]
+      : []),
+  ];
+  // The port the Dockerfile exposes goes in "In the app", with a free port on the
+  // server, once for each reading and only into a form with no port yet, as an
+  // image's does: a port someone removed stays removed.
+  // The port its Dockerfile exposes goes in the app, following a free port on the
+  // server, as an image's EXPOSE does: a row filled so, while nobody changes it,
+  // follows the next reading, as of another repository, and one someone added or
+  // changed stays (fillFromImage).
+  const [exposed, setExposed] = useState<readonly number[] | undefined>(undefined);
+  const filledFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (exposed === undefined) return;
+    const key = exposed.join(",");
+    if (filledFor.current === key) return;
+    filledFor.current = key;
+    const own = form.ports.filter((p) => !p.fromImage);
+    const port = exposed[0];
+    const next: PortRow[] =
+      own.length > 0 || port === undefined
+        ? own
+        : [{ key: nextKey(), host: "", container: String(port), protocol: "tcp", auto: true, fromImage: true }];
+    if (next.length !== form.ports.length || next.some((p, i) => p.key !== form.ports[i]?.key)) update({ ports: next });
+  }, [exposed, form.ports, update]);
+  // The text of a tag or commit typed under Change, which a branch of the same
+  // beginning doesn't clear as it's typed.
+  const [tag, setTag] = useState(() => (git.ref !== "" && !repository.branches.includes(git.ref) ? git.ref : ""));
+  // A branch chosen from one repository that the next one hasn't goes back to the default.
+  const seen = useRef<{ url: string; branches: readonly string[] } | undefined>(undefined);
+  useEffect(() => {
+    if (!repository.checked) return;
+    const was = seen.current;
+    seen.current = { url: repository.url, branches: repository.branches };
+    if (!was || was.url === repository.url) return;
+    if (git.ref !== "" && was.branches.includes(git.ref) && !repository.branches.includes(git.ref)) {
+      setTag("");
+      onGit({ ref: "" }, "git.ref");
+    }
+  }, [repository.checked, repository.url, repository.branches, git.ref, onGit]);
+  return (
+    <>
+      <div className="git-source">
+        <TextField
+          ref={fieldRef}
+          label={t`Repository`}
+          mono
+          placeholder="https://github.com/acme/web"
+          value={git.url}
+          error={errors["git.url"] ?? repository.failed}
+          hint={repository.state}
+          onChange={(event) => onGit({ url: event.target.value }, "git.url")}
+        />
+        {branchOptions.length > 1 ? (
+          <SelectField
+            label={t`Branch`}
+            mono
+            value={git.ref === repository.defaultBranch ? "" : git.ref}
+            error={errors["git.ref"]}
+            options={branchOptions}
+            onChange={(event) => {
+              setTag("");
+              onGit({ ref: event.target.value }, "git.ref");
+            }}
+          />
+        ) : (
+          <TextField
+            label={t`Branch`}
+            icon="branch"
+            mono
+            placeholder={repository.defaultBranch || "main"}
+            value={git.ref}
+            error={errors["git.ref"]}
+            onChange={(event) => onGit({ ref: event.target.value }, "git.ref")}
+          />
+        )}
+      </div>
+      <BuildRow
+        git={git}
+        server={server}
+        waitForServer={waitForServer || !serversKnown}
+        showBuild={showBuild}
+        onShowBuild={onShowBuild}
+        onExposed={setExposed}
+        checked={repository.checked}
+      />
+      {showBuild ? (
+        <div className="git-build-fields">
+          <div className="app-field">
+            <span id="builder-label" className="dw-field-label">
+              <Trans>Builder</Trans>
+            </span>
+            <div>
+              <SegmentedControl
+                label={t`Builder`}
+                value={git.builder || "auto"}
+                onChange={(value) => onGit({ builder: value === "auto" ? "" : (value as GitForm["builder"]) })}
+                options={[
+                  { value: "auto", label: t`Auto` },
+                  { value: "dockerfile", label: t`Dockerfile` },
+                  { value: "railpack", label: t`Railpack` },
+                ]}
+              />
+            </div>
+            <span className="dw-field-hint">
+              {git.builder === "dockerfile" ? (
+                <Trans>The commit's Dockerfile.</Trans>
+              ) : git.builder === "railpack" ? (
+                <Trans>Railpack, with no Dockerfile.</Trans>
+              ) : (
+                <Trans>The Dockerfile when there is one, and Railpack when there isn't.</Trans>
+              )}
+            </span>
+          </div>
+          {branchOptions.length > 1 ? (
+            <TextField
+              label={t`Tag or commit`}
+              icon="branch"
+              mono
+              optional
+              placeholder="v1.4.0"
+              value={tag}
+              hint={t`In place of a branch.`}
+              onChange={(event) => {
+                setTag(event.target.value);
+                onGit({ ref: event.target.value.trim() }, "git.ref");
+              }}
+            />
+          ) : null}
+          <div className="git-source">
+            <TextField
+              label={t`Folder`}
+              mono
+              optional
+              placeholder="."
+              value={git.context}
+              error={errors["git.context"]}
+              hint={t`Where the build starts, in the repository.`}
+              onChange={(event) => onGit({ context: event.target.value }, "git.context")}
+            />
+            {git.builder === "railpack" ? null : (
+              <TextField
+                label={t`Dockerfile`}
+                mono
+                optional
+                placeholder="Dockerfile"
+                value={git.dockerfile}
+                error={errors["git.dockerfile"]}
+                hint={t`In that folder.`}
+                onChange={(event) => onGit({ dockerfile: event.target.value }, "git.dockerfile")}
+              />
+            )}
+          </div>
+          {git.builder === "dockerfile" ? null : (
+            <div className="git-commands">
+              <TextField
+                label={t`Build command`}
+                mono
+                optional
+                placeholder="npm run build"
+                value={git.buildCommand}
+                error={errors["git.buildCommand"]}
+                hint={t`With Railpack, in place of the one it finds.`}
+                onChange={(event) => onGit({ buildCommand: event.target.value }, "git.buildCommand")}
+              />
+              <TextField
+                label={t`Start command`}
+                mono
+                optional
+                placeholder="node server.js"
+                value={git.startCommand}
+                error={errors["git.startCommand"]}
+                hint={t`What the image starts with.`}
+                onChange={(event) => onGit({ startCommand: event.target.value }, "git.startCommand")}
+              />
+            </div>
+          )}
+          <CodeField
+            label={t`Build arguments`}
+            lines={3}
+            value={git.args}
+            autoComplete="off"
+            placeholder={"NODE_ENV=production"}
+            error={errors["git.args"]}
+            hint={t`A NAME=value a line. They aren't secret.`}
+            onChange={(event) => onGit({ args: event.target.value }, "git.args")}
+          />
+        </div>
+      ) : null}
+      <TextField
+        label={t`Name`}
+        mono
+        optional={form.name === ""}
+        placeholder={placeholderName}
+        value={form.name}
+        error={errors["name"]}
+        hint={t`Other apps on its network reach it by this name.`}
+        onChange={(event) => update({ name: event.target.value }, "name")}
+      />
+      <div className="app-rule" />
+      <PortsSection form={form} errors={errors} update={update} clear={clear} ports={ports} address={address} />
+      <EnvSection form={form} errors={errors} update={update} clear={clear} />
+      <MountsSection form={form} errors={errors} update={update} clear={clear} volumes={volumes} folders={folders} />
+    </>
+  );
+}
+
+/**
+ * A repository, asked from the control server as its URL is typed: that it is
+ * there and public, as a state beside the field, and its branches to choose from,
+ * the default first.
+ */
+function useRepository(typed: string): {
+  state?: ReactNode;
+  failed?: ReactNode;
+  /** True once it answered for the URL as it is typed now. */
+  checked: boolean;
+  /** The URL it answered for. */
+  url: string;
+  branches: readonly string[];
+  defaultBranch: string;
+} {
+  const { t } = useLingui();
+  const [url, setUrl] = useState(typed.trim());
+  useEffect(() => {
+    const id = setTimeout(() => setUrl(typed.trim()), 600);
+    return () => clearTimeout(id);
+  }, [typed]);
+  // Having the control server ask a repository is a developer's, as planning is (ADR 0059).
+  const allowed = useMay()(BuildService.method.listRepositoryBranches).allowed;
+  const worth = looksLikeRepository(typed) && allowed;
+  const asked = useQuery(
+    BuildService.method.listRepositoryBranches,
+    { url },
+    { enabled: allowed && looksLikeRepository(url), retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+  );
+  if (!worth) return { checked: false, url, branches: [], defaultBranch: "" };
+  if (url !== typed.trim() || asked.isFetching)
+    return { state: t`Checking the repository`, checked: false, url, branches: [], defaultBranch: "" };
+  if (asked.error) {
+    // A URL that can't be one says what to change; anything else may answer if asked again.
+    const again =
+      asked.error instanceof ConnectError && asked.error.code === Code.InvalidArgument ? null : (
+        <>
+          {" "}
+          <button type="button" className="git-check-again" onClick={() => void asked.refetch()}>
+            {t`Check again`}
+          </button>
+        </>
+      );
+    return {
+      failed: (
+        <>
+          {sentence(asked.error)}
+          {again}
+        </>
+      ),
+      checked: false,
+      url,
+      branches: [],
+      defaultBranch: "",
+    };
+  }
+  const branches = asked.data?.branches ?? [];
+  const count = asked.data?.total || branches.length;
+  return {
+    checked: true,
+    url,
+    state: plural(count, { one: "Public · # branch", other: "Public · # branches" }),
+    branches,
+    defaultBranch: asked.data?.defaultBranch ?? "",
+  };
+}
+
+/** A repository's URL that is worth reading: a host, then a path. */
+function looksLikeRepository(url: string): boolean {
+  return /^(https?:\/\/)?[^\s/]+[.:][^\s/]*\/[^\s]+$/.test(url.trim());
+}
+
+/**
+ * How the repository builds, read on a server as you type, as Apps-New shows it:
+ * "Dockerfile · node:22-alpine" or "Railpack · Node 22", detected, with what
+ * Railpack runs beneath. The plan reads it again at the commit it builds.
+ */
+function BuildRow({
+  git,
+  server,
+  waitForServer,
+  showBuild,
+  onShowBuild,
+  onExposed,
+  checked,
+}: {
+  git: GitForm;
+  server: string;
+  waitForServer: boolean;
+  showBuild: boolean;
+  onShowBuild: (shown: boolean) => void;
+  /** Hears which ports a reading that answered says the Dockerfile exposes. */
+  onExposed: (ports: readonly number[]) => void;
+  /** True once the repository is known to be there: its own field says when it isn't, and nothing reads how it builds until it is. */
+  checked: boolean;
+}) {
+  const { t } = useLingui();
+  const words = useDetectionWords();
+  const wanted = JSON.stringify([
+    git.url,
+    git.ref,
+    git.context,
+    git.dockerfile,
+    git.builder,
+    git.buildCommand,
+    git.startCommand,
+    git.args,
+    server,
+    waitForServer,
+  ]);
+  const [settled, setSettled] = useState(wanted);
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(wanted), 600);
+    return () => clearTimeout(id);
+  }, [wanted]);
+  const [url, ref, context, dockerfile, builder, buildCommand, startCommand, args, on, waiting] = JSON.parse(
+    settled,
+  ) as [string, string, string, string, GitForm["builder"], string, string, string, string, boolean];
+  // A reading checks out on the server that will build it, and none is chosen yet.
+  // Reading how it builds is a developer's where it goes, as planning is (ADR 0059).
+  const allowed = useMay()(BuildService.method.detectBuild).allowed;
+  const ready = looksLikeRepository(url) && !waiting && checked && allowed;
+  const read = useQuery(
+    BuildService.method.detectBuild,
+    { build: buildOf({ url, ref, context, dockerfile, builder, buildCommand, startCommand, args }), server: on },
+    { enabled: ready, retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
+  );
+  const reading = looksLikeRepository(git.url) && !waitForServer && checked && (settled !== wanted || read.isFetching);
+  const d = ready && !reading ? read.data?.detection : undefined;
+  const failed = ready && !reading && read.error ? sentence(read.error) : undefined;
+  // Only a reading that answered says what it exposes: none while one is under way.
+  const exposed = d ? d.exposedPorts.join(",") : undefined;
+  const heard = useRef(onExposed);
+  heard.current = onExposed;
+  useEffect(() => {
+    if (exposed !== undefined) heard.current(exposed === "" ? [] : exposed.split(",").map(Number));
+  }, [exposed]);
+
+  let icon: ReactNode = <Icon name="branch" size={16} className="git-build-muted" />;
+  let headline: ReactNode;
+  let after: ReactNode = null;
+  let detail: ReactNode = null;
+  if (reading) {
+    icon = <Glyph shape="spinner" size={16} className="git-build-muted" />;
+    headline = <Trans>Reading the repository</Trans>;
+  } else if (failed) {
+    icon = <Icon name="alert" size={16} className="git-build-alert" />;
+    headline = <Trans>Couldn't read the repository</Trans>;
+    detail = failed;
+  } else if (d && d.builder === ImageBuild_Builder.RAILPACK && d.error) {
+    const refusal = words.refusal(d);
+    icon = <Icon name="alert" size={16} className="git-build-alert" />;
+    headline = refusal.headline;
+    detail = (
+      <>
+        {d.problem === DetectionProblem.NO_START ? null : <span className="git-build-quote">{words.cant(d)}</span>}{" "}
+        {refusal.fix}
+      </>
+    );
+  } else if (d) {
+    icon = <Icon name="check" size={16} className="git-build-check" />;
+    headline = words.headline(d);
+    after = (
+      <span className="app-muted">
+        <Trans>detected</Trans>
+      </span>
+    );
+    const warned = words.warnings(d);
+    detail =
+      d.builder === ImageBuild_Builder.RAILPACK ? (
+        <>
+          {words.steps(d)}
+          {warned.length > 0 ? (
+            <span className="git-build-warned"> {t`Railpack says: ${warned.join(" ")}`}</span>
+          ) : null}
+        </>
+      ) : null;
+  } else {
+    headline =
+      git.builder === "dockerfile" ? (
+        <Trans>Dockerfile</Trans>
+      ) : git.builder === "railpack" ? (
+        <Trans>Railpack</Trans>
+      ) : (
+        <Trans>Dockerfile or Railpack</Trans>
+      );
+    after = (
+      <span className="app-muted">
+        {waitForServer && looksLikeRepository(git.url) ? (
+          <Trans>read from the repository once you choose a server</Trans>
+        ) : (
+          <Trans>read from the repository once you name it</Trans>
+        )}
+      </span>
+    );
+  }
+  return (
+    <div className="app-field">
+      <span className="dw-field-label" id="build-label">
+        <Trans>Build</Trans>
+      </span>
+      <div className="git-build" role="status" aria-labelledby="build-label" aria-live="polite">
+        {icon}
+        <span className="git-build-headline">{headline}</span>
+        {after}
+        <span className="git-build-spacer" />
+        <Button variant="ghost" size="sm" aria-expanded={showBuild} onClick={() => onShowBuild(!showBuild)}>
+          {showBuild ? <Trans>Done</Trans> : <Trans>Change</Trans>}
+        </Button>
+      </div>
+      {detail ? (
+        <p className="dw-field-hint git-build-detail">
+          {/* One run of words: the hint lays out what's in it side by side. */}
+          <span>{detail}</span>
+        </p>
+      ) : null}
+    </div>
   );
 }
 

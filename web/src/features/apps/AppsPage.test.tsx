@@ -72,6 +72,10 @@ describe("the apps list", () => {
     expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeVisible();
     const ways = screen.getByRole("list", { name: "Ways to run your first app" });
     expect(within(ways).getByRole("link", { name: "From the catalog" })).toHaveAttribute("href", "/catalog");
+    expect(within(ways).getByRole("link", { name: "A Git repository" })).toHaveAttribute(
+      "href",
+      "/apps/new?source=git",
+    );
     expect(within(ways).getByRole("link", { name: "A Docker image" })).toHaveAttribute("href", "/apps/new");
     expect(within(ways).getByRole("link", { name: "A Compose file" })).toHaveAttribute(
       "href",

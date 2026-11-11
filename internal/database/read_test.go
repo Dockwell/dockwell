@@ -3,6 +3,7 @@
 package database
 
 import (
+	"context"
 	"errors"
 	"io"
 	"regexp"
@@ -194,5 +195,45 @@ func TestADatabaseThatsStartingSaysSo(t *testing.T) {
 		if !errors.Is(err, ErrStarting) || err.Error() != eng.Name+" isn't taking connections yet" {
 			t.Errorf("%s says %v, want that it isn't taking connections yet", image, err)
 		}
+	}
+}
+
+// lateContext is a context whose deadline has passed and whose timer hasn't fired
+// yet, as a socket's deadline can see it a moment before the context does.
+type lateContext struct {
+	context.Context
+	deadline time.Time
+	done     chan struct{}
+}
+
+func (c *lateContext) Deadline() (time.Time, bool) { return c.deadline, true }
+func (c *lateContext) Done() <-chan struct{}       { return c.done }
+func (c *lateContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+
+// Whose deadline ended a call: the caller's, even when its timer fires a moment after
+// the socket's; a reading's own; or Docker's, which neither context has.
+func TestADeadlineIsSaidAsWhoseItWas(t *testing.T) {
+	late := &lateContext{Context: context.Background(), deadline: time.Now().Add(-time.Millisecond), done: make(chan struct{})}
+	time.AfterFunc(20*time.Millisecond, func() { close(late.done) })
+	if got := whoseTime(late); got != callersTime {
+		t.Errorf("a passed deadline whose timer fires a moment later is %d, want the caller's", got)
+	}
+
+	reading, cancel := context.WithTimeoutCause(t.Context(), time.Millisecond, errReadWait)
+	defer cancel()
+	<-reading.Done()
+	if got := whoseTime(reading); got != readingsTime {
+		t.Errorf("a reading's own time is %d, want the reading's", got)
+	}
+
+	if got := whoseTime(t.Context()); got != notOurTime {
+		t.Errorf("a live context with no deadline is %d, want neither's", got)
 	}
 }

@@ -1209,7 +1209,7 @@ func intentProto(i *revision.Intent) *dockwellv1.Intent {
 		return nil
 	}
 	return &dockwellv1.Intent{
-		Kind: intentKinds[i.Kind], ResourceId: i.Resource, Image: i.Image,
+		Kind: intentKinds[i.Kind], ResourceId: i.Resource, Image: i.Image, Commit: i.Commit, Ref: i.Ref,
 		Port: int32(min(i.Port, math.MaxInt32)), Revision: int64(i.Revision), //nolint:gosec // bounded just here
 	}
 }

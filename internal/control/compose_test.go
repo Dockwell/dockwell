@@ -28,6 +28,7 @@ import (
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/backup"
+	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -91,9 +92,16 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	if f.volumes != nil {
 		volumeType = f.volumes(volumes)
 	}
+	e.Registry[build.Image] = dockertest.Image{}
+	e.Registry[build.RailpackFrontend] = dockertest.Image{}
+	builder := &build.Builder{
+		Client: client, SecretsDir: t.TempDir(), InMemory: func(string) bool { return true },
+		Memory: func() (int64, int64, error) { return 4 << 30, 8 << 30, nil }, CPUs: func() int { return 4 },
+		DiskSize: func(string) (int64, error) { return 50 << 30, nil },
+	}
 	users := &database.UserDriver{Client: client, Dir: t.TempDir()}
 	tasks := &task.Driver{Dir: t.TempDir(), Client: client}
-	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Passwords: &database.FirstPasswords{Client: client}}, volumeType, &network.Driver{Client: client}, users, tasks}
+	drivers := []resource.Type{&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}}, volumeType, &network.Driver{Client: client}, users, tasks}
 	if more != nil {
 		drivers = append(drivers, more()...)
 	}
@@ -106,6 +114,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 		logs:    &agentlogs.Reader{Client: client, Archive: archive, Logger: slog.New(slog.DiscardHandler)},
 		client:  client,
 		backups: backups,
+		builds:  builder,
 		userDir: users.Dir,
 		tasks:   tasks,
 		mounts:  e.Mountinfo,

@@ -5,6 +5,7 @@ import {
   BackupMethod,
   type HostAccess,
   HostAccessKind,
+  ImageBuild_Builder,
   IntentKind,
   type Plan,
   PlanAction,
@@ -17,8 +18,10 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
+import { shownRef } from "../../lib/built";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { useDetectionWords } from "../apps/detection";
 import {
   asGoodAsRoot,
   changing,
@@ -1092,6 +1095,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
 export function useAsides(plan: Plan | undefined): Notice[] {
   const { t } = useLingui();
   const words = useChangeWords();
+  const detected = useDetectionWords();
   const rollouts = useRolloutLines(plan);
   const out: Notice[] = [];
   // Nothing to warn of: it says only that this may come to nothing.
@@ -1212,7 +1216,60 @@ export function useAsides(plan: Plan | undefined): Notice[] {
           title: t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
         });
       }
-      if (step.healthUnknown) {
+      if (step.build) {
+        // What a step builds comes before anything about it stops (ADR 0046).
+        const repository = step.build.url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+        const commit = step.build.commit.slice(0, 7);
+        const ref = shownRef(step.build.ref);
+        // What reading the commit found, when the plan read it: its Dockerfile, or
+        // what Railpack makes of it, which is what it builds.
+        const d = step.build.detection;
+        const railpack = d?.builder === ImageBuild_Builder.RAILPACK;
+        out.push({
+          key: `build-${key}`,
+          title: ref
+            ? t`Builds ${repository} at ${commit} (${ref}) on ${server.serverName} first. If the build fails, what runs stays as it is.`
+            : t`Builds ${repository} at ${commit} on ${server.serverName} first. If the build fails, what runs stays as it is.`,
+        });
+        // What it builds with, on a line of its own after the build.
+        // One span, so its words and code flow as a sentence in the note's row.
+        const builtWith = d ? (
+          railpack ? (
+            <span>
+              <Trans>With Railpack, as {detected.what(d)}.</Trans> {detected.steps(d)}
+              {detected.packages(d).length > 0 ? ` ${t`Installs ${detected.packages(d).join("; ")}.`}` : null}
+            </span>
+          ) : d.dockerfile === "Dockerfile" ? (
+            d.baseImage ? (
+              <span>
+                <Trans>
+                  With its Dockerfile, from <code>{d.baseImage}</code>.
+                </Trans>
+              </span>
+            ) : (
+              <Trans>With its Dockerfile.</Trans>
+            )
+          ) : d.baseImage ? (
+            <span>
+              <Trans>
+                With its Dockerfile at <code>{d.dockerfile}</code>, from <code>{d.baseImage}</code>.
+              </Trans>
+            </span>
+          ) : (
+            <span>
+              <Trans>
+                With its Dockerfile at <code>{d.dockerfile}</code>.
+              </Trans>
+            </span>
+          )
+        ) : step.build.builder === ImageBuild_Builder.RAILPACK ? (
+          <Trans>With Railpack, which reads the commit as the build starts.</Trans>
+        ) : undefined;
+        if (builtWith) out.push({ key: `build-with-${key}`, title: builtWith });
+        for (const warning of d && railpack ? detected.warnings(d) : []) {
+          out.push({ key: `build-warns-${key}-${warning}`, title: t`Railpack says: ${warning}`, notice: true });
+        }
+      } else if (step.healthUnknown) {
         out.push({
           key: `health-${key}`,
           title: t`${name} may take longer to be healthy, as its image isn't on the server yet.`,

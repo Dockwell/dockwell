@@ -12,7 +12,7 @@ import "./Start.css";
 const KNOWN = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "plausible"];
 
 /** What a first app can come from. */
-export type Way = "catalog" | "image" | "compose" | "website";
+export type Way = "catalog" | "git" | "image" | "compose" | "website";
 
 interface Choice {
   key: Way;
@@ -20,13 +20,13 @@ interface Choice {
   title: string;
   line: string;
   to: "/catalog" | "/apps/new" | "/websites/new";
-  search?: { source: "compose" };
+  search?: { source: "git" | "compose" };
   extra?: ReactNode;
 }
 
 /**
  * The ways a first app comes in, each opening its own create flow: the catalog, a
- * Docker image, a Compose file, a website. Large on the start page, a row of
+ * Git repository, a Docker image, a Compose file, a website. Large on the start page, a row of
  * choices where the overview has no apps yet: one way in, wherever a newcomer is.
  * A list of one kind offers only the ways to that kind.
  */
@@ -66,6 +66,14 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
             {more > 0 ? <span className="start-more">{t`and ${more} more`}</span> : null}
           </span>
         ) : null,
+    },
+    {
+      key: "git",
+      icon: "branch",
+      title: t`A Git repository`,
+      line: t`Built with its Dockerfile, or Railpack`,
+      to: "/apps/new",
+      search: { source: "git" },
     },
     {
       key: "image",

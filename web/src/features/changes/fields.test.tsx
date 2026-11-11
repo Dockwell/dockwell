@@ -43,6 +43,14 @@ function reads(rows: readonly PlanChange[]): string[] {
 }
 
 describe("a plan's fields, in words", () => {
+  it("reads a branch by its own name, as people know it", () => {
+    const rows = rowsOf({
+      kind: "service",
+      changes: [modified("build.git.ref", "refs/heads/main", "refs/tags/v1.4.2")],
+    });
+    expect(reads(rows)).toEqual(["branch from main to v1.4.2"]);
+  });
+
   it("groups one port's fields into what they mean", () => {
     const rows = rowsOf({
       kind: "service",

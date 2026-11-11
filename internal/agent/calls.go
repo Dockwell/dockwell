@@ -21,12 +21,14 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -591,6 +593,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			ctx = resource.WithDeploy(ctx, resource.Deploy{
 				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(), LastAccess: d.GetLastAccessStep(),
 			})
+			ctx = resource.WithBuilds(ctx, c.buildUpdates(d.GetChangeId(), ref))
 		}
 		// The values of what the spec uses, opened in memory for this
 		// step. They reach no log, and the disk only through Desired, which
@@ -741,6 +744,29 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Database{Database: read}}
+	case call.GetCancelBuild() != nil:
+		cb := call.GetCancelBuild()
+		stopping := false
+		if c.cfg.Builds != nil {
+			stopping = c.cfg.Builds.Cancel(cb.GetChangeId(), resourcepb.FromRef(cb.GetResource()), cb.GetBy())
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CancelBuild{CancelBuild: &agentv1.CancelBuildResult{Stopping: stopping}}}
+	case call.GetDetectBuild() != nil:
+		if c.cfg.Builds == nil {
+			return fail(errors.New("this agent can't read how a commit builds, as it has no Docker"))
+		}
+		b := call.GetDetectBuild().GetBuild()
+		if b.GetGit().GetCommit() == "" {
+			return fail(errors.New("reading how a commit builds needs the commit, in full"))
+		}
+		req := service.Request(&resourcev1.Service{Build: b})
+		req.OwnCommand = call.GetDetectBuild().GetOwnCommand()
+		d, err := c.cfg.Builds.Detect(ctx, req)
+		if err != nil {
+			plain, _ := resource.Explain(err)
+			return fail(errors.New(plain))
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DetectBuild{DetectBuild: &agentv1.DetectBuildResult{Detection: resourcepb.Detection(d)}}}
 	case call.GetTaskRuns() != nil, call.GetRunTask() != nil:
 		if c.cfg.Tasks == nil {
 			return fail(errors.New("this agent runs no scheduled tasks. Update it to the control plane's version"))

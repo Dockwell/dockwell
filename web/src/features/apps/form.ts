@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { type EditSchema, type ImageConfig, Protocol, RestartPolicy } from "@dockwell/api";
+import { type EditSchema, ImageBuild_Builder, type ImageConfig, Protocol, RestartPolicy } from "@dockwell/api";
 
+import { toLabel } from "./app";
 import { splitWords } from "./specEdit";
 
 /** One port someone is publishing. */
@@ -94,6 +95,84 @@ export function checkPort(form: ImageForm): number | undefined {
   return row ? Number(row.container) : undefined;
 }
 
+/** What New app asks of an app that builds from Git, beside what any app has (ADR 0046). */
+export interface GitForm {
+  /** The repository's URL, as typed, such as github.com/acme/web. */
+  url: string;
+  /** The branch or tag. Empty builds the default branch. */
+  ref: string;
+  /** The folder the build starts from. Empty is the repository's top. */
+  context: string;
+  /** The Dockerfile, as a path in the folder. Empty is Dockerfile. */
+  dockerfile: string;
+  /** Build arguments, a NAME=value a line. */
+  args: string;
+  /** What builds it: "" takes the Dockerfile when there is one, and Railpack when there isn't. */
+  builder: "" | "dockerfile" | "railpack";
+  /** With Railpack, the commands that build and start it, in place of what it finds. */
+  buildCommand: string;
+  startCommand: string;
+}
+
+/** A Git form with nothing in it yet. */
+export const emptyGit: GitForm = {
+  url: "",
+  ref: "",
+  context: "",
+  dockerfile: "",
+  args: "",
+  builder: "",
+  buildCommand: "",
+  startCommand: "",
+};
+
+/** The app a repository makes, by default: its last part, without .git, as a name, such as web. */
+export function nameFromRepository(url: string): string {
+  const path = url
+    .trim()
+    .replace(/[?#].*$/, "")
+    .replace(/\/+$/, "");
+  const last = path.split("/").pop() ?? "";
+  return toLabel(last.replace(/\.git$/, ""));
+}
+
+/** A build's settings as the spec has them. */
+export function buildOf(git: GitForm) {
+  const args: Record<string, string> = {};
+  for (const { name, value } of parseEnv(git.args) ?? []) args[name] = value;
+  const builder =
+    git.builder === "dockerfile"
+      ? ImageBuild_Builder.DOCKERFILE
+      : git.builder === "railpack"
+        ? ImageBuild_Builder.RAILPACK
+        : ImageBuild_Builder.UNSPECIFIED;
+  return {
+    source: { case: "git" as const, value: { url: git.url.trim(), ref: git.ref.trim() } },
+    context: git.context.trim(),
+    // Railpack takes no Dockerfile, and a Dockerfile no commands.
+    dockerfile: git.builder === "railpack" ? "" : git.dockerfile.trim(),
+    args,
+    builder,
+    buildCommand: git.builder === "dockerfile" ? "" : git.buildCommand.trim(),
+    startCommand: git.builder === "dockerfile" ? "" : git.startCommand.trim(),
+  };
+}
+
+/** The field of the Git form a refusal is about, by what it names, or "" for none of them. */
+export function gitFieldOf(message: string): string {
+  const text = message.toLowerCase();
+  // A build's secrets are the environment's, which New app doesn't set.
+  if (/build's secret|as a secret/.test(text)) return "";
+  if (/start command/.test(text)) return "git.startCommand";
+  if (/build command/.test(text)) return "git.buildCommand";
+  if (/\bdockerfile\b/.test(text)) return "git.dockerfile";
+  if (/\bcontext\b|\bno folder\b/.test(text)) return "git.context";
+  if (/\bbranch\b|\btag\b/.test(text)) return "git.ref";
+  if (/build argument/.test(text)) return "git.args";
+  if (/repositor|url|fetch|reach|credentials|https/.test(text)) return "git.url";
+  return "";
+}
+
 /** New app's form, for an app from a folder on the server (ADR 0058): what its runtime says. */
 export interface FolderForm {
   /** The language as a spec names it, such as "node". */
@@ -134,6 +213,7 @@ export function appEdits(
   name: string,
   scope: { environment: string; servers: readonly string[]; volumes: readonly string[] },
   folder?: FolderForm,
+  git?: GitForm,
 ): MessageInitShape<typeof EditSchema>[] {
   const servers = [...scope.servers];
   const edits: MessageInitShape<typeof EditSchema>[] = [];
@@ -177,7 +257,9 @@ export function appEdits(
           runs: {
             case: "app",
             value: {
-              image: folder ? "" : form.image.trim(),
+              // An app that builds runs what its build makes, which the plan names, and one
+              // from a folder runs its runtime's image.
+              image: git || folder ? "" : form.image.trim(),
               env,
               ports: form.ports
                 .filter((p) => p.host.trim() !== "" || p.container.trim() !== "")
@@ -198,6 +280,7 @@ export function appEdits(
               ...moreFields(form),
             },
           },
+          ...(git ? { build: buildOf(git) } : {}),
         },
       },
     },

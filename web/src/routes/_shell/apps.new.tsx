@@ -6,7 +6,7 @@ import { AppsPage } from "../../features/apps/AppsPage";
 import { NewAppSheet, type NewAppSource } from "../../features/apps/NewAppSheet";
 
 interface NewAppSearch {
-  source?: "compose" | "folder";
+  source?: "git" | "image" | "compose" | "folder";
   /** For a folder: the language and version a runtime's card asked for. */
   language?: string;
   version?: string;
@@ -16,6 +16,8 @@ interface NewAppSearch {
 export const Route = createFileRoute("/_shell/apps/new")({
   validateSearch: (search: Record<string, unknown>): NewAppSearch => {
     if (search["source"] === "compose") return { source: "compose" };
+    if (search["source"] === "git") return { source: "git" };
+    if (search["source"] === "image") return { source: "image" };
     if (search["source"] !== "folder") return {};
     const language = typeof search["language"] === "string" ? search["language"] : undefined;
     const version = search["version"];

@@ -341,7 +341,7 @@ export function AppsPage({
       <EmptyState
         icon="service"
         title={<Trans>No apps yet</Trans>}
-        action={<StartChoices ways={["catalog", "image", "compose"]} />}
+        action={<StartChoices ways={["catalog", "git", "image", "compose"]} />}
       >
         <p>
           <Trans>You review a plan before anything starts.</Trans>

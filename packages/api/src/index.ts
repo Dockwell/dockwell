@@ -14,6 +14,7 @@ export * from "./gen/dockwell/v1/alert_pb";
 export * from "./gen/dockwell/v1/audit_pb";
 export * from "./gen/dockwell/v1/auth_pb";
 export * from "./gen/dockwell/v1/backup_pb";
+export * from "./gen/dockwell/v1/build_pb";
 export * from "./gen/dockwell/v1/catalog_pb";
 export * from "./gen/dockwell/v1/change_pb";
 export * from "./gen/dockwell/v1/compose_pb";

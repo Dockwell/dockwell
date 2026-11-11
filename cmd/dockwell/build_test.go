@@ -52,6 +52,7 @@ var agentPackages = []string{
 	"internal/backup",           // taking and restoring backups on this server (ADR 0033)
 	"internal/backup/s3",        // sending them to S3-compatible storage, with no SDK
 	"internal/backup/seal",      // sealing them before they leave
+	"internal/build",            // building services' images from Git on this server (ADR 0046)
 	"internal/buildinfo",
 	"internal/cli",
 	"internal/cli/apinames", // the API commands' names, to say they're in the full build

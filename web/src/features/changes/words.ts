@@ -183,6 +183,16 @@ export function useChangeWords(): ChangeWords {
         const revision = `r${intent.revision}`;
         switch (intent.kind) {
           case IntentKind.DEPLOY:
+            if (intent.commit) {
+              // A deploy of an app that builds from Git builds a commit, which is what it deploys (ADR 0046).
+              const commit = intent.commit.slice(0, 7);
+              return {
+                plan: t`Build and deploy ${commit}`,
+                doing: t`Building and deploying ${commit}`,
+                done: t`Deployed ${commit}`,
+                failed: t`Couldn't deploy ${commit}`,
+              }[tense];
+            }
             return {
               plan: t`Deploy ${image}`,
               doing: t`Deploying ${image}`,

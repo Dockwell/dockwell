@@ -136,6 +136,14 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 		}
 		p, err := pl.scoped(ctx, b.EnvironmentID)
 		return []Place{p}, err
+	case id.Build:
+		// A build is where its service is, and stays there once the service goes.
+		b, err := tx.GetBuild(ctx, objectID)
+		if err != nil {
+			return nil, err
+		}
+		p, err := pl.scoped(ctx, b.EnvironmentID)
+		return []Place{p}, err
 	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource,
 		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix(),
 		databaseUser, catalogSource, id.AlertRule, id.AlertChannel, id.AlertCheck:

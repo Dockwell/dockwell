@@ -40,6 +40,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/datadir"
+	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
@@ -368,6 +369,9 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	}
 
 	srv, err := control.New(control.Config{
+		// A test's Git server is on this machine, which a control plane's lookups
+		// otherwise never reach.
+		Sources:     &gitref.Resolver{Local: isSet(stdio.Getenv(envTest))},
 		Logger:      logger,
 		Build:       build,
 		Identity:    authority,

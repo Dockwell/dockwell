@@ -21,6 +21,7 @@
   "backup.server_copy_removed",
   "backup.taken",
   "backup_destination.test",
+  "build.cancel",
   "change.applied",
   "change.apply_unconfirmed",
   "change.discarded",

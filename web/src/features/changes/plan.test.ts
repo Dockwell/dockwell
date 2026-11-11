@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { factAndRest, withoutIds } from "./plan";
+import { factAndRest, shownQuotes, withoutIds } from "./plan";
 
 describe("factAndRest", () => {
   it("leads with what a check answered, and follows with what to do", () => {
@@ -33,6 +33,21 @@ describe("factAndRest", () => {
       "Check the name.",
     ]);
     expect(factAndRest("it failed")).toEqual(["it failed", ""]);
+  });
+});
+
+describe("a build's failing step, quoted", () => {
+  it("splits after the step however many quotes it has, and shows them plainly", () => {
+    const said =
+      'The build failed at step 4 of 4, "RUN echo \\"npm ERR! missing script: build\\" && exit 1": its log marks what it printed last. Fix it in the repository, then deploy again';
+    const [fact, rest] = factAndRest(said).map(shownQuotes);
+    expect(fact).toBe(
+      'The build failed at step 4 of 4, "RUN echo "npm ERR! missing script: build" && exit 1": its log marks what it printed last',
+    );
+    expect(rest).toBe("Fix it in the repository, then deploy again");
+    // An odd number of quotes in the step doesn't swallow the fix.
+    const odd = 'The build failed at step 2 of 3, "RUN echo \\"it\'s done": its log marks what it printed last. Fix it';
+    expect(factAndRest(odd)[1]).toBe("Fix it");
   });
 });
 

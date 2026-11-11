@@ -54,6 +54,8 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: name ? t`Made ${name} the owner` : t`Moved ownership of this install` };
         case "token.use":
           return { title: t`Used from a new address` };
+        case "build.cancel":
+          return { title: name ? t`Asked to cancel a build on ${name}` : t`Asked to cancel a build` };
         case "install.create":
           return { title: t`Set up this install` };
         case "passkey.clone_suspected":

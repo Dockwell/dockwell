@@ -7,6 +7,7 @@ import {
   AuditService,
   AuthService,
   BackupService,
+  BuildService,
   CatalogService,
   ChangeService,
   ComposeService,
@@ -73,6 +74,7 @@ export type Api = {
   updates?: Partial<ServiceImpl<typeof UpdateService>>;
   databases?: Partial<ServiceImpl<typeof DatabaseService>>;
   websites?: Partial<ServiceImpl<typeof WebsiteService>>;
+  builds?: Partial<ServiceImpl<typeof BuildService>>;
   audit?: Partial<ServiceImpl<typeof AuditService>>;
   members?: Partial<ServiceImpl<typeof MemberService>>;
   imports?: Partial<ServiceImpl<typeof ImportService>>;
@@ -169,6 +171,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       });
       service(DatabaseService, { listDatabases: () => ({}), ...api.databases });
       service(WebsiteService, { listWebsites: () => ({}), ...api.websites });
+      service(BuildService, api.builds ?? {});
     },
     { transport: { interceptors: [watchSession(() => recheckAuth(queryClient))] } },
   );

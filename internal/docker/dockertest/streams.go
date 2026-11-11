@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -165,7 +166,7 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 		fail(w, http.StatusNotFound, "No such container: %s", id)
 		return
 	}
-	if !c.img.imported && c.img.Exec == nil {
+	if !c.img.runsAttached() && c.img.Exec == nil {
 		fail(w, http.StatusNotImplemented, "this fake attaches only to helpers, and to an image with Exec")
 		return
 	}
@@ -184,6 +185,26 @@ func (e *Engine) attachTo(w http.ResponseWriter, r *http.Request, id string) {
 	stdout, stderr := frames{mu, out, 1}, frames{mu, out, 2}
 	if !stdin {
 		in = strings.NewReader("")
+	}
+	if c.img.repo == BuildKitRepository || c.img.repo == RailpackRepository {
+		var code int
+		switch {
+		case c.img.repo == RailpackRepository:
+			code = e.fakeCopyRailpack(c, stderr)
+		case slices.Contains(c.Config.Cmd, "dockwell-railpack-seed"):
+			code = e.fakeSeedMise(c, stderr)
+		case slices.Contains(c.Config.Cmd, "dockwell-detect"):
+			code = e.fakeDetect(c, stdout, stderr)
+		default:
+			code = e.fakeBuild(c, stdout, stderr)
+		}
+		e.mu.Lock()
+		if c.State.Running {
+			c.State = docker.State{Status: "exited", ExitCode: code, StartedAt: c.State.StartedAt, FinishedAt: time.Now().UTC(), OOMKilled: c.State.OOMKilled}
+			close(c.exited)
+		}
+		e.mu.Unlock()
+		return
 	}
 	if !c.img.imported {
 		e.mu.Lock()
@@ -400,11 +421,19 @@ func (e *Engine) listImages(w http.ResponseWriter, r *http.Request) {
 }
 
 // removeImage removes an image by reference.
-func (e *Engine) removeImage(w http.ResponseWriter, ref string) {
+func (e *Engine) removeImage(w http.ResponseWriter, ref string, force bool) {
 	img := e.images[ref]
 	if img == nil {
 		fail(w, http.StatusNotFound, "No such image: %s", ref)
 		return
+	}
+	if !force {
+		for _, c := range e.containers {
+			if c.img == img {
+				fail(w, http.StatusConflict, "conflict: unable to remove repository reference %q (must force) - container %s is using its referenced image %s", ref, c.ID[:12], img.id)
+				return
+			}
+		}
 	}
 	for k, v := range e.images {
 		if v == img {

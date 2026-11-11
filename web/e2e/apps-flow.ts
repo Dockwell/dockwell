@@ -118,6 +118,9 @@ export async function appsFlow(
     .click();
   const sheet = page.getByRole("dialog", { name: "New app" });
   await sheet.waitFor();
+  // A Docker image opens New app on an image, as New app on its own does.
+  if (!(await sheet.getByRole("radio", { name: "Image" }).isChecked()))
+    fail("A Docker image opens New app on something other than an image");
   if ((await sheet.getByRole("group", { name: "Runs on" }).count()) > 0)
     fail("New app asks where to run with one server");
   await shoot(page, "apps-new");
@@ -619,7 +622,7 @@ export async function appsFlow(
     });
   if (touch) {
     const finger = await touch.newPage();
-    await finger.goto(`${origin}/apps/new`);
+    await finger.goto(`${origin}/apps/new?source=image`);
     const image = finger.getByRole("dialog", { name: "New app" }).getByLabel("Image", { exact: true });
     await image.waitFor();
     const fieldSize = await image.evaluate((el) => ({

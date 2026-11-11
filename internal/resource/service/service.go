@@ -47,6 +47,9 @@ const Kind resource.Kind = "service"
 // checks specs, its Containers needs no Runtime.
 type Driver struct {
 	Containers container.Driver
+	// Builds builds what a service's build names (ADR 0046). Only the agent has
+	// one.
+	Builds Builder
 	// Passwords, where set, keeps a database's first user's password the one its
 	// container starts with, as a replace gives it a new one (database.FirstPasswords).
 	Passwords Passwords
@@ -94,6 +97,13 @@ func (*Driver) CheckName(name string) error { return resource.CheckLabel("servic
 // that mean the same compare equal.
 func (d *Driver) Validate(spec proto.Message) error {
 	svc := spec.(*resourcev1.Service)
+	if svc.GetBuild() != nil && svc.GetRuntime() != nil {
+		return errors.New("an app builds its image from Git or runs from a folder, not both. Remove its build or its runtime")
+	}
+	if svc.GetApp() == nil && svc.GetBuild() != nil {
+		// What it runs is what its build makes, with nothing else said of it.
+		svc.Runs = &resourcev1.Service_App{App: &resourcev1.Container{}}
+	}
 	if rt := svc.GetRuntime(); rt != nil {
 		// An app from a folder: what its runtime decides of its container is written
 		// from it, whatever an edit sends there (ADR 0058).
@@ -115,10 +125,20 @@ func (d *Driver) Validate(spec proto.Message) error {
 	}
 	app := svc.GetApp()
 	if app == nil {
-		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27")
+		return errors.New("a service needs something to run: an app from an image, such as nginx:1.27, or a build from Git")
 	}
 	if _, ok := app.GetLabels()[binding.LabelKey]; ok {
 		return fmt.Errorf("the label %s is Dockwell's own, which records what a service uses. Use another", binding.LabelKey)
+	}
+	if _, ok := app.GetLabels()[binding.BuildLabelKey]; ok {
+		return fmt.Errorf("the label %s is Dockwell's own, which records how a service's image was built. Use another", binding.BuildLabelKey)
+	}
+	if svc.GetBuild() != nil {
+		if err := checkBuild(svc); err != nil {
+			return err
+		}
+	} else if docker.IsBuilt(app.GetImage()) {
+		return fmt.Errorf("%s is an image Dockwell built for a service, which runs it only from that service's build. Name an image from a registry, or give the service a build", app.GetImage())
 	}
 	for _, m := range []struct {
 		what  string
@@ -143,15 +163,32 @@ func (d *Driver) Validate(spec proto.Message) error {
 			return fmt.Errorf("%s comes from a variable and a secret. Keep one", as)
 		}
 	}
+	for id, name := range svc.GetBuild().GetSecrets() {
+		if name == "" {
+			svc.Build.Secrets[id] = id
+		}
+	}
 	maps.DeleteFunc(svc.Revisions, func(as string, rev int64) bool {
 		_, v := svc.GetVariables()[as]
 		_, s := svc.GetSecrets()[as]
-		return !v && !s || rev <= 0
+		secret, built := strings.CutPrefix(as, binding.BuildPrefix)
+		_, b := svc.GetBuild().GetSecrets()[secret]
+		return !v && !s && (!built || !b) || rev <= 0
 	})
 	if len(svc.Revisions) == 0 {
 		svc.Revisions = nil
 	}
-	if err := container.Validate(app); err != nil {
+	// A service that builds has no image until a change is planned, which gives it
+	// the one its build makes (ADR 0046). The rest of the app is checked as ever.
+	pending := svc.GetBuild() != nil && app.GetImage() == ""
+	if pending {
+		app.Image = docker.BuiltRegistry + "/pending"
+	}
+	err := container.Validate(app)
+	if pending {
+		app.Image = ""
+	}
+	if err != nil {
 		return err
 	}
 	return binding.CheckWords(app, func(name string) bool {
@@ -368,15 +405,46 @@ func (d *Driver) NotRunning(ctx context.Context, ref resource.Ref) (string, erro
 	return d.Containers.NotRunningAt(ctx, TargetIn(ctx, ref))
 }
 
-// Plan judges the step as the container driver does for the app.
+// Plan judges the step as the container driver does for the app. A service that
+// builds its image builds it first where the step runs an image it hasn't before.
 func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	return d.Containers.Plan(app(actual), app(desired), inner(changes))
+	dec, err := d.Containers.Plan(app(actual), app(desired), inner(changes))
+	if err == nil && desired != nil {
+		svc := desired.(*resourcev1.Service)
+		var was *resourcev1.Service
+		if actual != nil {
+			was = actual.(*resourcev1.Service)
+		}
+		if builds(was, svc, dec) {
+			dec.Build, dec.HealthUnknown = buildPlan(svc), true
+		}
+	}
+	return dec, err
 }
 
 // Judge judges the step as the container driver does for the app, with
-// what its server has.
+// what its server has. A service that builds its image builds it first where its
+// server hasn't it, as a rollback to an image the server no longer keeps does.
 func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
-	return d.Containers.JudgeAt(ctx, TargetIn(ctx, ref), app(actual), planned(desired), inner(changes))
+	dec, err := d.Containers.JudgeAt(ctx, TargetIn(ctx, ref), app(actual), planned(desired), inner(changes))
+	if err != nil || desired == nil {
+		return dec, err
+	}
+	svc := desired.(*resourcev1.Service)
+	dec.Build = nil
+	if svc.GetBuild() == nil || dec.Action != resource.ActionCreate && dec.Action != resource.ActionReplace {
+		return dec, nil
+	}
+	has := false
+	if d.Builds != nil {
+		if has, err = d.Builds.Has(ctx, svc.GetApp().GetImage()); err != nil {
+			return dec, err
+		}
+	}
+	if !has {
+		dec.Build, dec.HealthUnknown = buildPlan(svc), true
+	}
+	return dec, nil
 }
 
 // CheckPlan refuses a port something else on the server holds, or another service
@@ -508,6 +576,9 @@ func checkOffered(rt, was *resourcev1.Runtime) error {
 // new image repository is (ADR 0032, ADR 0058). Empty for an image app.
 func (*Driver) WriterOf(spec proto.Message) string {
 	svc := spec.(*resourcev1.Service)
+	if svc.GetBuild() != nil {
+		return buildWriter(svc)
+	}
 	rt := svc.GetRuntime()
 	if rt == nil {
 		return ""
@@ -591,6 +662,9 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	svc := desired.(*resourcev1.Service)
 	env, err := binding.Environment(ctx, svc)
 	if err != nil {
+		return err
+	}
+	if err := d.build(ctx, step, svc); err != nil {
 		return err
 	}
 	app := binding.App(svc, env)
