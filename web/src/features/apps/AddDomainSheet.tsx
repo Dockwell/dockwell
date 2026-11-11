@@ -13,8 +13,20 @@ import {
   type Server,
   type ServiceInfo,
 } from "@dockwell/api";
-import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
+import {
+  Advanced,
+  Button,
+  Callout,
+  cx,
+  Icon,
+  PHONE_QUERY,
+  SelectField,
+  Sheet,
+  TextField,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
@@ -127,6 +139,17 @@ export function AddDomainSheet({
   const form = useRef<HTMLFormElement>(null);
   const switchName = useTunnelSwitchName();
   const fleet = useFleet();
+  const navigate = useNavigate();
+  // Once it's on its way, the app's page is where the domain's state shows as it's served.
+  const landOnApp = () => {
+    if (service) void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
+  };
+  // The ports the app listens on, its own, to pick from; any other is typed.
+  const listens = onServer
+    ? []
+    : [...new Set((service ? (appOf(service)?.ports ?? []) : []).map((p) => p.containerPort).filter((p) => p > 0))];
+  const [typingPort, setTypingPort] = useState(false);
+  const picksPort = listens.length > 0 && !typingPort && (port === "" || listens.includes(Number(port)));
   // A domain's root may be with another app already, whatever its route is called.
   // Going on moves it, the same either way, so this says that before it does.
   const typed = domain.trim().toLowerCase();
@@ -284,7 +307,10 @@ export function AddDomainSheet({
       kind: "plan",
       make: () => Promise.resolve({ change }),
       retryLabel: t`Edit and try again`,
-      onDone: onClose,
+      onDone: () => {
+        onClose();
+        landOnApp();
+      },
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
         // at the field. Anything else is under way or over.
@@ -293,7 +319,10 @@ export function AddDomainSheet({
           reveal.current = true;
           setPlan(undefined);
         } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
-        else onClose();
+        else {
+          onClose();
+          landOnApp();
+        }
       },
     });
   };
@@ -357,7 +386,7 @@ export function AddDomainSheet({
           error={domainError}
           hint={
             !noCertificate
-              ? t`Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after.`
+              ? t`Its certificate comes by itself once its DNS points here.`
               : inFront === "anyone"
                 ? t`Point its DNS at this server.`
                 : t`Point its DNS at your tunnel or proxy.`
@@ -399,47 +428,80 @@ export function AddDomainSheet({
             </Trans>
           </Callout>
         ) : null}
-        <TextField
-          label={onServer ? t`Port on the server` : t`Port in the app`}
-          mono
-          inputMode="numeric"
-          value={port}
-          error={portError}
-          hint={
-            onServer
-              ? t`It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's.`
-              : t`What the app listens on, such as 80.`
-          }
-          onChange={(event) => {
-            portTyped.current = true;
-            setPort(event.target.value);
-            setPortError(undefined);
-          }}
-        />
+        {picksPort ? (
+          <SelectField
+            label={t`Port in the app`}
+            value={port}
+            error={portError}
+            options={[
+              ...listens.map((p) => ({ value: String(p), label: String(p) })),
+              { value: "other", label: t({ message: "Another port", context: "a port typed in" }) },
+            ]}
+            onChange={(event) => {
+              portTyped.current = true;
+              setPortError(undefined);
+              if (event.target.value === "other") {
+                setTypingPort(true);
+                setPort("");
+              } else setPort(event.target.value);
+            }}
+          />
+        ) : (
+          <TextField
+            label={onServer ? t`Port on the server` : t`Port in the app`}
+            mono
+            inputMode="numeric"
+            value={port}
+            error={portError}
+            hint={
+              onServer
+                ? t`What it listens on on the server, such as 8080; 80 is the proxy's.`
+                : t`What the app listens on, such as 80.`
+            }
+            onChange={(event) => {
+              portTyped.current = true;
+              setPort(event.target.value);
+              setPortError(undefined);
+            }}
+          />
+        )}
         {servers.length > 1 ? (
           <SelectField
             label={t`Server`}
-            hint={t`A route runs on one server, as its certificate comes to the one its DNS points at.`}
+            hint={t`A route runs on the one server its DNS points at.`}
             value={server}
             options={servers.map((d) => ({ value: d.serverId, label: d.serverName }))}
             onChange={(event) => setServer(event.target.value)}
           />
         ) : null}
-        <FrontFields
-          noCertificate={noCertificate}
-          onNoCertificate={setNoCertificate}
-          inFront={inFront}
-          onInFront={(value) => {
-            setInFront(value);
-            setProxiesError(undefined);
-          }}
-          proxies={proxies}
-          onProxies={(value) => {
-            setProxies(value);
-            setProxiesError(undefined);
-          }}
-          proxiesError={proxiesError}
-        />
+        {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. */}
+        <Advanced
+          label={t`HTTPS`}
+          summary={
+            !noCertificate
+              ? t`On, with a certificate that comes by itself`
+              : inFront === "anyone"
+                ? t`Off: plain HTTP to anyone`
+                : t`Handled in front of this server`
+          }
+          defaultOpen={noCertificate || proxiesError !== undefined}
+        >
+          <FrontFields
+            noCertificate={noCertificate}
+            onNoCertificate={setNoCertificate}
+            inFront={inFront}
+            onInFront={(value) => {
+              setInFront(value);
+              setProxiesError(undefined);
+            }}
+            proxies={proxies}
+            onProxies={(value) => {
+              setProxies(value);
+              setProxiesError(undefined);
+            }}
+            proxiesError={proxiesError}
+          />
+        </Advanced>
       </form>
     </Sheet>
   );

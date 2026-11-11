@@ -173,12 +173,10 @@ function ExpiredNote({
   const when = time.ago(new Date(expired.at), now);
   return (
     <Trans>
-      The certificate on <code>{server}</code> ran out {when}, so browsers refuse this domain. Dockwell renews it by
-      itself. If it stays like this,{" "}
+      The certificate on <code>{server}</code> ran out {when}, so browsers refuse it.{" "}
       <ServerPage server={expired} onLeave={onLeave}>
-        check its page
+        Check its page
       </ServerPage>
-      .
     </Trans>
   );
 }
@@ -260,7 +258,7 @@ export function DomainNote({
     );
   }
   if (look.orphaned) {
-    return <Trans>No server runs this any more, so nothing answers for it. Remove it, or place it on a server.</Trans>;
+    return <Trans>No server runs this any more: remove it, or place it on a server.</Trans>;
   }
   if (look.noCertificate) {
     return plainForAnyone(domain) ? (
