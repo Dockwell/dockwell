@@ -6414,6 +6414,9 @@ msgstr "Back it up first if you need it: undo may not bring it back."
 msgid "Back it up once from Backups, and the next plan goes by how large that was."
 msgstr "Back it up once from Backups, and the next plan goes by how large that was."
 
+msgid "Back it up yourself before you apply this."
+msgstr "Back it up yourself before you apply this."
+
 msgid "Back up what you can't lose before this."
 msgstr "Back up what you can't lose before this."
 
@@ -6422,6 +6425,9 @@ msgstr "Back up what you can't lose first, or stay on the new version."
 
 msgid "Back up what you can't lose first."
 msgstr "Back up what you can't lose first."
+
+msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
+msgstr "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 
 msgid "Check it's the commit you mean."
 msgstr "Check it's the commit you mean."
@@ -6544,6 +6550,9 @@ msgstr "It closes {closes}: add a rule for any you mean to keep open."
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
 
+msgid "It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data."
+msgstr "It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data."
+
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "It joins the group <0>{path}</0>, which is the same as root."
 
@@ -6583,6 +6592,9 @@ msgstr "Its apps leave the catalog"
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 
+msgid "Its last reading says so. Applying this stops before it moves, with nothing changed."
+msgstr "Its last reading says so. Applying this stops before it moves, with nothing changed."
+
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
 
@@ -6597,6 +6609,15 @@ msgstr "Leave it alone in {tool} from now on."
 
 msgid "Leaves out {file}"
 msgstr "Leaves out {file}"
+
+msgid "Lower its feature compatibility version to {to} first if it's higher."
+msgstr "Lower its feature compatibility version to {to} first if it's higher."
+
+msgid "Lower its feature compatibility version to {to} first."
+msgstr "Lower its feature compatibility version to {to} first."
+
+msgid "MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to {from} first, and its data may then use {from}'s features."
+msgstr "MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to {from} first, and its data may then use {from}'s features."
 
 msgid "More than one container answers to {shared} on {network}"
 msgstr "More than one container answers to {shared} on {network}"
@@ -6776,6 +6797,9 @@ msgstr "Two containers may write to {shared}, which can corrupt a database"
 msgid "Undo may not bring everything back."
 msgstr "Undo may not bring everything back."
 
+msgid "Undoing this puts back {from}. The release before it can't run the data."
+msgstr "Undoing this puts back {from}. The release before it can't run the data."
+
 msgid "What asks for {shared} there can reach either."
 msgstr "What asks for {shared} there can reach either."
 
@@ -6902,6 +6926,9 @@ msgstr "{name} mounts the volume {path} on {server}"
 msgid "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 msgstr "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 
+msgid "{name} moves back to {to} only if its data allows"
+msgstr "{name} moves back to {to} only if its data allows"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
@@ -6931,6 +6958,15 @@ msgstr "{name} stops HTTPS on {path} on {server}"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} takes on the container {path} on {server}"
+
+msgid "{name}'s data isn't backed up first"
+msgstr "{name}'s data isn't backed up first"
+
+msgid "{name}'s data uses {features}'s features, which {to} can't run"
+msgstr "{name}'s data uses {features}'s features, which {to} can't run"
+
+msgid "{name}'s features go up to {from} before it moves to {to}"
+msgstr "{name}'s features go up to {from} before it moves to {to}"
 
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
@@ -7651,6 +7687,9 @@ msgstr "Connection string"
 msgid "Connections"
 msgstr "Connections"
 
+msgid "Data at {features}'s features, which its next upgrade raises"
+msgstr "Data at {features}'s features, which its next upgrade raises"
+
 msgid "From anywhere that reaches this server"
 msgstr "From anywhere that reaches this server"
 
@@ -7663,6 +7702,9 @@ msgstr "From apps in {place}"
 msgid "From this server alone"
 msgstr "From this server alone"
 
+msgid "Give it a <0>--keyFile</0> every member of {set} shares, make a root user, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2>."
+msgstr "Give it a <0>--keyFile</0> every member of {set} shares, make a root user, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2>."
+
 msgid "Give it a volume"
 msgstr "Give it a volume"
 
@@ -7672,11 +7714,17 @@ msgstr "Host"
 msgid "It sets no most"
 msgstr "It sets no most"
 
+msgid "It takes no password, as it checks no one."
+msgstr "It takes no password, as it checks no one."
+
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 
 msgid "Its data isn't in a volume, so it goes with its container."
 msgstr "Its data isn't in a volume, so it goes with its container."
+
+msgid "Its environment"
+msgstr "Its environment"
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
@@ -7702,6 +7750,9 @@ msgstr "Kept on"
 msgid "Keys asked for that were there"
 msgstr "Keys asked for that were there"
 
+msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+
 msgid "Newest"
 msgstr "Newest"
 
@@ -7717,8 +7768,14 @@ msgstr "One is running now"
 msgid "Reads served from memory"
 msgstr "Reads served from memory"
 
+msgid "Replica set {set}: each backup is one moment, and can't be restored into a member yet"
+msgstr "Replica set {set}: each backup is one moment, and can't be restored into a member yet"
+
 msgid "Restore the newest"
 msgstr "Restore the newest"
+
+msgid "Runs alone: a backup isn't one moment while something writes"
+msgstr "Runs alone: a backup isn't one moment while something writes"
 
 msgid "Since"
 msgstr "Since"
@@ -7761,6 +7818,9 @@ msgstr "{dumpOf}'s own dump, while it runs: nothing stops"
 msgid "{engine} didn't say how it is"
 msgstr "{engine} didn't say how it is"
 
+msgid "{engine} lets anyone in"
+msgstr "{engine} lets anyone in"
+
 msgid "{engine} {next} is out"
 msgstr "{engine} {next} is out"
 
@@ -7788,8 +7848,14 @@ msgstr "Change {who}'s password"
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
 
+msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
+msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
+
 msgid "Granted on"
 msgstr "Granted on"
+
+msgid "Has roles in"
+msgstr "Has roles in"
 
 msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
 msgstr "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
@@ -7823,6 +7889,9 @@ msgstr "Role"
 
 msgid "Signs in"
 msgstr "Signs in"
+
+msgid "Signs in to"
+msgstr "Signs in to"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"

@@ -647,7 +647,8 @@ export function useDataLeft(
       more: t`What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it.`,
     };
   }
-  if (!plan?.notes.some((note) => note.reason === "no_backup" || note.reason === "undo_no_backup")) return undefined;
+  if (!plan?.notes.some((note) => ["no_backup", "undo_no_backup", "unbacked_move"].includes(note.reason)))
+    return undefined;
   return {
     title: t`No backup was taken, and the data stays as it is now`,
     detail: t`Check that the app reads its data, and restore a backup of your own if it doesn't.`,
@@ -747,6 +748,15 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           detail: t`Back up what you can't lose first.`,
           more: t`You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated.`,
         };
+      case "raises_features": {
+        const [from = "", to = ""] = note.names;
+        return {
+          key,
+          title: t`${name}'s features go up to ${from} before it moves to ${to}`,
+          detail: t`Undoing this puts back ${from}. The release before it can't run the data.`,
+          more: t`MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to ${from} first, and its data may then use ${from}'s features.`,
+        };
+      }
       case "tasks_as_root": {
         const tasks: string[] = [];
         for (let i = 0; i + 1 < note.names.length; i += 2) tasks.push(`${note.names[i]}: ${note.names[i + 1]}`);
@@ -758,6 +768,29 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           more: t`They run in what ${name} runs, so they reach what it reaches on its server too.`,
         };
       }
+      case "lowers_release": {
+        const [, to = "", features = ""] = note.names;
+        return features
+          ? {
+              key,
+              title: t`${name}'s data uses ${features}'s features, which ${to} can't run`,
+              detail: t`Lower its feature compatibility version to ${to} first.`,
+              more: t`Its last reading says so. Applying this stops before it moves, with nothing changed.`,
+            }
+          : {
+              key,
+              title: t`${name} moves back to ${to} only if its data allows`,
+              detail: t`Lower its feature compatibility version to ${to} first if it's higher.`,
+              more: t`Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if ${to} can't run them.`,
+            };
+      }
+      case "unbacked_move":
+        return {
+          key,
+          title: t`${name}'s data isn't backed up first`,
+          detail: t`Back it up yourself before you apply this.`,
+          more: t`It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data.`,
+        };
       case "tmpfs_no_size": {
         const [target = ""] = note.names;
         return {

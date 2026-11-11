@@ -6414,6 +6414,9 @@ msgstr "如有需要，请先备份：撤销可能无法恢复。"
 msgid "Back it up once from Backups, and the next plan goes by how large that was."
 msgstr "先在“备份”中备份一次，下次计划就会按那次的大小计算。"
 
+msgid "Back it up yourself before you apply this."
+msgstr "应用前请自行备份。"
+
 msgid "Back up what you can't lose before this."
 msgstr "请先备份不能丢失的内容。"
 
@@ -6422,6 +6425,9 @@ msgstr "请先备份不能丢失的内容，或者继续使用新版本。"
 
 msgid "Back up what you can't lose first."
 msgstr "请先备份不能丢失的内容。"
+
+msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
+msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果 {to} 无法运行，就停止，不做任何更改。"
 
 msgid "Check it's the commit you mean."
 msgstr "请确认这是你想要的提交。"
@@ -6544,6 +6550,9 @@ msgstr "它会关闭 {closes}：要保持开放的，请为其添加规则。"
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "它拥有 Linux 能力 <0>{path}</0>，相当于 root。"
 
+msgid "It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data."
+msgstr "它的数据不在 Dockwell 创建的卷中。撤销会放回旧版本，但不会恢复新版本对数据所做的更改。"
+
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
 
@@ -6583,6 +6592,9 @@ msgstr "它的应用将离开应用目录"
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日志都不会显示其值，容器也会继续运行。"
 
+msgid "Its last reading says so. Applying this stops before it moves, with nothing changed."
+msgstr "这是它最近一次读数显示的。应用此更改会在迁移前停止，不做任何更改。"
+
 msgid "Its volumes are backed up first"
 msgstr "它的卷会先备份"
 
@@ -6597,6 +6609,15 @@ msgstr "从现在起不要在 {tool} 中操作它。"
 
 msgid "Leaves out {file}"
 msgstr "不收录 {file}"
+
+msgid "Lower its feature compatibility version to {to} first if it's higher."
+msgstr "如果它的功能兼容版本更高，请先降到 {to}。"
+
+msgid "Lower its feature compatibility version to {to} first."
+msgstr "请先把它的功能兼容版本降到 {to}。"
+
+msgid "MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to {from} first, and its data may then use {from}'s features."
+msgstr "MongoDB 只能从与当前版本一致的数据迁移，因此它的功能兼容版本会先提升到 {from}，此后它的数据可能用到 {from} 的功能。"
 
 msgid "More than one container answers to {shared} on {network}"
 msgstr "在 {network} 上有多个容器响应 {shared}"
@@ -6776,6 +6797,9 @@ msgstr "两个容器可能同时写入 {shared}，这可能损坏数据库"
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
 
+msgid "Undoing this puts back {from}. The release before it can't run the data."
+msgstr "撤销会放回 {from}。更早的版本无法运行这些数据。"
+
 msgid "What asks for {shared} there can reach either."
 msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
 
@@ -6902,6 +6926,9 @@ msgstr "{name} 在 {server} 上挂载卷 {path}"
 msgid "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 msgstr "{name} 挂载了 {heldIn} 中的 {path}，而 {heldBy} 可以写入 {heldIn}。"
 
+msgid "{name} moves back to {to} only if its data allows"
+msgstr "只有数据允许时，{name} 才会退回 {to}"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
@@ -6931,6 +6958,15 @@ msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} 在 {server} 上接管容器 {path}"
+
+msgid "{name}'s data isn't backed up first"
+msgstr "{name} 的数据不会先备份"
+
+msgid "{name}'s data uses {features}'s features, which {to} can't run"
+msgstr "{name} 的数据用到了 {features} 的功能，{to} 无法运行"
+
+msgid "{name}'s features go up to {from} before it moves to {to}"
+msgstr "{name} 在升级到 {to} 之前，功能先提升到 {from}"
 
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
@@ -7651,6 +7687,9 @@ msgstr "连接字符串"
 msgid "Connections"
 msgstr "连接"
 
+msgid "Data at {features}'s features, which its next upgrade raises"
+msgstr "数据处于 {features} 的功能，下次升级会先提升"
+
 msgid "From anywhere that reaches this server"
 msgstr "能访问此服务器的任何地方均可连接"
 
@@ -7663,6 +7702,9 @@ msgstr "{place} 中的应用可连接"
 msgid "From this server alone"
 msgstr "仅此服务器可连接"
 
+msgid "Give it a <0>--keyFile</0> every member of {set} shares, make a root user, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2>."
+msgstr "请先为它配置 {set} 所有成员共用的 <0>--keyFile</0>，创建一个 root 用户，再设置 <1>MONGO_INITDB_ROOT_USERNAME</1> 和 <2>MONGO_INITDB_ROOT_PASSWORD</2>。"
+
 msgid "Give it a volume"
 msgstr "为它添加卷"
 
@@ -7672,11 +7714,17 @@ msgstr "主机"
 msgid "It sets no most"
 msgstr "未设置上限"
 
+msgid "It takes no password, as it checks no one."
+msgstr "它未开启身份验证，因此不需要密码。"
+
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 msgstr "其数据位于 <0>{volume}</0>，这个卷不是 Dockwell 创建的，因此不会备份。"
 
 msgid "Its data isn't in a volume, so it goes with its container."
 msgstr "其数据不在卷中，会随容器一起消失。"
+
+msgid "Its environment"
+msgstr "它的环境变量"
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "各项数值、数据库和用户来自 {server}，它运行在 {count} 台服务器上，这是其中一台。"
@@ -7702,6 +7750,9 @@ msgstr "存放于"
 msgid "Keys asked for that were there"
 msgstr "查询的键中命中的比例"
 
+msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT_USERNAME</0> 和 <1>MONGO_INITDB_ROOT_PASSWORD</1>。"
+
 msgid "Newest"
 msgstr "最新"
 
@@ -7717,8 +7768,14 @@ msgstr "正在进行一次备份"
 msgid "Reads served from memory"
 msgstr "从内存读取的比例"
 
+msgid "Replica set {set}: each backup is one moment, and can't be restored into a member yet"
+msgstr "副本集 {set}：每次备份都是同一时刻的快照，暂时无法恢复到成员中"
+
 msgid "Restore the newest"
 msgstr "恢复最新备份"
+
+msgid "Runs alone: a backup isn't one moment while something writes"
+msgstr "单独运行：有写入时，备份不是同一时刻的快照"
 
 msgid "Since"
 msgstr "此后"
@@ -7761,6 +7818,9 @@ msgstr "{dumpOf} 自带的转储，运行中进行：不会停止任何服务"
 msgid "{engine} didn't say how it is"
 msgstr "{engine} 没有报告它的状况"
 
+msgid "{engine} lets anyone in"
+msgstr "{engine} 允许任何人登录"
+
 msgid "{engine} {next} is out"
 msgstr "{engine} {next} 已发布"
 
@@ -7788,8 +7848,14 @@ msgstr "修改 {who} 的密码"
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
 
+msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
+msgstr "Dockwell 暂时无法添加 MongoDB 用户。请在 <1>mongosh</1> 中用 <0>db.createUser</0> 添加。"
+
 msgid "Granted on"
 msgstr "已授权"
+
+msgid "Has roles in"
+msgstr "拥有角色于"
 
 msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
 msgstr "在其容器内部，PostgreSQL 镜像允许任何进程无需密码以任意用户登录。"
@@ -7823,6 +7889,9 @@ msgstr "角色"
 
 msgid "Signs in"
 msgstr "可登录"
+
+msgid "Signs in to"
+msgstr "登录到"
 
 msgid "Users of {name}"
 msgstr "{name} 的用户"

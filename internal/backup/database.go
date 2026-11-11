@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/volume"
@@ -51,8 +52,19 @@ type databaseKind struct {
 	// long it's given.
 	neverReady func(code int, said string) bool
 	// portFlags says the server's command line can set the port the tools have to
-	// ask for, as -p or -c port=.
+	// ask for, as -p or -c port=, and portVar is the variable the tools take it in,
+	// PGPORT unless it says.
 	portFlags bool
+	portVar   string
+	// dataFlag is an option of the server's command that moves the data, as
+	// MongoDB's --dbpath does.
+	dataFlag string
+	// format is what its dump is kept as, formatDump unless it says, and verify
+	// reads one back to say it's whole, by its last words unless it says.
+	format string
+	verify verifier
+	// replays says a dump may hold an oplog to replay, which its prelude says.
+	replays bool
 }
 
 // Each official image lets these run from inside with what its environment says.
@@ -75,6 +87,22 @@ var databaseKinds = []*databaseKind{
 		complete:   "Dump completed",
 		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
 	},
+	{
+		name: "MongoDB", image: "mongo", data: "/data/db", dataFlag: "--dbpath", series: 2, portFlags: true, portVar: "DW_PORT",
+		dump: mongoDump, load: mongoLoad, ready: mongoReady,
+		format: formatMongoDump, verify: verifyMongoArchive, replays: true,
+		// mongoReady exits 2 for a sign-in its server refuses for good, and 3 for a
+		// member of a set with no configuration.
+		neverReady: func(code int, _ string) bool { return code == 2 || code == 3 },
+	},
+}
+
+// dumpFormat is what a kind's dump is kept as.
+func (k *databaseKind) dumpFormat() string {
+	if k.format != "" {
+		return k.format
+	}
+	return formatDump
 }
 
 // postgresLoadFailed reads psql's errors. A dump of a whole server drops and makes
@@ -131,7 +159,10 @@ func dataMount(c *docker.Container, dir string) *docker.MountPoint {
 
 // dataDir is where a container of this database keeps its data.
 func (k *databaseKind) dataDir(c *docker.Container) string {
-	if v := envOf(c, k.dataVar); v != "" {
+	if v := envOf(c, k.dataVar); k.dataVar != "" && v != "" {
+		return path.Clean(v)
+	}
+	if v := engines.FlagValue(c.Config.Cmd, k.dataFlag); v != "" {
 		return path.Clean(v)
 	}
 	return k.data
@@ -230,6 +261,8 @@ type database struct {
 	kind  *databaseKind
 	image string
 	port  string // what its command line set, for its tools to ask for
+	// set is the MongoDB replica set its command line makes it a member of.
+	set string
 }
 
 // tool is one of the database's commands, with the port it listens on.
@@ -237,7 +270,11 @@ func (d *database) tool(cmd []string) []string {
 	if d.port == "" {
 		return cmd
 	}
-	return append([]string{"env", "PGPORT=" + d.port}, cmd...)
+	variable := d.kind.portVar
+	if variable == "" {
+		variable = "PGPORT"
+	}
+	return append([]string{"env", variable + "=" + d.port}, cmd...)
 }
 
 // users is what has a volume mounted.
@@ -284,6 +321,9 @@ func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 			out.db = &database{user: u, kind: k, image: c.Config.Image}
 			if k.portFlags {
 				out.db.port = portOf(c.Config.Cmd)
+			}
+			if k.replays {
+				out.db.set = replicaSetOf(c.Config.Cmd)
 			}
 		}
 	}
@@ -368,8 +408,12 @@ func scrubbed(said string) string {
 	return quoted.ReplaceAllString(first, "'...'")
 }
 
-// verifyDump reads a dump back, to the words the tool ends a whole one with.
+// verifyDump reads a dump back, to the words the tool ends a whole one with, or as
+// the kind reads its own.
 func verifyDump(k *databaseKind) verifier {
+	if k.verify != nil {
+		return k.verify
+	}
 	return func(r io.Reader) error {
 		gz, err := gzip.NewReader(r)
 		if err != nil {
@@ -463,7 +507,18 @@ func (r *Runner) loadDump(ctx context.Context, db *database, dump io.Reader) err
 			}
 		}})
 	}
-	code, err := r.Client.Exec(ctx, db.id, db.tool(db.kind.load), docker.Streams{Stdin: gz, Stderr: sink})
+	load, in := db.tool(db.kind.load), io.Reader(gz)
+	if db.kind.replays {
+		ns, whole, err := mongoPrelude(gz)
+		if err != nil {
+			return err
+		}
+		in = whole
+		if slices.Contains(ns, oplog) {
+			load = append([]string{"env", "DW_OPLOG=1"}, load...)
+		}
+	}
+	code, err := r.Client.Exec(ctx, db.id, load, docker.Streams{Stdin: in, Stderr: sink})
 	switch {
 	case err != nil:
 		return fmt.Errorf("can't load the dump: %w", err)

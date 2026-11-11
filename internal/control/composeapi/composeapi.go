@@ -79,7 +79,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	c, err := h.plan(ctx, m, stack, place, planning{})
+	c, err := h.plan(ctx, m, stack, place, planning{skipBackup: m.GetSkipBackup()})
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +226,8 @@ type planning struct {
 	deletes []resource.Ref
 	// backUp are the volumes to back up before anything else.
 	backUp []resource.Ref
+	// skipBackup leaves out the backup a database's move takes first.
+	skipBackup bool
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -335,7 +337,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, BackUp: also.backUp, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, BackUp: also.backUp, SkipBackup: also.skipBackup, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // AdoptCompose plans taking on a Compose project made elsewhere: each container as a

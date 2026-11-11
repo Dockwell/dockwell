@@ -106,7 +106,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	case len(backUp) == 0:
 		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
 	}
-	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, notes: append([]revision.Note{say}, notes...)})
+	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...)})
 }
 
 // normalize gives what a file says the shape the store keeps it in, so it compares

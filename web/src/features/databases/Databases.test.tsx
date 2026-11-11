@@ -119,6 +119,42 @@ const cache = (): Database =>
     ],
   });
 
+const mongo = (reading: MessageInitShape<typeof DatabaseReadingSchema> = {}): Database =>
+  aDatabase({
+    id: "svc_docs",
+    resource: { kind: "service", scope: ENV, name: "docs" },
+    engine: DatabaseEngine.MONGODB,
+    image: "mongo:8.0",
+    version: "8.0",
+    port: 27017,
+    host: "docs",
+    passwordSecret: "MONGO_INITDB_ROOT_PASSWORD",
+    beside: ["shop"],
+    newestBackup: undefined,
+    readings: [
+      {
+        serverId: SERVER,
+        serverName: "hz-1",
+        version: "8.0.34",
+        user: "root",
+        sizeBytes: 356_352n,
+        connections: 3n,
+        maxConnections: 209_715n,
+        uptimeSeconds: 3_538n,
+        featureCompatibility: "7.0",
+        databases: [
+          { name: "admin", sizeBytes: 151_552n, system: true },
+          { name: "shop", sizeBytes: 81_920n },
+        ],
+        users: [
+          { name: "root", authDatabase: "admin", superuser: true, canSignIn: true },
+          { name: "shopper", authDatabase: "shop", canSignIn: true, databases: ["shop"] },
+        ],
+        ...reading,
+      },
+    ],
+  });
+
 const postgres = create(EntrySchema, { id: "postgres", name: "PostgreSQL", category: "databases", version: "17.11" });
 const mysql = create(EntrySchema, { id: "mysql", name: "MySQL", category: "databases", version: "8.4.11" });
 const tunnel = create(EntrySchema, { id: "cloudflared", name: "Cloudflare Tunnel", category: "networking" });
@@ -465,6 +501,62 @@ describe("a database's page", () => {
     expect(screen.getByRole("link", { name: /Users/ })).toHaveTextContent("2");
   });
 
+  it("shows a MongoDB with its users' databases, its features and how its backups stand", async () => {
+    const { container } = renderAt("/databases/svc_docs", api([mongo()]));
+    expect(await screen.findByRole("heading", { level: 1, name: "docs" })).toBeVisible();
+    expect(await screen.findByText("mongodb://root:••••••••••••@docs:27017/?authSource=admin")).toBeVisible();
+    // What it says of upgrades and backups is facts on a line, not a paragraph.
+    expect(
+      screen.getByText(
+        "Data at 7.0's features, which its next upgrade raises · Runs alone: a backup isn't one moment while something writes",
+      ),
+    ).toBeVisible();
+    const users = screen.getByRole("table", { name: "Users of docs" });
+    expect(
+      within(users)
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => r.textContent),
+    ).toEqual(["rootadminCan do anythingNone of their own", "shoppershopSigns inshop"]);
+    expect(screen.queryByText(/lets anyone in/)).toBeNull();
+    // Dockwell makes no MongoDB users yet, so there's nothing to add, and no secret to name.
+    expect(screen.queryByRole("button", { name: "Add a user" })).toBeNull();
+    expect(within(users).queryByRole("columnheader", { name: "Password in" })).toBeNull();
+    // Nor a new password: MongoDB keeps its root user's in its data, which a new secret wouldn't change.
+    expect(screen.queryByRole("button", { name: "Change password" })).toBeNull();
+    expect(screen.getByText(/Dockwell can't add a MongoDB user yet/)).toHaveTextContent(
+      "Dockwell can't add a MongoDB user yet. Add one with db.createUser in mongosh.",
+    );
+    await expectAccessible(container);
+  });
+
+  it("offers no way to add a MongoDB user on its Users tab either", async () => {
+    renderAt("/databases/svc_docs/users", api([mongo()]));
+    expect(await screen.findByRole("table", { name: "Users of docs" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Add a user" })).toBeNull();
+    expect(screen.getByText(/can't add a MongoDB user yet/)).toBeVisible();
+  });
+
+  it("warns of a MongoDB that checks no one, and leads to where that's put right", async () => {
+    renderAt("/databases/svc_docs", api([mongo({ checksNoOne: true, user: "", users: [], replicaSet: "rs0" })]));
+    expect(await screen.findByText("MongoDB lets anyone in")).toBeVisible();
+    // A member that checks sign-ins needs a key file, or it won't start.
+    expect(screen.getByText(/every member of rs0 shares, make a root user, then set/)).toHaveTextContent(
+      "Give it a --keyFile every member of rs0 shares, make a root user, then set MONGO_INITDB_ROOT_USERNAME and MONGO_INITDB_ROOT_PASSWORD.",
+    );
+    expect(screen.getByRole("link", { name: "Its environment" })).toHaveAttribute("href", "/apps/svc_docs/environment");
+    expect(screen.getByText("mongodb://docs:27017")).toBeVisible();
+    // No user to sign in as, and no password: the card says so instead of an empty row.
+    expect(screen.queryByRole("term", { name: "User" })).toBeNull();
+    expect(screen.queryByText("User", { selector: "dt" })).toBeNull();
+    expect(
+      screen.getByText(/Replica set rs0: each backup is one moment, and can't be restored into a member yet$/),
+    ).toBeVisible();
+    // It takes no password, so the page doesn't say one is kept sealed.
+    expect(screen.getByText("It takes no password, as it checks no one.")).toBeVisible();
+    expect(screen.queryByText(/keeps sealed and never shows/)).toBeNull();
+  });
+
   it("says why it can't tell how it is, and keeps the rest", async () => {
     const quiet = aDatabase({
       readings: [
@@ -580,6 +672,8 @@ describe("what's a database", () => {
     expect(engineOfImage("postgres:17.2-alpine")).toBe(DatabaseEngine.POSTGRESQL);
     expect(engineOfImage("docker.io/library/mariadb:11@sha256:ab")).toBe(DatabaseEngine.MARIADB);
     expect(engineOfImage("valkey/valkey:8")).toBe(DatabaseEngine.VALKEY);
+    expect(engineOfImage("mongo:8.0")).toBe(DatabaseEngine.MONGODB);
+    expect(engineOfImage("bitnami/mongodb:8.0")).toBeUndefined();
     expect(engineOfImage("bitnami/postgresql:17")).toBeUndefined();
     expect(engineOfImage("registry.example.com:5000/redis")).toBeUndefined();
   });

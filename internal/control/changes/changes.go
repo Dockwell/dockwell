@@ -108,7 +108,7 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 			return nil, authapi.Invalid(errors.New(how))
 		}
 	}
-	c, err := h.propose(ctx, who, summary, req.Msg.GetEdits(), nil)
+	c, err := h.proposeAlso(ctx, who, summary, req.Msg.GetEdits(), nil, Also{SkipBackup: req.Msg.GetSkipBackup()})
 	if err != nil {
 		return nil, err
 	}
@@ -136,6 +136,9 @@ type Also struct {
 	Intent *revision.Intent
 	// BackUp names resources to back up first (revision.Edit).
 	BackUp []resource.Ref
+	// SkipBackup leaves out the backup a database's move takes first
+	// (revision.Proposal).
+	SkipBackup bool
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -154,10 +157,6 @@ func (h *Handler) Propose(ctx context.Context, summary string, edits []*dockwell
 		return nil, err
 	}
 	return h.proposeAlso(ctx, who, summary, edits, field, also)
-}
-
-func (h *Handler) propose(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string) (*dockwellv1.Change, error) {
-	return h.proposeAlso(ctx, who, summary, in, field, Also{})
 }
 
 func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary string, in []*dockwellv1.Edit, field func(*scope.ChoiceError, string) string, also Also) (*dockwellv1.Change, error) {
@@ -189,6 +188,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
+		SkipBackup: also.SkipBackup,
 	})
 	if err != nil {
 		return nil, fail(err)

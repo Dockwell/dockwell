@@ -164,7 +164,8 @@ func passwordMoves(e *Engine, was, now map[string]string) []passwordMove {
 			}
 		}
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
-		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		// MongoDB's root user's password is kept in its data, and Dockwell doesn't change it yet (ADR 0038).
 	}
 	return out
 }

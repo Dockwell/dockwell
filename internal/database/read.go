@@ -79,6 +79,9 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 	case !c.State.Running || c.State.Restarting:
 		return unread(e.Name + " isn't running, so it can't say how it is")
 	}
+	if why := e.TooOld(c.Config.Image); why != "" {
+		return unread(why)
+	}
 	cmd, input := e.reading(PortOf(e, c.Config.Cmd))
 	said, err := r.ask(ctx, c.ID, e, cmd, input)
 	if err != nil {
@@ -121,8 +124,8 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
 	case code != 0 && e.SQL() && startingUp(said):
 		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
-	case refusedSignIn(said) || !e.SQL() && redisRefused(out.String()):
-		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, strings.Join(e.Password, " or "))
+	case refusedSignIn(said) || e.KeyValue() && redisRefused(out.String()):
+		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, e.SignsInWith())
 	case code != 0 && e.SQL() && sqlRefused.MatchString(said):
 		// It answered, and refused what it was asked, in its own words, which may
 		// follow a notice or two.
@@ -146,6 +149,8 @@ func (e *Engine) tool() string {
 		return "mariadb"
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 		return "valkey-cli"
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		return "mongosh"
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 	}
 	return "redis-cli"
@@ -184,7 +189,11 @@ func redisRefused(out string) bool {
 
 // refusedSignIn says a tool's words are a database refusing who signed in.
 func refusedSignIn(said string) bool {
-	for _, words := range []string{"password authentication failed", "Access denied", "NOAUTH", "WRONGPASS", "no password supplied", "invalid password"} {
+	for _, words := range []string{
+		"password authentication failed", "Access denied", "NOAUTH", "WRONGPASS", "no password supplied", "invalid password",
+		// MongoDB's, for a wrong password, and for none where it checks.
+		"Authentication failed", "requires authentication",
+	} {
 		if strings.Contains(said, words) {
 			return true
 		}
@@ -204,6 +213,8 @@ func (e *Engine) reading(port uint32) ([]string, string) {
 		return mysqlClient, mysqlSession + mysqlRead
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		return mysqlClient, mariadbSession + mysqlRead
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		return withPort("DW_PORT", port, mongoClient), mongoRead
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}
@@ -232,6 +243,61 @@ var (
 	mysqlClient    = []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec timeout 7 "$c" -uroot -N -B --connect-timeout=5`}
 	redisClient    = []string{"sh", "-c", `p="${VALKEY_PASSWORD:-${REDIS_PASSWORD:-}}"; [ -n "$p" ] && export REDISCLI_AUTH="$p"; c=redis-cli; command -v valkey-cli >/dev/null 2>&1 && c=valkey-cli; exec timeout 7 "$c" -p "${DW_PORT:-6379}" INFO`}
 )
+
+// mongoSignIn reads the root user the image made, from MONGO_INITDB_ROOT_USERNAME
+// and MONGO_INITDB_ROOT_PASSWORD or their _FILE forms, into those variables, where
+// mongosh's script reads them: never an argument, which ps shows anyone on the
+// server.
+const mongoSignIn = `[ -n "${MONGO_INITDB_ROOT_USERNAME_FILE:-}" ] && MONGO_INITDB_ROOT_USERNAME="$(cat "$MONGO_INITDB_ROOT_USERNAME_FILE")"; ` +
+	`[ -n "${MONGO_INITDB_ROOT_PASSWORD_FILE:-}" ] && MONGO_INITDB_ROOT_PASSWORD="$(cat "$MONGO_INITDB_ROOT_PASSWORD_FILE")"; ` +
+	`export MONGO_INITDB_ROOT_USERNAME MONGO_INITDB_ROOT_PASSWORD; `
+
+// mongoClient runs mongosh on the script it's given on stdin, as the image's own
+// entrypoint does. The image's HOME is the data directory, where mongosh would
+// keep a log of each run, so it gets one of its own for the run, which goes after.
+var mongoClient = []string{"sh", "-c", mongoSignIn +
+	`d="$(mktemp -d)" || exit 1; HOME="$d" timeout 7 mongosh --quiet --norc --nodb --file /dev/stdin; c=$?; rm -rf "$d"; exit "$c"`}
+
+// mongoReader is the name a reading's connections carry, so it counts only
+// others'.
+const mongoReader = "dockwell-reading"
+
+// mongoRead asks MongoDB everything at once, as one line of JSON. It signs in as
+// the image's root user where there is one, and asks nothing that holds a
+// credential: usersInfo leaves them out unless asked for them.
+var mongoRead = `const env = process.env;
+const n = (v) => (v == null ? 0 : typeof v === "object" && typeof v.toNumber === "function" ? v.toNumber() : Number(v));
+const ok = (r) => { if (!r.ok) throw new Error(r.errmsg || "it refused"); return r; };
+const m = new Mongo("mongodb://127.0.0.1:" + (env.DW_PORT || "27017") + "/?directConnection=true&serverSelectionTimeoutMS=5000&connectTimeoutMS=5000&appName=` + mongoReader + `");
+const admin = m.getDB("admin");
+const user = env.MONGO_INITDB_ROOT_USERNAME || "";
+if (user) admin.auth(user, env.MONGO_INITDB_ROOT_PASSWORD || "");
+const st = ok(admin.runCommand({ serverStatus: 1 }));
+const dbs = ok(admin.runCommand({ listDatabases: 1 }));
+const users = ok(admin.runCommand({ usersInfo: { forAllDBs: true } })).users || [];
+const fcv = admin.runCommand({ getParameter: 1, featureCompatibilityVersion: 1 });
+const sec = (ok(admin.runCommand({ getCmdLineOpts: 1 })).parsed || {}).security || {};
+const hello = admin.runCommand({ hello: 1 });
+const cache = (st.wiredTiger || {}).cache || {};
+let others = Math.max(0, n(st.connections.current) - 2);
+try {
+  others = admin.aggregate([{ $currentOp: { allUsers: true, idleConnections: true } },
+    { $match: { client: { $exists: true }, appName: { $ne: "` + mongoReader + `" } } }, { $count: "n" }]).toArray().map((r) => r.n)[0] || 0;
+} catch (e) {}
+const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+dbs.databases.sort((a, b) => byName(a.name, b.name));
+users.sort((a, b) => byName(a.db + "." + a.user, b.db + "." + b.user));
+print(JSON.stringify({
+  version: st.version, user: user, uptime: Math.floor(n(st.uptime)),
+  connections: others, max_connections: n(st.connections.current) + n(st.connections.available),
+  requested: n(cache["pages requested from the cache"]), read: n(cache["pages read into cache"]),
+  size: n(dbs.totalSize), fcv: fcv.ok ? fcv.featureCompatibilityVersion.version : "",
+  replica_set: hello.setName || "", auth: sec.authorization === "enabled" || !!sec.keyFile,
+  database_count: dbs.databases.length, user_count: users.length,
+  databases: dbs.databases.slice(0, ` + strconv.Itoa(MaxListed) + `).map((d) => ({ name: d.name, size: n(d.sizeOnDisk) })),
+  users: users.slice(0, ` + strconv.Itoa(MaxListed) + `).map((u) => ({ name: u.user, db: u.db, roles: (u.roles || []).map((r) => ({ role: r.role, db: r.db })) })),
+}));
+`
 
 // clientWait is the timeout each tool runs under, within readWait.
 const clientWait = 7 * time.Second
