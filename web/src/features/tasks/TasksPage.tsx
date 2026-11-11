@@ -17,7 +17,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useNow, useTimeWords } from "../../lib/time";
@@ -49,6 +49,8 @@ export function TasksPage() {
   const search = useSearch({ strict: false }) as { task?: string };
   const navigate = useNavigate();
   const [making, setMaking] = useState(false);
+  // A task just made, to open once the list has it, where Run now is.
+  const [made, setMade] = useState<{ name: string; scope: string }>();
   const tasks = query.data?.tasks ?? [];
   const chosen = tasks.find((task) => task.id === search.task) ?? tasks[0];
   const servers = [...new Set(tasks.flatMap((task) => task.servers.map((s) => s.serverName)))];
@@ -147,6 +149,14 @@ export function TasksPage() {
 
   const choose = (task: TaskInfo) =>
     void navigate({ to: "/scheduled-tasks", search: { task: task.id }, replace: true });
+  const madeId = made
+    ? tasks.find((task) => task.resource?.name === made.name && task.resource?.scope === made.scope)?.id
+    : undefined;
+  useEffect(() => {
+    if (!madeId) return;
+    setMade(undefined);
+    void navigate({ to: "/scheduled-tasks", search: { task: madeId }, replace: true });
+  }, [madeId, navigate]);
   const action = (
     <Button variant="primary" icon="plus" onClick={() => setMaking(true)}>
       <Trans>New task</Trans>
@@ -230,7 +240,9 @@ export function TasksPage() {
           {chosen ? <TaskPanel task={chosen} /> : null}
         </div>
       )}
-      {making ? <TaskSheet onClose={() => setMaking(false)} /> : null}
+      {making ? (
+        <TaskSheet onClose={() => setMaking(false)} onMade={(name, scope) => setMade({ name, scope })} />
+      ) : null}
     </Page>
   );
 }

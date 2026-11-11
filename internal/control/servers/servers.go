@@ -13,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
@@ -99,6 +100,57 @@ func (s *Service) GetServerDiskUse(ctx context.Context, req *connect.Request[doc
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what takes its disk now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
 	}
 	return connect.NewResponse(&dockwellv1.GetServerDiskUseResponse{DiskUse: use}), nil
+}
+
+// CheckServerPorts asks a server's agent what holds some of its ports, for a form
+// that offers a free one, only when someone asks.
+func (s *Service) CheckServerPorts(ctx context.Context, req *connect.Request[dockwellv1.CheckServerPortsRequest]) (*connect.Response[dockwellv1.CheckServerPortsResponse], error) {
+	asked := req.Msg.GetPorts()
+	if len(asked) == 0 {
+		return connect.NewResponse(&dockwellv1.CheckServerPortsResponse{}), nil
+	}
+	if len(asked) > 64 {
+		return nil, authapi.Invalid(fmt.Errorf("that asks about %d ports, and a check takes 64 at most. Ask about fewer", len(asked)))
+	}
+	for _, p := range asked {
+		if p.GetPort() == 0 || p.GetPort() > 65535 {
+			return nil, authapi.Invalid(fmt.Errorf("%d isn't a port. Use one from 1 to 65535", p.GetPort()))
+		}
+	}
+	srv, err := s.fleet.Get(req.Msg.GetId())
+	if errors.Is(err, fleet.ErrNotFound) {
+		for _, named := range s.fleet.List() {
+			if named.GetName() == req.Msg.GetId() {
+				srv, err = named, nil
+			}
+		}
+	}
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("there's no server "+req.Msg.GetId()+". List them with ListServers"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	var session *agentapi.Session
+	if s.agents != nil && srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED {
+		session, _ = s.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
+	}
+	if session == nil {
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
+			"the agent on %s isn't connected, so nothing can say what holds its ports now. The plan checks them when it can; this works again when its agent reconnects", srv.GetName()), authapi.ReasonUnavailable)
+	}
+	held, err := session.Ports(ctx, &agentv1.PortsCall{Ports: asked})
+	if errors.Is(err, agentapi.ErrOlderAgent) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("%s can't say what holds its ports: %w", srv.GetName(), err))
+	}
+	if err != nil {
+		var se *resource.ServerError
+		if errors.As(err, &se) {
+			err = se.Err
+		}
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what holds its ports now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
+	}
+	return connect.NewResponse(&dockwellv1.CheckServerPortsResponse{Ports: held.GetPorts()}), nil
 }
 
 // SetServerPublicAddress records a server's public address as a person says it.

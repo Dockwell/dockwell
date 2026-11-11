@@ -98,6 +98,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
+	cfg.Images = imageReads(stdio)
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
@@ -231,6 +232,19 @@ func serverOnePanel(stdio IO) func(context.Context) (*agentv1.ReadOnePanelResult
 		}
 		return onepanel.Read(ctx, root)
 	}
+}
+
+// imageReads says where the agent reads images from (ADR 0062). A test asks
+// nothing beyond this machine: with DOCKWELL_TEST set, only the registry
+// DOCKWELL_TEST_REGISTRY names, and none without it.
+func imageReads(stdio IO) agent.ImageReads {
+	if !isSet(stdio.Getenv(envTest)) {
+		return agent.ImageReads{}
+	}
+	if test := stdio.Getenv(envTestRegistry); test != "" {
+		return agent.ImageReads{Test: test}
+	}
+	return agent.ImageReads{Off: "this is a test, so Dockwell reads no image from a registry here. Set " + envTestRegistry + " to a registry of stand-ins"}
 }
 
 // ingressEvery is how often the agent puts the server's ingress as its routes

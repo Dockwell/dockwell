@@ -107,6 +107,9 @@ type testServer struct {
 	updates *agentupdates.Reader
 	// onePanel reads what 1Panel keeps on it, when set.
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// images is where its agent reads images from. Unset, it reads none, as a test
+	// reaches no registry.
+	images agent.ImageReads
 	// tasks runs its scheduled tasks, when it has Docker.
 	tasks *task.Driver
 	// mounts stands in for the kernel's lists of what's mounted, for its fake Docker.
@@ -180,6 +183,10 @@ func (s *testServer) run(t *testing.T) {
 	}
 	if cfg.Probe == nil {
 		cfg.Probe = answersEverything
+	}
+	cfg.Images = s.images
+	if cfg.Images.Test == "" {
+		cfg.Images.Off = "this is a test, so it reads no image from a registry"
 	}
 	if s.backups != nil {
 		cfg.Backups = backup.Calls{Runner: s.backups}
