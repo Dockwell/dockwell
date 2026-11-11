@@ -374,7 +374,9 @@ func (d *Docker) decide(ctx context.Context, t Target, spec *resourcev1.Containe
 // step's, and neither is one to a port on the server, which belongs to no container.
 func routePorts(ctx context.Context, t Target) map[string]uint32 {
 	var out map[string]uint32
-	for _, want := range resource.DesiredIn(ctx) {
+	asked := resource.DesiredIn(ctx)
+	for di := range asked {
+		want := &asked[di]
 		r, ok := want.Spec.(*resourcev1.Route)
 		if !ok || r.GetPort() == 0 || r.GetHostPort() != 0 || r.GetService() != t.Service || docker.Project(want.Ref.Scope) != t.Project {
 			continue

@@ -43,6 +43,11 @@ export function restarts(plan: Plan | undefined): boolean {
   return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.restart !== ""));
 }
 
+/** Whether a plan installs a server's updates (ADR 0064): as good as root, and with no undo. */
+export function installs(plan: Plan | undefined): boolean {
+  return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.install !== undefined));
+}
+
 /** A step that starts what's there and isn't running, so nothing serves while it does. */
 export function startsStopped(step: PlanStep): boolean {
   return step.changes.some((c) => c.path === "state" && c.to === "running");

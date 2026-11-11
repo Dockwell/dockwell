@@ -419,7 +419,8 @@ func splitUpstream(up string) (string, uint32, error) {
 // then deletes last first.
 func routesAfter(have []Route, desired []resource.Desired) (left int, first, last resource.Ref) {
 	in := map[string]bool{}
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if d.Ref.Kind != routeKind {
 			continue
 		}
@@ -463,12 +464,13 @@ func routeSpec(d resource.Desired) *resourcev1.Route {
 // here can say what it needs.
 func needsHTTPS(have []Route, desired []resource.Desired) bool {
 	in := map[string]bool{}
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if d.Ref.Kind != routeKind {
 			continue
 		}
 		in[RouteID(d.Ref)] = true
-		if spec := routeSpec(d); spec != nil && spec.GetTls() != TLSOff {
+		if spec := routeSpec(*d); spec != nil && spec.GetTls() != TLSOff {
 			return true
 		}
 	}
@@ -550,12 +552,13 @@ func (m *Manager) Goes(ctx context.Context, ref resource.Ref, desired []resource
 	left, _, _ := routesAfter(have, desired)
 	sameDomain := false
 	in := map[string]bool{}
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if d.Ref.Kind != routeKind {
 			continue
 		}
 		in[RouteID(d.Ref)] = true
-		if spec := routeSpec(d); spec != nil && spec.GetDomain() == gone.Domain {
+		if spec := routeSpec(*d); spec != nil && spec.GetDomain() == gone.Domain {
 			sameDomain = true
 		}
 	}
@@ -646,13 +649,15 @@ func serversNetwork(service string) error {
 // coming off it, and then what the server runs.
 func (m *Manager) checkServersNetwork(ctx context.Context, desired []resource.Desired) error {
 	planned := map[Service]bool{}
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if spec, ok := d.Spec.(*resourcev1.Service); ok {
 			planned[Service{Project: docker.Project(d.Ref.Scope), Name: d.Ref.Name}] = spec.GetApp().GetHostNetwork()
 		}
 	}
-	for _, d := range desired {
-		spec := routeSpec(d)
+	for di := range desired {
+		d := &desired[di]
+		spec := routeSpec(*d)
 		if spec == nil || spec.GetHostPort() != 0 {
 			continue
 		}
@@ -690,7 +695,8 @@ func (m *Manager) RoutedAfter(ctx context.Context, i Instance, desired []resourc
 		return false, err
 	}
 	in := map[string]bool{}
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if d.Ref.Kind == routeKind {
 			in[RouteID(d.Ref)] = true
 		}
@@ -727,8 +733,9 @@ func (m *Manager) Listening(ctx context.Context, port uint32) (who string, nothi
 // refuses Docker's own listener on any port too: route.Validate refuses 2375 and
 // 2376 by number, and dockerd can be told to listen anywhere.
 func (m *Manager) checkHostPorts(ctx context.Context, desired []resource.Desired) error {
-	for _, d := range desired {
-		spec := routeSpec(d)
+	for di := range desired {
+		d := &desired[di]
+		spec := routeSpec(*d)
 		if spec == nil || spec.GetHostPort() == 0 {
 			continue
 		}

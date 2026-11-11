@@ -303,6 +303,33 @@ func TestACallGetsTheTimeItsPlanTakes(t *testing.T) {
 	}
 }
 
+// An install's call gets hours on top of what any step gets: its download, then an
+// install that builds kernel modules on a small server, which ten minutes would
+// cut short while it goes on (ADR 0064).
+func TestAnInstallsCallGetsItsHours(t *testing.T) {
+	kinds := resource.NewRegistry(&firewall.Driver{})
+	step := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: "srv_1", Name: "host"}, Decision: resource.Decision{
+		Action: resource.ActionUpdate, Install: &resource.Install{Packages: []resource.InstallPackage{{Name: "openssl", To: "3.0.13-0ubuntu3.5"}}},
+	}}
+	a := NewAgents(kinds, slog.New(slog.DiscardHandler))
+	var s *Session
+	var timeout time.Duration
+	s = a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(firewall.Kind)}, WritesReferences: true}, func(msg *agentv1.ConnectResponse) error {
+		if c := msg.GetCall(); c != nil {
+			timeout = c.GetTimeout().AsDuration()
+			s.deliver(&agentv1.CallResult{Id: c.GetId(), Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{}}})
+		}
+		return nil
+	})
+	defer s.close()
+	if err := s.Apply(t.Context(), step, &resourcev1.FirewallRule{Port: 8080}); err != nil {
+		t.Fatal(err)
+	}
+	if want := ApplyTimeout + resource.InstallBudget - time.Minute; timeout < want {
+		t.Errorf("an install's call got %s, want at least %s", timeout, want)
+	}
+}
+
 // fresh copies a result, so each call gets its own.
 func fresh(r *agentv1.CallResult) *agentv1.CallResult {
 	return &agentv1.CallResult{Result: r.GetResult()}

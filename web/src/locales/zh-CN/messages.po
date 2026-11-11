@@ -5441,6 +5441,7 @@ msgid "On each server's own disk, unencrypted, so they go if the server does"
 msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它们也就没了"
 
 #. placeholder {0}: b.destination
+#. placeholder {0}: server.name
 msgid "On {0}"
 msgstr "在 {0} 上"
 
@@ -6367,6 +6368,12 @@ msgstr "位于项目 <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "位于项目 <0>{project}</0>，环境 <1>{environment}</1>"
 
+msgid "Installing updates on {server}"
+msgstr "正在 {server} 上安装更新"
+
+msgid "Installing updates on {server} failed"
+msgstr "在 {server} 上安装更新失败"
+
 msgid "It keeps applying if you close this."
 msgstr "关闭这里后它会继续应用。"
 
@@ -6463,6 +6470,9 @@ msgstr "如果发生替换，{undoDays} 天内可撤销"
 msgid "Undo until {deadline}"
 msgstr "可撤销至 {deadline}"
 
+msgid "Updates are installed on {server}"
+msgstr "{server} 上的更新已安装"
+
 msgid "Waits for an admin or the owner"
 msgstr "等待管理员或所有者"
 
@@ -6483,6 +6493,9 @@ msgstr "约停机 {span}，最多 {bound} 后恢复健康"
 
 msgid "about {span} down, if there is a newer image"
 msgstr "如有更新的镜像，约中断 {span}"
+
+msgid "apps and websites stop while Docker restarts"
+msgstr "Docker 重启期间应用和网站会停止"
 
 msgid "no downtime expected"
 msgstr "预计不会停机"
@@ -6662,6 +6675,12 @@ msgstr "恢复服务器保留的数据"
 msgid "Destroys data"
 msgstr "会销毁数据"
 
+msgid "Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on"
+msgstr "Docker 会重启，期间容器保持运行：这是补丁版本，且已开启 live-restore"
+
+msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，直到它恢复，Caddy 在那里提供的域名也一样"
+
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
 
@@ -6674,8 +6693,21 @@ msgstr "不会停机"
 msgid "No steps: it left the fleet"
 msgstr "没有步骤：它已离开集群"
 
+msgid "Packages it installs on {server}"
+msgstr "它在 {server} 上安装的软件包"
+
+msgid "Pulled in"
+msgstr "随附安装"
+
 msgid "Reaches {reach} on {server}"
 msgstr "可访问 {server} 上的 {reach}"
+
+msgctxt "a package update"
+msgid "Security fix"
+msgstr "安全修复"
+
+msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
+msgstr "这些软件包运行的服务可能会在安装时重启。此操作无法撤销：已安装的内容会保留"
 
 msgid "Steps"
 msgstr "步骤"
@@ -6691,6 +6723,12 @@ msgstr "停用其镜像在 {kept} 保存的数据，服务器会保留 7 天"
 
 msgid "Up to {stepBound} until healthy"
 msgstr "最多 {stepBound} 后恢复健康"
+
+msgid "{n, plural, one {Install # package on} other {Install # packages on}}"
+msgstr "{n, plural, other {安装 # 个软件包到}}"
+
+msgid "{server} needs a reboot for this to take effect, which is a change of its own"
+msgstr "{server} 需要重启才能生效，重启是另一项单独的变更"
 
 msgid "<0>{name}</0> is back as it was"
 msgstr "<0>{name}</0> 已恢复原样"
@@ -10174,6 +10212,13 @@ msgstr "{joinedName} 已加入，正在启动代理"
 msgid "{minutes} min"
 msgstr "{minutes} 分钟"
 
+msgid "Update its agent"
+msgstr "更新它的代理"
+
+#. placeholder {0}: server.name
+msgid "{0}'s agent is outdated"
+msgstr "{0} 的代理已过时"
+
 msgid "Back to the server"
 msgstr "返回服务器"
 
@@ -11062,6 +11107,9 @@ msgstr "按名称、PID 或用户筛选"
 msgid "Filter processes"
 msgstr "筛选进程"
 
+msgid "It's older than the control plane, so it can't list processes."
+msgstr "它比控制平面旧，因此无法列出进程。"
+
 msgid "Load average <0>{load}</0>"
 msgstr "平均负载 <0>{load}</0>"
 
@@ -11272,6 +11320,9 @@ msgstr "运行控制平面"
 #. placeholder {0}: server.name
 msgid "Server {0}"
 msgstr "服务器 {0}"
+
+msgid "System services"
+msgstr "系统服务"
 
 msgid "Updates"
 msgstr "更新"
@@ -11499,6 +11550,93 @@ msgstr "即服务商控制台显示的地址。之后所有关于 DNS 的提示�
 msgid "What the internet knows this server by"
 msgstr "互联网识别此服务器所用的地址"
 
+msgctxt "system services"
+msgid "All"
+msgstr "全部"
+
+msgid "At boot"
+msgstr "开机启动"
+
+msgid "Dockwell needs it"
+msgstr "Dockwell 依赖它"
+
+msgctxt "at boot"
+msgid "Doesn't start"
+msgstr "不启动"
+
+msgctxt "system services"
+msgid "Failed"
+msgstr "失败"
+
+msgid "Filter by name or description"
+msgstr "按名称或描述筛选"
+
+msgid "Filter system services"
+msgstr "筛选系统服务"
+
+msgid "Init state"
+msgstr "init 状态"
+
+msgid "It's older than the control plane, so it can't list system services."
+msgstr "它比控制平面旧，因此无法列出系统服务。"
+
+msgid "Main process"
+msgstr "主进程"
+
+msgctxt "at boot"
+msgid "Masked"
+msgstr "已屏蔽"
+
+#. placeholder {0}: server.name
+msgid "Needs it on {0}"
+msgstr "{0} 上需要它"
+
+msgid "No system service matches."
+msgstr "没有匹配的系统服务。"
+
+msgid "Not started at boot"
+msgstr "不随开机启动"
+
+#. placeholder {0}: server.name
+msgid "Nothing has failed on {0}."
+msgstr "{0} 上没有失败的服务。"
+
+msgctxt "system services"
+msgid "Running"
+msgstr "正在运行"
+
+msgctxt "at boot"
+msgid "Starts"
+msgstr "启动"
+
+#. placeholder {0}: server.name
+msgid "System services on {0}"
+msgstr "{0} 上的系统服务"
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
+msgstr "{0} 上的代理未连接，所以现在无法读取它的系统服务。代理重新连接后，此页面会再次读取。"
+
+msgctxt "at boot"
+msgid "When needed"
+msgstr "按需启动"
+
+msgid "every 10 s"
+msgstr "每 10 秒"
+
+#. placeholder {0}: server.name
+msgid "{0} lists no system services here."
+msgstr "{0} 在这里没有列出系统服务。"
+
+#. placeholder {0}: server.name
+msgid "{0} starts its services with an init Dockwell doesn't read. It reads systemd's and OpenRC's."
+msgstr "{0} 使用 Dockwell 无法读取的 init 系统启动服务。Dockwell 读取 systemd 和 OpenRC 的服务。"
+
+#. placeholder {0}: s.result
+#. placeholder {1}: s.exitStatus
+msgid "{0}, status {1}"
+msgstr "{0}，状态 {1}"
+
 msgid "Being removed"
 msgstr "正在移除"
 
@@ -11591,6 +11729,34 @@ msgstr "{provider} 的元数据服务给出此地址，{when}"
 
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
+
+msgctxt "system service state"
+msgid "Exited"
+msgstr "已退出"
+
+msgctxt "system service state"
+msgid "Failed"
+msgstr "失败"
+
+msgctxt "system service state"
+msgid "Inactive"
+msgstr "未运行"
+
+msgctxt "system service state"
+msgid "Running"
+msgstr "正在运行"
+
+msgctxt "system service state"
+msgid "Starting"
+msgstr "正在启动"
+
+msgctxt "system service state"
+msgid "Stopping"
+msgstr "正在停止"
+
+msgctxt "system service state"
+msgid "Unknown"
+msgstr "未知"
 
 msgid "Last reported {seen}"
 msgstr "最后上报于 {seen}"
@@ -13592,6 +13758,9 @@ msgstr "{n, plural, other {# 个安全更新}}"
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · 代理与控制平面"
 
+msgid "<0>{tool}</0> installs them within about a day."
+msgstr "<0>{tool}</0> 会在约一天内安装它们。"
+
 msgid "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
 msgstr "<0>{tool}</0> 会在约一天内安装它们；这条命令会立即安装所有待装的更新。"
 
@@ -13647,12 +13816,15 @@ msgstr "Docker Engine"
 msgid "Docker and Dockwell"
 msgstr "Docker 与 Dockwell"
 
-msgid "Dockwell can't install them yet; the command installs every update waiting, not only these."
-msgstr "Dockwell 暂时还不能安装它们；这条命令会安装所有待装的更新，不只是这些。"
-
 #. placeholder {0}: server.name
 msgid "Dockwell couldn't ask {0} for its updates"
 msgstr "Dockwell 无法向 {0} 询问更新"
+
+msgid "Dockwell installs updates with apt for now, so install these with {name}'s own package manager."
+msgstr "Dockwell 目前只用 apt 安装更新，请用 {name} 自己的包管理器安装这些更新。"
+
+msgid "Dockwell installs updates with apt for now; the command installs every update waiting, not only these."
+msgstr "Dockwell 目前只用 apt 安装更新；这条命令会安装所有待装的更新，不只是这些。"
 
 msgid "Dockwell refreshes them once they're a day old, when someone looks"
 msgstr "列表超过一天时，Dockwell 会在有人查看时刷新"
@@ -13664,6 +13836,12 @@ msgstr "来自 {0}"
 #. placeholder {0}: from.length
 msgid "From {0} sources"
 msgstr "来自 {0} 个来源"
+
+msgid "Install every update"
+msgstr "安装所有更新"
+
+msgid "Install security updates"
+msgstr "安装安全更新"
 
 msgctxt "a package's version"
 msgid "Installed"
@@ -13809,6 +13987,9 @@ msgstr "{n, plural, other {另有 # 个被暂缓：{names}。升级暂不安装�
 
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, other {# 个安全更新可以安装}}"
+
+msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
+msgstr "{n, plural, other {# 个更新可以安装}}"
 
 msgid "{newest} available"
 msgstr "{newest} 可用"

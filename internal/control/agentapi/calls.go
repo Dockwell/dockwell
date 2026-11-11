@@ -37,9 +37,12 @@ import (
 const (
 	PlanTimeout     = time.Minute
 	ObserveTimeout  = time.Minute
-	ApplyTimeout    = 10 * time.Minute
 	RememberTimeout = time.Minute
 )
+
+// ApplyTimeout is how long any step may take, on top of its own budget. Agents
+// take it as they're made, so a test shortens it first.
+var ApplyTimeout = 10 * time.Minute
 
 // ErrLost means a server's stream ended while a call on it was waiting
 // for its result. The call may or may not have run. It is resource.ErrLost,
@@ -69,6 +72,8 @@ var ErrMoving = errors.New("the agent is moving to a new stream")
 type Agents struct {
 	kinds  *resource.Registry
 	logger *slog.Logger
+	// applyTimeout is ApplyTimeout as the Agents were made.
+	applyTimeout time.Duration
 	// values finds the values of the variables and secrets a service uses,
 	// for the server it is about to run on.
 	values resource.Values
@@ -122,6 +127,7 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, forwards: map[uint64]*forwardLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
+		applyTimeout: ApplyTimeout,
 	}
 }
 
@@ -801,6 +807,9 @@ func (s *Session) Image(ctx context.Context, call *agentv1.ImageCall) (*agentv1.
 // Processes asks the agent what runs on its server.
 func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrOlderAgent
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -808,6 +817,25 @@ func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error
 		return nil, ErrOlderAgent
 	}
 	return r.GetProcesses().GetList(), nil
+}
+
+// SystemServicesTimeout bounds reading a server's system services: its init's
+// tools, three runs of 10 s at most, and room for the answer.
+const SystemServicesTimeout = 40 * time.Second
+
+// SystemServices asks the agent for the server's system services (ADR 0067).
+func (s *Session) SystemServices(ctx context.Context) (*dockwellv1.SystemServiceList, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_SystemServices{SystemServices: &agentv1.SystemServicesCall{}}}, SystemServicesTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrOlderAgent
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetSystemServices() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetSystemServices().GetList(), nil
 }
 
 // EndProcessTimeout bounds ending a process: SIGTERM's 10 s, SIGKILL's 5, and room
@@ -1028,6 +1056,13 @@ func (s *Session) notConnected() error {
 	return fault.New(resource.ErrNotConnected, "%s's agent disconnected before the call reached it, so it didn't run", s.name)
 }
 
+// Runs reports whether the agent has a driver for kind.
+func (s *Session) Runs(kind resource.Kind) bool {
+	s.kindsMu.Lock()
+	defer s.kindsMu.Unlock()
+	return slices.Contains(s.kinds, kind)
+}
+
 // supports refuses a kind the agent has no driver for, or can't run now,
 // with the agent's reason, such as Docker not running.
 func (s *Session) supports(ref resource.Ref) error {
@@ -1058,14 +1093,15 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		return nil, err
 	}
 	refs := make([]resource.Ref, len(desired))
-	for i, d := range desired {
-		refs[i] = d.Ref
+	for i := range desired {
+		refs[i] = desired[i].Ref
 	}
 	if err := s.checkReads(ctx, refs); err != nil {
 		return nil, err
 	}
 	call := &agentv1.PlanCall{}
-	for _, d := range desired {
+	for i := range desired {
+		d := &desired[i]
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
@@ -1083,6 +1119,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
 		if b := d.Backup; b != nil {
 			dr.BackupId = b.ID
+		}
+		if in := d.Install; in != nil {
+			dr.InstallUpdates = &agentv1.InstallUpdates{ChangeId: in.Change, All: in.All, Packages: resourcepb.Packages(in.Packages)}
 		}
 		call.Desired = append(call.Desired, dr)
 	}
@@ -1174,7 +1213,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	// What a step waits on by design, such as a health check with a long start
 	// period, comes on top of the time any step gets.
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, s.agents.applyTimeout+step.Budget(), seal)
 	if err != nil {
 		return err
 	}
@@ -1367,7 +1406,8 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 // checkAllWrites is checkWrites and checkFolders for all a plan asks of this
 // agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
 			return err
 		}
@@ -1843,7 +1883,7 @@ func (s *Session) FetchBackup(ctx context.Context, call *agentv1.FetchBackupCall
 // was sent, if destination says. It says if the destination kept it.
 func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCall, destination map[string]string) (*agentv1.DeleteBackupResult, error) {
 	prepare := s.sealing(call.GetVolume(), destination, func(sealed []byte) { call.Destination = sealed })
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, ApplyTimeout, prepare)
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DeleteBackup{DeleteBackup: call}}, s.agents.applyTimeout, prepare)
 	if err != nil {
 		return nil, err
 	}

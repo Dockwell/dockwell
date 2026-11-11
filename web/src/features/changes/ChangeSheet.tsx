@@ -94,6 +94,7 @@ import {
   foundNothingNewer,
   goesAway,
   goesLive,
+  installs,
   intentOf,
   isEmpty,
   isFinal,
@@ -665,7 +666,7 @@ function ChangeSheet({
   const undoNote = (
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
-      {restarts(plan) ? (
+      {restarts(plan) || installs(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -914,6 +915,13 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   const words = useChangeWords();
   const intent = intentOf(plan);
   const health = useHealth();
+  // An install says what it does, not that its server's host is changed.
+  if (installs(plan)) {
+    const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
+    if (phase === "applying") return t`Installing updates on ${server}`;
+    if (phase === "failed" && !wentOffline(change)) return t`Installing updates on ${server} failed`;
+    if (phase === "history" || phase === "arrived") return t`Updates are installed on ${server}`;
+  }
   switch (phase) {
     case "planning":
       return t`Planning`;
@@ -1118,9 +1126,11 @@ function PlanBody({
   const steps = change?.steps ?? [];
   // Steps sit under the diff, in the room it leaves, so nothing moves as they appear. With one server they
   // say nothing more once it has landed, and a person reading a plan has the plan.
+  // An install's packages are its plan (ADR 0064): its step lists them as it's reviewed.
+  const installs = plan?.servers.some((s) => s.steps.some((st) => st.install)) ?? false;
   const showSteps =
     phase === "applying" ||
-    (fleet && (ran || phase === "review")) ||
+    ((fleet || installs) && (ran || phase === "review")) ||
     (phase === "failed" && (steps.length > 1 || fleet));
   const failed = failedStep(change);
   // Discarded, it did nothing. Failed, it may have done some of this, for a while.
@@ -1496,11 +1506,17 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const going = servers.flatMap((s) => s.steps).flatMap((s) => (s.goes ? [s.goes] : []));
   const lost = going[0]?.where ?? "";
   const rolling = servers.flatMap((s) => s.steps).some((s) => s.rollout?.rolling && !startsStopped(s));
+  // An install that restarts Docker stops every container there, unless Docker keeps them running (ADR 0064).
+  const dockerStops = servers
+    .flatMap((s) => s.steps)
+    .some((s) => s.install?.dockerRestarts === true && !s.install.keepsRunning);
   const running =
     going.length > 1 ? (
       <Trans>visitors lose {going.length} addresses</Trans>
     ) : going.length === 1 ? (
       <Trans>visitors lose {lost}</Trans>
+    ) : dockerStops ? (
+      <Trans>apps and websites stop while Docker restarts</Trans>
     ) : down === 0 ? (
       rolling ? (
         <Trans>rolling, with nothing stopped</Trans>

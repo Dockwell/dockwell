@@ -102,6 +102,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ChangeService.listChanges": "read",
   "ChangeService.listDrift": "unused",
   "ChangeService.proposeChange": "may",
+  "ChangeService.planInstallUpdates": "may",
   "ChangeService.restartService": "may",
   "ChangeService.revertDrift": "unused",
   "ChangeService.undoChange": "may",
@@ -177,6 +178,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.listServers": "unused",
   "ServerService.setServerPublicAddress": "may",
   "ServerService.watchServers": "read",
+  "ServerService.watchSystemServices": "may",
 
   "ServiceService.addServicePort": "may",
   "ServiceService.changeServiceRuntime": "may",

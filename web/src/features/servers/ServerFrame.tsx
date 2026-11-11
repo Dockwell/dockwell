@@ -6,6 +6,7 @@ import {
   ImportService,
   ProcessService,
   type Server,
+  ServerService,
   TerminalService,
   UpdateService,
 } from "@dockwell/api";
@@ -162,6 +163,11 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
           {may(ProcessService.method.watchProcesses).allowed ? (
             <RouterTabLink to="/servers/$serverId/processes" params={{ serverId: server.id }}>
               <Trans>Processes</Trans>
+            </RouterTabLink>
+          ) : null}
+          {may(ServerService.method.watchSystemServices).allowed ? (
+            <RouterTabLink to="/servers/$serverId/services" params={{ serverId: server.id }}>
+              <Trans>System services</Trans>
             </RouterTabLink>
           ) : null}
           {may(ImportService.method.importOnePanel).allowed ? <MoveInTab server={server} /> : null}

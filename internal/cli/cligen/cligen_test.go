@@ -304,7 +304,7 @@ func TestGenerateRefusesANounWithoutItsOwnHelp(t *testing.T) {
 		}
 	}
 	err := Generate(plugin(t, req))
-	if err == nil || !strings.Contains(err.Error(), "have the nouns changes, services and drift") || !strings.Contains(err.Error(), "(dockwell.v1.nouns)") {
+	if err == nil || !strings.Contains(err.Error(), "have the nouns changes, services, updates and drift") || !strings.Contains(err.Error(), "(dockwell.v1.nouns)") {
 		t.Errorf("a service with two nouns and no help for them = %v", err)
 	}
 }

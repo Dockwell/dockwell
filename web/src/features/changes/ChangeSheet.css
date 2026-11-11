@@ -735,3 +735,34 @@ a.plan-reach-at:focus-visible {
   min-width: 44px;
   min-height: 44px;
 }
+
+/* What an install of updates installs, under its step (ADR 0064). */
+.plan-install {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.plan-install-packages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  /* The packages are the plan: the list grows, and the sheet scrolls, not a box inside it. */
+  list-style: none;
+}
+
+.plan-install-packages li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.plan-install-versions {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}

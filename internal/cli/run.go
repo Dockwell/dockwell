@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/backup"
@@ -42,6 +43,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -100,7 +102,6 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
-	cfg.Updates = serverUpdates(stdio, logger, dir.Agent())
 	cfg.OnePanel = serverOnePanel(stdio)
 	cfg.Images = imageReads(stdio)
 	cfg.Terminals = terminal.New(terminal.Options{
@@ -360,15 +361,20 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		Dir: filepath.Join(dir.Agent(), "fail2ban"), Root: tools.Root, Tools: tools,
 		Control: jails.ControlAddresses(controlURL, nil), Sessions: sessions, Logger: logger,
 	}
+	packages := serverUpdates(stdio, logger, dir.Agent())
+	// A server's host installs its updates in a unit of systemd's own (ADR 0064).
+	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
-			&fail2ban.Driver{Backend: jailed}),
+			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}}),
+		Updates:   packages,
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
+		System: serverSystem(stdio),
 	}
 }
 
@@ -386,6 +392,18 @@ func sshSessions(r *access.PinReader) func(context.Context) []string {
 		}
 		return out
 	}
+}
+
+// serverSystem reads this server's system services (ADR 0067) on a runner of its
+// own, so a list never waits on a firewall change that holds the shared one. A test
+// reads only stand-ins under DOCKWELL_TEST_TOOLS, laid out as the server's files.
+func serverSystem(stdio IO) *system.Reader {
+	tools := hostTools(stdio)
+	r := &system.Reader{Tools: tools, Root: tools.Root}
+	if tools.Off {
+		r.Unavailable = "This is a test, so Dockwell reads no system services here. Set " + envTestTools + " to a folder of stand-ins"
+	}
+	return r
 }
 
 // firewallAccess keeps who reaches the server (ADR 0052). Once the server can

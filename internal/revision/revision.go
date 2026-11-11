@@ -174,6 +174,11 @@ type Engine struct {
 	// A change claims its resources before it plans, so two changes never
 	// run steps on one resource at once.
 	busy map[string]string
+	// on names the servers each owned change runs steps on, and dockerFor the
+	// change whose install restarts Docker on a server, so neither runs beside
+	// the other there (ADR 0064, Holds).
+	on        map[string][]string
+	dockerFor map[string]string
 	// waiters are the owned changes Resume waits on: it skipped a change
 	// because one of these held it or one of its resources, or a rollback
 	// ended its first run waiting for a server that is back. Once one lets
@@ -216,6 +221,10 @@ type Edit struct {
 	// Backup backs up the resource's data on each server that has it, as a step that
 	// comes before what uses it. A resource the change makes has nothing to back up.
 	Backup bool
+	// Install installs its server's updates, for a server's host: a step its agent
+	// simulates as it plans and runs in a unit of its own, which makes no revision
+	// (ADR 0064).
+	Install *resource.InstallAsked
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
 	// servers still in the fleet; a new one runs on the only server when
@@ -388,6 +397,10 @@ type ResourcePlan struct {
 	Ref resource.Ref
 	// Restart says the change restarts it, which makes no revision.
 	Restart bool `json:",omitempty"`
+	// Install is what the change installs on its server, for a server's host:
+	// the agent's simulation of the exact command. It makes no revision, and
+	// can't be undone (ADR 0064).
+	Install *resource.Install `json:",omitempty"`
 	// Restore says what the change brings its data back from, which makes no
 	// revision either.
 	Restore *resource.RestoreSource `json:",omitempty"`
@@ -482,7 +495,8 @@ func (p *Plan) Counts() Counts {
 // HostAccess reports a plan that lets a resource reach more of its server
 // than it could, which a person approves (ADR 0021).
 func (p *Plan) HostAccess() bool {
-	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 })
+	// An install of updates reaches the whole server, as root, which a person approves.
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 || r.Install != nil })
 }
 
 // AsGoodAsRoot reports a plan that lets something reach as much as root can on a
@@ -490,7 +504,8 @@ func (p *Plan) HostAccess() bool {
 // passkey as well as a person (ADR 0032).
 func (p *Plan) AsGoodAsRoot() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
-		return slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		// A package's maintainer scripts run as root, as an install of updates does.
+		return r.Install != nil || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
 	})
 }
 
@@ -580,12 +595,14 @@ type item struct {
 	restore *resource.RestoreSource
 	// backups are the backups the change takes of it first, by server ID.
 	backups map[string]string
+	// install is the install of updates the change asks of a server's host.
+	install *resource.InstallAsked
 }
 
 // noRevision reports an item that acts on a resource as it is, so it has nothing
 // to roll back, and what goes wrong leaves its revision as it was.
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil || len(it.backups) > 0 && !it.changes()
+	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -708,6 +725,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			restore := *p.Edits[j].Restore
 			restore.Change = changeID
 			items[i].restore = &restore
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Install != nil && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].install = &resource.InstallAsked{Change: changeID, All: p.Edits[j].Install.All}
 		}
 	}
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
@@ -2103,9 +2123,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		_, _ = fmt.Fprintf(keyed, "%s|%t\n", item(e.digest(changeID, it)), it.rotates)
 		_, _ = io.WriteString(plain, item(sum[:])+"\n")
 	}
-	actions := map[string][]resource.Action{} // each item's steps, on every server
-	access := map[string][]resource.Access{}  // what each item gains on its servers
-	keeps := map[string][]resource.Access{}   // what each keeps while it runs something else
+	actions := map[string][]resource.Action{}  // each item's steps, on every server
+	access := map[string][]resource.Access{}   // what each item gains on its servers
+	installs := map[string]*resource.Install{} // what each server's host installs
+	keeps := map[string][]resource.Access{}    // what each keeps while it runs something else
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
@@ -2255,6 +2276,18 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		steps = order(steps)
 		for i := range steps {
 			s := &steps[i]
+			// The fingerprint covers what an install installs, so a person never
+			// applies a list they didn't see.
+			if in := s.Install; in != nil {
+				installs[ids[s.Ref]] = in
+				for _, p := range in.Packages {
+					fmt.Fprintf(fp, "install %s|%s|%s|%s|%s\n", server, ref(s.Ref), p.Name, p.From, p.To)
+				}
+				// What it needs after is its packages', so an apply's plan reads the
+				// same; whether containers keep running is the engine's setting,
+				// which the plan only says.
+				fmt.Fprintf(fp, "install-after %s|%t|%t\n", server, in.Reboot, in.DockerRestarts)
+			}
 			if s.Action == resource.ActionNone {
 				was := unfinishedOn(its, s.Ref, server)
 				if was == nil {
@@ -2323,7 +2356,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	masked := e.switchSides(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
-		rp.HostAccess, rp.Keeps = access[items[i].id], keeps[items[i].id]
+		rp.HostAccess, rp.Keeps, rp.Install = access[items[i].id], keeps[items[i].id], installs[items[i].id]
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -2515,7 +2548,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server)}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Install: it.install}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -3148,6 +3181,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	}
 	plan, err := e.plan(ctx, c.ID, items, rollback)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.holdServers(c.ID, plan, rollback); err != nil {
 		return nil, err
 	}
 	if rollback {
@@ -3803,6 +3839,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 				it.restart = c.ID
 			}
 			it.restore, it.backups = restoreIn(c, ref)
+			it.install = installIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -3986,6 +4023,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 			it.restart = c.ID
 		}
 		it.restore, it.backups = restoreIn(c, ref)
+		it.install = installIn(c, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
@@ -4205,6 +4243,29 @@ func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[s
 		}
 	}
 	return nil, nil
+}
+
+// installIn is the install of updates change c asks of ref, as its plan fixed
+// it, or nil: what a resume plans what's left of against.
+func installIn(c store.Change, ref resource.Ref) *resource.InstallAsked {
+	if len(c.Plan) == 0 {
+		return nil
+	}
+	var p struct {
+		Resources []struct {
+			Ref     resource.Ref
+			Install *resource.Install
+		}
+	}
+	if json.Unmarshal(c.Plan, &p) != nil {
+		return nil
+	}
+	for _, r := range p.Resources {
+		if r.Ref == ref && r.Install != nil {
+			return &resource.InstallAsked{Change: c.ID, Packages: r.Install.Packages}
+		}
+	}
+	return nil
 }
 
 // restarts reports a change that restarts a resource, as its plan says: a
@@ -4802,6 +4863,11 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	// A restore that failed may have left a volume it couldn't put right, and undoing
 	// it is the way back: its server says if there's nothing to undo.
 	ref, source, restores := restoring(c)
+	// An upgrade stays installed: what a change installed can't be taken back,
+	// and its plan said so (ADR 0064).
+	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Install != nil }) {
+		return nil, fault.New(ErrCantUndo, "installing updates can't be undone: what %s installed stays installed. Install an older version over SSH if one is needed", changeID)
+	}
 	if c.State != store.ChangeApplied && (c.State != store.ChangeFailed || !restores) {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)
 	}

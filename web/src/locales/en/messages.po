@@ -5441,6 +5441,7 @@ msgid "On each server's own disk, unencrypted, so they go if the server does"
 msgstr "On each server's own disk, unencrypted, so they go if the server does"
 
 #. placeholder {0}: b.destination
+#. placeholder {0}: server.name
 msgid "On {0}"
 msgstr "On {0}"
 
@@ -6367,6 +6368,12 @@ msgstr "In project <0>{project}</0>"
 msgid "In project <0>{project}</0>, environment <1>{environment}</1>"
 msgstr "In project <0>{project}</0>, environment <1>{environment}</1>"
 
+msgid "Installing updates on {server}"
+msgstr "Installing updates on {server}"
+
+msgid "Installing updates on {server} failed"
+msgstr "Installing updates on {server} failed"
+
 msgid "It keeps applying if you close this."
 msgstr "It keeps applying if you close this."
 
@@ -6463,6 +6470,9 @@ msgstr "Undo for {undoDays} days if this replaces anything"
 msgid "Undo until {deadline}"
 msgstr "Undo until {deadline}"
 
+msgid "Updates are installed on {server}"
+msgstr "Updates are installed on {server}"
+
 msgid "Waits for an admin or the owner"
 msgstr "Waits for an admin or the owner"
 
@@ -6483,6 +6493,9 @@ msgstr "about {span} down, and up to {bound} until healthy"
 
 msgid "about {span} down, if there is a newer image"
 msgstr "about {span} down, if there is a newer image"
+
+msgid "apps and websites stop while Docker restarts"
+msgstr "apps and websites stop while Docker restarts"
 
 msgid "no downtime expected"
 msgstr "no downtime expected"
@@ -6662,6 +6675,12 @@ msgstr "Brings back the data the server kept"
 msgid "Destroys data"
 msgstr "Destroys data"
 
+msgid "Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on"
+msgstr "Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on"
+
+msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 
@@ -6674,8 +6693,21 @@ msgstr "No downtime"
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
 
+msgid "Packages it installs on {server}"
+msgstr "Packages it installs on {server}"
+
+msgid "Pulled in"
+msgstr "Pulled in"
+
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
+
+msgctxt "a package update"
+msgid "Security fix"
+msgstr "Security fix"
+
+msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
+msgstr "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 
 msgid "Steps"
 msgstr "Steps"
@@ -6691,6 +6723,12 @@ msgstr "Takes out of use what its image keeps at {kept}, which the server keeps 
 
 msgid "Up to {stepBound} until healthy"
 msgstr "Up to {stepBound} until healthy"
+
+msgid "{n, plural, one {Install # package on} other {Install # packages on}}"
+msgstr "{n, plural, one {Install # package on} other {Install # packages on}}"
+
+msgid "{server} needs a reboot for this to take effect, which is a change of its own"
+msgstr "{server} needs a reboot for this to take effect, which is a change of its own"
 
 msgid "<0>{name}</0> is back as it was"
 msgstr "<0>{name}</0> is back as it was"
@@ -10174,6 +10212,13 @@ msgstr "{joinedName} joined, starting its agent"
 msgid "{minutes} min"
 msgstr "{minutes} min"
 
+msgid "Update its agent"
+msgstr "Update its agent"
+
+#. placeholder {0}: server.name
+msgid "{0}'s agent is outdated"
+msgstr "{0}'s agent is outdated"
+
 msgid "Back to the server"
 msgstr "Back to the server"
 
@@ -11062,6 +11107,9 @@ msgstr "Filter by name, PID or user"
 msgid "Filter processes"
 msgstr "Filter processes"
 
+msgid "It's older than the control plane, so it can't list processes."
+msgstr "It's older than the control plane, so it can't list processes."
+
 msgid "Load average <0>{load}</0>"
 msgstr "Load average <0>{load}</0>"
 
@@ -11272,6 +11320,9 @@ msgstr "Runs the control plane"
 #. placeholder {0}: server.name
 msgid "Server {0}"
 msgstr "Server {0}"
+
+msgid "System services"
+msgstr "System services"
 
 msgid "Updates"
 msgstr "Updates"
@@ -11499,6 +11550,93 @@ msgstr "The address your provider's console shows. Every word about DNS uses it 
 msgid "What the internet knows this server by"
 msgstr "What the internet knows this server by"
 
+msgctxt "system services"
+msgid "All"
+msgstr "All"
+
+msgid "At boot"
+msgstr "At boot"
+
+msgid "Dockwell needs it"
+msgstr "Dockwell needs it"
+
+msgctxt "at boot"
+msgid "Doesn't start"
+msgstr "Doesn't start"
+
+msgctxt "system services"
+msgid "Failed"
+msgstr "Failed"
+
+msgid "Filter by name or description"
+msgstr "Filter by name or description"
+
+msgid "Filter system services"
+msgstr "Filter system services"
+
+msgid "Init state"
+msgstr "Init state"
+
+msgid "It's older than the control plane, so it can't list system services."
+msgstr "It's older than the control plane, so it can't list system services."
+
+msgid "Main process"
+msgstr "Main process"
+
+msgctxt "at boot"
+msgid "Masked"
+msgstr "Masked"
+
+#. placeholder {0}: server.name
+msgid "Needs it on {0}"
+msgstr "Needs it on {0}"
+
+msgid "No system service matches."
+msgstr "No system service matches."
+
+msgid "Not started at boot"
+msgstr "Not started at boot"
+
+#. placeholder {0}: server.name
+msgid "Nothing has failed on {0}."
+msgstr "Nothing has failed on {0}."
+
+msgctxt "system services"
+msgid "Running"
+msgstr "Running"
+
+msgctxt "at boot"
+msgid "Starts"
+msgstr "Starts"
+
+#. placeholder {0}: server.name
+msgid "System services on {0}"
+msgstr "System services on {0}"
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
+msgstr "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
+
+msgctxt "at boot"
+msgid "When needed"
+msgstr "When needed"
+
+msgid "every 10 s"
+msgstr "every 10 s"
+
+#. placeholder {0}: server.name
+msgid "{0} lists no system services here."
+msgstr "{0} lists no system services here."
+
+#. placeholder {0}: server.name
+msgid "{0} starts its services with an init Dockwell doesn't read. It reads systemd's and OpenRC's."
+msgstr "{0} starts its services with an init Dockwell doesn't read. It reads systemd's and OpenRC's."
+
+#. placeholder {0}: s.result
+#. placeholder {1}: s.exitStatus
+msgid "{0}, status {1}"
+msgstr "{0}, status {1}"
+
 msgid "Being removed"
 msgstr "Being removed"
 
@@ -11591,6 +11729,34 @@ msgstr "{provider}'s metadata says so, {when}"
 
 msgid "up {uptime}"
 msgstr "up {uptime}"
+
+msgctxt "system service state"
+msgid "Exited"
+msgstr "Exited"
+
+msgctxt "system service state"
+msgid "Failed"
+msgstr "Failed"
+
+msgctxt "system service state"
+msgid "Inactive"
+msgstr "Inactive"
+
+msgctxt "system service state"
+msgid "Running"
+msgstr "Running"
+
+msgctxt "system service state"
+msgid "Starting"
+msgstr "Starting"
+
+msgctxt "system service state"
+msgid "Stopping"
+msgstr "Stopping"
+
+msgctxt "system service state"
+msgid "Unknown"
+msgstr "Unknown"
 
 msgid "Last reported {seen}"
 msgstr "Last reported {seen}"
@@ -13592,6 +13758,9 @@ msgstr "{n, plural, one {# security update} other {# security updates}}"
 msgid "<0>{0}</0> · agent and control plane"
 msgstr "<0>{0}</0> · agent and control plane"
 
+msgid "<0>{tool}</0> installs them within about a day."
+msgstr "<0>{tool}</0> installs them within about a day."
+
 msgid "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
 msgstr "<0>{tool}</0> installs them within about a day; the command installs every update waiting now."
 
@@ -13647,12 +13816,15 @@ msgstr "Docker Engine"
 msgid "Docker and Dockwell"
 msgstr "Docker and Dockwell"
 
-msgid "Dockwell can't install them yet; the command installs every update waiting, not only these."
-msgstr "Dockwell can't install them yet; the command installs every update waiting, not only these."
-
 #. placeholder {0}: server.name
 msgid "Dockwell couldn't ask {0} for its updates"
 msgstr "Dockwell couldn't ask {0} for its updates"
+
+msgid "Dockwell installs updates with apt for now, so install these with {name}'s own package manager."
+msgstr "Dockwell installs updates with apt for now, so install these with {name}'s own package manager."
+
+msgid "Dockwell installs updates with apt for now; the command installs every update waiting, not only these."
+msgstr "Dockwell installs updates with apt for now; the command installs every update waiting, not only these."
 
 msgid "Dockwell refreshes them once they're a day old, when someone looks"
 msgstr "Dockwell refreshes them once they're a day old, when someone looks"
@@ -13664,6 +13836,12 @@ msgstr "From {0}"
 #. placeholder {0}: from.length
 msgid "From {0} sources"
 msgstr "From {0} sources"
+
+msgid "Install every update"
+msgstr "Install every update"
+
+msgid "Install security updates"
+msgstr "Install security updates"
 
 msgctxt "a package's version"
 msgid "Installed"
@@ -13809,6 +13987,9 @@ msgstr "{n, plural, one {# more is held back: {names}. An upgrade doesn't take i
 
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
+
+msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
+msgstr "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 
 msgid "{newest} available"
 msgstr "{newest} available"

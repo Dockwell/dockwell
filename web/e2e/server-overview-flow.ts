@@ -49,11 +49,15 @@ export async function serverOverviewFlow(page: Page, { origin, step, shoot, brea
 
   const disk = page.getByRole("region", { name: "Disk usage" });
   await disk.waitFor();
+  // While Docker adds up what takes its disk, the card draws each disk's used and
+  // free and says it's adding up, so a disk drawn is no sign it has answered: its
+  // body stops being busy once Docker has, with the breakdown or why there's none.
+  await disk.locator('.disk-use-body[aria-busy="false"]').waitFor({ timeout: 70_000 });
   await disk
     .getByText("Images", { exact: true })
     .or(disk.getByText(/% of .+ used$/).first())
     .first()
-    .waitFor({ timeout: 70_000 });
+    .waitFor();
   const broken = (await disk.getByText("Images", { exact: true }).count()) > 0;
   if (breakdown && !broken) fail(`the disk Docker's data is on isn't drawn part by part: ${await disk.innerText()}`);
   if (broken) {

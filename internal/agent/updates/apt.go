@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -21,6 +22,7 @@ const (
 	aptGet    = "/usr/bin/apt-get"
 	aptCache  = "/usr/bin/apt-cache"
 	dpkgQuery = "/usr/bin/dpkg-query"
+	dpkg      = "/usr/bin/dpkg"
 )
 
 // apt reads updates on Debian, Ubuntu and what's built on them.
@@ -133,7 +135,9 @@ func aptSummaries(ctx context.Context, r *Reader, ps []*dockwellv1.PackageUpdate
 // aptInst is one line of what apt-get --simulate would install: the package, the
 // version it has in brackets when it has one, then the new version, where it's
 // from and its architecture.
-var aptInst = regexp.MustCompile(`^Inst (\S+)(?: \[([^\]]*)\])? \((\S+) (.+) \[([^\]\s]+)\]\)`)
+var aptInst = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`^Inst (\S+)(?: \[([^\]]*)\])? \((\S+) (.+) \[([^\]\s]+)\]\)`)
+})
 
 // parseAptSimulation reads apt-get --simulate upgrade: an Inst line for each
 // package it would install, and the packages it holds back, which it lists
@@ -159,7 +163,7 @@ func parseAptSimulation(out []byte) (waiting []*dockwellv1.PackageUpdate, held [
 		case !strings.HasPrefix(line, "Inst "):
 			continue
 		}
-		m := aptInst.FindStringSubmatch(line)
+		m := aptInst().FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
@@ -238,7 +242,7 @@ func (apt) reboot(_ context.Context, r *Reader) (bool, []string, bool) {
 }
 
 // aptPeriodic is the setting that turns unattended-upgrades on.
-var aptPeriodic = regexp.MustCompile(`^\s*APT::Periodic::Unattended-Upgrade\s+"([^"]*)"`)
+var aptPeriodic = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^\s*APT::Periodic::Unattended-Upgrade\s+"([^"]*)"`) })
 
 // automatic says whether unattended-upgrades is installed and on, by apt's
 // settings, the last file's word winning as apt reads them.
@@ -255,7 +259,7 @@ func (apt) automatic(r *Reader) *dockwellv1.AutomaticUpdates {
 			continue
 		}
 		for line := range strings.Lines(string(b)) {
-			if m := aptPeriodic.FindStringSubmatch(line); m != nil {
+			if m := aptPeriodic().FindStringSubmatch(line); m != nil {
 				on = m[1] != "" && m[1] != "0"
 			}
 		}

@@ -42,6 +42,9 @@ type Desired struct {
 	// Backup backs up the resource's data as a step of this change. Its kind is a
 	// BackerUp.
 	Backup *BackupAsked
+	// Install installs the server's updates as a step of this change. Its kind is
+	// an Installer.
+	Install *InstallAsked
 }
 
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
@@ -271,7 +274,8 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 	steps := make([]Step, 0, len(desired))
 	normal := make([]Desired, len(desired))
 	drivers := make([]Driver, len(desired))
-	for i, want := range desired {
+	for i := range desired {
+		want := &desired[i]
 		d, err := l.Drivers.Driver(want.Ref.Kind)
 		if err != nil {
 			return nil, err
@@ -280,9 +284,10 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Install: want.Install}, d
 	}
-	for i, want := range normal {
+	for i := range normal {
+		want := &normal[i]
 		d, spec := drivers[i], want.Spec
 		// As the step it plans will have it, once it applies.
 		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback, Run: want.Run})
@@ -338,6 +343,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
 					return nil, err
 				}
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Install != nil {
+			in, ok := d.(Installer)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't install updates for a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := in.JudgeInstall(ctx, want.Ref, *want.Install)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
 			}
 			steps = append(steps, step)
 			continue
@@ -419,7 +439,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		// Only what is about to start can fail to: a resource left as it is
 		// isn't refused for what is around it.
 		if c, ok := d.(PlanChecker); ok && spec != nil && (step.Action == ActionCreate || step.Action == ActionReplace) {
-			if err := c.CheckPlan(ctx, want, normal); err != nil {
+			if err := c.CheckPlan(ctx, *want, normal); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 			}
 		}
@@ -570,6 +590,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		if err := b.ApplyBackup(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't back up %s, so nothing else in this change ran: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't back up %s: %w", step.Ref, err))
+		}
+		return nil
+	}
+	if step.Install != nil {
+		in, ok := d.(Installer)
+		if !ok {
+			return cantApply(step, fmt.Errorf("this agent can't install updates for a %s", step.Ref.Kind))
+		}
+		if err := in.ApplyInstall(ctx, step); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't install the updates: %s.", clause(err)), fmt.Errorf("can't install the updates: %w", err))
 		}
 		return nil
 	}

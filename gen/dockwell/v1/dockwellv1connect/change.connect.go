@@ -61,6 +61,9 @@ const (
 	// ChangeServiceRestartServiceProcedure is the fully-qualified name of the ChangeService's
 	// RestartService RPC.
 	ChangeServiceRestartServiceProcedure = "/dockwell.v1.ChangeService/RestartService"
+	// ChangeServicePlanInstallUpdatesProcedure is the fully-qualified name of the ChangeService's
+	// PlanInstallUpdates RPC.
+	ChangeServicePlanInstallUpdatesProcedure = "/dockwell.v1.ChangeService/PlanInstallUpdates"
 	// ChangeServiceListDriftProcedure is the fully-qualified name of the ChangeService's ListDrift RPC.
 	ChangeServiceListDriftProcedure = "/dockwell.v1.ChangeService/ListDrift"
 	// ChangeServiceRevertDriftProcedure is the fully-qualified name of the ChangeService's RevertDrift
@@ -138,6 +141,15 @@ type ChangeServiceClient interface {
 	// discard. It makes no revision, as the spec stays as it is, so it has
 	// nothing to undo, and a restart that fails leaves the revision where it was.
 	RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error)
+	// PlanInstallUpdates plans installing the package updates waiting on
+	// servers: the security fixes, or every update. Each server's agent
+	// simulates the exact install, versions pinned, and the plan lists every
+	// package it installs, those it pulls in too, whether a reboot follows and
+	// whether Docker restarts. It's a change with a plan and no revision, as a
+	// restart is: an upgrade can't be undone, and the plan says so. Applying it
+	// takes a person's passkey, as it runs as root on the server. See
+	// docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
+	PlanInstallUpdates(context.Context, *connect.Request[v1.PlanInstallUpdatesRequest]) (*connect.Response[v1.PlanInstallUpdatesResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -218,6 +230,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("RestartService")),
 			connect.WithClientOptions(opts...),
 		),
+		planInstallUpdates: connect.NewClient[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse](
+			httpClient,
+			baseURL+ChangeServicePlanInstallUpdatesProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("PlanInstallUpdates")),
+			connect.WithClientOptions(opts...),
+		),
 		listDrift: connect.NewClient[v1.ListDriftRequest, v1.ListDriftResponse](
 			httpClient,
 			baseURL+ChangeServiceListDriftProcedure,
@@ -242,18 +260,19 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // changeServiceClient implements ChangeServiceClient.
 type changeServiceClient struct {
-	proposeChange  *connect.Client[v1.ProposeChangeRequest, v1.ProposeChangeResponse]
-	getChange      *connect.Client[v1.GetChangeRequest, v1.GetChangeResponse]
-	listChanges    *connect.Client[v1.ListChangesRequest, v1.ListChangesResponse]
-	applyChange    *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
-	watchChange    *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
-	undoChange     *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
-	confirmChange  *connect.Client[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse]
-	discardChange  *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
-	restartService *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
-	listDrift      *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
-	revertDrift    *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
-	adoptDrift     *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
+	proposeChange      *connect.Client[v1.ProposeChangeRequest, v1.ProposeChangeResponse]
+	getChange          *connect.Client[v1.GetChangeRequest, v1.GetChangeResponse]
+	listChanges        *connect.Client[v1.ListChangesRequest, v1.ListChangesResponse]
+	applyChange        *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
+	watchChange        *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
+	undoChange         *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
+	confirmChange      *connect.Client[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse]
+	discardChange      *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
+	restartService     *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
+	planInstallUpdates *connect.Client[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse]
+	listDrift          *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
+	revertDrift        *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
+	adoptDrift         *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
 }
 
 // ProposeChange calls dockwell.v1.ChangeService.ProposeChange.
@@ -299,6 +318,11 @@ func (c *changeServiceClient) DiscardChange(ctx context.Context, req *connect.Re
 // RestartService calls dockwell.v1.ChangeService.RestartService.
 func (c *changeServiceClient) RestartService(ctx context.Context, req *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error) {
 	return c.restartService.CallUnary(ctx, req)
+}
+
+// PlanInstallUpdates calls dockwell.v1.ChangeService.PlanInstallUpdates.
+func (c *changeServiceClient) PlanInstallUpdates(ctx context.Context, req *connect.Request[v1.PlanInstallUpdatesRequest]) (*connect.Response[v1.PlanInstallUpdatesResponse], error) {
+	return c.planInstallUpdates.CallUnary(ctx, req)
 }
 
 // ListDrift calls dockwell.v1.ChangeService.ListDrift.
@@ -383,6 +407,15 @@ type ChangeServiceHandler interface {
 	// discard. It makes no revision, as the spec stays as it is, so it has
 	// nothing to undo, and a restart that fails leaves the revision where it was.
 	RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error)
+	// PlanInstallUpdates plans installing the package updates waiting on
+	// servers: the security fixes, or every update. Each server's agent
+	// simulates the exact install, versions pinned, and the plan lists every
+	// package it installs, those it pulls in too, whether a reboot follows and
+	// whether Docker restarts. It's a change with a plan and no revision, as a
+	// restart is: an upgrade can't be undone, and the plan says so. Applying it
+	// takes a person's passkey, as it runs as root on the server. See
+	// docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
+	PlanInstallUpdates(context.Context, *connect.Request[v1.PlanInstallUpdatesRequest]) (*connect.Response[v1.PlanInstallUpdatesResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -459,6 +492,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("RestartService")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServicePlanInstallUpdatesHandler := connect.NewUnaryHandler(
+		ChangeServicePlanInstallUpdatesProcedure,
+		svc.PlanInstallUpdates,
+		connect.WithSchema(changeServiceMethods.ByName("PlanInstallUpdates")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServiceListDriftHandler := connect.NewUnaryHandler(
 		ChangeServiceListDriftProcedure,
 		svc.ListDrift,
@@ -498,6 +537,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServiceDiscardChangeHandler.ServeHTTP(w, r)
 		case ChangeServiceRestartServiceProcedure:
 			changeServiceRestartServiceHandler.ServeHTTP(w, r)
+		case ChangeServicePlanInstallUpdatesProcedure:
+			changeServicePlanInstallUpdatesHandler.ServeHTTP(w, r)
 		case ChangeServiceListDriftProcedure:
 			changeServiceListDriftHandler.ServeHTTP(w, r)
 		case ChangeServiceRevertDriftProcedure:
@@ -547,6 +588,10 @@ func (UnimplementedChangeServiceHandler) DiscardChange(context.Context, *connect
 
 func (UnimplementedChangeServiceHandler) RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.RestartService is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) PlanInstallUpdates(context.Context, *connect.Request[v1.PlanInstallUpdatesRequest]) (*connect.Response[v1.PlanInstallUpdatesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanInstallUpdates is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) ListDrift(context.Context, *connect.Request[v1.ListDriftRequest]) (*connect.Response[v1.ListDriftResponse], error) {

@@ -451,7 +451,8 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 // in the plan wants, for a service about to start.
 func (d *Driver) CheckPlan(ctx context.Context, want resource.Desired, all []resource.Desired) error {
 	var planned []container.Planned
-	for _, o := range all {
+	for i := range all {
+		o := &all[i]
 		switch o.Ref.Kind {
 		case Kind:
 			var c *resourcev1.Container

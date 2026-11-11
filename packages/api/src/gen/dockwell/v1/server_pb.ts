@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/server.proto.
  */
 export const file_dockwell_v1_server: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIj0KF0NyZWF0ZUpvaW5UaWNrZXRSZXF1ZXN0EhMKC3R0bF9zZWNvbmRzGAEgASgNEg0KBXByb29mGAIgASgJIlIKGENyZWF0ZUpvaW5UaWNrZXRSZXNwb25zZRInCgZ0aWNrZXQYASABKAsyFy5kb2Nrd2VsbC52MS5Kb2luVGlja2V0Eg0KBXZhbHVlGAIgASgJIiIKFEdldEpvaW5UaWNrZXRSZXF1ZXN0EgoKAmlkGAEgASgJIkAKFUdldEpvaW5UaWNrZXRSZXNwb25zZRInCgZ0aWNrZXQYASABKAsyFy5kb2Nrd2VsbC52MS5Kb2luVGlja2V0IssBCgpKb2luVGlja2V0EgoKAmlkGAEgASgJEisKBXN0YXRlGAIgASgOMhwuZG9ja3dlbGwudjEuSm9pblRpY2tldFN0YXRlEi8KC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCglhZGRyZXNzZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Kb2luQWRkcmVzcxIRCglzZXJ2ZXJfaWQYBSABKAkSEwoLc2VydmVyX25hbWUYBiABKAkiQQoLSm9pbkFkZHJlc3MSCwoDdXJsGAEgASgJEiUKBXJlYWNoGAIgASgOMhYuZG9ja3dlbGwudjEuSm9pblJlYWNoIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiUAoXQ2hlY2tTZXJ2ZXJQb3J0c1JlcXVlc3QSCgoCaWQYASABKAkSKQoFcG9ydHMYAiADKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJQb3J0QXNrIioKDVNlcnZlclBvcnRBc2sSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgiRgoYQ2hlY2tTZXJ2ZXJQb3J0c1Jlc3BvbnNlEioKBXBvcnRzGAEgAygLMhsuZG9ja3dlbGwudjEuU2VydmVyUG9ydEhlbGQiRQoOU2VydmVyUG9ydEhlbGQSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgSDAoEaGVsZBgDIAEoCBIKCgJieRgEIAEoCSIlChdHZXRTZXJ2ZXJEaXNrVXNlUmVxdWVzdBIKCgJpZBgBIAEoCSJIChhHZXRTZXJ2ZXJEaXNrVXNlUmVzcG9uc2USLAoIZGlza191c2UYASABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJEaXNrVXNlIvECCg1TZXJ2ZXJEaXNrVXNlEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RvY2tlcl9yb290GAIgASgJEhMKC21vdW50X3BvaW50GAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQSEgoKdXNlZF9ieXRlcxgFIAEoBBIUCgxpbWFnZXNfYnl0ZXMYBiABKAQSGwoTaW1hZ2VzX3VudXNlZF9ieXRlcxgHIAEoBBIYChBjb250YWluZXJzX2J5dGVzGAggASgEEhUKDXZvbHVtZXNfYnl0ZXMYCSABKAQSHAoUdm9sdW1lc191bnVzZWRfYnl0ZXMYCiABKAQSGQoRYnVpbGRfY2FjaGVfYnl0ZXMYCyABKAQSEgoKbG9nc19ieXRlcxgMIAEoBBIOCgZpbWFnZXMYDSABKA0SEgoKY29udGFpbmVycxgOIAEoDRIPCgd2b2x1bWVzGA8gASgNIkoKHVNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2FkZHJlc3MYAiABKAkSDAoEaXB2NhgDIAEoCCJFCh5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyIhUKE1dhdGNoU2VydmVyc1JlcXVlc3QiegoUV2F0Y2hTZXJ2ZXJzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyEg8KB3JlbW92ZWQYAiABKAgSGQoRc25hcHNob3RfY29tcGxldGUYAyABKAgSEQoJaGVhcnRiZWF0GAQgASgIIqYFCgZTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgtjcmVhdGVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoKY29ubmVjdGlvbhgEIAEoDjIXLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb24SMgoObGFzdF9zZWVuX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KCWludmVudG9yeRgGIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeRInCgVzdGF0cxgHIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEikKB2hpc3RvcnkYCCADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2ZXJTdGF0cxIrCgthZ2VudF9idWlsZBgJIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIWCg5jb250cm9sX3NlcnZlchgKIAEoCBIwCgxjb25uZWN0X3RpbWUYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB2luZ3Jlc3MYDCABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzEjsKF2RvY2tlcl91bnJlYWRhYmxlX3NpbmNlGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgduZXR3b3JrGA4gASgLMhouZG9ja3dlbGwudjEuU2VydmVyTmV0d29yaxIyCg5zdHJhaW5lZF9zaW5jZRgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoGc3RyYWluGBAgASgOMhkuZG9ja3dlbGwudjEuU2VydmVyU3RyYWluIrQCCg1TZXJ2ZXJOZXR3b3JrEigKBGlwdjQYASABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEigKBGlwdjYYAiABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEikKCXJlYWNoYWJsZRgDIAEoDjIWLmRvY2t3ZWxsLnYxLlJlYWNoYWJsZRIYChByZWFjaGFibGVfZG9tYWluGAQgASgJEjIKDnJlYWNoYWJsZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghwcm92aWRlchgGIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYByABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiyAEKDVB1YmxpY0FkZHJlc3MSDwoHYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIQCgh1bnByb3ZlbhgGIAEoCCLXAgoPU2VydmVySW52ZW50b3J5EhAKCGhvc3RuYW1lGAEgASgJEg8KB29zX25hbWUYAiABKAkSDQoFb3NfaWQYAyABKAkSEgoKb3NfdmVyc2lvbhgEIAEoCRIOCgZrZXJuZWwYBSABKAkSFAoMYXJjaGl0ZWN0dXJlGAYgASgJEhEKCWNwdV9tb2RlbBgHIAEoCRIRCgljcHVfY291bnQYCCABKA0SFAoMbWVtb3J5X2J5dGVzGAkgASgEEiAKBWRpc2tzGAogAygLMhEuZG9ja3dlbGwudjEuRGlzaxIWCg5kb2NrZXJfdmVyc2lvbhgLIAEoCRIRCglhZGRyZXNzZXMYDCADKAkSGQoRZG9ja2VyX2xvZ19kcml2ZXIYDSABKAkSGAoQb3V0Ym91bmRfYWRkcmVzcxgOIAEoCRIaChJhZGRyZXNzZXNfcGh5c2ljYWwYDyABKAgiUwoERGlzaxITCgttb3VudF9wb2ludBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSEgoKZmlsZXN5c3RlbRgDIAEoCRISCgpzaXplX2J5dGVzGAQgASgEIrIECgtTZXJ2ZXJTdGF0cxIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtjcHVfcGVyY2VudBgCIAEoARIZChFtZW1vcnlfdXNlZF9ieXRlcxgDIAEoBBIaChJtZW1vcnlfdG90YWxfYnl0ZXMYBCABKAQSJQoFZGlza3MYBSADKAsyFi5kb2Nrd2VsbC52MS5EaXNrVXNhZ2USDQoFbG9hZDEYBiABKAESDQoFbG9hZDUYByABKAESDgoGbG9hZDE1GAggASgBEiMKG25ldHdvcmtfcnhfYnl0ZXNfcGVyX3NlY29uZBgJIAEoBBIjChtuZXR3b3JrX3R4X2J5dGVzX3Blcl9zZWNvbmQYCiABKAQSKQoGdXB0aW1lGAsgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEhcKD3N3YXBfdXNlZF9ieXRlcxgMIAEoBBIYChBzd2FwX3RvdGFsX2J5dGVzGA0gASgEEhoKEmFnZW50X21lbW9yeV9ieXRlcxgOIAEoBBIYChBuZXR3b3JrX3J4X2J5dGVzGA8gASgEEhgKEG5ldHdvcmtfdHhfYnl0ZXMYECABKAQSKwoIaW50ZXJ2YWwYESABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SFwoPZGlza19yZWFkX2J5dGVzGBIgASgEEhoKEmRpc2tfd3JpdHRlbl9ieXRlcxgTIAEoBCJICglEaXNrVXNhZ2USEwoLbW91bnRfcG9pbnQYASABKAkSEgoKdXNlZF9ieXRlcxgCIAEoBBISCgpzaXplX2J5dGVzGAMgASgEKrYBCg9Kb2luVGlja2V0U3RhdGUSIQodSk9JTl9USUNLRVRfU1RBVEVfVU5TUEVDSUZJRUQQABIqChlKT0lOX1RJQ0tFVF9TVEFURV9XQUlUSU5HEAEaC6K7GAdXYWl0aW5nEigKGEpPSU5fVElDS0VUX1NUQVRFX0pPSU5FRBACGgqiuxgGSm9pbmVkEioKGUpPSU5fVElDS0VUX1NUQVRFX0VYUElSRUQQAxoLorsYB0V4cGlyZWQqpwEKCUpvaW5SZWFjaBIaChZKT0lOX1JFQUNIX1VOU1BFQ0lGSUVEEAASJQoTSk9JTl9SRUFDSF9BTllXSEVSRRABGgyiuxgIQW55d2hlcmUSKAoSSk9JTl9SRUFDSF9XQVlfT1VUEAIaEKK7GAxXYXkgb3V0IG9ubHkSLQoXSk9JTl9SRUFDSF9TQU1FX05FVFdPUksQAxoQorsYDFNhbWUgbmV0d29yayp2CgpDb25uZWN0aW9uEhoKFkNPTk5FQ1RJT05fVU5TUEVDSUZJRUQQABIYChRDT05ORUNUSU9OX0NPTk5FQ1RFRBABEhoKFkNPTk5FQ1RJT05fVU5SRUFDSEFCTEUQAhIWChJDT05ORUNUSU9OX1BFTkRJTkcQAypeCgxTZXJ2ZXJTdHJhaW4SHQoZU0VSVkVSX1NUUkFJTl9VTlNQRUNJRklFRBAAEhgKFFNFUlZFUl9TVFJBSU5fTUVNT1JZEAESFQoRU0VSVkVSX1NUUkFJTl9DUFUQAiqiAQoMTmV0d29ya1NoYXBlEh0KGU5FVFdPUktfU0hBUEVfVU5TUEVDSUZJRUQQABIaChZORVRXT1JLX1NIQVBFX0lOVEVSTkVUEAESGwoXTkVUV09SS19TSEFQRV9DTE9VRF9OQVQQAhIbChdORVRXT1JLX1NIQVBFX0xPQ0FMX05BVBADEh0KGU5FVFdPUktfU0hBUEVfQ0FSUklFUl9OQVQQBCq5AgoTUHVibGljQWRkcmVzc1NvdXJjZRIlCiFQVUJMSUNfQUREUkVTU19TT1VSQ0VfVU5TUEVDSUZJRUQQABInCiNQVUJMSUNfQUREUkVTU19TT1VSQ0VfU0VUX0JZX1BFUlNPThABEiYKIlBVQkxJQ19BRERSRVNTX1NPVVJDRV9PTl9JTlRFUkZBQ0UQAhIqCiZQVUJMSUNfQUREUkVTU19TT1VSQ0VfUFJPVkVEX0JZX0RPTUFJThADEi8KK1BVQkxJQ19BRERSRVNTX1NPVVJDRV9TRUVOX0JZX0NPTlRST0xfUExBTkUQBBIoCiRQVUJMSUNfQUREUkVTU19TT1VSQ0VfQ0xPVURfTUVUQURBVEEQBRIjCh9QVUJMSUNfQUREUkVTU19TT1VSQ0VfTE9PS0VEX1VQEAYqZgoJUmVhY2hhYmxlEhkKFVJFQUNIQUJMRV9VTlNQRUNJRklFRBAAEhkKFVJFQUNIQUJMRV9OT1RfQ0hFQ0tFRBABEhEKDVJFQUNIQUJMRV9ZRVMQAhIQCgxSRUFDSEFCTEVfTk8QAyrRAQoNQ2xvdWRQcm92aWRlchIeChpDTE9VRF9QUk9WSURFUl9VTlNQRUNJRklFRBAAEhYKEkNMT1VEX1BST1ZJREVSX0FXUxABEhYKEkNMT1VEX1BST1ZJREVSX0dDUBACEhgKFENMT1VEX1BST1ZJREVSX0FaVVJFEAMSHwobQ0xPVURfUFJPVklERVJfRElHSVRBTE9DRUFOEAQSGgoWQ0xPVURfUFJPVklERVJfSEVUWk5FUhAFEhkKFUNMT1VEX1BST1ZJREVSX09SQUNMRRAGMoQPCg1TZXJ2ZXJTZXJ2aWNlEngKC0xpc3RTZXJ2ZXJzEh8uZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdFNlcnZlcnNSZXNwb25zZSImkAIBoLsYAcC7GALIuxgC0LsYBYLT5JMCDRILL3YxL3NlcnZlcnMSdwoJR2V0U2VydmVyEh0uZG9ja3dlbGwudjEuR2V0U2VydmVyUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkdldFNlcnZlclJlc3BvbnNlIiuQAgGguxgBwLsYAsi7GALQuxgFgtPkkwISEhAvdjEvc2VydmVycy97aWR9EmcKDFdhdGNoU2VydmVycxIgLmRvY2t3ZWxsLnYxLldhdGNoU2VydmVyc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5XYXRjaFNlcnZlcnNSZXNwb25zZSIQoLsYAcC7GALIuxgC0LsYBTABEqIBChBHZXRTZXJ2ZXJEaXNrVXNlEiQuZG9ja3dlbGwudjEuR2V0U2VydmVyRGlza1VzZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJEaXNrVXNlUmVzcG9uc2UiQZACAaC7GAGquxgKEghkaXNrLXVzZcC7GATIuxgE0LsYBoLT5JMCGhIYL3YxL3NlcnZlcnMve2lkfS9kaXNrVXNlEqwBChBDaGVja1NlcnZlclBvcnRzEiQuZG9ja3dlbGwudjEuQ2hlY2tTZXJ2ZXJQb3J0c1JlcXVlc3QaJS5kb2Nrd2VsbC52MS5DaGVja1NlcnZlclBvcnRzUmVzcG9uc2UiS5ACAaC7GAGquxgWCgdzZXJ2ZXJzEgtjaGVjay1wb3J0c8C7GATIuxgE0LsYBoLT5JMCGBIWL3YxL3NlcnZlcnMve2lkfS9wb3J0cxLHAQoWU2V0U2VydmVyUHVibGljQWRkcmVzcxIqLmRvY2t3ZWxsLnYxLlNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0GisuZG9ja3dlbGwudjEuU2V0U2VydmVyUHVibGljQWRkcmVzc1Jlc3BvbnNlIlSguxgDqrsYFBISc2V0LXB1YmxpYy1hZGRyZXNzwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvc2VydmVycy97aWR9OnNldFB1YmxpY0FkZHJlc3MSqQEKEENyZWF0ZUpvaW5UaWNrZXQSJC5kb2Nrd2VsbC52MS5DcmVhdGVKb2luVGlja2V0UmVxdWVzdBolLmRvY2t3ZWxsLnYxLkNyZWF0ZUpvaW5UaWNrZXRSZXNwb25zZSJIoLsYA6q7GBYKDGpvaW4tdGlja2V0cxIGY3JlYXRlsLsYAcC7GATIuxgE0LsYBoLT5JMCFDoBKiIPL3YxL2pvaW5UaWNrZXRzEp4BCg1HZXRKb2luVGlja2V0EiEuZG9ja3dlbGwudjEuR2V0Sm9pblRpY2tldFJlcXVlc3QaIi5kb2Nrd2VsbC52MS5HZXRKb2luVGlja2V0UmVzcG9uc2UiRpACAaC7GAGquxgTCgxqb2luLXRpY2tldHMSA2dldMC7GATIuxgE0LsYBoLT5JMCFhIUL3YxL2pvaW5UaWNrZXRzL3tpZH0aqwWiuxjhAgoHc2VydmVycxLVAlRoZSBzZXJ2ZXJzIERvY2t3ZWxsIG1hbmFnZXMsIHdpdGggdGhlaXIgbGl2ZSBzdGF0ZSBhcyBlYWNoIHNlcnZlcidzIGFnZW50IHJlcG9ydHMgaXQuIFdhdGNoU2VydmVycyBoYXMgbm8gUkVTVCBwYXRoOiBSRVNUIGhhcyBubyB3YXkgdG8gc3RyZWFtIG1lc3NhZ2VzLCBzbyBhIFJFU1QgY2xpZW50IHBvbGxzIExpc3RTZXJ2ZXJzIG9yIEdldFNlcnZlciBpbnN0ZWFkLCBhbmQgYW55dGhpbmcgdGhhdCB3YW50cyB0aGUgc3RyZWFtIG9wZW5zIGl0IHdpdGggQ29ubmVjdCwgZ1JQQyBvciBnUlBDLVdlYi4gU2VlIGRvY3MvYWRyLzAwMTUtcmVzdC1hbmQtb3BlbmFwaS1mcm9tLXRoZS1zY2hlbWEubWQuorsYwAIKDGpvaW4tdGlja2V0cxKvAkEgam9pbiB0aWNrZXQgYWRkcyBvbmUgc2VydmVyOiBkb2Nrd2VsbCBqb2luIHdpdGggaXQsIG9uIHRoZSBuZXcgc2VydmVyLCBnaXZlcyB0aGF0IHNlcnZlciBhIG5hbWUgYW5kIGEgY2VydGlmaWNhdGUsIGFuZCBpdHMgYWdlbnQgY29ubmVjdHMuIENyZWF0ZUpvaW5UaWNrZXQgbWFrZXMgb25lIHdpdGggYSBwYXNza2V5LCBhbmQgR2V0Sm9pblRpY2tldCBzYXlzIHdoZXRoZXIgYSBzZXJ2ZXIgaGFzIHVzZWQgaXQuIGRvY2t3ZWxsIHRva2VuIGNyZWF0ZSBtYWtlcyB0aGUgc2FtZSB0aWNrZXQgb24gdGhlIGNvbnRyb2wgc2VydmVyLkKkAQoPY29tLmRvY2t3ZWxsLnYxQgtTZXJ2ZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9zZXJ2ZXIucHJvdG8SC2RvY2t3ZWxsLnYxIj0KF0NyZWF0ZUpvaW5UaWNrZXRSZXF1ZXN0EhMKC3R0bF9zZWNvbmRzGAEgASgNEg0KBXByb29mGAIgASgJIlIKGENyZWF0ZUpvaW5UaWNrZXRSZXNwb25zZRInCgZ0aWNrZXQYASABKAsyFy5kb2Nrd2VsbC52MS5Kb2luVGlja2V0Eg0KBXZhbHVlGAIgASgJIiIKFEdldEpvaW5UaWNrZXRSZXF1ZXN0EgoKAmlkGAEgASgJIkAKFUdldEpvaW5UaWNrZXRSZXNwb25zZRInCgZ0aWNrZXQYASABKAsyFy5kb2Nrd2VsbC52MS5Kb2luVGlja2V0IssBCgpKb2luVGlja2V0EgoKAmlkGAEgASgJEisKBXN0YXRlGAIgASgOMhwuZG9ja3dlbGwudjEuSm9pblRpY2tldFN0YXRlEi8KC2V4cGlyZV90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCglhZGRyZXNzZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Kb2luQWRkcmVzcxIRCglzZXJ2ZXJfaWQYBSABKAkSEwoLc2VydmVyX25hbWUYBiABKAkiQQoLSm9pbkFkZHJlc3MSCwoDdXJsGAEgASgJEiUKBXJlYWNoGAIgASgOMhYuZG9ja3dlbGwudjEuSm9pblJlYWNoIhQKEkxpc3RTZXJ2ZXJzUmVxdWVzdCI7ChNMaXN0U2VydmVyc1Jlc3BvbnNlEiQKB3NlcnZlcnMYASADKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiHgoQR2V0U2VydmVyUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRTZXJ2ZXJSZXNwb25zZRIjCgZzZXJ2ZXIYASABKAsyEy5kb2Nrd2VsbC52MS5TZXJ2ZXIiUAoXQ2hlY2tTZXJ2ZXJQb3J0c1JlcXVlc3QSCgoCaWQYASABKAkSKQoFcG9ydHMYAiADKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJQb3J0QXNrIioKDVNlcnZlclBvcnRBc2sSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgiRgoYQ2hlY2tTZXJ2ZXJQb3J0c1Jlc3BvbnNlEioKBXBvcnRzGAEgAygLMhsuZG9ja3dlbGwudjEuU2VydmVyUG9ydEhlbGQiRQoOU2VydmVyUG9ydEhlbGQSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgSDAoEaGVsZBgDIAEoCBIKCgJieRgEIAEoCSIlChdHZXRTZXJ2ZXJEaXNrVXNlUmVxdWVzdBIKCgJpZBgBIAEoCSJIChhHZXRTZXJ2ZXJEaXNrVXNlUmVzcG9uc2USLAoIZGlza191c2UYASABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2ZXJEaXNrVXNlIvECCg1TZXJ2ZXJEaXNrVXNlEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC2RvY2tlcl9yb290GAIgASgJEhMKC21vdW50X3BvaW50GAMgASgJEhIKCnNpemVfYnl0ZXMYBCABKAQSEgoKdXNlZF9ieXRlcxgFIAEoBBIUCgxpbWFnZXNfYnl0ZXMYBiABKAQSGwoTaW1hZ2VzX3VudXNlZF9ieXRlcxgHIAEoBBIYChBjb250YWluZXJzX2J5dGVzGAggASgEEhUKDXZvbHVtZXNfYnl0ZXMYCSABKAQSHAoUdm9sdW1lc191bnVzZWRfYnl0ZXMYCiABKAQSGQoRYnVpbGRfY2FjaGVfYnl0ZXMYCyABKAQSEgoKbG9nc19ieXRlcxgMIAEoBBIOCgZpbWFnZXMYDSABKA0SEgoKY29udGFpbmVycxgOIAEoDRIPCgd2b2x1bWVzGA8gASgNIkoKHVNldFNlcnZlclB1YmxpY0FkZHJlc3NSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB2FkZHJlc3MYAiABKAkSDAoEaXB2NhgDIAEoCCJFCh5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyIhUKE1dhdGNoU2VydmVyc1JlcXVlc3QiegoUV2F0Y2hTZXJ2ZXJzUmVzcG9uc2USIwoGc2VydmVyGAEgASgLMhMuZG9ja3dlbGwudjEuU2VydmVyEg8KB3JlbW92ZWQYAiABKAgSGQoRc25hcHNob3RfY29tcGxldGUYAyABKAgSEQoJaGVhcnRiZWF0GAQgASgIIqYFCgZTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIvCgtjcmVhdGVfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKwoKY29ubmVjdGlvbhgEIAEoDjIXLmRvY2t3ZWxsLnYxLkNvbm5lY3Rpb24SMgoObGFzdF9zZWVuX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KCWludmVudG9yeRgGIAEoCzIcLmRvY2t3ZWxsLnYxLlNlcnZlckludmVudG9yeRInCgVzdGF0cxgHIAEoCzIYLmRvY2t3ZWxsLnYxLlNlcnZlclN0YXRzEikKB2hpc3RvcnkYCCADKAsyGC5kb2Nrd2VsbC52MS5TZXJ2ZXJTdGF0cxIrCgthZ2VudF9idWlsZBgJIAEoCzIWLmRvY2t3ZWxsLnYxLkJ1aWxkSW5mbxIWCg5jb250cm9sX3NlcnZlchgKIAEoCBIwCgxjb25uZWN0X3RpbWUYCyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB2luZ3Jlc3MYDCABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzEjsKF2RvY2tlcl91bnJlYWRhYmxlX3NpbmNlGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgduZXR3b3JrGA4gASgLMhouZG9ja3dlbGwudjEuU2VydmVyTmV0d29yaxIyCg5zdHJhaW5lZF9zaW5jZRgPIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoGc3RyYWluGBAgASgOMhkuZG9ja3dlbGwudjEuU2VydmVyU3RyYWluIrQCCg1TZXJ2ZXJOZXR3b3JrEigKBGlwdjQYASABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEigKBGlwdjYYAiABKAsyGi5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzEikKCXJlYWNoYWJsZRgDIAEoDjIWLmRvY2t3ZWxsLnYxLlJlYWNoYWJsZRIYChByZWFjaGFibGVfZG9tYWluGAQgASgJEjIKDnJlYWNoYWJsZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIsCghwcm92aWRlchgGIAEoDjIaLmRvY2t3ZWxsLnYxLkNsb3VkUHJvdmlkZXISKAoFc2hhcGUYByABKA4yGS5kb2Nrd2VsbC52MS5OZXR3b3JrU2hhcGUiyAEKDVB1YmxpY0FkZHJlc3MSDwoHYWRkcmVzcxgBIAEoCRIwCgZzb3VyY2UYAiABKA4yIC5kb2Nrd2VsbC52MS5QdWJsaWNBZGRyZXNzU291cmNlEi4KCmtub3duX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRvbWFpbhgEIAEoCRIiCgZzZXRfYnkYBSABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIQCgh1bnByb3ZlbhgGIAEoCCLXAgoPU2VydmVySW52ZW50b3J5EhAKCGhvc3RuYW1lGAEgASgJEg8KB29zX25hbWUYAiABKAkSDQoFb3NfaWQYAyABKAkSEgoKb3NfdmVyc2lvbhgEIAEoCRIOCgZrZXJuZWwYBSABKAkSFAoMYXJjaGl0ZWN0dXJlGAYgASgJEhEKCWNwdV9tb2RlbBgHIAEoCRIRCgljcHVfY291bnQYCCABKA0SFAoMbWVtb3J5X2J5dGVzGAkgASgEEiAKBWRpc2tzGAogAygLMhEuZG9ja3dlbGwudjEuRGlzaxIWCg5kb2NrZXJfdmVyc2lvbhgLIAEoCRIRCglhZGRyZXNzZXMYDCADKAkSGQoRZG9ja2VyX2xvZ19kcml2ZXIYDSABKAkSGAoQb3V0Ym91bmRfYWRkcmVzcxgOIAEoCRIaChJhZGRyZXNzZXNfcGh5c2ljYWwYDyABKAgiUwoERGlzaxITCgttb3VudF9wb2ludBgBIAEoCRIOCgZkZXZpY2UYAiABKAkSEgoKZmlsZXN5c3RlbRgDIAEoCRISCgpzaXplX2J5dGVzGAQgASgEIrIECgtTZXJ2ZXJTdGF0cxIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBITCgtjcHVfcGVyY2VudBgCIAEoARIZChFtZW1vcnlfdXNlZF9ieXRlcxgDIAEoBBIaChJtZW1vcnlfdG90YWxfYnl0ZXMYBCABKAQSJQoFZGlza3MYBSADKAsyFi5kb2Nrd2VsbC52MS5EaXNrVXNhZ2USDQoFbG9hZDEYBiABKAESDQoFbG9hZDUYByABKAESDgoGbG9hZDE1GAggASgBEiMKG25ldHdvcmtfcnhfYnl0ZXNfcGVyX3NlY29uZBgJIAEoBBIjChtuZXR3b3JrX3R4X2J5dGVzX3Blcl9zZWNvbmQYCiABKAQSKQoGdXB0aW1lGAsgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uEhcKD3N3YXBfdXNlZF9ieXRlcxgMIAEoBBIYChBzd2FwX3RvdGFsX2J5dGVzGA0gASgEEhoKEmFnZW50X21lbW9yeV9ieXRlcxgOIAEoBBIYChBuZXR3b3JrX3J4X2J5dGVzGA8gASgEEhgKEG5ldHdvcmtfdHhfYnl0ZXMYECABKAQSKwoIaW50ZXJ2YWwYESABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SFwoPZGlza19yZWFkX2J5dGVzGBIgASgEEhoKEmRpc2tfd3JpdHRlbl9ieXRlcxgTIAEoBCJICglEaXNrVXNhZ2USEwoLbW91bnRfcG9pbnQYASABKAkSEgoKdXNlZF9ieXRlcxgCIAEoBBISCgpzaXplX2J5dGVzGAMgASgEIi8KGldhdGNoU3lzdGVtU2VydmljZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJLChtXYXRjaFN5c3RlbVNlcnZpY2VzUmVzcG9uc2USLAoEbGlzdBgBIAEoCzIeLmRvY2t3ZWxsLnYxLlN5c3RlbVNlcnZpY2VMaXN0IpYBChFTeXN0ZW1TZXJ2aWNlTGlzdBIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIlCgRpbml0GAIgASgOMhcuZG9ja3dlbGwudjEuU3lzdGVtSW5pdBIwCghzZXJ2aWNlcxgDIAMoCzIeLmRvY2t3ZWxsLnYxLlN5c3RlbVNlcnZpY2VJbmZvIqUCChFTeXN0ZW1TZXJ2aWNlSW5mbxIMCgRuYW1lGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEi4KBXN0YXRlGAMgASgOMh8uZG9ja3dlbGwudjEuU3lzdGVtU2VydmljZVN0YXRlEg4KBmRldGFpbBgEIAEoCRIPCgdhdF9ib290GAUgASgJEikKBXNpbmNlGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIQCghtYWluX3BpZBgHIAEoDRIZCgxtZW1vcnlfYnl0ZXMYCCABKARIAIgBARIOCgZyZXN1bHQYCSABKAkSEwoLZXhpdF9zdGF0dXMYCiABKAUSDgoGbmVlZGVkGAsgASgIQg8KDV9tZW1vcnlfYnl0ZXMqtgEKD0pvaW5UaWNrZXRTdGF0ZRIhCh1KT0lOX1RJQ0tFVF9TVEFURV9VTlNQRUNJRklFRBAAEioKGUpPSU5fVElDS0VUX1NUQVRFX1dBSVRJTkcQARoLorsYB1dhaXRpbmcSKAoYSk9JTl9USUNLRVRfU1RBVEVfSk9JTkVEEAIaCqK7GAZKb2luZWQSKgoZSk9JTl9USUNLRVRfU1RBVEVfRVhQSVJFRBADGguiuxgHRXhwaXJlZCqnAQoJSm9pblJlYWNoEhoKFkpPSU5fUkVBQ0hfVU5TUEVDSUZJRUQQABIlChNKT0lOX1JFQUNIX0FOWVdIRVJFEAEaDKK7GAhBbnl3aGVyZRIoChJKT0lOX1JFQUNIX1dBWV9PVVQQAhoQorsYDFdheSBvdXQgb25seRItChdKT0lOX1JFQUNIX1NBTUVfTkVUV09SSxADGhCiuxgMU2FtZSBuZXR3b3JrKnYKCkNvbm5lY3Rpb24SGgoWQ09OTkVDVElPTl9VTlNQRUNJRklFRBAAEhgKFENPTk5FQ1RJT05fQ09OTkVDVEVEEAESGgoWQ09OTkVDVElPTl9VTlJFQUNIQUJMRRACEhYKEkNPTk5FQ1RJT05fUEVORElORxADKl4KDFNlcnZlclN0cmFpbhIdChlTRVJWRVJfU1RSQUlOX1VOU1BFQ0lGSUVEEAASGAoUU0VSVkVSX1NUUkFJTl9NRU1PUlkQARIVChFTRVJWRVJfU1RSQUlOX0NQVRACKqIBCgxOZXR3b3JrU2hhcGUSHQoZTkVUV09SS19TSEFQRV9VTlNQRUNJRklFRBAAEhoKFk5FVFdPUktfU0hBUEVfSU5URVJORVQQARIbChdORVRXT1JLX1NIQVBFX0NMT1VEX05BVBACEhsKF05FVFdPUktfU0hBUEVfTE9DQUxfTkFUEAMSHQoZTkVUV09SS19TSEFQRV9DQVJSSUVSX05BVBAEKrkCChNQdWJsaWNBZGRyZXNzU291cmNlEiUKIVBVQkxJQ19BRERSRVNTX1NPVVJDRV9VTlNQRUNJRklFRBAAEicKI1BVQkxJQ19BRERSRVNTX1NPVVJDRV9TRVRfQllfUEVSU09OEAESJgoiUFVCTElDX0FERFJFU1NfU09VUkNFX09OX0lOVEVSRkFDRRACEioKJlBVQkxJQ19BRERSRVNTX1NPVVJDRV9QUk9WRURfQllfRE9NQUlOEAMSLworUFVCTElDX0FERFJFU1NfU09VUkNFX1NFRU5fQllfQ09OVFJPTF9QTEFORRAEEigKJFBVQkxJQ19BRERSRVNTX1NPVVJDRV9DTE9VRF9NRVRBREFUQRAFEiMKH1BVQkxJQ19BRERSRVNTX1NPVVJDRV9MT09LRURfVVAQBipmCglSZWFjaGFibGUSGQoVUkVBQ0hBQkxFX1VOU1BFQ0lGSUVEEAASGQoVUkVBQ0hBQkxFX05PVF9DSEVDS0VEEAESEQoNUkVBQ0hBQkxFX1lFUxACEhAKDFJFQUNIQUJMRV9OTxADKtEBCg1DbG91ZFByb3ZpZGVyEh4KGkNMT1VEX1BST1ZJREVSX1VOU1BFQ0lGSUVEEAASFgoSQ0xPVURfUFJPVklERVJfQVdTEAESFgoSQ0xPVURfUFJPVklERVJfR0NQEAISGAoUQ0xPVURfUFJPVklERVJfQVpVUkUQAxIfChtDTE9VRF9QUk9WSURFUl9ESUdJVEFMT0NFQU4QBBIaChZDTE9VRF9QUk9WSURFUl9IRVRaTkVSEAUSGQoVQ0xPVURfUFJPVklERVJfT1JBQ0xFEAYqnAEKClN5c3RlbUluaXQSGwoXU1lTVEVNX0lOSVRfVU5TUEVDSUZJRUQQABIkChNTWVNURU1fSU5JVF9TWVNURU1EEAEaC6K7GAdzeXN0ZW1kEiIKElNZU1RFTV9JTklUX09QRU5SQxACGgqiuxgGT3BlblJDEicKEVNZU1RFTV9JTklUX09USEVSEAMaEKK7GAxBbm90aGVyIGluaXQq1gIKElN5c3RlbVNlcnZpY2VTdGF0ZRIkCiBTWVNURU1fU0VSVklDRV9TVEFURV9VTlNQRUNJRklFRBAAEi0KHFNZU1RFTV9TRVJWSUNFX1NUQVRFX1JVTk5JTkcQARoLorsYB1J1bm5pbmcSKwobU1lTVEVNX1NFUlZJQ0VfU1RBVEVfRVhJVEVEEAIaCqK7GAZFeGl0ZWQSKwobU1lTVEVNX1NFUlZJQ0VfU1RBVEVfRkFJTEVEEAMaCqK7GAZGYWlsZWQSLwodU1lTVEVNX1NFUlZJQ0VfU1RBVEVfSU5BQ1RJVkUQBBoMorsYCEluYWN0aXZlEi8KHVNZU1RFTV9TRVJWSUNFX1NUQVRFX1NUQVJUSU5HEAUaDKK7GAhTdGFydGluZxIvCh1TWVNURU1fU0VSVklDRV9TVEFURV9TVE9QUElORxAGGgyiuxgIU3RvcHBpbmcypxMKDVNlcnZlclNlcnZpY2USeAoLTGlzdFNlcnZlcnMSHy5kb2Nrd2VsbC52MS5MaXN0U2VydmVyc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0U2VydmVyc1Jlc3BvbnNlIiaQAgGguxgBwLsYAsi7GALQuxgFgtPkkwINEgsvdjEvc2VydmVycxJ3CglHZXRTZXJ2ZXISHS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJSZXF1ZXN0Gh4uZG9ja3dlbGwudjEuR2V0U2VydmVyUmVzcG9uc2UiK5ACAaC7GAHAuxgCyLsYAtC7GAWC0+STAhISEC92MS9zZXJ2ZXJzL3tpZH0SZwoMV2F0Y2hTZXJ2ZXJzEiAuZG9ja3dlbGwudjEuV2F0Y2hTZXJ2ZXJzUmVxdWVzdBohLmRvY2t3ZWxsLnYxLldhdGNoU2VydmVyc1Jlc3BvbnNlIhCguxgBwLsYAsi7GALQuxgFMAESogEKEEdldFNlcnZlckRpc2tVc2USJC5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJEaXNrVXNlUmVxdWVzdBolLmRvY2t3ZWxsLnYxLkdldFNlcnZlckRpc2tVc2VSZXNwb25zZSJBkAIBoLsYAaq7GAoSCGRpc2stdXNlwLsYBMi7GATQuxgGgtPkkwIaEhgvdjEvc2VydmVycy97aWR9L2Rpc2tVc2USrAEKEENoZWNrU2VydmVyUG9ydHMSJC5kb2Nrd2VsbC52MS5DaGVja1NlcnZlclBvcnRzUmVxdWVzdBolLmRvY2t3ZWxsLnYxLkNoZWNrU2VydmVyUG9ydHNSZXNwb25zZSJLkAIBoLsYAaq7GBYKB3NlcnZlcnMSC2NoZWNrLXBvcnRzwLsYBMi7GATQuxgGgtPkkwIYEhYvdjEvc2VydmVycy97aWR9L3BvcnRzEscBChZTZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzEiouZG9ja3dlbGwudjEuU2V0U2VydmVyUHVibGljQWRkcmVzc1JlcXVlc3QaKy5kb2Nrd2VsbC52MS5TZXRTZXJ2ZXJQdWJsaWNBZGRyZXNzUmVzcG9uc2UiVKC7GAOquxgUEhJzZXQtcHVibGljLWFkZHJlc3PAuxgEyLsYBNC7GAaC0+STAiY6ASoiIS92MS9zZXJ2ZXJzL3tpZH06c2V0UHVibGljQWRkcmVzcxKpAQoQQ3JlYXRlSm9pblRpY2tldBIkLmRvY2t3ZWxsLnYxLkNyZWF0ZUpvaW5UaWNrZXRSZXF1ZXN0GiUuZG9ja3dlbGwudjEuQ3JlYXRlSm9pblRpY2tldFJlc3BvbnNlIkiguxgDqrsYFgoMam9pbi10aWNrZXRzEgZjcmVhdGWwuxgBwLsYBMi7GATQuxgGgtPkkwIUOgEqIg8vdjEvam9pblRpY2tldHMSngEKDUdldEpvaW5UaWNrZXQSIS5kb2Nrd2VsbC52MS5HZXRKb2luVGlja2V0UmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkdldEpvaW5UaWNrZXRSZXNwb25zZSJGkAIBoLsYAaq7GBMKDGpvaW4tdGlja2V0cxIDZ2V0wLsYBMi7GATQuxgGgtPkkwIWEhQvdjEvam9pblRpY2tldHMve2lkfRKAAQoTV2F0Y2hTeXN0ZW1TZXJ2aWNlcxInLmRvY2t3ZWxsLnYxLldhdGNoU3lzdGVtU2VydmljZXNSZXF1ZXN0GiguZG9ja3dlbGwudjEuV2F0Y2hTeXN0ZW1TZXJ2aWNlc1Jlc3BvbnNlIhSguxgBsLsYAcC7GATIuxgE0LsYBjABGssIorsY4QIKB3NlcnZlcnMS1QJUaGUgc2VydmVycyBEb2Nrd2VsbCBtYW5hZ2VzLCB3aXRoIHRoZWlyIGxpdmUgc3RhdGUgYXMgZWFjaCBzZXJ2ZXIncyBhZ2VudCByZXBvcnRzIGl0LiBXYXRjaFNlcnZlcnMgaGFzIG5vIFJFU1QgcGF0aDogUkVTVCBoYXMgbm8gd2F5IHRvIHN0cmVhbSBtZXNzYWdlcywgc28gYSBSRVNUIGNsaWVudCBwb2xscyBMaXN0U2VydmVycyBvciBHZXRTZXJ2ZXIgaW5zdGVhZCwgYW5kIGFueXRoaW5nIHRoYXQgd2FudHMgdGhlIHN0cmVhbSBvcGVucyBpdCB3aXRoIENvbm5lY3QsIGdSUEMgb3IgZ1JQQy1XZWIuIFNlZSBkb2NzL2Fkci8wMDE1LXJlc3QtYW5kLW9wZW5hcGktZnJvbS10aGUtc2NoZW1hLm1kLqK7GJsDCg9zeXN0ZW0tc2VydmljZXMShwNBIHNlcnZlcidzIHN5c3RlbSBzZXJ2aWNlczogaXRzIHN5c3RlbWQgdW5pdHMsIG9yIGl0cyBPcGVuUkMgc2VydmljZXMsIGVhY2ggd2l0aCBpdHMgc3RhdGUsIHdoZXRoZXIgaXQgc3RhcnRzIGF0IGJvb3QgYW5kIHNpbmNlIHdoZW4uIFRoZSBwYW5lbCBzaG93cyB0aGVtIG9uIGEgc2VydmVyJ3MgU3lzdGVtIHNlcnZpY2VzIHRhYiwgdG8gYW4gYWRtaW4gc2lnbmVkIGluLiBObyBBUEkgdG9rZW4gcmVhZHMgdGhlbSwgc28gdGhlIENMSSwgd2hpY2ggc2lnbnMgaW4gd2l0aCBvbmUsIGlzIHJlZnVzZWQsIGFuZCBhIHNjcmlwdCBydW5zIHN5c3RlbWN0bCBvdmVyIFNTSC4gU2VlIGRvY3MvYWRyLzAwNjctYS1zZXJ2ZXJzLXN5c3RlbS1zZXJ2aWNlcy1hbmQtaXRzLXN5c3RlbS1sb2cubWQuorsYwAIKDGpvaW4tdGlja2V0cxKvAkEgam9pbiB0aWNrZXQgYWRkcyBvbmUgc2VydmVyOiBkb2Nrd2VsbCBqb2luIHdpdGggaXQsIG9uIHRoZSBuZXcgc2VydmVyLCBnaXZlcyB0aGF0IHNlcnZlciBhIG5hbWUgYW5kIGEgY2VydGlmaWNhdGUsIGFuZCBpdHMgYWdlbnQgY29ubmVjdHMuIENyZWF0ZUpvaW5UaWNrZXQgbWFrZXMgb25lIHdpdGggYSBwYXNza2V5LCBhbmQgR2V0Sm9pblRpY2tldCBzYXlzIHdoZXRoZXIgYSBzZXJ2ZXIgaGFzIHVzZWQgaXQuIGRvY2t3ZWxsIHRva2VuIGNyZWF0ZSBtYWtlcyB0aGUgc2FtZSB0aWNrZXQgb24gdGhlIGNvbnRyb2wgc2VydmVyLkKkAQoPY29tLmRvY2t3ZWxsLnYxQgtTZXJ2ZXJQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_domain, file_dockwell_v1_options, file_dockwell_v1_system, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * CreateJoinTicketRequest says how long the ticket works.
@@ -1308,6 +1308,184 @@ export const DiskUsageSchema: GenMessage<DiskUsage> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_server, 27);
 
 /**
+ * WatchSystemServicesRequest names a server.
+ *
+ * @generated from message dockwell.v1.WatchSystemServicesRequest
+ */
+export type WatchSystemServicesRequest = Message<"dockwell.v1.WatchSystemServicesRequest"> & {
+  /**
+   * The server's ID.
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.WatchSystemServicesRequest.
+ * Use `create(WatchSystemServicesRequestSchema)` to create a new message.
+ */
+export const WatchSystemServicesRequestSchema: GenMessage<WatchSystemServicesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 28);
+
+/**
+ * WatchSystemServicesResponse is a server's system services, as its agent last
+ * read them.
+ *
+ * @generated from message dockwell.v1.WatchSystemServicesResponse
+ */
+export type WatchSystemServicesResponse = Message<"dockwell.v1.WatchSystemServicesResponse"> & {
+  /**
+   * Its services.
+   *
+   * @generated from field: dockwell.v1.SystemServiceList list = 1;
+   */
+  list?: SystemServiceList | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.WatchSystemServicesResponse.
+ * Use `create(WatchSystemServicesResponseSchema)` to create a new message.
+ */
+export const WatchSystemServicesResponseSchema: GenMessage<WatchSystemServicesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 29);
+
+/**
+ * SystemServiceList is a server's system services at one moment.
+ *
+ * @generated from message dockwell.v1.SystemServiceList
+ */
+export type SystemServiceList = Message<"dockwell.v1.SystemServiceList"> & {
+  /**
+   * When the agent read them, on the server's clock.
+   *
+   * @generated from field: google.protobuf.Timestamp time = 1;
+   */
+  time?: Timestamp | undefined;
+
+  /**
+   * What starts them.
+   *
+   * @generated from field: dockwell.v1.SystemInit init = 2;
+   */
+  init: SystemInit;
+
+  /**
+   * Each service, failed ones first, then running ones, then the rest, each
+   * by name.
+   *
+   * @generated from field: repeated dockwell.v1.SystemServiceInfo services = 3;
+   */
+  services: SystemServiceInfo[];
+};
+
+/**
+ * Describes the message dockwell.v1.SystemServiceList.
+ * Use `create(SystemServiceListSchema)` to create a new message.
+ */
+export const SystemServiceListSchema: GenMessage<SystemServiceList> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 30);
+
+/**
+ * SystemServiceInfo is one of a server's system services: a systemd unit of the
+ * service or socket type, or an OpenRC service.
+ *
+ * @generated from message dockwell.v1.SystemServiceInfo
+ */
+export type SystemServiceInfo = Message<"dockwell.v1.SystemServiceInfo"> & {
+  /**
+   * Its name, such as "nginx.service", or an OpenRC service's, such as "sshd".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * What it says it is, such as "A high performance web server". Empty under
+   * OpenRC.
+   *
+   * @generated from field: string description = 2;
+   */
+  description: string;
+
+  /**
+   * How it stands.
+   *
+   * @generated from field: dockwell.v1.SystemServiceState state = 3;
+   */
+  state: SystemServiceState;
+
+  /**
+   * How it stands in systemd's own word, such as "running", "dead",
+   * "auto-restart" or "exited"; OpenRC's state, such as "started" or "crashed".
+   *
+   * @generated from field: string detail = 4;
+   */
+  detail: string;
+
+  /**
+   * Whether it starts at boot: systemd's word, such as "enabled", "disabled",
+   * "static" or "masked"; under OpenRC, the runlevel it's in, such as
+   * "default", or empty for none.
+   *
+   * @generated from field: string at_boot = 5;
+   */
+  atBoot: string;
+
+  /**
+   * Since when it stands so. Unset under OpenRC.
+   *
+   * @generated from field: google.protobuf.Timestamp since = 6;
+   */
+  since?: Timestamp | undefined;
+
+  /**
+   * Its main process, while it runs. 0 when it has none.
+   *
+   * @generated from field: uint32 main_pid = 7;
+   */
+  mainPid: number;
+
+  /**
+   * What it holds in memory, in bytes, while it runs. Unset when the unit
+   * keeps no memory accounting, and under OpenRC.
+   *
+   * @generated from field: optional uint64 memory_bytes = 8;
+   */
+  memoryBytes?: bigint | undefined;
+
+  /**
+   * Why a failed one failed, in systemd's word, such as "exit-code",
+   * "signal", "timeout" or "start-limit-hit". Empty otherwise.
+   *
+   * @generated from field: string result = 9;
+   */
+  result: string;
+
+  /**
+   * How its main process last ended: its exit status, or its signal's number.
+   *
+   * @generated from field: int32 exit_status = 10;
+   */
+  exitStatus: number;
+
+  /**
+   * True for what Dockwell needs to run on the server: its agent and the access
+   * that guards it, Docker and containerd, and the SSH server.
+   *
+   * @generated from field: bool needed = 11;
+   */
+  needed: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SystemServiceInfo.
+ * Use `create(SystemServiceInfoSchema)` to create a new message.
+ */
+export const SystemServiceInfoSchema: GenMessage<SystemServiceInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_server, 31);
+
+/**
  * JoinTicketState is where a ticket is in its life.
  *
  * @generated from enum dockwell.v1.JoinTicketState
@@ -1671,6 +1849,107 @@ export const CloudProviderSchema: GenEnum<CloudProvider> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_server, 7);
 
 /**
+ * SystemInit is what starts a server's services.
+ *
+ * @generated from enum dockwell.v1.SystemInit
+ */
+export enum SystemInit {
+  /**
+   * @generated from enum value: SYSTEM_INIT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * systemd: units, read with systemctl.
+   *
+   * @generated from enum value: SYSTEM_INIT_SYSTEMD = 1;
+   */
+  SYSTEMD = 1,
+
+  /**
+   * OpenRC, as on Alpine: services, read with rc-status, with no description,
+   * memory or time.
+   *
+   * @generated from enum value: SYSTEM_INIT_OPENRC = 2;
+   */
+  OPENRC = 2,
+
+  /**
+   * Another, such as runit or sysvinit, which Dockwell doesn't read: the list
+   * is empty.
+   *
+   * @generated from enum value: SYSTEM_INIT_OTHER = 3;
+   */
+  OTHER = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.SystemInit.
+ */
+export const SystemInitSchema: GenEnum<SystemInit> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 8);
+
+/**
+ * SystemServiceState is how a system service stands.
+ *
+ * @generated from enum dockwell.v1.SystemServiceState
+ */
+export enum SystemServiceState {
+  /**
+   * @generated from enum value: SYSTEM_SERVICE_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * It runs.
+   *
+   * @generated from enum value: SYSTEM_SERVICE_STATE_RUNNING = 1;
+   */
+  RUNNING = 1,
+
+  /**
+   * It ran and ended well, as a one-shot unit does.
+   *
+   * @generated from enum value: SYSTEM_SERVICE_STATE_EXITED = 2;
+   */
+  EXITED = 2,
+
+  /**
+   * It ended badly, or couldn't start.
+   *
+   * @generated from enum value: SYSTEM_SERVICE_STATE_FAILED = 3;
+   */
+  FAILED = 3,
+
+  /**
+   * It doesn't run.
+   *
+   * @generated from enum value: SYSTEM_SERVICE_STATE_INACTIVE = 4;
+   */
+  INACTIVE = 4,
+
+  /**
+   * It's starting, or about to restart.
+   *
+   * @generated from enum value: SYSTEM_SERVICE_STATE_STARTING = 5;
+   */
+  STARTING = 5,
+
+  /**
+   * It's stopping.
+   *
+   * @generated from enum value: SYSTEM_SERVICE_STATE_STOPPING = 6;
+   */
+  STOPPING = 6,
+}
+
+/**
+ * Describes the enum dockwell.v1.SystemServiceState.
+ */
+export const SystemServiceStateSchema: GenEnum<SystemServiceState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_server, 9);
+
+/**
  * ServerService lists the servers Dockwell manages and streams their live
  * state, as each server's agent reports it.
  *
@@ -1784,6 +2063,26 @@ export const ServerService: GenService<{
     methodKind: "unary";
     input: typeof GetJoinTicketRequestSchema;
     output: typeof GetJoinTicketResponseSchema;
+  },
+  /**
+   * WatchSystemServices streams a server's system services, its systemd units
+   * or its OpenRC services, about every 10 s for as long as it's open: each
+   * with its state, whether it starts at boot, since when, and for one that
+   * runs, its main PID and memory, failed ones first. The panel calls them
+   * system services, as a service is an app's in Dockwell. The agent reads
+   * them only while someone watches, once for every watch of the server, and a
+   * session watches 8 servers' at most. Reading them isn't recorded, as
+   * reading a server isn't. No API token reads them, so the CLI, which signs in
+   * with one, is refused: a person reads them in the panel, and a script runs
+   * systemctl over SSH. It has no REST path, as streams have none.
+   * See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
+   *
+   * @generated from rpc dockwell.v1.ServerService.WatchSystemServices
+   */
+  watchSystemServices: {
+    methodKind: "server_streaming";
+    input: typeof WatchSystemServicesRequestSchema;
+    output: typeof WatchSystemServicesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_server, 0);

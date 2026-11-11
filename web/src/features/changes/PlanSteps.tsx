@@ -6,6 +6,7 @@ import {
   BackupMethod,
   HostAccessKind,
   type Intent,
+  type PackageInstall,
   type Plan,
   type PlanStep,
   PlanWarning,
@@ -14,6 +15,7 @@ import {
   StepState,
 } from "@dockwell/api";
 import { Icon, StatusBadge, Tag } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { useTimeWords } from "../../lib/time";
@@ -181,6 +183,8 @@ function StepRow({
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
           ) : step.backupFirst ? (
             <BackupFirstLine first={step.backupFirst} name={name} />
+          ) : step.install ? (
+            <InstallLine install={step.install} server={server} />
           ) : (
             <>
               {step.adopts
@@ -236,6 +240,7 @@ function StepRow({
         </span>
       ) : null}
       {said ? <span className="plan-step-meta">{said}</span> : null}
+      {planning && step.install ? <InstallList install={step.install} server={server} /> : null}
     </li>
   );
 }
@@ -263,6 +268,58 @@ function BackupFirstLine({ first, name }: { first: BackupFirst; name: string }) 
     <Trans>
       Back up <code>{name}</code>
     </Trans>
+  );
+}
+
+/** What installing a server's updates does, in a line (ADR 0064). */
+function InstallLine({ install, server }: { install: PackageInstall; server: string }) {
+  const n = install.packages.length;
+  return (
+    <>
+      {plural(n, { one: "Install # package on", other: "Install # packages on" })} <code>{server}</code>
+    </>
+  );
+}
+
+/**
+ * Each package the install installs, from the version there to the one it gets, those
+ * the others pull in too, and what follows: a reboot, Docker restarting, and that it
+ * can't be undone.
+ */
+function InstallList({ install, server }: { install: PackageInstall; server: string }) {
+  const { t } = useLingui();
+  return (
+    <div className="plan-install">
+      <ul className="plan-install-packages" aria-label={t`Packages it installs on ${server}`}>
+        {install.packages.map((p) => (
+          <li key={p.name}>
+            <code>{p.name}</code>{" "}
+            <span className="plan-install-versions">
+              {p.installed ? `${p.installed} → ${p.available}` : p.available}
+            </span>
+            {p.installed ? null : <Tag words>{t`Pulled in`}</Tag>}
+            {p.security ? <Tag words>{t({ message: "Security fix", context: "a package update" })}</Tag> : null}
+          </li>
+        ))}
+      </ul>
+      <span className="plan-step-meta">
+        {install.dockerRestarts ? (
+          install.keepsRunning ? (
+            <span>{t`Docker restarts, and keeps containers running while it does: it's a patch release, and live-restore is on`}</span>
+          ) : (
+            <span className="plan-step-warn">
+              {t`Docker restarts: every app and website on ${server} stops until it's back, the domains Caddy serves there too`}
+            </span>
+          )
+        ) : null}
+        {install.reboot ? (
+          <span className="plan-step-warn">{t`${server} needs a reboot for this to take effect, which is a change of its own`}</span>
+        ) : null}
+        <span>
+          {t`Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed`}
+        </span>
+      </span>
+    </div>
   );
 }
 

@@ -1,0 +1,19 @@
+Runlevel: default
+ sshd                                                              [  started  ]
+ crond                                                             [  started  ]
+ docker                                                            [  started 2 day(s) 03:04:05 (0) ]
+ nginx                                                             [  crashed  ]
+ dockwell                                                          [  started  ]
+Runlevel: boot
+ hwclock                                                           [  started  ]
+ syslog                                                            [  started  ]
+Runlevel: sysinit
+ devfs                                                             [  started  ]
+Runlevel: shutdown
+ killprocs                                                         [  stopped  ]
+Dynamic Runlevel: hotplugged
+Dynamic Runlevel: needed/wanted
+ sysfs                                                             [  started  ]
+ containerd                                                        [  started  ]
+Dynamic Runlevel: manual
+ redis                                                             [  stopped  ]

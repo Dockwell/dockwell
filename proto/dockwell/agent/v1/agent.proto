@@ -755,6 +755,9 @@ message Call {
     DownloadFileCall download_file = 129;
     // Has the agent keep what its server runs, as its desired state.
     RememberCall remember = 161;
+    // List the server's system services (ADR 0067). This area's block is 230
+    // to 239.
+    SystemServicesCall system_services = 235;
   }
 }
 
@@ -824,6 +827,18 @@ message ProcessesCall {}
 message ProcessesResult {
   // What runs.
   dockwell.v1.ProcessList list = 1;
+}
+
+// SystemServicesCall asks for the server's system services, read now with its
+// init system's own tools, on a runner of their own so a firewall change
+// waiting on its confirm timer holds up no list (ADR 0067). The agent keeps
+// nothing of it after.
+message SystemServicesCall {}
+
+// SystemServicesResult is the server's system services.
+message SystemServicesResult {
+  // Its services.
+  dockwell.v1.SystemServiceList list = 1;
 }
 
 // EndProcessCall ends a process: SIGTERM, then SIGKILL 10 s later if it's still
@@ -1790,6 +1805,20 @@ message DesiredResource {
   string scope_name = 9;
   // Backs up the resource's data as a step of this change, under this ID.
   string backup_id = 10;
+  // Installs updates on the server, for its host (ADR 0064). Numbered in the
+  // servers area's block, 230 to 239.
+  InstallUpdates install_updates = 232;
+}
+
+// InstallUpdates asks a server's host to install its updates.
+message InstallUpdates {
+  // The change, which names the install's unit, so a resume finds it.
+  string change_id = 1;
+  // Every update waiting, not only the security fixes, at planning.
+  bool all = 2;
+  // The packages the plan fixed, as the plan simulated them: empty at planning,
+  // and what a resume checks against.
+  repeated dockwell.v1.PackageUpdate packages = 3;
 }
 
 // CancelBuildCall stops a build that is waiting or running, which fails the
@@ -1937,6 +1966,8 @@ message CallResult {
     DownloadFileResult download_file = 129;
     // Whether remember was kept.
     RememberResult remember = 161;
+    // What system_services read.
+    SystemServicesResult system_services = 235;
   }
 }
 

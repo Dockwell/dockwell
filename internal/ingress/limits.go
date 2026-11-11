@@ -197,7 +197,8 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 	}
 	ids, domains, after := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	touched := map[string]bool{}
-	for _, d := range desired {
+	for di := range desired {
+		d := &desired[di]
 		if d.Ref.Kind == routeKind {
 			touched[RouteID(d.Ref)] = true
 		}
@@ -216,8 +217,9 @@ func (m *Manager) checkLimits(ctx context.Context, desired []resource.Desired, m
 	}
 	added := 0
 	var fresh []string
-	for _, d := range desired {
-		spec := routeSpec(d)
+	for di := range desired {
+		d := &desired[di]
+		spec := routeSpec(*d)
 		if spec == nil {
 			continue
 		}

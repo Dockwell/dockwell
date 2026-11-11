@@ -3,6 +3,7 @@
 package revision
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -249,6 +250,52 @@ func (e *Engine) claim(changeID, takesOver string, items []item, resumeLater boo
 	return nil
 }
 
+// holdServers notes the servers a change runs steps on, and refuses it while an
+// install restarts Docker on one of them, or, for such an install, while another
+// change runs steps on its server: Docker restarting under a deploy fails both
+// (ADR 0064, Holds). A rollback isn't refused, as it puts back what was.
+func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
+	servers := serversOf(plan)
+	var docker []string
+	for i := range plan.Resources {
+		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts {
+			docker = append(docker, plan.Resources[i].Ref.Scope)
+		}
+	}
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	if e.on == nil {
+		e.on, e.dockerFor = map[string][]string{}, map[string]string{}
+	}
+	if !rollback {
+		name := func(server string) string {
+			for _, s := range plan.Servers {
+				if s.Server == server {
+					return cmp.Or(s.Name, server)
+				}
+			}
+			return server
+		}
+		for _, s := range servers {
+			if other, ok := e.dockerFor[s]; ok && other != changeID {
+				return fault.New(ErrBusy, "%s installs updates on %s now and restarts Docker there, so this change can't run there yet. Apply it again once that one ends", other, name(s))
+			}
+		}
+		for _, s := range docker {
+			for other, theirs := range e.on {
+				if other != changeID && slices.Contains(theirs, s) {
+					return fault.New(ErrBusy, "%s is applying on %s now, and this install restarts Docker there, which would stop it. Apply it again once that one ends", other, name(s))
+				}
+			}
+		}
+	}
+	e.on[changeID] = servers
+	for _, s := range docker {
+		e.dockerFor[s] = changeID
+	}
+	return nil
+}
+
 // letGo ends a change's hold here: it isn't owned any more, its progress
 // isn't live, and its resources are free. If Resume skipped something
 // because this change held it, Resume runs again now, in the background:
@@ -260,6 +307,12 @@ func (e *Engine) letGo(ctx context.Context, changeID string) {
 	defer e.pmu.Unlock()
 	delete(e.owned, changeID)
 	delete(e.live, changeID)
+	delete(e.on, changeID)
+	for s, c := range e.dockerFor {
+		if c == changeID {
+			delete(e.dockerFor, s)
+		}
+	}
 	for id, c := range e.busy {
 		if c == changeID {
 			delete(e.busy, id)

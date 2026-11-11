@@ -87,11 +87,32 @@ function makeStand() {
   const head = `#!/bin/sh\nFIX='${fixtures}'\nROOT='${stand}'\necho "$(basename "$0") $*" >> "$ROOT/calls"\n`;
   put(
     "usr/bin/apt-get",
-    `${head}case "$*" in\n*" update") sleep 1; touch "$ROOT/${lists}" ;;\n*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;\nesac\n`,
+    // An install's simulation (ADR 0064) says what the read's does, as apt would for these packages.
+    // The install itself sets up what the simulation said, pulled-in packages too.
+    `${head}case "$*" in\n*" update") sleep 1; touch "$ROOT/${lists}" ;;\n*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;\n*"--simulate"*" install "*) cat "$FIX/apt-simulate-ubuntu.txt" ;;\n*"--no-download"*) sed -n 's/^Inst \\([^ ]*\\) \\(\\[[^]]*\\] \\)\\{0,1\\}(\\([^ ]*\\) .*\\[\\([a-z0-9]*\\)\\].*/\\1 \\4 \\3/p' "$FIX/apt-simulate-ubuntu.txt" | while read -r n a v; do echo "Setting up $n ($v)"; printf '%s\\t%s\\t%s\\tii \\n' "$n" "$a" "$v" >> "$ROOT/installed"; sleep 0.2; done ;;\nesac\n`,
     0o755,
   );
-  put("usr/bin/dpkg-query", `${head}cat "$FIX/dpkg-query.txt"; exit 1\n`, 0o755);
+  // What an install leaves installed, once it has run, is what dpkg reads of each package.
+  put(
+    "usr/bin/dpkg-query",
+    `${head}case "$*" in\n*"Status-Abbrev"*) cat "$ROOT/installed" 2>/dev/null; exit 0 ;;\n*) cat "$FIX/dpkg-query.txt"; exit 1 ;;\nesac\n`,
+    0o755,
+  );
+  put("usr/bin/dpkg", `${head}exit 0\n`, 0o755);
   put("usr/bin/apt-cache", `${head}cat "$FIX/apt-cache-show.txt"\n`, 0o755);
+  // systemd, whose transient units run in the background with their output in the file
+  // they name, and say how they ended (ADR 0064).
+  put("run/systemd/system/.keep", "");
+  put(
+    "usr/bin/systemd-run",
+    `${head}unit=; log=\nfor a in "$@"; do case "$a" in --unit=*) unit="\${a#--unit=}" ;; --property=StandardOutput=append:*) log="\${a#--property=StandardOutput=append:}" ;; esac; done\nwhile [ "$#" -gt 0 ] && [ "$1" != "--" ]; do shift; done; shift\nmkdir -p "$ROOT/units"; touch "$ROOT/units/$unit.active"\n( "$@" >> "$log" 2>&1; echo $? > "$ROOT/units/$unit.status"; rm -f "$ROOT/units/$unit.active" ) > /dev/null 2>&1 &\n`,
+    0o755,
+  );
+  put(
+    "usr/bin/systemctl",
+    `${head}for u; do :; done\ncase "$*" in\n*"ActiveState"*) if [ -e "$ROOT/units/$u.active" ]; then echo active; else echo inactive; fi ;;\n*"ExecMainStatus"*) cat "$ROOT/units/$u.status" 2>/dev/null || echo 0 ;;\nesac\n`,
+    0o755,
+  );
 }
 
 /** How often the stand-ins were called with what starts so. */
@@ -189,11 +210,6 @@ async function main() {
   const claimed = execFileSync(bin, ["claim", "--log-format", "json"], { encoding: "utf8", env: env() });
   const link =
     claimed.match(/http:\/\/localhost:\d+\/claim#[A-Za-z0-9_-]+/)?.[0] ?? fail(`dockwell claim printed:\n${claimed}`);
-  execFileSync("go", ["run", "./scripts/claim", link], { stdio: "inherit" });
-  const recover = execFileSync(bin, ["recover", "--log-format", "json"], { encoding: "utf8", env: env() });
-  const signIn =
-    recover.match(/(http:\/\/localhost:\d+\/recover#[A-Za-z0-9_-]{43})/)?.[1] ??
-    fail(`dockwell recover printed:\n${recover}`);
 
   if (refreshes() + reads() > 0) fail("the agent ran apt before anyone looked");
 
@@ -208,8 +224,24 @@ async function main() {
   lastPage = page;
   // A throw in a listener would end the process and skip the report and the cleaning up.
   page.on("pageerror", (err) => pageThrew(new Error(`the page threw: ${err.message}`)));
-  await page.goto(signIn);
-  await page.getByText("You signed in with a one-time link").first().waitFor();
+  // A platform authenticator, so the owner's passkey applies an install.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable", { enableUI: false });
+  await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+      automaticPresenceSimulation: true,
+    },
+  });
+  await page.goto(link);
+  await page.getByLabel("Your name").fill("Mira Chen");
+  await page.getByLabel("Email").fill("mira@example.com");
+  await page.getByRole("button", { name: "Create passkey" }).click();
+  await page.getByRole("heading", { name: "What do you want to run?", level: 1 }).waitFor({ timeout: 15_000 });
 
   step("the overview's card names the security fixes, once the day-old lists are refreshed");
   await page.goto(`${origin}/`);
@@ -232,8 +264,10 @@ async function main() {
 
   step("it leads with the security fixes, then the rest, as Server-Updates has them");
   await page.getByText("6 security updates are ready to install").waitFor();
-  await page.getByRole("button", { name: "Copy the upgrade command" }).first().waitFor();
-  await page.getByText("installs them within about a day", { exact: false }).first().waitFor();
+  // On apt, installing them is a plan away (ADR 0064).
+  await page.getByRole("button", { name: "Install security updates" }).waitFor();
+  await page.getByRole("button", { name: "Install every update" }).first().waitFor();
+  await page.getByText("installs them within about a day.", { exact: false }).first().waitFor();
   await page.getByText("6 from noble-security", { exact: false }).waitFor();
   const table = page.getByRole("table", { name: /^Security updates for / });
   await table.waitFor();
@@ -290,6 +324,61 @@ async function main() {
   await page.getByRole("button", { name: "Check now" }).click();
   await sleep(1500);
   if (refreshes() !== 2) fail("Check now refreshed twice within a minute");
+
+  step("Install security updates plans what the server simulated, what it pulls in too, and what restarts");
+  // The install's simulation, apart from the reads', which simulate an upgrade.
+  const simulated = () =>
+    readFileSync(join(stand, "calls"), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("apt-get ") && l.includes("--simulate") && l.includes(" install -- ")).length;
+  await page.getByRole("button", { name: "Install security updates" }).click();
+  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const packages = plan.getByRole("list", { name: /^Packages it installs on / });
+  await packages.waitFor({ timeout: 30_000 });
+  await packages.getByRole("listitem").filter({ hasText: "openssl" }).getByText("→", { exact: false }).waitFor();
+  await packages
+    .getByRole("listitem")
+    .filter({ hasText: "linux-image-6.8.0-49-generic" })
+    .getByText("Pulled in")
+    .waitFor();
+  await plan.getByText(/^Docker restarts/).waitFor();
+  await plan.getByText("Applying this asks for your passkey").waitFor();
+  if (simulated() !== 1) fail(`the plan simulated the install ${simulated()} times, want once`);
+  await shoot(page, "install-plan");
+
+  step("applied with the passkey, it downloads, then installs in a unit of its own, and applies");
+  // Docker's restart stops what runs there, so the plan asks for what it names to be typed.
+  const confirmWith = await plan.locator("#plan-confirm-why code").innerText();
+  await plan.getByRole("textbox", { name: /to apply it/ }).fill(confirmWith);
+  await plan.getByRole("button", { name: /^Apply plan/ }).click();
+  // However it ends, the sheet's heading says so; anything but Applied is a failure, said with what the sheet shows.
+  const sheet = page.getByRole("dialog").last();
+  const ended = await until(
+    "the install to end",
+    async () => {
+      const title = await sheet
+        .getByRole("heading")
+        .first()
+        .innerText()
+        .catch(() => "");
+      return title && !/^(Review plan|Planning|Applying|Installing updates on [^ ]+$)/.test(title) ? title : undefined;
+    },
+    120_000,
+  );
+  if (!ended.startsWith("Updates are installed on ")) fail(`the install ended "${ended}": ${await sheet.innerText()}`);
+  const applied = page.getByRole("dialog", { name: ended });
+  const install = called("apt-get -q -y --no-download");
+  if (called("apt-get -q -y --download-only") !== 1 || install !== 1) {
+    fail(
+      `the install downloaded ${called("apt-get -q -y --download-only")} times and installed ${install} times, want once each`,
+    );
+  }
+  if (!readFileSync(join(stand, "installed"), "utf8").includes("docker-ce\tamd64\t5:27.4.0-1~ubuntu.24.04~noble")) {
+    fail("the install didn't set up docker-ce at its planned version");
+  }
+  await shoot(page, "install-applied");
+  await applied.getByRole("button", { name: "Done" }).click();
+  await applied.waitFor({ state: "hidden" });
 
   step("on a phone, a package a row, and the overview's card is one link");
   await page.setViewportSize({ width: 390, height: 844 });

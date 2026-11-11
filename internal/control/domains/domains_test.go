@@ -29,7 +29,8 @@ type anAgent struct{}
 
 func (anAgent) Plan(_ context.Context, desired []resource.Desired) ([]resource.Step, error) {
 	out := make([]resource.Step, len(desired))
-	for i, d := range desired {
+	for i := range desired {
+		d := &desired[i]
 		out[i] = resource.Step{Ref: d.Ref, Decision: resource.Decision{Action: resource.ActionCreate}}
 		if d.Spec == nil {
 			out[i].Action = resource.ActionDelete

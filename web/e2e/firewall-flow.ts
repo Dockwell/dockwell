@@ -7,7 +7,7 @@
 // its ruleset. Nothing is changed by looking (ADR 0052).
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import type { Page } from "playwright-core";
 
@@ -83,6 +83,27 @@ export function hostTools(dir: string): string {
   );
   writeFileSync(join(ssh, "sshd_config.d", "50-cloud-init.conf"), "PasswordAuthentication no\n");
   writeFileSync(join(bin, "fail2ban-client"), `#!/bin/sh\n${fail2banClient}`, { mode: 0o755 });
+  // systemd as the init, and its systemctl, which answers exactly what the system
+  // services reader asks (ADR 0067) with the agent's fixtures. Anything else, as SSH's
+  // socket or the firewall's reverts ask, reads as no systemctl at all, rather than as
+  // a systemctl that answers wrongly.
+  mkdirSync(join(dir, "run", "systemd", "system"), { recursive: true });
+  mkdirSync(join(dir, "usr", "bin"), { recursive: true });
+  const fix = resolve("internal/agent/system/testdata/systemd");
+  writeFileSync(
+    join(dir, "usr", "bin", "systemctl"),
+    [
+      "#!/bin/sh",
+      'case "$1 $2" in',
+      `"list-units --type=service") cat '${fix}/list-units.txt' ;;`,
+      `"list-unit-files --type=service") cat '${fix}/list-unit-files.txt' ;;`,
+      `"show --property=Id,"*) cat '${fix}/show.txt' ;;`,
+      '*) echo "systemctl: not found" >&2; exit 127 ;;',
+      "esac",
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
   return dir;
 }
 

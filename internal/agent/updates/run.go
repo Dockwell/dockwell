@@ -106,9 +106,9 @@ func (r *Reader) run(ctx context.Context, what, path string, timeout time.Durati
 // fail is the error of a run, the step what, that exited with a status its
 // caller doesn't take.
 func fail(what string, res result) error {
-	said := lastLines(res.errs, 3)
+	said := lastLines(res.errs)
 	if said == "" {
-		said = lastLines(string(res.out), 3)
+		said = lastLines(string(res.out))
 	}
 	if said == "" {
 		said = "it said nothing"
@@ -118,22 +118,25 @@ func fail(what string, res result) error {
 
 // said is a run's last error lines, as a clause, for a message.
 func said(errs string) string {
-	if s := lastLines(errs, 3); s != "" {
+	if s := lastLines(errs); s != "" {
 		return ", after saying: " + s
 	}
 	return ""
 }
 
-// lastLines is the last n lines of s that hold something, joined with "; ".
-func lastLines(s string, n int) string {
+// tailLines is how many of a command's last lines its failure quotes.
+const tailLines = 3
+
+// lastLines is the last tailLines lines of s that hold something, joined with "; ".
+func lastLines(s string) string {
 	var lines []string
 	for _, l := range strings.Split(s, "\n") {
 		if l = strings.TrimSpace(l); l != "" {
 			lines = append(lines, l)
 		}
 	}
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
+	if len(lines) > tailLines {
+		lines = lines[len(lines)-tailLines:]
 	}
 	return strings.Join(lines, "; ")
 }

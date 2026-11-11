@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/buildinfo"
@@ -99,6 +100,9 @@ type Config struct {
 	// Tools runs the server's own tools, such as ufw and nft, as ADR 0043 has
 	// it. Nil runs none, as in a test.
 	Tools *hosttool.Runner
+	// System reads the server's system services (ADR 0067), on a runner of its
+	// own, not Tools. Nil reads none.
+	System *system.Reader
 	// Access keeps a change to the firewall that waits for its confirmation,
 	// when the control plane confirms it. Nil keeps none.
 	Access AccessConfirmer
