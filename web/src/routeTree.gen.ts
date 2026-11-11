@@ -35,6 +35,7 @@ import { Route as ShellAppsServiceIdRouteImport } from './routes/_shell/apps.$se
 import { Route as ShellAppsNewRouteImport } from './routes/_shell/apps.new'
 import { Route as ShellCatalogIndexRouteImport } from './routes/_shell/catalog.index'
 import { Route as ShellCatalogEntryIdRouteImport } from './routes/_shell/catalog.$entryId'
+import { Route as ShellCatalogSourcesRouteImport } from './routes/_shell/catalog.sources'
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellDatabasesIndexRouteImport } from './routes/_shell/databases.index'
 import { Route as ShellDatabasesServiceIdRouteImport } from './routes/_shell/databases.$serviceId'
@@ -198,6 +199,11 @@ const ShellCatalogIndexRoute = ShellCatalogIndexRouteImport.update({
 const ShellCatalogEntryIdRoute = ShellCatalogEntryIdRouteImport.update({
   id: '/catalog/$entryId',
   path: '/catalog/$entryId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellCatalogSourcesRoute = ShellCatalogSourcesRouteImport.update({
+  id: '/catalog/sources',
+  path: '/catalog/sources',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellChangesChangeIdRoute = ShellChangesChangeIdRouteImport.update({
@@ -430,6 +436,7 @@ export interface FileRoutesByFullPath {
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/apps/new': typeof ShellAppsNewRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
+  '/catalog/sources': typeof ShellCatalogSourcesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
@@ -491,6 +498,7 @@ export interface FileRoutesByTo {
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/new': typeof ShellAppsNewRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
+  '/catalog/sources': typeof ShellCatalogSourcesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts': typeof ShellAlertsIndexRoute
@@ -554,6 +562,7 @@ export interface FileRoutesById {
   '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/_shell/apps/new': typeof ShellAppsNewRoute
   '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
+  '/_shell/catalog/sources': typeof ShellCatalogSourcesRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/_shell/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
@@ -618,6 +627,7 @@ export interface FileRouteTypes {
     | '/apps/$serviceId'
     | '/apps/new'
     | '/catalog/$entryId'
+    | '/catalog/sources'
     | '/changes/$changeId'
     | '/databases/$serviceId'
     | '/websites/$websiteId'
@@ -679,6 +689,7 @@ export interface FileRouteTypes {
     | '/alerts/rules'
     | '/apps/new'
     | '/catalog/$entryId'
+    | '/catalog/sources'
     | '/changes/$changeId'
     | '/websites/new'
     | '/alerts'
@@ -741,6 +752,7 @@ export interface FileRouteTypes {
     | '/_shell/apps/$serviceId'
     | '/_shell/apps/new'
     | '/_shell/catalog/$entryId'
+    | '/_shell/catalog/sources'
     | '/_shell/changes/$changeId'
     | '/_shell/databases/$serviceId'
     | '/_shell/websites/$websiteId'
@@ -972,6 +984,13 @@ declare module '@tanstack/react-router' {
       path: '/catalog/$entryId'
       fullPath: '/catalog/$entryId'
       preLoaderRoute: typeof ShellCatalogEntryIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/catalog/sources': {
+      id: '/_shell/catalog/sources'
+      path: '/catalog/sources'
+      fullPath: '/catalog/sources'
+      preLoaderRoute: typeof ShellCatalogSourcesRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/changes/$changeId': {
@@ -1347,6 +1366,7 @@ interface ShellRouteChildren {
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
   ShellAppsNewRoute: typeof ShellAppsNewRoute
   ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRouteWithChildren
+  ShellCatalogSourcesRoute: typeof ShellCatalogSourcesRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellDatabasesServiceIdRoute: typeof ShellDatabasesServiceIdRouteWithChildren
   ShellWebsitesWebsiteIdRoute: typeof ShellWebsitesWebsiteIdRouteWithChildren
@@ -1385,6 +1405,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
   ShellAppsNewRoute: ShellAppsNewRoute,
   ShellCatalogEntryIdRoute: ShellCatalogEntryIdRouteWithChildren,
+  ShellCatalogSourcesRoute: ShellCatalogSourcesRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellDatabasesServiceIdRoute: ShellDatabasesServiceIdRouteWithChildren,
   ShellWebsitesWebsiteIdRoute: ShellWebsitesWebsiteIdRouteWithChildren,

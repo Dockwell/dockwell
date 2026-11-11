@@ -5072,8 +5072,17 @@ msgstr "应用目录"
 msgid "Category"
 msgstr "分类"
 
+msgid "Commit"
+msgstr "提交"
+
+msgid "Couldn't read the sources"
+msgstr "无法读取来源"
+
 msgid "Couldn't read this app"
 msgstr "无法读取此应用"
+
+msgid "Dockwell's own"
+msgstr "Dockwell 自带"
 
 msgid "Documentation"
 msgstr "文档"
@@ -5099,6 +5108,9 @@ msgstr "安装 {app}"
 msgid "Licence"
 msgstr "许可证"
 
+msgid "Not tested by Dockwell"
+msgstr "未经 Dockwell 测试"
+
 msgid "On your servers"
 msgstr "在你的服务器上"
 
@@ -5114,6 +5126,9 @@ msgstr "持久存储"
 
 msgid "Reading this app"
 msgstr "正在读取此应用"
+
+msgid "Repository"
+msgstr "仓库"
 
 msgid "Screens may vary by version"
 msgstr "不同版本的界面可能有所差异"
@@ -5140,6 +5155,9 @@ msgstr "版本"
 msgid "Website"
 msgstr "网站"
 
+msgid "Where it comes from"
+msgstr "来源"
+
 msgid "You review the plan before anything runs."
 msgstr "运行前，你会先审核变更计划。"
 
@@ -5156,8 +5174,14 @@ msgstr "分类"
 msgid "Couldn't read the catalog"
 msgstr "无法读取应用目录"
 
+msgid "Couldn't read the sources, so apps from them aren't marked"
+msgstr "无法读取来源，因此未标记来自来源的应用"
+
 msgid "Find an app for your server. Explore what it does before you install."
 msgstr "为你的服务器寻找应用。安装前，先了解它的功能。"
+
+msgid "From the catalog {source}"
+msgstr "来自目录 {source}"
 
 msgid "No app matches that. Try another word, or all categories."
 msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。"
@@ -5165,11 +5189,17 @@ msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
 
+msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
+msgstr "也可以从 Git 仓库中的目录读取应用。<0>来源</0>"
+
 msgid "Reading the catalog"
 msgstr "正在读取应用目录"
 
 msgid "Search apps"
 msgstr "搜索应用"
+
+msgid "Sources"
+msgstr "来源"
 
 msgid "Update out"
 msgstr "有更新"
@@ -5219,6 +5249,9 @@ msgstr "打开 {app}"
 msgid "Reaches"
 msgstr "可访问"
 
+msgid "Reading the sources"
+msgstr "正在读取来源"
+
 msgid "What it installs"
 msgstr "安装内容"
 
@@ -5247,6 +5280,9 @@ msgstr "{0, plural, other {已生成 # 个密钥}}"
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
 
+msgid "{source} · Not tested by Dockwell"
+msgstr "{source} · 未经 Dockwell 测试"
+
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
 
@@ -5267,6 +5303,115 @@ msgstr "已发布版本 {next}。"
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "A source adds the apps in a public Git repository."
+msgstr "来源会加入公开 Git 仓库中的应用。"
+
+msgid "A source is already named {name}. Use another name."
+msgstr "已有名为 {name} 的来源。请换一个名称。"
+
+msgid "Add a catalog source"
+msgstr "添加目录来源"
+
+msgid "Add a source"
+msgstr "添加来源"
+
+msgid "Another commit"
+msgstr "其他提交"
+
+msgid "Apps from a public Git repository, pinned at one commit"
+msgstr "来自公开 Git 仓库的应用，固定在一个提交"
+
+#. placeholder {0}: chosen.commit.slice(0, 12)
+msgid "At {0} now. It stays there until you move it."
+msgstr "当前位于 {0}。在你切换之前不会变动。"
+
+msgid "Can't be read now, so its apps are out of the catalog"
+msgstr "暂时无法读取，其应用不在应用目录中"
+
+msgid "Catalog sources"
+msgstr "目录来源"
+
+msgid "Catalogs Dockwell reads apps from beside its own"
+msgstr "除自带目录外，Dockwell 读取应用的目录"
+
+msgid "Commit copied"
+msgstr "已复制提交"
+
+msgid "Copy the commit"
+msgstr "复制提交"
+
+#. placeholder {0}: sentence(err)
+msgid "Dockwell can't read that commit: {0}"
+msgstr "Dockwell 无法读取该提交：{0}"
+
+msgid "Dockwell's own catalog is all it reads"
+msgstr "目前只读取 Dockwell 自带的目录"
+
+msgid "Entries at {folderWords}"
+msgstr "条目位于 {folderWords}"
+
+msgid "Folder"
+msgstr "文件夹"
+
+msgid "Its top"
+msgstr "仓库根目录"
+
+msgctxt "catalog source"
+msgid "Move"
+msgstr "切换提交"
+
+msgid "Move to another commit"
+msgstr "切换到其他提交"
+
+msgid "Move {name} to another commit"
+msgstr "将 {name} 切换到其他提交"
+
+msgid "Named {name} · entries at {folderWords}"
+msgstr "名称 {name} · 条目位于 {folderWords}"
+
+msgid "No branch or tag is at this commit."
+msgstr "没有分支或标签位于此提交。"
+
+msgid "Pin to"
+msgstr "固定到"
+
+msgid "Read. It has {count} or more branches and tags."
+msgstr "已读取。共有 {count} 个或更多分支和标签。"
+
+msgid "Reading the repository"
+msgstr "正在读取仓库"
+
+msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
+msgstr "请使用小写字母、数字和短横线，并以字母开头，例如 community。"
+
+msgid "Use the commit in full, as 40 hex digits, or choose a branch."
+msgstr "请填写完整的 40 位十六进制提交，或选择一个分支。"
+
+msgid "Use the repository's https:// URL."
+msgstr "请填写仓库的 https:// 地址。"
+
+msgid "Where its entries are. Empty is its top."
+msgstr "条目所在位置。留空表示仓库根目录。"
+
+msgid "its top"
+msgstr "仓库根目录"
+
+#. placeholder {0}: at.join(", ")
+msgid "{0} is at this commit."
+msgstr "{0} 位于此提交。"
+
+msgid "{count, plural, =0 {No apps from here} one {# app from here} other {# apps from here}}"
+msgstr "{count, plural, =0 {这里没有应用} other {这里有 # 个应用}}"
+
+msgid "{count, plural, one {Read. It has # branch or tag.} other {Read. It has # branches and tags.}}"
+msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
+
+msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
+msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
+
+msgid "{short} (tag)"
+msgstr "{short}（标签）"
 
 msgid "Open full size"
 msgstr "查看原图"
@@ -6021,6 +6166,9 @@ msgstr "文件中的同名服务会替换它，文件未提到的服务会被删
 msgid "A service of the same name in the file replaces it."
 msgstr "文件中的同名服务会替换它。"
 
+msgid "Adds {names}."
+msgstr "添加 {names}。"
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
 
@@ -6050,6 +6198,9 @@ msgstr "请先备份不能丢失的内容，或者继续使用新版本。"
 
 msgid "Back up what you can't lose first."
 msgstr "请先备份不能丢失的内容。"
+
+msgid "Check it's the commit you mean."
+msgstr "请确认这是你想要的提交。"
 
 msgid "Check that it reads its data, and restore a backup if it won't."
 msgstr "请检查它能否读取数据，如无法读取，请恢复备份。"
@@ -6082,6 +6233,9 @@ msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
 
+msgid "Dockwell couldn't list the repository's branches and tags"
+msgstr "Dockwell 无法列出该仓库的分支和标签"
+
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "该网络不是 Dockwell 创建的，并且可以绕过服务器的防火墙。网络上的其他内容（包括其他项目的服务）都能访问 {name}，它也能访问它们。"
 
@@ -6096,6 +6250,9 @@ msgstr "不要再次启动它的 Compose 项目。"
 
 msgid "Don't write a secret in a variable's name."
 msgstr "不要把机密写在变量名中。"
+
+msgid "Each keeps running as it is."
+msgstr "它们会照常运行。"
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
@@ -6126,6 +6283,9 @@ msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH �
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
+
+msgid "Installs of them keep running, with no upgrades."
+msgstr "已安装的会继续运行，但不再有升级。"
 
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "它来自 Compose 项目 {project}。在 Dockwell 更换它的镜像之前，运行该项目的工具会作用于这个容器。更换之后，再次启动该项目会启动第二个副本，使用相同的目录和相同的名称。如果是面板或脚本在运行它，使用其移除功能之前，请先弄清楚这会对 {where} 做什么，因为它可能会删除此服务挂载的内容。如果是你自己运行的 docker compose，请不要再运行那个文件。"
@@ -6166,6 +6326,9 @@ msgstr "它加入用户组 <0>{path}</0>，相当于 root。"
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "它通过符号链接指向 <0>{leadsTo}</0>，而服务器的安全取决于那里的内容，所以能访问它就相当于拥有 root。"
 
+msgid "It may be an older commit, or a fork's."
+msgstr "它可能是较早的提交，或来自某个分叉。"
+
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "它能访问服务器能访问的一切，绕过 Docker 网络和防火墙。"
 
@@ -6190,6 +6353,9 @@ msgstr "它会相信该代理所说的请求来源。该范围内的其他任何
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其他内容都不会改动。"
 
+msgid "Its apps leave the catalog"
+msgstr "它的应用将离开应用目录"
+
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "它的环境变量会加密后一同进入 Dockwell。任何计划或日志都不会显示其值，容器也会继续运行。"
 
@@ -6205,8 +6371,14 @@ msgstr "从现在起不要在 1Panel 中操作它，也绝不要在那里卸载�
 msgid "Leave it alone in {tool} from now on."
 msgstr "从现在起不要在 {tool} 中操作它。"
 
+msgid "Leaves out {file}"
+msgstr "不收录 {file}"
+
 msgid "More than one container answers to {shared} on {network}"
 msgstr "在 {network} 上有多个容器响应 {shared}"
+
+msgid "Moves {names} on, which an install of each can upgrade to."
+msgstr "更新 {names}，已安装的实例可以升级到新版本。"
 
 msgid "Name a network the proxy has to itself."
 msgstr "请指定一个由该代理独占的网络。"
@@ -6217,9 +6389,15 @@ msgstr "升级前不会创建备份"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "没有做过备份,数据保持现状"
 
+msgid "No branch or tag is at this commit now"
+msgstr "当前没有分支或标签指向这个提交"
+
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
+
+msgid "Nothing installed from this catalog upgrades to them."
+msgstr "从此目录安装的应用不会升级到它们。"
 
 msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "密码会恢复为当时的值。如果无法加载，现在的内容会恢复回来。服务器会将其副本保留 7 天，撤销此操作即可恢复。"
@@ -6253,6 +6431,12 @@ msgstr "{0} 上的 SSH 只对 {from} 开放"
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
 
+msgid "Takes away {names}"
+msgstr "移除 {names}"
+
+msgid "Takes {ids} from another catalog"
+msgstr "从另一个目录接管 {ids}"
+
 msgid "That copy is {size}, and what was made since goes."
 msgstr "该副本大小为 {size}，之后产生的内容将丢失。"
 
@@ -6273,6 +6457,9 @@ msgstr "这是服务器本身，绕过其容器，位于 {at}。"
 
 msgid "That's what the server kept on {taken}, {size}."
 msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。"
+
+msgid "The catalog shows no apps from this commit."
+msgstr "应用目录不会显示这个提交中的任何应用。"
 
 msgid "The data stays as it is now"
 msgstr "数据保持现状"
@@ -6315,6 +6502,9 @@ msgstr "它们在 {name} 运行的内容中运行，因此也能访问它在服�
 
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
+
+msgid "This catalog comes first, so the catalog shows its apps."
+msgstr "此目录优先，因此应用目录显示它的应用。"
 
 msgid "This copy was taken with the app running"
 msgstr "此副本是在应用运行时复制的"
@@ -6389,12 +6579,24 @@ msgstr "你选择了不备份。撤销会恢复旧版本，但不会恢复新版
 msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
 msgstr "https:// 地址将报错，已看到其 HSTS 的浏览器在 HSTS 过期前会拒绝明文 HTTP。"
 
+#. placeholder {0}: ref.slice("refs/heads/".length)
+msgid "the branch {0}"
+msgstr "分支 {0}"
+
 msgid "the folder it runs from"
 msgstr "它运行所在的目录"
+
+#. placeholder {0}: ref.slice("refs/tags/".length)
+msgid "the tag {0}"
+msgstr "标签 {0}"
 
 #. placeholder {0}: all.length
 msgid "{0, plural, one {# resource} other {# resources}}"
 msgstr "{0, plural, other {# 项资源}}"
+
+#. placeholder {0}: note.names.length
+msgid "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at} are at.}}"
+msgstr "{0, plural, other {这是 {at} 所在的提交。}}"
 
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
@@ -6412,11 +6614,17 @@ msgstr "{by} 以 root 在那里写入，所以无论文件属于谁都能修改�
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} 在那里写入。换成其他镜像的代码时需要重新确认，因为任何镜像中的程序都可能以 root 运行。"
 
+msgid "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
+msgstr "{count, plural, other {应用目录将显示这个提交中的 # 个应用：{names}。}}"
+
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 msgstr "{database} 会在空卷上重新开始并加载转储（{size}），因此之后产生的内容将丢失。"
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
+
+msgid "{ids} will come from another catalog"
+msgstr "{ids} 将改由另一个目录提供"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
@@ -6528,6 +6736,12 @@ msgstr "{name} 的 {where} 中含有你的 .env 里 {variable} 的值"
 #. placeholder {0}: line.text
 msgid "{name}: {0}"
 msgstr "{name}：{0}"
+
+msgid "{projects} can upgrade again, from the catalog each came from."
+msgstr "{projects} 可以再次从各自的来源目录升级。"
+
+msgid "{projects} will have no upgrades"
+msgstr "{projects} 将不再有升级"
 
 msgid "{project} already runs {names}"
 msgstr "{project} 已在运行 {names}"
@@ -11256,9 +11470,6 @@ msgstr "（有未提交的修改）"
 msgid "Check it from a terminal"
 msgstr "在终端中检查"
 
-msgid "Commit"
-msgstr "提交"
-
 msgid "Committed"
 msgstr "提交时间"
 
@@ -12627,9 +12838,6 @@ msgstr "Web 服务器无法访问（{mode}），因此会返回 403。"
 
 msgid "Files in a folder"
 msgstr "文件夹中的文件"
-
-msgid "Folder"
-msgstr "文件夹"
 
 msgid "For a backend that serves several names. Off, it gets this website's domain."
 msgstr "适用于服务多个主机名的后端。关闭时，它收到此网站的域名。"
