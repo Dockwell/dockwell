@@ -23,9 +23,10 @@ jobs:
   go:
     name: Go
     runs-on: ubuntu-24.04
-    # It takes about 17 minutes under the race detector on 2026-11-07, and grows with each feature, so this
-    # leaves room for a slow runner rather than failing at random. A hang still ends it. #197 is to bring it down.
-    timeout-minutes: 35
+    # It takes about 27 minutes under the race detector on 2026-11-11 (internal/control alone up to 17), and grows
+    # with each feature, so this leaves room for a slow runner rather than failing at random. A hang still ends it.
+    # #197 is to bring it down, and #507 to lower these limits again after.
+    timeout-minutes: 45
     # The store's tests run on SQLite and on this Postgres (ADR 0014).
     services:
       postgres:
@@ -83,7 +84,7 @@ jobs:
         run: $GOTOOL golangci-lint fmt --diff
       - name: Test
         if: steps.pick.outputs.run == 'true'
-        run: go test -timeout 20m -race -coverprofile=coverage.out ./...
+        run: go test -timeout 30m -race -coverprofile=coverage.out ./...
       - name: Test the agent build
         if: steps.pick.outputs.run == 'true'
         run: go test -race -tags agent $AGENT_PKGS
@@ -179,8 +180,8 @@ jobs:
   caddy-go:
     name: Go on Caddy
     runs-on: ubuntu-24.04
-    # 8.5 minutes at most.
-    timeout-minutes: 17
+    # 7 to 9 minutes on 2026-11-11, and a slow runner took internal/ingress/caddy past go test's default 10 (#507).
+    timeout-minutes: 20
     # The ingress against real Caddy and Pebble, on high ports, with no root and no
     # Docker (ADR 0024).
     steps:
@@ -205,7 +206,7 @@ jobs:
           echo "DOCKWELL_TEST_PEBBLE=$RUNNER_TEMP/ingress-tools" >> "$GITHUB_ENV"
       - name: Tests against Caddy
         if: steps.pick.outputs.run == 'true'
-        run: go test -race -run 'OnRealCaddy' -v ./internal/ingress/... ./internal/website/...
+        run: go test -timeout 15m -race -run 'OnRealCaddy' -v ./internal/ingress/... ./internal/website/...
 
   docker-e2e:
     name: Service end to end on Docker
