@@ -11,6 +11,7 @@ AlertService.TestAlertChannel                  apply        admin      admin    
 AlertService.UnacknowledgeAlert                apply        admin      admin      install
 AlertService.UnmuteAlerts                      apply        admin      admin      install
 AuditService.ListAuditEvents                   read         admin      admin      install  session
+AuthService.BeginAcceptInvite                  read         nothing    nothing    anyone
 AuthService.BeginAddPasskey                    read         viewer     viewer     self
 AuthService.BeginClaim                         read         nothing    nothing    anyone
 AuthService.BeginPasskeySignIn                 read         nothing    nothing    anyone
@@ -18,8 +19,10 @@ AuthService.BeginStepUp                        read         viewer     viewer   
 AuthService.BeginTotpSetup                     apply        viewer     viewer     self
 AuthService.CancelTotpSetup                    apply        viewer     viewer     self
 AuthService.CheckClaim                         read         nothing    nothing    anyone
+AuthService.CheckInvite                        read         nothing    nothing    anyone
 AuthService.ConfirmTotpSetup                   apply        viewer     viewer     self
 AuthService.DisableTotp                        destructive  viewer     viewer     self
+AuthService.FinishAcceptInvite                 apply        nothing    nothing    anyone
 AuthService.FinishAddPasskey                   apply        viewer     viewer     self
 AuthService.FinishClaim                        apply        nothing    nothing    anyone
 AuthService.FinishPasskeySignIn                apply        nothing    nothing    anyone
@@ -104,7 +107,9 @@ ImportService.ImportOnePanel                   plan         admin      admin    
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
 LogService.WatchLogs                           read         viewer     viewer     project
+MemberService.CreateInvite                     apply        admin      admin      install  session
 MemberService.ListMembers                      read         admin      admin      install  session
+MemberService.RevokeInvite                     apply        admin      admin      install  session
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project

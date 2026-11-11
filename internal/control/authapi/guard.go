@@ -40,6 +40,10 @@ var publicProcedures = map[string]bool{
 	dockwellv1connect.AuthServiceFinishPasskeySignInProcedure: true,
 	dockwellv1connect.AuthServiceSignInWithCodeProcedure:      true,
 	dockwellv1connect.AuthServiceSignInWithLinkProcedure:      true,
+	// Someone invited accepts before they sign in.
+	dockwellv1connect.AuthServiceCheckInviteProcedure:        true,
+	dockwellv1connect.AuthServiceBeginAcceptInviteProcedure:  true,
+	dockwellv1connect.AuthServiceFinishAcceptInviteProcedure: true,
 	// The sign-in screen shows the version.
 	dockwellv1connect.SystemServiceGetVersionProcedure: true,
 	// The gRPC equivalent of /healthz, for supervisors that speak gRPC.
