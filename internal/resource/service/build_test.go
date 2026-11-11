@@ -174,8 +174,10 @@ func TestAServicesWriterIsItsCode(t *testing.T) {
 		d.WriterOf(built("https://github.com/acme/web", func(b *resourcev1.ImageBuild) { b.Args = map[string]string{"A": "1", "B": "2"} })) {
 		t.Error("two builds' arguments read as one writer")
 	}
-	if got := d.WriterOf(&resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "ghcr.io/acme/web:1.4"}}}); got != "ghcr.io/acme/web" {
-		t.Errorf("an image's writer is %q, not its repository", got)
+	// One that runs an image names none, and the engine names it by the image's
+	// repository, so another tag of it is the same code (resource.WriterNamer).
+	if got := d.WriterOf(&resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "ghcr.io/acme/web:1.4"}}}); got != "" {
+		t.Errorf("an image's writer is %q, not the image's repository, which the engine names", got)
 	}
 }
 
