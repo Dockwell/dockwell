@@ -328,6 +328,46 @@ func TestWhatRunsUnderHostAccessIsAnAdminsToChange(t *testing.T) {
 	})
 }
 
+// A built image keeps its service's name whatever it is built from, so under
+// access an admin gave, a build of another Git repository, or with another
+// build or start command, starts something else, as another image repository
+// does (ADR 0046). Another commit, branch or Dockerfile of the same repository
+// is the ordinary deploy.
+func TestABuildOfAnotherRepositoryStartsSomethingElse(t *testing.T) {
+	built := func(edit func(b *resourcev1.ImageBuild)) *resourcev1.Service {
+		b := &resourcev1.ImageBuild{
+			Source:     &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: "https://git.example.com/acme/web.git", Ref: "refs/heads/main", Commit: strings.Repeat("a", 40)}},
+			Dockerfile: "Dockerfile",
+		}
+		if edit != nil {
+			edit(b)
+		}
+		return &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "dockwell.invalid/svc_web:" + b.GetGit().GetCommit()[:12]}}, Build: b}
+	}
+	given := built(nil)
+	for _, c := range []struct {
+		what  string
+		now   *resourcev1.Service
+		other bool
+	}{
+		{"another commit", built(func(b *resourcev1.ImageBuild) { b.GetGit().Commit = strings.Repeat("b", 40) }), false},
+		{"another branch", built(func(b *resourcev1.ImageBuild) { b.GetGit().Ref = "refs/heads/next" }), false},
+		{"another Dockerfile of the repository", built(func(b *resourcev1.ImageBuild) { b.Dockerfile = "deploy/Dockerfile" }), false},
+		{"another repository", built(func(b *resourcev1.ImageBuild) { b.GetGit().Url = "https://git.example.com/someone/else.git" }), true},
+		{"another start command", built(func(b *resourcev1.ImageBuild) { b.StartCommand = "sh -c id" }), true},
+		{"another build command", built(func(b *resourcev1.ImageBuild) { b.BuildCommand = "sh -c id" }), true},
+	} {
+		if got := startsSomethingElse(given.GetApp().GetImage(), c.now.GetApp().GetImage(), given, c.now); got != c.other {
+			t.Errorf("a build of %s starts something else: %v, want %v", c.what, got, c.other)
+		}
+	}
+	// From an image to a build of the service's own, and back, is another repository already.
+	image := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}
+	if !startsSomethingElse("nginx:1.27", given.GetApp().GetImage(), image, given) || !startsSomethingElse(given.GetApp().GetImage(), "nginx:1.27", given, image) {
+		t.Error("an image that becomes a build, or a build an image, doesn't start something else")
+	}
+}
+
 // An item's environment is protected if it is so before the change or after
 // it: a new production protects what's made in it, and deleting an empty
 // production is protected as it was. One from before protection was written,

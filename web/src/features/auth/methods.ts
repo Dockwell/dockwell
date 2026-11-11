@@ -76,6 +76,14 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.restoreBackup": "may",
   "BackupService.testBackupDestination": "may",
 
+  "BuildService.cancelBuild": "may",
+  "BuildService.detectBuild": "may",
+  "BuildService.getBuild": "unused",
+  "BuildService.listBuilds": "unused",
+  "BuildService.listRepositoryBranches": "may",
+  "BuildService.readBuildLog": "read",
+  "BuildService.watchBuild": "read",
+
   "CatalogService.getCatalogEntry": "read",
   "CatalogService.installCatalogEntry": "may",
   "CatalogService.listCatalogEntries": "read",

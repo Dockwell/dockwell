@@ -3,12 +3,12 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeService, LogService, Protocol, ServiceService } from "@dockwell/api";
-import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
+import { BuildState, ChangeService, LogService, Protocol, ServiceService } from "@dockwell/api";
+import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
-
+import { shownRef } from "../../lib/built";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -32,6 +32,7 @@ import {
   revisionName,
   shortImage,
 } from "./app";
+import { shortCommit, shownRepository } from "./Build";
 import { DeploySheet } from "./DeploySheet";
 import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
 import { useHealth } from "./health";
@@ -196,15 +197,30 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const runtimes = useRuntimes().data;
   const runsOn = runtime ? runtimeWords(runtime, runtimes) : "";
   const revision = revisionName(service.revision);
-  const latest = useRevisions(serviceId).revisions?.[0];
+  const revisions = useRevisions(serviceId).revisions;
+  const latest = revisions?.[0];
   const ago = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
   const runsWord = healthWords.word(health);
-  const recordWord = recordSaysMore(state) ? words.state(state) : "";
+  // A build someone cancelled stops a deploy on purpose, and isn't news the way a rollback is (ADR 0046).
+  const cancelled =
+    state.kind === "rolled-back" &&
+    revisions?.find((r) => r.change?.id === service.rolledBackChangeId)?.build?.state === BuildState.CANCELLED;
+  const recordWord = cancelled ? t`Build cancelled` : recordSaysMore(state) ? words.state(state) : "";
   const moving = isMoving(state);
   // Nothing changes what can't be read, which the overview says.
   const changeable = state.kind !== "unreadable";
   // Nothing restarts while it is moving, or where it has no server to do it on.
   const restartable = !moving && state.kind !== "unplaced" && changeable;
+  const build = service.spec?.build;
+  const source = build?.source.case === "git" ? build.source.value : undefined;
+  // An app that builds from Git deploys the newest commit of its branch, with nothing to choose (ADR 0046).
+  const deploy = () =>
+    source
+      ? sheet.open({
+          kind: "plan",
+          make: () => createClient(ServiceService, transport).deployService({ id: service.id }),
+        })
+      : setDeploying(true);
   const restart = () =>
     sheet.open({
       kind: "plan",
@@ -251,8 +267,15 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       badge={
         <>
           <HealthBadge health={health} title={healthTitle} />
+          {source ? (
+            <Tag icon="branch" className="app-branch">
+              {shownRef(source.ref) || t`default branch`}
+            </Tag>
+          ) : null}
           <code className="app-revision">{revision}</code>
-          {recordWord ? <StatusBadge status={state.status} label={recordWord} labelIsState /> : null}
+          {recordWord ? (
+            <StatusBadge status={cancelled ? "stopped" : state.status} label={recordWord} labelIsState />
+          ) : null}
         </>
       }
       lead={
@@ -272,6 +295,10 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               Dockwell is putting <code>{image}</code> back, started {ago}
             </Trans>
           )
+        ) : moving && source ? (
+          <Trans>
+            Building and deploying <code>{shownRepository(source.url)}</code>, started {ago}
+          </Trans>
         ) : moving ? (
           <>
             <Trans>
@@ -281,7 +308,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           </>
         ) : (
           <>
-            {runtime ? (
+            {source ? (
+              <span className="app-built-from">
+                <Trans>
+                  <code>{shownRepository(source.url)}</code> at <code>{shortCommit(source.commit)}</code>
+                </Trans>
+              </span>
+            ) : runtime ? (
               <Trans>
                 {runsOn} from <code>{runtime.folder}</code>
               </Trans>
@@ -289,7 +322,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <WholeImage image={image} />
             )}
             {" · "}
-            {state.kind === "rolled-back" ? (
+            {cancelled ? (
+              <Trans>build cancelled {ago}</Trans>
+            ) : state.kind === "rolled-back" ? (
               <Trans>rolled back by Dockwell {ago}</Trans>
             ) : (
               who.deployed(latest?.change, ago)
@@ -313,12 +348,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             <Trans>Logs</Trans>
           </RouterButtonLink>
           {changeable ? (
-            <Button
-              variant="primary"
-              icon="deploy"
-              onClick={() => setDeploying(true)}
-              {...(runtime ? mayChangeVersion : mayDeploy).off}
-            >
+            <Button variant="primary" icon="deploy" onClick={deploy} {...(runtime ? mayChangeVersion : mayDeploy).off}>
               {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
             </Button>
           ) : null}
@@ -377,7 +407,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             variant="primary"
             icon="deploy"
             size="lg"
-            onClick={() => setDeploying(true)}
+            onClick={deploy}
             {...(runtime ? mayChangeVersion : mayDeploy).off}
           >
             {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}

@@ -5,7 +5,7 @@ import { cx } from "@dockwell/ui";
 import { Fragment } from "react";
 
 import { useRuntimes } from "../websites/website";
-import { imageOf } from "./app";
+import { builtCommit, imageOf } from "./app";
 import { runtimeOf, runtimeWords } from "./runtime";
 
 /**
@@ -14,6 +14,15 @@ import { runtimeOf, runtimeWords } from "./runtime";
  * as ten copies of it. The start clips first, and hovering says it whole.
  */
 export function ImageName({ image, className }: { image: string; className?: string | undefined }) {
+  const built = builtCommit(image);
+  if (built) {
+    // An image Dockwell built says which commit it is; its name says nothing more.
+    return (
+      <code className={cx("image-name", className)} title={image}>
+        <span className="image-name-end">{built}</span>
+      </code>
+    );
+  }
   const at = image.lastIndexOf("/") + 1;
   return (
     <code className={cx("image-name", className)} title={image}>

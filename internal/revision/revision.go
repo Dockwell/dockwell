@@ -127,6 +127,10 @@ type Agents interface {
 type Engine struct {
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
+	// sources reads what a build's branch or tag names now, and detector how its
+	// commit builds (ADR 0046).
+	sources  Sources
+	detector Detector
 	// roles has a person's change without a caller in its context refused
 	// (RequireRoles).
 	roles bool
@@ -327,6 +331,9 @@ type Intent struct {
 	Image    string `json:",omitempty"` // the image a deploy runs
 	Port     int    `json:",omitempty"` // the server's port that publishing opens
 	Revision int    `json:",omitempty"` // the revision a rollback puts back
+	// Commit and Ref are what a deploy builds, for a service that builds from Git.
+	Commit string `json:",omitempty"`
+	Ref    string `json:",omitempty"`
 }
 
 // Plan is what applying a change would do.
@@ -505,6 +512,8 @@ type item struct {
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
+	// observed says its spec is what a server has (Edit.Observed).
+	observed bool
 	ref      resource.Ref
 	level    resource.Level
 	// runs says the item's kind runs on servers: a host-level or
@@ -701,8 +710,14 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			items[i].restore = &restore
 		}
 	}
+	if err := e.pinBuilds(ctx, items, changeID); err != nil {
+		return nil, err
+	}
 	plan, err := e.plan(ctx, changeID, items, false)
 	if err != nil {
+		return nil, err
+	}
+	if err := e.detectBuilds(ctx, plan, items); err != nil {
 		return nil, err
 	}
 	if err := e.checkRestores(ctx, plan, items); err != nil {
@@ -1241,7 +1256,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if err != nil {
 				return err
 			}
-			it.pull, it.run, it.adopt, it.adoptName, it.reverses = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses
+			it.pull, it.run, it.adopt, it.adoptName, it.reverses, it.observed = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses, ed.Observed
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -2373,6 +2388,8 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 		return
 	}
 	writer, detail, user := docker.Repository(images.ImageOf(spec)), "", ""
+	// A service that builds its image, or runs from a folder, is named by its code,
+	// which its image's repository doesn't say (ADR 0046, ADR 0058).
 	if w, ok := t.(resource.WriterNamer); ok {
 		if named := w.WriterOf(spec); named != "" {
 			writer = named
@@ -2573,10 +2590,11 @@ func (e *Engine) keptWhileRunningElse(it *item, server string, reaches []resourc
 }
 
 // startsSomethingElse reports a spec that starts another program than before:
-// another repository, command (including an exec health check) or entrypoint.
+// another repository, an image built from another one (buildsSomethingElse),
+// command (including an exec health check) or entrypoint.
 // A kind whose spec isn't a container's counts any change to what it runs.
 func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Message) bool {
-	if docker.Repository(imageBefore) != docker.Repository(imageAfter) {
+	if docker.Repository(imageBefore) != docker.Repository(imageAfter) || buildsSomethingElse(before, after) {
 		return true
 	}
 	was, now := runs(before), runs(after)
@@ -2586,6 +2604,24 @@ func startsSomethingElse(imageBefore, imageAfter string, before, after proto.Mes
 	return !slices.Equal(was.GetCommand(), now.GetCommand()) || !slices.Equal(was.GetEntrypoint(), now.GetEntrypoint()) ||
 		was.GetNoEntrypoint() != now.GetNoEntrypoint() ||
 		!slices.Equal(was.GetHealthcheck().GetTest(), now.GetHealthcheck().GetTest())
+}
+
+// buildsSomethingElse reports a service whose image is built from another
+// program than before (ADR 0046): another Git repository, or another build or
+// start command, as a built image keeps its service's own name whatever it is
+// built from. Another commit, branch or Dockerfile of the same repository is
+// the ordinary deploy, as another tag is.
+func buildsSomethingElse(before, after proto.Message) bool {
+	was, ok := before.(*resourcev1.Service)
+	now, also := after.(*resourcev1.Service)
+	if !ok || !also {
+		return false
+	}
+	b, a := was.GetBuild(), now.GetBuild()
+	if b == nil || a == nil {
+		return (b == nil) != (a == nil)
+	}
+	return b.GetGit().GetUrl() != a.GetGit().GetUrl() || b.GetBuildCommand() != a.GetBuildCommand() || b.GetStartCommand() != a.GetStartCommand()
 }
 
 // runs is the container a spec runs: a container's own, or a service's app.

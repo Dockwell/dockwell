@@ -62,6 +62,9 @@ type Field struct {
 	// Arg makes the field the command's argument instead of a flag, as a
 	// request's id is.
 	Arg bool
+	// OptionalArg lets the argument be omitted, as (dockwell.v1.optional_arg)
+	// says for a request that also accepts another input.
+	OptionalArg bool
 	// Sensitive marks a field that may hold a secret.
 	Sensitive bool
 	// FromFile is a text field's (dockwell.v1.from_file): its flag takes the

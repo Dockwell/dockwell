@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type Change, ChangeState, DeploymentState, FieldOp, type ServiceRevision } from "@dockwell/api";
+import { BuildState, type Change, ChangeState, DeploymentState, FieldOp, type ServiceRevision } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { createElement, type ReactNode, useCallback, useMemo } from "react";
@@ -11,6 +11,11 @@ import { intentOf } from "../changes/plan";
 import { useChangeWords } from "../changes/words";
 import { type AppState, bareImage, fieldName, fieldOfChange, shortImage } from "./app";
 import { useAppWords } from "./words";
+
+/** A change whose plan builds an image before it runs it (ADR 0046). */
+export function plansBuild(change: Change | undefined): boolean {
+  return (change?.plan?.servers ?? []).some((s) => s.steps.some((step) => step.build !== undefined));
+}
 
 /** A revision's place in an app's history, as a status and a word. */
 export interface Look {
@@ -32,6 +37,13 @@ export function useRevisionLook() {
     (rev: ServiceRevision, latest: bigint, state?: AppState): Look => {
       const change = rev.change;
       if (rev.deleted) return { status: "stopped", word: t`Deleted` };
+      // A build that someone cancelled, or that waits or runs, says so rather than "failed" or "deploying" (ADR 0046).
+      if (rev.build?.state === BuildState.CANCELLED) return { status: "stopped", word: t`Cancelled` };
+      if (change?.state === ChangeState.APPLYING) {
+        if (rev.build?.state === BuildState.BUILDING) return { status: "deploying", word: t`Building` };
+        if (rev.build?.state === BuildState.QUEUED || (!rev.build && plansBuild(change)))
+          return { status: "unknown", word: t`Queued` };
+      }
       if (change?.state === ChangeState.FAILED || rev.deployments.some((d) => d.state === DeploymentState.FAILED)) {
         return { status: "down", word: t`Failed` };
       }
@@ -71,14 +83,23 @@ export function useRevisionTitle() {
   const words = useAppWords();
   const changeWords = useChangeWords();
   return useCallback(
-    (rev: ServiceRevision): RevisionTitle => {
+    (rev: ServiceRevision, all: readonly ServiceRevision[] = []): RevisionTitle => {
       const plain = (text: string): RevisionTitle => ({ node: text, text });
       const change = rev.change;
       if (rev.deleted) return plain(t`Deleted`);
       if (change?.rollback) {
         // Its own record says how it went, and it may not be over, or may have failed too.
         if (change.state === ChangeState.FAILED) return plain(t`Rolling back after a failed deploy failed too`);
-        if (change.state === ChangeState.APPLIED) return plain(t`Rolled back after a failed deploy`);
+        // A deploy that never got past its build says so: what failed was the build.
+        const undone = all.find((r) => r.change?.id !== undefined && r.change.id === change.reverts)?.build;
+        const done = change.state === ChangeState.APPLIED;
+        if (undone?.state === BuildState.CANCELLED) {
+          return plain(done ? t`Rolled back after a cancelled build` : t`Rolling back after a cancelled build`);
+        }
+        if (undone?.state === BuildState.FAILED) {
+          return plain(done ? t`Rolled back after a failed build` : t`Rolling back after a failed build`);
+        }
+        if (done) return plain(t`Rolled back after a failed deploy`);
         return plain(t`Rolling back after a failed deploy`);
       }
       if (rev.rolledBackTo > 0n) {

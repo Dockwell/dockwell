@@ -12,7 +12,7 @@ import {
   type ServiceRevision,
 } from "@dockwell/api";
 import type { Status } from "@dockwell/ui";
-
+import { builtCommit } from "../../lib/built";
 import { factAndRest, failedStep, withoutIds } from "../changes/plan";
 import type { ServerSummary } from "../servers/server";
 import type { AppHealth, HealthKind } from "./health";
@@ -417,8 +417,12 @@ export function failedAtField(change: Change, name: string, fix: (reason: string
 
 /** An image by what tells it apart on a narrow screen: the last part of its name, and its tag. */
 export function shortImage(image: string): string {
+  const built = builtCommit(image);
+  if (built) return built;
   return image.slice(image.lastIndexOf("/") + 1);
 }
+
+export { builtCommit };
 
 /**
  * An image change in few characters: where only the tag moves, the name goes
@@ -426,6 +430,9 @@ export function shortImage(image: string): string {
  * part of it says enough. Otherwise both in full.
  */
 export function imageChange(from: string, to: string): { from: string; to: string } {
+  const builtFrom = builtCommit(from);
+  const builtTo = builtCommit(to);
+  if (builtFrom || builtTo) return { from: builtFrom ?? shortImage(from), to: builtTo ?? shortImage(to) };
   const repo = (image: string) => image.slice(0, Math.max(image.lastIndexOf(":"), 0));
   if (from !== "" && repo(from) !== "" && repo(from) === repo(to)) {
     return { from: from.slice(repo(from).length + 1), to: to.slice(repo(to).length + 1) };

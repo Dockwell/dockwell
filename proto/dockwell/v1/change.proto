@@ -896,6 +896,11 @@ message Intent {
   int32 port = 4;
   // The revision a rollback puts back.
   int64 revision = 5;
+  // The commit a deploy builds, for a service that builds from Git, in full.
+  // Numbered apart, as open work adds to this message.
+  string commit = 130;
+  // The branch or tag that commit was read from.
+  string ref = 131;
 }
 
 // IntentKind is what a change is for.
@@ -1207,8 +1212,111 @@ message PlanStep {
   // is there, and a stranger's. Unset on a step that leaves SSH open to
   // anywhere.
   AccessStays stays = 43;
+  // What the step builds, from source, before it replaces what runs. A build
+  // that fails leaves what runs as it was. Numbered apart, as open work adds to
+  // this message.
+  BuildPlan build = 130;
   // What a step that sets a fail2ban jail says of whom it can ban (ADR 0052).
   JailPlan jail = 44;
+}
+
+// BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
+// with Railpack, into an image of its own. See docs/adr/0046-builds-from-git.md.
+message BuildPlan {
+  // The repository, such as "https://github.com/acme/web.git".
+  string url = 1;
+  // The branch or tag the commit was read from, such as "main".
+  string ref = 2;
+  // The commit, in full.
+  string commit = 3;
+  // The folder the build starts from. Empty is the repository's top.
+  string context = 4;
+  // The Dockerfile, as a path in context.
+  string dockerfile = 5;
+  // The image it makes.
+  string image = 6;
+  // What the build settings choose to build with. Unset takes the Dockerfile
+  // when the commit has one, and Railpack when it hasn't.
+  dockwell.resource.v1alpha1.ImageBuild.Builder builder = 7;
+  // What reading the commit found: what builds it, and with Railpack, what it
+  // installs and runs. Empty when the build names its Dockerfile, or the server
+  // couldn't be asked; the build then reads it as it starts.
+  BuildDetection detection = 8;
+}
+
+// BuildDetection is what reading a commit of a repository found, before
+// anything builds: whether it has a Dockerfile, and what Railpack makes of it.
+// See docs/adr/0046-builds-from-git.md.
+message BuildDetection {
+  // What builds it: BUILDER_DOCKERFILE or BUILDER_RAILPACK.
+  dockwell.resource.v1alpha1.ImageBuild.Builder builder = 1;
+  // The Dockerfile it builds with, as a path in the repository, when there is
+  // one.
+  string dockerfile = 2;
+  // The version of Railpack that read it, such as "0.43.0".
+  string railpack_version = 3;
+  // What Railpack found the source is, such as "node", first what decides.
+  repeated string providers = 4;
+  // The languages and tools it installs, with their versions.
+  repeated DetectedPackage packages = 5;
+  // What it runs to build, step by step.
+  repeated DetectedStep steps = 6;
+  // The command the image starts with.
+  string start_command = 7;
+  // What Railpack warns of, such as "No node package manager detected, using
+  // npm", in its words.
+  repeated string warnings = 8;
+  // Why Railpack can't build it, in its words, when it can't.
+  string error = 9;
+  // With its Dockerfile, the image its last stage starts from, such as
+  // "node:22-alpine", unless a build argument names it.
+  string base_image = 10;
+  // What kind of problem error is, which says what to do about it.
+  DetectionProblem problem = 11;
+  // With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
+  string problem_tool = 12;
+  // The ports its Dockerfile's last stage says the app listens on (EXPOSE), TCP
+  // ones, lowest first, such as 8080. Empty with Railpack, and when it says none.
+  repeated int32 exposed_ports = 13;
+}
+
+// DetectionProblem is what kind of problem stops Railpack building a commit.
+enum DetectionProblem {
+  DETECTION_PROBLEM_UNSPECIFIED = 0;
+  // It can't tell what language the source is: add a Dockerfile, or set both
+  // a build and a start command.
+  DETECTION_PROBLEM_NO_PROVIDER = 1;
+  // It can't find a version of a language or tool the source asks for: change
+  // the version, or set RAILPACK_<TOOL>_VERSION as a build argument.
+  DETECTION_PROBLEM_VERSION = 2;
+  // Nothing starts the app: set the build's start command.
+  DETECTION_PROBLEM_NO_START = 3;
+  // The server couldn't reach where versions are listed. A plan goes ahead
+  // without the reading, and a build fails until the server can.
+  DETECTION_PROBLEM_NETWORK = 4;
+  // Anything else, in Railpack's words.
+  DETECTION_PROBLEM_OTHER = 5;
+}
+
+// DetectedPackage is a language or tool a Railpack build installs.
+message DetectedPackage {
+  // Its name, such as "node".
+  string name = 1;
+  // The version the source asks for, such as "22", or empty for Railpack's
+  // default.
+  string requested = 2;
+  // The version that is installed, such as "22.11.0".
+  string resolved = 3;
+  // Where the version came from, such as "package.json > engines > node".
+  string source = 4;
+}
+
+// DetectedStep is a step of a Railpack build and the commands it runs.
+message DetectedStep {
+  // Its name, such as "install" or "build".
+  string name = 1;
+  // The commands, such as "npm ci", in order.
+  repeated string commands = 2;
 }
 
 // JailPlan is whom a fail2ban jail, as planned, never bans, and who is signed

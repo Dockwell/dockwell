@@ -39,6 +39,7 @@ const (
 	Secret       = "sec"
 	Route        = "rte"
 	Backup       = "bkp"
+	Build        = "bld"
 	Drill        = "drl"
 	TaskRun      = "run"
 	AlertRule    = "alr"

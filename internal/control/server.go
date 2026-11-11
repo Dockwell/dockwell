@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	"connectrpc.com/connect"
@@ -47,6 +48,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/audit"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
+	"github.com/dockwell/dockwell/internal/control/builds"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/checks"
@@ -77,6 +79,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/control/websites"
+	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/panel"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -100,6 +103,9 @@ type Config struct {
 	// DNSLookup resolves names for DomainService.CheckDomain. Nil means the control
 	// server's resolver.
 	DNSLookup func(ctx context.Context, name string) ([]netip.Addr, error)
+	// Sources reads what a build's branch names (ADR 0046). Nil asks each
+	// repository over Git's smart HTTP protocol (package gitref).
+	Sources revision.Sources
 	// Build is reported by SystemService.GetVersion.
 	Build buildinfo.Info
 	// Panel is the panel build to serve. Nil means the one embedded in the binary.
@@ -363,8 +369,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
-		sources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
-		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, sources, cfg.Build.Commit, cfg.Logger), opts...))
+		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
+		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
@@ -395,7 +401,21 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			handle(dockwellv1connect.NewImportServiceHandler(importapi.New(cfg.Fleet, cfg.Agents, imports, ch, cfg.Logger), opts...))
 		}
+		sources := cfg.Sources
+		if sources == nil {
+			// A test's Git server is on this machine.
+			sources = &gitref.Resolver{Local: testing.Testing()}
+		}
+		cfg.Changes.SetSources(sources)
 		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		serviceHandler.Sources = sources
+		if cfg.Agents != nil {
+			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
+			buildHandler.SetSources(sources)
+			cfg.Changes.SetDetector(buildHandler)
+			serviceHandler.Builds = buildHandler
+			handle(dockwellv1connect.NewBuildServiceHandler(buildHandler, opts...))
+		}
 		if cfg.Auth != nil && cfg.Agents != nil && cfg.DataDir != "" {
 			key, err := opener.LoadKey(filepath.Join(cfg.DataDir, "opener.key"))
 			if err != nil {

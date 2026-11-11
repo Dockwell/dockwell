@@ -60,6 +60,8 @@ var idNames = map[string]string{
 	dockwellv1connect.TaskServiceGetTaskProcedure:                    "task",
 	dockwellv1connect.TaskServiceListTaskRunsProcedure:               "task",
 	dockwellv1connect.TaskServiceRunTaskProcedure:                    "task",
+	dockwellv1connect.BuildServiceListBuildsProcedure:                "service",
+	dockwellv1connect.BuildServiceDetectBuildProcedure:               "service",
 }
 
 // serviceFields are the calls whose service field names a service to read, by
@@ -73,9 +75,11 @@ var serviceFields = map[string]bool{
 // aboutTheRequest are what a response holds about the one thing its request
 // named, which checkScope checked there, or about servers, seen by name and
 // state: a change's steps, a service's log chunks and its servers, a Compose
-// file's variables, servers drift couldn't check. The filter leaves them as
-// they are, where it would otherwise leave out what it can't place.
+// file's variables, servers drift couldn't check, a build's log lines. The
+// filter leaves them as they are, where it would otherwise leave out what it
+// can't place.
 var aboutTheRequest = map[protoreflect.FullName]bool{
+	"dockwell.v1.BuildLine":       true,
 	"dockwell.v1.StepUpdate":      true,
 	"dockwell.v1.LogChunk":        true,
 	"dockwell.v1.ServerLogStatus": true,

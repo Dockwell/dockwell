@@ -54,10 +54,21 @@ type Handler struct {
 	db      *store.DB
 	keeper  *secrets.Keeper
 	logger  *slog.Logger
+	// Sources reads what a build's branch names, for a deploy of a service that
+	// builds from Git (ADR 0046).
+	Sources revision.Sources
+	// Builds says which build made each revision's image. Nil says none did.
+	Builds BuildReader
 	// Opener issues the addresses OpenService hands out. Nil opens no app.
 	Opener Opener
 	// Auth confirms an open with a passkey, and follows the session that asked.
 	Auth *auth.Service
+}
+
+// BuildReader reads the builds that made a service's revisions' images.
+type BuildReader interface {
+	// Of are the builds of a service for each of changes, by change.
+	Of(ctx context.Context, serviceID string, changes []string) (map[string]*dockwellv1.Build, error)
 }
 
 var _ dockwellv1connect.ServiceServiceHandler = (*Handler)(nil)
@@ -250,6 +261,18 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, h.internal(ctx, "naming the actors of revisions", err)
 	}
+	var built map[string]*dockwellv1.Build
+	if h.Builds != nil {
+		ids := make([]string, 0, len(records))
+		for i := range records {
+			if records[i].Record != nil {
+				ids = append(ids, records[i].Record.ID)
+			}
+		}
+		if built, err = h.Builds.Of(ctx, target.ID, ids); err != nil {
+			return nil, h.internal(ctx, "reading the builds of revisions", err)
+		}
+	}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		names := serverNames{tx: tx, known: map[string]string{}}
 		for i := range records {
@@ -263,6 +286,9 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 
 				MatchesLatest: r.MatchesLatest,
 				RolledBackTo:  int64(r.RolledBackTo),
+			}
+			if r.Record != nil {
+				rev.Build = built[r.Record.ID]
 			}
 			if r.Decoded != nil {
 				spec, err := asService(r.Decoded)
@@ -294,11 +320,11 @@ func (h *Handler) ListServiceRevisions(ctx context.Context, req *connect.Request
 // DeployService plans running another image.
 func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwellv1.DeployServiceRequest]) (*connect.Response[dockwellv1.DeployServiceResponse], error) {
 	m := req.Msg
-	if m.GetImage() == "" {
-		return nil, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
-	}
 	intent := &revision.Intent{Kind: revision.IntentDeploy, Image: m.GetImage()}
 	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
+		if b := svc.GetBuild(); b != nil {
+			return h.deployBuild(ctx, name, svc, m, intent)
+		}
 		app := svc.GetApp()
 		if app == nil {
 			return editing{}, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", name))
@@ -306,6 +332,9 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		if rt := svc.GetRuntime(); rt != nil {
 			lang, _ := service.LanguageOf(rt.GetLanguage())
 			return editing{}, authapi.Invalid(fmt.Errorf("%s runs from %s on %s %s, so it has no image of its own to deploy. Restart it to run what's in its folder now, or change its version with ChangeServiceRuntime", name, rt.GetFolder(), lang.Name, rt.GetVersion()))
+		}
+		if m.GetImage() == "" {
+			return editing{}, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
 		}
 		// A tag can move, so naming the one it has means "whatever that is now". Only
 		// a digest can't, and the record can name one no server runs, which deploying
@@ -338,6 +367,48 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.DeployServiceResponse{Change: c}), nil
+}
+
+// deployBuild is a deploy of a service that builds from Git: it builds the newest
+// commit of its branch, with nothing else changed, whether or not that commit is
+// new, as a build can come out differently (ADR 0046).
+func (h *Handler) deployBuild(ctx context.Context, name string, svc *resourcev1.Service, m *dockwellv1.DeployServiceRequest, intent *revision.Intent) (editing, error) {
+	g := svc.GetBuild().GetGit()
+	if m.GetImage() != "" {
+		return editing{}, authapi.Invalid(fmt.Errorf("%s builds its image from %s, so a deploy builds the newest commit of %s rather than run an image. Leave out the image, or remove its build to run %s instead",
+			name, shownRepo(g.GetUrl()), cmp.Or(g.GetRef(), "its default branch"), m.GetImage()))
+	}
+	if h.Sources == nil {
+		return editing{}, h.internal(ctx, "deploying a build", errors.New("this control plane can't read what a branch names"))
+	}
+	commit, branch, err := h.Sources.Resolve(ctx, g.GetUrl(), g.GetRef())
+	if err != nil {
+		return editing{}, authapi.Invalid(err)
+	}
+	g.Commit = commit
+	if branch != "" {
+		// The branch or tag by its full name, which the build fetches as it is.
+		g.Ref = branch
+	}
+	svc.GetApp().Image = ""
+	intent.Image, intent.Commit, intent.Ref = "", commit, branch
+	return editing{
+		summary: cmp.Or(m.GetSummary(), fmt.Sprintf("Deploy %s to %s", shortCommit(commit), name)),
+		run:     true,
+	}, nil
+}
+
+// shownRepo is a repository's URL as a person reads it.
+func shownRepo(url string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://"), ".git")
+}
+
+// shortCommit is a commit's first 7 digits, as people read one.
+func shortCommit(c string) string {
+	if len(c) > 7 {
+		return c[:7]
+	}
+	return c
 }
 
 // ChangeServiceRuntime plans running an app from a folder on another version of
@@ -512,6 +583,49 @@ func latestValues(latest store.Resource, spec proto.Message) []revision.Note {
 		Ref:   resource.Ref{Kind: service.Kind, Scope: latest.Scope, Name: latest.Name},
 		Names: names,
 	}}
+}
+
+// Find finds a service by its ID, or by its name, with its project and environment
+// where those are needed to say which, as each of this handler's methods does.
+func (h *Handler) Find(ctx context.Context, named, project, environment string) (store.Resource, error) {
+	return h.find(ctx, named, project, environment)
+}
+
+// BuildOf finds a service by ID or by name, as Find does, and gives its build
+// settings as it is set, its name, and the servers it runs on, by ID. A service
+// that runs an image has no build.
+func (h *Handler) BuildOf(ctx context.Context, named, project, environment string) (*resourcev1.ImageBuild, string, []string, error) {
+	svc, name, servers, err := h.ServiceOf(ctx, named, project, environment)
+	return svc.GetBuild(), name, servers, err
+}
+
+// ServiceOf finds a service by ID or by name, as Find does, and gives its spec as
+// it is set, its name, and the servers it runs on, by ID.
+func (h *Handler) ServiceOf(ctx context.Context, named, project, environment string) (*resourcev1.Service, string, []string, error) {
+	r, err := h.find(ctx, named, project, environment)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	var svc *resourcev1.Service
+	var servers []string
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		decoded, unreadable, err := h.keeper.DecodeEach(ctx, tx, []store.StoredSpec{{At: store.InRevision(r.ID, r.Kind, r.Revision), Spec: r.Spec}})
+		if err != nil {
+			return err
+		}
+		if len(unreadable) > 0 && unreadable[0] != nil {
+			return unreadable[0]
+		}
+		if svc, err = asService(decoded[0]); err != nil {
+			return err
+		}
+		servers, err = tx.Placement(ctx, r.ID, r.Revision)
+		return err
+	})
+	if err != nil {
+		return nil, "", nil, err
+	}
+	return svc, r.Name, servers, nil
 }
 
 // find reads the service a request names, by ID or by name. A name may need

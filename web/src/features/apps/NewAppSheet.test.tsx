@@ -8,9 +8,12 @@ import {
   ChangeSchema,
   ChangeState,
   CheckComposeResponseSchema,
+  type DetectBuildRequest,
+  DetectionProblem,
   FileType,
   HostAccessKind,
   ImageAnswer,
+  ImageBuild_Builder,
   type ImportComposeRequest,
   PlanAction,
   type ProposeChangeRequest,
@@ -63,17 +66,736 @@ function api(more: Api = {}, ...servers: ReturnType<typeof aServer>[]): Api {
     services: { listServices: () => ({}), listServiceRevisions: () => ({}) },
     servers: { watchServers: watch.stream },
     ...more,
+    // A repository answers with one branch unless a test says otherwise, as nothing
+    // reads how it builds until it is there.
+    builds: { listRepositoryBranches: () => ({ branches: ["main"], defaultBranch: "main" }), ...more.builds },
   };
 }
 
 async function openImage(apiImpl: Api) {
-  const rendered = renderAt("/apps/new", apiImpl);
+  const rendered = renderAt("/apps/new?source=image", apiImpl);
   const sheet = await screen.findByRole("dialog", { name: "New app" });
   return { ...rendered, sheet };
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("New app, from Git", () => {
+  it("is a step away from an image, and asks for the repository and its branch, and builds with its Dockerfile unless you change that", async () => {
+    const user = userEvent.setup();
+    const { container, router } = renderAt("/apps/new", api());
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    // An image is how most apps start here, so New app opens on one, with Git beside it.
+    expect(within(sheet).getByRole("radio", { name: "Image" })).toBeChecked();
+    await user.click(within(sheet).getByRole("radio", { name: "Git" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ source: "git" }));
+    expect(within(sheet).getByRole("radio", { name: "Git" })).toBeChecked();
+    expect(within(sheet).getByLabelText("Repository")).toHaveFocus();
+    expect(within(sheet).getByLabelText("Branch")).toHaveValue("");
+    expect(within(sheet).getByRole("status", { name: "Build" })).toHaveTextContent(
+      "Dockerfile or Railpackread from the repository once you name it",
+    );
+    expect(within(sheet).queryByLabelText("Build arguments")).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    expect(within(sheet).getByRole("radio", { name: "Auto" })).toBeChecked();
+    await user.type(within(sheet).getByLabelText(/^Folder/), "web");
+    expect(within(sheet).getByLabelText(/^Dockerfile/)).toBeVisible();
+    expect(within(sheet).getByLabelText(/^Start command/)).toBeVisible();
+    expect(within(sheet).getByLabelText("Build arguments")).toBeVisible();
+    // A Dockerfile build takes no commands, and Railpack no Dockerfile.
+    await user.click(within(sheet).getByRole("radio", { name: "Dockerfile" }));
+    expect(within(sheet).queryByLabelText(/^Start command/)).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("radio", { name: "Railpack" }));
+    expect(within(sheet).queryByLabelText(/^Dockerfile/)).not.toBeInTheDocument();
+    await expectAccessible(container);
+  });
+
+  it("reads how the repository builds as you type, and says what Railpack found", async () => {
+    const user = userEvent.setup();
+    const asked: DetectBuildRequest[] = [];
+    const { container } = renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: (req) => {
+            asked.push(req);
+            return {
+              commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+              ref: "main",
+              serverName: "hz-1",
+              detection: {
+                builder: ImageBuild_Builder.RAILPACK,
+                railpackVersion: "0.43.0",
+                providers: ["node"],
+                packages: [
+                  { name: "node", requested: "22", resolved: "22.23.4", source: "package.json > engines > node" },
+                ],
+                steps: [
+                  { name: "install", commands: ["npm install"] },
+                  { name: "build", commands: ["npm run build"] },
+                ],
+                startCommand: "npm run start",
+                warnings: ["No node package manager detected, using npm"],
+              },
+            };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/storefront");
+    await user.type(within(sheet).getByLabelText("Branch"), "main");
+    const row = within(sheet).getByRole("status", { name: "Build" });
+    await waitFor(() => expect(row).toHaveTextContent("Railpack · Node 22detected"), { timeout: 3000 });
+    expect(sheet).toHaveTextContent(
+      "Runs npm install, npm run build, then starts with npm run start. Railpack says: No node package manager detected, using npm.",
+    );
+    // Read once the typing settles, not at each key.
+    expect(asked.length).toBe(1);
+    expect(asked[0]?.build?.source).toMatchObject({
+      case: "git",
+      value: { url: "github.com/acme/storefront", ref: "main" },
+    });
+    await expectAccessible(container);
+  });
+
+  it("says the Dockerfile it found, and what it starts from", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.DOCKERFILE,
+              dockerfile: "Dockerfile",
+              baseImage: "node:22-alpine",
+            },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    await waitFor(
+      () =>
+        expect(within(sheet).getByRole("status", { name: "Build" })).toHaveTextContent(
+          "Dockerfile · node:22-alpinedetected",
+        ),
+      { timeout: 3000 },
+    );
+  });
+
+  it("checks the repository as you type, offers its branches to choose, and takes its port from what the build exposes", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          listRepositoryBranches: (req) => {
+            expect(req.url).toBe("github.com/acme/search-ui");
+            return { branches: ["main", "fix/cart", "next"], defaultBranch: "main" };
+          },
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.DOCKERFILE,
+              dockerfile: "Dockerfile",
+              baseImage: "node:22-alpine",
+              exposedPorts: [8080, 9090],
+            },
+          }),
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: planned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    // Before there is a repository to ask, a branch is typed, as a power user's still is.
+    expect(within(sheet).getByRole("textbox", { name: "Branch" })).toBeVisible();
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    // A state beside the field, and no paragraph about what a repository has to be.
+    await within(sheet).findByText("Public · 3 branches", {}, { timeout: 3000 });
+    expect(sheet).not.toHaveTextContent("Pushes don't deploy yet");
+    const branch = within(sheet).getByRole("combobox", { name: "Branch" });
+    expect(
+      within(branch)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["main (default)", "fix/cart", "next"]);
+    expect(branch).toHaveValue("");
+    // The port the Dockerfile exposes goes in the app, with a free one on the server.
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080"), { timeout: 3000 });
+    expect(within(sheet).getByLabelText("On the server")).toHaveValue("8080");
+    await user.selectOptions(branch, "next");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.source : undefined).toMatchObject({
+      case: "git",
+      value: { url: "github.com/acme/search-ui", ref: "next" },
+    });
+    expect(spec?.case === "service" && spec.value.runs.case === "app" ? spec.value.runs.value.ports : []).toMatchObject(
+      [{ hostPort: 8080, containerPort: 8080 }],
+    );
+  });
+
+  it("takes a free port on the server when another app holds the one the build exposes", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        services: {
+          listServices: () => ({
+            services: [anApp("shop", "ghcr.io/acme/shop:1.4", { ports: [{ hostPort: 8080, containerPort: 80 }] })],
+          }),
+          listServiceRevisions: () => ({}),
+        },
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: { builder: ImageBuild_Builder.DOCKERFILE, dockerfile: "Dockerfile", exposedPorts: [8080] },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080"), { timeout: 3000 });
+    expect(within(sheet).getByLabelText("On the server")).toHaveValue("8081");
+  });
+
+  it("says at the repository's own field that it can't be read, once, and still takes a branch you type", async () => {
+    const user = userEvent.setup();
+    const detected: unknown[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          listRepositoryBranches: () => {
+            throw new ConnectError(
+              "there's no repository at github.com/acme/gone. Check the URL",
+              Code.FailedPrecondition,
+            );
+          },
+          detectBuild: (req) => {
+            detected.push(req);
+            return {};
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/gone");
+    await within(sheet).findByText(
+      "There's no repository at github.com/acme/gone. Check the URL.",
+      {},
+      { timeout: 3000 },
+    );
+    expect(within(sheet).getByRole("textbox", { name: "Branch" })).toBeVisible();
+    // The build's row doesn't ask a server to read what isn't there, or say it again.
+    expect(within(sheet).getByRole("status", { name: "Build" })).not.toHaveTextContent("Couldn't read the repository");
+    expect(detected).toEqual([]);
+  });
+
+  // A name an app had before goes on counting its revisions, so the new app's first
+  // build is the one after where its plan starts.
+  it.each([
+    { base: 0n, want: "1", what: "a new name" },
+    { base: 2n, want: "3", what: "the name of an app that was deleted" },
+  ])("lands on the app's build once it is applied, where its log is, under $what", async ({ base, want }) => {
+    const user = userEvent.setup();
+    const watch = feed<WatchChangeResponse>();
+    const change = () => {
+      const c = planned();
+      const r = c.plan?.resources[0];
+      if (r) r.baseRevision = base;
+      return c;
+    };
+    const { router } = renderAt(
+      "/apps/new?source=git",
+      api({
+        changes: {
+          proposeChange: () => ({ change: change() }),
+          watchChange: watch.stream,
+          applyChange: () => ({ change: planned({ state: ChangeState.APPLYING }) }),
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/nginx");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
+    watch.push(watched(moved(change(), { state: ChangeState.APPLIED })));
+    const done = await screen.findByRole("dialog", { name: "nginx is deployed" });
+    await user.click(within(done).getByRole("button", { name: "Open nginx" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_nginx/deployments"));
+    expect(router.state.location.search).toEqual({ revision: want });
+  });
+
+  it("keeps a typed tag as it's typed, though a branch begins the same way", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: { listRepositoryBranches: () => ({ branches: ["main", "release"], defaultBranch: "main" }) },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: planned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    await within(sheet).findByText("Public · 2 branches", {}, { timeout: 3000 });
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    const tag = within(sheet).getByLabelText(/^Tag or commit/);
+    await user.type(tag, "release-2026.11");
+    expect(tag).toHaveValue("release-2026.11");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.source : undefined).toMatchObject({
+      case: "git",
+      value: { ref: "release-2026.11" },
+    });
+  });
+
+  it("follows another repository: its port in place of the one the panel filled, and its default branch", async () => {
+    const user = userEvent.setup();
+    const repos: Record<string, { branches: string[]; exposed: number[] }> = {
+      "github.com/acme/shop": { branches: ["main", "next"], exposed: [8080] },
+      "github.com/acme/blog": { branches: ["main"], exposed: [3000] },
+      "github.com/acme/docs": { branches: ["main", "draft"], exposed: [] },
+    };
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          listRepositoryBranches: (req) => ({ branches: repos[req.url]?.branches ?? [], defaultBranch: "main" }),
+          detectBuild: (req) => {
+            const url = req.build?.source.case === "git" ? req.build.source.value.url : "";
+            return {
+              commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+              ref: "main",
+              serverName: "hz-1",
+              detection: {
+                builder: ImageBuild_Builder.DOCKERFILE,
+                dockerfile: "Dockerfile",
+                exposedPorts: repos[url]?.exposed ?? [],
+              },
+            };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const repository = within(sheet).getByLabelText("Repository");
+    await user.type(repository, "github.com/acme/shop");
+    await within(sheet).findByText("Public · 2 branches", {}, { timeout: 3000 });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "Branch" }), "next");
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080"), { timeout: 3000 });
+    // Another repository: its own port in place of the filled one, and next, which it hasn't, goes.
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/blog");
+    await waitFor(() => expect(within(sheet).getByLabelText("In the app")).toHaveValue("3000"), { timeout: 4000 });
+    expect(within(sheet).getAllByLabelText("In the app")).toHaveLength(1);
+    expect(within(sheet).queryByRole("combobox", { name: "Branch" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("textbox", { name: "Branch" })).toHaveValue("");
+    // One that exposes nothing takes the filled port away.
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/docs");
+    await waitFor(() => expect(within(sheet).queryByLabelText("In the app")).not.toBeInTheDocument(), {
+      timeout: 4000,
+    });
+  });
+
+  it("keeps a port someone typed when the next repository exposes another", async () => {
+    const user = userEvent.setup();
+    let exposed = [8080];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: { builder: ImageBuild_Builder.DOCKERFILE, dockerfile: "Dockerfile", exposedPorts: exposed },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const repository = within(sheet).getByLabelText("Repository");
+    await user.type(repository, "github.com/acme/shop");
+    const host = await within(sheet).findByLabelText("On the server", {}, { timeout: 3000 });
+    await user.clear(host);
+    await user.type(host, "9000");
+    exposed = [3000];
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/blog");
+    await within(sheet).findByText(/Dockerfile/, { selector: ".git-build-headline" }, { timeout: 4000 });
+    expect(within(sheet).getByLabelText("On the server")).toHaveValue("9000");
+    expect(within(sheet).getByLabelText("In the app")).toHaveValue("8080");
+  });
+
+  it("offers to check a repository again when it didn't answer, and not when its URL can't be one", async () => {
+    const user = userEvent.setup();
+    let asks = 0;
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          listRepositoryBranches: (req) => {
+            asks++;
+            if (req.url.includes("bad"))
+              throw new ConnectError("a repository's URL can't have a ? in it", Code.InvalidArgument);
+            if (asks === 1)
+              throw new ConnectError("github.com/acme/web didn't answer within 10s", Code.FailedPrecondition);
+            return { branches: ["main"], defaultBranch: "main" };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const repository = within(sheet).getByLabelText("Repository");
+    await user.type(repository, "github.com/acme/web");
+    await user.click(await within(sheet).findByRole("button", { name: "Check again" }, { timeout: 3000 }));
+    await within(sheet).findByText("Public · 1 branch", {}, { timeout: 3000 });
+    await user.clear(repository);
+    await user.type(repository, "github.com/acme/bad");
+    await within(sheet).findByText(/can't have a \? in it/, {}, { timeout: 3000 });
+    expect(within(sheet).queryByRole("button", { name: "Check again" })).not.toBeInTheDocument();
+  });
+
+  it("says when Railpack can't tell how to build it, and what to do", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.RAILPACK,
+              error:
+                "Railpack could not determine how to build the app.\n\nThe following languages are supported:\n- Node",
+              problem: DetectionProblem.NO_PROVIDER,
+            },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/docs");
+    await waitFor(
+      () =>
+        expect(within(sheet).getByRole("status", { name: "Build" })).toHaveTextContent(
+          "Railpack can't tell how to build it",
+        ),
+      { timeout: 3000 },
+    );
+    expect(sheet).toHaveTextContent(
+      "Railpack could not determine how to build the app. Add a Dockerfile, or set both a build command and a start command under Change.",
+    );
+  });
+
+  it("reads the repository only once you choose which of several servers builds it", async () => {
+    const user = userEvent.setup();
+    const read: string[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api(
+        {
+          builds: {
+            detectBuild: (req) => {
+              read.push(req.server);
+              return {
+                commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+                serverName: "hz-2",
+                detection: {
+                  builder: ImageBuild_Builder.DOCKERFILE,
+                  dockerfile: "Dockerfile",
+                  baseImage: "node:22-alpine",
+                },
+              };
+            },
+          },
+        },
+        hz1,
+        aServer({ id: "srv_2", name: "hz-2" }),
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    const status = within(sheet).getByRole("status", { name: "Build" });
+    await waitFor(() => expect(status).toHaveTextContent("read from the repository once you choose a server"));
+    await new Promise((r) => setTimeout(r, 800));
+    expect(read).toEqual([]);
+    await user.click(
+      within(await within(sheet).findByRole("group", { name: "Runs on" })).getByRole("checkbox", { name: "hz-2" }),
+    );
+    await waitFor(() => expect(status).toHaveTextContent("Dockerfile · node:22-alpine"), { timeout: 3000 });
+    expect(read).toEqual(["srv_2"]);
+  });
+
+  it("says what to do by what Railpack said: a version it can't find, or nothing that starts the app", async () => {
+    const user = userEvent.setup();
+    let problem = DetectionProblem.VERSION;
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.RAILPACK,
+              error:
+                problem === DetectionProblem.VERSION
+                  ? "failed to resolve version 99 of node"
+                  : "No start command detected. Specify a start command: https://railpack.com/config/file#deploy",
+              problem,
+              problemTool: problem === DetectionProblem.VERSION ? "node" : "",
+            },
+          }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    const status = () => within(sheet).getByRole("status", { name: "Build" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    await waitFor(() => expect(status()).toHaveTextContent("Railpack can't find a version the repository asks for"), {
+      timeout: 3000,
+    });
+    expect(sheet).toHaveTextContent(
+      "failed to resolve version 99 of node. Change the version the repository asks for, or set RAILPACK_NODE_VERSION as a build argument under Change.",
+    );
+    problem = DetectionProblem.NO_START;
+    await user.type(within(sheet).getByLabelText("Repository"), "2");
+    await waitFor(() => expect(status()).toHaveTextContent("Railpack found nothing that starts the app"), {
+      timeout: 3000,
+    });
+    expect(sheet).toHaveTextContent("Set a start command under Change, or add a start script to the repository.");
+    expect(sheet).not.toHaveTextContent("No start command detected");
+  });
+
+  it("says when the repository can't be read", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => {
+            throw new ConnectError(
+              "github.com/acme/web has no branch or tag mian. Its branches are main",
+              Code.FailedPrecondition,
+            );
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
+    await user.type(within(sheet).getByLabelText("Branch"), "mian");
+    await waitFor(
+      () =>
+        expect(within(sheet).getByRole("status", { name: "Build" })).toHaveTextContent("Couldn't read the repository"),
+      { timeout: 3000 },
+    );
+    expect(sheet).toHaveTextContent("github.com/acme/web has no branch or tag mian. Its branches are main.");
+  });
+
+  it("proposes the builder and the commands you chose, and the plan says what Railpack found", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        changes: {
+          proposeChange: (req) => {
+            proposals.push(req);
+            return {
+              change: create(ChangeSchema, {
+                id: "chg_new",
+                summary: "Build github.com/acme/storefront as storefront",
+                state: ChangeState.PLANNED,
+                plan: {
+                  fingerprint: "feedfacefeedfacefeedfacefeedface",
+                  summary: { create: 1 },
+                  resources: [
+                    {
+                      id: "svc_storefront",
+                      resource: { kind: "service", scope: "env_prod", name: "storefront" },
+                      action: PlanAction.CREATE,
+                    },
+                  ],
+                  servers: [
+                    {
+                      serverId: SERVER,
+                      serverName: "hz-1",
+                      steps: [
+                        {
+                          resource: { kind: "service", scope: "env_prod", name: "storefront" },
+                          action: PlanAction.CREATE,
+                          build: {
+                            url: "https://github.com/acme/storefront",
+                            ref: "main",
+                            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+                            builder: ImageBuild_Builder.RAILPACK,
+                            detection: {
+                              builder: ImageBuild_Builder.RAILPACK,
+                              providers: ["node"],
+                              packages: [
+                                { name: "node", requested: "22", resolved: "22.23.4", source: "package.json" },
+                              ],
+                              steps: [{ name: "install", commands: ["npm ci"] }],
+                              startCommand: "node server.js",
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              }),
+            };
+          },
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/storefront");
+    await user.type(within(sheet).getByLabelText("Branch"), "main");
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    await user.click(within(sheet).getByRole("radio", { name: "Railpack" }));
+    await user.type(within(sheet).getByLabelText(/^Start command/), "node server.js");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    const review = await screen.findByRole("dialog", { name: "Review plan" });
+    const build = proposals[0]?.edits[0]?.spec?.kind;
+    const spec = build?.case === "service" ? build.value.build : undefined;
+    expect(spec?.builder).toBe(ImageBuild_Builder.RAILPACK);
+    expect(spec?.startCommand).toBe("node server.js");
+    expect(spec?.dockerfile).toBe("");
+    await waitFor(() =>
+      expect(review).toHaveTextContent(
+        "Builds github.com/acme/storefront at 8be41d2 (main) on hz-1 first. If the build fails, what runs stays as it is.",
+      ),
+    );
+    expect(review).toHaveTextContent(
+      "With Railpack, as Node 22. Runs npm ci, then starts with node server.js. Installs node 22.23.4, from package.json.",
+    );
+  });
+
+  it("proposes an app that builds, with no image, named after the repository", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        changes: {
+          proposeChange: (req) => {
+            proposals.push(req);
+            return { change: planned() };
+          },
+          discardChange: () => ({}),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui.git");
+    await user.type(within(sheet).getByLabelText("Branch"), "main");
+    expect(within(sheet).getByPlaceholderText("search-ui")).toHaveValue("");
+    await user.click(within(sheet).getByRole("button", { name: "Change" }));
+    await user.type(within(sheet).getByLabelText("Build arguments"), "NODE_ENV=production");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(proposals[0]?.summary).toBe("Build github.com/acme/search-ui as search-ui");
+    const service = proposals[0]?.edits[0]?.spec?.kind;
+    expect(service?.case).toBe("service");
+    const spec = service?.case === "service" ? service.value : undefined;
+    expect(spec?.runs.case === "app" ? spec.runs.value.image : "unset").toBe("");
+    expect(spec?.build?.source).toMatchObject({
+      case: "git",
+      value: { url: "github.com/acme/search-ui.git", ref: "main" },
+    });
+    expect(spec?.build?.args).toEqual({ NODE_ENV: "production" });
+  });
+
+  it("opens Change to say what Railpack couldn't build, at the start command", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        changes: {
+          proposeChange: () => {
+            const err = new ConnectError(
+              "Railpack can't tell how to build github.com/acme/docs at 8be41d2 for docs: \"Railpack could not determine how to build the app.\". Add a Dockerfile, or set the build's start command",
+              Code.InvalidArgument,
+            );
+            err.metadata.set("Dockwell-Error", "invalid");
+            throw err;
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/docs");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText(/^Start command/)).toHaveAccessibleDescription(
+        /Railpack can't tell how to build/,
+      ),
+    );
+  });
+
+  it("says at the field what's wrong with the branch", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        changes: {
+          proposeChange: () => {
+            const err = new ConnectError(
+              "service/web isn't valid: github.com/acme/web has no branch or tag mian. Its branches are main and dev",
+              Code.InvalidArgument,
+            );
+            err.metadata.set("Dockwell-Error", "invalid");
+            throw err;
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/acme/web");
+    await user.type(within(sheet).getByLabelText("Branch"), "mian");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() =>
+      expect(within(sheet).getByLabelText("Branch")).toHaveAccessibleDescription(/has no branch or tag mian/),
+    );
+  });
 });
 
 describe("New app, from an image", () => {
@@ -84,8 +806,8 @@ describe("New app, from an image", () => {
     expect(within(sheet).queryByRole("group", { name: "Runs on" })).not.toBeInTheDocument();
     expect(within(sheet).queryByLabelText("Environment")).not.toBeInTheDocument();
     // What it doesn't have yet isn't offered.
-    for (const later of ["Git", "Catalog"])
-      expect(within(sheet).queryByRole("radio", { name: later })).not.toBeInTheDocument();
+    expect(within(sheet).queryByRole("radio", { name: "Catalog" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("radio", { name: "Git" })).not.toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Image" })).toBeChecked();
     expect(within(sheet).getByRole("radio", { name: "Compose" })).toBeVisible();
     // Ports, variables and volumes wait behind a button each.
@@ -591,7 +1313,7 @@ describe("New app, from an image", () => {
 
   it("speaks Chinese", async () => {
     await activateLocale("zh-CN");
-    renderAt("/apps/new", api());
+    renderAt("/apps/new?source=image", api());
     const sheet = await screen.findByRole("dialog", { name: "新建应用" });
     expect(within(sheet).getByRole("button", { name: "添加端口" })).toBeVisible();
     expect(within(sheet).getByLabelText("镜像")).toBeVisible();

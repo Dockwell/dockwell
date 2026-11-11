@@ -547,6 +547,13 @@ message Service {
   // service whose variable or secret changes gets a revision of its own,
   // and restarts with the new value. An edit's is ignored.
   map<string, int64> revisions = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // How Dockwell builds the image the app runs, from source, on the server it
+  // runs on. Unset runs the app's image as it is. With it, the app's image is
+  // Dockwell's to set: leave it empty, and a change builds one, under a tag of
+  // its own, before it replaces what runs. A build that fails leaves what runs
+  // as it was. See docs/adr/0046-builds-from-git.md. Numbered apart, as open
+  // work adds to this message.
+  ImageBuild build = 130;
   // How an app from a folder on the server runs: a language's official image of
   // a version, with the folder mounted, and the commands that install and start
   // it. With it, the parts of app it decides are written from it whenever the
@@ -556,6 +563,70 @@ message Service {
   // environment, ports and networks, is the app's own, as an image app's is. See
   // docs/adr/0058-runtimes-an-app-from-a-folder.md.
   Runtime runtime = 150;
+}
+
+// ImageBuild says how Dockwell builds a service's image from source, with
+// BuildKit and a Dockerfile.
+message ImageBuild {
+  // Where the source is.
+  oneof source {
+    // A Git repository.
+    GitSource git = 1;
+  }
+  // The folder in the repository the build starts from, such as "web": what a
+  // Dockerfile's COPY reads from. Empty is the repository's top.
+  string context = 2;
+  // The Dockerfile, as a path in context, such as "deploy/Dockerfile".
+  // "Dockerfile" unless set.
+  string dockerfile = 3;
+  // Build arguments, as docker build's --build-arg, such as NODE_ENV=production.
+  // They aren't secret: they end up in the image's history, and plans and the
+  // panel show them. Keep a credential in secrets.
+  map<string, string> args = 4;
+  // The environment's secrets the build uses, by the ID a Dockerfile's
+  // RUN --mount=type=secret,id=ID names: NPM_TOKEN=NPM gives the build the secret
+  // NPM as NPM_TOKEN. An empty value means the secret of the same name. Its value
+  // goes only to the server that builds, as a BuildKit secret, never into the
+  // image or its history; the build's log and its failure mask it, line by line
+  // for one of more than one line. A step that writes it into a file of the
+  // image puts it there, as it would with any secret.
+  map<string, string> secrets = 5;
+  // The stage to build, as docker build's --target. Empty builds the last.
+  string target = 6;
+
+  // Builder is what turns the source into an image.
+  enum Builder {
+    // The Dockerfile, when the commit has one where dockerfile says, and
+    // Railpack when it hasn't.
+    BUILDER_UNSPECIFIED = 0;
+    // The Dockerfile, which the commit must have.
+    BUILDER_DOCKERFILE = 1;
+    // Railpack (railpack.com), which reads what the source is, such as a Node
+    // app from its package.json, and builds it with no Dockerfile. A plan says
+    // what it found before anything builds.
+    BUILDER_RAILPACK = 2;
+  }
+  // What builds the image. Unset takes the Dockerfile when there is one.
+  Builder builder = 7;
+  // With Railpack, the command that builds the app, such as "npm run build",
+  // in place of the one it finds.
+  string build_command = 8;
+  // With Railpack, the command the image starts with, such as "node server.js",
+  // in place of the one it finds.
+  string start_command = 9;
+}
+
+// GitSource is a Git repository Dockwell builds from.
+message GitSource {
+  // The repository, such as "https://github.com/acme/web.git", over HTTPS, or
+  // HTTP on a private network. It can't hold a user, a password or a token.
+  string url = 1;
+  // The branch or tag to build, such as "main" or "v1.4.2", or a commit's 40
+  // hex digits. Empty takes the repository's default branch.
+  string ref = 2;
+  // The commit the build is of, in full. Dockwell sets it as a change is
+  // planned, from what ref names then, unless the edit names one.
+  string commit = 3;
 }
 
 // Runtime is an app from a folder on the server, run in a language's official

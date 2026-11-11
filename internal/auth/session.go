@@ -47,6 +47,12 @@ func (p Principal) Actor() string {
 	return "user:" + p.User.ID
 }
 
+// ReadsLogs reports a principal that may read what logs hold: a person, or a token
+// with the logs grant.
+func (p Principal) ReadsLogs() bool {
+	return p.Token == nil || p.Token.HasGrant(store.GrantLogs)
+}
+
 // credential is the ID of the session or token the call came with, which
 // its streams are tracked by.
 func (p Principal) credential() string {

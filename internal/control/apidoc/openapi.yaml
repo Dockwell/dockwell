@@ -759,6 +759,152 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/builds/{id}:
+        get:
+            tags:
+                - BuildService
+            description: GetBuild returns one build, as it stands now.
+            operationId: BuildService_GetBuild
+            parameters:
+                - name: id
+                  in: path
+                  description: The build's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetBuildResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/builds/{id}/log:
+        get:
+            tags:
+                - BuildService
+            description: |-
+                ReadBuildLog returns what a build's log keeps: its first 1,000 lines and its
+                 last 9,000, with how many were left out between.
+            operationId: BuildService_ReadBuildLog
+            parameters:
+                - name: id
+                  in: path
+                  description: The build's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ReadBuildLogResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/builds/{id}:cancel:
+        post:
+            tags:
+                - BuildService
+            description: |-
+                CancelBuild stops a build that is waiting or running. Its step fails as
+                 cancelled, before anything that runs is touched, so its change's rollback
+                 has nothing to do and what ran goes on running.
+            operationId: BuildService_CancelBuild
+            parameters:
+                - name: id
+                  in: path
+                  description: The build's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelBuildRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelBuildResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/builds:branches:
+        post:
+            tags:
+                - BuildService
+            description: |-
+                ListRepositoryBranches asks a public Git repository for its branches, from
+                 the control server, as a plan that builds from it does: to check a URL as
+                 someone types it, and to choose a branch from. Nothing is fetched or built.
+            operationId: BuildService_ListRepositoryBranches
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListRepositoryBranchesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRepositoryBranchesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/builds:detect:
+        post:
+            tags:
+                - BuildService
+            description: |-
+                DetectBuild reads how a commit of a repository would build, on a server, as
+                 a build would read it: with its Dockerfile, or with Railpack and what
+                 Railpack found, such as Node 22 and npm run build. Nothing is built or
+                 changed. A plan that builds with Railpack says the same before it builds.
+            operationId: BuildService_DetectBuild
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DetectBuildRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DetectBuildResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/entries:
         get:
             tags:
@@ -3690,6 +3836,57 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListServicesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/services/{id}/builds:
+        get:
+            tags:
+                - BuildService
+            description: ListBuilds returns a service's builds, newest first, a page at a time.
+            operationId: BuildService_ListBuilds
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  description: 'How many builds to return: 20 when unset, and at most 100.'
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  description: 'Where to start: the next_page_token of the page before.'
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: |-
+                    The project of a service named by name, by name or ID, when more than one
+                     has a service of that name.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment of a service named by name, by name or ID, when its project
+                     has more than one.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListBuildsResponse'
                 default:
                     description: Default error response
                     content:
@@ -6784,6 +6981,195 @@ components:
                         - $ref: '#/components/schemas/Upload'
                     description: The upload.
             description: BeginUploadResponse is the upload begun, or as it stands.
+        Build:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "bld_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                serviceId:
+                    type: string
+                    description: The service's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: 'The service: its kind, its environment''s ID and its name.'
+                changeId:
+                    type: string
+                    description: The change the build is a step of.
+                revision:
+                    type: string
+                    description: The revision whose image it makes.
+                serverId:
+                    type: string
+                    description: The server that builds, by ID.
+                serverName:
+                    type: string
+                    description: The server that builds, by name, such as "hz-1", even once it has left.
+                state:
+                    enum:
+                        - BUILD_STATE_UNSPECIFIED
+                        - BUILD_STATE_QUEUED
+                        - BUILD_STATE_BUILDING
+                        - BUILD_STATE_DONE
+                        - BUILD_STATE_FAILED
+                        - BUILD_STATE_CANCELLED
+                        - BUILD_STATE_LOST
+                    type: string
+                    description: Where it stands.
+                    format: enum
+                url:
+                    type: string
+                    description: The repository it builds, such as "https://github.com/acme/web.git".
+                ref:
+                    type: string
+                    description: The branch or tag its commit was read from, such as "main".
+                commit:
+                    type: string
+                    description: The commit it builds, in full.
+                commitSubject:
+                    type: string
+                    description: The commit's subject, once its server has read it.
+                commitAuthor:
+                    type: string
+                    description: The commit's author, by name, once its server has read it.
+                image:
+                    type: string
+                    description: The image it makes, such as "dockwell.invalid/svc_…:8be41d2c3f4a-01k…".
+                createTime:
+                    type: string
+                    description: When its server first said of it.
+                    format: date-time
+                startTime:
+                    type: string
+                    description: When it began building, once it has.
+                    format: date-time
+                endTime:
+                    type: string
+                    description: When it ended, once it has.
+                    format: date-time
+                steps:
+                    type: integer
+                    description: How many steps it has, once BuildKit has said.
+                    format: int32
+                cachedSteps:
+                    type: integer
+                    description: How many of its steps came from the cache.
+                    format: int32
+                step:
+                    type: integer
+                    description: The step it is on, or that failed, from 1.
+                    format: int32
+                stepName:
+                    type: string
+                    description: What that step does, such as "RUN npm ci".
+                error:
+                    type: string
+                    description: Why it failed, in plain words, with what to do. Empty unless it failed.
+                failedLine:
+                    type: string
+                    description: The last line the failing step printed, with secrets masked.
+                cancelledBy:
+                    type: string
+                    description: Who cancelled it, by name, when someone did.
+                logLines:
+                    type: string
+                    description: How many lines its log has.
+                logLinesLeftOut:
+                    type: string
+                    description: |-
+                        How many of those it doesn't keep, between its first 1,000 and its last
+                         9,000.
+                logLinesDropped:
+                    type: string
+                    description: |-
+                        How many lines its server dropped, as the build wrote faster than the log
+                         could take.
+                detection:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildDetection'
+                    description: |-
+                        What its server found as it read the commit: what built it, and with
+                         Railpack, what it installed and ran.
+            description: Build is one build of a service's image, on one server, for one change.
+        BuildDetection:
+            type: object
+            properties:
+                builder:
+                    enum:
+                        - BUILDER_UNSPECIFIED
+                        - BUILDER_DOCKERFILE
+                        - BUILDER_RAILPACK
+                    type: string
+                    description: 'What builds it: BUILDER_DOCKERFILE or BUILDER_RAILPACK.'
+                    format: enum
+                dockerfile:
+                    type: string
+                    description: |-
+                        The Dockerfile it builds with, as a path in the repository, when there is
+                         one.
+                railpackVersion:
+                    type: string
+                    description: The version of Railpack that read it, such as "0.43.0".
+                providers:
+                    type: array
+                    items:
+                        type: string
+                    description: What Railpack found the source is, such as "node", first what decides.
+                packages:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DetectedPackage'
+                    description: The languages and tools it installs, with their versions.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DetectedStep'
+                    description: What it runs to build, step by step.
+                startCommand:
+                    type: string
+                    description: The command the image starts with.
+                warnings:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What Railpack warns of, such as "No node package manager detected, using
+                         npm", in its words.
+                error:
+                    type: string
+                    description: Why Railpack can't build it, in its words, when it can't.
+                baseImage:
+                    type: string
+                    description: |-
+                        With its Dockerfile, the image its last stage starts from, such as
+                         "node:22-alpine", unless a build argument names it.
+                problem:
+                    enum:
+                        - DETECTION_PROBLEM_UNSPECIFIED
+                        - DETECTION_PROBLEM_NO_PROVIDER
+                        - DETECTION_PROBLEM_VERSION
+                        - DETECTION_PROBLEM_NO_START
+                        - DETECTION_PROBLEM_NETWORK
+                        - DETECTION_PROBLEM_OTHER
+                    type: string
+                    description: What kind of problem error is, which says what to do about it.
+                    format: enum
+                problemTool:
+                    type: string
+                    description: With DETECTION_PROBLEM_VERSION, the language or tool, such as "node".
+                exposedPorts:
+                    type: array
+                    items:
+                        type: integer
+                        format: int32
+                    description: |-
+                        The ports its Dockerfile's last stage says the app listens on (EXPOSE), TCP
+                         ones, lowest first, such as 8080. Empty with Railpack, and when it says none.
+            description: |-
+                BuildDetection is what reading a commit of a repository found, before
+                 anything builds: whether it has a Dockerfile, and what Railpack makes of it.
+                 See docs/adr/0046-builds-from-git.md.
         BuildInfo:
             type: object
             properties:
@@ -6821,6 +7207,82 @@ components:
                          there were two, which are all the full build.
                     format: enum
             description: BuildInfo identifies one build of the dockwell binary.
+        BuildLine:
+            type: object
+            properties:
+                number:
+                    type: string
+                    description: Its place in the log, from 1.
+                time:
+                    type: string
+                    description: When the server read it.
+                    format: date-time
+                step:
+                    type: integer
+                    description: |-
+                        The step it came from, from 1, or 0 for what came before the first, such as
+                         the checkout.
+                    format: int32
+                text:
+                    type: string
+                    description: What it says, with the build's secrets masked, and cut at 4 KiB.
+            description: BuildLine is one line of a build's log.
+        BuildPlan:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The repository, such as "https://github.com/acme/web.git".
+                ref:
+                    type: string
+                    description: The branch or tag the commit was read from, such as "main".
+                commit:
+                    type: string
+                    description: The commit, in full.
+                context:
+                    type: string
+                    description: The folder the build starts from. Empty is the repository's top.
+                dockerfile:
+                    type: string
+                    description: The Dockerfile, as a path in context.
+                image:
+                    type: string
+                    description: The image it makes.
+                builder:
+                    enum:
+                        - BUILDER_UNSPECIFIED
+                        - BUILDER_DOCKERFILE
+                        - BUILDER_RAILPACK
+                    type: string
+                    description: |-
+                        What the build settings choose to build with. Unset takes the Dockerfile
+                         when the commit has one, and Railpack when it hasn't.
+                    format: enum
+                detection:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildDetection'
+                    description: |-
+                        What reading the commit found: what builds it, and with Railpack, what it
+                         installs and runs. Empty when the build names its Dockerfile, or the server
+                         couldn't be asked; the build then reads it as it starts.
+            description: |-
+                BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
+                 with Railpack, into an image of its own. See docs/adr/0046-builds-from-git.md.
+        CancelBuildRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The build's ID.
+            description: CancelBuildRequest names a build to stop.
+        CancelBuildResponse:
+            type: object
+            properties:
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/Build'
+                    description: The build.
+            description: CancelBuildResponse is the build, as it stands once its server was asked.
         CancelTotpSetupRequest:
             type: object
             properties: {}
@@ -8546,6 +9008,83 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: DeployServiceResponse carries the planned deploy.
+        DetectBuildRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        A service that builds, by ID or by name, to read its build as it is set.
+                         Unset, build says what to read.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project
+                         has more than one.
+                server:
+                    type: string
+                    description: |-
+                        The server that reads it, by name or ID. Unset, a service's own reads it,
+                         and build settings are read on the first server by name that is connected.
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/ImageBuild'
+                    description: The build settings to read, when id is unset.
+            description: |-
+                DetectBuildRequest names what to read: a service's build, or build settings
+                 for an app that doesn't exist yet.
+        DetectBuildResponse:
+            type: object
+            properties:
+                commit:
+                    type: string
+                    description: The commit that was read, in full.
+                ref:
+                    type: string
+                    description: The branch or tag it was read from, such as "main".
+                serverName:
+                    type: string
+                    description: The server that read it, by name.
+                detection:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildDetection'
+                    description: What it found.
+            description: DetectBuildResponse says how the commit would build.
+        DetectedPackage:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "node".
+                requested:
+                    type: string
+                    description: |-
+                        The version the source asks for, such as "22", or empty for Railpack's
+                         default.
+                resolved:
+                    type: string
+                    description: The version that is installed, such as "22.11.0".
+                source:
+                    type: string
+                    description: Where the version came from, such as "package.json > engines > node".
+            description: DetectedPackage is a language or tool a Railpack build installs.
+        DetectedStep:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "install" or "build".
+                commands:
+                    type: array
+                    items:
+                        type: string
+                    description: The commands, such as "npm ci", in order.
+            description: DetectedStep is a step of a Railpack build and the commands it runs.
         DisableTotpRequest:
             type: object
             properties:
@@ -10411,6 +10950,14 @@ components:
                         - $ref: '#/components/schemas/Backup'
                     description: The backup.
             description: GetBackupResponse is one backup.
+        GetBuildResponse:
+            type: object
+            properties:
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/Build'
+                    description: The build.
+            description: GetBuildResponse is the build.
         GetCatalogEntryResponse:
             type: object
             properties:
@@ -10597,6 +11144,25 @@ components:
                         - $ref: '#/components/schemas/BuildInfo'
                     description: The build of the dockwell binary running the control plane.
             description: GetVersionResponse carries the control plane's build.
+        GitSource:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The repository, such as "https://github.com/acme/web.git", over HTTPS, or
+                         HTTP on a private network. It can't hold a user, a password or a token.
+                ref:
+                    type: string
+                    description: |-
+                        The branch or tag to build, such as "main" or "v1.4.2", or a commit's 40
+                         hex digits. Empty takes the repository's default branch.
+                commit:
+                    type: string
+                    description: |-
+                        The commit the build is of, in full. Dockwell sets it as a change is
+                         planned, from what ref names then, unless the edit names one.
+            description: GitSource is a Git repository Dockwell builds from.
         GoogleProtobufAny:
             type: object
             properties:
@@ -10869,6 +11435,67 @@ components:
             description: |-
                 HttpCheck is a GET the agent sends to a container. It can name nothing but
                  the container: it says a port and a path, and the address is Docker's.
+        ImageBuild:
+            type: object
+            properties:
+                git:
+                    allOf:
+                        - $ref: '#/components/schemas/GitSource'
+                    description: A Git repository.
+                context:
+                    type: string
+                    description: |-
+                        The folder in the repository the build starts from, such as "web": what a
+                         Dockerfile's COPY reads from. Empty is the repository's top.
+                dockerfile:
+                    type: string
+                    description: |-
+                        The Dockerfile, as a path in context, such as "deploy/Dockerfile".
+                         "Dockerfile" unless set.
+                args:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Build arguments, as docker build's --build-arg, such as NODE_ENV=production.
+                         They aren't secret: they end up in the image's history, and plans and the
+                         panel show them. Keep a credential in secrets.
+                secrets:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The environment's secrets the build uses, by the ID a Dockerfile's
+                         RUN --mount=type=secret,id=ID names: NPM_TOKEN=NPM gives the build the secret
+                         NPM as NPM_TOKEN. An empty value means the secret of the same name. Its value
+                         goes only to the server that builds, as a BuildKit secret, never into the
+                         image or its history; the build's log and its failure mask it, line by line
+                         for one of more than one line. A step that writes it into a file of the
+                         image puts it there, as it would with any secret.
+                target:
+                    type: string
+                    description: The stage to build, as docker build's --target. Empty builds the last.
+                builder:
+                    enum:
+                        - BUILDER_UNSPECIFIED
+                        - BUILDER_DOCKERFILE
+                        - BUILDER_RAILPACK
+                    type: string
+                    description: What builds the image. Unset takes the Dockerfile when there is one.
+                    format: enum
+                buildCommand:
+                    type: string
+                    description: |-
+                        With Railpack, the command that builds the app, such as "npm run build",
+                         in place of the one it finds.
+                startCommand:
+                    type: string
+                    description: |-
+                        With Railpack, the command the image starts with, such as "node server.js",
+                         in place of the one it finds.
+            description: |-
+                ImageBuild says how Dockwell builds a service's image from source, with
+                 BuildKit and a Dockerfile.
         ImageConfig:
             type: object
             properties:
@@ -11472,6 +12099,14 @@ components:
                 revision:
                     type: string
                     description: The revision a rollback puts back.
+                commit:
+                    type: string
+                    description: |-
+                        The commit a deploy builds, for a service that builds from Git, in full.
+                         Numbered apart, as open work adds to this message.
+                ref:
+                    type: string
+                    description: The branch or tag that commit was read from.
             description: |-
                 Intent is what a change is for, in a person's terms. A plan says what happens
                  to resources, which for a deploy or a new port is that a container is made
@@ -11745,6 +12380,18 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListBackupsResponse is a page of backups.
+        ListBuildsResponse:
+            type: object
+            properties:
+                builds:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Build'
+                    description: The builds, newest first.
+                nextPageToken:
+                    type: string
+                    description: Pass it as page_token for the next page. Empty on the last page.
+            description: ListBuildsResponse is a page of a service's builds.
         ListCatalogEntriesResponse:
             type: object
             properties:
@@ -11986,6 +12633,33 @@ components:
                         $ref: '#/components/schemas/Passkey'
                     description: Passkeys, oldest first.
             description: ListPasskeysResponse lists passkeys.
+        ListRepositoryBranchesRequest:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        The repository's URL, such as "https://github.com/acme/web.git", which
+                         the CLI takes as --repository.
+            description: ListRepositoryBranchesRequest names a repository to ask for its branches.
+        ListRepositoryBranchesResponse:
+            type: object
+            properties:
+                branches:
+                    type: array
+                    items:
+                        type: string
+                    description: Its branches by name, the default first, up to 500.
+                defaultBranch:
+                    type: string
+                    description: |-
+                        The branch a build with no branch named builds, such as "main". Empty when
+                         the repository doesn't say, as an empty one doesn't.
+                total:
+                    type: integer
+                    description: How many branches it has in all, when more than are listed.
+                    format: int32
+            description: ListRepositoryBranchesResponse is a repository's branches, as it says them.
         ListResourcesResponse:
             type: object
             properties:
@@ -13578,6 +14252,13 @@ components:
                          SSH stays open from, by name, so a person sees whether their own address
                          is there, and a stranger's. Unset on a step that leaves SSH open to
                          anywhere.
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/BuildPlan'
+                    description: |-
+                        What the step builds, from source, before it replaces what runs. A build
+                         that fails leaves what runs as it was. Numbered apart, as open work adds to
+                         this message.
                 jail:
                     allOf:
                         - $ref: '#/components/schemas/JailPlan'
@@ -13873,6 +14554,23 @@ components:
                         - $ref: '#/components/schemas/DeletedFile'
                     description: What was deleted for good.
             description: PurgeDeletedFileResponse says what went.
+        ReadBuildLogResponse:
+            type: object
+            properties:
+                lines:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/BuildLine'
+                    description: The lines, oldest first.
+                leftOut:
+                    type: string
+                    description: How many lines aren't kept, between the first 1,000 and the rest.
+                dropped:
+                    type: string
+                    description: |-
+                        How many lines its server dropped, as the build printed faster than its log
+                         could take them. Nothing says where they were.
+            description: ReadBuildLogResponse is what a build's log keeps.
         ReadFileRequest:
             type: object
             properties:
@@ -15775,6 +16473,16 @@ components:
                          the service sees it as. Dockwell sets it when a change is planned, so a
                          service whose variable or secret changes gets a revision of its own,
                          and restarts with the new value. An edit's is ignored.
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/ImageBuild'
+                    description: |-
+                        How Dockwell builds the image the app runs, from source, on the server it
+                         runs on. Unset runs the app's image as it is. With it, the app's image is
+                         Dockwell's to set: leave it empty, and a change builds one, under a tag of
+                         its own, before it replaces what runs. A build that fails leaves what runs
+                         as it was. See docs/adr/0046-builds-from-git.md. Numbered apart, as open
+                         work adds to this message.
                 runtime:
                     allOf:
                         - $ref: '#/components/schemas/Runtime'
@@ -16000,6 +16708,14 @@ components:
                     items:
                         type: string
                     description: The servers it took the service off, by name.
+                build:
+                    allOf:
+                        - $ref: '#/components/schemas/Build'
+                    description: |-
+                        The build that made its image, for a revision of a service that builds from
+                         Git whose change built one. Unset for any other: an undo or a rollback runs
+                         the image an earlier revision built. Numbered apart, as open work adds to
+                         this message.
             description: ServiceRevision is one immutable revision of a service.
         Session:
             type: object
@@ -17672,6 +18388,24 @@ tags:
 
          A backup holds what its app stored, secrets among them, so nothing here gives
          anyone its bytes.
+    - name: BuildService
+      description: |-
+        BuildService says how the builds of services that build from Git went, and
+         what each printed. A build is a step of the change that deploys what it
+         makes: the change's plan pins what it builds, and a build that fails or is
+         cancelled leaves what runs as it was. See docs/adr/0046-builds-from-git.md.
+
+         A build's log is a log, so reading it needs the logs grant, as a Dockerfile's
+         step can print what an app shouldn't. The values of the build's secrets are
+         masked in it.
+
+         A build is its service's, in its project and environment (ADR 0049): a viewer
+         there reads it and its log, a developer reads how a repository would build,
+         and stopping a build is stopping part of a change under way, so it is a
+         developer's where the environment is open and an admin's where it is protected,
+         as applying is. Asking a repository for its branches names nothing of a project,
+         and has the control server ask a URL, so it is a developer's, as checking a
+         domain is.
     - name: CatalogService
       description: |-
         CatalogService lists the apps you can install, and plans installing one as a

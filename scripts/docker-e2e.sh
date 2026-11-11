@@ -55,6 +55,10 @@ for tool in docker curl go jq openssl pgrep ss; do
 done
 bin=$(realpath "${1:?$usage}")
 agent=$(realpath "${2:?$usage}")
+# A Git server for builds (ADR 0046), which make docker-e2e builds.
+gitserve=$(realpath "${GITSERVE:-bin/gitserve}")
+gitserve_pid=""
+git_dir=$(mktemp -d)
 addr=127.0.0.1:${E2E_PORT:-7697}
 web_port=${E2E_WEB_PORT:-18080}
 data=$(mktemp -d)
@@ -154,6 +158,12 @@ cleanup() {
   moving_tidy
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
+  [[ -z "$gitserve_pid" ]] || kill "$gitserve_pid" 2>/dev/null || true
+  docker ps --all --quiet --filter label=dev.dockwell.builder | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
+  docker images --format '{{.Repository}}:{{.Tag}}' | grep '^dockwell.invalid/' | xargs --no-run-if-empty docker rmi --force >/dev/null 2>&1 || true
+  docker volume ls --quiet --filter label=dockwell.build-cache | xargs --no-run-if-empty docker volume rm >/dev/null 2>&1 || true
+  docker network rm dockwell-build >/dev/null 2>&1 || true
+  docker volume rm dockwell-railpack >/dev/null 2>&1 || true
   [[ -z "$load_pid" ]] || kill "$load_pid" 2>/dev/null || true
   priv kill "$pid" 2>/dev/null || true
   for p in "${pebble_pids[@]:-}"; do
@@ -161,7 +171,7 @@ cleanup() {
   done
   wait 2>/dev/null || true
   docker image rm --force dockwell-e2e-app:slow dockwell-e2e-app:never >/dev/null 2>&1 || true
-  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$shell" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir"
+  priv rm -rf "$log" "$agent_log" "$cookie" "$passkey" "$stepup" "$shell" "$data" "$agent_data" "$pebble_dir" "$catalog_dir" "$real_dir" "$rollout_dir" "$git_dir"
 }
 trap cleanup EXIT
 
@@ -4625,6 +4635,277 @@ on_agent=$(dw containers list --server e2e-agent --json) || fail "containers lis
 jq -e '.ownContainers >= 1' <<<"$on_agent" >/dev/null || fail "the list on the agent build doesn't say what it left out: $on_agent"
 dw containers delete e2e-agent-web --on e2e-agent --yes || fail "containers delete on the agent build failed"
 if docker inspect e2e-agent-web >/dev/null 2>&1; then fail "e2e-agent-web is left after deleting it"; fi
+
+step "Builds: an app builds from Git with BuildKit on the agent build's server, and serves what it built"
+# By now the stand has many projects, so each call names the environment, or the
+# service, by its ID. Resource deletes take a name and the environment ID.
+default_project=$(dw resources list --kind project --json | jq -r '.resources[] | select(.resource.name == "default") | .id') || fail "listing projects failed"
+build_env=$(dw resources list --kind environment --json | jq -r --arg p "$default_project" '[.resources[] | select(.resource.scope == $p)][0].id // empty') || fail "listing environments failed"
+[[ -n "$build_env" ]] || fail "the default project has no environment: $(dw resources list --kind environment --json)"
+service_id() { dw services list --json | jq -r --arg env "$build_env" --arg name "$1" '.services[] | select(.resource.scope == $env and .resource.name == $name) | .id'; }
+# A builder runs on dockwell-build, a bridge of its own, and reaches this machine at
+# Docker's bridge's gateway, where the Git server listens, which the control plane on
+# this machine reaches too.
+gateway=$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}') || fail "docker network inspect bridge failed"
+"$gitserve" "$git_dir" "$gateway:0" >"$git_dir/serving" 2>>"$log" &
+gitserve_pid=$!
+for _ in $(seq 100); do
+  [[ -s "$git_dir/serving" ]] && break
+  sleep 0.1
+done
+git_url=$(head -1 "$git_dir/serving")
+[[ "$git_url" == http://* ]] || fail "the Git server didn't say where it serves: $(cat "$git_dir/serving")"
+move_main() { curl -fsS -X POST "$git_url/_move?branch=main&to=$1" || fail "the Git server didn't move main to $1"; }
+built_port=18093
+# build_evidence BUILD prints what explains a build that failed on real Docker: its
+# record and its log, as kept, with its secrets masked, then what Docker and the
+# kernel say of AppArmor, which confines each step where the server has it.
+build_evidence() {
+  {
+    echo "--- the build's record and log"
+    if [[ "$1" == bld_* ]]; then
+      dw builds get "$1" --json || true
+      dw builds log "$1" || true
+    else
+      echo "no build was recorded before the change ended"
+    fi
+    echo "--- Docker's security options"
+    docker info --format '{{json .SecurityOptions}}' || true
+    echo "--- the AppArmor profiles Docker's containers use"
+    priv grep -E '^(docker|runc|buildkit)' /sys/kernel/security/apparmor/profiles || true
+    echo "--- what the kernel said of AppArmor last"
+    priv dmesg 2>/dev/null | grep -i 'apparmor="DENIED"' | tail -n 30 || true
+    echo "--- and of loading Docker's profile"
+    priv dmesg 2>/dev/null | grep -i 'name="docker-default"' | tail -n 5 || true
+    echo "--- builders left"
+    docker ps --all --filter label=dev.dockwell.builder || true
+  } >&2
+}
+# building NAME COMMAND... runs a command that builds the new service NAME, and keeps
+# its build's ID in applied_build from when there is one: a creation that fails
+# rolls the service back out of the list, and the build's record is what says why.
+applied_build=""
+building() {
+  local name=$1 building_pid
+  shift
+  applied_build=""
+  "$@" >"$git_dir/apply-$name" 2>&1 &
+  building_pid=$!
+  for _ in $(seq 100); do
+    applied_build=$(dw builds list "$name" --environment "$build_env" --json 2>/dev/null | jq -r '.builds[0].id // empty') || true
+    [[ "$applied_build" == bld_* ]] && break
+    kill -0 "$building_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if ! wait "$building_pid"; then
+    cat "$git_dir/apply-$name" >&2
+    build_evidence "$applied_build"
+    return 1
+  fi
+  cat "$git_dir/apply-$name"
+}
+# Environment-level placement takes server IDs; the container commands above accept names too.
+building e2e-built dw services create e2e-built --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref main \
+  --app-ports "{\"host_port\":$built_port,\"container_port\":8080}" --yes || fail "an app that builds from Git didn't deploy"
+served=$(curl -fsS --retry 10 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$built_port/") || fail "what the build made doesn't answer on $built_port"
+[[ "$served" == "Add order export endpoint" ]] || fail "what runs answers '$served', not the commit it was built from"
+built_container() { docker ps --quiet --filter label=com.docker.compose.service=e2e-built | head -1; }
+first_container=$(built_container)
+built_image=$(docker inspect --format '{{.Config.Image}}' "$first_container") || fail "docker inspect of e2e-built failed"
+[[ "$built_image" == dockwell.invalid/* ]] || fail "e2e-built runs $built_image, not an image Dockwell built"
+built_id=$(service_id e2e-built)
+[[ "$built_id" == svc_* ]] || fail "e2e-built isn't in $build_env: $(dw services list --json)"
+builds=$(dw builds list "$built_id" --json) || fail "builds list failed"
+jq -e '.builds[0] | .state == "BUILD_STATE_DONE" and .steps == 4 and .commitSubject == "Add order export endpoint" and .commitAuthor == "Leo Park"' <<<"$builds" >/dev/null ||
+  fail "the build doesn't say it's done, with its steps and commit: $builds"
+build_id=$(jq -r '.builds[0].id' <<<"$builds")
+dw builds log "$build_id" | grep -q "installed 214 packages in 9s" || fail "the build's log doesn't have what its step printed: $(dw builds log "$build_id")"
+[[ -z "$(docker ps --all --quiet --filter label=dev.dockwell.builder)" ]] || fail "a builder is left once its build ended"
+docker volume inspect "dockwell-build-cache-${build_env,,}" >/dev/null || fail "BuildKit's cache isn't in its environment's volume: $(docker volume ls)"
+[[ "$(docker network inspect dockwell-build --format '{{index .Options "com.docker.network.bridge.enable_icc"}}')" == false ]] ||
+  fail "builds run on a network whose containers reach each other: $(docker network inspect dockwell-build)"
+
+step "Builds: a build that fails leaves what runs as it was, and says which step and what it said last"
+move_main broken
+if said=$(dw services deploy "$built_id" --yes 2>&1); then fail "a build that fails deployed: $said"; fi
+# BuildKit may announce its vertices in any order; Dockwell numbers them as they arrive.
+# The failure must identify the instruction, using the same step as the saved build.
+failed_build=$(dw builds list "$built_id" --json | jq -c '.builds[0]') || fail "listing the failed build failed"
+jq -e '.state == "BUILD_STATE_FAILED" and .steps == 4 and .step >= 1 and .step <= .steps and
+  .stepName == "RUN echo \"npm ERR! missing script: build\" && exit 1"' <<<"$failed_build" >/dev/null ||
+  fail "the failed build doesn't identify its instruction and step: $failed_build"
+failed_step=$(jq -r '.step' <<<"$failed_build")
+failed_command=$(jq -c '.stepName' <<<"$failed_build")
+[[ "$said" == *"The build failed at step $failed_step of 4, $failed_command: its log marks what it printed last"* ]] || fail "a failed build says: $said"
+failed_line=$(jq -r '.failedLine' <<<"$failed_build")
+[[ "$failed_line" == "npm ERR! missing script: build" ]] || fail "the failed build says its step printed '$failed_line' last"
+[[ "$(built_container)" == "$first_container" ]] || fail "a failed build replaced what runs"
+[[ "$(curl -fsS "http://127.0.0.1:$built_port/")" == "Add order export endpoint" ]] || fail "after a failed build, what runs answers something else"
+
+step "Builds: someone cancels a build under way, and what runs runs on"
+move_main slow
+dw services deploy "$built_id" --yes >"$git_dir/slow-deploy" 2>&1 &
+slow_pid=$!
+building=""
+for _ in $(seq 300); do
+  building=$(dw builds list "$built_id" --json | jq -r '[.builds[] | select(.state == "BUILD_STATE_BUILDING")][0].id // empty')
+  [[ -n "$building" ]] && break
+  sleep 0.2
+done
+[[ -n "$building" ]] || fail "the slow build never got under way: $(cat "$git_dir/slow-deploy")"
+sleep 3
+dw builds cancel "$building" --yes >/dev/null || fail "cancelling the build failed"
+if wait "$slow_pid"; then fail "a cancelled build deployed: $(cat "$git_dir/slow-deploy")"; fi
+grep -q "was cancelled by" "$git_dir/slow-deploy" || fail "a cancelled build's deploy says: $(cat "$git_dir/slow-deploy")"
+[[ "$(dw builds get "$building" --json | jq -r .build.state)" == BUILD_STATE_CANCELLED ]] || fail "the cancelled build reads $(dw builds get "$building" --json)"
+[[ "$(built_container)" == "$first_container" ]] || fail "a cancelled build replaced what runs"
+[[ -z "$(docker ps --all --quiet --filter label=dev.dockwell.builder)" ]] || fail "a cancelled build left its builder"
+
+step "Builds: the agent's memory while it builds a larger image that prints 20,000 lines"
+move_main noisy
+rss() { awk '/^VmRSS:/ { print $2 }' "/proc/$agent_pid/status"; }
+idle=$(rss)
+dw services deploy "$built_id" --yes >"$git_dir/noisy-deploy" 2>&1 &
+noisy_pid=$!
+peak=$idle
+while kill -0 "$noisy_pid" 2>/dev/null; do
+  now=$(rss) || break
+  ((now > peak)) && peak=$now
+  sleep 0.2
+done
+wait "$noisy_pid" || fail "the noisy build didn't deploy: $(cat "$git_dir/noisy-deploy")"
+noisy_build=$(dw builds list "$built_id" --json | jq '.builds[0]')
+# An int64 comes as a string in JSON, and jq orders a string after any number.
+jq -e '.state == "BUILD_STATE_DONE" and (.logLines | tonumber) >= 20000' <<<"$noisy_build" >/dev/null ||
+  fail "the noisy build didn't end with its lines counted: $noisy_build"
+words="the agent build read $((idle / 1024)) MiB before the build and $((peak / 1024)) MiB at most during it, building node:22-alpine and passing on $(jq -r .logLines <<<"$noisy_build") lines, $(jq -r '.logLinesLeftOut // 0' <<<"$noisy_build") of them not kept and $(jq -r '.logLinesDropped // 0' <<<"$noisy_build") dropped"
+echo "docker-e2e: $words"
+[[ -z "${GITHUB_STEP_SUMMARY:-}" ]] || echo "Builds: $words." >>"$GITHUB_STEP_SUMMARY"
+# An agent passes a build's image and lines on, and keeps neither.
+((peak - idle < 40 * 1024)) || fail "the agent grew by $(((peak - idle) / 1024)) MiB during a build: $words"
+move_main stable
+dw services delete e2e-built --environment "$build_env" --yes || fail "deleting e2e-built failed"
+
+step "Builds: an app with no Dockerfile builds with Railpack, and its plan says what Railpack found first"
+detected=$(dw builds detect --server e2e-agent --build "{\"git\":{\"url\":\"$git_url/web.git\",\"ref\":\"node\"}}" --json) || fail "reading how the node branch builds failed"
+jq -e '.detection.builder == "BUILDER_RAILPACK" and (.detection.providers | index("node")) != null and .detection.startCommand == "npm run start"' <<<"$detected" >/dev/null ||
+  fail "Railpack didn't read the node branch as a Node app that starts with npm run start: $detected"
+railpack_port=18094
+planned=$(dw services create e2e-railpack --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref node \
+  --app-ports "{\"host_port\":$railpack_port,\"container_port\":8080}" --plan-only --json) || fail "planning an app Railpack builds failed"
+jq -e '[.change.plan.servers[].steps[] | select(.build)][0].build.detection | .builder == "BUILDER_RAILPACK" and (.providers | index("node")) != null' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say what Railpack found: $planned"
+idle=$(rss)
+dw changes apply "$(jq -r .change.id <<<"$planned")" --yes >"$git_dir/railpack-deploy" 2>&1 &
+railpack_pid=$!
+peak=$idle
+while kill -0 "$railpack_pid" 2>/dev/null; do
+  now=$(rss) || break
+  ((now > peak)) && peak=$now
+  sleep 0.2
+done
+wait "$railpack_pid" || fail "an app Railpack builds didn't deploy: $(cat "$git_dir/railpack-deploy")"
+served=$(curl -fsS --retry 10 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$railpack_port/") || fail "what Railpack built doesn't answer on $railpack_port"
+[[ "$served" == "Serve the storefront with Railpack" ]] || fail "what Railpack built answers '$served'"
+railpack_id=$(service_id e2e-railpack)
+railpack_build=$(dw builds list "$railpack_id" --json | jq '.builds[0]')
+jq -e '.state == "BUILD_STATE_DONE" and .detection.builder == "BUILDER_RAILPACK"' <<<"$railpack_build" >/dev/null || fail "the Railpack build reads $railpack_build"
+dw builds log "$(jq -r .id <<<"$railpack_build")" | grep -q "built the storefront" || fail "the Railpack build's log doesn't have what its build command printed"
+words="the agent build read $((idle / 1024)) MiB before a Railpack build and $((peak / 1024)) MiB at most during it"
+echo "docker-e2e: $words"
+[[ -z "${GITHUB_STEP_SUMMARY:-}" ]] || echo "Railpack: $words." >>"$GITHUB_STEP_SUMMARY"
+((peak - idle < 40 * 1024)) || fail "the agent grew by $(((peak - idle) / 1024)) MiB during a Railpack build: $words"
+docker volume inspect dockwell-railpack >/dev/null || fail "Railpack isn't in its volume"
+dw services delete e2e-railpack --environment "$build_env" --yes || fail "deleting e2e-railpack failed"
+
+step "Builds: what real Railpack can't build is refused before anything builds, with what to do"
+# Each by what Railpack said: a source it can't read, nothing that starts the app,
+# and a version it can't find.
+for refused in "docs:Add a Dockerfile, or set both a build command and a start command" \
+  "library:Set the build's start command" \
+  "oldnode:RAILPACK_NODE_VERSION as a build argument"; do
+  ref=${refused%%:*} fix=${refused#*:}
+  if out=$(dw services create "e2e-$ref" --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref "$ref" --plan-only 2>&1); then
+    fail "a plan of the $ref branch, which Railpack can't build, wasn't refused: $out"
+  fi
+  grep -qF "$fix" <<<"$out" || fail "the plan of the $ref branch was refused without saying what to do: $out"
+done
+# A builder never mounts what Railpack runs from: only the agent's own containers
+# write the volume, and a reading mounts it read-only.
+if docker ps -a --filter label=dev.dockwell.builder --format '{{.Mounts}}' | grep -q dockwell-railpack; then
+  fail "a container left on the server mounts dockwell-railpack"
+fi
+
+step "Builds: on each server, the agent build's and the control server's, a build's steps run under Docker's AppArmor profile"
+# The builder reads what the server's kernel has loaded for itself, so an agent that
+# isn't root, as the agent build's is here, confines its steps as one that is root
+# does, as the control server's is with E2E_ROOT. BuildKit's image has no
+# apparmor_parser, without which BuildKit refuses any profile: what stands in for it
+# is part of what this proves.
+control_id=$(dw servers list --json | jq -r --arg agent "$agent_id" '[.servers[] | select(.id != $agent) | .id] | first // empty') || fail "servers list failed"
+[[ "$control_id" == srv_* ]] || fail "the control server isn't in the list of servers: $(dw servers list --json)"
+# Only root reads the kernel's list of profiles. Docker says whether it uses AppArmor
+# at all, and loads its profile as it starts where it does.
+confines=""
+if [[ "$(docker info --format '{{json .SecurityOptions}}')" == *name=apparmor* ]]; then
+  confines=1
+  if [[ -n "${E2E_ROOT:-}" ]] && ! priv grep -q '^docker-default ' /sys/kernel/security/apparmor/profiles; then
+    fail "Docker says it uses AppArmor, and the kernel hasn't docker-default loaded: $(priv cat /sys/kernel/security/apparmor/profiles | head -n 20)"
+  fi
+fi
+for where in "agent:$agent_id" "control:$control_id"; do
+  name="e2e-confined-${where%%:*}"
+  planned=$(dw services create "$name" --environment "$build_env" --on "${where#*:}" --build-git-url "$git_url/web.git" --build-git-ref "confined-${where%%:*}" --plan-only --json) ||
+    fail "planning $name failed"
+  building "$name" dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes || fail "an app didn't build on the ${where%%:*} server"
+  confined_id=$(service_id "$name")
+  [[ "$confined_id" == svc_* ]] || fail "$name isn't in $build_env: $(dw services list --json)"
+  confined_build=$(dw builds list "$confined_id" --json | jq -r '.builds[0].id')
+  confined_log=$(dw builds log "$confined_build") || fail "builds log failed"
+  [[ "$confined_log" == *"this step runs under: "* ]] || fail "the build's step on the ${where%%:*} server printed nothing: $confined_log"
+  if [[ -n "$confines" ]]; then
+    if [[ "$confined_log" != *"this step runs under: docker-default"* || "$confined_log" != *"Each step runs under the server's AppArmor profile docker-default"* ]]; then
+      build_evidence "$confined_build"
+      fail "Docker uses AppArmor here, and the build's step on the ${where%%:*} server didn't run under docker-default, or its log doesn't say so: $confined_log"
+    fi
+  elif [[ "$confined_log" == *"AppArmor profile"* ]]; then
+    fail "Docker doesn't use AppArmor here, and the build on the ${where%%:*} server says its steps run under a profile: $confined_log"
+  fi
+  dw services delete "$name" --environment "$build_env" --yes || fail "deleting $name failed"
+done
+[[ -n "$confines" ]] || echo "A step under AppArmor wasn't checked, as Docker doesn't use AppArmor on this machine. CI's does"
+
+step "Builds: a build's secret reaches its steps, and never its log or its image"
+# On the control server, whose agent is root, with /run in memory.
+printf 'e2e-npm-secret-value' >"$git_dir/npm"
+dw secrets create NPM --environment "$build_env" --value-file "$git_dir/npm" --yes || fail "secrets create NPM failed"
+planned=$(dw services create e2e-secret --environment "$build_env" --on "$control_id" --build-git-url "$git_url/web.git" --build-git-ref secret --build-secrets NPM_TOKEN=NPM --plan-only --json) ||
+  fail "planning an app whose build uses a secret failed"
+building e2e-secret dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes || fail "an app whose build uses a secret didn't deploy"
+secret_id=$(service_id e2e-secret)
+[[ "$secret_id" == svc_* ]] || fail "e2e-secret isn't in $build_env: $(dw services list --json)"
+secret_build=$(dw builds list "$secret_id" --json | jq -r '.builds[0].id')
+secret_log=$(dw builds log "$secret_build") || fail "builds log failed"
+if [[ "$secret_log" != *"the secret arrived"* ]]; then
+  build_evidence "$secret_build"
+  fail "the build's step didn't get its secret: $secret_log"
+fi
+[[ "$secret_log" != *e2e-npm-secret-value* ]] || fail "the build's log holds its secret"
+secret_image=$(docker inspect --format '{{.Config.Image}}' "$(docker ps --quiet --filter label=com.docker.compose.service=e2e-secret | head -1)") || fail "e2e-secret doesn't run"
+if docker save "$secret_image" | grep -a -q e2e-npm-secret-value; then fail "the built image holds the build's secret"; fi
+if docker history --no-trunc "$secret_image" | grep -q e2e-npm-secret-value; then fail "the built image's history holds the build's secret"; fi
+# A step that prints the secret and fails keeps it out of the failure too: the
+# deploy's error, the build's, and the line it says the step printed last.
+curl -fsS -X POST "$git_url/_move?branch=secret&to=secret-fails" || fail "the Git server didn't move secret to secret-fails"
+if said=$(dw services deploy "$secret_id" --yes 2>&1); then fail "a build whose step fails deployed: $said"; fi
+[[ "$said" != *e2e-npm-secret-value* ]] || fail "a failed build's deploy says its secret: $said"
+failed_build=$(dw builds list "$secret_id" --json | jq '.builds[0]')
+jq -e '.state == "BUILD_STATE_FAILED"' <<<"$failed_build" >/dev/null || fail "the build whose step fails reads $failed_build"
+[[ "$failed_build" != *e2e-npm-secret-value* ]] || fail "the failed build's record holds its secret: $failed_build"
+[[ "$(jq -r .failedLine <<<"$failed_build")" == "•••" ]] || fail "the failed build says its step printed $(jq -r .failedLine <<<"$failed_build") last, not the masked secret"
+[[ "$(dw builds log "$(jq -r .id <<<"$failed_build")")" != *e2e-npm-secret-value* ]] || fail "the failed build's log holds its secret"
+dw services delete e2e-secret --environment "$build_env" --yes || fail "deleting e2e-secret failed"
+dw secrets delete NPM --environment "$build_env" --yes || fail "deleting the secret NPM failed"
 
 step "One change reaches two servers, each with its own agent"
 # Both on this one Docker, so each container has a name of its own. What runs the same

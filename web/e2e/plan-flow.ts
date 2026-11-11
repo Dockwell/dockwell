@@ -158,7 +158,7 @@ async function reviewNew(
   name: string,
   more?: (form: ReturnType<Page["getByRole"]>) => Promise<void>,
 ) {
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const form = page.getByRole("dialog", { name: "New app" });
   await form.waitFor();
   await form.getByLabel("Image", { exact: true }).fill(image);
@@ -260,7 +260,7 @@ export async function planFlow(
   await light();
 
   step("plan: one shell and one scrim from the form to its plan and back, with the form as you left it");
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const form = page.getByRole("dialog", { name: "New app" });
   await form.waitFor();
   await page.waitForTimeout(350);
@@ -483,7 +483,7 @@ export async function planFlow(
   }
 
   step("plan: an image its registry won't give is refused before there is a plan, in plain words, on the form");
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const typo = page.getByRole("dialog", { name: "New app" });
   await typo.waitFor();
   await typo.getByLabel("Image", { exact: true }).fill("acme/doesnotexist:1.0");
@@ -493,7 +493,7 @@ export async function planFlow(
   if ((await page.getByRole("dialog", { name: "Review plan" }).count()) !== 0) fail("a typo got as far as a plan");
 
   step("plan: a port something else holds is refused before there is a plan, in plain words, on the form");
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const holding = page.getByRole("dialog", { name: "New app" });
   await holding.waitFor();
   await holding.getByLabel("Image", { exact: true }).fill("nginx:1.27-alpine");
@@ -809,7 +809,7 @@ export async function planFlow(
     .click();
 
   step("plan: a Compose file leads with its apps, folds the rest, and arrives under the name you gave it");
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const composing = page.getByRole("dialog", { name: "New app" });
   await composing.waitFor();
   await composing.getByRole("radio", { name: "Compose" }).click();
@@ -1004,7 +1004,7 @@ volumes:
   await plan.getByRole("button", { name: "Cancel" }).click();
   await page.getByRole("dialog", { name: "Deploy keeps" }).getByRole("button", { name: "Cancel" }).click();
 
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const writing = page.getByRole("dialog", { name: "New app" });
   await writing.waitFor();
   await writing.getByRole("radio", { name: "Compose" }).click();
@@ -1050,7 +1050,7 @@ volumes:
   await new Promise<void>((listening) => answers.listen(0, "0.0.0.0", listening));
   try {
     const { port } = answers.address() as AddressInfo;
-    await page.goto(`${origin}/apps/new`);
+    await page.goto(`${origin}/apps/new?source=image`);
     const checking = page.getByRole("dialog", { name: "New app" });
     await checking.waitFor();
     await checking.getByRole("radio", { name: "Compose" }).click();
@@ -1161,7 +1161,7 @@ volumes:
   });
   try {
     const zh = await chinese.newPage();
-    await zh.goto(`${origin}/apps/new`);
+    await zh.goto(`${origin}/apps/new?source=image`);
     const zhForm = zh.getByRole("dialog", { name: "新建应用" });
     await zhForm.waitFor();
     await zhForm.getByRole("combobox", { name: "镜像", exact: true }).fill("nginx:1.27-alpine");
@@ -1183,7 +1183,7 @@ volumes:
 
   step("plan: under reduced motion, the handover doesn't animate");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=image`);
   const still = page.getByRole("dialog", { name: "New app" });
   await still.waitFor();
   await still.getByLabel("Image", { exact: true }).fill("nginx:1.27-alpine");

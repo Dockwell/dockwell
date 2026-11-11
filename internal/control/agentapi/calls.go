@@ -103,6 +103,7 @@ type Agents struct {
 	health       map[string]health.Report
 	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
 	saveHearer   func(server string, ended *agentv1.SaveEnded)
+	buildHearer  func(server string, u *agentv1.BuildUpdate)
 	// pace is how often agents should send stats, as last set, and paceGen counts
 	// each setting, so a stream never hears an older pace after a newer one. Zero
 	// before it's set, when the welcome's pace stands.
@@ -140,6 +141,25 @@ func (a *Agents) reportSaveEnded(server string, ended *agentv1.SaveEnded) {
 	a.mu.Unlock()
 	if hear != nil {
 		hear(server, ended)
+	}
+}
+
+// OnBuild calls fn with each update of how a build on a server is going, in the
+// order they come on one stream (ADR 0046). An agent speaks for its own server and
+// nothing more, so what it names has to be checked.
+func (a *Agents) OnBuild(fn func(server string, u *agentv1.BuildUpdate)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.buildHearer = fn
+}
+
+// reportBuild passes on what an agent says of a build.
+func (a *Agents) reportBuild(server string, u *agentv1.BuildUpdate) {
+	a.mu.Lock()
+	hear := a.buildHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server, u)
 	}
 }
 
@@ -1829,6 +1849,30 @@ func (s *Session) DeleteBackup(ctx context.Context, call *agentv1.DeleteBackupCa
 	}
 	return r.GetDeleteBackup(), nil
 }
+
+// CancelBuild asks the server to stop a build that waits or runs, and says whether
+// there was one.
+func (s *Session) CancelBuild(ctx context.Context, call *agentv1.CancelBuildCall) (bool, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_CancelBuild{CancelBuild: call}}, PlanTimeout, nil)
+	if err != nil {
+		return false, err
+	}
+	return r.GetCancelBuild().GetStopping(), nil
+}
+
+// DetectBuild reads how a commit would build on the server, building nothing. The
+// first on a server fetches Railpack and mise, so it gets longer than a plan.
+func (s *Session) DetectBuild(ctx context.Context, call *agentv1.DetectBuildCall) (*dockwellv1.BuildDetection, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DetectBuild{DetectBuild: call}}, DetectTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetDetectBuild().GetDetection(), nil
+}
+
+// DetectTimeout bounds reading how a commit builds, which the agent bounds at three
+// minutes of its own.
+const DetectTimeout = 4 * time.Minute
 
 // sealing readies a call that carries a destination, for each stream it goes out on.
 func (s *Session) sealing(volume *dockwellv1.ResourceRef, destination map[string]string, set func([]byte)) func(*Session) error {
