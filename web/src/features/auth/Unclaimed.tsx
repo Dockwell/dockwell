@@ -18,10 +18,7 @@ export function Unclaimed({ serverName }: { serverName: string }) {
           <Trans>{name} has no owner yet</Trans>
         </h1>
         <p className="standalone-lead">
-          <Trans>
-            Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on{" "}
-            {name} over SSH:
-          </Trans>
+          <Trans>Claim it with the link the install printed. For a new one, run this on {name}:</Trans>
         </p>
       </header>
       <CopyCommand command={command} />

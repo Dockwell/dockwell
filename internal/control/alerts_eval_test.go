@@ -572,3 +572,47 @@ func (s staggered) Standing(_, _, service string) controlhealth.Standing {
 	}
 	return controlhealth.Standing{Heard: true, Down: true, Since: since, State: dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING}
 }
+
+// One rule's alerts that can't be written wait for the next look, and the rest go
+// on: the rules after it, and the outbox, so one bad write never silences every
+// alert. Once the write can land, the alert opens at once, not after the rule's
+// duration again.
+func TestARuleThatCantBeWrittenStopsNoOtherAlert(t *testing.T) {
+	h := newHook(t)
+	f, _, _ := evalStand(t, h.srv.URL+"/hook")
+	at := &clock{now: time.Now()}
+	e := evaluatorOn(f, at)
+	e.Fleet = evalFleet{func() []*dockwellv1.Server {
+		s := connectedAt(at.Now(), 95)
+		s[0].Stats.Disks[0].UsedBytes = 95
+		return s
+	}}
+	f.execSQL(t, `CREATE TRIGGER keep_out BEFORE INSERT ON alerts WHEN NEW.rule_name = 'disk-full' BEGIN SELECT RAISE(ABORT, 'no room'); END`)
+	var said error
+	for range 44 { // 11 minutes: past both rules' durations
+		if err := e.Tick(t.Context()); err != nil {
+			said = err
+		}
+		e.Wait()
+		at.add(alerts.Every)
+	}
+	if said == nil || !strings.Contains(said.Error(), "rule disk-full") {
+		t.Errorf("Tick said %v, want the rule whose write failed", said)
+	}
+	if got := h.of("memory-high"); len(got) != 1 || !strings.HasPrefix(got[0], "firing:") {
+		t.Errorf("with disk-full's write failing, the hook heard %q of memory-high, want it firing", got)
+	}
+	if got := h.of("disk-full"); len(got) != 0 {
+		t.Errorf("the hook heard %q of disk-full, whose write failed", got)
+	}
+
+	// It opens at the first look that can write it, and goes out once the outbox's
+	// wait for others is over: well inside the rule's 5 minutes.
+	f.execSQL(t, `DROP TRIGGER keep_out`)
+	for end := at.Now().Add(alerts.GroupWait); !at.Now().After(end); at.add(alerts.Every) {
+		tickOn(t, e)
+	}
+	if got := h.of("disk-full"); len(got) != 1 || !strings.HasPrefix(got[0], "firing:") {
+		t.Errorf("%v after its write could land, the hook heard %q of disk-full, want it firing", alerts.GroupWait, got)
+	}
+}

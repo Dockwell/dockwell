@@ -435,9 +435,10 @@ message CatalogPin {
   string version = 2;
   // The entry's release as installed, which a newer one's goes past.
   uint32 release = 3;
-  // The repository the entry came from.
+  // The repository the entry came from, as the control plane knows it: Dockwell's
+  // own for its built-in catalog, or a catalog source's. Never what the entry says.
   string repository = 4;
-  // The commit it came from.
+  // The commit it came from: the build's, or the source's when it was installed.
   string commit = 5;
   // What each input that isn't a secret was given, by name, so an upgrade gives
   // the same.
@@ -447,6 +448,12 @@ message CatalogPin {
   // needs to tell that from what a person changed since. Empty for an install from
   // before Dockwell kept it, which can't be upgraded.
   bytes file = 7;
+  // The catalog source it came from, by name, or empty for Dockwell's own. An
+  // upgrade comes only from the same catalog, at the same repository and folder,
+  // whatever else has an entry of its ID (ADR 0055).
+  string catalog = 80;
+  // The folder in the repository its source reads, for an entry from a source.
+  string path = 81;
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -716,6 +723,21 @@ message Route {
   bool plain_for_anyone = 8;
 }
 
+// CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
+// entries in its format in a public Git repository, at one commit. Moving it to
+// another commit is a change, so what anyone can install from it moves only with a
+// plan. See docs/adr/0055-catalogs-from-a-git-url.md.
+message CatalogSource {
+  // The repository's URL, over HTTPS, such as
+  // "https://github.com/example/catalog".
+  string repository = 1;
+  // The folder of entries in it, one <id>.yaml each, such as "entries". Empty is
+  // its top.
+  string path = 2;
+  // The commit it's read at, in full, as 40 hex digits.
+  string commit = 3;
+}
+
 // Spec is the desired state of one resource, of any kind: the field that is
 // set says which. Edits in the API carry specs in it, so one message takes
 // every kind.
@@ -760,6 +782,9 @@ message Spec {
     AlertChannel alert_channel = 111;
     // An address checked for whether it answers, kind "alert.check" (ADR 0066).
     AlertCheck alert_check = 112;
+    // A catalog read from a Git repository, kind "catalog.source". Numbered
+    // apart, as open work adds to this message.
+    CatalogSource catalog_source = 80;
     // Work that runs on a schedule, kind "task". Numbered in the block scheduled
     // tasks hold, as open work adds to this message.
     Task task = 150;

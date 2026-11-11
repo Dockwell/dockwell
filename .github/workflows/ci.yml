@@ -266,6 +266,10 @@ jobs:
           - nextcloud rustfs grafana umami
           - plausible ghost wordpress memos
           - adminer jellyfin home-assistant
+          - openclaw
+          - hermes-agent
+          - new-api lobechat
+          - sftpgo openlist gotify linkding
     env:
       E2E_ROOT: "1"
     steps:
@@ -278,6 +282,11 @@ jobs:
             tools/go.sum
       - name: Docker
         run: docker version
+      - name: SFTP client
+        if: contains(matrix.apps, 'sftpgo')
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y sshpass
       - name: The apps end to end
         run: make catalog-e2e APPS="${{ matrix.apps }}"
 

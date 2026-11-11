@@ -84,7 +84,7 @@ func (s *signals) checksDown() []finding {
 	// Until the runner has read the install's checks, it knows nothing of any:
 	// every check is in the dark, and what's open stays open.
 	if !s.e.Checks.Loaded() {
-		return []finding{{thing: "chk:", prefix: true, verdict: unknown}}
+		return []finding{{thing: checks.AlertThing, prefix: true, verdict: unknown}}
 	}
 	var out []finding
 	for _, c := range s.e.Checks.Statuses() {
@@ -92,7 +92,7 @@ func (s *signals) checksDown() []finding {
 		if u, err := url.Parse(host); err == nil && u.Host != "" {
 			host = u.Host
 		}
-		f := finding{thing: "chk:" + c.ID, subjectID: c.ID, subjectName: c.Name, path: "/alerts/checks", facts: Facts{Where: host}}
+		f := finding{thing: checks.AlertThing + c.ID, subjectID: c.ID, subjectName: c.Name, path: "/alerts/checks", facts: Facts{Where: host}}
 		if c.Problem != "" {
 			// It can't run: what it had open stays open.
 			f.verdict = unknown
