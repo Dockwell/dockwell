@@ -65,6 +65,10 @@ const (
 	// which the agent reads 1Panel's records from under DOCKWELL_TEST, and only then
 	// (ADR 0056).
 	envTestOnePanel = "DOCKWELL_TEST_ONEPANEL"
+	// envTestRegistry names, in a test, the registry every read of an image goes
+	// to, such as the fake engine's, under DOCKWELL_TEST, and only then: without
+	// it, a test reads no image from a registry (ADR 0062).
+	envTestRegistry = "DOCKWELL_TEST_REGISTRY"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

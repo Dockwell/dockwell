@@ -97,10 +97,7 @@ export function ContainersPanel({ server }: { server: Server }) {
       <div className="containers-lead">
         {count > 0 ? (
           <p>
-            <Trans>
-              These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes
-              nothing and they keep running as they are.
-            </Trans>
+            <Trans>Dockwell only reads these. Open one to take it on as an app.</Trans>
           </p>
         ) : (
           <p>

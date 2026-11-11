@@ -41,22 +41,23 @@ var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session
 // project by name or domain. Elsewhere an id that isn't an ID, such as a
 // catalog entry's, names nothing of a project.
 var idNames = map[string]string{
-	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure:  "service",
-	dockwellv1connect.ServiceServiceDeployServiceProcedure:         "service",
-	dockwellv1connect.ServiceServiceRollBackServiceProcedure:       "service",
-	dockwellv1connect.ServiceServiceAddServicePortProcedure:        "service",
-	dockwellv1connect.ChangeServiceRestartServiceProcedure:         "service",
-	dockwellv1connect.LogServiceListLogSourcesProcedure:            "service",
-	dockwellv1connect.LogServiceReadLogsProcedure:                  "service",
-	dockwellv1connect.LogServiceWatchLogsProcedure:                 "service",
-	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure: "project",
-	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:          "service",
-	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:   "service",
-	dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure:         "website",
-	dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure:         "website",
-	dockwellv1connect.TaskServiceGetTaskProcedure:                  "task",
-	dockwellv1connect.TaskServiceListTaskRunsProcedure:             "task",
-	dockwellv1connect.TaskServiceRunTaskProcedure:                  "task",
+	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure:    "service",
+	dockwellv1connect.ServiceServiceDeployServiceProcedure:           "service",
+	dockwellv1connect.ServiceServiceRollBackServiceProcedure:         "service",
+	dockwellv1connect.ServiceServiceAddServicePortProcedure:          "service",
+	dockwellv1connect.ChangeServiceRestartServiceProcedure:           "service",
+	dockwellv1connect.LogServiceListLogSourcesProcedure:              "service",
+	dockwellv1connect.LogServiceReadLogsProcedure:                    "service",
+	dockwellv1connect.LogServiceWatchLogsProcedure:                   "service",
+	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure:   "project",
+	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:            "service",
+	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:     "service",
+	dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure: "service",
+	dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure:           "website",
+	dockwellv1connect.WebsiteServiceDeleteWebsiteProcedure:           "website",
+	dockwellv1connect.TaskServiceGetTaskProcedure:                    "task",
+	dockwellv1connect.TaskServiceListTaskRunsProcedure:               "task",
+	dockwellv1connect.TaskServiceRunTaskProcedure:                    "task",
 }
 
 // serviceFields are the calls whose service field names a service to read, by
@@ -92,6 +93,11 @@ var requestBound = map[string]bool{
 	dockwellv1connect.ComposeServiceCheckComposeProcedure:         true,
 	dockwellv1connect.ComposeServiceImportComposeProcedure:        true,
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure: true,
+	// What a registry says of an image belongs to no project, and holds nothing
+	// of the server it was read through (ADR 0062).
+	dockwellv1connect.ImageServiceSearchImagesProcedure:  true,
+	dockwellv1connect.ImageServiceListImageTagsProcedure: true,
+	dockwellv1connect.ImageServiceGetImageProcedure:      true,
 }
 
 // containerLogs are the calls that, given a server, read a container there
@@ -444,6 +450,10 @@ func namedChoice(found []place.Found, what string) error {
 	return choice(&dockwellv1.Choice{Level: "environment", Field: "environment", Options: envs, Project: projects[0]},
 		fmt.Errorf("%s is in more than one environment of %s, %s, so say which one you mean", what, projects[0], human.List(envs)))
 }
+
+// ChoiceError is a request's choice to make, as choice says it, for a handler
+// that finds one, such as which server to read from.
+func ChoiceError(detail *dockwellv1.Choice, err error) error { return choice(detail, err) }
 
 // choice is a request's choice to make, with what to choose from in a detail.
 func choice(detail *dockwellv1.Choice, err error) error {

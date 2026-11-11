@@ -1,6 +1,7 @@
 # service.method                                effect       min_role   protected  reach    session
 AlertService.AcknowledgeAlert                  apply        admin      admin      install
 AlertService.ListAlertChannels                 read         admin      admin      install
+AlertService.ListAlertChecks                   read         admin      admin      install
 AlertService.ListAlertDeliveries               read         admin      admin      install
 AlertService.ListAlertMutes                    read         admin      admin      install
 AlertService.ListAlertRules                    read         admin      admin      install
@@ -71,6 +72,7 @@ ComposeService.ExportCompose                   read         viewer     viewer   
 ComposeService.ImportCompose                   plan         developer  developer  project
 ContainerService.AdoptContainer                plan         admin      admin      install  session
 ContainerService.ListContainers                read         admin      admin      install
+DatabaseService.ChangeDatabasePassword         plan         developer  developer  project
 DatabaseService.CreateDatabaseUser             plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
@@ -94,6 +96,9 @@ FileService.SaveFile                           destructive  admin      admin    
 FileService.UploadFile                         apply        admin      admin      install  session
 FirewallService.GetServerFirewall              read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
+ImageService.GetImage                          read         developer  developer  project
+ImageService.ListImageTags                     read         developer  developer  project
+ImageService.SearchImages                      read         developer  developer  project
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
@@ -104,6 +109,7 @@ MemberService.RevokeInvite                     apply        admin      admin    
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
+ServerService.CheckServerPorts                 read         admin      admin      install
 ServerService.CreateJoinTicket                 apply        admin      admin      install  session
 ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
