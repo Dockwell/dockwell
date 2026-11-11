@@ -110,11 +110,15 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil:
-		if ctx.Err() != nil && !errors.Is(context.Cause(ctx), errReadWait) {
+		switch whoseTime(ctx) {
+		case callersTime:
 			// The caller's own time ran out, such as a password's put-back.
 			return nil, fmt.Errorf("%s didn't answer in the time it had", e.Name)
+		case readingsTime:
+			return nil, fmt.Errorf("%s didn't answer within %s", e.Name, readWait)
 		}
-		return nil, fmt.Errorf("%s didn't answer within %s", e.Name, readWait)
+		// A deadline of Docker's own, not this call's: Docker's words say what it was.
+		return nil, fmt.Errorf("can't run %s's own tools in its container: %s", e.Name, clause(err))
 	case err != nil:
 		return nil, fmt.Errorf("can't run %s's own tools in its container: %s", e.Name, clause(err))
 	case code == 124 || code == 143:
@@ -136,6 +140,31 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("%s said more than Dockwell reads, %d bytes", e.Name, maxSaid)
 	}
 	return out.Bytes(), nil
+}
+
+// A deadline that ended a call is the caller's, a reading's own (readWait), or
+// neither, when it was one inside Docker's client.
+const (
+	notOurTime = iota
+	callersTime
+	readingsTime
+)
+
+// whoseTime says whose deadline ended a call. A socket's deadline, which the dialer
+// sets from the context's, can fire a moment before the context's own timer, with
+// its error already a deadline's and the context not yet done: once the deadline
+// has passed, the context says whose it was a moment later.
+func whoseTime(ctx context.Context) int {
+	if d, ok := ctx.Deadline(); ok && !time.Now().Before(d) {
+		<-ctx.Done()
+	}
+	switch {
+	case ctx.Err() == nil:
+		return notOurTime
+	case errors.Is(context.Cause(ctx), errReadWait):
+		return readingsTime
+	}
+	return callersTime
 }
 
 // tool is the command a reading runs, for people.
