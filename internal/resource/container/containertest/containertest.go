@@ -26,6 +26,8 @@ type Fake struct {
 	containers map[string]*resourcev1.Container
 	// Broken images start but never become healthy.
 	Broken map[string]bool
+	// Stuck containers, by name, can't be removed.
+	Stuck map[string]bool
 	// Runs counts containers started, to see what was recreated.
 	Runs int
 	// restarted says which restart each container last had.
@@ -34,7 +36,7 @@ type Fake struct {
 
 // NewFake returns an empty Fake.
 func NewFake() *Fake {
-	return &Fake{containers: map[string]*resourcev1.Container{}, Broken: map[string]bool{}, restarted: map[string]string{}}
+	return &Fake{containers: map[string]*resourcev1.Container{}, Broken: map[string]bool{}, Stuck: map[string]bool{}, restarted: map[string]string{}}
 }
 
 var _ container.Runtime = (*Fake)(nil)
@@ -58,6 +60,18 @@ func (f *Fake) Inspect(_ context.Context, t container.Target) (*resourcev1.Conta
 		return nil, nil
 	}
 	return proto.Clone(c).(*resourcev1.Container), nil
+}
+
+// ImageAt is the image the container at t runs: an ID made up of its reference,
+// as a Fake keeps no images.
+func (f *Fake) ImageAt(_ context.Context, t container.Target) (resource.Image, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c, ok := f.containers[key(t)]
+	if !ok {
+		return resource.Image{}, nil
+	}
+	return resource.Image{ID: "sha256:fake-" + c.GetImage()}, nil
 }
 
 // Run replaces any container with the name.
@@ -100,6 +114,9 @@ func (f *Fake) Update(_ context.Context, t container.Target, spec *resourcev1.Co
 func (f *Fake) Remove(_ context.Context, t container.Target) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.Stuck[t.Name] {
+		return fmt.Errorf("%s can't be removed", t.Name)
+	}
 	delete(f.containers, key(t))
 	return nil
 }

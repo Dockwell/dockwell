@@ -8758,6 +8758,20 @@ components:
                     description: |-
                         For a member's event, such as member.invite or member.join: who, with
                          what role, where. Numbered in the block members hold.
+                desiredSent:
+                    allOf:
+                        - $ref: '#/components/schemas/EventDesiredSent'
+                    description: |-
+                        What the control plane sent a server's agent to keep as what the server
+                         runs, for an event with the action "server.desired_sent", or found it keeps
+                         and doesn't know, for "server.desired_unknown" (ADR 0054).
+                reconciled:
+                    allOf:
+                        - $ref: '#/components/schemas/EventReconciled'
+                    description: |-
+                        What a server's agent did, or couldn't do, on its own while the control
+                         plane was away, for an event with an action that starts "server.reconciled"
+                         (ADR 0054).
             description: Event is one thing that happened.
         EventAlert:
             type: object
@@ -8872,6 +8886,44 @@ components:
                     type: string
                     description: The destination it went to or didn't, by name.
             description: EventBackup is what became of one backup.
+        EventDesiredSent:
+            type: object
+            properties:
+                resources:
+                    type: integer
+                    description: How many resources the agent was sent.
+                    format: uint32
+                withValues:
+                    type: integer
+                    description: How many of them came with the values of variables and secrets.
+                    format: uint32
+                newCache:
+                    type: boolean
+                    description: |-
+                        True when the agent's cache isn't the one the control plane last saw: one
+                         made since, as after a reinstall or a lost key, or one of another holder of
+                         the server's identity.
+                serverName:
+                    type: string
+                    description: The server's name.
+                unknown:
+                    type: integer
+                    description: |-
+                        For an event with the action "server.desired_unknown", how many of what the
+                         agent keeps this control plane has no record of, or only at an earlier
+                         revision, as after its store was restored or rebuilt. They were left as they
+                         are, as they may be the only copy of what runs.
+                    format: uint32
+                firstCache:
+                    type: boolean
+                    description: |-
+                        True when the control plane hadn't seen the agent's cache before, as for an
+                         agent that kept nothing until it was updated.
+            description: |-
+                EventDesiredSent says what the control plane sent a server's agent to keep, as
+                 what the server runs, when some of it held the values of variables and secrets.
+                 An agent keeps those so its server can be put back while the control plane is
+                 away, and is sent them as it connects without them.
         EventHealth:
             type: object
             properties:
@@ -8995,6 +9047,28 @@ components:
                     type: string
                     description: What a person had set before, so it can be put back. Empty when they hadn't.
             description: EventPublicAddress is a server's public address as a person changed it.
+        EventReconciled:
+            type: object
+            properties:
+                serverName:
+                    type: string
+                    description: The server's name.
+                kind:
+                    type: string
+                    description: The resource, by its kind and name.
+                name:
+                    type: string
+                reason:
+                    type: string
+                    description: Why it couldn't put the resource back, for people.
+                dropped:
+                    type: integer
+                    description: For dropped entries, how many.
+                    format: uint32
+            description: |-
+                EventReconciled is what a server's agent did, or couldn't do, on its own while
+                 the control plane was away. The event's action says which: made it again,
+                 started it, couldn't put it back, or dropped entries it couldn't keep.
         EventSetting:
             type: object
             properties:

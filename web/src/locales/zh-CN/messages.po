@@ -467,6 +467,12 @@ msgstr "正在加载动态"
 msgid "Loading the plan"
 msgstr "正在加载计划"
 
+msgid "New cache"
+msgstr "新缓存"
+
+msgid "Not on record"
+msgstr "无记录"
+
 msgid "Nothing here yet"
 msgstr "这里还没有内容"
 
@@ -501,6 +507,9 @@ msgstr "提议者"
 msgid "Ran as"
 msgstr "运行身份"
 
+msgid "Resources sent"
+msgstr "已发送的资源"
+
 msgid "Review plan"
 msgstr "审查计划"
 
@@ -527,6 +536,9 @@ msgstr "状态"
 
 msgid "Terminal"
 msgstr "终端"
+
+msgid "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
+msgstr "控制平面的数据是从这些资源创建或修改之前恢复或重建的，因此 {server} 的 agent 保留的这些资源（包括其中的值）可能是那里运行内容的唯一副本。请从控制平面重新应用它们，以更新其记录。"
 
 msgid "Times"
 msgstr "次数"
@@ -573,6 +585,9 @@ msgstr "原因"
 msgid "Why it failed"
 msgstr "失败原因"
 
+msgid "With variables and secrets"
+msgstr "含变量和密钥"
+
 msgid "Yesterday"
 msgstr "昨天"
 
@@ -590,6 +605,9 @@ msgstr "{count} 次，在 {first}"
 
 msgid "{count}, from {first} to {last}"
 msgstr "{count} 次，{first} 至 {last}"
+
+msgid "{server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove {server} from the fleet and join it again, which gives it a new one."
+msgstr "{server} 的 agent 用一把新密钥保存缓存，这把密钥是在控制平面上次向它发送内容之后生成的，比如重新安装之后，或数据目录丢失之后。如果两者都没有发生，可能有别的程序持有这台服务器的身份：请将 {server} 从集群中移除，再重新加入，以获得新的身份。"
 
 msgid "{times, plural, one {# time} other {# times}}"
 msgstr "{times, plural, other {# 次}}"
@@ -1013,6 +1031,21 @@ msgstr "{count, plural, other {在 {span}内变化了 # 次。}}"
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, other {自上一条记录以来又变化了 # 次。}}"
 
+msgid "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
+msgstr "{count, plural, other {已向 {server} 的 agent 发送它运行的 # 个资源的变量和密钥，供控制平面离线时保留}}"
+
+msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, other {已向此前未保留任何内容的 {server} 的 agent 发送它运行的 # 个资源的变量和密钥}}"
+
+msgid "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+msgstr "{count, plural, other {{server} 丢弃了控制平面离线期间它所做之事的 # 条记录，因为它最多保留 500 条}}"
+
+msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, other {{server} 的 agent 有了新的缓存，并收到了它运行的 # 个资源的变量和密钥}}"
+
+msgid "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+msgstr "{count, plural, other {{server} 的 agent 保留着 # 个控制平面在该修订版本上没有记录的资源，已原样保留}}"
+
 msgid "{destination} kept a backup of {volume} that was to go"
 msgstr "{destination} 保留了本应删除的 {volume} 备份"
 
@@ -1037,14 +1070,26 @@ msgstr "{name} 在 {server} 上被暂停"
 msgid "{server} can't be reached"
 msgstr "无法连接到 {server}"
 
+msgid "{server} couldn't put anything back while the control plane was away"
+msgstr "控制平面离线期间，{server} 什么也无法恢复"
+
+msgid "{server} couldn't put {resourceName} back while the control plane was away"
+msgstr "控制平面离线期间，{server} 无法恢复 {resourceName}"
+
 msgid "{server} joined as the control server"
 msgstr "{server} 作为控制服务器加入"
 
 msgid "{server} joined the fleet"
 msgstr "{server} 加入了集群"
 
+msgid "{server} made {resourceName} again while the control plane was away"
+msgstr "控制平面离线期间，{server} 重新创建了 {resourceName}"
+
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
+
+msgid "{server} started {resourceName} again while the control plane was away"
+msgstr "控制平面离线期间，{server} 重新启动了 {resourceName}"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} 的内存已用 {value}%"

@@ -105,6 +105,10 @@ func TestTheObjectModel(t *testing.T) {
 				if err != nil || len(on) != 1 || on[0].ID != "svc_1" {
 					t.Errorf("ListPlaced(%s) = %+v, %v", s, on, err)
 				}
+				// Placed isn't live: nothing has applied there yet.
+				if live, err := tx.ListLive(ctx, s); err != nil || len(live) != 0 {
+					t.Errorf("ListLive(%s) before anything applied = %+v, %v", s, live, err)
+				}
 			}
 			revs, err := tx.RevisionsOf(ctx, "chg_1")
 			if err != nil || len(revs) != 3 || revs[0].ID != "prj_1" || revs[2].ID != "svc_1" {
@@ -158,6 +162,14 @@ func TestTheObjectModel(t *testing.T) {
 			on, err := tx.ListPlaced(ctx, "srv_A")
 			if err != nil || len(on) != 0 {
 				t.Errorf("srv_A should have nothing of the latest revision: %+v, %v", on, err)
+			}
+			// srv_A still runs revision 1, which isn't the latest, so it keeps none.
+			if live, err := tx.ListLive(ctx, "srv_A"); err != nil || len(live) != 0 {
+				t.Errorf("ListLive(srv_A) = %+v, %v, want nothing", live, err)
+			}
+			live, err := tx.ListLive(ctx, "srv_B")
+			if err != nil || len(live) != 1 || live[0].ID != "svc_1" || live[0].Revision != 2 || live[0].ChangeID != "chg_2" {
+				t.Errorf("ListLive(srv_B) = %+v, %v, want web at revision 2, from chg_2", live, err)
 			}
 			return nil
 		})

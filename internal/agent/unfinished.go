@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
@@ -41,6 +42,9 @@ type step struct {
 	call context.Context
 	// refused says something was turned away for it, and waits to hear it ended.
 	refused bool
+	// local says it's the agent's own, putting the resource back while the
+	// control plane was away (ADR 0054), and turns calls away while it runs.
+	local bool
 }
 
 func newUnfinished() *unfinished {
@@ -62,6 +66,12 @@ func (u *unfinished) begin(ctx context.Context, call *agentv1.Call) (*step, *age
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	for s := range u.steps {
+		if s.local && slices.Contains(refs, s.ref) {
+			s.refused = true
+			return nil, &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Unfinished: true, Message: fmt.Sprintf(
+				"the agent is putting %s back on its own, as the control plane was away, so this can't go ahead yet. What waits for it goes on once that ends, "+
+					"within %s at most. If it doesn't, check Docker, then restart the agent", s.ref.Name, human.Duration(markTimeout()))}}}
+		}
 		if s.call.Err() != nil && slices.Contains(refs, s.ref) {
 			s.refused = true
 			return nil, &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Unfinished: true, Message: fmt.Sprintf(
@@ -75,6 +85,34 @@ func (u *unfinished) begin(ctx context.Context, call *agentv1.Call) (*step, *age
 	s := &step{ref: refs[0], call: ctx}
 	u.steps[s] = struct{}{}
 	return s, nil
+}
+
+// claim marks ref as the agent's own to put back while the control plane is away,
+// unless a step on it is under way, and says whether it did. While it's marked, a
+// plan or an apply of it is turned away; end lets it go.
+func (u *unfinished) claim(ref resource.Ref) (*step, bool) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for s := range u.steps {
+		if s.ref == ref {
+			return nil, false
+		}
+	}
+	s := &step{ref: ref, call: context.Background(), local: true}
+	u.steps[s] = struct{}{}
+	return s, true
+}
+
+// busy says a step on ref, or the agent's own work, is under way.
+func (u *unfinished) busy(ref resource.Ref) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	for s := range u.steps {
+		if s.ref == ref {
+			return true
+		}
+	}
+	return false
 }
 
 // end notes a step returned, however late, and wakes what it turned away.
