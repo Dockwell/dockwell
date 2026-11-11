@@ -5,7 +5,7 @@
 // a way to reach it, what to do first and where its secrets are. Then an app that
 // needs a token and reaches past its containers, and a newer release of an app, which
 // the panel says is out, through its plan and its undo. scripts/docker-e2e.sh runs
-// these apps on real Docker.
+// these apps on real Docker. Last, its sources: none, and one refused for its address.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -169,6 +169,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   const name = (await sheet.getByRole("group", { name: "Name" }).locator("code").innerText()).trim();
   if (name !== "postgres") fail(`its name starts as ${name}, not postgres`);
   if ((await sheet.getByRole("textbox").count()) !== 0) fail("it asks for something it can fill in itself");
+  if ((await sheet.getByText("What to do first").count()) !== 0) fail("the install sheet still says what to do first");
   await shoot(page, "catalog-install");
   await sheet.getByRole("button", { name: "Advanced" }).click();
   await sheet.getByRole("group", { name: "Database password" }).getByText("Generated and sealed").waitFor();
@@ -179,8 +180,10 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
   await plan.waitFor({ timeout: 30_000 });
+  // The install form stays in the dialog, hidden under its plan, and lists what it
+  // installs too: what's visible is the plan's.
   for (const name of ["POSTGRES_PASSWORD", "adminer", "db"])
-    await plan.getByText(name, { exact: true }).first().waitFor();
+    await plan.getByText(name, { exact: true }).filter({ visible: true }).first().waitFor();
   await shoot(page, "catalog-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
 
@@ -190,23 +193,25 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await shoot(page, "catalog-arrival");
   await open.click();
   await page.getByRole("heading", { level: 1, name: "db", exact: true }).waitFor();
-  // Where its password is, as the page that says how to connect puts it.
-  await page
-    .getByText(/POSTGRES_PASSWORD/)
-    .first()
-    .waitFor();
+  if (!new URL(page.url()).pathname.startsWith("/databases/")) fail(`a database install lands on ${page.url()}`);
+  await page.getByRole("region", { name: "Connect" }).getByText("postgres", { exact: true }).waitFor();
 
-  step("catalog: its admin tool has a page of its own, with a way to reach it");
-  await page.goto(`${origin}/catalog/postgres`);
-  await page
-    .getByRole("region", { name: "Your installations" })
-    .getByRole("link", { name: "Open app: postgres" })
-    .click();
+  step("catalog: its admin tool's page says how to sign in, with a way to reach it");
+  const listed = await page.evaluate(async () => (await fetch("/v1/services")).json());
+  const adminer =
+    ((listed as { services?: { id: string; resource: { name: string } }[] }).services ?? []).find(
+      (s) => s.resource.name === "adminer",
+    )?.id ?? fail(`GET /v1/services listed no adminer: ${JSON.stringify(listed).slice(0, 300)}`);
+  await page.goto(`${origin}/apps/${adminer}`);
   await page.getByRole("heading", { level: 1, name: "adminer", exact: true }).waitFor();
   await page.getByRole("link", { name: new RegExp(`Open .*:${port}`) }).waitFor({ timeout: 30_000 });
   const from = page.getByRole("region", { name: "From the catalog" });
   await from.getByText("PostgreSQL 17.11").waitFor();
-  await from.getByText(/with the password in the POSTGRES_PASSWORD secret/).waitFor();
+  // How to sign in is a card to copy from, with the password to reveal, not a sentence naming its secret.
+  const signIn = page.getByRole("region", { name: "Sign in" });
+  await signIn.getByText("postgres", { exact: true }).waitFor();
+  await signIn.getByText("db", { exact: true }).waitFor();
+  await signIn.getByRole("button", { name: "Reveal database password" }).waitFor();
   await shoot(page, "catalog-app");
   const running = (await docker()).filter((c) => c.service === "adminer").map((c) => c.image);
   if (!running.some((image) => /^adminer:.*@sha256:/.test(image))) {
@@ -214,7 +219,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   }
 
   step("catalog: its secret is sealed, and one step away");
-  await from.getByRole("link", { name: "Show its secrets" }).click();
+  await from.getByRole("link", { name: "Its secrets" }).click();
   await page.getByRole("heading", { level: 1, name: "Variables and secrets" }).waitFor();
   await page.getByText("POSTGRES_PASSWORD", { exact: true }).first().waitFor();
 
@@ -293,6 +298,25 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await panel.getByRole("button", { name: "Upgrade to 2.0" }).waitFor({ timeout: 30_000 });
   const back = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
   if (back.length !== 1 || !back[0]?.includes(FIRST_DIGEST)) fail(`after the undo, Docker runs ${back.join(", ")}`);
+
+  step("catalog: its sources are the catalogs it reads beside its own, none until a plan adds one");
+  await page.goto(`${origin}/catalog`);
+  await page.getByRole("link", { name: "Sources", exact: true }).first().click();
+  await page.getByRole("heading", { name: "Dockwell's own catalog is all it reads" }).waitFor();
+  await shoot(page, "catalog-sources");
+
+  // The form reads a repository as it's typed. An address of this server is refused
+  // beside the field, before anything is asked of it, so this asks nothing of the network.
+  step("catalog: a source's repository is checked as it's typed, and one that isn't public is refused, saying why");
+  await page.getByRole("button", { name: "Add a source" }).click();
+  const adding = page.getByRole("dialog", { name: "Add a catalog source" });
+  await adding.getByLabel("Repository").fill("https://127.0.0.1/catalog");
+  await adding
+    .locator("form")
+    .getByText(/this server's own address, so Dockwell reads no source there/)
+    .waitFor();
+  await shoot(page, "catalog-sources-refused");
+  await adding.getByRole("button", { name: "Cancel" }).click();
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

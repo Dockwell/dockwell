@@ -117,6 +117,9 @@ func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) 
 			Database:   slices.Contains(e.GetDatabases(), s.Name) || len(e.GetDatabases()) == 0 && isDatabase(app.GetImage()),
 			Opens:      s.Name == e.GetWeb().GetService(),
 			HostAccess: resourcepb.HostAccess(container.ServiceAccess(app)),
+			Memory:     app.GetResources().GetMemory(),
+			Cpus:       app.GetResources().GetCpus(),
+			Restart:    app.GetRestart(),
 		}
 		for _, m := range app.GetMounts() {
 			if v := m.GetVolume(); v != "" && !m.GetExternal() {
@@ -210,13 +213,35 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Variables:  filled.Variables,
 		Secrets:    filled.Secrets,
 		Servers:    m.GetServers(),
-		FirstSteps: entry.GetFirstSteps(),
+		FirstSteps: catalog.FirstWords(entry),
 		Pin:        pinTo(entry, from, filled),
+		Limits:     limitsOf(m),
 	})
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.InstallCatalogEntryResponse{Change: change}), nil
+}
+
+// limitsOf is what an install sets for each service, by its name.
+func limitsOf(m *dockwellv1.InstallCatalogEntryRequest) map[string]composeapi.Limits {
+	out := map[string]composeapi.Limits{}
+	for name, memory := range m.GetMemory() {
+		l := out[name]
+		l.Memory = memory
+		out[name] = l
+	}
+	for name, cpus := range m.GetCpus() {
+		l := out[name]
+		l.CPUs = cpus
+		out[name] = l
+	}
+	for name, restart := range m.GetRestart() {
+		l := out[name]
+		l.Restart = restart
+		out[name] = l
+	}
+	return out
 }
 
 // ListCatalogInstalls says what's installed, and what each can move to.
@@ -258,7 +283,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 		install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
 		entry, known := s.entryFor(pin)
 		if known {
-			install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
+			install.Name, install.FirstSteps = entry.GetName(), catalog.FirstWords(entry)
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}

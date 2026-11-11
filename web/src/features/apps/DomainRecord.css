@@ -25,47 +25,30 @@
   line-height: 18px;
 }
 
-.domain-record-row {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-}
-
-.domain-record-name,
-.domain-record-address {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/* On a narrow screen the name has a line to itself, and the address the next. */
-@container (max-width: 480px) {
-  .domain-record-row {
-    grid-template-columns: max-content minmax(0, 1fr) max-content;
-    grid-template-areas:
-      "kind name name"
-      "address address copy";
-    row-gap: var(--space-1);
-  }
-
-  .domain-record-kind {
-    grid-area: kind;
-  }
-
-  .domain-record-name {
-    grid-area: name;
-  }
-
-  .domain-record-address {
-    grid-area: address;
-  }
-
-  .domain-record-row > :last-child {
-    grid-area: copy;
-  }
-}
-
 .domain-record-link {
   color: var(--link);
+}
+
+/* What to open at the provider, one step away. */
+.domain-record-how summary {
+  display: inline-block;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.domain-record-how summary:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.domain-record-how p {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-2);
+  font-size: 13px;
 }

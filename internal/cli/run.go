@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
@@ -101,7 +103,11 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
+	cfg.Desired, cfg.Journal = keptDesired(logger, dir, id)
 	lookups(&cfg, stdio, g)
+	if err := testAway(&cfg, stdio); err != nil {
+		return err
+	}
 	err := agent.Run(ctx, cfg)
 	if cfg.Tasks != nil && ctx.Err() != nil {
 		// Stopping stops the tasks' runs too; what each came to is kept before the
@@ -153,6 +159,43 @@ func hostTools(stdio IO) *hosttool.Runner {
 		return &hosttool.Runner{Root: dir}
 	}
 	return &hosttool.Runner{Off: true}
+}
+
+// testAway shortens how long the agent waits without a stream before it acts on
+// its own, and how often it looks then, for a test that sets DOCKWELL_TEST_AWAY.
+// Without DOCKWELL_TEST it's ignored, so no server waits less than ADR 0054 says.
+func testAway(cfg *agent.Config, stdio IO) error {
+	v := stdio.Getenv(envTestAway)
+	if v == "" || !isSet(stdio.Getenv(envTest)) {
+		return nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return usageError{fmt.Errorf("%s=%q isn't a duration, such as 2s. Set it to one, or unset it", envTestAway, v)}
+	}
+	cfg.AwayAfter, cfg.ReconcileEvery = d, d
+	return nil
+}
+
+// keptDesired is the agent's cache of what this server should run, sealed in its
+// data folder, and the journal of what it puts back on its own while the control
+// plane is away (ADR 0054), or neither if they can't be opened, which the log
+// says: the server then runs as it does, and isn't put back while the control
+// plane is away.
+func keptDesired(logger *slog.Logger, dir datadir.Dir, id *enroll.Identity) (agent.Desired, *desired.Journal) {
+	if id == nil {
+		return nil, nil
+	}
+	store, err := desired.Open(dir.Agent(), id.ServerID, logger)
+	if err == nil {
+		var journal *desired.Journal
+		if journal, err = desired.OpenJournal(dir.Agent()); err == nil {
+			return store, journal
+		}
+	}
+	logger.Warn("can't keep what this server should run, so it can't be put back while the control plane is away. Check that the agent's data folder is writable",
+		slog.String("folder", dir.Agent()), slog.String("error", err.Error()))
+	return nil, nil
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the
@@ -280,7 +323,10 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		},
 	}
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive}}
+	containers := container.Driver{Runtime: &container.Docker{
+		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive,
+		BeforeReplace: database.Reader{Client: client}.BeforeReplace,
+	}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
 	backups := &backup.Runner{Client: client, Root: filepath.Join(dir.Agent(), "backups"), Paths: paths, Logger: logger}

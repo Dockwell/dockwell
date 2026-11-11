@@ -21,11 +21,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -57,11 +59,13 @@ import (
 	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
+	"github.com/dockwell/dockwell/internal/control/history"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/images"
 	"github.com/dockwell/dockwell/internal/control/importapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/members"
+	"github.com/dockwell/dockwell/internal/control/opener"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
@@ -134,6 +138,8 @@ type Config struct {
 	// 0024): the settings ask PublicPorts which holds them now, and where.
 	PanelListen, PanelURL, PanelCA string
 	PanelHandsOver                 bool
+	// PanelDomain is what Settings needs to set the panel's domain (ADR 0063).
+	PanelDomain PanelDomain
 	// DataDir is the directory dockwell run keeps its files in, KeyFile the
 	// install's key there, AgentListen where servers' agents reach it, and
 	// ServiceManager what runs it as a service, for the settings to say what
@@ -194,7 +200,10 @@ type Server struct {
 	logs *logapi.Handler
 	// alerts evaluates the alert rules, and sends what's due (ADR 0044), unless
 	// manualAlerts leaves that to a test.
-	alerts       *alerts.Evaluator
+	alerts *alerts.Evaluator
+	// history keeps each server's samples a minute at a time, and by the hour
+	// (ADR 0065).
+	history      *history.Recorder
 	manualAlerts bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
@@ -263,7 +272,12 @@ func New(cfg Config) (*Server, error) {
 		cfg.Agents.NameScopes(scopeNames{db: cfg.Store})
 	}
 	if cfg.Identity != nil {
-		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
+		opts := []agentapi.Option{agentapi.WithAgents(cfg.Agents)}
+		if cfg.Store != nil && cfg.Fleet != nil {
+			s.history = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
+			opts = append(opts, agentapi.WithHistory(s.history))
+		}
+		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, opts...)
 		s.agentTLS, s.addAgentHost = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
 	return s, nil
@@ -279,6 +293,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	var rest []*vanguard.Service
 	guardREST := func(h http.Handler) http.Handler { return h }
 	var filesHandler http.Handler
+	var appOpener *opener.Opener
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -288,7 +303,11 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	if cfg.Store != nil {
-		serving := settings.Serving{Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
+		serving := settings.Serving{
+			Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA,
+			From: cfg.PanelDomain.From, Problem: cfg.PanelDomain.Problem, Certified: cfg.PanelDomain.Certified,
+			Started: time.Now(),
+		}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()
 			serving.HTTPS = func() (string, bool) {
@@ -308,7 +327,14 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Identity != nil {
 			plane.AgentURLs = agentURLs(cfg.Identity)
 		}
-		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane), opts...))
+		domain := settings.Domain{
+			Auth: cfg.Auth, Resolve: cfg.PanelDomain.Resolve, PortsHeld: cfg.PanelDomain.PortsHeld, Restart: cfg.PanelDomain.Restart, Saved: cfg.PanelDomain.Saved,
+			PublicAddresses: func() []string { return controlAddresses(cfg.Fleet) },
+		}
+		if cfg.PanelDomain.PublicAddresses != nil {
+			domain.PublicAddresses = cfg.PanelDomain.PublicAddresses
+		}
+		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane).WithDomain(domain), opts...))
 		// For a person signed in alone, as its events name where people signed in from.
 		if cfg.Auth != nil {
 			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Changes, cfg.Logger), opts...))
@@ -369,7 +395,30 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			handle(dockwellv1connect.NewImportServiceHandler(importapi.New(cfg.Fleet, cfg.Agents, imports, ch, cfg.Logger), opts...))
 		}
-		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		if cfg.Auth != nil && cfg.Agents != nil && cfg.DataDir != "" {
+			key, err := opener.LoadKey(filepath.Join(cfg.DataDir, "opener.key"))
+			if err != nil {
+				return nil, err
+			}
+			appOpener = &opener.Opener{
+				Dial: func(ctx context.Context, t opener.Target) (net.Conn, error) {
+					s, ok := cfg.Agents.Session(t.Server)
+					if !ok {
+						return nil, fmt.Errorf("the server %s isn't connected, so its apps don't open", t.Server)
+					}
+					conn, err := s.Forward(ctx, t.Project, t.Service, t.Port)
+					if errors.Is(err, agentapi.ErrForwardsFull) {
+						return nil, fmt.Errorf("%w: %w", opener.ErrFull, err)
+					}
+					return conn, err
+				},
+				Live: cfg.Auth.SessionLive, Key: key, Logger: cfg.Logger,
+			}
+			serviceHandler.Opener = appOpener
+			serviceHandler.Auth = cfg.Auth
+		}
+		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
 		*logsOut = logs
 		path, h := dockwellv1connect.NewLogServiceHandler(logs, opts...)
@@ -392,7 +441,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
-		handle(dockwellv1connect.NewDatabaseServiceHandler(databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		dbs := databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger)
+		cfg.Changes.FeaturesFrom(dbs.LastFeatures)
+		handle(dockwellv1connect.NewDatabaseServiceHandler(dbs, opts...))
 		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))
 	}
@@ -425,7 +476,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	if cfg.Auth != nil {
 		sites = cfg.Auth.Sites()
 	}
-	return serve.Recover(cfg.Logger, authapi.Guard(sites, cfg.Logger, mux)), nil
+	// An app opened through the panel answers on an origin of its own, ahead of the
+	// panel's guard, which answers none but the panel's (ADR 0061).
+	return serve.Recover(cfg.Logger, opener.Dispatch(appOpener, authapi.Guard(sites, cfg.Logger, mux))), nil
 }
 
 // Serve serves the API and panel on ln until ctx is done.
@@ -433,12 +486,18 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	return serve.Serve(ctx, ln, s.api, serve.Options{Name: "control plane", Logger: s.logger})
 }
 
+// agentFrame is the largest HTTP/2 frame the agent listener takes.
+const agentFrame = 16 << 10
+
 // ServeAgents serves the agent listener on ln until ctx is done.
 func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 	if s.agents == nil {
 		return errors.New("control: the agent listener needs Config.Identity")
 	}
-	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
+	// HTTP/2's smallest frame, a TLS record's size: an agent writes each stream's body
+	// through a buffer of the frame's size, and with Go's own, 1 MiB, that's 512 KiB
+	// for each upload, download and forward under way (ADR 0061).
+	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS, MaxFrame: agentFrame})
 }
 
 // AddAgentHost has the agent listener's certificate name host too, from the next
@@ -676,6 +735,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
 	}
+	if s.history != nil {
+		api.Go(func() { s.history.Run(apiCtx) })
+	}
 	if s.tasks != nil {
 		s.tasks.Start(apiCtx)
 	}
@@ -740,5 +802,57 @@ func agentURLs(a *identity.Authority) func(ctx context.Context) (string, []strin
 			urls = append(urls, u.URL)
 		}
 		return local, urls, nil
+	}
+}
+
+// PanelDomain is what Settings needs to set the panel's domain, beyond the store
+// (ADR 0063).
+type PanelDomain struct {
+	// From says where the domain in use comes from.
+	From dockwellv1.PanelDomainFrom
+	// Problem is why the domain the setting holds isn't served, when it isn't.
+	Problem string
+	// Certified reports whether Dockwell holds the domain's certificate.
+	Certified func() bool
+	// Resolve looks a name's addresses up. Nil looks nothing up, as in a test.
+	Resolve func(ctx context.Context, host string) ([]netip.Addr, error)
+	// PortsHeld says what holds port 80 or 443 other than Dockwell or its Caddy.
+	PortsHeld func(ctx context.Context) []*dockwellv1.PanelPortHolder
+	// Restart starts the control plane again, as it was started.
+	Restart func()
+	// Saved hears a domain as it's saved, which no route may claim from then.
+	Saved func(domain string)
+	// PublicAddresses replaces the control server's own, as a test does.
+	PublicAddresses func() []string
+}
+
+// controlAddresses are the control server's public addresses, as it knows them
+// (ADR 0034), where the panel's domain should lead.
+func controlAddresses(hub *fleet.Hub) []string {
+	if hub == nil {
+		return nil
+	}
+	srv := hub.ControlServer()
+	if srv == nil {
+		return nil
+	}
+	var out []string
+	for _, a := range []*dockwellv1.PublicAddress{srv.GetNetwork().GetIpv4(), srv.GetNetwork().GetIpv6()} {
+		if a.GetAddress() != "" {
+			out = append(out, a.GetAddress())
+		}
+	}
+	return out
+}
+
+// fleetIDs lists the fleet's servers by ID, for a history row each minute.
+func fleetIDs(hub *fleet.Hub) func() []string {
+	return func() []string {
+		listed := hub.List()
+		ids := make([]string, 0, len(listed))
+		for _, srv := range listed {
+			ids = append(ids, srv.GetId())
+		}
+		return ids
 	}
 }

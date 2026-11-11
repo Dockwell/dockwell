@@ -1322,6 +1322,10 @@ paths:
             description: |-
                 CheckClaim checks a claim link without spending it, and describes the
                  server it claims.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
             operationId: AuthService_CheckClaim
             requestBody:
                 content:
@@ -2167,6 +2171,156 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListImageTagsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:begin:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginAcceptInvite starts creating the passkey of the person an invite
+                 names. It refuses while someone is signed in in the browser: accepting
+                 only ever makes a new person.
+            operationId: AuthService_BeginAcceptInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginAcceptInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginAcceptInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:check:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                CheckInvite reads an invite's link without spending it: who invited
+                 them, as what, and where. It works only at the panel's domain, where the
+                 passkey is made.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
+            operationId: AuthService_CheckInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:finish:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                FinishAcceptInvite spends the invite, makes the person with the role it
+                 names and the new passkey, and signs them in.
+            operationId: AuthService_FinishAcceptInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishAcceptInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishAcceptInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invites:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                CreateInvite invites someone by email to sign in with a role in a place,
+                 and returns the link to send them, once: Dockwell sends no mail. It takes a
+                 passkey step-up bound to the email, the role and the place
+                 (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+                 uses. Nobody is invited as owner, an admin's place is the install, and an
+                 admin invites no one above admin. An invite to someone who signs in here
+                 already is refused; a newer one to the same email replaces an open one.
+            operationId: MemberService_CreateInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invites/{id}:revoke:
+        post:
+            tags:
+                - MemberService
+            description: RevokeInvite stops an open invite working.
+            operationId: MemberService_RevokeInvite
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeInviteResponse'
                 default:
                     description: Default error response
                     content:
@@ -3778,6 +3932,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}:open:
+        post:
+            tags:
+                - ServiceService
+            description: |-
+                OpenService gives the person who asks a one-time address that opens the web
+                 UI a service publishes on its server, through the panel, on an origin of
+                 the service's own (ADR 0061): the browser that opens it first, within a
+                 minute, gets that app and nothing else, while the panel session that asked
+                 lasts and its role still lets it, and every connection it made ends with
+                 either. It's as much as revealing a secret, as an admin tool or an app's
+                 first account may be behind it, so it takes a developer in a session, never
+                 a token, and a passkey just now, and goes on the audit log. Only a panel
+                 reached on localhost opens apps for now: on its domain, this is refused,
+                 and says so.
+            operationId: ServiceService_OpenService
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OpenServiceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OpenServiceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}:restart:
         post:
             tags:
@@ -4143,6 +4339,72 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/settings/panelDomain:check:
+        get:
+            tags:
+                - SettingsService
+            description: |-
+                CheckPanelDomain checks a domain for the panel as it's typed, before it's
+                 set (ADR 0063): whether the panel can take it, by the rules --domain has
+                 and as no route serves it or a name under it; what its A and AAAA records
+                 hold, as the control plane resolves them, and whether they lead to this
+                 server's public addresses; and whether something other than Dockwell or its
+                 Caddy holds port 80 or 443 on the control server, which would stop a
+                 certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
+                 person may set DNS and the domain in either order.
+            operationId: SettingsService_CheckPanelDomain
+            parameters:
+                - name: domain
+                  in: query
+                  description: The domain, such as "panel.example.com".
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckPanelDomainResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/settings:createPanelSignInLink:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
+                 on its domain, once it answers there over HTTPS: passkeys belong to the
+                 address they were made on, so the owner signs in there with the link and
+                 adds one (ADR 0063). It works once, for 15 minutes, and carries its token
+                 after the "#", which no server log or Referer keeps. It takes a passkey just
+                 now: call it without a proof first, then again with the proof from
+                 FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
+                 domain. It's on the activity log as sign_in_link.create.
+            operationId: SettingsService_CreatePanelSignInLink
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreatePanelSignInLinkRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreatePanelSignInLinkResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/settings:setName:
         post:
             tags:
@@ -4166,6 +4428,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SetInstallNameResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/settings:setPanelDomain:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
+                 it (an empty domain), and restarts the control plane to serve it: the
+                 response goes out first, then it re-executes itself, so apps and websites
+                 keep running and the panel answers again within seconds, on loopback and
+                 the domain (ADR 0063). It takes the owner, signed in, and a passkey just
+                 now: call it without a proof first, and it refuses with the reason
+                 needs_step_up, then again with the proof from FinishStepUp for
+                 STEP_UP_ACTION_SET_PANEL_DOMAIN, whose target is the domain, or the one it
+                 clears. Refused while a
+                 change is applying, when dockwell run was given a domain with --domain or
+                 DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
+                 domain to another, which comes later. It's on the activity log with the
+                 domain it replaced.
+            operationId: SettingsService_SetPanelDomain
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetPanelDomainRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetPanelDomainResponse'
                 default:
                     description: Default error response
                     content:
@@ -5072,6 +5372,22 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: AddServicePortResponse carries the planned change.
+        AddressVariable:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service, by its name in the Compose file, such as "ghost".
+                variable:
+                    type: string
+                    description: The variable, such as "url".
+                value:
+                    type: string
+                    description: |-
+                        What it's set to, with {domain} where the domain goes, such as
+                         "https://{domain}", or a value of its own that goes with a domain, such
+                         as "https" for Nextcloud's OVERWRITEPROTOCOL.
+            description: AddressVariable is a variable that follows the domain an app is reached at.
         AdoptComposeRequest:
             type: object
             properties:
@@ -6179,6 +6495,24 @@ components:
                     type: string
                     description: How much those take, in bytes.
             description: BackupPolicyInfo is a schedule of backups, as it stands.
+        BeginAcceptInviteRequest:
+            type: object
+            properties:
+                secret:
+                    type: string
+                name:
+                    type: string
+                    description: Their name, such as "Ada Lovelace".
+            description: BeginAcceptInviteRequest names the person accepting.
+        BeginAcceptInviteResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                optionsJson:
+                    type: string
+                    description: PublicKeyCredentialCreationOptionsJSON, for navigator.credentials.create.
+            description: BeginAcceptInviteResponse carries the passkey ceremony to finish.
         BeginAddPasskeyRequest:
             type: object
             properties:
@@ -6260,7 +6594,11 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_INVITE
                         - STEP_UP_ACTION_ADD_SERVER
+                        - STEP_UP_ACTION_OPEN_SERVICE
+                        - STEP_UP_ACTION_SET_PANEL_DOMAIN
+                        - STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN
                     type: string
                     description: The action.
                     format: enum
@@ -6470,6 +6808,28 @@ components:
                         The input each server path in host_access comes from, by the path as it reads
                          here, which is the input's default, so a form shows what a person typed in its
                          place, such as "MEDIA_DIR" for "/srv/media".
+                memory:
+                    type: string
+                    description: |-
+                        The most memory it may use, as the entry gives it, such as "1G". Empty has no
+                         limit.
+                cpus:
+                    type: string
+                    description: |-
+                        The most CPUs it may use, as the entry gives them, such as "0.5". Empty has no
+                         limit.
+                restart:
+                    enum:
+                        - RESTART_POLICY_UNSPECIFIED
+                        - RESTART_POLICY_NO
+                        - RESTART_POLICY_ON_FAILURE
+                        - RESTART_POLICY_UNLESS_STOPPED
+                        - RESTART_POLICY_ALWAYS
+                    type: string
+                    description: |-
+                        When Docker restarts it, as the entry gives it. Unspecified is the driver's
+                         default, unless-stopped.
+                    format: enum
             description: CatalogPart is one service an entry installs.
         CatalogPin:
             type: object
@@ -6957,6 +7317,78 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckInviteRequest:
+            type: object
+            properties:
+                secret:
+                    type: string
+            description: 'CheckInviteRequest carries an invite''s secret, from after the # in its link.'
+        CheckInviteResponse:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Who it names.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectName:
+                    type: string
+                    description: |-
+                        The project's name, for a developer or a viewer of one. Empty for the
+                         whole install.
+                invitedBy:
+                    type: string
+                    description: Who made it, by name.
+                expireTime:
+                    type: string
+                    format: date-time
+                projectId:
+                    type: string
+                    description: |-
+                        The project's ID, for a developer or a viewer of one. Empty for the whole
+                         install: what says "every project" is this, never an empty name.
+            description: CheckInviteResponse says what an invite offers.
+        CheckPanelDomainResponse:
+            type: object
+            properties:
+                refusal:
+                    type: string
+                    description: |-
+                        Why the panel can't take it: the rules a domain has, or a route that
+                         serves it or a name under it. Empty when it can.
+                addresses:
+                    type: array
+                    items:
+                        type: string
+                    description: What its A and AAAA records hold, as the control plane resolved them.
+                dnsProblem:
+                    type: string
+                    description: Why it couldn't be resolved, such as "no such domain". Empty when it was.
+                publicAddresses:
+                    type: array
+                    items:
+                        type: string
+                    description: This server's public addresses, where the records should lead.
+                pointsHere:
+                    type: boolean
+                    description: True when an address the domain resolves to is one of them.
+                portsHeld:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelPortHolder'
+                    description: |-
+                        What holds port 80 or 443 on the control server other than Dockwell or its
+                         Caddy, which would stop a certificate.
+            description: |-
+                CheckPanelDomainResponse says whether the panel can take a domain, and what
+                 stands in the way of a certificate for it.
         CheckServerPortsResponse:
             type: object
             properties:
@@ -7420,6 +7852,47 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateInviteRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: |-
+                        Who the invite names, such as "ada@example.com". Unverified: it names the
+                         invite in Members and on the page that accepts it.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: ROLE_ADMIN, ROLE_DEVELOPER or ROLE_VIEWER.
+                    format: enum
+                project:
+                    type: string
+                    description: |-
+                        The project's ID or name, for a developer or a viewer of one project.
+                         Empty is the whole install, which an admin's invite always is.
+                proof:
+                    type: string
+                    description: |-
+                        From FinishStepUp, for STEP_UP_ACTION_INVITE with the target the email,
+                         lowercased, the role's name and the place, apart by spaces, as "ada@example.com
+                         developer prj_…", or "install" for the whole install.
+            description: CreateInviteRequest says whom to invite, as what, and where.
+        CreateInviteResponse:
+            type: object
+            properties:
+                invite:
+                    $ref: '#/components/schemas/Invite'
+                link:
+                    type: string
+                    description: |-
+                        The link to send, as "https://panel.example.com/invite#…". Its secret
+                         isn't kept: it can't be shown again.
+            description: CreateInviteResponse carries the invite and its link, shown once.
         CreateJoinTicketRequest:
             type: object
             properties:
@@ -7442,6 +7915,24 @@ components:
                     type: string
                     description: The ticket itself, for dockwell join on the new server. Nothing shows it again.
             description: CreateJoinTicketResponse carries the ticket, once.
+        CreatePanelSignInLinkRequest:
+            type: object
+            properties:
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN.
+            description: CreatePanelSignInLinkRequest asks for a link to the panel on its domain.
+        CreatePanelSignInLinkResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The link, such as "https://panel.example.com/recover#…".
+                expireTime:
+                    type: string
+                    description: When it stops working.
+                    format: date-time
+            description: CreatePanelSignInLinkResponse is the link, which signs in once.
         CreateTokenRequest:
             type: object
             properties:
@@ -7559,6 +8050,7 @@ components:
                         - DATABASE_ENGINE_MARIADB
                         - DATABASE_ENGINE_REDIS
                         - DATABASE_ENGINE_VALKEY
+                        - DATABASE_ENGINE_MONGODB
                     type: string
                     description: Which database it runs.
                     format: enum
@@ -7671,6 +8163,11 @@ components:
                 resourceId:
                     type: string
                     description: The resource's ID, for a user Dockwell made.
+                authDatabase:
+                    type: string
+                    description: |-
+                        The database they sign in to, for MongoDB, as an app names it in authSource,
+                         such as "admin" for its root user.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -7720,8 +8217,9 @@ components:
                     type: number
                     description: |-
                         Of what clients read since it started, how much came from memory rather than
-                         disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
-                         keys Redis found. Unset until anything was read.
+                         disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool,
+                         MongoDB's WiredTiger cache, or the keys Redis found. Unset until anything
+                         was read.
                     format: double
                 databases:
                     type: array
@@ -7740,6 +8238,23 @@ components:
                     type: integer
                     description: How many more databases or users it has than this lists.
                     format: int32
+                featureCompatibility:
+                    type: string
+                    description: |-
+                        MongoDB's feature compatibility version, such as "7.0": the release whose
+                         features its data may use. An upgrade leaves it where it was, so the release
+                         before can still run the data, and the next upgrade raises it first.
+                replicaSet:
+                    type: string
+                    description: |-
+                        The replica set it's a member of, by name, for MongoDB. Empty for one that
+                         runs alone, whose backups aren't one moment if something writes while they
+                         run.
+                checksNoOne:
+                    type: boolean
+                    description: |-
+                        True when it checks no one, as MongoDB does without --auth: anything that
+                         reaches its port signs in as anyone.
             description: DatabaseReading is what a database said of itself on one server.
         DatabaseUser:
             type: object
@@ -8399,8 +8914,10 @@ components:
                 firstSteps:
                     type: string
                     description: |-
-                        What to do first once it runs, in a sentence or two, such as how to sign
-                         in. Empty when there's nothing to say.
+                        What to do first once it runs, in one short sentence, where no field below
+                         says it: the panel shows sign_in, first_visitor_owns, signups and
+                         address_variables as state and actions, and never as words here. Empty when
+                         there's nothing more to say, as for most entries.
                 hostAccess:
                     type: string
                     description: |-
@@ -8443,6 +8960,38 @@ components:
                     items:
                         type: string
                     description: A short list of things the app can do, in the catalog's own words.
+                signIn:
+                    allOf:
+                        - $ref: '#/components/schemas/SignIn'
+                    description: |-
+                        How a person signs in to what web opens, which the panel shows with the
+                         password to reveal and copy, rather than says. Unset for an app with no
+                         sign-in of its own, or whose first visitor makes the account.
+                firstVisitorOwns:
+                    type: boolean
+                    description: |-
+                        The first person to open what web opens makes its owner account. The
+                         panel says so on its page, and before a domain makes it public.
+                signups:
+                    allOf:
+                        - $ref: '#/components/schemas/Signups'
+                    description: |-
+                        What closes sign-ups once the owner's account is made, for an app that lets
+                         anyone who reaches it make one. The panel offers to close them.
+                addressVariables:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AddressVariable'
+                    description: |-
+                        Variables a service builds its links or checks requests from, which follow
+                         the domain added to what web opens, such as Ghost's url.
+                notes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What a person may want to know of the app as it runs here, a line each,
+                         such as "Transcodes on the server's CPU". Never steps to follow.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -8619,6 +9168,26 @@ components:
                         What became of a scheduled task's run, for a task event. Its subject is the
                          task. Numbered in the block scheduled tasks hold, as open work adds to this
                          message.
+                member:
+                    allOf:
+                        - $ref: '#/components/schemas/EventMember'
+                    description: |-
+                        For a member's event, such as member.invite or member.join: who, with
+                         what role, where. Numbered in the block members hold.
+                desiredSent:
+                    allOf:
+                        - $ref: '#/components/schemas/EventDesiredSent'
+                    description: |-
+                        What the control plane sent a server's agent to keep as what the server
+                         runs, for an event with the action "server.desired_sent", or found it keeps
+                         and doesn't know, for "server.desired_unknown" (ADR 0054).
+                reconciled:
+                    allOf:
+                        - $ref: '#/components/schemas/EventReconciled'
+                    description: |-
+                        What a server's agent did, or couldn't do, on its own while the control
+                         plane was away, for an event with an action that starts "server.reconciled"
+                         (ADR 0054).
             description: Event is one thing that happened.
         EventAlert:
             type: object
@@ -8747,6 +9316,44 @@ components:
                          failed, or why it wasn't checked.
                     format: enum
             description: EventBackup is what became of one backup.
+        EventDesiredSent:
+            type: object
+            properties:
+                resources:
+                    type: integer
+                    description: How many resources the agent was sent.
+                    format: uint32
+                withValues:
+                    type: integer
+                    description: How many of them came with the values of variables and secrets.
+                    format: uint32
+                newCache:
+                    type: boolean
+                    description: |-
+                        True when the agent's cache isn't the one the control plane last saw: one
+                         made since, as after a reinstall or a lost key, or one of another holder of
+                         the server's identity.
+                serverName:
+                    type: string
+                    description: The server's name.
+                unknown:
+                    type: integer
+                    description: |-
+                        For an event with the action "server.desired_unknown", how many of what the
+                         agent keeps this control plane has no record of, or only at an earlier
+                         revision, as after its store was restored or rebuilt. They were left as they
+                         are, as they may be the only copy of what runs.
+                    format: uint32
+                firstCache:
+                    type: boolean
+                    description: |-
+                        True when the control plane hadn't seen the agent's cache before, as for an
+                         agent that kept nothing until it was updated.
+            description: |-
+                EventDesiredSent says what the control plane sent a server's agent to keep, as
+                 what the server runs, when some of it held the values of variables and secrets.
+                 An agent keeps those so its server can be put back while the control plane is
+                 away, and is sent them as it connects without them.
         EventHealth:
             type: object
             properties:
@@ -8807,6 +9414,33 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventMember:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Who, by email, as an invite names them.
+                name:
+                    type: string
+                    description: Their name, once they sign in.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectId:
+                    type: string
+                    description: The project, for a role in one. Empty for the whole install.
+                projectName:
+                    type: string
+                address:
+                    type: string
+                    description: The address someone joined from, on member.join. Empty otherwise.
+            description: EventMember is who a member's event is about, with what role, where.
         EventProcess:
             type: object
             properties:
@@ -8843,12 +9477,34 @@ components:
                     type: string
                     description: What a person had set before, so it can be put back. Empty when they hadn't.
             description: EventPublicAddress is a server's public address as a person changed it.
+        EventReconciled:
+            type: object
+            properties:
+                serverName:
+                    type: string
+                    description: The server's name.
+                kind:
+                    type: string
+                    description: The resource, by its kind and name.
+                name:
+                    type: string
+                reason:
+                    type: string
+                    description: Why it couldn't put the resource back, for people.
+                dropped:
+                    type: integer
+                    description: For dropped entries, how many.
+                    format: uint32
+            description: |-
+                EventReconciled is what a server's agent did, or couldn't do, on its own while
+                 the control plane was away. The event's action says which: made it again,
+                 started it, couldn't put it back, or dropped entries it couldn't keep.
         EventSetting:
             type: object
             properties:
                 setting:
                     type: string
-                    description: 'Which: "name" or "time_zone".'
+                    description: 'Which: "name", "time_zone" or "panel_domain".'
                 value:
                     type: string
                     description: What it is now. Empty when they cleared it.
@@ -9132,6 +9788,30 @@ components:
                     type: integer
                     format: uint32
             description: FileEntry is one file or directory on a server.
+        FinishAcceptInviteRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginAcceptInvite.
+                secret:
+                    type: string
+                    description: 'The invite''s secret, again: it is spent only here.'
+                credentialJson:
+                    type: string
+                    description: RegistrationResponseJSON from navigator.credentials.create.
+                passkeyName:
+                    type: string
+                    description: What to call the passkey, such as "Chrome on macOS". Optional.
+            description: FinishAcceptInviteRequest finishes the passkey and spends the invite.
+        FinishAcceptInviteResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+            description: |-
+                FinishAcceptInviteResponse carries the new person. The response sets the
+                 session cookie.
         FinishAddPasskeyRequest:
             type: object
             properties:
@@ -9464,6 +10144,7 @@ components:
                         - SIGN_IN_METHOD_AUTHENTICATOR_CODE
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
+                        - SIGN_IN_METHOD_INVITE
                     type: string
                     description: How this session began. Unset when not signed in.
                     format: enum
@@ -10097,6 +10778,12 @@ components:
                         The directory the file is in on the servers, as an absolute path, such as
                          /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
                          ./data, starts there. Each is a server path, which a person approves.
+                skipBackup:
+                    type: boolean
+                    description: |-
+                        Leave out the backup that comes first when a database moves to a release
+                         its data can't come back from, such as MongoDB raising its feature
+                         compatibility version (ADR 0038). The plan says so.
             description: ImportComposeRequest is a Compose file to plan into a project.
         ImportComposeResponse:
             type: object
@@ -10355,6 +11042,12 @@ components:
                         How a generated secret is written, for an app that reads it as a key: letters
                          and digits unless set.
                     format: enum
+                setOnce:
+                    type: boolean
+                    description: |-
+                        The app reads this secret on its first start alone, or encrypts what it
+                         keeps with it, so setting the secret anew changes nothing or loses what it
+                         encrypted. The panel marks it, and says where to change it, if anywhere.
             description: |-
                 Input is one thing an entry needs to know to install, named by the ${NAME}
                  its Compose file uses.
@@ -10384,6 +11077,36 @@ components:
                     description: |-
                         Where it runs, by server ID, as an edit's servers. Empty runs it on the only
                          server; once there are several, name them.
+                memory:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The most memory a service may use, by its name in the entry's Compose file,
+                         such as "1G" for db, as a service's resources.memory takes it. A service left
+                         out keeps what the entry gives it. An upgrade keeps what you set here, as it
+                         keeps what you change on the app.
+                cpus:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The most CPUs a service may use, by its name, such as "0.5" for db, as
+                         resources.cpus takes it.
+                restart:
+                    type: object
+                    additionalProperties:
+                        enum:
+                            - RESTART_POLICY_UNSPECIFIED
+                            - RESTART_POLICY_NO
+                            - RESTART_POLICY_ON_FAILURE
+                            - RESTART_POLICY_UNLESS_STOPPED
+                            - RESTART_POLICY_ALWAYS
+                        type: string
+                        format: enum
+                    description: |-
+                        When Docker restarts a service's container, by its name, such as always for
+                         db.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object
@@ -10500,6 +11223,43 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        Invite:
+            type: object
+            properties:
+                id:
+                    type: string
+                email:
+                    type: string
+                    description: Who it names, unverified.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectId:
+                    type: string
+                    description: The project, for a developer or a viewer of one. Empty for the install.
+                projectName:
+                    type: string
+                    description: The project's name. Empty for the install.
+                invitedBy:
+                    type: string
+                    description: Who made it, by name.
+                createTime:
+                    type: string
+                    format: date-time
+                expireTime:
+                    type: string
+                    description: |-
+                        When it stops working: 7 days after it's made for a developer or a
+                         viewer, 24 hours for an admin, whose link is a bearer credential to the
+                         install.
+                    format: date-time
+            description: Invite is an open invitation to sign in.
         JoinAddress:
             type: object
             properties:
@@ -10678,10 +11438,17 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/CatalogSourceRef'
-                    description: 'Each branch, then each tag, by name. At most 500: more are left out.'
+                    description: |-
+                        The default branch, then each other branch, then each tag, by name. At most
+                         500: more are left out.
                 more:
                     type: boolean
                     description: Whether some were left out.
+                head:
+                    type: string
+                    description: |-
+                        The branch the repository's HEAD names, its default, such as
+                         "refs/heads/main", which leads refs. Empty when it names none.
             description: ListCatalogSourceRefsResponse is the repository's branches and tags.
         ListCatalogSourcesResponse:
             type: object
@@ -10865,6 +11632,11 @@ components:
                     items:
                         $ref: '#/components/schemas/Member'
                     description: Everyone who can sign in, oldest first.
+                invites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Invite'
+                    description: The invites that still work, newest first.
             description: ListMembersResponse lists who can sign in.
         ListPasskeysResponse:
             type: object
@@ -11340,10 +12112,34 @@ components:
                     description: |-
                         True when code sign-in is locked after too many wrong codes, until the
                          owner lifts it. Only for the person asking.
+                grants:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MemberGrant'
+                    description: |-
+                        The roles they hold in projects, by project name. Their role on the
+                         whole install, which covers every project, is user.role.
             description: |-
                 Member is a person who can sign in, and how. The details of how are the
                  person asking's alone: for anyone else, only the kinds of sign-in they have
                  and when they were last active are set.
+        MemberGrant:
+            type: object
+            properties:
+                projectId:
+                    type: string
+                projectName:
+                    type: string
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+            description: MemberGrant is a role someone holds in one project.
         Mount:
             type: object
             properties:
@@ -11822,6 +12618,51 @@ components:
                     type: string
                     description: The site it's under, for a subsite.
             description: OnePanelWebsite is a website 1Panel's OpenResty serves.
+        OpenServiceRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                port:
+                    type: integer
+                    description: |-
+                        The port in its container that answers HTTP, such as 80. Empty takes the
+                         one port it publishes, where it publishes one.
+                    format: uint32
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its
+                         project has more than one.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for opening this service, by its ID. It works
+                         once, within a minute, in the session that made it. Without one, the call
+                         is refused with needs_step_up once nothing else refuses it.
+            description: OpenServiceRequest names a service and the port of its web UI.
+        OpenServiceResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        Where a browser opens it, such as "http://abcde23456.localhost:7600/.dockwell/open?ticket=…".
+                         It works once.
+                expireTime:
+                    type: string
+                    description: When the address stops working, if it hasn't been opened.
+                    format: date-time
+                origin:
+                    type: string
+                    description: The origin the app answers on, such as "http://abcde23456.localhost:7600".
+            description: OpenServiceResponse carries where to open it.
         OpenTerminalRequest:
             type: object
             properties:
@@ -11900,6 +12741,17 @@ components:
                     description: What installing it does beyond replacing its files.
                     format: enum
             description: PackageUpdate is one package with a newer version waiting.
+        PanelPortHolder:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: 'The port: 80 or 443.'
+                    format: uint32
+                program:
+                    type: string
+                    description: The program, as the kernel names its process, such as "nginx".
+            description: PanelPortHolder is a program that holds a port the panel's certificate needs.
         PanelServing:
             type: object
             properties:
@@ -11939,6 +12791,39 @@ components:
                         Who issues the certificate Dockwell serves the domain with: "Let's
                          Encrypt", or the host of the ACME directory dockwell run was given, such
                          as "acme.example.com". Empty without a domain.
+                domainFrom:
+                    enum:
+                        - PANEL_DOMAIN_FROM_UNSPECIFIED
+                        - PANEL_DOMAIN_FROM_NONE
+                        - PANEL_DOMAIN_FROM_RUN
+                        - PANEL_DOMAIN_FROM_SETTING
+                    type: string
+                    description: |-
+                        Where the domain comes from: dockwell run's --domain or DOCKWELL_DOMAIN,
+                         which the panel can't change, or the setting (ADR 0063).
+                    format: enum
+                setDomain:
+                    type: string
+                    description: |-
+                        The domain the setting holds. It differs from domain when dockwell run
+                         couldn't serve it, which problem says.
+                problem:
+                    type: string
+                    description: |-
+                        Why the domain the setting holds isn't served, as when a route took it
+                         first, or its ports were held. Empty when it is, or none is set.
+                certified:
+                    type: boolean
+                    description: |-
+                        True once Dockwell holds a certificate for the domain, so the panel answers
+                         there over HTTPS.
+                startTime:
+                    type: string
+                    description: |-
+                        When this control plane started: a restart changes it, which is how the
+                         panel knows a restart it asked for has happened, as what it reads before
+                         then can already say what it saved.
+                    format: date-time
             description: PanelServing is how the panel is served, as dockwell run was started.
         Passkey:
             type: object
@@ -12068,16 +12953,20 @@ components:
                          password it was made with, whatever an edit gave, "kept_passphrase" for a backup
                          destination that keeps its passphrase the same way, and "kept_options" for one
                          that keeps its options, as an edit gave none, "first_steps" for what a catalog
-                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
-                         volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
-                         upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
+                         app needs a person to know and do, "backup_first" for one that backs up its volumes first, as a catalog
+                         upgrade or a database's move to a release it can't come back from does, "backup_unmeasured" for a
+                         volume whose backup gets a guess at the time it needs, "no_backup" for such an
+                         upgrade or move that runs without a backup first, as asked, "upgrade_kept" for what a person changed that the upgrade
                          changes too, which stays, "upgrade_dropped" for what they changed that it
                          drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
                          whose data stays as the new version left it, "tmpfs_no_size" for a Compose
-                         file's tmpfs that nothing stops taking half the server's memory, and
+                         file's tmpfs that nothing stops taking half the server's memory,
                          "tasks_as_root" for an app this makes reach what's as good as root, whose
-                         scheduled tasks run in it and reach the same. Another reason may come: its
-                         message says what it means.
+                         scheduled tasks run in it and reach the same, "raises_features" for a MongoDB
+                         this moves to its next release, whose feature compatibility version goes up
+                         first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
+                         first, and "lowers_release" for one this moves back, which goes only while its
+                         data uses nothing newer. Another reason may come: its message says what it means.
                 message:
                     type: string
                     description: 'What it says, for people: the fact, what it means, and what to do.'
@@ -12094,6 +12983,9 @@ components:
                          "exposed_variable"; the project, then the services it runs, for
                          "updates_project"; the volumes and server paths for "volumes_stay"; the path
                          for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
+                         release it leaves, then the one it moves to, for "raises_features" and
+                         "lowers_release", which adds the feature compatibility version its last
+                         reading said where the release it moves to can't run it; the
                          variables and secrets, by the names the service sees, for "values_latest";
                          the image, the revision and its digest for "digest_pinned" and "digest_gone",
                          and the image and the revision for "digest_differs"; the container_name, or
@@ -12549,6 +13441,12 @@ components:
                     description: |-
                         The edits, at most one for each resource. They apply in this order,
                          and deletions last, in reverse.
+                skipBackup:
+                    type: boolean
+                    description: |-
+                        Leave out the backup that comes first when a database moves to a release
+                         its data can't come back from, such as MongoDB raising its feature
+                         compatibility version (ADR 0038). The plan says so.
             description: ProposeChangeRequest is a set of edits to plan together.
         ProposeChangeResponse:
             type: object
@@ -13007,6 +13905,16 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: A new change, planned, that puts the resource back.
             description: RevertDriftResponse carries the planned revert.
+        RevokeInviteRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+            description: RevokeInviteRequest names an open invite.
+        RevokeInviteResponse:
+            type: object
+            properties: {}
+            description: RevokeInviteResponse is empty.
         RevokeOtherSessionsRequest:
             type: object
             properties: {}
@@ -13581,7 +14489,7 @@ components:
                         Recent stats, oldest first, for sparklines: at most 60 samples, from
                          the 5 minutes before the newest by the samples' own times, so a server
                          that reports again after a longer outage starts over. Samples come every
-                         5 s while anyone watches the fleet, and every 15 s while nobody does, so
+                         5 s while anyone watches the fleet, and every 10 s while nobody does, so
                          each says its own interval. Empty in lists.
                 agentBuild:
                     allOf:
@@ -14148,8 +15056,20 @@ components:
                     type: string
                     description: |-
                         How long until the agent's next sample, at the pace it was sampling when
-                         it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+                         it took this one: 5 s while anyone watches the fleet, 10 s while nobody
                          does. Unset from an agent from before this, which samples every 5 s.
+                diskReadBytes:
+                    type: string
+                    description: |-
+                        Bytes read from the server's whole disks since it booted: each disk once,
+                         never its partitions, nor the device-mapper, md, loop, ram or zram
+                         devices on top of it, which would count its bytes again. Unset from an
+                         agent from before this (ADR 0065).
+                diskWrittenBytes:
+                    type: string
+                    description: |-
+                        Bytes written to the server's whole disks since it booted, counted as
+                         disk_read_bytes is.
             description: ServerStats is one sample of a server's resource use.
         ServerUpdates:
             type: object
@@ -14525,6 +15445,7 @@ components:
                         - SIGN_IN_METHOD_AUTHENTICATOR_CODE
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
+                        - SIGN_IN_METHOD_INVITE
                     type: string
                     description: How it signed in.
                     format: enum
@@ -14571,6 +15492,27 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: SetInstallNameResponse carries the settings as they now are.
+        SetPanelDomainRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain, such as "panel.example.com". Empty clears it.
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp for STEP_UP_ACTION_SET_PANEL_DOMAIN.
+            description: SetPanelDomainRequest sets the panel's domain, or clears it.
+        SetPanelDomainResponse:
+            type: object
+            properties:
+                settings:
+                    allOf:
+                        - $ref: '#/components/schemas/Settings'
+                    description: The settings.
+                restarting:
+                    type: boolean
+                    description: True when the control plane restarts to serve it, once this is sent.
+            description: SetPanelDomainResponse is the settings as saved, before the restart.
         SetServerPublicAddressRequest:
             type: object
             properties:
@@ -14649,6 +15591,31 @@ components:
                         type: string
                     description: The other containers that answer to it there, by name.
             description: SharedName is a name more than one container answers to on a network.
+        SignIn:
+            type: object
+            properties:
+                user:
+                    type: string
+                    description: |-
+                        The user, as the app's sign-in asks for it, such as "root". Empty when
+                         user_input holds it.
+                userInput:
+                    type: string
+                    description: The input that holds the user, such as "ADMIN_EMAIL".
+                passwordInput:
+                    type: string
+                    description: |-
+                        The secret input that holds the password, such as
+                         "MARIADB_ROOT_PASSWORD".
+                server:
+                    type: string
+                    description: The server the sign-in asks for, where it asks, such as "db" for Adminer.
+                changedIn:
+                    type: string
+                    description: |-
+                        Where in the app a person changes the password, for an app that reads it
+                         on its first start alone (the input's set_once), such as "Profile".
+            description: SignIn is how a person signs in to an app once it's installed.
         SignInWithCodeRequest:
             type: object
             properties:
@@ -14703,6 +15670,19 @@ components:
             type: object
             properties: {}
             description: SignOutResponse is empty. The response clears the session cookie.
+        Signups:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service, by its name in the Compose file, such as "gitea".
+                variable:
+                    type: string
+                    description: The variable, such as "SIGNUPS_ALLOWED".
+                closed:
+                    type: string
+                    description: What closes them, such as "false".
+            description: Signups is the variable that closes an app's sign-ups.
         Source:
             type: object
             properties:
@@ -16066,7 +17046,7 @@ tags:
     - name: DatabaseService
       description: |-
         DatabaseService is the services that run a database Dockwell knows:
-         PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their official images,
+         PostgreSQL, MySQL, MariaDB, Redis, Valkey and MongoDB, from their official images,
          whether Dockwell made them or took them on. A database is a service, so it
          changes as any service does, by a change with a plan. What this adds is what
          the database itself says, read in its own container with its own tools, which
@@ -16161,10 +17141,12 @@ tags:
          same credentials.
     - name: MemberService
       description: |-
-        MemberService says who can sign in to the install, with their role and how
-         they sign in. Today that is one person, the owner, who claimed the install:
-         inviting others, and roles beyond the owner, come later. See
-         docs/adr/0048-members-as-far-as-one-owner-goes.md.
+        MemberService says who can sign in to the install, with their roles and how
+         they sign in, and invites others: the owner and admins invite someone with
+         a role in a place, the install or a project, and the person accepts with a
+         passkey (AuthService.FinishAcceptInvite). See
+         docs/adr/0048-members-as-far-as-one-owner-goes.md and
+         docs/adr/0049-roles-and-invites-by-project.md.
 
          It names people and their emails, so only a person signed in reads it, never
          an API token. How each person signs in is theirs: everyone sees the kinds of

@@ -52,6 +52,26 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await row.getByText("3 of 100").waitFor();
   const engines = page.getByRole("list", { name: "Engines" });
   await engines.getByRole("link", { name: /PostgreSQL/ }).waitFor();
+  if ((await engines.getByRole("link", { name: /Adminer|pgAdmin/ }).count()) !== 0)
+    fail("Create a database offers a tool that makes no database");
+
+  step("databases: New database opens here, from its defaults, with its engine picked from a list");
+  await page.getByRole("link", { name: "New database" }).click();
+  const making = page.getByRole("dialog", { name: "New database" });
+  const engine = making.getByRole("group", { name: "Engine" });
+  await engine.getByRole("radio", { name: /PostgreSQL/ }).waitFor({ state: "attached" });
+  if (!(await engine.getByRole("radio", { name: /PostgreSQL/ }).isChecked()))
+    fail("New database doesn't start at PostgreSQL");
+  await making.getByRole("group", { name: "Name" }).waitFor();
+  await engine.locator("label", { hasText: "MySQL" }).click();
+  await making
+    .getByRole("group", { name: "Name" })
+    .getByText(/^mysql/)
+    .waitFor();
+  if (new URL(page.url()).searchParams.get("new") !== "mysql") fail(`picking MySQL left the address at ${page.url()}`);
+  await shoot(page, "databases-new");
+  await making.getByRole("button", { name: "Cancel" }).click();
+  await making.waitFor({ state: "hidden" });
   await page.getByRole("region", { name: "Backups" }).getByText("Last run").waitFor();
   await fitsItsWidth(page, "the databases list");
   await shoot(page, "databases-list");

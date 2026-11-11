@@ -128,3 +128,36 @@ func TestPresentationChangesDoNotOfferAnUpgrade(t *testing.T) {
 		}
 	}
 }
+
+// What an install's plan says a person needs comes from the entry's fields, a short
+// sentence each, for the CLI as for the panel.
+func TestFirstWordsSayHowToSignIn(t *testing.T) {
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{
+		"postgres": "Sign in to adminer to server db as postgres, with the password in the POSTGRES_PASSWORD secret. Choose PostgreSQL as Adminer's system.",
+		"pgadmin": "Sign in to pgadmin as your email, with the password in the PGADMIN_PASSWORD secret. " +
+			"Registers a PostgreSQL that has a port of its own at host.docker.internal, which is this server.",
+		"nextcloud": "Sign in to nextcloud as the admin user you give, with the password in the NEXTCLOUD_ADMIN_PASSWORD secret. " +
+			"Answers at the domain you gave on its first install; another needs adding to its trusted_domains. " +
+			"Leave the POSTGRES_PASSWORD secret as it is: its config.php keeps the password it installed with. Its first start takes a minute or two.",
+		"gitea": "Its first account is its owner, so make yours before it has a domain. Git over SSH answers on its SSH port, on this server alone.",
+		"t3code": "Sign in to t3code with the key in the T3_SETUP_KEY secret. " +
+			"Anyone who reaches it over plain HTTP gets a shell, so it needs a domain over HTTPS. Open /__setup on its domain and sign in with the setup key.",
+		"cloudflared": "In Cloudflare, publish your domain on this tunnel to http://127.0.0.1:80, then add it to an app here as behind a tunnel.",
+		// Its notes reach the CLI's plan as they reach the panel's install sheet.
+		"hermes-agent": "Sign in to hermes as admin, with the password in the HERMES_PASSWORD secret. " +
+			"Add a domain only behind your VPN: a public one needs Hermes's OAuth provider in place of basic auth. " +
+			"Its API answers on the API port, on this server alone, at /v1 with the API_KEY secret.",
+		"openclaw": "Sign in to openclaw with the key in the GATEWAY_TOKEN secret. " +
+			"Its Control UI takes only its own address, not the panel's Open: reach it through the SSH tunnel to its port. " +
+			"New devices wait for approval: in its container, node /app/dist/index.js devices list, then devices approve with its ID.",
+	} {
+		e, _ := c.Entry(id)
+		if got := catalog.FirstWords(e); got != want {
+			t.Errorf("%s says %q, want %q", id, got, want)
+		}
+	}
+}

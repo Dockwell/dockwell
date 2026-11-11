@@ -20,7 +20,7 @@ screenshots:
     source: https://wordpress.org/documentation/files/2019/03/block-editor-overview-6.7-1536x869.jpg
 category: cms
 version: "7.1.3"
-release: 3
+release: 4
 homepage: https://wordpress.org
 license: AGPL-3.0-only
 appLicense: GPL-2.0-or-later
@@ -29,21 +29,13 @@ source:
   path: internal/catalog/entries/wordpress.yaml
 web:
   service: wordpress
-firstSteps: >-
-  WordPress answers only on this server until you add a domain, as the first person
-  to open it sets up its admin account, and scanners watch public certificate logs
-  for new WordPress sites to take. So set it up first, through an SSH tunnel from
-  your computer: ssh -N -L 8085:127.0.0.1:8085 you@your-server, using the port you
-  gave it, then open http://localhost:8085. Add a domain on its page only after that,
-  over HTTPS or behind your tunnel, and change WordPress's address to it under
-  Settings, General, as it keeps the address it was set up at, http://localhost:8085.
-  WordPress keeps its own files on its volume, so it installs its own minor releases,
-  and you update it, its themes and its plugins from its dashboard, while an upgrade
-  here moves PHP and Apache on.
+firstVisitorOwns: true
+notes:
+  - "Keeps the address it was set up at until you change it under Settings, General."
+  - "Updates itself, its themes and its plugins from its dashboard; an upgrade here moves PHP and Apache on."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8085"
   - name: MARIADB_ROOT_PASSWORD

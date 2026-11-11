@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Change, ChangeState, type EnvironmentVariable } from "@dockwell/api";
+import { type Change, ChangeService, ChangeState, type EnvironmentVariable } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -34,6 +34,8 @@ import {
 import { sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
+import { MayEdit } from "../auth/MayEdit";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -66,6 +68,7 @@ export function AppEnvironment() {
   // A secret it uses reveals here as on Variables, with a passkey, for a minute.
   const reveals = useReveals(environment);
   const [pending, setPending] = useDraft(service.id);
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment });
   // While the plan sheet is open, it has the keyboard: ⌘↵ there applies.
   const reviewing = useRef(false);
   const [changing, setChanging] = useState<string>();
@@ -167,77 +170,79 @@ export function AppEnvironment() {
   return (
     <RevealsProvider value={reveals}>
       <div className="app-environment">
-        <div className="app-env-head">
-          <span className="app-env-counts">{counts}</span>
-          <span className="app-env-spacer" />
-          <Button variant="ghost" icon="upload" disabled={store.data === undefined} onClick={() => setImporting(true)}>
-            <Trans>Import .env</Trans>
-          </Button>
-        </div>
+        {/* For someone who may not plan here, it's there to read, with why (ADR 0059). */}
+        <MayEdit offer={mayPlan}>
+          <div className="app-env-head">
+            <span className="app-env-counts">{counts}</span>
+            <span className="app-env-spacer" />
+            <Button
+              variant="ghost"
+              icon="upload"
+              disabled={store.data === undefined}
+              onClick={() => setImporting(true)}
+            >
+              <Trans>Import .env</Trans>
+            </Button>
+          </div>
 
-        {store.error ? (
-          <Callout
-            tone="warning"
-            title={t`Can't read the environment's variables and secrets`}
-            actions={
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="refresh"
-                loading={store.isFetching}
-                onClick={() => void store.refetch()}
-              >
-                <Trans>Try again</Trans>
-              </Button>
-            }
-          >
-            {sentence(store.error)}{" "}
+          {store.error ? (
+            <Callout
+              tone="warning"
+              title={t`Can't read the environment's variables and secrets`}
+              actions={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="refresh"
+                  loading={store.isFetching}
+                  onClick={() => void store.refetch()}
+                >
+                  <Trans>Try again</Trans>
+                </Button>
+              }
+            >
+              {sentence(store.error)} <Trans>Their values stay hidden, and Add waits until they load.</Trans>
+            </Callout>
+          ) : null}
+
+          <AddForm
+            key={changing ?? "add"}
+            name={name}
+            rows={rows}
+            store={store.data?.variables}
+            reading={store.data === undefined}
+            changing={rows.find((row) => row.name === changing)}
+            onAdd={put}
+            onDone={() => setChanging(undefined)}
+          />
+
+          {rows.length === 0 ? (
+            // With nothing set, a table would be four column heads over one sentence, and a lone one on a phone.
+            <EmptyState icon="key" title={t`No variables yet`}>
+              <Trans>It runs with only what its image sets.</Trans>
+            </EmptyState>
+          ) : (
+            <Panel flush>
+              <Table
+                columns={columns}
+                rows={rows.map((row) => ({ ...row, id: row.name }))}
+                rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
+                density="compact"
+                caption={t`Environment variables of ${name}`}
+              />
+            </Panel>
+          )}
+
+          <p className="app-note">
             <Trans>
-              Their values don't show until then, and adding waits, so a new name can't clash with one already there.
+              Change a shared one in{" "}
+              <Link to="/variables" search={{ environment }}>
+                Variables and secrets
+              </Link>
+              . A value set here is never shown again.
             </Trans>
-          </Callout>
-        ) : null}
-
-        <AddForm
-          key={changing ?? "add"}
-          name={name}
-          rows={rows}
-          store={store.data?.variables}
-          reading={store.data === undefined}
-          changing={rows.find((row) => row.name === changing)}
-          onAdd={put}
-          onDone={() => setChanging(undefined)}
-        />
-
-        {rows.length === 0 ? (
-          // With nothing set, a table would be four column heads over one sentence, and a lone one on a phone.
-          <EmptyState icon="key" title={t`No variables yet`}>
-            <Trans>
-              This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan.
-            </Trans>
-          </EmptyState>
-        ) : (
-          <Panel flush>
-            <Table
-              columns={columns}
-              rows={rows.map((row) => ({ ...row, id: row.name }))}
-              rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
-              density="compact"
-              caption={t`Environment variables of ${name}`}
-            />
-          </Panel>
-        )}
-
-        <p className="app-note">
-          <Trans>
-            Change a shared one in{" "}
-            <Link to="/variables" search={{ environment }}>
-              Variables and secrets
-            </Link>
-            . A value set here is never shown again.
-          </Trans>
-        </p>
-
+          </p>
+        </MayEdit>
         {pending.size > 0 ? (
           <PendingBar
             name={name}
@@ -630,9 +635,7 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
             {changing.now?.kind === "own" ? (
               <Trans>What's set on this app isn't shown, so type the whole value it should have.</Trans>
             ) : changing.now?.kind === "secret" ? (
-              <Trans>
-                The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it.
-              </Trans>
+              <Trans>Type the whole value: every app that uses this secret gets it.</Trans>
             ) : (
               <Trans>Every app that uses this variable gets the new value.</Trans>
             )}
@@ -837,22 +840,19 @@ function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
           </p>
         ) : (
           <p className="app-env-form-note">
-            <Trans>
-              A name the app has gets the new value. Nothing changes until you review the plan and apply it.
-            </Trans>
+            <Trans>A name the app has gets the new value.</Trans>
           </p>
         )}
         {used.length > 0 ? (
           <p className="app-env-form-note" role="status">
             {used.length === 1 ? (
               <Trans>
-                The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in
-                Variables and secrets, where every app that uses it gets the change.
+                The environment has {usedList} already, so the app uses its value: change it in Variables and secrets.
               </Trans>
             ) : (
               <Trans>
-                The environment has {usedList} already, so the app uses them as they are, with their own values. Change
-                them in Variables and secrets, where every app that uses them gets the change.
+                The environment has {usedList} already, so the app uses their values: change them in Variables and
+                secrets.
               </Trans>
             )}
           </p>

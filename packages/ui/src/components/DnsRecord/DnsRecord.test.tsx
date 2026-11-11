@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -64,5 +67,15 @@ describe("DnsRecord", () => {
     render(<DnsRecord type="AAAA" name="a.example.com" value="2001:db8::7" />);
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("button", { name: "Check again" })).toBeNull();
+  });
+
+  // jsdom lays nothing out, so this reads the rule: a size container's width doesn't come from
+  // what it holds, and in a flex column with align-items: flex-start it was 0 px wide (#486).
+  // The e2e's network flow measures the record where Add a domain shows it.
+  it("takes its parent's whole width itself, as a size container", () => {
+    const css = readFileSync(join(import.meta.dirname, "DnsRecord.css"), "utf8");
+    const root = css.match(/\.dw-dns\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(root).toMatch(/container-type:\s*inline-size/);
+    expect(root).toMatch(/inline-size:\s*100%/);
   });
 });

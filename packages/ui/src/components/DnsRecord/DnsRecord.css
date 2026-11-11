@@ -1,8 +1,14 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
+/*
+ * A size container's width doesn't come from what it holds, so it takes its parent's
+ * whole width itself: a parent that sizes children to their content, such as a flex
+ * column with align-items: flex-start, would otherwise make it 0 px wide.
+ */
 .dw-dns {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  inline-size: 100%;
   min-width: 0;
   container-type: inline-size;
 }

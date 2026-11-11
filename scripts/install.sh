@@ -1011,6 +1011,15 @@ hold secrets, and with Dockwell gone nothing removes them after their 30 days.
 To delete only those, run: rm -rf $DATA/agent/kept-logs
 EOF
 	fi
+	if [ -d "$DATA/agent/desired" ]; then
+		cat <<EOF
+
+What this server ran is kept in $DATA/agent/desired, sealed with the key
+beside it, $DATA/agent/desired.key. It holds the values of the variables and
+secrets your workloads use, and anyone with both files can read them.
+To delete only those, run: rm -rf $DATA/agent/desired $DATA/agent/desired.key
+EOF
+	fi
 }
 
 # ingress_containers lists the containers of Dockwell's ingress, running or not:

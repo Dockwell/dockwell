@@ -433,18 +433,63 @@ func (i *Identity) TransferClient() (client agentv1connect.AgentServiceClient, r
 	if err != nil {
 		return nil, nil, err
 	}
-	hc := httpClient(cfg)
-	hc.Transport.(*http.Transport).HTTP2 = &http.HTTP2Config{ //nolint:forcetypeassert // httpClient's own
-		MaxReceiveBufferPerStream:     transferWindow,
-		MaxReceiveBufferPerConnection: transferConnWindow,
-	}
+	hc := transferHTTPClient(cfg)
 	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
+}
+
+// transferHTTPClient is httpClient with a transfer's windows. They're set on
+// httpClient's own HTTP/2 settings, which keeps its pings: a transfer over a
+// connection gone silent ends as the agent's stream does.
+func transferHTTPClient(cfg *tls.Config) *http.Client {
+	hc := httpClient(cfg)
+	h2 := hc.Transport.(*http.Transport).HTTP2 //nolint:forcetypeassert // httpClient's own
+	h2.MaxReceiveBufferPerStream, h2.MaxReceiveBufferPerConnection = transferWindow, transferConnWindow
+	return hc
 }
 
 const (
 	transferWindow     = 256 << 10
 	transferConnWindow = 1 << 20
 )
+
+// ForwardClient is Client for connections to apps opened through the panel,
+// which an agent carries dozens of at once where it carries a few transfers: its
+// connection takes in at most ForwardWindow of each stream, and ForwardsPerConn
+// of them in all, before the agent writes it to the app. An upload to an app that
+// reads slowly waits there, so 16 forwards hold 1 MiB at most, where a
+// transfer's window took an agent past its 40 MB (ADR 0061).
+func (i *Identity) ForwardClient() (client agentv1connect.AgentServiceClient, release func(), err error) {
+	cfg, err := i.ClientTLS()
+	if err != nil {
+		return nil, nil, err
+	}
+	hc := httpClient(cfg)
+	hc.Transport.(*http.Transport).HTTP2 = &http.HTTP2Config{ //nolint:forcetypeassert // httpClient's own
+		MaxReceiveBufferPerStream:     ForwardWindow,
+		MaxReceiveBufferPerConnection: ForwardWindow * ForwardsPerConn,
+	}
+	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
+}
+
+const (
+	// ForwardWindow is how much of a forward's stream its connection takes in
+	// before the agent reads it: two of its messages.
+	ForwardWindow = 64 << 10
+	// ForwardsPerConn is how many forwards share a connection, whose window is
+	// theirs together, so none waits on another's.
+	ForwardsPerConn = 4
+	// ForwardsFull is the reason of a forward the agent refuses as it carries as
+	// many as it does at once (CallError.reason).
+	ForwardsFull = "forwards_full"
+)
+
+// silentFor is how long the agent hears nothing on its connection to the control
+// plane before it asks, with an HTTP/2 ping, and how long it waits for the answer
+// before it takes the connection for lost. A network that drops every packet
+// closes nothing, so without them the agent would take TCP's quarter of an hour to
+// see it, and wouldn't put back what goes missing meanwhile (ADR 0054). The
+// control plane closes a stream silent for 30 s. A test shortens it.
+var silentFor = 15 * time.Second
 
 // httpClient speaks HTTP/2 over TLS, through a proxy if the environment
 // names one, as gRPC requires.
@@ -457,6 +502,7 @@ func httpClient(cfg *tls.Config) *http.Client {
 		Protocols:           &p,
 		TLSHandshakeTimeout: 10 * time.Second,
 		IdleConnTimeout:     90 * time.Second,
+		HTTP2:               &http.HTTP2Config{SendPingTimeout: silentFor, PingTimeout: silentFor},
 	}}
 }
 

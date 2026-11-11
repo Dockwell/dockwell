@@ -29,22 +29,23 @@ source:
   path: internal/catalog/entries/openclaw.yaml
 web:
   service: openclaw
-firstSteps: >-
-  OpenClaw answers only on this server until you add a domain. Tunnel first: ssh -N -L
-  18789:127.0.0.1:18789 you@your-server, then open http://localhost:18789 and enter the
-  GATEWAY_TOKEN secret. If it asks to approve the device, run node /app/dist/index.js
-  devices list in its container, then devices approve with the request's ID. Add a
-  domain on its page over HTTPS, then set OPENCLAW_CONTROL_UI_ORIGIN to that exact
-  address, such as https://assistant.example.com.
+signIn:
+  passwordInput: "GATEWAY_TOKEN"
+addressVariables:
+  - service: openclaw
+    variable: OPENCLAW_CONTROL_UI_ORIGIN
+    value: "https://{domain}"
+notes:
+  - "Its Control UI takes only its own address, not the panel's Open: reach it through the SSH tunnel to its port."
+  - "New devices wait for approval: in its container, node /app/dist/index.js devices list, then devices approve with its ID."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "18789"
   - name: URL
     label: Site address
-    hint: The exact HTTPS address of your domain, if you have one. Leave empty to start through an SSH tunnel.
+    hint: The address its Control UI takes. Empty until it has a domain.
     type: INPUT_TYPE_TEXT
     optional: true
   - name: GATEWAY_TOKEN

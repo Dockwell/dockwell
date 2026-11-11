@@ -26,6 +26,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -54,7 +55,9 @@ type Handler struct {
 	auth   *identity.Authority
 	fleet  *fleet.Hub
 	agents *Agents
-	logger *slog.Logger
+	// history keeps each server's samples a minute at a time (ADR 0065); nil keeps none.
+	history Sampler
+	logger  *slog.Logger
 	// silence is how long a stream may say nothing before it is closed, and
 	// recheck how often a connected server's revocation is checked.
 	silence time.Duration
@@ -86,6 +89,19 @@ func WithStreamTiming(silence, recheck time.Duration) Option {
 // engine's calls. Without it, streams only report.
 func WithAgents(agents *Agents) Option {
 	return func(h *Handler) { h.agents = agents }
+}
+
+// Sampler keeps a server's history from its samples.
+type Sampler interface {
+	Sample(serverID string, stats *dockwellv1.ServerStats)
+	// Connected says the server's agent has just connected: its next sample may
+	// be a new collector's first, which reports no CPU.
+	Connected(serverID string)
+}
+
+// WithHistory hands each stats sample to history as well as to the fleet.
+func WithHistory(history Sampler) Option {
+	return func(h *Handler) { h.history = history }
 }
 
 // NewHandler returns the agent listener's root handler.
@@ -257,6 +273,9 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	}}}); err != nil {
 		return err
 	}
+	if h.history != nil {
+		h.history.Connected(peer.ServerID)
+	}
 	log := h.logger.With(slog.String("server", peer.ServerID), slog.String("name", srv.Name))
 	log.InfoContext(ctx, "server connected", slog.String("agent", hello.GetBuild().GetVersion()),
 		slog.String("build", string(buildinfo.EditionOf(hello.GetBuild()))), slog.Any("kinds", hello.GetKinds()),
@@ -264,6 +283,10 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	if !hello.GetWritesReferences() {
 		log.WarnContext(ctx, "the agent is from before a command could name a value, so nothing on this server that names one is read, planned or applied until you update the agent",
 			slog.String("agent", hello.GetBuild().GetVersion()))
+	}
+	if n := hello.GetDesired().GetDamaged(); n > 0 {
+		log.WarnContext(ctx, "the agent found records of what this server should run that don't open, as a power cut or an edit leaves one, and put them aside. "+
+			"The control plane sends it what it lacks now, and its own log says why each didn't open", slog.Uint64("records", uint64(n)))
 	}
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
@@ -293,6 +316,9 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 					stats.Interval = durationpb.New(told)
 				}
 				h.fleet.Record(peer.ServerID, stats)
+				if h.history != nil {
+					h.history.Sample(peer.ServerID, stats)
+				}
 			case msg.GetNetwork() != nil:
 				h.fleet.RecordNetwork(peer.ServerID, msg.GetNetwork())
 			case msg.GetResult() != nil && session != nil:
@@ -321,6 +347,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains(), msg.GetDomains().GetIngress())
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())
 				h.fleet.RecordDomains(peer.ServerID, msg.GetDomains().GetDomains())
+			case msg.GetReconciled() != nil && session != nil:
+				go h.agents.reconciled(context.WithoutCancel(ctx), peer.ServerID, session, msg.GetReconciled())
 			case msg.GetHealth() != nil && h.agents != nil:
 				h.agents.ReportHealth(peer.ServerID, msg.GetHealth())
 				h.fleet.RecordDocker(peer.ServerID, msg.GetHealth().GetDockerUnreadableSince())
@@ -396,6 +424,14 @@ func (h *Handler) refuse(ctx context.Context, peer Peer, err error) error {
 	return h.rpcError(ctx, err)
 }
 
+// ReasonKey is the error metadata an agent reads a refusal's reason from, as the
+// API's reasons travel, and ReasonServerRemoved the reason for a server removed
+// from the fleet. The agent names them too (agent.ReasonRemoved).
+const (
+	ReasonKey           = "Dockwell-Error"
+	ReasonServerRemoved = "server_removed"
+)
+
 func requireServer(ctx context.Context) (Peer, error) {
 	p, ok := PeerFrom(ctx)
 	if !ok {
@@ -410,8 +446,15 @@ func requireServer(ctx context.Context) (Peer, error) {
 // authenticated, learns nothing about it.
 func (h *Handler) rpcError(ctx context.Context, err error) error {
 	switch {
-	case errors.Is(err, identity.ErrTicketRejected), errors.Is(err, identity.ErrRevoked),
-		errors.Is(err, identity.ErrUnknownServer), errors.Is(err, identity.ErrStaleCertificate):
+	case errors.Is(err, identity.ErrRevoked):
+		// Said apart from the rest, as the agent then forgets what it kept of what
+		// its server ran, values and all (ADR 0054). A server the control plane
+		// doesn't know isn't told so: that may be a control plane rebuilt, and the
+		// agent's records are what puts its server back.
+		cerr := connect.NewError(connect.CodePermissionDenied, err)
+		cerr.Meta().Set(ReasonKey, ReasonServerRemoved)
+		return cerr
+	case errors.Is(err, identity.ErrTicketRejected), errors.Is(err, identity.ErrUnknownServer), errors.Is(err, identity.ErrStaleCertificate):
 		return connect.NewError(connect.CodePermissionDenied, err)
 	case errors.Is(err, identity.ErrBadRequest):
 		return connect.NewError(connect.CodeInvalidArgument, err)

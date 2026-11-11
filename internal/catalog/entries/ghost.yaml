@@ -20,7 +20,7 @@ screenshots:
     source: https://user-images.githubusercontent.com/353959/169805900-66be5b89-0859-4816-8da9-528ed7534704.png
 category: cms
 version: "6.72.0"
-release: 3
+release: 4
 homepage: https://ghost.org
 license: AGPL-3.0-only
 appLicense: MIT
@@ -29,27 +29,21 @@ source:
   path: internal/catalog/entries/ghost.yaml
 web:
   service: ghost
-firstSteps: >-
-  Ghost answers only on this server until you add a domain, as the first person to
-  open /ghost makes its owner account. So make yours first, through an SSH tunnel
-  from your computer: ssh -N -L 2368:127.0.0.1:2368 you@your-server, using the port
-  you gave it, then open http://localhost:2368/ghost. Add a domain on its page only
-  after that, over HTTPS or behind your tunnel, as a new domain's certificate shows
-  in public logs within minutes, then set url on the ghost service to that address,
-  as Ghost links every page there. Ghost emails a code to sign in on each new device,
-  so set its mail__ settings on the ghost service before you need one.
+firstVisitorOwns: true
+addressVariables:
+  - service: ghost
+    variable: url
+    value: "https://{domain}"
+notes:
+  - "Emails a sign-in code on each new device, so it needs its mail__ settings."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "2368"
   - name: URL
     label: Site address
-    hint: >-
-      Ghost sends every visit here, your SSH tunnel's too. Leave it empty to make your
-      account through the tunnel first, then set url on the ghost service once its
-      domain is added.
+    hint: "Where Ghost links every page. Empty until it has a domain."
     type: INPUT_TYPE_TEXT
     optional: true
   - name: MYSQL_ROOT_PASSWORD

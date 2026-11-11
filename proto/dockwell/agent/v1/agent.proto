@@ -84,6 +84,14 @@ service AgentService {
   rpc SendFile(stream SendFileRequest) returns (SendFileResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
   }
+  // Forward carries one connection to a port a service publishes on its server
+  // (ForwardCall), which the agent opens on a connection of its own, as
+  // Terminal does: the bytes from the service go up, and those to it come
+  // down. Flow control is the backpressure. A person opens an app's web UI
+  // this way, through the panel (ADR 0061).
+  rpc Forward(stream ForwardRequest) returns (stream ForwardResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
 }
 
 // ConnectRequest is one message from the agent.
@@ -130,6 +138,9 @@ message ConnectRequest {
     // Numbered in the block scheduled tasks hold, as open work adds to this
     // message.
     TaskRunsReady task_runs_ready = 150;
+    // What the agent did, or couldn't do, on its own while the control plane
+    // was away, sent as its stream opens (ADR 0054).
+    Reconciled reconciled = 163;
   }
 }
 
@@ -283,6 +294,52 @@ message UnavailableKind {
   string reason = 2;
 }
 
+// Reconciled is what an agent did, or couldn't do, on its own while the control
+// plane was away (ADR 0054), as its journal holds it. It holds no value and no
+// spec.
+message Reconciled {
+  // What it did, oldest first.
+  repeated LocalEntry entries = 1;
+  // How many entries it dropped before these, as its journal keeps at most 500.
+  uint32 dropped = 2;
+  // The ID of the newest entry it dropped, which names the count, so the same
+  // count sent again is one event.
+  string dropped_to = 3;
+}
+
+// LocalEntry is one thing an agent did, or couldn't do, on its own.
+message LocalEntry {
+  // The boot's ID and a sequence, so it means one thing however often it's sent.
+  string id = 1;
+  // The resource.
+  dockwell.v1.ResourceRef resource = 2;
+  // What it did.
+  LocalAction action = 3;
+  // Why it couldn't, for people, for LOCAL_ACTION_WAITING.
+  string reason = 4;
+  // When.
+  google.protobuf.Timestamp time = 5;
+}
+
+// LocalAction is what an agent did on its own.
+enum LocalAction {
+  LOCAL_ACTION_UNSPECIFIED = 0;
+  // It made the resource again, as it was gone.
+  LOCAL_ACTION_MADE = 1;
+  // It started the resource, which Docker couldn't.
+  LOCAL_ACTION_STARTED = 2;
+  // It couldn't put the resource back, and waits for the control plane.
+  LOCAL_ACTION_WAITING = 3;
+}
+
+// Heard says the control plane has what an agent did on its own, up to and
+// including an entry, which the agent then drops, with the count of those it
+// dropped before.
+message Heard {
+  // The last entry the control plane has. Empty when it was sent none.
+  string last = 1;
+}
+
 // Draining says the agent takes no more calls on this stream.
 message Draining {}
 
@@ -359,6 +416,35 @@ message Hello {
   // to one that doesn't. Catalog and databases work takes 200 to 202 and 220 to
   // 229 in agent messages.
   bool drills = 221;
+  // True when the agent carries a connection to a port a service publishes
+  // (ForwardCall), so the panel opens an app's web UI through it (ADR 0061).
+  bool forwards = 202;
+  // What the agent keeps of what its server should run (ADR 0054), so the
+  // control plane sends what it lacks. An agent that sends none keeps nothing,
+  // and is sent nothing to keep.
+  DesiredHeld desired = 160;
+}
+
+// DesiredHeld is what an agent keeps of what its server should run.
+message DesiredHeld {
+  // Each resource it keeps, at the revision it keeps.
+  repeated HeldResource held = 1;
+  // How many records it found it couldn't open as it started: torn, edited,
+  // another server's, or of a format it doesn't know. It acts on none of them,
+  // and can't tell which resources they were.
+  uint32 damaged = 2;
+  // Names this cache, derived from its key, so it changes when the key does: a
+  // control plane that hears a new one says so as it sends the cache what it
+  // lacks, as after a reinstall, or another holder of the server's identity.
+  string cache = 3;
+}
+
+// HeldResource is one resource an agent keeps.
+message HeldResource {
+  // The resource.
+  dockwell.v1.ResourceRef resource = 1;
+  // The revision it keeps.
+  int64 revision = 2;
 }
 
 // ConnectResponse is one message from the control plane.
@@ -383,6 +469,8 @@ message ConnectResponse {
     // changes, to an agent whose hello says it follows a pace. Numbered apart,
     // as open work adds to this message.
     Pace pace = 40;
+    // Says the control plane has what the agent sent of what it did on its own.
+    Heard heard = 164;
   }
 }
 
@@ -580,6 +668,9 @@ message Call {
     ImageCall image = 200;
     // Say what holds some ports on the server, for a form. Ports take 210 to 219.
     PortsCall ports = 210;
+    // Carry a connection to a port a service publishes, over Forward (ADR
+    // 0061). Catalog and databases work takes 220 to 229.
+    ForwardCall forward = 221;
     // Make an empty file or a folder. Numbered apart, as open work adds to
     // this message.
     MakeFileCall make_file = 120;
@@ -601,6 +692,8 @@ message Call {
     FinishUploadCall finish_upload = 128;
     // Send a file, or a folder as an archive, over SendFile.
     DownloadFileCall download_file = 129;
+    // Has the agent keep what its server runs, as its desired state.
+    RememberCall remember = 161;
   }
 }
 
@@ -797,6 +890,47 @@ message CloseTerminalResult {
   dockwell.v1.TerminalEnd end = 1;
 }
 
+// ForwardCall has the agent connect to the port a service publishes for one of
+// its container's ports, on this server, and carry the connection's bytes over
+// Forward until either end closes, or the control plane cancels the call. The
+// agent finds the service's running container, and where Docker publishes that
+// port, itself: it dials nothing a call names by address.
+message ForwardCall {
+  // The service's Compose project, as its containers' labels name it.
+  string project = 1;
+  // The service, by name.
+  string service = 2;
+  // The port in its container, such as 80, which the container publishes.
+  uint32 port = 3;
+  // Names the call's Forward stream.
+  uint64 stream = 4;
+}
+
+// ForwardResult says how a forward ended.
+message ForwardResult {
+  // How many bytes went each way.
+  uint64 sent = 1;
+  uint64 received = 2;
+}
+
+// ForwardRequest is one message of Forward from the agent.
+message ForwardRequest {
+  // The call's stream, on the first message.
+  uint64 stream = 1;
+  // What the service sent.
+  bytes data = 2;
+  // True once the service has closed its side.
+  bool closed = 3;
+}
+
+// ForwardResponse is one message of Forward from the control plane.
+message ForwardResponse {
+  // What to send the service.
+  bytes data = 1;
+  // True once the client has closed its side.
+  bool closed = 2;
+}
+
 // TerminalRequest is one message of Terminal from the agent.
 message TerminalRequest {
   // The call's stream, on the first message.
@@ -822,6 +956,36 @@ message TerminalResponse {
   uint32 columns = 3;
   // Its height. 0 leaves it.
   uint32 rows = 4;
+}
+
+// RememberCall gives an agent what one resource on its server should be, from
+// its latest revision placed and applied there, for the agent to keep while the
+// control plane is away (ADR 0054), or has it forget one its server no longer
+// runs. It changes nothing on the server. The control plane sends it as an agent
+// connects, for each resource the agent doesn't keep at that revision, and each
+// it keeps that isn't placed there.
+message RememberCall {
+  // The resource, its spec and its scope's name, as a step's are. With no spec,
+  // the agent forgets the resource, if it keeps it at deploy's revision, the
+  // one the control plane saw: a step since then has the say.
+  DesiredResource desired = 1;
+  // The revision, and the change that made it.
+  Deploy deploy = 2;
+  // The values of the variables and secrets the spec uses, sealed as an
+  // ApplyCall's are. Unset when it uses none.
+  bytes values = 3;
+  // What the image the resource runs is called in its registry, as name@digest,
+  // as the control plane kept it when the step ran, for an agent that can't see
+  // the image on the server, as when its container is gone.
+  string image_digest = 4;
+}
+
+// RememberResult answers a RememberCall.
+message RememberResult {
+  // False when the agent kept what it had: a later revision, as of a step that
+  // ended after its stream did, or a deletion at or above it. For a forget, false
+  // when it no longer held the resource at that revision.
+  bool kept = 1;
 }
 
 // AdoptionCall asks what a container would be as a service. It reads the
@@ -1479,7 +1643,8 @@ message ApplyCall {
   // (X25519, HKDF-SHA256), HKDF-SHA256 and AES-256-GCM, with the info
   // "dockwell.values.v1", the server's ID and the resource's kind, scope and
   // name, each after a zero byte. Unset when it uses none. The agent opens
-  // it in memory for this step alone, and never writes it anywhere.
+  // it in memory for this step, and writes it nowhere but its cache of
+  // desired state, sealed there with its own key (ADR 0054).
   bytes values = 3;
   // True when a run stopped partway had already pulled the step's image on this
   // server, so it compares what the server has, and needs no registry.
@@ -1639,6 +1804,8 @@ message CallResult {
     ImageResult image = 200;
     // What ports found.
     PortsResult ports = 210;
+    // How a forward ended.
+    ForwardResult forward = 221;
     // What make_file made. Numbered apart, as open work adds to this message.
     MakeFileResult make_file = 120;
     // Where move_file moved it.
@@ -1659,6 +1826,8 @@ message CallResult {
     FinishUploadResult finish_upload = 128;
     // What download_file sent.
     DownloadFileResult download_file = 129;
+    // Whether remember was kept.
+    RememberResult remember = 161;
   }
 }
 
@@ -1849,7 +2018,13 @@ message UnmanagedMounts {
 }
 
 // ApplyResult says a step was carried out and verified.
-message ApplyResult {}
+message ApplyResult {
+  // True when the step passed but the agent couldn't keep what it left as what
+  // its server runs, as for a full disk, so it forgot what it kept of the
+  // resource (ADR 0054). The control plane sends it again as the agent next
+  // connects.
+  bool unkept = 162;
+}
 
 // ObserveResult carries an observe call's resources.
 message ObserveResult {

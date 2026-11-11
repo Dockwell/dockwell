@@ -12,6 +12,7 @@ import {
   EventKind,
   HealthState,
   IntentKind,
+  Role,
   StepState,
 } from "@dockwell/api";
 import type { IconName, Status } from "@dockwell/ui";
@@ -22,6 +23,7 @@ import { useMemo } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { useRolePhrase } from "../auth/user";
 
 /** How an event shows on the timeline. */
 export interface Described {
@@ -39,6 +41,7 @@ export interface Described {
 export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, string>) => Described {
   const { t, i18n } = useLingui();
   const time = useTimeWords();
+  const rolePhrase = useRolePhrase();
   return useMemo(
     () => (event: Event, summaries: ReadonlyMap<string, string>) => {
       const change = event.change;
@@ -52,6 +55,13 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         return { title: t`The backup of ${volume} failed`, icon: "archive", tone: "critical" };
       }
       if (event.action === "backup.deleted") return { title: t`Deleted a backup of ${volume}`, icon: "archive" };
+      // An app opened through the panel, on an origin of its own (ADR 0061).
+      if (event.action === "service.open") {
+        return {
+          title: name ? t`Opened ${name} through the panel` : t`Opened an app through the panel`,
+          icon: "external",
+        };
+      }
       const destination = event.backup?.destination ?? "";
       if (event.action === "backup.copy_failed") {
         return { title: t`The backup of ${volume} didn't reach ${destination}`, icon: "archive", tone: "critical" };
@@ -86,6 +96,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       const task = event.taskRun?.displayName || event.taskRun?.task || name;
       const server = name || event.subject?.id || t`a server`;
+      const resourceName = event.reconciled?.name ?? "";
       switch (event.action) {
         case "task.failed":
           return {
@@ -117,6 +128,80 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               ? t`Set the public address of ${server} to ${address}, which was ${previous}`
               : t`Set the public address of ${server} to ${address}`,
             icon: "server",
+          };
+        }
+        case "server.reconciled_made":
+          return {
+            title: t`${server} made ${resourceName} again while the control plane was away`,
+            icon: "server",
+          };
+        case "server.reconciled_started":
+          return {
+            title: t`${server} started ${resourceName} again on its own`,
+            icon: "server",
+          };
+        case "server.reconciled_waiting":
+          return {
+            // With no resource, it's the whole server's, as when Docker doesn't answer.
+            title: resourceName
+              ? t`${server} left ${resourceName} as it is, and says why`
+              : t`${server} couldn't see or put back what it should run`,
+            icon: "server",
+            tone: "warning",
+          };
+        case "server.reconciled_dropped": {
+          const count = event.reconciled?.dropped ?? 0;
+          return {
+            title: plural(count, {
+              one: `${server} dropped # entry of what it did while the control plane was away, as it keeps 500`,
+              other: `${server} dropped # entries of what it did while the control plane was away, as it keeps 500`,
+            }),
+            icon: "server",
+            tone: "warning",
+          };
+        }
+        case "server.desired_sent": {
+          // What the server's agent keeps, so the server can be put back while the
+          // control plane is away (ADR 0054). A new cache is worth a look: it can be
+          // a reinstall, or another holder of the server's identity.
+          const sent = event.desiredSent;
+          const count = sent?.withValues ?? 0;
+          return sent?.newCache
+            ? {
+                title: plural(count, {
+                  one: `${server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs`,
+                  other: `${server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs`,
+                }),
+                icon: "server",
+                tone: "warning",
+              }
+            : sent?.firstCache
+              ? {
+                  title: plural(count, {
+                    one: `Sent ${server}'s agent, which kept none before, the variables and secrets of # resource it runs`,
+                    other: `Sent ${server}'s agent, which kept none before, the variables and secrets of # resources it runs`,
+                  }),
+                  icon: "server",
+                }
+              : {
+                  title: plural(count, {
+                    one: `Sent ${server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away`,
+                    other: `Sent ${server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away`,
+                  }),
+                  icon: "server",
+                };
+        }
+        case "server.desired_unknown": {
+          // What the agent keeps that the store doesn't know, at that revision, is
+          // left as it is: only a restored or rebuilt store holds less (ADR 0054).
+          const count = event.desiredSent?.unknown ?? 0;
+          return {
+            title: plural(count, {
+              one: `${server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is`,
+              other: `${server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are`,
+            }),
+            icon: "server",
+            tone: "warning",
           };
         }
         case "server.public_address_clear": {
@@ -205,6 +290,27 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const path = event.subject?.path ?? "";
           return { title: t`May have saved ${path} on ${server}`, icon: "file", tone: "warning" };
         }
+        // Who, as what, where (ADR 0049).
+        case "member.invite": {
+          const m = event.member;
+          return {
+            title: t`Invited ${m?.email ?? ""} as ${rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })}`,
+            icon: "users",
+          };
+        }
+        case "member.invite_revoke":
+          return { title: t`Revoked the invite for ${event.member?.email ?? ""}`, icon: "users" };
+        case "member.join": {
+          const m = event.member;
+          const who = m?.name || m?.email || "";
+          const as = rolePhrase(m?.role ?? Role.UNSPECIFIED, {
+            projectId: m?.projectId ?? "",
+            projectName: m?.projectName ?? "",
+          });
+          // The address they joined from, which is how a join nobody expected is noticed (ADR 0049).
+          const from = m?.address ?? "";
+          return { title: from ? t`${who} joined as ${as}, from ${from}` : t`${who} joined as ${as}`, icon: "users" };
+        }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {
           const value = event.setting?.value ?? "";
@@ -213,6 +319,18 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return previous
             ? { title: t`Named this install ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Named this install ${value}`, icon: "settings" };
+        }
+        case "settings.panel_domain": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          if (!value) {
+            return previous
+              ? { title: t`Stopped serving the panel on ${previous}`, icon: "settings" }
+              : { title: t`Cleared the panel's domain`, icon: "settings" };
+          }
+          return previous
+            ? { title: t`Set the panel's domain to ${value}, which was ${previous}`, icon: "settings" }
+            : { title: t`Set the panel's domain to ${value}`, icon: "settings" };
         }
         case "settings.time_zone": {
           const value = event.setting?.value ?? "";
@@ -449,7 +567,7 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
       }
       return { title: event.action, icon: event.kind === EventKind.SERVER ? "server" : "users" };
     },
-    [t, i18n, time],
+    [t, i18n, time, rolePhrase],
   );
 }
 

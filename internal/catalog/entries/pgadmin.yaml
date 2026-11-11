@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/pgadmin-org/pgadmin4/ec7ec4b3afc65eedb9fa6b5771ce39d082985636/docs/en_US/images/dashboard_activity.png
 category: databases
 version: "9.18"
-release: 2
+release: 3
 homepage: https://www.pgadmin.org
 license: AGPL-3.0-only
 appLicense: PostgreSQL
@@ -29,31 +29,22 @@ source:
   path: internal/catalog/entries/pgadmin.yaml
 web:
   service: pgadmin
-firstSteps: >-
-  pgAdmin answers only on this server until you add a domain, as it signs in over
-  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
-  there. To open it before that, use an SSH tunnel from your computer:
-  ssh -N -L 5050:127.0.0.1:5050 you@your-server, using the port you gave it, then open
-  http://localhost:5050. Sign in with your email and the password in the
-  PGADMIN_PASSWORD secret. That secret sets the password on first start only, so
-  changing it doesn't change what signs in. To change the password, choose Change
-  password in pgAdmin's user menu, then set the secret to match. To manage a PostgreSQL
-  this server runs with a port of its own, such as one another panel set up, register
-  host.docker.internal as its host, which is this server from inside pgAdmin. A
-  database installed from this catalog keeps to its own project, where its services
-  reach it by name, such as db, and publishes no port; connection names, which are on
-  the way, will let pgAdmin reach one in a click.
+signIn:
+  userInput: "ADMIN_EMAIL"
+  passwordInput: "PGADMIN_PASSWORD"
+  changedIn: "its user menu"
+notes:
+  - "Registers a PostgreSQL that has a port of its own at host.docker.internal, which is this server."
 inputs:
   - name: ADMIN_EMAIL
     label: Your email
-    hint: You sign in to pgAdmin with this.
     type: INPUT_TYPE_EMAIL
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "5050"
   - name: PGADMIN_PASSWORD
+    setOnce: true
     label: pgAdmin password
     type: INPUT_TYPE_SECRET
     generate: 32

@@ -242,6 +242,15 @@ func (r *Runner) yieldDrill(filesystem string) {
 // drillIn runs a drill once it has the server's slot.
 func (r *Runner) drillIn(ctx context.Context, d Drill, m *Manifest, file string, run *drillRun, report *DrillReport) (err error) {
 	kind := drillKind(m)
+	// A drill checks PostgreSQL and MySQL so far: another database, such as a MongoDB
+	// archive or a copy of its files, would read as a backup that didn't restore.
+	if m.Format == formatMongoDump || kind != nil && !drillChecks(kind) {
+		what := m.Database
+		if what == "" && kind != nil {
+			what = kind.name
+		}
+		return unchecked("restore checks cover PostgreSQL and MySQL so far, so this %s backup wasn't checked", cmpOr(what, "database"))
+	}
 	scratch := "dockwell-drill-" + d.ID
 	if _, err := r.Client.CreateVolume(ctx, &docker.VolumeCreate{Name: scratch, Labels: map[string]string{labelDrill: d.ID}}); err != nil {
 		return fmt.Errorf("docker can't make the drill's volume: %w", err)
@@ -297,6 +306,12 @@ func (r *Runner) drillIn(ctx context.Context, d Drill, m *Manifest, file string,
 		return r.drillDump(ctx, m, file, plan, &made, report)
 	}
 	return r.drillFiles(ctx, m, file, target, plan, &made, report)
+}
+
+// drillChecks says a drill knows how to start a database of this kind and ask it
+// what it holds.
+func drillChecks(k *databaseKind) bool {
+	return k.name == "PostgreSQL" || k.name == "MySQL"
 }
 
 // drillFloor is what a drill leaves alone on its disk: twice what a backup leaves,

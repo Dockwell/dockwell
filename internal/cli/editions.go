@@ -7,7 +7,7 @@ package cli
 // stand-in for each that says where it is. A test of the full build checks
 // that this names every command the agent build lacks, other than the API
 // commands, which apiAccessCommands and internal/cli/apinames name.
-var controlServerOnly = []string{"claim", "recover", "rotate-key", "token", "__read-compose"}
+var controlServerOnly = []string{"claim", "recover", "panel-domain", "rotate-key", "token", "__read-compose"}
 
 // apiAccessCommands sign the CLI in to a control plane's API. Only the full
 // build has them, with the API commands, whose names internal/cli/apinames

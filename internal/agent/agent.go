@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
-	"google.golang.org/protobuf/proto"
 
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -29,6 +28,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
@@ -68,8 +68,17 @@ type Config struct {
 	// again every KindsEvery and tells the control plane what changed. Nil
 	// manages none.
 	Drivers *resource.Registry
-	// Desired hears of each step the agent applies. Nil keeps nothing.
+	// Desired hears of each step the agent applies. Nil keeps nothing, and puts
+	// nothing back while the control plane is away.
 	Desired Desired
+	// Journal is where the agent writes down what it did on its own while the
+	// control plane was away, which it sends as a stream opens. Nil writes
+	// nothing down.
+	Journal *desired.Journal
+	// AwayAfter is how long the agent goes without a stream before it puts back
+	// on its own what its server should run, and ReconcileEvery how often it
+	// looks then. Zero means DefaultAwayAfter and DefaultReconcileEvery.
+	AwayAfter, ReconcileEvery time.Duration
 	// KindsEvery is how often the agent checks which kinds it can run.
 	// Zero means DefaultKindsEvery.
 	KindsEvery time.Duration
@@ -123,8 +132,13 @@ type Config struct {
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// forwards carry connections to apps opened through the panel, across this
+	// agent's streams.
+	forwards *forwardPool
 	// firewall reads what filters the server's inbound traffic, when asked.
 	firewall *firewallReader
+	// presence is whether a stream is up, which the reconciler goes by.
+	presence *presence
 	// outlook keeps what the server found out from one stream to the next.
 	outlook *outlook
 	// disks adds up what takes the disk Docker's data is on, when asked.
@@ -231,24 +245,43 @@ type DatabaseReader interface {
 	Read(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.DatabaseResult, error)
 }
 
-// Desired keeps what the control plane told this agent to apply, so the
-// server can reconcile toward it while the control plane is away (PRD
-// principle 5). The agent tells it after each step it applies and
-// verifies. The cache itself, and reconciling from it, come with #32; this
-// is where it plugs in.
-//
-// What it gets is the step's whole spec. That spec names the variables and
-// secrets a service uses and pins each to a revision, and their values reach
-// the agent only sealed to one stream, for one step, and are dropped once the
-// step ends (ADR 0022), so it hears of none of those. A cache that wants to
-// start a service again on its own needs them from the control plane again.
-//
-// A spec also holds what is written in it: a container's own env, and a
-// volume's options, which can give a CIFS password. So a cache must seal what
-// it keeps on disk.
+// ContainerLister tells the agent each list of the server's containers it reads,
+// as the health monitor does every few seconds, so the agent notes how what it
+// keeps a record of stands while the control plane is there too (ADR 0054).
+type ContainerLister interface {
+	OnList(fn func(ctx context.Context, at time.Time, list []docker.ContainerSummary))
+}
+
+// Desired keeps what this agent's server should run, so the server can be put
+// back while the control plane is away (ADR 0054). The agent has it keep what
+// each step it applies and verifies leaves a resource as, with the values the
+// spec uses, which it seals on disk, and what the control plane has it remember
+// or forget of what runs. Its hello says what it keeps.
 type Desired interface {
-	// Applied records a resource's desired spec; nil means it was deleted.
-	Applied(ctx context.Context, ref resource.Ref, spec proto.Message) error
+	// Keep keeps what a step that passed left a resource as, whatever revision
+	// it held, or a tombstone when the spec is nil. What it can't keep it
+	// forgets, and says so.
+	Keep(r desired.Record) error
+	// Remember keeps what the control plane says a resource runs, unless it
+	// keeps a later revision or a deletion at or above it, and says whether it did.
+	Remember(r desired.Record) (bool, error)
+	// Forget forgets a resource its server no longer runs, if it keeps it at
+	// revision, and says whether it did.
+	Forget(ref resource.Ref, revision int64) (bool, error)
+	// Drop forgets what it keeps of a resource, as a step passed and what it
+	// left can't be kept, for why, which the error it returns says.
+	Drop(ref resource.Ref, why error) error
+	// Holds says what it keeps.
+	Holds() *agentv1.DesiredHeld
+	// Refs lists the resources it keeps a record of, and Read reads one.
+	Refs() []resource.Ref
+	Read(ref resource.Ref) (desired.Record, bool, error)
+	// Seen notes how the agent saw a resource stand, in a look at at, and Stands
+	// says how it last did.
+	Seen(ref resource.Ref, st desired.Standing, at time.Time) error
+	Stands(ref resource.Ref) (desired.Standing, bool)
+	// Wipe forgets everything, as for a server removed from the fleet.
+	Wipe() error
 }
 
 // outlook is what this server last found out of how the internet sees it. It belongs
@@ -409,6 +442,8 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.unfinished = newUnfinished()
 	defer resource.OnPathBack(cfg.unfinished.wake)()
+	cfg.forwards = &forwardPool{}
+	cfg.presence = newPresence(time.Now())
 	id := cfg.Identity
 	cfg.Logger = cfg.Logger.With(slog.String("server", id.ServerID))
 	cfg.Logger.Info("agent running", slog.String("name", id.ServerName), slog.String("control_plane", id.ControlURL),
@@ -422,6 +457,13 @@ func Run(ctx context.Context, cfg Config) error {
 	wg.Go(func() { keepConnected(ctx, cfg) })
 	if cfg.Terminals != nil {
 		wg.Go(func() { cfg.Terminals.Run(ctx) })
+	}
+	if cfg.Desired != nil {
+		rec := newReconciler(cfg, cfg.presence, cfg.unfinished)
+		if l, ok := cfg.Health.(ContainerLister); ok {
+			l.OnList(rec.noted)
+		}
+		wg.Go(func() { rec.run(ctx) })
 	}
 	wg.Wait()
 	return nil
@@ -464,6 +506,37 @@ func renew(ctx context.Context, cfg Config) error {
 
 // keepConnected holds the stream open, reconnecting with jittered
 // exponential backoff whenever it drops.
+// ReasonRemoved is the reason the control plane gives an agent whose server was
+// removed from the fleet, under the key its API's reasons travel under.
+const (
+	ReasonRemoved = "server_removed"
+	reasonKey     = "Dockwell-Error"
+)
+
+// connectionReason is the reason the control plane gave for refusing a stream.
+func connectionReason(err error) string {
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		return cerr.Meta().Get(reasonKey)
+	}
+	return ""
+}
+
+// forget has an agent whose server was removed stop putting back what it ran, and
+// forget it, values and key: nothing of it is the server's to run any more (ADR
+// 0054). Joining again starts afresh.
+func forget(ctx context.Context, cfg Config) {
+	if cfg.presence == nil || !cfg.presence.remove() || cfg.Desired == nil {
+		return
+	}
+	if err := cfg.Desired.Wipe(); err != nil {
+		cfg.Logger.ErrorContext(ctx, "this server was removed from the fleet, and the agent can't forget what it kept of what the server ran. Remove the agent's data folder by hand",
+			slog.String("error", err.Error()))
+		return
+	}
+	cfg.Logger.WarnContext(ctx, "this server was removed from the fleet, so the agent forgot what it kept of what the server ran, and puts nothing back on its own")
+}
+
 func keepConnected(ctx context.Context, cfg Config) {
 	backoff := minBackoff
 	for {
@@ -484,6 +557,9 @@ func keepConnected(ctx context.Context, cfg Config) {
 		if connect.CodeOf(err) == connect.CodePermissionDenied {
 			// Removed servers stay quiet, but keep trying in case they come back.
 			level, hint, backoff = slog.LevelError, "this server was removed from Dockwell; join it again with a new ticket", maxBackoff
+			if connectionReason(err) == ReasonRemoved {
+				forget(ctx, cfg)
+			}
 		}
 		cfg.Logger.Log(ctx, level, "lost the control plane", slog.String("error", errText(err)), slog.String("next", hint),
 			slog.String("retry_in", human.Duration(wait.Round(100*time.Millisecond))))
@@ -522,10 +598,13 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Drills: cfg.Backups != nil}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Terminals != nil {
 		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+	}
+	if cfg.Desired != nil {
+		hello.Desired = cfg.Desired.Holds()
 	}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
@@ -551,6 +630,12 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	cfg.Logger.Info("connected to the control plane", slog.String("as", welcome.GetServerName()),
 		slog.String("stats_every", human.Duration(interval)))
+	// The control plane leads while the stream is up, and the agent puts back
+	// nothing on its own (ADR 0054).
+	if cfg.presence != nil {
+		cfg.presence.set(true, time.Now())
+		defer func() { cfg.presence.set(false, time.Now()) }()
+	}
 
 	// The stream carries stats up and calls down, with their results back
 	// up. Sends take turns, and the request side closes between two.
@@ -593,6 +678,11 @@ func session(ctx context.Context, cfg Config) (err error) {
 				default:
 				}
 				paced <- d
+			case msg.GetHeard() != nil && cfg.Journal != nil:
+				if err := cfg.Journal.Heard(msg.GetHeard().GetLast()); err != nil {
+					cfg.Logger.Warn("can't drop what the control plane has of what the agent did on its own; it's sent again next time",
+						slog.String("error", err.Error()))
+				}
 			}
 		}
 	}()
@@ -618,6 +708,31 @@ func session(ctx context.Context, cfg Config) (err error) {
 		<-received
 		calls.stop()
 	}()
+
+	// What the agent did on its own while the control plane was away goes first,
+	// for Activity, and what it writes down while this stream is up, as work that
+	// began while it was away ends, goes as it's written; the control plane says
+	// which it has, and keeps each once (ADR 0054).
+	var journalAdded <-chan struct{}
+	sendJournal := func() error { return nil }
+	if cfg.Journal != nil {
+		journalAdded = cfg.Journal.Added()
+		sendJournal = func() error {
+			entries, dropped, droppedTo := cfg.Journal.Pending()
+			if len(entries) == 0 && dropped == 0 {
+				return nil
+			}
+			return send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Reconciled{Reconciled: reconciledProto(entries, dropped, droppedTo)}})
+		}
+		// What was written down before this stream goes now, once.
+		select {
+		case <-journalAdded:
+		default:
+		}
+		if err := sendJournal(); err != nil {
+			return err
+		}
+	}
 
 	// When the control plane ends the stream, Send only says EOF; the
 	// reason comes from Receive.
@@ -739,6 +854,10 @@ func session(ctx context.Context, cfg Config) (err error) {
 			}
 		case <-healthChanged:
 			if err := sendHealth(); err != nil {
+				return err
+			}
+		case <-journalAdded:
+			if err := sendJournal(); err != nil {
 				return err
 			}
 		case <-recheck.C:

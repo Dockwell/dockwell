@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
 category: databases
 version: "12.3.3"
-release: 3
+release: 4
 homepage: https://mariadb.org
 license: AGPL-3.0-only
 appLicense: GPL-2.0-only
@@ -29,17 +29,12 @@ source:
   path: internal/catalog/entries/mariadb.yaml
 web:
   service: phpmyadmin
-firstSteps: >-
-  phpMyAdmin answers only on this server until you add a domain, as it signs in over
-  plain HTTP with MariaDB's root password. Add a domain on its page, over HTTPS or
-  behind your tunnel, and open it there. To open it before that, use an SSH tunnel from
-  your computer: ssh -N -L 8083:127.0.0.1:8083 you@your-server, using the port you gave
-  it, then open http://localhost:8083. Sign in as user root, with the password in the
-  MARIADB_ROOT_PASSWORD secret.
+signIn:
+  user: "root"
+  passwordInput: "MARIADB_ROOT_PASSWORD"
 inputs:
   - name: ADMIN_PORT
     label: phpMyAdmin port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8083"
   - name: MARIADB_ROOT_PASSWORD

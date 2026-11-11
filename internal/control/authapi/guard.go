@@ -40,6 +40,10 @@ var publicProcedures = map[string]bool{
 	dockwellv1connect.AuthServiceFinishPasskeySignInProcedure: true,
 	dockwellv1connect.AuthServiceSignInWithCodeProcedure:      true,
 	dockwellv1connect.AuthServiceSignInWithLinkProcedure:      true,
+	// Someone invited accepts before they sign in.
+	dockwellv1connect.AuthServiceCheckInviteProcedure:        true,
+	dockwellv1connect.AuthServiceBeginAcceptInviteProcedure:  true,
+	dockwellv1connect.AuthServiceFinishAcceptInviteProcedure: true,
 	// The sign-in screen shows the version.
 	dockwellv1connect.SystemServiceGetVersionProcedure: true,
 	// The gRPC equivalent of /healthz, for supervisors that speak gRPC.
@@ -172,6 +176,22 @@ func Guard(sites auth.Sites, logger *slog.Logger, next http.Handler) http.Handle
 				}
 			}
 			w.Header().Set("Cache-Control", "no-store")
+		}
+		// On localhost the session cookie can't take the __Host- prefix, so a page on an
+		// app's origin under localhost could set a second one for localhost (ADR 0061).
+		// Two are refused, rather than one of them chosen.
+		if !site.Secure && !req.hasBearer {
+			same := 0
+			for _, c := range r.Cookies() {
+				if c.Name == site.CookieName() {
+					same++
+				}
+			}
+			if same > 1 {
+				refuse(w, r, http.StatusBadRequest, connect.CodeInvalidArgument, ReasonTwoSessions,
+					"Dockwell refused a request that carried its sign-in cookie twice, as a page on another origin under localhost can set one. Clear this browser's cookies for localhost, then sign in again.")
+				return
+			}
 		}
 		if c, err := r.Cookie(site.CookieName()); err == nil && !req.hasBearer {
 			req.token = c.Value
@@ -650,6 +670,38 @@ func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
 		c.ctx = place.WithCaller(c.ctx, caller)
 	}
 	return nil
+}
+
+// Recheck is what asks again, later, whether p may still make the call to
+// procedure with req, as an open stream's recheck does: the gate on their role
+// as it is then, and the places req names, a protected environment's rule and
+// all. It's for a call whose effect outlives it, such as an app opened through
+// the panel (ADR 0061), which ends once this errs. A read of the grants that
+// fails is ridden out, as a stream's is, up to failedRechecks in a row.
+func Recheck(svc *auth.Service, logger *slog.Logger, procedure string, p auth.Principal, req proto.Message) func(context.Context) error {
+	i := &interceptor{svc: svc, logger: logger}
+	var mu sync.Mutex
+	failed := 0
+	return func(ctx context.Context) error {
+		gated, err := i.gate(ctx, p, procedure)
+		if err == nil {
+			// checkScope may fill in what the request leaves out, so each check has a copy.
+			err = i.checkScope(gated, procedure, proto.Clone(req))
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if connect.CodeOf(err) == connect.CodeUnavailable {
+			failed++
+			if failed < failedRechecks {
+				return nil
+			}
+			return err
+		}
+		if err == nil {
+			failed = 0
+		}
+		return err
+	}
 }
 
 // endedBy is why a recheck ended the stream, or nil when it didn't.

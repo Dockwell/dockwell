@@ -368,10 +368,11 @@ ok "refused v$OLD over v$NEW, said why, and the service kept running"
 
 step "Uninstall"
 stop_direct
-mkdir -p "$DATA/agent/kept-logs"
+mkdir -p "$DATA/agent/kept-logs" "$DATA/agent/desired"
 run_install good --uninstall || die "uninstalling failed"
 said "Removed Dockwell"
 said "$DATA/agent/kept-logs"
+said "$DATA/agent/desired.key"
 [ ! -e "$BIN" ] || die "$BIN is still there"
 if [ -e "$UNIT" ] || [ -e "$INITD" ]; then die "the service is still there"; fi
 [ ! -e /etc/systemd/system/multi-user.target.wants/dockwell.service ] || die "dockwell.service is still enabled"

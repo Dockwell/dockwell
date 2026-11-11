@@ -203,6 +203,15 @@ message CatalogPart {
   // here, which is the input's default, so a form shows what a person typed in its
   // place, such as "MEDIA_DIR" for "/srv/media".
   map<string, string> path_inputs = 7;
+  // The most memory it may use, as the entry gives it, such as "1G". Empty has no
+  // limit.
+  string memory = 8;
+  // The most CPUs it may use, as the entry gives them, such as "0.5". Empty has no
+  // limit.
+  string cpus = 9;
+  // When Docker restarts it, as the entry gives it. Unspecified is the driver's
+  // default, unless-stopped.
+  dockwell.resource.v1alpha1.RestartPolicy restart = 10;
 }
 
 // ListCatalogInstallsRequest asks for everything installed.
@@ -261,6 +270,17 @@ message InstallCatalogEntryRequest {
   // Where it runs, by server ID, as an edit's servers. Empty runs it on the only
   // server; once there are several, name them.
   repeated string servers = 4;
+  // The most memory a service may use, by its name in the entry's Compose file,
+  // such as "1G" for db, as a service's resources.memory takes it. A service left
+  // out keeps what the entry gives it. An upgrade keeps what you set here, as it
+  // keeps what you change on the app.
+  map<string, string> memory = 5;
+  // The most CPUs a service may use, by its name, such as "0.5" for db, as
+  // resources.cpus takes it.
+  map<string, string> cpus = 6;
+  // When Docker restarts a service's container, by its name, such as always for
+  // db.
+  map<string, dockwell.resource.v1alpha1.RestartPolicy> restart = 7;
 }
 
 // InstallCatalogEntryResponse carries the planned change.
@@ -344,10 +364,14 @@ message ListCatalogSourceRefsRequest {
 
 // ListCatalogSourceRefsResponse is the repository's branches and tags.
 message ListCatalogSourceRefsResponse {
-  // Each branch, then each tag, by name. At most 500: more are left out.
+  // The default branch, then each other branch, then each tag, by name. At most
+  // 500: more are left out.
   repeated CatalogSourceRef refs = 1;
   // Whether some were left out.
   bool more = 2;
+  // The branch the repository's HEAD names, its default, such as
+  // "refs/heads/main", which leads refs. Empty when it names none.
+  string head = 3;
 }
 
 // CatalogSourceRef is a branch or a tag, and the commit it's at.

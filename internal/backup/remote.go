@@ -207,7 +207,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 	if want == "" {
 		return nil, fmt.Errorf("nothing says what %s should hash to, so it can't be checked. Update the control plane", id)
 	}
-	for _, format := range []string{formatArchive, formatDump} {
+	for _, format := range formats {
 		if _, err := os.Stat(filepath.Join(r.dir(ref), id+"."+format)); err == nil {
 			return nil, fmt.Errorf("this server still has %s, so there's nothing to fetch. Restore it instead", id)
 		}
@@ -228,7 +228,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 	if err := json.Unmarshal(plain.Bytes(), &m); err != nil {
 		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", err)
 	}
-	if m.ID != id || m.Volume != ref.Name || m.SHA256 != want || !slices.Contains([]string{formatArchive, formatDump}, m.Format) {
+	if m.ID != id || m.Volume != ref.Name || m.SHA256 != want || !slices.Contains(formats, m.Format) {
 		return nil, fmt.Errorf("what's stored at %s isn't the backup %s", key, id)
 	}
 	m.Environment = ref.Scope
@@ -241,7 +241,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 	}
 	defer body.Close()
 	verify := verifyArchive
-	if m.Format == formatDump {
+	if isDump(m.Format) {
 		k := kindNamed(m.Database)
 		if k == nil {
 			return nil, fmt.Errorf("this backup is a dump of %s, which this agent can't read. Update it to the control plane's version", m.Database)

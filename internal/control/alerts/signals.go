@@ -545,6 +545,15 @@ func (s *signals) drillsLate(ctx context.Context) ([]finding, error) {
 				return err
 			}
 			for _, server := range placed {
+				// A database restore checks don't cover yet, such as MongoDB, can't pass one,
+				// so it's never late.
+				newest, err := tx.ListBackups(ctx, store.BackupFilter{PolicyID: r.ID, ServerID: server, Limit: 1})
+				if err != nil {
+					return err
+				}
+				if len(newest) > 0 && newest[0].Database != "" && newest[0].Database != "PostgreSQL" && newest[0].Database != "MySQL" {
+					continue
+				}
 				drills, err := tx.ListDrills(ctx, store.DrillFilter{PolicyID: r.ID, ServerID: server})
 				if err != nil {
 					return err
