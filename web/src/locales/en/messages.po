@@ -12407,20 +12407,11 @@ msgstr "Choose the server it runs on."
 msgid "Go to the website"
 msgstr "Go to the website"
 
-msgid "Handled in front of this server"
-msgstr "Handled in front of this server"
-
 msgid "Name the domain, such as blog.example.com."
 msgstr "Name the domain, such as blog.example.com."
 
 msgid "New website"
 msgstr "New website"
-
-msgid "Off: plain HTTP to anyone"
-msgstr "Off: plain HTTP to anyone"
-
-msgid "On, with a certificate that comes by itself"
-msgstr "On, with a certificate that comes by itself"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "People reach it at its domain, over HTTPS"

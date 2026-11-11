@@ -1918,10 +1918,10 @@ msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
 
 msgid "Off: plain HTTP to anyone"
-msgstr "关闭：对任何人使用明文 HTTP"
+msgstr "关闭：对任何人使用普通 HTTP"
 
 msgid "On, with a certificate that comes by itself"
-msgstr "开启，证书自动获取"
+msgstr "开启，证书自动签发"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "用户通过这个域名以 HTTPS 访问应用"
@@ -12407,20 +12407,11 @@ msgstr "请选择它运行的服务器。"
 msgid "Go to the website"
 msgstr "前往该网站"
 
-msgid "Handled in front of this server"
-msgstr "由此服务器前面的服务处理"
-
 msgid "Name the domain, such as blog.example.com."
 msgstr "请填写域名，例如 blog.example.com。"
 
 msgid "New website"
 msgstr "新建网站"
-
-msgid "Off: plain HTTP to anyone"
-msgstr "关闭：对任何人使用普通 HTTP"
-
-msgid "On, with a certificate that comes by itself"
-msgstr "开启，证书自动签发"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "访问者通过 HTTPS 在其域名上访问它"
