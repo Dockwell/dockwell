@@ -108,8 +108,8 @@ describe("The catalog", () => {
     const { container } = renderAt("/catalog", api());
     await screen.findByRole("heading", { level: 1, name: "Catalog" });
     expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toHaveAttribute("href", "/catalog/postgres");
-    // What isn't listed is an image or a Compose file, as the note says, and New app opens on Image.
-    expect(screen.getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new?source=image");
+    // What isn't listed is an image or a Compose file, as the note says, and New app opens on an image.
+    expect(screen.getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new");
     const chips = screen.getByRole("group", { name: "Categories" });
     await user.click(within(chips).getByRole("button", { name: "Networking" }));
     await waitFor(() => expect(screen.queryByRole("link", { name: /^PostgreSQL/ })).not.toBeInTheDocument());

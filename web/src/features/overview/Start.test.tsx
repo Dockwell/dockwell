@@ -34,8 +34,8 @@ describe("where a newcomer starts", () => {
     const choices = screen.getByRole("list", { name: "Ways to run your first app" });
     const link = (name: string) => within(choices).getByRole("link", { name });
     expect(link("From the catalog")).toHaveAttribute("href", "/catalog");
-    expect(link("A Git repository")).toHaveAttribute("href", "/apps/new");
-    expect(link("A Docker image")).toHaveAttribute("href", "/apps/new?source=image");
+    expect(link("A Git repository")).toHaveAttribute("href", "/apps/new?source=git");
+    expect(link("A Docker image")).toHaveAttribute("href", "/apps/new");
     expect(link("A Compose file")).toHaveAttribute("href", "/apps/new?source=compose");
     expect(link("A website")).toHaveAttribute("href", "/websites/new");
     // The catalog's choice names what's in it: those a newcomer may know first, each straight into its install sheet.

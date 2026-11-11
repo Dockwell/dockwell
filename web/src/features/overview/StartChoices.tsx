@@ -20,7 +20,7 @@ interface Choice {
   title: string;
   line: string;
   to: "/catalog" | "/apps/new" | "/websites/new";
-  search?: { source: "image" | "compose" };
+  search?: { source: "git" | "compose" };
   extra?: ReactNode;
 }
 
@@ -73,6 +73,7 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
       title: t`A Git repository`,
       line: t`Built with its Dockerfile, or Railpack`,
       to: "/apps/new",
+      search: { source: "git" },
     },
     {
       key: "image",
@@ -80,7 +81,6 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
       title: t`A Docker image`,
       line: t`Any image from a registry`,
       to: "/apps/new",
-      search: { source: "image" },
     },
     {
       key: "compose",

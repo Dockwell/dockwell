@@ -83,10 +83,14 @@ afterEach(() => {
 });
 
 describe("New app, from Git", () => {
-  it("opens on Git, asks for the repository and its branch, and builds with its Dockerfile unless you change that", async () => {
+  it("is a step away from an image, and asks for the repository and its branch, and builds with its Dockerfile unless you change that", async () => {
     const user = userEvent.setup();
-    const { container } = renderAt("/apps/new", api());
+    const { container, router } = renderAt("/apps/new", api());
     const sheet = await screen.findByRole("dialog", { name: "New app" });
+    // An image is how most apps start here, so New app opens on one, with Git beside it.
+    expect(within(sheet).getByRole("radio", { name: "Image" })).toBeChecked();
+    await user.click(within(sheet).getByRole("radio", { name: "Git" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ source: "git" }));
     expect(within(sheet).getByRole("radio", { name: "Git" })).toBeChecked();
     expect(within(sheet).getByLabelText("Repository")).toHaveFocus();
     expect(within(sheet).getByLabelText("Branch")).toHaveValue("");
@@ -112,7 +116,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const asked: DetectBuildRequest[] = [];
     const { container } = renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           detectBuild: (req) => {
@@ -160,7 +164,7 @@ describe("New app, from Git", () => {
   it("says the Dockerfile it found, and what it starts from", async () => {
     const user = userEvent.setup();
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           detectBuild: () => ({
@@ -191,7 +195,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const proposed: ProposeChangeRequest[] = [];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           listRepositoryBranches: (req) => {
@@ -251,7 +255,7 @@ describe("New app, from Git", () => {
   it("takes a free port on the server when another app holds the one the build exposes", async () => {
     const user = userEvent.setup();
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         services: {
           listServices: () => ({
@@ -279,7 +283,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const detected: unknown[] = [];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           listRepositoryBranches: () => {
@@ -323,7 +327,7 @@ describe("New app, from Git", () => {
       return c;
     };
     const { router } = renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         changes: {
           proposeChange: () => ({ change: change() }),
@@ -349,7 +353,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const proposed: ProposeChangeRequest[] = [];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: { listRepositoryBranches: () => ({ branches: ["main", "release"], defaultBranch: "main" }) },
         changes: {
@@ -384,7 +388,7 @@ describe("New app, from Git", () => {
       "github.com/acme/docs": { branches: ["main", "draft"], exposed: [] },
     };
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           listRepositoryBranches: (req) => ({ branches: repos[req.url]?.branches ?? [], defaultBranch: "main" }),
@@ -429,7 +433,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     let exposed = [8080];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           detectBuild: () => ({
@@ -459,7 +463,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     let asks = 0;
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           listRepositoryBranches: (req) => {
@@ -487,7 +491,7 @@ describe("New app, from Git", () => {
   it("says when Railpack can't tell how to build it, and what to do", async () => {
     const user = userEvent.setup();
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           detectBuild: () => ({
@@ -521,7 +525,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const read: string[] = [];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api(
         {
           builds: {
@@ -560,7 +564,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     let problem = DetectionProblem.VERSION;
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           detectBuild: () => ({
@@ -600,7 +604,7 @@ describe("New app, from Git", () => {
   it("says when the repository can't be read", async () => {
     const user = userEvent.setup();
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         builds: {
           detectBuild: () => {
@@ -627,7 +631,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         changes: {
           proposeChange: (req) => {
@@ -709,7 +713,7 @@ describe("New app, from Git", () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         changes: {
           proposeChange: (req) => {
@@ -743,7 +747,7 @@ describe("New app, from Git", () => {
   it("opens Change to say what Railpack couldn't build, at the start command", async () => {
     const user = userEvent.setup();
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         changes: {
           proposeChange: () => {
@@ -770,7 +774,7 @@ describe("New app, from Git", () => {
   it("says at the field what's wrong with the branch", async () => {
     const user = userEvent.setup();
     renderAt(
-      "/apps/new",
+      "/apps/new?source=git",
       api({
         changes: {
           proposeChange: () => {

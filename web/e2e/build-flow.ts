@@ -42,8 +42,10 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${origin}/apps/new`);
   const sheet = page.getByRole("dialog", { name: "New app" });
-  if (!(await sheet.getByRole("radio", { name: "Git" }).isChecked()))
-    fail("New app doesn't open on Git, as Apps-New has it");
+  // New app opens on an image, as most apps start here, and Git is one step away.
+  if (!(await sheet.getByRole("radio", { name: "Image" }).isChecked())) fail("New app doesn't open on an image");
+  await sheet.getByRole("radio", { name: "Git" }).click();
+  await page.waitForURL(/\/apps\/new\?source=git$/);
   await sheet.getByLabel("Repository").fill(`${git}/web.git`);
   // The repository is checked as it's typed, and its branches are there to choose
   // from, with the default one, main, chosen already.
@@ -147,7 +149,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await move(git, "stable");
 
   step("an app with no Dockerfile builds with Railpack, and New app and the plan say what Railpack found first");
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=git`);
   const next = page.getByRole("dialog", { name: "New app" });
   await next.getByLabel("Repository").fill(`${git}/web.git`);
   await next.getByText(/^Public · \d+ branches$/).waitFor();
@@ -175,7 +177,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await shoot(page, "build-railpack-deployed");
 
   step("a repository Railpack can't read says so before anything builds, and its plan is refused");
-  await page.goto(`${origin}/apps/new`);
+  await page.goto(`${origin}/apps/new?source=git`);
   const docs = page.getByRole("dialog", { name: "New app" });
   await docs.getByLabel("Repository").fill(`${git}/web.git`);
   await docs.getByText(/^Public · \d+ branches$/).waitFor();
