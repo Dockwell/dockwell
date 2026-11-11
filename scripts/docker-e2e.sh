@@ -4149,15 +4149,18 @@ mongo_db() { docker ps --filter label=com.docker.compose.service=docs --filter l
 mongo_eval() { docker exec -e HOME=/tmp "$(mongo_db)" mongosh --quiet --norc -u root -p "$mongo_password" --authenticationDatabase admin --eval "$1"; }
 # mongo_reads is what Dockwell reads of it.
 mongo_reads() { dw databases list --json | jq -c '.databases[] | select(.engine == "DATABASE_ENGINE_MONGODB")'; }
-dw compose import --compose "$(mongo_file mongo:7.0)" --env-file "$data/mongo.env" --yes || fail "importing MongoDB 7.0 failed"
+# MongoDB 8.0 refuses to start on Linux 6.19 and newer (SERVER-121912), which the
+# runners have, so the move this step proves is 6.0 to 7.0: the same rules, and
+# the same raise before the image changes.
+dw compose import --compose "$(mongo_file mongo:6.0)" --env-file "$data/mongo.env" --yes || fail "importing MongoDB 6.0 failed"
 mongo_project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$(docker ps --filter label=com.docker.compose.service=docs --format '{{.Names}}' | head -1)") ||
   fail "MongoDB runs nothing"
 backup_healthy "$(mongo_db)"
 mongo_eval 'db.getSiblingDB("shop").orders.insertMany(Array.from({ length: 500 }, (_, i) => ({ _id: i, item: "item " + i }))); print("ok")' >/dev/null ||
   fail "can't fill MongoDB"
 said=$(mongo_reads)
-jq -e '.volume == "docs" and .port == 27017 and (.readings[0] | (.unread // "") == "" and (.version | startswith("7.0."))
-  and .featureCompatibility == "7.0" and .user == "root" and (.checksNoOne // false) == false
+jq -e '.volume == "docs" and .port == 27017 and (.readings[0] | (.unread // "") == "" and (.version | startswith("6.0."))
+  and .featureCompatibility == "6.0" and .user == "root" and (.checksNoOne // false) == false
   and ([.databases[].name] | index("shop"))
   and ([.users[] | select(.name == "root" and .authDatabase == "admin" and .superuser)] | length == 1))' <<<"$said" >/dev/null ||
   fail "MongoDB reads as: $said"
@@ -4182,9 +4185,9 @@ backup_healthy "$(mongo_db)"
 [[ "$(mongo_eval 'print(db.getMongo().getDBNames().includes("made_since"))')" == false ]] || fail "what was made since the backup is still there"
 
 # It moves one release up, with its features left as they were, so its undo runs the data.
-planned=$(dw compose import --compose "$(mongo_file mongo:8.0)" --env-file "$data/mongo.env" --plan-only --json) || fail "planning MongoDB 8.0 failed: $planned"
-jq -e '[.change.plan.notes[] | select(.reason == "raises_features" and .names == ["7.0", "8.0"])] | length == 1' <<<"$planned" >/dev/null ||
-  fail "moving to 8.0 says nothing of its features: $planned"
+planned=$(dw compose import --compose "$(mongo_file mongo:7.0)" --env-file "$data/mongo.env" --plan-only --json) || fail "planning MongoDB 7.0 failed: $planned"
+jq -e '[.change.plan.notes[] | select(.reason == "raises_features" and .names == ["6.0", "7.0"])] | length == 1' <<<"$planned" >/dev/null ||
+  fail "moving to 7.0 says nothing of its features: $planned"
 upgrade=$(jq -r .change.id <<<"$planned")
 # While its image moves, what Docker says of MongoDB's containers goes to a file:
 # each kill with its signal, each stop with its exit code, and the last of what a
@@ -4196,10 +4199,11 @@ mongo_watch="$data/mongo-events.log"
 : >"$mongo_watch"
 (
   docker events --filter type=container --filter "label=com.docker.compose.project=$mongo_project" \
-    --until "$(($(date +%s) + 600))" \
+    --filter event=create --filter event=start --filter event=kill --filter event=stop --filter event=die \
+    --filter event=destroy --filter event=rename --until "$(($(date +%s) + 600))" \
     --format '{{.Time}} {{.Action}} {{.Actor.ID}} {{index .Actor.Attributes "name"}} {{index .Actor.Attributes "image"}} exit={{index .Actor.Attributes "exitCode"}} signal={{index .Actor.Attributes "signal"}}' |
     while read -r when action id rest; do
-      echo "$when $action $rest" >>"$mongo_watch"
+      echo "$when $action ${rest//"$mongo_password"/<the password>}" >>"$mongo_watch"
       if [[ "$action" == die ]]; then
         docker logs --tail 80 "$id" 2>&1 | sed "s/$mongo_password/<the password>/g" | sed 's/^/    /' >>"$mongo_watch" || true
       fi
@@ -4221,17 +4225,22 @@ fail_also=
 pkill -P "$mongo_watcher" 2>/dev/null || true
 kill "$mongo_watcher" 2>/dev/null || true
 said=$(mongo_reads)
-jq -e '.readings[0] | (.version | startswith("8.0.")) and .featureCompatibility == "7.0"' <<<"$said" >/dev/null || fail "MongoDB 8.0 reads as: $said"
-[[ "$(mongo_eval 'print(db.getSiblingDB("shop").orders.countDocuments())')" == 500 ]] || fail "the orders didn't move to 8.0"
-if refused=$(dw compose import --compose "$(mongo_file mongo:6.0)" --env-file "$data/mongo.env" --plan-only --json 2>&1); then
-  fail "going from 8.0 back to 6.0 plans: $refused"
+jq -e '.readings[0] | (.version | startswith("7.0.")) and .featureCompatibility == "6.0"' <<<"$said" >/dev/null || fail "MongoDB 7.0 reads as: $said"
+[[ "$(mongo_eval 'print(db.getSiblingDB("shop").orders.countDocuments())')" == 500 ]] || fail "the orders didn't move to 7.0"
+# A move that skips a release, up or down, is refused as it's planned, before any image is pulled.
+if refused=$(dw compose import --compose "$(mongo_file mongo:9.0)" --env-file "$data/mongo.env" --plan-only --json 2>&1); then
+  fail "going from 7.0 up to 9.0 plans: $refused"
 fi
-[[ "$refused" == *"goes back one major release at most"* ]] || fail "going from 8.0 back to 6.0 says: $refused"
+[[ "$refused" == *"moves one major release at a time"*"mongo:8.0 first"* ]] || fail "going from 7.0 up to 9.0 says: $refused"
+if refused=$(dw compose import --compose "$(mongo_file mongo:5.0)" --env-file "$data/mongo.env" --plan-only --json 2>&1); then
+  fail "going from 7.0 back to 5.0 plans: $refused"
+fi
+[[ "$refused" == *"goes back one major release at most"* ]] || fail "going from 7.0 back to 5.0 says: $refused"
 planned=$(dw changes undo "$upgrade" --plan-only --json) || fail "planning to undo the move failed: $planned"
 person_apply "$(jq -r .change.id <<<"$planned")"
 backup_healthy "$(mongo_db)"
 said=$(mongo_reads)
-jq -e '.readings[0] | (.version | startswith("7.0.")) and .featureCompatibility == "7.0"' <<<"$said" >/dev/null || fail "after the undo MongoDB reads as: $said"
+jq -e '.readings[0] | (.version | startswith("6.0.")) and .featureCompatibility == "6.0"' <<<"$said" >/dev/null || fail "after the undo MongoDB reads as: $said"
 [[ "$(mongo_eval 'print(db.getSiblingDB("shop").orders.countDocuments())')" == 500 ]] || fail "the undo lost the orders"
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"

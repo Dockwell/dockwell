@@ -94,7 +94,7 @@ Each is a database as the others are: a service on its engine's own image, read,
 
 **Proven on the real images**
 
-- CI's Docker job runs `mongo:7.0`: it reads it, backs it up and restores it, moves it to 8.0, which keeps 7.0's features, and back, and is refused going from 8.0 to 6.0. ClickHouse will run at the oldest LTS its library builds and at its newest, plus `clickhouse/clickhouse-server`. Each engine's users, once built, sign in over the network and not with a wrong password.
+- CI's Docker job runs `mongo:6.0`: it reads it, backs it up and restores it, moves it to 7.0, which keeps 6.0's features, and back, and is refused going from 7.0 up to 9.0 or back to 5.0. It doesn't move to 8.0: MongoDB 8.0 refuses to start on Linux 6.19 and newer (SERVER-121912), which the runners have. A move to 8.0 on such a server fails as its container starts, and the plan's rollback puts the old release back. ClickHouse will run at the oldest LTS its library builds and at its newest, plus `clickhouse/clickhouse-server`. Each engine's users, once built, sign in over the network and not with a wrong password.
 - Checked by hand on the real binaries, run from the images: the reading, a dump and a restore with and without an oplog, a refused sign-in, the setup server told from the real one, and 9.0 refusing data at 7.0's features until the agent's raise took it to 8.0's, after which 8.0 still ran it.
 - The agent build links nothing new. SHA-256 for ClickHouse's hash is there already, and copying a file out of a container, or into one, is two more calls in `internal/docker`.
 
