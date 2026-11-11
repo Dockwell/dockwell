@@ -9,16 +9,27 @@ import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
-// MemberService says who can sign in to the install, with their role and how
-// they sign in. Today that is one person, the owner, who claimed the install:
-// inviting others, and roles beyond the owner, come later. See
-// docs/adr/0048-members-as-far-as-one-owner-goes.md.
+// MemberService says who can sign in to the install, with their roles and how
+// they sign in, and invites others: the owner and admins invite someone with
+// a role in a place, the install or a project, and the person accepts with a
+// passkey (AuthService.FinishAcceptInvite). See
+// docs/adr/0048-members-as-far-as-one-owner-goes.md and
+// docs/adr/0049-roles-and-invites-by-project.md.
 //
 // It names people and their emails, so only a person signed in reads it, never
 // an API token. How each person signs in is theirs: everyone sees the kinds of
 // sign-in each member has, and only the person asking sees their own passkeys'
 // addresses, codes and browsers.
 service MemberService {
+  option (dockwell.v1.nouns) = {
+    name: "members"
+    help: "Members are the people who sign in to the install, with their roles: on the whole install, or in projects. Listing them names people and their emails, so it needs a signed-in session as an admin or the owner, which no API token gives."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "invites"
+    help: "An invite asks someone, by email, to sign in with a role in a place, the install or a project. An admin or the owner makes it in the panel, with a passkey, and sends the link it shows once: Dockwell sends no mail. Making and revoking one needs a signed-in session, which no API token gives."
+  };
+
   // ListMembers returns everyone who can sign in, oldest first.
   rpc ListMembers(ListMembersRequest) returns (ListMembersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -29,6 +40,96 @@ service MemberService {
     option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {get: "/v1/members"};
   }
+
+  // CreateInvite invites someone by email to sign in with a role in a place,
+  // and returns the link to send them, once: Dockwell sends no mail. It takes a
+  // passkey step-up bound to the email, the role and the place
+  // (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+  // uses. Nobody is invited as owner, an admin's place is the install, and an
+  // admin invites no one above admin. An invite to someone who signs in here
+  // already is refused; a newer one to the same email replaces an open one.
+  rpc CreateInvite(CreateInviteRequest) returns (CreateInviteResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/invites"
+      body: "*"
+    };
+  }
+
+  // RevokeInvite stops an open invite working.
+  rpc RevokeInvite(RevokeInviteRequest) returns (RevokeInviteResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/invites/{id}:revoke"
+      body: "*"
+    };
+  }
+}
+
+// CreateInviteRequest says whom to invite, as what, and where.
+message CreateInviteRequest {
+  // Who the invite names, such as "ada@example.com". Unverified: it names the
+  // invite in Members and on the page that accepts it.
+  string email = 1;
+  // ROLE_ADMIN, ROLE_DEVELOPER or ROLE_VIEWER.
+  Role role = 2;
+  // The project's ID or name, for a developer or a viewer of one project.
+  // Empty is the whole install, which an admin's invite always is.
+  string project = 3;
+  // From FinishStepUp, for STEP_UP_ACTION_INVITE with the target the email,
+  // lowercased, the role's name and the place, apart by spaces, as "ada@example.com
+  // developer prj_…", or "install" for the whole install.
+  string proof = 4;
+}
+
+// CreateInviteResponse carries the invite and its link, shown once.
+message CreateInviteResponse {
+  Invite invite = 1;
+  // The link to send, as "https://panel.example.com/invite#…". Its secret
+  // isn't kept: it can't be shown again.
+  string link = 2;
+}
+
+// RevokeInviteRequest names an open invite.
+message RevokeInviteRequest {
+  string id = 1;
+}
+
+// RevokeInviteResponse is empty.
+message RevokeInviteResponse {}
+
+// Invite is an open invitation to sign in.
+message Invite {
+  string id = 1;
+  // Who it names, unverified.
+  string email = 2;
+  Role role = 3;
+  // The project, for a developer or a viewer of one. Empty for the install.
+  string project_id = 4;
+  // The project's name. Empty for the install.
+  string project_name = 5;
+  // Who made it, by name.
+  string invited_by = 6;
+  google.protobuf.Timestamp create_time = 7;
+  // When it stops working: 7 days after it's made for a developer or a
+  // viewer, 24 hours for an admin, whose link is a bearer credential to the
+  // install.
+  google.protobuf.Timestamp expire_time = 8;
+}
+
+// MemberGrant is a role someone holds in one project.
+message MemberGrant {
+  string project_id = 1;
+  string project_name = 2;
+  Role role = 3;
 }
 
 // ListMembersRequest takes no parameters.
@@ -38,6 +139,8 @@ message ListMembersRequest {}
 message ListMembersResponse {
   // Everyone who can sign in, oldest first.
   repeated Member members = 1;
+  // The invites that still work, newest first.
+  repeated Invite invites = 2;
 }
 
 // Member is a person who can sign in, and how. The details of how are the
@@ -71,6 +174,9 @@ message Member {
   // True when code sign-in is locked after too many wrong codes, until the
   // owner lifts it. Only for the person asking.
   bool codes_locked = 10;
+  // The roles they hold in projects, by project name. Their role on the
+  // whole install, which covers every project, is user.role.
+  repeated MemberGrant grants = 11;
 }
 
 // SignInKind is a kind of sign-in a member has.

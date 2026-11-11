@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as ClaimRouteImport } from './routes/claim'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as StatusRouteImport } from './routes/status'
@@ -80,6 +81,11 @@ const ShellRoute = ShellRouteImport.update({
 const ClaimRoute = ClaimRouteImport.update({
   id: '/claim',
   path: '/claim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecoverRoute = RecoverRouteImport.update({
@@ -417,6 +423,7 @@ const ShellServersServerIdContainersNameRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ShellIndexRoute
   '/claim': typeof ClaimRoute
+  '/invite': typeof InviteRoute
   '/recover': typeof RecoverRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
@@ -479,6 +486,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/claim': typeof ClaimRoute
+  '/invite': typeof InviteRoute
   '/recover': typeof RecoverRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
@@ -541,6 +549,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_shell': typeof ShellRouteWithChildren
   '/claim': typeof ClaimRoute
+  '/invite': typeof InviteRoute
   '/recover': typeof RecoverRoute
   '/sign-in': typeof SignInRoute
   '/status': typeof StatusRoute
@@ -608,6 +617,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/claim'
+    | '/invite'
     | '/recover'
     | '/sign-in'
     | '/status'
@@ -670,6 +680,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/claim'
+    | '/invite'
     | '/recover'
     | '/sign-in'
     | '/status'
@@ -731,6 +742,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_shell'
     | '/claim'
+    | '/invite'
     | '/recover'
     | '/sign-in'
     | '/status'
@@ -797,6 +809,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ShellRoute: typeof ShellRouteWithChildren
   ClaimRoute: typeof ClaimRoute
+  InviteRoute: typeof InviteRoute
   RecoverRoute: typeof RecoverRoute
   SignInRoute: typeof SignInRoute
   StatusRoute: typeof StatusRoute
@@ -816,6 +829,13 @@ declare module '@tanstack/react-router' {
       path: '/claim'
       fullPath: '/claim'
       preLoaderRoute: typeof ClaimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recover': {
@@ -1432,6 +1452,7 @@ const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   ShellRoute: ShellRouteWithChildren,
   ClaimRoute: ClaimRoute,
+  InviteRoute: InviteRoute,
   RecoverRoute: RecoverRoute,
   SignInRoute: SignInRoute,
   StatusRoute: StatusRoute,

@@ -774,6 +774,11 @@ msgstr "Ended the mute of {server}'s alerts"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
+#. placeholder {0}: m?.email ?? ""
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
+msgid "Invited {0} as {1}"
+msgstr "Invited {0} as {1}"
+
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 
@@ -869,6 +874,10 @@ msgstr "Revoked an API token"
 
 msgid "Revoked the API token {name}"
 msgstr "Revoked the API token {name}"
+
+#. placeholder {0}: event.member?.email ?? ""
+msgid "Revoked the invite for {0}"
+msgstr "Revoked the invite for {0}"
 
 msgid "Roll back: {reverted}"
 msgstr "Roll back: {reverted}"
@@ -1072,6 +1081,12 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
+
+msgid "{who} joined as {as}"
+msgstr "{who} joined as {as}"
+
+msgid "{who} joined as {as}, from {from}"
+msgstr "{who} joined as {as}, from {from}"
 
 msgid "Acknowledge"
 msgstr "Acknowledge"
@@ -3983,6 +3998,63 @@ msgstr "working directory"
 msgid "{servers} offline"
 msgstr "{servers} offline"
 
+msgid "Accept an invite"
+msgstr "Accept an invite"
+
+msgid "An invite makes someone new. Sign out, or open the link in a private window."
+msgstr "An invite makes someone new. Sign out, or open the link in a private window."
+
+msgid "Create passkey and join"
+msgstr "Create passkey and join"
+
+msgid "Creating passkey"
+msgstr "Creating passkey"
+
+msgid "Enter your name."
+msgstr "Enter your name."
+
+#. placeholder {0}: invite.email
+#. placeholder {1}: formatDateTime(timestampDate(invite.expireTime), i18n.locale)
+msgid "For {0}, until {1}. You sign in with a passkey this browser, phone or security key makes for this address."
+msgstr "For {0}, until {1}. You sign in with a passkey this browser, phone or security key makes for this address."
+
+msgid "Open the link in a browser that makes passkeys, such as a recent Chrome, Safari or Firefox."
+msgstr "Open the link in a browser that makes passkeys, such as a recent Chrome, Safari or Firefox."
+
+msgid "Open the link you were sent, including the part after “#”. Whoever invited you can make a new one."
+msgstr "Open the link you were sent, including the part after “#”. Whoever invited you can make a new one."
+
+msgid "Passkeys don't work in this browser"
+msgstr "Passkeys don't work in this browser"
+
+msgid "Reading the invite"
+msgstr "Reading the invite"
+
+msgid "Sign out"
+msgstr "Sign out"
+
+msgid "This invite didn't work"
+msgstr "This invite didn't work"
+
+msgid "This page needs the whole link from your invite"
+msgstr "This page needs the whole link from your invite"
+
+msgid "You're signed in as {name}"
+msgstr "You're signed in as {name}"
+
+msgid "Your account"
+msgstr "Your account"
+
+msgid "Your account wasn't created"
+msgstr "Your account wasn't created"
+
+msgid "Your name"
+msgstr "Your name"
+
+#. placeholder {0}: invite.invitedBy
+msgid "{0} invited you as {where}"
+msgstr "{0} invited you as {where}"
+
 msgid "Add a passkey here"
 msgstr "Add a passkey here"
 
@@ -4059,17 +4131,11 @@ msgstr "Confirm with Touch ID, Windows Hello or a security key."
 msgid "Create passkey"
 msgstr "Create passkey"
 
-msgid "Creating passkey"
-msgstr "Creating passkey"
-
 msgid "Deploy your first app"
 msgstr "Deploy your first app"
 
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "Enter an email address, such as mira@acme.dev."
-
-msgid "Enter your name."
-msgstr "Enter your name."
 
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "From Git, a Docker image, a Compose file or the catalog."
@@ -4152,9 +4218,6 @@ msgstr "You sign in with it when you use a code."
 
 msgid "Your domain gets a certificate automatically."
 msgstr "Your domain gets a certificate automatically."
-
-msgid "Your name"
-msgstr "Your name"
 
 msgid "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
 msgstr "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
@@ -4257,9 +4320,6 @@ msgstr "No passkey works at {rpId} yet"
 
 msgid "Profile and security"
 msgstr "Profile and security"
-
-msgid "Sign out"
-msgstr "Sign out"
 
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
@@ -4523,6 +4583,9 @@ msgstr "Adding a passkey needs one you have for this address, and you have none 
 msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 msgstr "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 
+msgid "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
+msgstr "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
+
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 
@@ -4556,6 +4619,9 @@ msgstr "That passkey isn't registered for this address, or it couldn't be verifi
 msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 msgstr "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 
+msgid "That person signs in here already. Change what they hold in Members instead."
+msgstr "That person signs in here already. Change what they hold in Members instead."
+
 msgid "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
 msgstr "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
 
@@ -4586,6 +4652,9 @@ msgstr "The passkey request expired. Try again."
 msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 msgstr "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 
+msgid "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+msgstr "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 
@@ -4594,6 +4663,12 @@ msgstr "This device already has a passkey for your account here. Use it, or pick
 
 msgid "This install already has an owner. Sign in instead."
 msgstr "This install already has an owner. Sign in instead."
+
+msgid "This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one."
+msgstr "This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one."
+
+msgid "This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it."
+msgstr "This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it."
 
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -4628,6 +4703,30 @@ msgstr "Owner"
 
 msgid "Viewer"
 msgstr "Viewer"
+
+msgid "a developer of every project"
+msgstr "a developer of every project"
+
+msgid "a developer of {project}"
+msgstr "a developer of {project}"
+
+msgid "a project that's gone"
+msgstr "a project that's gone"
+
+msgid "a viewer of every project"
+msgstr "a viewer of every project"
+
+msgid "a viewer of {project}"
+msgstr "a viewer of {project}"
+
+msgid "an admin"
+msgstr "an admin"
+
+msgid "someone with no role"
+msgstr "someone with no role"
+
+msgid "the owner"
+msgstr "the owner"
 
 msgid "All backups"
 msgstr "All backups"
@@ -10925,35 +11024,99 @@ msgstr "{connected} connected · the services Dockwell sends backups to and rout
 msgid "1 browser"
 msgstr "1 browser"
 
+msgid "1 open invite"
+msgstr "1 open invite"
+
 msgid "1 passkey"
 msgstr "1 passkey"
 
-msgid "1 person signs in to this install, its owner · inviting others comes later"
-msgstr "1 person signs in to this install, its owner · inviting others comes later"
+msgid "1 person signs in to this install · {invitesWord}"
+msgstr "1 person signs in to this install · {invitesWord}"
+
+msgid "1 person signs in to this install, its owner"
+msgstr "1 person signs in to this install, its owner"
 
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "<0>dockwell recover</0> on the control server"
 
-msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
-msgstr "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+msgstr "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
 
-msgid "Change the install's settings"
-msgstr "Change the install's settings"
+msgid "A project that's gone"
+msgstr "A project that's gone"
 
-msgid "Deploy, and apply any plan"
-msgstr "Deploy, and apply any plan"
+msgid "All projects"
+msgstr "All projects"
+
+msgid "Apply in protected environments"
+msgstr "Apply in protected environments"
+
+msgid "Before anyone else signs in"
+msgstr "Before anyone else signs in"
+
+msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
+msgstr "Check each environment's protection first, then tick the box: it decides whose changes wait."
+
+msgid "Copy link"
+msgstr "Copy link"
+
+#. placeholder {0}: explain(environments.error)
+msgid "Dockwell can't list the environments: {0}"
+msgstr "Dockwell can't list the environments: {0}"
 
 msgid "Dockwell can't say who signs in"
 msgstr "Dockwell can't say who signs in"
 
-msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
-msgstr "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+msgid "Enter an email address, such as ada@example.com."
+msgstr "Enter an email address, such as ada@example.com."
+
+msgid "Environments"
+msgstr "Environments"
+
+msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
+msgstr "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
+
+msgid "Expires"
+msgstr "Expires"
+
+#. placeholder {0}: words.span(left >= DAY ? Math.round(left / DAY) * DAY : left)
+msgid "Expires in {0}"
+msgstr "Expires in {0}"
 
 msgid "How you sign in"
 msgstr "How you sign in"
 
-msgid "Inviting someone comes in a later release"
-msgstr "Inviting someone comes in a later release"
+msgid "I've checked which environments are protected"
+msgstr "I've checked which environments are protected"
+
+msgid "In open environments"
+msgstr "In open environments"
+
+msgid "Invite"
+msgstr "Invite"
+
+msgid "Invite by email"
+msgstr "Invite by email"
+
+msgid "Invite people"
+msgstr "Invite people"
+
+msgid "Invite people and change roles"
+msgstr "Invite people and change roles"
+
+msgid "Invite someone"
+msgstr "Invite someone"
+
+#. placeholder {0}: invite.invitedBy
+msgid "Invited by {0} {when}"
+msgstr "Invited by {0} {when}"
+
+msgid "Invites need the panel's domain"
+msgstr "Invites need the panel's domain"
+
+#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
+msgid "It works once, until {0}, for whoever has it. Dockwell can't show it again."
+msgstr "It works once, until {0}, for whoever has it. Dockwell can't show it again."
 
 msgid "Last active"
 msgstr "Last active"
@@ -10961,17 +11124,20 @@ msgstr "Last active"
 msgid "Last resort"
 msgstr "Last resort"
 
+msgid "Link copied"
+msgstr "Link copied"
+
+msgid "Loading the environments"
+msgstr "Loading the environments"
+
 msgid "Loading who signs in"
 msgstr "Loading who signs in"
 
 msgid "Locked after too many wrong codes, until you lift it in Profile and security"
 msgstr "Locked after too many wrong codes, until you lift it in Profile and security"
 
-msgid "Make and revoke API tokens"
-msgstr "Make and revoke API tokens"
-
-msgid "Manage servers and their files"
-msgstr "Manage servers and their files"
+msgid "Make projects, manage servers and settings"
+msgstr "Make projects, manage servers and settings"
 
 msgid "Member"
 msgstr "Member"
@@ -10981,6 +11147,15 @@ msgstr "Members"
 
 msgid "No way in that works now"
 msgstr "No way in that works now"
+
+msgid "Nobody was invited"
+msgstr "Nobody was invited"
+
+msgid "Not accepted yet"
+msgstr "Not accepted yet"
+
+msgid "Not protected"
+msgstr "Not protected"
 
 msgid "Now"
 msgstr "Now"
@@ -11001,8 +11176,35 @@ msgstr "Passkey and authenticator app"
 msgid "Permission"
 msgstr "Permission"
 
-msgid "Read the audit log"
-msgstr "Read the audit log"
+msgid "Plan and apply in open environments"
+msgstr "Plan and apply in open environments"
+
+msgid "Projects"
+msgstr "Projects"
+
+#. placeholder {0}: named(env)
+msgid "Protect {0}"
+msgstr "Protect {0}"
+
+msgid "Protect {where}"
+msgstr "Protect {where}"
+
+msgid "Read apps, plans, activity and logs"
+msgstr "Read apps, plans, activity and logs"
+
+msgid "Reveal a secret's value"
+msgstr "Reveal a secret's value"
+
+msgid "Revoke"
+msgstr "Revoke"
+
+#. placeholder {0}: invite.email
+msgid "Revoke the invite for {0}"
+msgstr "Revoke the invite for {0}"
+
+#. placeholder {0}: sent.email
+msgid "Send this link to {0}"
+msgstr "Send this link to {0}"
 
 msgid "Sign-in"
 msgstr "Sign-in"
@@ -11013,8 +11215,26 @@ msgstr "Signed in on"
 msgid "Single sign-on"
 msgstr "Single sign-on"
 
-msgid "What the owner can do"
-msgstr "What the owner can do"
+msgid "Stop protecting {where}"
+msgstr "Stop protecting {where}"
+
+msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
+msgstr "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
+
+msgid "Their projects"
+msgstr "Their projects"
+
+msgid "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
+msgstr "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
+
+msgid "Transfer ownership"
+msgstr "Transfer ownership"
+
+msgid "Up to admin"
+msgstr "Up to admin"
+
+msgid "What each role can do"
+msgstr "What each role can do"
 
 msgid "Who signs in"
 msgstr "Who signs in"
@@ -11032,18 +11252,32 @@ msgstr "all sign in with a passkey"
 msgid "{0} browsers"
 msgstr "{0} browsers"
 
+#. placeholder {0}: invites.length
+msgid "{0} open invites"
+msgstr "{0} open invites"
+
 #. placeholder {0}: m.passkeys
 msgid "{0} passkeys"
 msgstr "{0} passkeys"
 
+msgid "{address} signs in here already."
+msgstr "{address} signs in here already."
+
 msgid "{count} people sign in to this install"
 msgstr "{count} people sign in to this install"
+
+msgid "{count} people sign in to this install · {invitesWord}"
+msgstr "{count} people sign in to this install · {invitesWord}"
 
 msgid "{keys} and an authenticator app"
 msgstr "{keys} and an authenticator app"
 
 msgid "{keys}, with codes locked"
 msgstr "{keys}, with codes locked"
+
+#. placeholder {0}: projectName(env.resource?.scope ?? "")
+msgid "{name} in {0}"
+msgstr "{name} in {0}"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{withPasskeys} of {count} sign in with a passkey"
@@ -11084,9 +11318,6 @@ msgstr "Dockwell can't list your tokens"
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "Each new address it's used from goes in the <0>audit log</0>"
 
-msgid "Expires"
-msgstr "Expires"
-
 msgid "Hide the token"
 msgstr "Hide the token"
 
@@ -11126,9 +11357,6 @@ msgstr "Read apps' logs, which often hold what apps shouldn't print."
 
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "Read servers, apps, plans and activity. Every token can, and changes nothing."
-
-msgid "Revoke"
-msgstr "Revoke"
 
 #. placeholder {0}: token.name
 msgid "Revoke {0}"
@@ -11327,9 +11555,6 @@ msgstr "Delete a project"
 msgid "Delete the project {projectName}"
 msgstr "Delete the project {projectName}"
 
-msgid "Environments"
-msgstr "Environments"
-
 msgid "Finding your projects"
 msgstr "Finding your projects"
 
@@ -11380,9 +11605,6 @@ msgstr "Opens a plan"
 
 msgid "Pages"
 msgstr "Pages"
-
-msgid "Projects"
-msgstr "Projects"
 
 msgid "Show the activity of {name}"
 msgstr "Show the activity of {name}"

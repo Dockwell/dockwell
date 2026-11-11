@@ -44,6 +44,14 @@ const (
 	AuthServiceBeginClaimProcedure = "/dockwell.v1.AuthService/BeginClaim"
 	// AuthServiceFinishClaimProcedure is the fully-qualified name of the AuthService's FinishClaim RPC.
 	AuthServiceFinishClaimProcedure = "/dockwell.v1.AuthService/FinishClaim"
+	// AuthServiceCheckInviteProcedure is the fully-qualified name of the AuthService's CheckInvite RPC.
+	AuthServiceCheckInviteProcedure = "/dockwell.v1.AuthService/CheckInvite"
+	// AuthServiceBeginAcceptInviteProcedure is the fully-qualified name of the AuthService's
+	// BeginAcceptInvite RPC.
+	AuthServiceBeginAcceptInviteProcedure = "/dockwell.v1.AuthService/BeginAcceptInvite"
+	// AuthServiceFinishAcceptInviteProcedure is the fully-qualified name of the AuthService's
+	// FinishAcceptInvite RPC.
+	AuthServiceFinishAcceptInviteProcedure = "/dockwell.v1.AuthService/FinishAcceptInvite"
 	// AuthServiceBeginPasskeySignInProcedure is the fully-qualified name of the AuthService's
 	// BeginPasskeySignIn RPC.
 	AuthServiceBeginPasskeySignInProcedure = "/dockwell.v1.AuthService/BeginPasskeySignIn"
@@ -112,12 +120,31 @@ type AuthServiceClient interface {
 	GetAuthState(context.Context, *connect.Request[v1.GetAuthStateRequest]) (*connect.Response[v1.GetAuthStateResponse], error)
 	// CheckClaim checks a claim link without spending it, and describes the
 	// server it claims.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
 	CheckClaim(context.Context, *connect.Request[v1.CheckClaimRequest]) (*connect.Response[v1.CheckClaimResponse], error)
 	// BeginClaim starts creating the owner's first passkey.
 	BeginClaim(context.Context, *connect.Request[v1.BeginClaimRequest]) (*connect.Response[v1.BeginClaimResponse], error)
 	// FinishClaim spends the claim link, creates the owner with the new
 	// passkey, and signs them in. It works once per install.
 	FinishClaim(context.Context, *connect.Request[v1.FinishClaimRequest]) (*connect.Response[v1.FinishClaimResponse], error)
+	// CheckInvite reads an invite's link without spending it: who invited
+	// them, as what, and where. It works only at the panel's domain, where the
+	// passkey is made.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
+	CheckInvite(context.Context, *connect.Request[v1.CheckInviteRequest]) (*connect.Response[v1.CheckInviteResponse], error)
+	// BeginAcceptInvite starts creating the passkey of the person an invite
+	// names. It refuses while someone is signed in in the browser: accepting
+	// only ever makes a new person.
+	BeginAcceptInvite(context.Context, *connect.Request[v1.BeginAcceptInviteRequest]) (*connect.Response[v1.BeginAcceptInviteResponse], error)
+	// FinishAcceptInvite spends the invite, makes the person with the role it
+	// names and the new passkey, and signs them in.
+	FinishAcceptInvite(context.Context, *connect.Request[v1.FinishAcceptInviteRequest]) (*connect.Response[v1.FinishAcceptInviteResponse], error)
 	// BeginPasskeySignIn starts signing in with a passkey.
 	BeginPasskeySignIn(context.Context, *connect.Request[v1.BeginPasskeySignInRequest]) (*connect.Response[v1.BeginPasskeySignInResponse], error)
 	// FinishPasskeySignIn checks the passkey's signature and signs in.
@@ -229,6 +256,24 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			httpClient,
 			baseURL+AuthServiceFinishClaimProcedure,
 			connect.WithSchema(authServiceMethods.ByName("FinishClaim")),
+			connect.WithClientOptions(opts...),
+		),
+		checkInvite: connect.NewClient[v1.CheckInviteRequest, v1.CheckInviteResponse](
+			httpClient,
+			baseURL+AuthServiceCheckInviteProcedure,
+			connect.WithSchema(authServiceMethods.ByName("CheckInvite")),
+			connect.WithClientOptions(opts...),
+		),
+		beginAcceptInvite: connect.NewClient[v1.BeginAcceptInviteRequest, v1.BeginAcceptInviteResponse](
+			httpClient,
+			baseURL+AuthServiceBeginAcceptInviteProcedure,
+			connect.WithSchema(authServiceMethods.ByName("BeginAcceptInvite")),
+			connect.WithClientOptions(opts...),
+		),
+		finishAcceptInvite: connect.NewClient[v1.FinishAcceptInviteRequest, v1.FinishAcceptInviteResponse](
+			httpClient,
+			baseURL+AuthServiceFinishAcceptInviteProcedure,
+			connect.WithSchema(authServiceMethods.ByName("FinishAcceptInvite")),
 			connect.WithClientOptions(opts...),
 		),
 		beginPasskeySignIn: connect.NewClient[v1.BeginPasskeySignInRequest, v1.BeginPasskeySignInResponse](
@@ -369,6 +414,9 @@ type authServiceClient struct {
 	checkClaim              *connect.Client[v1.CheckClaimRequest, v1.CheckClaimResponse]
 	beginClaim              *connect.Client[v1.BeginClaimRequest, v1.BeginClaimResponse]
 	finishClaim             *connect.Client[v1.FinishClaimRequest, v1.FinishClaimResponse]
+	checkInvite             *connect.Client[v1.CheckInviteRequest, v1.CheckInviteResponse]
+	beginAcceptInvite       *connect.Client[v1.BeginAcceptInviteRequest, v1.BeginAcceptInviteResponse]
+	finishAcceptInvite      *connect.Client[v1.FinishAcceptInviteRequest, v1.FinishAcceptInviteResponse]
 	beginPasskeySignIn      *connect.Client[v1.BeginPasskeySignInRequest, v1.BeginPasskeySignInResponse]
 	finishPasskeySignIn     *connect.Client[v1.FinishPasskeySignInRequest, v1.FinishPasskeySignInResponse]
 	signInWithCode          *connect.Client[v1.SignInWithCodeRequest, v1.SignInWithCodeResponse]
@@ -410,6 +458,21 @@ func (c *authServiceClient) BeginClaim(ctx context.Context, req *connect.Request
 // FinishClaim calls dockwell.v1.AuthService.FinishClaim.
 func (c *authServiceClient) FinishClaim(ctx context.Context, req *connect.Request[v1.FinishClaimRequest]) (*connect.Response[v1.FinishClaimResponse], error) {
 	return c.finishClaim.CallUnary(ctx, req)
+}
+
+// CheckInvite calls dockwell.v1.AuthService.CheckInvite.
+func (c *authServiceClient) CheckInvite(ctx context.Context, req *connect.Request[v1.CheckInviteRequest]) (*connect.Response[v1.CheckInviteResponse], error) {
+	return c.checkInvite.CallUnary(ctx, req)
+}
+
+// BeginAcceptInvite calls dockwell.v1.AuthService.BeginAcceptInvite.
+func (c *authServiceClient) BeginAcceptInvite(ctx context.Context, req *connect.Request[v1.BeginAcceptInviteRequest]) (*connect.Response[v1.BeginAcceptInviteResponse], error) {
+	return c.beginAcceptInvite.CallUnary(ctx, req)
+}
+
+// FinishAcceptInvite calls dockwell.v1.AuthService.FinishAcceptInvite.
+func (c *authServiceClient) FinishAcceptInvite(ctx context.Context, req *connect.Request[v1.FinishAcceptInviteRequest]) (*connect.Response[v1.FinishAcceptInviteResponse], error) {
+	return c.finishAcceptInvite.CallUnary(ctx, req)
 }
 
 // BeginPasskeySignIn calls dockwell.v1.AuthService.BeginPasskeySignIn.
@@ -524,12 +587,31 @@ type AuthServiceHandler interface {
 	GetAuthState(context.Context, *connect.Request[v1.GetAuthStateRequest]) (*connect.Response[v1.GetAuthStateResponse], error)
 	// CheckClaim checks a claim link without spending it, and describes the
 	// server it claims.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
 	CheckClaim(context.Context, *connect.Request[v1.CheckClaimRequest]) (*connect.Response[v1.CheckClaimResponse], error)
 	// BeginClaim starts creating the owner's first passkey.
 	BeginClaim(context.Context, *connect.Request[v1.BeginClaimRequest]) (*connect.Response[v1.BeginClaimResponse], error)
 	// FinishClaim spends the claim link, creates the owner with the new
 	// passkey, and signs them in. It works once per install.
 	FinishClaim(context.Context, *connect.Request[v1.FinishClaimRequest]) (*connect.Response[v1.FinishClaimResponse], error)
+	// CheckInvite reads an invite's link without spending it: who invited
+	// them, as what, and where. It works only at the panel's domain, where the
+	// passkey is made.
+	//
+	// It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+	// calls so marked as GETs, with the request in the address, and this one's
+	// request is a secret (a test in internal/control holds it to that).
+	CheckInvite(context.Context, *connect.Request[v1.CheckInviteRequest]) (*connect.Response[v1.CheckInviteResponse], error)
+	// BeginAcceptInvite starts creating the passkey of the person an invite
+	// names. It refuses while someone is signed in in the browser: accepting
+	// only ever makes a new person.
+	BeginAcceptInvite(context.Context, *connect.Request[v1.BeginAcceptInviteRequest]) (*connect.Response[v1.BeginAcceptInviteResponse], error)
+	// FinishAcceptInvite spends the invite, makes the person with the role it
+	// names and the new passkey, and signs them in.
+	FinishAcceptInvite(context.Context, *connect.Request[v1.FinishAcceptInviteRequest]) (*connect.Response[v1.FinishAcceptInviteResponse], error)
 	// BeginPasskeySignIn starts signing in with a passkey.
 	BeginPasskeySignIn(context.Context, *connect.Request[v1.BeginPasskeySignInRequest]) (*connect.Response[v1.BeginPasskeySignInResponse], error)
 	// FinishPasskeySignIn checks the passkey's signature and signs in.
@@ -637,6 +719,24 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		AuthServiceFinishClaimProcedure,
 		svc.FinishClaim,
 		connect.WithSchema(authServiceMethods.ByName("FinishClaim")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceCheckInviteHandler := connect.NewUnaryHandler(
+		AuthServiceCheckInviteProcedure,
+		svc.CheckInvite,
+		connect.WithSchema(authServiceMethods.ByName("CheckInvite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceBeginAcceptInviteHandler := connect.NewUnaryHandler(
+		AuthServiceBeginAcceptInviteProcedure,
+		svc.BeginAcceptInvite,
+		connect.WithSchema(authServiceMethods.ByName("BeginAcceptInvite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceFinishAcceptInviteHandler := connect.NewUnaryHandler(
+		AuthServiceFinishAcceptInviteProcedure,
+		svc.FinishAcceptInvite,
+		connect.WithSchema(authServiceMethods.ByName("FinishAcceptInvite")),
 		connect.WithHandlerOptions(opts...),
 	)
 	authServiceBeginPasskeySignInHandler := connect.NewUnaryHandler(
@@ -778,6 +878,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceBeginClaimHandler.ServeHTTP(w, r)
 		case AuthServiceFinishClaimProcedure:
 			authServiceFinishClaimHandler.ServeHTTP(w, r)
+		case AuthServiceCheckInviteProcedure:
+			authServiceCheckInviteHandler.ServeHTTP(w, r)
+		case AuthServiceBeginAcceptInviteProcedure:
+			authServiceBeginAcceptInviteHandler.ServeHTTP(w, r)
+		case AuthServiceFinishAcceptInviteProcedure:
+			authServiceFinishAcceptInviteHandler.ServeHTTP(w, r)
 		case AuthServiceBeginPasskeySignInProcedure:
 			authServiceBeginPasskeySignInHandler.ServeHTTP(w, r)
 		case AuthServiceFinishPasskeySignInProcedure:
@@ -843,6 +949,18 @@ func (UnimplementedAuthServiceHandler) BeginClaim(context.Context, *connect.Requ
 
 func (UnimplementedAuthServiceHandler) FinishClaim(context.Context, *connect.Request[v1.FinishClaimRequest]) (*connect.Response[v1.FinishClaimResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.FinishClaim is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) CheckInvite(context.Context, *connect.Request[v1.CheckInviteRequest]) (*connect.Response[v1.CheckInviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.CheckInvite is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) BeginAcceptInvite(context.Context, *connect.Request[v1.BeginAcceptInviteRequest]) (*connect.Response[v1.BeginAcceptInviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.BeginAcceptInvite is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) FinishAcceptInvite(context.Context, *connect.Request[v1.FinishAcceptInviteRequest]) (*connect.Response[v1.FinishAcceptInviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.FinishAcceptInvite is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) BeginPasskeySignIn(context.Context, *connect.Request[v1.BeginPasskeySignInRequest]) (*connect.Response[v1.BeginPasskeySignInResponse], error) {
