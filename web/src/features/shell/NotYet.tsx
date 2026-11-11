@@ -26,10 +26,7 @@ export function NotYet({ section }: { section: UpcomingSection }) {
         }
       >
         <p>
-          <Trans>
-            This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how
-            your servers are doing.
-          </Trans>
+          <Trans>It arrives in a later release.</Trans>
         </p>
       </EmptyState>
     </Page>

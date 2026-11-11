@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType } from "@dockwell/api";
-import { Callout, SelectField, Switch, TextField } from "@dockwell/ui";
+import { Advanced, type FolderListing, FolderPicker, SelectField, Switch, Tag, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { useMay } from "../auth/may";
 import { nameOf, parentOf } from "../files/paths";
-import { indexOf, type Missing, type Serves, type Settings } from "./settings";
+import { changed, indexOf, type Missing, type Serves, type Settings } from "./settings";
 import { useRuntimes } from "./website";
 
 /** What a form says of a field it can refuse by itself. */
@@ -29,7 +31,7 @@ export function useMissingWords(): (m: Missing) => string {
       case "root-absolute":
         return t`Give the folder from the top, starting with /, such as /var/www/blog.`;
       case "user":
-        return t`Give the user by number, such as 1000.`;
+        return t`Give the user and group by number, such as 1000:1000.`;
       case "upload":
         return t`Give a number of MiB, such as 64.`;
     }
@@ -84,10 +86,83 @@ export function phpUser(typed: string): string {
   return u.includes(":") ? u : `${u}:${u}`;
 }
 
+/** Which of a kind's fields a form shows: what everyone sets, what has a good default, or both. */
+export type FieldsPart = "main" | "advanced" | "all";
+
+/** Whether a kind of website has anything under Advanced. */
+export function hasAdvanced(serves: Serves): boolean {
+  return serves !== "port";
+}
+
+/** The settings Advanced holds, as changed() names them, and the fields of them a form can refuse. */
+const ADVANCED_SETTINGS = new Set(["index", "singlePageApp", "user", "uploadMB", "filesOnly", "targetHost"]);
+const ADVANCED_FIELDS: readonly Missing["field"][] = ["user", "uploadMB"];
+
+/** What a kind's Advanced holds, in one line, so nobody opens it to find out. */
+function useAdvancedSummary(): (s: Settings) => string {
+  const { t } = useLingui();
+  return (s) => {
+    if (s.serves === "url") return s.targetHost ? t`Sends the URL's own name as Host` : t`Sends this domain as Host`;
+    if (s.serves === "folder") {
+      const index = indexOf(s.index).join(" ") || "index.html index.htm";
+      return s.singlePageApp ? t`${index} · single-page app` : index;
+    }
+    const who = s.user.trim() || "www-data";
+    const mb = Number(s.uploadMB) || 64;
+    return s.filesOnly
+      ? t`Runs as ${who} · ${mb} MiB uploads · only files answer`
+      : t`Runs as ${who} · ${mb} MiB uploads`;
+  };
+}
+
+/**
+ * A website's fields as its forms show them: what everyone sets, then the rest, each
+ * at a good default, under a closed Advanced whose line says what they are. It opens
+ * on a field in it that was refused, and says how many of its settings an edit changed.
+ */
+export function SplitWebsiteFields(props: {
+  settings: Settings;
+  onChange: (next: Settings) => void;
+  was?: Settings;
+  errors: Partial<Record<Missing["field"], string | undefined>>;
+  server: string;
+}) {
+  const summary = useAdvancedSummary();
+  const [open, setOpen] = useState(false);
+  const { settings, was, errors } = props;
+  const refused = ADVANCED_FIELDS.some((field) => errors[field] !== undefined);
+  // A field in it that was refused opens it, and it stays open until it's closed by hand,
+  // so fixing the field doesn't fold it away under the cursor.
+  if (refused && !open) setOpen(true);
+  const edited = was ? changed(was, settings).filter((name) => ADVANCED_SETTINGS.has(name)).length : 0;
+  return (
+    <>
+      <WebsiteFields {...props} part="main" />
+      {hasAdvanced(settings.serves) ? (
+        <Advanced
+          summary={summary(settings)}
+          badge={
+            edited > 0 ? (
+              <Tag tone="cobalt" words>
+                {plural(edited, { one: "# changed", other: "# changed" })}
+              </Tag>
+            ) : null
+          }
+          open={open}
+          onOpenChange={setOpen}
+        >
+          <WebsiteFields {...props} part="advanced" />
+        </Advanced>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * The fields of what a website serves, for the kind its settings say: a folder, a URL
- * or a port on the server. New website and a website's configuration both have them,
- * and was, where there is one, says what each field had.
+ * or a port on the server. New website shows what everyone sets, and keeps the rest,
+ * which all start at a good default, under Advanced; a website's configuration shows
+ * both, and was, where there is one, says what each field had.
  */
 export function WebsiteFields({
   settings: s,
@@ -95,17 +170,31 @@ export function WebsiteFields({
   was,
   errors,
   server,
+  part = "all",
 }: {
   settings: Settings;
   onChange: (next: Settings) => void;
   was?: Settings;
   errors: Partial<Record<Missing["field"], string | undefined>>;
-  /** The server it runs on, whose files a folder's note reads. */
+  /** The server it runs on, whose folders the folder field reads. */
   server: string;
+  part?: FieldsPart;
 }) {
   const { t } = useLingui();
   const same = was?.serves === s.serves;
   const runtimes = useRuntimes();
+  const main = part !== "advanced";
+  const advanced = part !== "main";
+  const folder = (
+    <FolderField
+      settings={s}
+      was={same ? was : undefined}
+      existing={was !== undefined}
+      error={errors.root}
+      server={server}
+      onChange={onChange}
+    />
+  );
   if (s.serves === "php") {
     const newest = runtimes.data?.[0]?.version ?? "";
     const version = s.version || newest;
@@ -113,166 +202,156 @@ export function WebsiteFields({
     const wasVersion = was?.version || newest;
     return (
       <>
-        <SelectField
-          label={t`PHP version`}
-          value={version}
-          options={versions.map((r) => ({
-            value: r.version,
-            label: r.release ? t`PHP ${r.version} · ${r.release}` : t`PHP ${r.version}`,
-          }))}
-          hint={
-            same && was && version !== wasVersion ? (
-              <WasHint>{t`Was PHP ${wasVersion} · only PHP restarts, with no downtime`}</WasHint>
-            ) : (
-              t`Runs in PHP-FPM of its own, so no other website moves with it`
-            )
-          }
-          onChange={(event) => onChange({ ...s, version: event.target.value })}
-        />
-        <FolderField
-          settings={s}
-          was={same ? was : undefined}
-          error={errors.root}
-          server={server}
-          onChange={onChange}
-        />
-        <TextField
-          label={t`Index files`}
-          mono
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="index.php index.html"
-          value={s.index}
-          hint={
-            same && was && indexOf(s.index).join(" ") !== indexOf(was.index).join(" ") ? (
-              <WasHint>{was.index ? t`Was ${was.index}` : t`Was index.php index.html`}</WasHint>
-            ) : (
-              t`The first of these in a folder answers for it. A script among them runs, and the rest are sent as they are.`
-            )
-          }
-          onChange={(event) => onChange({ ...s, index: event.target.value })}
-        />
-        <SelectField
-          label={t`What isn't a file`}
-          value={s.filesOnly ? "404" : "front"}
-          options={[
-            { value: "front", label: t`Goes to index.php` },
-            { value: "404", label: t`Gets a 404` },
-          ]}
-          hint={
-            same && was && s.filesOnly !== was.filesOnly ? (
-              <WasHint>{was.filesOnly ? t`Was a 404` : t`Was index.php`}</WasHint>
-            ) : s.filesOnly ? (
-              t`Only what's in the folder answers`
-            ) : (
-              t`As WordPress, Laravel and most PHP apps want, for their own addresses`
-            )
-          }
-          onChange={(event) => onChange({ ...s, filesOnly: event.target.value === "404" })}
-        />
-        <TextField
-          label={t`Upload limit`}
-          inputMode="numeric"
-          placeholder="64"
-          suffix="MiB"
-          value={s.uploadMB}
-          error={errors.uploadMB}
-          hint={
-            same && was && (Number(s.uploadMB) || 64) !== (Number(was.uploadMB) || 64) ? (
-              <WasHint>{t`Was ${Number(was.uploadMB) || 64} MiB`}</WasHint>
-            ) : (
-              t`The most a request may send, such as a file uploaded, in MiB, as PHP counts it. Empty takes 64.`
-            )
-          }
-          onChange={(event) => onChange({ ...s, uploadMB: event.target.value })}
-        />
-        <TextField
-          label={t`Runs as`}
-          mono
-          placeholder={DEFAULT_PHP_USER}
-          value={s.user}
-          error={errors.user}
-          hint={
-            same && was && s.user.trim() !== was.user ? (
-              <WasHint>{was.user ? t`Was ${was.user}` : t`Was 82:82, www-data`}</WasHint>
-            ) : (
-              t`The folder owner's user and group, as uid:gid, so PHP can write there, and what it writes keeps its owner. stat -c %u:%g on the folder says it. Empty runs it as www-data, 82:82. Never root.`
-            )
-          }
-          onChange={(event) => onChange({ ...s, user: event.target.value })}
-        />
+        {main ? (
+          <>
+            <SelectField
+              label={t`PHP version`}
+              value={version}
+              options={versions.map((r) => ({
+                value: r.version,
+                label: r.release ? t`PHP ${r.version} · ${r.release}` : t`PHP ${r.version}`,
+              }))}
+              hint={
+                same && was && version !== wasVersion ? (
+                  <WasHint>{t`Was PHP ${wasVersion} · only PHP restarts, with no downtime`}</WasHint>
+                ) : undefined
+              }
+              onChange={(event) => onChange({ ...s, version: event.target.value })}
+            />
+            {folder}
+          </>
+        ) : null}
+        {advanced ? (
+          <>
+            <TextField
+              label={t`Index files`}
+              mono
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="index.php index.html"
+              value={s.index}
+              hint={
+                same && was && indexOf(s.index).join(" ") !== indexOf(was.index).join(" ") ? (
+                  <WasHint>{was.index ? t`Was ${was.index}` : t`Was index.php index.html`}</WasHint>
+                ) : (
+                  t`The first one found answers for a folder.`
+                )
+              }
+              onChange={(event) => onChange({ ...s, index: event.target.value })}
+            />
+            <SelectField
+              label={t`What isn't a file`}
+              value={s.filesOnly ? "404" : "front"}
+              options={[
+                { value: "front", label: t`Goes to index.php, as WordPress and Laravel want` },
+                { value: "404", label: t`Gets a 404` },
+              ]}
+              hint={
+                same && was && s.filesOnly !== was.filesOnly ? (
+                  <WasHint>{was.filesOnly ? t`Was a 404` : t`Was index.php`}</WasHint>
+                ) : undefined
+              }
+              onChange={(event) => onChange({ ...s, filesOnly: event.target.value === "404" })}
+            />
+            <TextField
+              label={t`Upload limit`}
+              inputMode="numeric"
+              placeholder="64"
+              suffix="MiB"
+              value={s.uploadMB}
+              error={errors.uploadMB}
+              hint={
+                same && was && (Number(s.uploadMB) || 64) !== (Number(was.uploadMB) || 64) ? (
+                  <WasHint>{t`Was ${Number(was.uploadMB) || 64} MiB`}</WasHint>
+                ) : undefined
+              }
+              onChange={(event) => onChange({ ...s, uploadMB: event.target.value })}
+            />
+            <TextField
+              label={t`Runs as`}
+              mono
+              placeholder={DEFAULT_PHP_USER}
+              value={s.user}
+              error={errors.user}
+              hint={
+                same && was && s.user.trim() !== was.user ? (
+                  <WasHint>{was.user ? t`Was ${was.user}` : t`Was 82:82, www-data`}</WasHint>
+                ) : (
+                  t`A user and group by number, as uid:gid. Empty runs it as www-data.`
+                )
+              }
+              onChange={(event) => onChange({ ...s, user: event.target.value })}
+            />
+          </>
+        ) : null}
       </>
     );
   }
   if (s.serves === "folder") {
     return (
       <>
-        <FolderField
-          settings={s}
-          was={same ? was : undefined}
-          error={errors.root}
-          server={server}
-          onChange={onChange}
-        />
-        <TextField
-          label={t`Index files`}
-          mono
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="index.html index.htm"
-          value={s.index}
-          hint={
-            same && was && indexOf(s.index).join(" ") !== indexOf(was.index).join(" ") ? (
-              <WasHint>{was.index ? t`Was ${was.index}` : t`Was index.html index.htm`}</WasHint>
-            ) : (
-              t`The first of these in a folder answers for it.`
-            )
-          }
-          onChange={(event) => onChange({ ...s, index: event.target.value })}
-        />
-        <Switch
-          label={t`Single-page app`}
-          description={t`Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404.`}
-          checked={s.singlePageApp}
-          onChange={(on) => onChange({ ...s, singlePageApp: on })}
-        />
+        {main ? folder : null}
+        {advanced ? (
+          <>
+            <TextField
+              label={t`Index files`}
+              mono
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="index.html index.htm"
+              value={s.index}
+              hint={
+                same && was && indexOf(s.index).join(" ") !== indexOf(was.index).join(" ") ? (
+                  <WasHint>{was.index ? t`Was ${was.index}` : t`Was index.html index.htm`}</WasHint>
+                ) : (
+                  t`The first one found answers for a folder.`
+                )
+              }
+              onChange={(event) => onChange({ ...s, index: event.target.value })}
+            />
+            <Switch
+              label={t`Single-page app`}
+              description={t`A path with no file gets the index, for an app that routes in the browser.`}
+              checked={s.singlePageApp}
+              onChange={(on) => onChange({ ...s, singlePageApp: on })}
+            />
+          </>
+        ) : null}
       </>
     );
   }
   if (s.serves === "url") {
     return (
       <>
-        <TextField
-          label={t`URL`}
-          mono
-          inputMode="url"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="https://backend.example.com"
-          value={s.url}
-          error={errors.url}
-          hint={
-            same && was && s.url.trim() !== was.url ? (
-              <WasHint>{t`Was ${was.url}`}</WasHint>
-            ) : (
-              t`With a path, such as /app, each request goes under it.`
-            )
-          }
-          onChange={(event) => onChange({ ...s, url: event.target.value })}
-        />
-        <Switch
-          label={t`Send the URL's own name as Host`}
-          description={t`For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain.`}
-          checked={s.targetHost}
-          onChange={(on) => onChange({ ...s, targetHost: on })}
-        />
+        {main ? (
+          <TextField
+            label={t`URL`}
+            mono
+            inputMode="url"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="https://backend.example.com"
+            value={s.url}
+            error={errors.url}
+            hint={same && was && s.url.trim() !== was.url ? <WasHint>{t`Was ${was.url}`}</WasHint> : undefined}
+            onChange={(event) => onChange({ ...s, url: event.target.value })}
+          />
+        ) : null}
+        {advanced ? (
+          <Switch
+            label={t`Send the URL's own name as Host`}
+            description={t`For a backend that serves several names. Off, it gets this website's domain.`}
+            checked={s.targetHost}
+            onChange={(on) => onChange({ ...s, targetHost: on })}
+          />
+        ) : null}
       </>
     );
   }
-  return (
+  return main ? (
     <TextField
       label={t`Port on the server`}
       mono
@@ -284,75 +363,116 @@ export function WebsiteFields({
         same && was && s.port !== was.port ? (
           <WasHint>{t`Was ${was.port} · whatever listens there sees every visitor as local`}</WasHint>
         ) : (
-          t`What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan.`
+          t`It sees every visitor as local, so the plan asks you to approve it.`
         )
       }
       onChange={(event) => onChange({ ...s, port: event.target.value })}
     />
-  );
+  ) : null;
 }
 
-/** A website's folder, and what the server says is in it. */
+/**
+ * A website's folder: the one chosen, on one line with what the server says of it, and
+ * a picker behind Change that browses the server's folders, names a new one, or takes a
+ * typed path. A folder that isn't there is made with the site.
+ */
 function FolderField({
   settings: s,
   was,
+  existing,
   error,
   server,
   onChange,
 }: {
   settings: Settings;
   was: Settings | undefined;
+  /** A website that's there already, whose missing folder its next plan makes, not a new one. */
+  existing: boolean;
   error: string | undefined;
   server: string;
   onChange: (next: Settings) => void;
 }) {
   const { t } = useLingui();
+  const transport = useTransport();
+  const client = useMemo(() => createClient(FileService, transport), [transport]);
+  const mayList = useMay()(FileService.method.listFiles);
+  // Who PHP runs as, when the form filled it from the folder's owner, so it follows the
+  // folder until someone types another.
+  const filled = useRef("");
   const index = indexOf(s.index);
-  return (
-    <>
-      <TextField
-        label={t`Folder`}
-        mono
-        autoCapitalize="none"
-        autoCorrect="off"
-        spellCheck={false}
-        placeholder={s.serves === "php" ? "/var/www/shop" : "/var/www/blog"}
-        value={s.root}
-        error={error}
-        hint={
-          was && s.root.trim() !== was.root ? (
-            <WasHint>{t`Was ${was.root}`}</WasHint>
-          ) : s.serves === "php" ? (
-            t`On the server. PHP reads and writes it as the user below, and its web server reads it as nobody's user, so its files must be readable by everyone.`
-          ) : (
-            t`On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone.`
+  // Lookups, as the folder note's are: the form reads them, not a person opening a folder, so
+  // one the server refuses goes on no Activity.
+  const list = useCallback(
+    async (path: string): Promise<FolderListing> => {
+      const res = await client.listFiles({ serverId: server, path, lookup: true });
+      return {
+        path: res.path,
+        folders: res.entries
+          .filter(
+            (e) =>
+              !e.unreadableName &&
+              (e.type === FileType.DIRECTORY || (e.type === FileType.SYMLINK && e.linkType === FileType.DIRECTORY)),
           )
-        }
-        onChange={(event) => onChange({ ...s, root: event.target.value })}
-      />
-      <FolderNote
-        server={server}
-        root={s.root}
-        serves={s.serves}
-        index={index.length > 0 ? index : s.serves === "php" ? ["index.php", "index.html"] : []}
-        onOwner={
-          s.serves === "folder"
-            ? (owner) => {
-                if (owner !== s.owner) onChange({ ...s, owner });
+          .map((e) => ({ name: e.name, locked: e.refused }))
+          .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+      };
+    },
+    [client, server],
+  );
+  return (
+    <FolderPicker
+      label={t`Folder`}
+      value={s.root}
+      error={error}
+      // Sent back to it with something wrong, it's open, with the path to change, and
+      // stays open while that's fixed.
+      defaultOpen={error !== undefined}
+      list={list}
+      // Reading a server's folders is an admin's (ADR 0059): off, with why, for anyone else.
+      disabled={mayList.off.disabled}
+      off={mayList.reason || undefined}
+      note={
+        <>
+          {was && s.root.trim() !== was.root ? (
+            <>
+              <WasHint>{t`Was ${was.root}`}</WasHint>{" "}
+            </>
+          ) : null}
+          {mayList.allowed ? (
+            <FolderNote
+              server={server}
+              root={s.root}
+              existing={existing}
+              serves={s.serves}
+              index={index.length > 0 ? index : s.serves === "php" ? ["index.php", "index.html"] : []}
+              onOwner={
+                s.serves === "folder"
+                  ? (owner) => {
+                      if (owner !== s.owner) onChange({ ...s, owner });
+                    }
+                  : undefined
               }
-            : undefined
-        }
-        user={s.serves === "php" ? phpUser(s.user) : undefined}
-        onFolderOwner={
-          s.serves === "php"
-            ? (owner) => {
-                // What's typed stays: the note says when PHP can't write there.
-                if (s.user.trim() === "") onChange({ ...s, user: owner });
+              user={s.serves === "php" ? phpUser(s.user) : undefined}
+              onFolderOwner={
+                s.serves === "php"
+                  ? (owner) => {
+                      // PHP runs as the folder's owner, following the folder picked, until
+                      // someone types who it runs as: what's typed stays, and the note says
+                      // when PHP can't write there.
+                      const typed = s.user.trim();
+                      if (typed !== "" && typed !== filled.current) return;
+                      filled.current = owner;
+                      if (owner !== typed) onChange({ ...s, user: owner });
+                    }
+                  : undefined
               }
-            : undefined
-        }
-      />
-    </>
+              onRunAs={s.serves === "php" ? (owner) => onChange({ ...s, user: owner }) : undefined}
+            />
+          ) : null}
+        </>
+      }
+      onChange={(root) => onChange({ ...s, root })}
+    />
   );
 }
 
@@ -382,9 +502,13 @@ export function FolderNote({
   onOwner,
   user,
   onFolderOwner,
+  onRunAs,
+  existing = false,
 }: {
   server: string;
   root: string;
+  /** A website that's there already: a folder that isn't is made by its next plan. */
+  existing?: boolean;
   /** What the website does with the folder: serves its files, or runs its PHP too. */
   serves?: Serves;
   index: readonly string[];
@@ -394,6 +518,8 @@ export function FolderNote({
   user?: string;
   /** Hears the owner of a folder that's there, for a PHP website to run as, as "uid:gid". */
   onFolderOwner?: (owner: string) => void;
+  /** Runs PHP as the folder's owner, as "uid:gid", from the state that says it can't write there. */
+  onRunAs?: (owner: string) => void;
 }) {
   const { t } = useLingui();
   const path = useSettled(root.trim().replace(/\/+$/, ""), READ_AFTER_MS);
@@ -439,105 +565,61 @@ export function FolderNote({
     onFolderOwner?.(folderOwner);
   }, [folderOwner, onFolderOwner]);
   if (!asked || above.isPending || (above.error && !aboveMissing)) return null;
-  const files = (
-    <Link to="/servers/$serverId/files" params={{ serverId: server }} search={{ path }}>
-      <Trans>Open in Files</Trans>
-    </Link>
+  // One line: what's there as a state, and nothing a person has to go and run.
+  const say = (tone: "new" | "ok" | "warning", words: ReactNode) => (
+    <span className={`website-folder-state is-${tone}`}>{words}</span>
   );
   if (aboveMissing || !there) {
-    const up = parentOf(path);
-    if (user) {
-      return (
-        <Callout tone="info" className="website-folder-note">
-          <Trans>
-            Nothing is at <code>{path}</code> yet. Dockwell makes it as the plan applies, owned by <code>{user}</code>,
-            the user PHP runs as, so its code can write there. Put the site's files in it with <code>sudo rsync</code>,
-            then{" "}
-            <code>
-              sudo chown -R {user} {path}
-            </code>
-            .
-          </Trans>
-        </Callout>
+    // A site that's there already says what's missing, and where to make it now, as no plan
+    // may be on its way.
+    if (existing) {
+      return say(
+        "warning",
+        <>
+          {t`Not on the server yet.`}{" "}
+          <Link
+            className="website-folder-action"
+            to="/servers/$serverId/files"
+            params={{ serverId: server }}
+            search={{ path: parentOf(path) }}
+          >
+            {t`Make it in Files`}
+          </Link>
+        </>,
       );
     }
-    return (
-      <Callout tone="info" className="website-folder-note">
-        {owner ? (
-          <Trans>
-            Nothing is at <code>{path}</code> yet. Dockwell makes it as the plan applies, owned by{" "}
-            <code>{parent?.owner || owner}</code> as <code>{up}</code> is, so put the site's files in it as that user,
-            with scp or rsync.
-          </Trans>
-        ) : (
-          <Trans>
-            Nothing is at <code>{path}</code> or <code>{up}</code> yet, so the folder would be made root's, and no one
-            else could put the site's files in it. Make it first, as yours, with{" "}
-            <code>sudo install -d -o $(id -u) -g $(id -g) {path}</code>.
-          </Trans>
-        )}
-      </Callout>
-    );
+    if (user) return say("new", t`New. Made with the site, for PHP to write in.`);
+    // Made as the folder above is owned, so whoever puts files there can put the site's there too.
+    const by = parent && parent.uid !== 0 ? parent.owner || `${parent.uid}:${parent.gid}` : "";
+    return say("new", by ? t`New. Made with the site, owned by ${by}.` : t`New. Made with the site.`);
   }
-  if (!folder) {
-    return (
-      <Callout tone="warning" className="website-folder-note">
-        <Trans>
-          <code>{path}</code> is a file, not a folder. Give the folder that holds the site's files.
-        </Trans>
-      </Callout>
-    );
-  }
+  if (!folder) return say("warning", t`That's a file, not a folder.`);
   if (listed.isPending) return null;
-  if (listed.error) {
-    return (
-      <Callout tone="warning" className="website-folder-note">
-        {sentence(listed.error)}
-      </Callout>
-    );
-  }
+  if (listed.error) return say("warning", sentence(listed.error));
   const { entries, directory } = listed.data;
   // Files in a folder run no script, and hide them, so a PHP site's folder answers 404 for them.
   if (serves === "folder" && entries.some((e) => e.name === "index.php" && e.type === FileType.FILE)) {
-    return (
-      <Callout tone="warning" className="website-folder-note">
-        <Trans>
-          <code>{path}</code> holds <code>index.php</code>. Files in a folder run no script, and hide every one, as its
-          source can hold passwords, so those addresses answer 404.
-        </Trans>
-      </Callout>
-    );
+    return say("warning", t`Holds index.php, which only a PHP site runs.`);
   }
   // PHP writes in its folder, as the user it runs as, which root's never is.
   if (user && directory) {
     if (directory.uid === 0 || directory.gid === 0) {
-      return (
-        <Callout tone="warning" className="website-folder-note">
-          <Trans>
-            <code>{path}</code> is root's, and PHP never runs as root, so it can't write there: uploads, caches and
-            updates fail. Run{" "}
-            <code>
-              sudo chown -R {user} {path}
-            </code>
-            , or give the folder to the user PHP runs as.
-          </Trans>
-        </Callout>
-      );
+      return say("warning", t`Root owns it, so PHP can't save uploads there.`);
     }
     if (!canWrite(user, directory.mode, directory.uid, directory.gid)) {
       const theirs = `${directory.uid}:${directory.gid}`;
-      return (
-        <Callout tone="warning" className="website-folder-note">
-          <Trans>
-            PHP runs as <code>{user}</code>, and <code>{path}</code> is <code>{theirs}</code>'s,{" "}
-            <code>{directory.mode}</code>, so PHP can't write there: uploads, caches and updates fail. Run it as{" "}
-            <code>{theirs}</code>, or run{" "}
-            <code>
-              sudo chown -R {user} {path}
-            </code>
-            .
-          </Trans>
-        </Callout>
+      return say(
+        "warning",
+        <>
+          {t`PHP runs as ${user} and can't write there.`}{" "}
+          {onRunAs ? (
+            <button type="button" className="website-folder-action" onClick={() => onRunAs(theirs)}>
+              {t`Run as ${theirs}`}
+            </button>
+          ) : (
+            t`Its owner is ${theirs}.`
+          )}
+        </>,
       );
     }
   }
@@ -548,14 +630,7 @@ export function FolderNote({
   const found = names.find((name) => entries.some((e) => e.name === name && isFile(e)));
   const mode = directory?.mode ?? "";
   if (mode !== "" && !openToAll(mode, true)) {
-    return (
-      <Callout tone="warning" className="website-folder-note">
-        <Trans>
-          The web server reads the folder as nobody's user, and <code>{path}</code> is <code>{mode}</code>, closed to
-          everyone else, so it answers 403. Run <code>chmod o+x {path}</code>, and <code>o+r</code> on its files.
-        </Trans>
-      </Callout>
-    );
+    return say("warning", t`Closed to the web server (${mode}), so it would answer 403.`);
   }
   // PHP reads its scripts as its own user, so only what the web server sends must be open.
   const shut =
@@ -563,33 +638,18 @@ export function FolderNote({
       ? entries.find((e) => e.name === found && e.type === FileType.FILE && !openToAll(e.mode, false))
       : undefined;
   if (shut) {
-    return (
-      <Callout tone="warning" className="website-folder-note">
-        <Trans>
-          <code>{shut.name}</code> is <code>{shut.mode}</code>, closed to everyone but its owner, so the web server
-          can't read it. Run <code>chmod o+r</code> on it, and on the folder's other files.
-        </Trans>
-      </Callout>
-    );
+    const { name, mode: fileMode } = shut;
+    return say("warning", t`The web server can't read ${name} (${fileMode}).`);
   }
   if (!found) {
     const first = names[0];
-    return (
-      <Callout tone="warning" className="website-folder-note">
-        <Trans>
-          There's no <code>{first}</code> in <code>{path}</code>, so its address answers 404 until there is. Add one, or
-          name the index the site has.
-        </Trans>
-      </Callout>
-    );
+    return say("warning", t`No ${first} here yet, so it answers 404 until there is.`);
   }
   const others = entries.length - 1;
-  return (
-    <p className="website-folder-holds">
-      {others > 0
-        ? plural(others, { one: `Holds ${found} and # more.`, other: `Holds ${found} and # more.` })
-        : t`Holds ${found}.`}{" "}
-      {files}
-    </p>
+  return say(
+    "ok",
+    others > 0
+      ? plural(others, { one: `Holds ${found} and # more`, other: `Holds ${found} and # more` })
+      : t`Holds ${found}`,
   );
 }

@@ -58,6 +58,8 @@ const (
 	// controls, as a certificate's names or where a redirect leads, can't make a
 	// run large, as each check keeps its last runs and every list carries them.
 	MaxSaid = 300
+	// AlertThing starts what a check's alert is about, before the check's ID.
+	AlertThing = "chk:"
 	// skippedWords is what a run that couldn't start says.
 	skippedWords = "skipped: all 16 runs at once were taken, as checks waited out their timeouts"
 )
@@ -130,6 +132,16 @@ type tracked struct {
 	passes int
 }
 
+// start starts a check again, knowing nothing of its runs: waiting for its first,
+// or down since its alert opened while that's open, so it takes UpAfter passes in
+// a row to resolve, as before a restart or an edit, and not the first alone.
+func (t *tracked) start(downSince map[string]time.Time) {
+	t.State, t.Since, t.Runs, t.fails, t.failing, t.passes = dockwellv1.AlertCheckState_ALERT_CHECK_STATE_WAITING, time.Time{}, nil, 0, time.Time{}, 0
+	if since, ok := downSince[t.ID]; ok {
+		t.State, t.Since = dockwellv1.AlertCheckState_ALERT_CHECK_STATE_DOWN, since
+	}
+}
+
 func (r *Runner) now() time.Time {
 	if r.Now != nil {
 		return r.Now()
@@ -175,18 +187,39 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
+// readCheck is a check as Load reads it from the store.
+type readCheck struct {
+	id, name string
+	spec     *resourcev1.AlertCheck
+	problem  string
+}
+
+// starting reports whether any check read starts again: new to the runner, read
+// again after it couldn't be, or changed.
+func (r *Runner) starting(checks []readCheck) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range checks {
+		c := &checks[i]
+		if c.problem != "" {
+			continue
+		}
+		if t := r.checks[c.id]; t == nil || t.Spec == nil || !proto.Equal(t.Spec, c.spec) {
+			return true
+		}
+	}
+	return false
+}
+
 // Load reads the install's checks. One made since the last read runs at once, so
 // the person who made it sees its first answer; those read as the control plane
 // starts are spread over their interval, so checks made together don't run
 // together. A check whose spec changed starts again, waiting for its next run.
 func (r *Runner) Load(ctx context.Context) error {
 	r.init()
-	type read struct {
-		id, name string
-		spec     *resourcev1.AlertCheck
-		problem  string
-	}
-	var checks []read
+	var checks []readCheck
+	// Since when each check's alert has been open, for one that starts again.
+	downSince := map[string]time.Time{}
 	if err := r.DB.View(ctx, func(tx *store.Tx) error {
 		stored, err := tx.ListKind(ctx, string(alert.CheckKind))
 		if err != nil {
@@ -205,14 +238,32 @@ func (r *Runner) Load(ctx context.Context) error {
 					r.Logger.WarnContext(ctx, "can't read a check", slog.String("check", s.Name), slog.Any("error", err))
 				}
 				r.mu.Unlock()
-				checks = append(checks, read{id: s.ID, name: s.Name, problem: Unreadable})
+				checks = append(checks, readCheck{id: s.ID, name: s.Name, problem: Unreadable})
 				continue
 			}
-			checks = append(checks, read{id: s.ID, name: s.Name, spec: c})
+			checks = append(checks, readCheck{id: s.ID, name: s.Name, spec: c})
 		}
 		return nil
 	}); err != nil {
 		return err
+	}
+	if r.starting(checks) {
+		if err := r.DB.View(ctx, func(tx *store.Tx) error {
+			open, err := tx.OpenAlerts(ctx)
+			if err != nil {
+				return err
+			}
+			for i := range open {
+				if id, ok := strings.CutPrefix(open[i].Thing, AlertThing); ok {
+					if was, seen := downSince[id]; !seen || open[i].OpenedAt.Before(was) {
+						downSince[id] = open[i].OpenedAt
+					}
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
 	}
 	now := r.now()
 	r.mu.Lock()
@@ -238,15 +289,17 @@ func (r *Runner) Load(ctx context.Context) error {
 			if !r.loaded {
 				next = now.Add(spread(s.id, alert.Every(spec)))
 			}
-			r.checks[s.id] = &tracked{Status: Status{ID: s.id, Name: s.name, Spec: spec, State: dockwellv1.AlertCheckState_ALERT_CHECK_STATE_WAITING}, next: next}
+			t = &tracked{Status: Status{ID: s.id, Name: s.name, Spec: spec}, next: next}
+			t.start(downSince)
+			r.checks[s.id] = t
 		case t.Spec == nil:
 			// It can be read again: it starts again.
 			t.Spec, t.Name, t.Problem = spec, s.name, ""
-			t.State, t.Since, t.Runs, t.fails, t.failing, t.passes = dockwellv1.AlertCheckState_ALERT_CHECK_STATE_WAITING, time.Time{}, nil, 0, time.Time{}, 0
+			t.start(downSince)
 			t.next = now
 		case !proto.Equal(t.Spec, spec):
 			t.Spec, t.Name = spec, s.name
-			t.State, t.Since, t.Runs, t.fails, t.failing, t.passes = dockwellv1.AlertCheckState_ALERT_CHECK_STATE_WAITING, time.Time{}, nil, 0, time.Time{}, 0
+			t.start(downSince)
 			t.next = now
 		default:
 			t.Name, t.Problem = s.name, ""
