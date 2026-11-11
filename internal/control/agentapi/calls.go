@@ -699,6 +699,35 @@ func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error
 	return r.GetDiskUse(), nil
 }
 
+// Ports asks the agent what holds some ports on its server.
+func (s *Session) Ports(ctx context.Context, call *agentv1.PortsCall) (*agentv1.PortsResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Ports{Ports: call}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetPorts() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetPorts(), nil
+}
+
+// ImageTimeout bounds reading an image: the agent's 8 s for a whole read, and
+// room for its answer to come back (ADR 0062).
+const ImageTimeout = 10 * time.Second
+
+// Image asks the agent to read an image from its registry, through the server's
+// network and mirrors.
+func (s *Session) Image(ctx context.Context, call *agentv1.ImageCall) (*agentv1.ImageResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Image{Image: call}}, ImageTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetImage() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetImage(), nil
+}
+
 // Processes asks the agent what runs on its server.
 func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)

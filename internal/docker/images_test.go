@@ -35,3 +35,25 @@ func TestDigestComesFromTheImagesOwnRepository(t *testing.T) {
 		})
 	}
 }
+
+// A registry reached over plain HTTP: one daemon.json names, by its name or its
+// network, or one on the server itself.
+func TestRegistriesReachedOverPlainHTTP(t *testing.T) {
+	r := &docker.RegistryConfig{
+		IndexConfigs: map[string]struct {
+			Secure bool
+		}{"registry.example.com:5000": {Secure: false}, "docker.io": {Secure: true}},
+		InsecureRegistryCIDRs: []string{"10.0.0.0/8", "not a network"},
+	}
+	for host, want := range map[string]bool{
+		"registry.example.com:5000": true, "docker.io": false, "10.1.2.3:5000": true, "10.1.2.3": true,
+		"192.0.2.10:5000": false, "127.0.0.1:5000": true, "localhost:5000": true, "ghcr.io": false,
+	} {
+		if got := r.Insecure(host); got != want {
+			t.Errorf("Insecure(%s) = %v, want %v", host, got, want)
+		}
+	}
+	if !(*docker.RegistryConfig)(nil).Insecure("127.0.0.1") || (*docker.RegistryConfig)(nil).Insecure("10.1.2.3") {
+		t.Errorf("with no config, only the server itself is reached over plain HTTP")
+	}
+}

@@ -729,6 +729,12 @@
   margin: 0;
 }
 
+/* What holds a row's server port, across the row, so its fields stay level. */
+.app-settings-row-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 @media (max-width: 639.98px) {
   .app-settings {
     gap: var(--space-4);
@@ -2513,6 +2519,39 @@
 .app-port-at-where {
   color: var(--ink);
   overflow-wrap: anywhere;
+}
+
+/* A section's ways to add, side by side at its head. */
+.app-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* Where a row's port answers, under the row, as an error would be. */
+.app-row-note {
+  margin-top: calc(-1 * var(--space-1));
+}
+
+/* Advanced's settings: two to a line where there's room. */
+.app-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-4) var(--space-3);
+}
+
+/* Where an app answers, in its header's line: its address, which opens it. */
+.app-head-at {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+.app-head-at:hover code {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* An empty list's ways in: the start page's cards, under its title. */

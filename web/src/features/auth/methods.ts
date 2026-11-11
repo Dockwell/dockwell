@@ -132,6 +132,10 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "HealthService.listHealth": "read",
 
+  "ImageService.getImage": "may",
+  "ImageService.listImageTags": "may",
+  "ImageService.searchImages": "may",
+
   "ImportService.importOnePanel": "may",
 
   "LogService.listLogSources": "read",
@@ -148,6 +152,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.createJoinTicket": "may",
   "ServerService.getJoinTicket": { within: "ServerService.createJoinTicket" },
   "ServerService.getServer": "unused",
+  "ServerService.checkServerPorts": "may",
   "ServerService.getServerDiskUse": "may",
   "ServerService.listServers": "unused",
   "ServerService.setServerPublicAddress": "may",
