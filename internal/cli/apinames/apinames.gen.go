@@ -67,6 +67,7 @@ func Commands() []string {
 		"settings",
 		"ssh",
 		"system",
+		"system-services",
 		"tasks",
 		"terminals",
 		"totp",

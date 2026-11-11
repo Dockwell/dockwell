@@ -46,6 +46,7 @@ var agentPackages = []string{
 	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
 	"internal/agent/sqlitefile", // reading 1Panel's SQLite records, read-only, without SQLite (ADR 0056)
 	"internal/agent/terminal",   // a server's terminals, for a person (ADR 0037)
+	"internal/agent/system",     // a server's system services, read with its init's own tools (ADR 0067)
 	"internal/agent/updates",    // a server's package updates, read with its own package manager (ADR 0043)
 	"internal/resource/host",    // a server's host, which installs its updates in a unit of its own (ADR 0064)
 	"internal/backup",           // taking and restoring backups on this server (ADR 0033)

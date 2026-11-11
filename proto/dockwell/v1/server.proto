@@ -25,6 +25,10 @@ service ServerService {
     help: "The servers Dockwell manages, with their live state as each server's agent reports it. WatchServers has no REST path: REST has no way to stream messages, so a REST client polls ListServers or GetServer instead, and anything that wants the stream opens it with Connect, gRPC or gRPC-Web. See docs/adr/0015-rest-and-openapi-from-the-schema.md."
   };
   option (dockwell.v1.nouns) = {
+    name: "system-services"
+    help: "A server's system services: its systemd units, or its OpenRC services, each with its state, whether it starts at boot and since when. The panel shows them on a server's System services tab, to an admin signed in. No API token reads them, so the CLI, which signs in with one, is refused, and a script runs systemctl over SSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md."
+  };
+  option (dockwell.v1.nouns) = {
     name: "join-tickets"
     help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server."
   };
@@ -147,6 +151,24 @@ service ServerService {
       verb: "get"
     };
     option (google.api.http) = {get: "/v1/joinTickets/{id}"};
+  }
+  // WatchSystemServices streams a server's system services, its systemd units
+  // or its OpenRC services, about every 10 s for as long as it's open: each
+  // with its state, whether it starts at boot, since when, and for one that
+  // runs, its main PID and memory, failed ones first. The panel calls them
+  // system services, as a service is an app's in Dockwell. The agent reads
+  // them only while someone watches, once for every watch of the server, and a
+  // session watches 8 servers' at most. Reading them isn't recorded, as
+  // reading a server isn't. No API token reads them, so the CLI, which signs in
+  // with one, is refused: a person reads them in the panel, and a script runs
+  // systemctl over SSH. It has no REST path, as streams have none.
+  // See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
+  rpc WatchSystemServices(WatchSystemServicesRequest) returns (stream WatchSystemServicesResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
   }
 }
 
@@ -661,4 +683,92 @@ message DiskUsage {
   uint64 used_bytes = 2;
   // Total size, in bytes.
   uint64 size_bytes = 3;
+}
+
+// WatchSystemServicesRequest names a server.
+message WatchSystemServicesRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// WatchSystemServicesResponse is a server's system services, as its agent last
+// read them.
+message WatchSystemServicesResponse {
+  // Its services.
+  SystemServiceList list = 1;
+}
+
+// SystemInit is what starts a server's services.
+enum SystemInit {
+  SYSTEM_INIT_UNSPECIFIED = 0;
+  // systemd: units, read with systemctl.
+  SYSTEM_INIT_SYSTEMD = 1 [(dockwell.v1.word) = "systemd"];
+  // OpenRC, as on Alpine: services, read with rc-status, with no description,
+  // memory or time.
+  SYSTEM_INIT_OPENRC = 2 [(dockwell.v1.word) = "OpenRC"];
+  // Another, such as runit or sysvinit, which Dockwell doesn't read: the list
+  // is empty.
+  SYSTEM_INIT_OTHER = 3 [(dockwell.v1.word) = "Another init"];
+}
+
+// SystemServiceList is a server's system services at one moment.
+message SystemServiceList {
+  // When the agent read them, on the server's clock.
+  google.protobuf.Timestamp time = 1;
+  // What starts them.
+  SystemInit init = 2;
+  // Each service, failed ones first, then running ones, then the rest, each
+  // by name.
+  repeated SystemServiceInfo services = 3;
+}
+
+// SystemServiceState is how a system service stands.
+enum SystemServiceState {
+  SYSTEM_SERVICE_STATE_UNSPECIFIED = 0;
+  // It runs.
+  SYSTEM_SERVICE_STATE_RUNNING = 1 [(dockwell.v1.word) = "Running"];
+  // It ran and ended well, as a one-shot unit does.
+  SYSTEM_SERVICE_STATE_EXITED = 2 [(dockwell.v1.word) = "Exited"];
+  // It ended badly, or couldn't start.
+  SYSTEM_SERVICE_STATE_FAILED = 3 [(dockwell.v1.word) = "Failed"];
+  // It doesn't run.
+  SYSTEM_SERVICE_STATE_INACTIVE = 4 [(dockwell.v1.word) = "Inactive"];
+  // It's starting, or about to restart.
+  SYSTEM_SERVICE_STATE_STARTING = 5 [(dockwell.v1.word) = "Starting"];
+  // It's stopping.
+  SYSTEM_SERVICE_STATE_STOPPING = 6 [(dockwell.v1.word) = "Stopping"];
+}
+
+// SystemServiceInfo is one of a server's system services: a systemd unit of the
+// service or socket type, or an OpenRC service.
+message SystemServiceInfo {
+  // Its name, such as "nginx.service", or an OpenRC service's, such as "sshd".
+  string name = 1;
+  // What it says it is, such as "A high performance web server". Empty under
+  // OpenRC.
+  string description = 2;
+  // How it stands.
+  SystemServiceState state = 3;
+  // How it stands in systemd's own word, such as "running", "dead",
+  // "auto-restart" or "exited"; OpenRC's state, such as "started" or "crashed".
+  string detail = 4;
+  // Whether it starts at boot: systemd's word, such as "enabled", "disabled",
+  // "static" or "masked"; under OpenRC, the runlevel it's in, such as
+  // "default", or empty for none.
+  string at_boot = 5;
+  // Since when it stands so. Unset under OpenRC.
+  google.protobuf.Timestamp since = 6;
+  // Its main process, while it runs. 0 when it has none.
+  uint32 main_pid = 7;
+  // What it holds in memory, in bytes, while it runs. Unset when the unit
+  // keeps no memory accounting, and under OpenRC.
+  optional uint64 memory_bytes = 8;
+  // Why a failed one failed, in systemd's word, such as "exit-code",
+  // "signal", "timeout" or "start-limit-hit". Empty otherwise.
+  string result = 9;
+  // How its main process last ended: its exit status, or its signal's number.
+  int32 exit_status = 10;
+  // True for what Dockwell needs to run on the server: its agent and the access
+  // that guards it, Docker and containerd, and the SSH server.
+  bool needed = 11;
 }

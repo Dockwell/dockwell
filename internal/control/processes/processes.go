@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -25,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/feeds"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -73,23 +73,9 @@ type Handler struct {
 	logger *slog.Logger
 	now    func() time.Time
 
-	// mu guards feeds, one for each server someone watches, which every watch of
-	// that server shares, so its agent reads /proc once however many look; and
-	// watching, how many watches each session has open.
-	mu       sync.Mutex
-	feeds    map[string]*feed
-	watching map[string]int
-}
-
-// feed reads one server's processes for every watch of it, while there's one.
-type feed struct {
-	// mu guards what's below: the latest list, or why there's none, and the watches,
-	// each told when there's something new.
-	mu       sync.Mutex
-	last     *dockwellv1.ProcessList
-	err      error
-	watchers map[chan struct{}]struct{}
-	stop     context.CancelFunc
+	// feeds hold a feed for each server someone watches, which every watch of
+	// that server shares, so its agent reads /proc once however many look.
+	feeds *feeds.Hub[dockwellv1.ProcessList]
 }
 
 var _ dockwellv1connect.ProcessServiceHandler = (*Handler)(nil)
@@ -97,7 +83,7 @@ var _ dockwellv1connect.ProcessServiceHandler = (*Handler)(nil)
 // New returns a handler that reaches servers through agents. people checks the
 // passkey ending a process takes.
 func New(hub *fleet.Hub, agents *agentapi.Agents, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
-	return &Handler{fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now, feeds: map[string]*feed{}, watching: map[string]int{}}
+	return &Handler{fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now, feeds: &feeds.Hub[dockwellv1.ProcessList]{Max: MaxWatchesPerSession}}
 }
 
 // Detail is what an event of a process keeps, as EventProcess says it.
@@ -162,62 +148,22 @@ func (h *Handler) WatchProcesses(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return err
 	}
-	session := p.Session.ID
-	h.mu.Lock()
-	if h.watching[session] >= MaxWatchesPerSession {
-		h.mu.Unlock()
+	w, ok := h.feeds.Join(ctx, p.Session.ID, srv.GetId(), func(read context.Context, f *feeds.Feed[dockwellv1.ProcessList]) {
+		h.read(read, srv, f)
+	})
+	if !ok {
 		return authapi.ReasonError(connect.CodeResourceExhausted, fmt.Errorf(
 			"this browser already watches %d process lists, the most one session may. Close a tab that shows processes, then look again", MaxWatchesPerSession), "too_many_watches")
 	}
-	h.watching[session]++
-	f, ok := h.feeds[srv.GetId()]
-	if !ok {
-		read, stop := context.WithCancel(context.WithoutCancel(ctx))
-		f = &feed{watchers: map[chan struct{}]struct{}{}, stop: stop}
-		h.feeds[srv.GetId()] = f
-		go h.read(read, srv, f)
-	}
-	h.mu.Unlock()
-	told := make(chan struct{}, 1)
-	f.mu.Lock()
-	f.watchers[told] = struct{}{}
-	if f.last != nil || f.err != nil {
-		told <- struct{}{}
-	}
-	f.mu.Unlock()
-	defer func() {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		h.watching[session]--
-		if h.watching[session] == 0 {
-			delete(h.watching, session)
-		}
-		f.mu.Lock()
-		delete(f.watchers, told)
-		last := len(f.watchers) == 0
-		f.mu.Unlock()
-		if last && h.feeds[srv.GetId()] == f {
-			delete(h.feeds, srv.GetId())
-			f.stop()
-		}
-	}()
-	var sent *dockwellv1.ProcessList
+	defer w.Leave()
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-told:
-		}
-		f.mu.Lock()
-		list, err := f.last, f.err
-		f.mu.Unlock()
+		list, err := w.Next(ctx)
 		if err != nil {
 			return err
 		}
-		if list == nil || list == sent {
-			continue
+		if list == nil {
+			return nil
 		}
-		sent = list
 		if err := stream.Send(&dockwellv1.WatchProcessesResponse{Processes: list}); err != nil {
 			return err
 		}
@@ -226,18 +172,7 @@ func (h *Handler) WatchProcesses(ctx context.Context, req *connect.Request[dockw
 
 // read reads srv's processes for f until ctx is done, which it is once nobody
 // watches, or a read fails, which every watch then hears.
-func (h *Handler) read(ctx context.Context, srv *dockwellv1.Server, f *feed) {
-	tell := func(list *dockwellv1.ProcessList, err error) {
-		f.mu.Lock()
-		defer f.mu.Unlock()
-		f.last, f.err = list, err
-		for w := range f.watchers {
-			select {
-			case w <- struct{}{}:
-			default:
-			}
-		}
-	}
+func (h *Handler) read(ctx context.Context, srv *dockwellv1.Server, f *feeds.Feed[dockwellv1.ProcessList]) {
 	wait := time.Duration(0)
 	for {
 		select {
@@ -247,8 +182,8 @@ func (h *Handler) read(ctx context.Context, srv *dockwellv1.Server, f *feed) {
 		}
 		session, err := h.session(ctx, srv)
 		if err != nil {
-			tell(nil, err)
-			h.drop(srv.GetId(), f)
+			f.Tell(nil, err)
+			h.feeds.Drop(srv.GetId(), f)
 			return
 		}
 		read, cancel := context.WithTimeout(ctx, readWait)
@@ -259,31 +194,21 @@ func (h *Handler) read(ctx context.Context, srv *dockwellv1.Server, f *feed) {
 			return
 		case errors.Is(err, agentapi.ErrOlderAgent):
 			err = authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
-				"%s's agent is older than the control plane, and can't list its processes. Update the agent on %s, then look again", srv.GetName(), srv.GetName()), "agent_outdated")
+				"%s's agent is older than the control plane, and can't list processes. Update its agent, then look again", srv.GetName()), authapi.ReasonAgentOutdated)
 		case err != nil:
 			err = authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't list its processes now: %w", srv.GetName(), plain(err)), authapi.ReasonUnavailable)
 		}
 		if err != nil {
-			tell(nil, err)
-			h.drop(srv.GetId(), f)
+			f.Tell(nil, err)
+			h.feeds.Drop(srv.GetId(), f)
 			return
 		}
-		tell(list, nil)
+		f.Tell(list, nil)
 		wait = Every
 		if list.GetCpuWindow() == nil {
 			wait = time.Second
 		}
 	}
-}
-
-// drop forgets a feed that failed, so the next watch of its server starts anew.
-func (h *Handler) drop(server string, f *feed) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.feeds[server] == f {
-		delete(h.feeds, server)
-	}
-	f.stop()
 }
 
 // EndProcess ends a process on a server, once a passkey says so just now.

@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/feeds"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -34,6 +35,10 @@ type Service struct {
 	// ident makes join tickets, each confirmed with a passkey people checks.
 	ident  *identity.Authority
 	people *auth.Service
+	// systemFeeds read the system services of each server someone watches,
+	// every systemEvery, once for every watch of it.
+	systemFeeds *feeds.Hub[dockwellv1.SystemServiceList]
+	systemEvery time.Duration
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
@@ -45,7 +50,10 @@ var HeartbeatEvery = 10 * time.Second
 // address from db, and asks servers what only they can say through agents. Nil
 // agents asks nothing.
 func New(hub *fleet.Hub, db *store.DB, agents *agentapi.Agents) *Service {
-	return &Service{fleet: hub, db: db, agents: agents}
+	return &Service{
+		fleet: hub, db: db, agents: agents,
+		systemFeeds: &feeds.Hub[dockwellv1.SystemServiceList]{Max: MaxSystemWatchesPerSession}, systemEvery: SystemEvery,
+	}
 }
 
 // ListServers returns every server.

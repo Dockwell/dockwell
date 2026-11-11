@@ -1,0 +1,12 @@
+apparmor.service                       enabled         enabled
+apt-daily.service                      static          -
+containerd.service                     enabled         enabled
+cron.service                           enabled         enabled
+docker.service                         enabled         enabled
+dockwell.service                       enabled         enabled
+getty@.service                         enabled         enabled
+nginx.service                          enabled         enabled
+redis-server.service                   disabled        enabled
+ssh.service                            disabled        enabled
+systemd-journald.service               static          -
+ufw.service                            enabled         enabled

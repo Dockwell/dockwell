@@ -170,6 +170,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.listServers": "unused",
   "ServerService.setServerPublicAddress": "may",
   "ServerService.watchServers": "read",
+  "ServerService.watchSystemServices": "may",
 
   "ServiceService.addServicePort": "may",
   "ServiceService.changeServiceRuntime": "may",

@@ -125,6 +125,7 @@ ServerService.GetServerDiskUse                 read         admin      admin    
 ServerService.ListServers                      read         viewer     viewer     named
 ServerService.SetServerPublicAddress           apply        admin      admin      install
 ServerService.WatchServers                     read         viewer     viewer     named
+ServerService.WatchSystemServices              read         admin      admin      install  session
 ServiceService.AddServicePort                  plan         developer  developer  project
 ServiceService.ChangeServiceRuntime            plan         developer  developer  project
 ServiceService.DeployService                   plan         developer  developer  project

@@ -5166,6 +5166,7 @@ msgid "On each server's own disk, unencrypted, so they go if the server does"
 msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它们也就没了"
 
 #. placeholder {0}: b.destination
+#. placeholder {0}: server.name
 msgid "On {0}"
 msgstr "在 {0} 上"
 
@@ -9880,6 +9881,13 @@ msgstr "{joinedName} 已加入，正在启动代理"
 msgid "{minutes} min"
 msgstr "{minutes} 分钟"
 
+msgid "Update its agent"
+msgstr "更新它的代理"
+
+#. placeholder {0}: server.name
+msgid "{0}'s agent is outdated"
+msgstr "{0} 的代理已过时"
+
 msgid "Back to the server"
 msgstr "返回服务器"
 
@@ -10768,6 +10776,9 @@ msgstr "按名称、PID 或用户筛选"
 msgid "Filter processes"
 msgstr "筛选进程"
 
+msgid "It's older than the control plane, so it can't list processes."
+msgstr "它比控制平面旧，因此无法列出进程。"
+
 msgid "Load average <0>{load}</0>"
 msgstr "平均负载 <0>{load}</0>"
 
@@ -10978,6 +10989,9 @@ msgstr "运行控制平面"
 #. placeholder {0}: server.name
 msgid "Server {0}"
 msgstr "服务器 {0}"
+
+msgid "System services"
+msgstr "系统服务"
 
 msgid "Updates"
 msgstr "更新"
@@ -11205,6 +11219,93 @@ msgstr "即服务商控制台显示的地址。之后所有关于 DNS 的提示�
 msgid "What the internet knows this server by"
 msgstr "互联网识别此服务器所用的地址"
 
+msgctxt "system services"
+msgid "All"
+msgstr "全部"
+
+msgid "At boot"
+msgstr "开机启动"
+
+msgid "Dockwell needs it"
+msgstr "Dockwell 依赖它"
+
+msgctxt "at boot"
+msgid "Doesn't start"
+msgstr "不启动"
+
+msgctxt "system services"
+msgid "Failed"
+msgstr "失败"
+
+msgid "Filter by name or description"
+msgstr "按名称或描述筛选"
+
+msgid "Filter system services"
+msgstr "筛选系统服务"
+
+msgid "Init state"
+msgstr "init 状态"
+
+msgid "It's older than the control plane, so it can't list system services."
+msgstr "它比控制平面旧，因此无法列出系统服务。"
+
+msgid "Main process"
+msgstr "主进程"
+
+msgctxt "at boot"
+msgid "Masked"
+msgstr "已屏蔽"
+
+#. placeholder {0}: server.name
+msgid "Needs it on {0}"
+msgstr "{0} 上需要它"
+
+msgid "No system service matches."
+msgstr "没有匹配的系统服务。"
+
+msgid "Not started at boot"
+msgstr "不随开机启动"
+
+#. placeholder {0}: server.name
+msgid "Nothing has failed on {0}."
+msgstr "{0} 上没有失败的服务。"
+
+msgctxt "system services"
+msgid "Running"
+msgstr "正在运行"
+
+msgctxt "at boot"
+msgid "Starts"
+msgstr "启动"
+
+#. placeholder {0}: server.name
+msgid "System services on {0}"
+msgstr "{0} 上的系统服务"
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
+msgstr "{0} 上的代理未连接，所以现在无法读取它的系统服务。代理重新连接后，此页面会再次读取。"
+
+msgctxt "at boot"
+msgid "When needed"
+msgstr "按需启动"
+
+msgid "every 10 s"
+msgstr "每 10 秒"
+
+#. placeholder {0}: server.name
+msgid "{0} lists no system services here."
+msgstr "{0} 在这里没有列出系统服务。"
+
+#. placeholder {0}: server.name
+msgid "{0} starts its services with an init Dockwell doesn't read. It reads systemd's and OpenRC's."
+msgstr "{0} 使用 Dockwell 无法读取的 init 系统启动服务。Dockwell 读取 systemd 和 OpenRC 的服务。"
+
+#. placeholder {0}: s.result
+#. placeholder {1}: s.exitStatus
+msgid "{0}, status {1}"
+msgstr "{0}，状态 {1}"
+
 msgid "Being removed"
 msgstr "正在移除"
 
@@ -11297,6 +11398,34 @@ msgstr "{provider} 的元数据服务给出此地址，{when}"
 
 msgid "up {uptime}"
 msgstr "已运行 {uptime}"
+
+msgctxt "system service state"
+msgid "Exited"
+msgstr "已退出"
+
+msgctxt "system service state"
+msgid "Failed"
+msgstr "失败"
+
+msgctxt "system service state"
+msgid "Inactive"
+msgstr "未运行"
+
+msgctxt "system service state"
+msgid "Running"
+msgstr "正在运行"
+
+msgctxt "system service state"
+msgid "Starting"
+msgstr "正在启动"
+
+msgctxt "system service state"
+msgid "Stopping"
+msgstr "正在停止"
+
+msgctxt "system service state"
+msgid "Unknown"
+msgstr "未知"
 
 msgid "Last reported {seen}"
 msgstr "最后上报于 {seen}"
