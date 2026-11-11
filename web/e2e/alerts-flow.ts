@@ -98,7 +98,11 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await page.getByRole("link", { name: /Rules/ }).click();
     const rules = page.getByRole("table", { name: "Alert rules" });
     await rules.getByRole("row", { name: /server\.connected == false/ }).waitFor();
-    if ((await rules.getByRole("row").count()) !== 11) fail("Rules doesn't list the ten rules an install starts with");
+    // A header and the twelve rules an install starts with, the restore checks' two among them (ADR 0068).
+    await rules.getByRole("row", { name: /backup\.drill == failed/ }).waitFor();
+    await rules.getByRole("row", { name: /backup\.drill\.passed > 2 periods ago/ }).waitFor();
+    if ((await rules.getByRole("row").count()) !== 13)
+      fail("Rules doesn't list the twelve rules an install starts with");
     if ((await rules.getByRole("row", { name: /check\.state == down/ }).count()) !== 1)
       fail("Rules doesn't list Address down, which tells the channels when a watched address stops answering");
 

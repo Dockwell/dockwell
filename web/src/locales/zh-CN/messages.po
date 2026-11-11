@@ -627,6 +627,12 @@ msgstr "某人"
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "无法从 {destination} 取回 {volume} 的备份"
 
+msgid "A backup of {volume} didn't restore in its check"
+msgstr "{volume} 的一个备份在检查中未能恢复"
+
+msgid "A backup of {volume} wasn't checked"
+msgstr "{volume} 的一个备份未能检查"
+
 msgid "A change failed: {subject}"
 msgstr "变更失败：{subject}"
 
@@ -701,6 +707,9 @@ msgstr "请求运行 {task}"
 
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
+
+msgid "Checked that a backup of {volume} restores"
+msgstr "已检查 {volume} 的一个备份可以恢复"
 
 msgid "Claimed this install"
 msgstr "认领了这个安装"
@@ -848,6 +857,9 @@ msgstr "将此安装命名为 {value}"
 msgid "Named this install {value}, which was {previous}"
 msgstr "将这个安装命名为 {value}（原为 {previous}）"
 
+msgid "No restore check of {subject} has passed lately"
+msgstr "{subject} 最近没有通过的恢复检查"
+
 msgid "Not running"
 msgstr "没有运行"
 
@@ -983,6 +995,9 @@ msgstr "{volume} 的备份失败了"
 
 msgid "The health of {name} changed on {server}"
 msgstr "{name} 在 {server} 上的健康状态发生了变化"
+
+msgid "The newest checked backup of {subject} doesn't restore"
+msgstr "{subject} 最新检查过的备份无法恢复"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "已撤回对告警的确认：{title}"
@@ -4887,6 +4902,19 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
 
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "现在无法检查：{0}"
+
+msgid "Check it restores"
+msgstr "检查能否恢复"
+
+msgid "Check weekly"
+msgstr "每周检查"
+
+msgid "Checking it restores"
+msgstr "正在检查能否恢复"
+
 msgid "Delete from both"
 msgstr "从两处都删除"
 
@@ -4931,6 +4959,9 @@ msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不
 msgid "No backups yet"
 msgstr "还没有备份"
 
+msgid "Not checked: {why}"
+msgstr "未检查：{why}"
+
 msgid "Nothing to back up yet"
 msgstr "还没有可备份的内容"
 
@@ -4955,6 +4986,12 @@ msgstr "仅从服务器移除"
 
 msgid "Restore"
 msgstr "恢复"
+
+msgid "Restore check failed {ago}: {why}"
+msgstr "恢复检查失败（{ago}）：{why}"
+
+msgid "Restored and checked {ago}"
+msgstr "已恢复并检查（{ago}）"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "使用较早的密码短语加密"
@@ -4988,9 +5025,20 @@ msgstr "这会将它从 {destination} 删除，那里是它最后所在的位置
 msgid "To fetch it, put {0} on a connected server first"
 msgstr "要取回它，请先将 {0} 部署到已连接的服务器上"
 
+msgid "Unpacked whole {ago}"
+msgstr "已完整解包（{ago}）"
+
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgstr "{0, plural, other {# 个计划从不检查恢复}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, other {每周检查 # 个计划的备份能否恢复}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
@@ -5147,6 +5195,15 @@ msgstr "停止将备份发送到 {0}"
 msgid "{0} backups, {1}"
 msgstr "{0} 份备份，{1}"
 
+msgid "Checks a restore monthly"
+msgstr "每月检查恢复"
+
+msgid "Checks a restore weekly"
+msgstr "每周检查恢复"
+
+msgid "Doesn't check a restore"
+msgstr "不检查恢复"
+
 msgid "Hasn't run yet"
 msgstr "尚未运行"
 
@@ -5197,6 +5254,12 @@ msgstr "按计划备份 {0}"
 msgid "Backups to keep"
 msgstr "保留的备份数"
 
+msgid "Check monthly"
+msgstr "每月检查"
+
+msgid "Check that it restores"
+msgstr "检查能否恢复"
+
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
 
@@ -5219,6 +5282,16 @@ msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。�
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
+
+msgid "Never check"
+msgstr "从不检查"
+
+msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，最长 6 小时。"
+
+#. placeholder {0}: formatBytes(each, i18n.locale)
+msgid "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
+msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，约 {0}，最长 6 小时。"
 
 msgid "Stop {running} for each backup"
 msgstr "每次备份时停止 {running}"

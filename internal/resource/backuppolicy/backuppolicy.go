@@ -141,6 +141,63 @@ func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {
 	return next
 }
 
+// DefaultNew has a policy that's new check a restore weekly unless it says
+// otherwise (ADR 0068). One made before drills stays as it is: an edit of it keeps
+// what it has, and unset reads as never.
+func (Type) DefaultNew(_ resource.Ref, spec proto.Message) {
+	p := spec.(*resourcev1.BackupPolicy)
+	if p.GetDrill() == resourcev1.BackupPolicy_DRILL_UNSPECIFIED {
+		p.Drill = resourcev1.BackupPolicy_DRILL_WEEKLY
+	}
+}
+
+// Drills says a policy checks a restore.
+func Drills(p *resourcev1.BackupPolicy) bool {
+	return p.GetDrill() == resourcev1.BackupPolicy_DRILL_WEEKLY || p.GetDrill() == resourcev1.BackupPolicy_DRILL_MONTHLY
+}
+
+// DrillAfter is how long after its backup's time a policy's drill falls due, so the
+// backup it checks has had its run.
+const DrillAfter = time.Hour
+
+// NextDrill is the first time a policy's restore drill falls due after a moment: an
+// hour after its own time on its weekday, Sunday for a daily or hourly policy, for a
+// weekly drill; an hour after the month's first run for a monthly one. Zero for a
+// policy that doesn't drill.
+func NextDrill(p *resourcev1.BackupPolicy, after time.Time) time.Time {
+	switch p.GetDrill() {
+	case resourcev1.BackupPolicy_DRILL_WEEKLY:
+		weekly := proto.CloneOf(p)
+		if weekly.GetEvery() != resourcev1.BackupPolicy_EVERY_WEEK {
+			weekly.Every, weekly.Weekday = resourcev1.BackupPolicy_EVERY_WEEK, 0
+		}
+		return Next(weekly, after.Add(-DrillAfter)).Add(DrillAfter)
+	case resourcev1.BackupPolicy_DRILL_MONTHLY:
+		zone, err := time.LoadLocation(p.GetTimeZone())
+		if err != nil {
+			zone = time.UTC
+		}
+		t := after.In(zone)
+		for month := range 2 {
+			start := time.Date(t.Year(), t.Month()+time.Month(month), 1, 0, 0, 0, 0, zone)
+			if due := Next(p, start.Add(-time.Nanosecond)).Add(DrillAfter); due.After(after) {
+				return due
+			}
+		}
+		return Next(p, time.Date(t.Year(), t.Month()+2, 1, 0, 0, 0, 0, zone).Add(-time.Nanosecond)).Add(DrillAfter)
+	case resourcev1.BackupPolicy_DRILL_UNSPECIFIED, resourcev1.BackupPolicy_DRILL_NEVER:
+	}
+	return time.Time{}
+}
+
+// DrillPeriod is about how long a policy's drills are apart, for whether one is late.
+func DrillPeriod(p *resourcev1.BackupPolicy) time.Duration {
+	if p.GetDrill() == resourcev1.BackupPolicy_DRILL_MONTHLY {
+		return 31 * 24 * time.Hour
+	}
+	return 7 * 24 * time.Hour
+}
+
 // DestinationKind is the backup destination kind.
 const DestinationKind resource.Kind = "backup.destination"
 

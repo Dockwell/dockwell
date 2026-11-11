@@ -97,7 +97,9 @@ func (r *Runner) estimate(ctx context.Context, take Take, t volume.Target) (size
 // margin is how far a backup may outgrow the last, as data does.
 const margin = 5 // a fifth
 
-// roomFor refuses a backup the disk has no room for, before anything stops for it.
+// roomFor refuses a backup the disk has no room for, before anything stops for it. A
+// restore drill's room counts as taken, and a backup that needs it stops the drill,
+// as backups win (ADR 0068).
 func (r *Runner) roomFor(ctx context.Context, take Take, t volume.Target) error {
 	d, err := r.disk()
 	if err != nil {
@@ -105,6 +107,12 @@ func (r *Runner) roomFor(ctx context.Context, take Take, t volume.Target) error 
 	}
 	size, _ := r.estimate(ctx, take, t)
 	needs := size + size/margin
+	if held := r.drillHeld(d.filesystem); held > 0 && d.free-needs-held < d.reserve {
+		r.yieldDrill(d.filesystem)
+		if d, err = r.disk(); err != nil {
+			return err
+		}
+	}
 	if d.free-needs >= d.reserve {
 		return nil
 	}
@@ -140,6 +148,8 @@ func tooFull(d disk, needs int64) error {
 // ahead, and writing the copy watches the disk as a backup does. It says nothing was
 // stopped only when began says that's so.
 func (r *Runner) roomToRestore(ctx context.Context, ref resource.Ref, t volume.Target, m *Manifest, began bool) error {
+	// A restore needs its disks more than a restore drill does (ADR 0068).
+	r.yieldDrill("")
 	refused := func(fact, fix string) error {
 		if began {
 			return fmt.Errorf("%s. %s", fact, fix)

@@ -53,8 +53,18 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await row.getByText("PostgreSQL dump").waitFor();
   await shoot(page, "backups-list");
 
+  step("backups: Check it restores runs a drill of its own, and its row says how that went");
+  await row.getByRole("button", { name: "Check it restores" }).click();
+  // The fake engine's PostgreSQL answers whatever it's asked, so any end will do: what
+  // a drill checks is internal/backup's tests' to say.
+  await row
+    .getByText(/^(Restored and checked|Unpacked whole|Restore check failed|Not checked)/)
+    .waitFor({ timeout: 60_000 });
+  await row.getByRole("button", { name: "Check again" }).waitFor();
+  await shoot(page, "backups-drilled");
+
   step("backups: a restore is a plan, which says what it replaces and what stops, and takes a confirmation");
-  await row.getByRole("button", { name: "Restore" }).click();
+  await row.getByRole("button", { name: "Restore", exact: true }).click();
   const plan = page.locator(".plan-sheet");
   const risk = plan.locator(".plan-risk");
   await risk.getByText(/is replaced with the dump from/).waitFor({ timeout: 30_000 });

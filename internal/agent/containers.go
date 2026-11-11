@@ -52,8 +52,12 @@ func containers(ctx context.Context, client *docker.Client, call *agentv1.Contai
 			out.Ingress++
 			return nil
 		}
-		// A helper lives for one backup or restore, and is nobody's to look at.
+		// A helper lives for one backup or restore, and a drill's database for one
+		// check of a backup: nobody's to look at.
 		if _, ok := s.Labels[docker.LabelVolumeTool]; ok {
+			return nil
+		}
+		if _, ok := s.Labels[docker.LabelDrill]; ok {
 			return nil
 		}
 		c := serverContainer(s)

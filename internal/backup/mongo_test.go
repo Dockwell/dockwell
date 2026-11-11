@@ -272,3 +272,21 @@ func TestAMembersSetIsOnItsCommandLine(t *testing.T) {
 		t.Error("one that runs alone is a member")
 	}
 }
+
+// A drill checks PostgreSQL and MySQL so far, so a MongoDB backup isn't checked,
+// rather than read as one that didn't restore.
+func TestAMongoDBBackupIsNotCheckedByADrill(t *testing.T) {
+	b := newBench(t)
+	b.runner.DrillDisk = func() drillDisk { return drillDisk{free: 100 << 30, size: 200 << 30, filesystem: "docker"} }
+	b.runner.DrillMemory = func() (int64, bool) { return 8 << 30, true }
+	m := &mongo{}
+	b.engine.AddLocalImage("mongo:8.0", dockertest.Image{Exec: m.exec, Config: docker.Config{Cmd: []string{"mongod"}}})
+	b.write("data.archive", string(archiveOf(shop)))
+	b.run("db", "mongo:8.0", "/data/db")
+	taken := b.take(false)
+	got := b.runner.Drill(t.Context(), Drill{ID: "drl_01mongo", Backup: taken.ID, Ref: ref})
+	if got.Outcome != DrillNotChecked || !strings.Contains(got.Why, "restore checks cover PostgreSQL and MySQL so far, so this MongoDB backup wasn't checked") {
+		t.Fatalf("the drill of a MongoDB backup = %+v", got)
+	}
+	b.nothingLeft()
+}

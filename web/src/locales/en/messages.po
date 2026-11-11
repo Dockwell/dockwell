@@ -627,6 +627,12 @@ msgstr "Someone"
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
 
+msgid "A backup of {volume} didn't restore in its check"
+msgstr "A backup of {volume} didn't restore in its check"
+
+msgid "A backup of {volume} wasn't checked"
+msgstr "A backup of {volume} wasn't checked"
+
 msgid "A change failed: {subject}"
 msgstr "A change failed: {subject}"
 
@@ -701,6 +707,9 @@ msgstr "Asked to run {task}"
 
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
+
+msgid "Checked that a backup of {volume} restores"
+msgstr "Checked that a backup of {volume} restores"
 
 msgid "Claimed this install"
 msgstr "Claimed this install"
@@ -848,6 +857,9 @@ msgstr "Named this install {value}"
 msgid "Named this install {value}, which was {previous}"
 msgstr "Named this install {value}, which was {previous}"
 
+msgid "No restore check of {subject} has passed lately"
+msgstr "No restore check of {subject} has passed lately"
+
 msgid "Not running"
 msgstr "Not running"
 
@@ -983,6 +995,9 @@ msgstr "The backup of {volume} failed"
 
 msgid "The health of {name} changed on {server}"
 msgstr "The health of {name} changed on {server}"
+
+msgid "The newest checked backup of {subject} doesn't restore"
+msgstr "The newest checked backup of {subject} doesn't restore"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "Took back the acknowledgement of the alert: {title}"
@@ -4887,6 +4902,19 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 msgid "Backups, newest first"
 msgstr "Backups, newest first"
 
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "Can't check it now: {0}"
+
+msgid "Check it restores"
+msgstr "Check it restores"
+
+msgid "Check weekly"
+msgstr "Check weekly"
+
+msgid "Checking it restores"
+msgstr "Checking it restores"
+
 msgid "Delete from both"
 msgstr "Delete from both"
 
@@ -4931,6 +4959,9 @@ msgstr "Its server can't restore this now: it's away, or no longer has the volum
 msgid "No backups yet"
 msgstr "No backups yet"
 
+msgid "Not checked: {why}"
+msgstr "Not checked: {why}"
+
 msgid "Nothing to back up yet"
 msgstr "Nothing to back up yet"
 
@@ -4955,6 +4986,12 @@ msgstr "Remove from the server only"
 
 msgid "Restore"
 msgstr "Restore"
+
+msgid "Restore check failed {ago}: {why}"
+msgstr "Restore check failed {ago}: {why}"
+
+msgid "Restored and checked {ago}"
+msgstr "Restored and checked {ago}"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "Sealed with an earlier passphrase"
@@ -4988,9 +5025,20 @@ msgstr "This removes it from {destination}, the last place that has it. Nothing 
 msgid "To fetch it, put {0} on a connected server first"
 msgstr "To fetch it, put {0} on a connected server first"
 
+msgid "Unpacked whole {ago}"
+msgstr "Unpacked whole {ago}"
+
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgstr "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
@@ -5147,6 +5195,15 @@ msgstr "Stop sending backups to {0}"
 msgid "{0} backups, {1}"
 msgstr "{0} backups, {1}"
 
+msgid "Checks a restore monthly"
+msgstr "Checks a restore monthly"
+
+msgid "Checks a restore weekly"
+msgstr "Checks a restore weekly"
+
+msgid "Doesn't check a restore"
+msgstr "Doesn't check a restore"
+
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
 
@@ -5197,6 +5254,12 @@ msgstr "Back up {0} on a schedule"
 msgid "Backups to keep"
 msgstr "Backups to keep"
 
+msgid "Check monthly"
+msgstr "Check monthly"
+
+msgid "Check that it restores"
+msgstr "Check that it restores"
+
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
 
@@ -5219,6 +5282,16 @@ msgstr "Keeping {count} takes about {0} while the next is taken; the disk has {1
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "Minutes past the hour, as 00:MM"
+
+msgid "Never check"
+msgstr "Never check"
+
+msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+msgstr "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+
+#. placeholder {0}: formatBytes(each, i18n.locale)
+msgid "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
+msgstr "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
 
 msgid "Stop {running} for each backup"
 msgstr "Stop {running} for each backup"

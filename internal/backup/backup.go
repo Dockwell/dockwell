@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/volumetool"
 )
 
 // KeepFor is how long a server keeps what a restore replaced, as it keeps what
@@ -81,6 +82,10 @@ type Manifest struct {
 	// Unpacked is how large it is once it's out of its file, for a restore to know
 	// it fits.
 	Unpacked int64 `json:"unpacked,omitempty"`
+	// Files counts what a copy holds, directories and links among them, which a
+	// restore drill unpacks again (ADR 0068). Zero for a dump, and for a copy taken
+	// before it was kept.
+	Files int64 `json:"files,omitempty"`
 	// Reached is what its volume reached when it was taken that's as good as root.
 	// A backup is tied to a volume by name alone, so what it holds can come back into
 	// another of that name, and this is what says what it may hold.
@@ -117,6 +122,13 @@ type Runner struct {
 	// running are the runs under way that stopped something, which isn't for
 	// Recover to start.
 	running map[string]bool
+	// drilling is the restore drill under way, one at a time (ADR 0068).
+	drilling *drillRun
+
+	// DrillDisk stands in for the disk a drill restores to, and DrillMemory for the
+	// server's free memory, for a test.
+	DrillDisk   func() drillDisk
+	DrillMemory DrillMemory
 }
 
 func (r *Runner) now() time.Time {
@@ -333,7 +345,12 @@ func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, use
 		}
 		// As soon as the copy ends: reading it back holds up nothing.
 		return stats.Changed, errors.Join(err, startAgain())
-	}, verifyArchive)
+	}, func(r io.Reader) error {
+		// What the read-back counts is what an unpack counts, which a drill checks.
+		read, err := volumetool.Verify(r)
+		m.Files = read.Files
+		return err
+	})
 }
 
 // verifier reads a backup back, and says whether it's whole.
@@ -658,12 +675,13 @@ func (c stayedDown) why() string { return fmt.Sprintf("can't start %s: %v", c.na
 func (r *Runner) Recover(ctx context.Context) error {
 	// Docker may only just be back, with a run started in the time that took.
 	r.mu.Lock()
-	idle := len(r.working) == 0
+	idle := len(r.working) == 0 && r.drilling == nil
 	r.mu.Unlock()
 	if idle {
 		if err := r.clearLeftovers(ctx); err != nil {
 			return err
 		}
+		r.sweepDrills(ctx, "")
 	}
 	r.mu.Lock()
 	list, err := r.readStopped()
@@ -797,6 +815,7 @@ func (r *Runner) keepPruned(ctx context.Context) {
 		if err := r.Prune(); err != nil && ctx.Err() == nil {
 			r.logger().Warn("can't remove what restores replaced; the agent tries again in an hour", slog.String("error", err.Error()))
 		}
+		r.sweepIdle(ctx)
 		select {
 		case <-ctx.Done():
 			return
