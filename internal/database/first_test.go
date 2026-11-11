@@ -237,10 +237,20 @@ func TestPuttingAPasswordBackGivesUpWithItsTime(t *testing.T) {
 	db.mu.Lock()
 	db.starting = 1 << 30
 	db.mu.Unlock()
-	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	// Its time is long enough for a first try to finish on a loaded machine, which
+	// a deadline that cut it would leave saying only that a call ran long.
+	const given = 2 * time.Second
+	ctx, cancel := context.WithTimeout(t.Context(), given)
 	defer cancel()
-	if err := undo(ctx); err == nil || !strings.Contains(err.Error(), "MariaDB isn't taking connections yet") {
+	began := time.Now()
+	err = undo(ctx)
+	// It says what it waited on, or, when a try was still out as its time ran out,
+	// that its time did, and never a time that wasn't its limit.
+	if err == nil || !strings.Contains(err.Error(), "MariaDB isn't taking connections yet") && !strings.Contains(err.Error(), "MariaDB didn't answer in the time it had") {
 		t.Fatalf("undo of a database that never starts = %v", err)
+	}
+	if took := time.Since(began); took > given+time.Second {
+		t.Fatalf("undo gave up after %s, with %s to put the password back", took, given)
 	}
 }
 

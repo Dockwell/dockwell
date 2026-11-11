@@ -27,6 +27,10 @@ var readWait = 8 * time.Second
 // databases waits for the slowest, so whatever asks a server waits longer than this.
 func ReadWait() time.Duration { return readWait }
 
+// errReadWait is why a reading's time ran out, so what it says names readWait only
+// when that was the limit, not a caller's own.
+var errReadWait = errors.New("a reading's time ran out")
+
 // MaxListed is how many databases, and how many users, a reading lists. The rest
 // are counted.
 const MaxListed = 200
@@ -59,7 +63,7 @@ func (r Reader) Read(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.
 
 // one reads a database, or says why it can't.
 func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwellv1.DatabaseReading {
-	ctx, cancel := context.WithTimeout(ctx, readWait)
+	ctx, cancel := context.WithTimeoutCause(ctx, readWait, errReadWait)
 	defer cancel()
 	e := Of(asked.GetEngine())
 	if e == nil {
@@ -103,6 +107,10 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil:
+		if ctx.Err() != nil && !errors.Is(context.Cause(ctx), errReadWait) {
+			// The caller's own time ran out, such as a password's put-back.
+			return nil, fmt.Errorf("%s didn't answer in the time it had", e.Name)
+		}
 		return nil, fmt.Errorf("%s didn't answer within %s", e.Name, readWait)
 	case err != nil:
 		return nil, fmt.Errorf("can't run %s's own tools in its container: %s", e.Name, clause(err))
