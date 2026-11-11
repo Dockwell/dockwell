@@ -237,12 +237,6 @@
   font: 400 13px / 18px var(--font-mono);
 }
 
-.catalog-installed-steps {
-  margin: var(--space-2) 0 0;
-  font-size: 13px;
-  line-height: 20px;
-}
-
 .catalog-upgrade {
   display: flex;
   flex-wrap: wrap;
@@ -853,6 +847,57 @@
 .catalog-sheet.is-phone .catalog-chosen {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
+}
+
+/* What an entry or an install says of itself, as state: a line each, with its icon, and
+   the action that resolves it at the end of its line (#426). */
+.catalog-facts-list,
+.catalog-sheet-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.catalog-facts-list li,
+.catalog-sheet-facts li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: var(--space-2);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+.catalog-facts-list li > svg,
+.catalog-sheet-facts li > svg {
+  margin-top: 3px;
+}
+.catalog-facts-list {
+  margin-top: var(--space-3);
+}
+.catalog-fact-action {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-top: -6px;
+}
+
+.catalog-open {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.catalog-open-problem {
+  max-width: 280px;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--critical);
+  text-align: right;
 }
 
 /* New database's engine: one of the catalog's databases, picked, each with its newest version. */

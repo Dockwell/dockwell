@@ -377,6 +377,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_RESTORE_WAY_BACK_IN:       auth.StepUpRestoreWayBackIn,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_INVITE:                    auth.StepUpInvite,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_ADD_SERVER:                auth.StepUpAddServer,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_SERVICE:              auth.StepUpOpenService,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN:          auth.StepUpSetPanelDomain,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN:   auth.StepUpSignInOnPanelDomain,
 }
@@ -553,6 +554,9 @@ const (
 	ReasonOrigin = "origin"
 	// ReasonMisdirected: the call was for a host the panel doesn't answer on.
 	ReasonMisdirected = "misdirected"
+	// ReasonTwoSessions: a request on localhost carried the session cookie twice,
+	// as only a page on another origin under localhost could make it (ADR 0061).
+	ReasonTwoSessions = "two_sessions"
 	// ReasonUnavailable: the session or API token couldn't be checked just
 	// now.
 	ReasonUnavailable = "unavailable"

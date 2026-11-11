@@ -169,6 +169,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   const name = (await sheet.getByRole("group", { name: "Name" }).locator("code").innerText()).trim();
   if (name !== "postgres") fail(`its name starts as ${name}, not postgres`);
   if ((await sheet.getByRole("textbox").count()) !== 0) fail("it asks for something it can fill in itself");
+  if ((await sheet.getByText("What to do first").count()) !== 0) fail("the install sheet still says what to do first");
   await shoot(page, "catalog-install");
   await sheet.getByRole("button", { name: "Advanced" }).click();
   await sheet.getByRole("group", { name: "Database password" }).getByText("Generated and sealed").waitFor();
@@ -192,23 +193,25 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await shoot(page, "catalog-arrival");
   await open.click();
   await page.getByRole("heading", { level: 1, name: "db", exact: true }).waitFor();
-  // Where its password is, as the page that says how to connect puts it.
-  await page
-    .getByText(/POSTGRES_PASSWORD/)
-    .first()
-    .waitFor();
+  if (!new URL(page.url()).pathname.startsWith("/databases/")) fail(`a database install lands on ${page.url()}`);
+  await page.getByRole("region", { name: "Connect" }).getByText("postgres", { exact: true }).waitFor();
 
-  step("catalog: its admin tool has a page of its own, with a way to reach it");
-  await page.goto(`${origin}/catalog/postgres`);
-  await page
-    .getByRole("region", { name: "Your installations" })
-    .getByRole("link", { name: "Open app: postgres" })
-    .click();
+  step("catalog: its admin tool's page says how to sign in, with a way to reach it");
+  const listed = await page.evaluate(async () => (await fetch("/v1/services")).json());
+  const adminer =
+    ((listed as { services?: { id: string; resource: { name: string } }[] }).services ?? []).find(
+      (s) => s.resource.name === "adminer",
+    )?.id ?? fail(`GET /v1/services listed no adminer: ${JSON.stringify(listed).slice(0, 300)}`);
+  await page.goto(`${origin}/apps/${adminer}`);
   await page.getByRole("heading", { level: 1, name: "adminer", exact: true }).waitFor();
   await page.getByRole("link", { name: new RegExp(`Open .*:${port}`) }).waitFor({ timeout: 30_000 });
   const from = page.getByRole("region", { name: "From the catalog" });
   await from.getByText("PostgreSQL 17.11").waitFor();
-  await from.getByText(/with the password in the POSTGRES_PASSWORD secret/).waitFor();
+  // How to sign in is a card to copy from, with the password to reveal, not a sentence naming its secret.
+  const signIn = page.getByRole("region", { name: "Sign in" });
+  await signIn.getByText("postgres", { exact: true }).waitFor();
+  await signIn.getByText("db", { exact: true }).waitFor();
+  await signIn.getByRole("button", { name: "Reveal database password" }).waitFor();
   await shoot(page, "catalog-app");
   const running = (await docker()).filter((c) => c.service === "adminer").map((c) => c.image);
   if (!running.some((image) => /^adminer:.*@sha256:/.test(image))) {
@@ -216,7 +219,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   }
 
   step("catalog: its secret is sealed, and one step away");
-  await from.getByRole("link", { name: "Show its secrets" }).click();
+  await from.getByRole("link", { name: "Its secrets" }).click();
   await page.getByRole("heading", { level: 1, name: "Variables and secrets" }).waitFor();
   await page.getByText("POSTGRES_PASSWORD", { exact: true }).first().waitFor();
 

@@ -132,6 +132,9 @@ type Config struct {
 	CallGrace time.Duration
 	// unfinished is what outlives its call, across this agent's streams.
 	unfinished *unfinished
+	// forwards carry connections to apps opened through the panel, across this
+	// agent's streams.
+	forwards *forwardPool
 	// firewall reads what filters the server's inbound traffic, when asked.
 	firewall *firewallReader
 	// presence is whether a stream is up, which the reconciler goes by.
@@ -436,6 +439,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.unfinished = newUnfinished()
 	defer resource.OnPathBack(cfg.unfinished.wake)()
+	cfg.forwards = &forwardPool{}
 	cfg.presence = newPresence(time.Now())
 	id := cfg.Identity
 	cfg.Logger = cfg.Logger.With(slog.String("server", id.ServerID))
@@ -591,7 +595,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Terminals != nil {
 		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true

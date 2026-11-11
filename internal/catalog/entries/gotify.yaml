@@ -29,19 +29,17 @@ source:
   path: internal/catalog/entries/gotify.yaml
 web:
   service: gotify
-firstSteps: >-
-  Gotify answers only on this server until you add a domain. Add a domain on its page,
-  or tunnel: ssh -N -L 8089:127.0.0.1:8089 you@your-server, then open
-  http://localhost:8089. Sign in as admin with the GOTIFY_PASSWORD secret. That secret
-  is read on first start only: to change the password, use Change password in Gotify,
-  then set the secret to match.
+signIn:
+  user: "admin"
+  passwordInput: "GOTIFY_PASSWORD"
+  changedIn: "Change password"
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8089"
   - name: GOTIFY_PASSWORD
+    setOnce: true
     label: Admin password
     type: INPUT_TYPE_SECRET
     generate: 32

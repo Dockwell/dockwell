@@ -29,25 +29,26 @@ source:
   path: internal/catalog/entries/linkding.yaml
 web:
   service: linkding
-firstSteps: >-
-  linkding answers only on this server until you add a domain. Add a domain on its page
-  and set LD_CSRF_TRUSTED_ORIGINS to its full address, such as
-  https://links.example.com, or tunnel: ssh -N -L 9090:127.0.0.1:9090 you@your-server,
-  then open http://localhost:9090. Sign in as admin with the LINKDING_PASSWORD secret.
-  That secret is read on first start only: to change the password, use Change password
-  in linkding's settings, then set the secret to match.
+signIn:
+  user: "admin"
+  passwordInput: "LINKDING_PASSWORD"
+  changedIn: "its settings"
+addressVariables:
+  - service: linkding
+    variable: LD_CSRF_TRUSTED_ORIGINS
+    value: "https://{domain}"
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "9090"
   - name: URL
     label: Site address
-    hint: The full HTTPS address of your domain, if you have one. Leave empty to start through an SSH tunnel.
+    hint: Empty until it has a domain.
     type: INPUT_TYPE_TEXT
     optional: true
   - name: LINKDING_PASSWORD
+    setOnce: true
     label: Admin password
     type: INPUT_TYPE_SECRET
     generate: 32

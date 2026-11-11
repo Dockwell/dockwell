@@ -55,6 +55,7 @@ import { asGoodAsRoot } from "../changes/plan";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
+import { Facts, useEntryFacts } from "./access";
 import { projectLink } from "./media";
 import { useOrigins } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
@@ -237,6 +238,10 @@ export function InstallSheet({
   const restart: Record<string, RestartPolicy> = tuned(restartOf, entryRestart, () => true);
 
   const name = (typedName ?? got.data?.project ?? "").trim();
+  // What it says of itself, as state, beside its defaults; how it signs in is under Advanced.
+  // Before it's installed, the sheet says what it is, not what to do next: the sign-in is
+  // its generated lines below, and its first steps wait for its page.
+  const facts = useEntryFacts(entry).filter((f) => f.key !== "sign-in" && f.key !== "first");
   const nameOpen = changing.has("name") || nameError !== undefined;
   // A default shows as its field once someone changes it, and from the start when there's no default to show.
   const open = (input: Input) => changing.has(input.name) || suggested(input) === "";
@@ -502,6 +507,7 @@ export function InstallSheet({
               ) : null}
               {entry.hostAccess ? <Chosen label={t`Reaches`} value={entry.hostAccess} tone="warning" /> : null}
             </div>
+            <Facts facts={facts} className="catalog-sheet-facts" />
             <Advanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={summary}>
               {more.map(field)}
               {generated.length > 0 ? (

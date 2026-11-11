@@ -860,6 +860,12 @@ msgstr "Opened a terminal on {server}"
 msgid "Opened a terminal on {server}, as {as}"
 msgstr "Opened a terminal on {server}, as {as}"
 
+msgid "Opened an app through the panel"
+msgstr "Opened an app through the panel"
+
+msgid "Opened {name} through the panel"
+msgstr "Opened {name} through the panel"
+
 msgid "Put back {path} on {server}"
 msgstr "Put back {path} on {server}"
 
@@ -2010,6 +2016,9 @@ msgstr "Point its DNS at this server."
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "Point its DNS at your tunnel or proxy."
 
+msgid "Points {followsApp} at it too: {followsNames}"
+msgstr "Points {followsApp} at it too: {followsNames}"
+
 msgid "Port in the app"
 msgstr "Port in the app"
 
@@ -2018,6 +2027,9 @@ msgstr "Port on the server"
 
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
+
+msgid "Send {wanted} to {name}, and point {followsApp} at it"
+msgstr "Send {wanted} to {name}, and point {followsApp} at it"
 
 msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
 msgstr "What it listens on on the server, such as 8080; 80 is the proxy's."
@@ -5287,8 +5299,8 @@ msgstr "Documentation"
 msgid "Explore the app"
 msgstr "Explore the app"
 
-msgid "Getting started"
-msgstr "Getting started"
+msgid "Good to know"
+msgstr "Good to know"
 
 msgid "Included in this install"
 msgstr "Included in this install"
@@ -5513,11 +5525,11 @@ msgstr "A change to how {version} runs is out."
 msgid "From the catalog"
 msgstr "From the catalog"
 
+msgid "Its secrets"
+msgstr "Its secrets"
+
 msgid "Review the change"
 msgstr "Review the change"
-
-msgid "Show its secrets"
-msgstr "Show its secrets"
 
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
@@ -5636,6 +5648,66 @@ msgstr "{left, plural, one {# file left out, and why} other {# files left out, a
 
 msgid "{short} (tag)"
 msgstr "{short} (tag)"
+
+msgid "Answers on this server alone, on port {port}, until it has a domain"
+msgstr "Answers on this server alone, on port {port}, until it has a domain"
+
+msgid "Anyone who reaches it can make an account until sign-ups close"
+msgstr "Anyone who reaches it can make an account until sign-ups close"
+
+msgid "Anyone who reaches it can make an account, until you close sign-ups"
+msgstr "Anyone who reaches it can make an account, until you close sign-ups"
+
+msgid "Close sign-ups"
+msgstr "Close sign-ups"
+
+msgid "Close sign-ups to {app}"
+msgstr "Close sign-ups to {app}"
+
+msgid "Copy the SSH tunnel command"
+msgstr "Copy the SSH tunnel command"
+
+msgid "Its first account is its owner"
+msgstr "Its first account is its owner"
+
+msgid "Its first account is its owner: make yours before it has a domain"
+msgstr "Its first account is its owner: make yours before it has a domain"
+
+msgid "Its links follow its domain, {domain}: {names}"
+msgstr "Its links follow its domain, {domain}: {names}"
+
+msgid "Its links follow the domain you add: {names}"
+msgstr "Its links follow the domain you add: {names}"
+
+msgid "Open {app} in a new tab"
+msgstr "Open {app} in a new tab"
+
+msgid "Point {app} at {domain}"
+msgstr "Point {app} at {domain}"
+
+msgid "Published on port {port}"
+msgstr "Published on port {port}"
+
+msgid "SSH tunnel command copied"
+msgstr "SSH tunnel command copied"
+
+msgid "Set as it first started: change it in {app}, in {where}"
+msgstr "Set as it first started: change it in {app}, in {where}"
+
+msgid "Set to {domain}"
+msgstr "Set to {domain}"
+
+msgid "Signs in as {user}"
+msgstr "Signs in as {user}"
+
+msgid "Signs in as {user}, with a password Dockwell generates and seals"
+msgstr "Signs in as {user}, with a password Dockwell generates and seals"
+
+msgid "Signs in with a key Dockwell generates and seals"
+msgstr "Signs in with a key Dockwell generates and seals"
+
+msgid "Signs in with a key you give"
+msgstr "Signs in with a key you give"
 
 msgid "Open full size"
 msgstr "Open full size"

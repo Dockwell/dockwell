@@ -854,6 +854,11 @@ enum StepUpAction {
   // Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
   // has no target of its own: the person's ID, which BeginStepUp fills in.
   STEP_UP_ACTION_ADD_SERVER = 130;
+  // Opening a service's web UI through the panel, with
+  // ServiceService.OpenService, as many an admin tool signs whoever reaches it
+  // in by itself (ADR 0061). The target is the service's ID. Numbered apart, as
+  // open work adds to this enum.
+  STEP_UP_ACTION_OPEN_SERVICE = 200;
   // Setting or clearing the panel's domain, which decides where everyone signs
   // in (ADR 0063). The target is the domain, or the one it clears.
   STEP_UP_ACTION_SET_PANEL_DOMAIN = 230;

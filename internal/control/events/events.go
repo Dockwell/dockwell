@@ -124,6 +124,8 @@ var (
 		"secret.reveal", "secrets.rotate_key",
 		// A test of a destination's keys, before any plan: who tried which storage.
 		backups.ActionTestDestination,
+		// An app opened through the panel, which is as much as a secret revealed (ADR 0061).
+		"service.open",
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 		"member.invite", "member.invite_revoke", "member.join",
 	}

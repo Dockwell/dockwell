@@ -21,11 +21,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -63,6 +65,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/importapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/members"
+	"github.com/dockwell/dockwell/internal/control/opener"
 	"github.com/dockwell/dockwell/internal/control/processes"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
@@ -290,6 +293,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	var rest []*vanguard.Service
 	guardREST := func(h http.Handler) http.Handler { return h }
 	var filesHandler http.Handler
+	var appOpener *opener.Opener
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -391,7 +395,30 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			handle(dockwellv1connect.NewImportServiceHandler(importapi.New(cfg.Fleet, cfg.Agents, imports, ch, cfg.Logger), opts...))
 		}
-		handle(dockwellv1connect.NewServiceServiceHandler(serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger), opts...))
+		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		if cfg.Auth != nil && cfg.Agents != nil && cfg.DataDir != "" {
+			key, err := opener.LoadKey(filepath.Join(cfg.DataDir, "opener.key"))
+			if err != nil {
+				return nil, err
+			}
+			appOpener = &opener.Opener{
+				Dial: func(ctx context.Context, t opener.Target) (net.Conn, error) {
+					s, ok := cfg.Agents.Session(t.Server)
+					if !ok {
+						return nil, fmt.Errorf("the server %s isn't connected, so its apps don't open", t.Server)
+					}
+					conn, err := s.Forward(ctx, t.Project, t.Service, t.Port)
+					if errors.Is(err, agentapi.ErrForwardsFull) {
+						return nil, fmt.Errorf("%w: %w", opener.ErrFull, err)
+					}
+					return conn, err
+				},
+				Live: cfg.Auth.SessionLive, Key: key, Logger: cfg.Logger,
+			}
+			serviceHandler.Opener = appOpener
+			serviceHandler.Auth = cfg.Auth
+		}
+		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
 		*logsOut = logs
 		path, h := dockwellv1connect.NewLogServiceHandler(logs, opts...)
@@ -449,7 +476,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	if cfg.Auth != nil {
 		sites = cfg.Auth.Sites()
 	}
-	return serve.Recover(cfg.Logger, authapi.Guard(sites, cfg.Logger, mux)), nil
+	// An app opened through the panel answers on an origin of its own, ahead of the
+	// panel's guard, which answers none but the panel's (ADR 0061).
+	return serve.Recover(cfg.Logger, opener.Dispatch(appOpener, authapi.Guard(sites, cfg.Logger, mux))), nil
 }
 
 // Serve serves the API and panel on ln until ctx is done.
@@ -457,12 +486,18 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 	return serve.Serve(ctx, ln, s.api, serve.Options{Name: "control plane", Logger: s.logger})
 }
 
+// agentFrame is the largest HTTP/2 frame the agent listener takes.
+const agentFrame = 16 << 10
+
 // ServeAgents serves the agent listener on ln until ctx is done.
 func (s *Server) ServeAgents(ctx context.Context, ln net.Listener) error {
 	if s.agents == nil {
 		return errors.New("control: the agent listener needs Config.Identity")
 	}
-	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS})
+	// HTTP/2's smallest frame, a TLS record's size: an agent writes each stream's body
+	// through a buffer of the frame's size, and with Go's own, 1 MiB, that's 512 KiB
+	// for each upload, download and forward under way (ADR 0061).
+	return serve.Serve(ctx, ln, s.agents, serve.Options{Name: "agent listener", Logger: s.logger, TLS: s.agentTLS, MaxFrame: agentFrame})
 }
 
 // AddAgentHost has the agent listener's certificate name host too, from the next

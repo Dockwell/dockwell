@@ -3894,6 +3894,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{id}:open:
+        post:
+            tags:
+                - ServiceService
+            description: |-
+                OpenService gives the person who asks a one-time address that opens the web
+                 UI a service publishes on its server, through the panel, on an origin of
+                 the service's own (ADR 0061): the browser that opens it first, within a
+                 minute, gets that app and nothing else, while the panel session that asked
+                 lasts and its role still lets it, and every connection it made ends with
+                 either. It's as much as revealing a secret, as an admin tool or an app's
+                 first account may be behind it, so it takes a developer in a session, never
+                 a token, and a passkey just now, and goes on the audit log. Only a panel
+                 reached on localhost opens apps for now: on its domain, this is refused,
+                 and says so.
+            operationId: ServiceService_OpenService
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/OpenServiceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/OpenServiceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services/{id}:restart:
         post:
             tags:
@@ -5292,6 +5334,22 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: AddServicePortResponse carries the planned change.
+        AddressVariable:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service, by its name in the Compose file, such as "ghost".
+                variable:
+                    type: string
+                    description: The variable, such as "url".
+                value:
+                    type: string
+                    description: |-
+                        What it's set to, with {domain} where the domain goes, such as
+                         "https://{domain}", or a value of its own that goes with a domain, such
+                         as "https" for Nextcloud's OVERWRITEPROTOCOL.
+            description: AddressVariable is a variable that follows the domain an app is reached at.
         AdoptComposeRequest:
             type: object
             properties:
@@ -6434,6 +6492,7 @@ components:
                         - STEP_UP_ACTION_APPROVE_CHANGE
                         - STEP_UP_ACTION_INVITE
                         - STEP_UP_ACTION_ADD_SERVER
+                        - STEP_UP_ACTION_OPEN_SERVICE
                         - STEP_UP_ACTION_SET_PANEL_DOMAIN
                         - STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN
                     type: string
@@ -8736,8 +8795,10 @@ components:
                 firstSteps:
                     type: string
                     description: |-
-                        What to do first once it runs, in a sentence or two, such as how to sign
-                         in. Empty when there's nothing to say.
+                        What to do first once it runs, in one short sentence, where no field below
+                         says it: the panel shows sign_in, first_visitor_owns, signups and
+                         address_variables as state and actions, and never as words here. Empty when
+                         there's nothing more to say, as for most entries.
                 hostAccess:
                     type: string
                     description: |-
@@ -8780,6 +8841,38 @@ components:
                     items:
                         type: string
                     description: A short list of things the app can do, in the catalog's own words.
+                signIn:
+                    allOf:
+                        - $ref: '#/components/schemas/SignIn'
+                    description: |-
+                        How a person signs in to what web opens, which the panel shows with the
+                         password to reveal and copy, rather than says. Unset for an app with no
+                         sign-in of its own, or whose first visitor makes the account.
+                firstVisitorOwns:
+                    type: boolean
+                    description: |-
+                        The first person to open what web opens makes its owner account. The
+                         panel says so on its page, and before a domain makes it public.
+                signups:
+                    allOf:
+                        - $ref: '#/components/schemas/Signups'
+                    description: |-
+                        What closes sign-ups once the owner's account is made, for an app that lets
+                         anyone who reaches it make one. The panel offers to close them.
+                addressVariables:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AddressVariable'
+                    description: |-
+                        Variables a service builds its links or checks requests from, which follow
+                         the domain added to what web opens, such as Ghost's url.
+                notes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What a person may want to know of the app as it runs here, a line each,
+                         such as "Transcodes on the server's CPU". Never steps to follow.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -10816,6 +10909,12 @@ components:
                         How a generated secret is written, for an app that reads it as a key: letters
                          and digits unless set.
                     format: enum
+                setOnce:
+                    type: boolean
+                    description: |-
+                        The app reads this secret on its first start alone, or encrypts what it
+                         keeps with it, so setting the secret anew changes nothing or loses what it
+                         encrypted. The panel marks it, and says where to change it, if anywhere.
             description: |-
                 Input is one thing an entry needs to know to install, named by the ${NAME}
                  its Compose file uses.
@@ -12386,6 +12485,51 @@ components:
                     type: string
                     description: The site it's under, for a subsite.
             description: OnePanelWebsite is a website 1Panel's OpenResty serves.
+        OpenServiceRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or by name.
+                port:
+                    type: integer
+                    description: |-
+                        The port in its container that answers HTTP, such as 80. Empty takes the
+                         one port it publishes, where it publishes one.
+                    format: uint32
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its
+                         project has more than one.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for opening this service, by its ID. It works
+                         once, within a minute, in the session that made it. Without one, the call
+                         is refused with needs_step_up once nothing else refuses it.
+            description: OpenServiceRequest names a service and the port of its web UI.
+        OpenServiceResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: |-
+                        Where a browser opens it, such as "http://abcde23456.localhost:7600/.dockwell/open?ticket=…".
+                         It works once.
+                expireTime:
+                    type: string
+                    description: When the address stops working, if it hasn't been opened.
+                    format: date-time
+                origin:
+                    type: string
+                    description: The origin the app answers on, such as "http://abcde23456.localhost:7600".
+            description: OpenServiceResponse carries where to open it.
         OpenTerminalRequest:
             type: object
             properties:
@@ -15314,6 +15458,31 @@ components:
                         type: string
                     description: The other containers that answer to it there, by name.
             description: SharedName is a name more than one container answers to on a network.
+        SignIn:
+            type: object
+            properties:
+                user:
+                    type: string
+                    description: |-
+                        The user, as the app's sign-in asks for it, such as "root". Empty when
+                         user_input holds it.
+                userInput:
+                    type: string
+                    description: The input that holds the user, such as "ADMIN_EMAIL".
+                passwordInput:
+                    type: string
+                    description: |-
+                        The secret input that holds the password, such as
+                         "MARIADB_ROOT_PASSWORD".
+                server:
+                    type: string
+                    description: The server the sign-in asks for, where it asks, such as "db" for Adminer.
+                changedIn:
+                    type: string
+                    description: |-
+                        Where in the app a person changes the password, for an app that reads it
+                         on its first start alone (the input's set_once), such as "Profile".
+            description: SignIn is how a person signs in to an app once it's installed.
         SignInWithCodeRequest:
             type: object
             properties:
@@ -15368,6 +15537,19 @@ components:
             type: object
             properties: {}
             description: SignOutResponse is empty. The response clears the session cookie.
+        Signups:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: The service, by its name in the Compose file, such as "gitea".
+                variable:
+                    type: string
+                    description: The variable, such as "SIGNUPS_ALLOWED".
+                closed:
+                    type: string
+                    description: What closes them, such as "false".
+            description: Signups is the variable that closes an app's sign-ups.
         Source:
             type: object
             properties:

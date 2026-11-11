@@ -213,7 +213,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Variables:  filled.Variables,
 		Secrets:    filled.Secrets,
 		Servers:    m.GetServers(),
-		FirstSteps: entry.GetFirstSteps(),
+		FirstSteps: catalog.FirstWords(entry),
 		Pin:        pinTo(entry, from, filled),
 		Limits:     limitsOf(m),
 	})
@@ -283,7 +283,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 		install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
 		entry, known := s.entryFor(pin)
 		if known {
-			install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
+			install.Name, install.FirstSteps = entry.GetName(), catalog.FirstWords(entry)
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}

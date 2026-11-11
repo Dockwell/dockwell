@@ -85,6 +85,7 @@
   "server.renew_rejected",
   "server.revoke",
   "service.health",
+  "service.open",
   "session.revoke",
   "settings.name",
   "settings.panel_domain",

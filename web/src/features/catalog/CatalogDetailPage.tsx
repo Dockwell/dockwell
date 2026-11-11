@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
+import { Facts, useEntryFacts } from "./access";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
 import type { CatalogSearch } from "./search";
 import { categoryLabel, installOf, useInstalls, useOrigins } from "./useCatalog";
@@ -33,6 +34,7 @@ export function CatalogDetailPage({
   const from = origins.origins.get(id);
   const installs = (useInstalls().data?.installs ?? []).filter((install) => installOf(install, id, origins.origins));
   const entry = got.data?.entry;
+  const facts = useEntryFacts(entry);
   const app = entry?.name ?? id;
   const label = categoryLabel(entry?.category ?? "");
   const category = typeof label === "string" ? label : i18n._(label);
@@ -206,12 +208,12 @@ export function CatalogDetailPage({
                   </ul>
                 ) : null}
               </section>
-              {entry.firstSteps ? (
+              {facts.length > 0 ? (
                 <section className="catalog-section" aria-labelledby="catalog-start-heading">
                   <h2 id="catalog-start-heading">
-                    <Trans>Getting started</Trans>
+                    <Trans>Good to know</Trans>
                   </h2>
-                  <p className="catalog-description">{entry.firstSteps}</p>
+                  <Facts facts={facts} />
                 </section>
               ) : null}
             </div>

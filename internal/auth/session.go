@@ -309,9 +309,9 @@ func (s *Service) Track(ctx context.Context, client Client, p Principal, still .
 // use, such as a terminal nobody is attached to: it ends with the session, at once
 // when that's revoked or signed out and within a recheck when it expires, but its
 // checks aren't use. So it keeps no session alive past its idle limit, and never
-// moves its last-seen time or address.
-func (s *Service) Follow(ctx context.Context, client Client, p Principal) (context.Context, func()) {
-	return s.track(ctx, client, p, false)
+// moves its last-seen time or address. still is asked as Track asks it.
+func (s *Service) Follow(ctx context.Context, client Client, p Principal, still ...func(context.Context) error) (context.Context, func()) {
+	return s.track(ctx, client, p, false, still...)
 }
 
 func (s *Service) track(ctx context.Context, client Client, p Principal, use bool, still ...func(context.Context) error) (context.Context, func()) {
@@ -386,6 +386,12 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use
 		s.touch(ctx, sessionID, now, ip)
 	}
 	return true
+}
+
+// SessionLive reports whether a session still works on client's site, as a
+// stream's check of it does, and records the check as a use of it.
+func (s *Service) SessionLive(ctx context.Context, client Client, sessionID string) bool {
+	return s.stillLive(ctx, client, Principal{Session: store.Session{ID: sessionID}}, true)
 }
 
 // maxUserAgent is how much of a browser's User-Agent header is kept.

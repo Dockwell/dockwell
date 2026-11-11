@@ -54,6 +54,13 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         return { title: t`The backup of ${volume} failed`, icon: "archive", tone: "critical" };
       }
       if (event.action === "backup.deleted") return { title: t`Deleted a backup of ${volume}`, icon: "archive" };
+      // An app opened through the panel, on an origin of its own (ADR 0061).
+      if (event.action === "service.open") {
+        return {
+          title: name ? t`Opened ${name} through the panel` : t`Opened an app through the panel`,
+          icon: "external",
+        };
+      }
       const destination = event.backup?.destination ?? "";
       if (event.action === "backup.copy_failed") {
         return { title: t`The backup of ${volume} didn't reach ${destination}`, icon: "archive", tone: "critical" };
