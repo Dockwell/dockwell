@@ -43,6 +43,8 @@ type bench struct {
 	loadFails bool
 	dumpFails bool
 	dumpShort bool
+	// dropRows has a load lose every row it was given, as a broken restore would.
+	dropRows bool
 }
 
 func newBench(t *testing.T) *bench {
@@ -83,10 +85,15 @@ func (b *bench) postgres(x dockertest.Exec) int {
 		return 0
 	case strings.Contains(script, "pg_isready"):
 		return 0
+	case len(x.Cmd) > 0 && x.Cmd[0] == "psql" && slices.Contains(x.Cmd, "-c"):
+		return b.query(x, file)
 	case strings.Contains(script, "psql"):
 		data, err := io.ReadAll(x.Stdin)
 		if err != nil {
 			return 1
+		}
+		if b.dropRows {
+			data = withoutRows(data)
 		}
 		_, _ = io.WriteString(x.Stderr, "psql:<stdin>:3: ERROR:  current user cannot be dropped\n")
 		_, _ = io.WriteString(x.Stderr, "psql:<stdin>:4: ERROR:  role \"postgres\" already exists\n")

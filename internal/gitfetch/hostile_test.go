@@ -403,6 +403,21 @@ func TestRefsListsBranchesAndTags(t *testing.T) {
 	}
 }
 
+// A listing says which branch HEAD names, so a form can lead with a repository's
+// default when it isn't main, and HEAD itself is no branch.
+func TestAListingSaysTheDefaultBranch(t *testing.T) {
+	repo := gitfetchtest.New(t)
+	commit := repo.Commit(map[string]string{"a.yaml": "id: a\n"})
+	repo.Branch("trunk")
+	got, err := List(t.Context(), gitfetchtest.Client(), repo.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Head != "refs/heads/trunk" || got.Refs["refs/heads/trunk"] != commit || got.Refs["HEAD"] != "" || len(got.Refs) != 1 {
+		t.Errorf("List = %+v", got)
+	}
+}
+
 // A host that can filter is asked to leave out each file over the limit of one, and a
 // file of the folder it left out is said to be over it (its L5).
 func TestAFilteredFetchLeavesOutBigFiles(t *testing.T) {

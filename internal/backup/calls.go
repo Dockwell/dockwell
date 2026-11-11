@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
@@ -34,6 +35,25 @@ func (c Calls) Take(ctx context.Context, call *agentv1.BackupCall) (*agentv1.Bac
 		return nil, err
 	}
 	return result(m), nil
+}
+
+// Drill checks that a backup on this server restores (ADR 0068). How it went is its
+// result, however it ended.
+func (c Calls) Drill(ctx context.Context, call *agentv1.DrillBackupCall) (*agentv1.DrillBackupResult, error) {
+	got := c.Runner.Drill(ctx, Drill{ID: call.GetId(), Backup: call.GetBackup(), Ref: resourcepb.FromRef(call.GetVolume())})
+	out := &agentv1.DrillBackupResult{
+		Why: got.Why, Detail: got.Detail, RestoredBytes: got.Restored, Tables: int32(min(got.Tables, maxTables)), //nolint:gosec // at most maxTables
+		UnpackedOnly: got.UnpackedOnly,
+	}
+	switch got.Outcome {
+	case DrillPassed:
+		out.Result = dockwellv1.DrillResult_DRILL_RESULT_PASSED
+	case DrillFailed:
+		out.Result = dockwellv1.DrillResult_DRILL_RESULT_FAILED
+	default:
+		out.Result = dockwellv1.DrillResult_DRILL_RESULT_NOT_CHECKED
+	}
+	return out, nil
 }
 
 func result(m *Manifest) *agentv1.BackupResult {

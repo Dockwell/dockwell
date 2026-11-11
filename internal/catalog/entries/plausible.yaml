@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/.github/plausible-analytics-dashboard.webp
 category: analytics
 version: "3.2.1"
-release: 3
+release: 4
 homepage: https://plausible.io/self-hosted-web-analytics
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only
@@ -29,22 +29,18 @@ source:
   path: internal/catalog/entries/plausible.yaml
 web:
   service: plausible
-firstSteps: >-
-  Plausible answers only on this server until you add a domain, as the first person
-  to open it makes its account. So register first, through an SSH tunnel from your
-  computer: ssh -N -L 8000:127.0.0.1:8000 you@your-server, using the port you gave
-  it, then open http://localhost:8000. Add a domain on its page only after that, over
-  HTTPS or behind your tunnel, as a new domain's certificate shows in public logs
-  within minutes, then set BASE_URL on the plausible service to that address, as
-  Plausible builds its links and your sites' tracker from it. Leave the SECRET_KEY_BASE secret
-  as it is too: changing it signs everyone out and turns off two-factor sign-in.
+firstVisitorOwns: true
+addressVariables:
+  - service: plausible
+    variable: BASE_URL
+    value: "https://{domain}"
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8000"
   - name: SECRET_KEY_BASE
+    setOnce: true
     label: Secret key
     type: INPUT_TYPE_SECRET
     generate: 64

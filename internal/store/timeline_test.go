@@ -308,3 +308,40 @@ func TestAnEventCanBeToldAgain(t *testing.T) {
 		}
 	})
 }
+
+// Whether a change is applying, as a restart a person asks for waits for none to
+// be (ADR 0063).
+func TestAnyApplyingSaysWhetherAChangeIs(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		applying := func() bool {
+			t.Helper()
+			var any bool
+			if err := db.View(ctx, func(tx *store.Tx) error {
+				var err error
+				any, err = tx.AnyApplying(ctx)
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return any
+		}
+		at := time.UnixMilli(1_000_000)
+		revise(t, db, func(tx *store.RevisionTx) error {
+			return tx.CreateChange(ctx, store.Change{
+				ID: "chg_1", Summary: "s", Actor: "user:usr_1", State: store.ChangePlanned, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: at,
+				Items: []store.ChangeItem{{Kind: "project", Scope: "org_1", Name: "shop", Spec: []byte{1}}},
+			})
+		})
+		if applying() {
+			t.Fatal("a planned change reads as applying")
+		}
+		revise(t, db, func(tx *store.RevisionTx) error {
+			return tx.StartApplying(ctx, "chg_1", "user:usr_1", store.SurfacePanel, []byte("{}"), at.Add(time.Second))
+		})
+		if !applying() {
+			t.Error("a change applying doesn't read so")
+		}
+	})
+}

@@ -11,7 +11,7 @@ import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
 // DatabaseService is the services that run a database Dockwell knows:
-// PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their official images,
+// PostgreSQL, MySQL, MariaDB, Redis, Valkey and MongoDB, from their official images,
 // whether Dockwell made them or took them on. A database is a service, so it
 // changes as any service does, by a change with a plan. What this adds is what
 // the database itself says, read in its own container with its own tools, which
@@ -95,6 +95,8 @@ enum DatabaseEngine {
   DATABASE_ENGINE_REDIS = 4 [(dockwell.v1.word) = "Redis"];
   // Valkey, from the image valkey/valkey.
   DATABASE_ENGINE_VALKEY = 5 [(dockwell.v1.word) = "Valkey"];
+  // MongoDB, from the image mongo.
+  DATABASE_ENGINE_MONGODB = 6 [(dockwell.v1.word) = "MongoDB"];
 }
 
 // Database is a service that runs a database.
@@ -171,8 +173,9 @@ message DatabaseReading {
   // How long it has been up, in seconds.
   int64 uptime_seconds = 10;
   // Of what clients read since it started, how much came from memory rather than
-  // disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool, or the
-  // keys Redis found. Unset until anything was read.
+  // disk, from 0 to 1: PostgreSQL's shared buffers, InnoDB's buffer pool,
+  // MongoDB's WiredTiger cache, or the keys Redis found. Unset until anything
+  // was read.
   optional double cache_hit = 11;
   // The databases in it, by name. Redis and Valkey have none of their own.
   repeated InnerDatabase databases = 12;
@@ -182,6 +185,17 @@ message DatabaseReading {
   int64 keys = 14;
   // How many more databases or users it has than this lists.
   int32 unlisted = 15;
+  // MongoDB's feature compatibility version, such as "7.0": the release whose
+  // features its data may use. An upgrade leaves it where it was, so the release
+  // before can still run the data, and the next upgrade raises it first.
+  string feature_compatibility = 16;
+  // The replica set it's a member of, by name, for MongoDB. Empty for one that
+  // runs alone, whose backups aren't one moment if something writes while they
+  // run.
+  string replica_set = 17;
+  // True when it checks no one, as MongoDB does without --auth: anything that
+  // reaches its port signs in as anyone.
+  bool checks_no_one = 18;
 }
 
 // InnerDatabase is one database inside a database server, as PostgreSQL has
@@ -222,6 +236,9 @@ message DatabaseAccount {
   repeated string used_by = 8;
   // The resource's ID, for a user Dockwell made.
   string resource_id = 9;
+  // The database they sign in to, for MongoDB, as an app names it in authSource,
+  // such as "admin" for its root user.
+  string auth_database = 10;
 }
 
 // ListDatabasesRequest asks for the databases.

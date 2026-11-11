@@ -356,10 +356,26 @@ const ORDER: Readonly<Record<ChangeState, number>> = {
   [ChangeState.DISCARDED]: 3,
 };
 
+/**
+ * The change as the newer of two reads says it. A read can arrive after a newer one, as an
+ * apply's own answer, read before its step began to wait, does behind the watch that said it
+ * waits: a state behind is never taken, and at the same state, a step the other read says
+ * waits keeps that, as what a running step waits for goes only as the step moves on, and the
+ * server says it once.
+ */
 function later(was: Change | undefined, next: Change | undefined): Change | undefined {
   if (!next) return was;
-  if (was && was.id === next.id && ORDER[was.state] > ORDER[next.state]) return was;
-  return next;
+  if (!was || was.id !== next.id) return next;
+  if (ORDER[was.state] > ORDER[next.state]) return was;
+  if (ORDER[was.state] < ORDER[next.state] || was.steps.length !== next.steps.length) return next;
+  let kept = false;
+  const steps = next.steps.map((step, i) => {
+    const before = was.steps[i];
+    if (!before?.confirmation || step.confirmation || before.state !== step.state) return step;
+    kept = true;
+    return { ...step, confirmation: before.confirmation };
+  });
+  return kept ? { ...next, steps } : next;
 }
 
 type Busy = "apply" | "discard" | undefined;

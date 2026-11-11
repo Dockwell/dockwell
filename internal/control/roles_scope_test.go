@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -218,6 +221,120 @@ func TestAStreamEndsWhenWhatItNamesLeavesReach(t *testing.T) {
 			}
 		case <-time.After(5 * time.Second):
 			t.Error("watching web is open 5 s after its project stopped being held")
+		}
+	})
+}
+
+// Opening an app by its name finds it in the caller's projects alone, as every
+// call that takes a name does, and keeps to a protected environment's rule: a
+// developer of one project doesn't open another's, and a developer of a project
+// doesn't open what runs in its protected environment, by name or by ID. What
+// was opened asks the same again while it stays open (ADR 0061).
+func TestOpeningAnAppKeepsToItsProjectAndItsRule(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addDockerServer(t)
+		c := changeClient(b, b.origin)
+		resourceOf := func(ch *dockwellv1.Change, kind string) string {
+			t.Helper()
+			for _, r := range ch.GetPlan().GetResources() {
+				if r.GetResource().GetKind() == kind {
+					return r.GetId()
+				}
+			}
+			t.Fatalf("%s makes no %s", ch.GetSummary(), kind)
+			return ""
+		}
+		web := apply(t, c, propose(t, c, "Run web", runImage("ghcr.io/acme/shop:1.4")))
+		webID, production := resourceOf(web, "service"), web.GetPlan().GetResources()[0].GetResource().GetScope()
+		blogID := resourceOf(apply(t, c, propose(t, c, "Make blog", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "blog"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{}}},
+		})), "project")
+		staging := resourceOf(apply(t, c, propose(t, c, "Add staging to blog", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: blogID, Name: "staging"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Environment{Environment: &resourcev1.Environment{}}},
+		})), "environment")
+		apiID := resourceOf(apply(t, c, propose(t, c, "Run api", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Scope: staging, Name: "api"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "ghcr.io/acme/shop:1.4"}},
+			}}},
+		})), "service")
+		defaultProject := envProject(t, f, production)
+
+		hold := aMember(t, f)
+		services := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+		open := func(req *dockwellv1.OpenServiceRequest) error {
+			_, err := services.OpenService(t.Context(), connect.NewRequest(req))
+			return err
+		}
+		notHere := func(what string, err error) {
+			t.Helper()
+			if connect.CodeOf(err) != connect.CodeNotFound {
+				t.Errorf("%s: %v, want not found", what, err)
+			}
+		}
+		// Reaching the handler, which finds it publishes nothing to open, is what
+		// getting past the role checks looks like here.
+		reached := func(what string, err error) {
+			t.Helper()
+			if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "not_published" {
+				t.Errorf("%s: %v, want not_published from the handler", what, err)
+			}
+		}
+
+		hold(store.Grant{ProjectID: blogID, Role: store.RoleDeveloper})
+		notHere("another project's service, by name alone", open(&dockwellv1.OpenServiceRequest{Id: "web"}))
+		notHere("another project's service, by name in its project", open(&dockwellv1.OpenServiceRequest{Id: "web", Project: "default"}))
+		notHere("another project's service, by ID", open(&dockwellv1.OpenServiceRequest{Id: webID}))
+		reached("their own service, by name", open(&dockwellv1.OpenServiceRequest{Id: "api"}))
+		reached("their own service, by ID", open(&dockwellv1.OpenServiceRequest{Id: apiID}))
+
+		// Production is protected by its name: opening there is an admin's.
+		hold(store.Grant{ProjectID: blogID, Role: store.RoleDeveloper}, store.Grant{ProjectID: defaultProject, Role: store.RoleDeveloper})
+		for what, req := range map[string]*dockwellv1.OpenServiceRequest{
+			"by name":            {Id: "web"},
+			"by name in project": {Id: "web", Project: "default"},
+			"by ID":              {Id: webID},
+		} {
+			if err := open(req); connect.CodeOf(err) != connect.CodePermissionDenied || reasonOf(err) != "needs_role" {
+				t.Errorf("a developer opening in a protected environment, %s: %v, want needs_role", what, err)
+			}
+		}
+
+		// While it's open, the same is asked again: a lost role, or protection, ends it.
+		var person string
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			users, err := tx.ListUsers(t.Context())
+			for _, u := range users {
+				if u.ID != "usr_keeper" {
+					person = u.ID
+				}
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		p := auth.Principal{User: store.User{ID: person}}
+		still := func(serviceID string) error {
+			return authapi.Recheck(f.auth, slog.New(slog.DiscardHandler), dockwellv1connect.ServiceServiceOpenServiceProcedure, p,
+				&dockwellv1.OpenServiceRequest{Id: serviceID})(t.Context())
+		}
+		if err := still(apiID); err != nil {
+			t.Errorf("a developer of blog, rechecked on api: %v", err)
+		}
+		if err := still(webID); reasonOf(err) != "needs_role" {
+			t.Errorf("a developer of the default project, rechecked in its protected environment: %v, want needs_role", err)
+		}
+		hold(store.Grant{ProjectID: blogID, Role: store.RoleViewer})
+		if err := still(apiID); reasonOf(err) != "needs_role" {
+			t.Errorf("a viewer of blog, rechecked on api: %v, want needs_role", err)
+		}
+		hold(store.Grant{ProjectID: defaultProject, Role: store.RoleDeveloper})
+		if err := still(apiID); err == nil {
+			t.Error("someone who no longer holds blog, rechecked on api, may still open it")
 		}
 	})
 }

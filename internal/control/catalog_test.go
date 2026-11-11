@@ -684,6 +684,12 @@ const firstRelease, secondRelease = "thing:1@sha256:" + digest1, "thing:2@sha256
 
 func startUpgrading(t *testing.T, backend store.Backend, entry string) *upgrading {
 	t.Helper()
+	return startUpgradingWith(t, backend, entry, &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+}
+
+// startUpgradingWith is startUpgrading with an install request of its own.
+func startUpgradingWith(t *testing.T, backend store.Backend, entry string, install *dockwellv1.InstallCatalogEntryRequest) *upgrading {
+	t.Helper()
 	u := &upgrading{t: t, dir: t.TempDir()}
 	t.Setenv(catalog.DirEnv, u.dir)
 	u.release(entry)
@@ -694,7 +700,7 @@ func startUpgrading(t *testing.T, backend store.Backend, entry string) *upgradin
 	pullsAnything(u.e)
 	u.c = changeClient(u.b, u.b.origin)
 	u.cat = catalogClient(u.b)
-	apply(t, u.c, installApp(t, u.cat, &dockwellv1.InstallCatalogEntryRequest{Id: "thing"}))
+	apply(t, u.c, installApp(t, u.cat, install))
 	for _, r := range mustList(t, u.b).GetResources() {
 		u.env = r.GetId()
 	}
@@ -822,6 +828,50 @@ func testAnUpgradeKeepsWhatAPersonChanged(t *testing.T, backend store.Backend) {
 	}
 	u.applied(undo.Msg.GetChange())
 	check("after the undo", firstRelease)
+}
+
+// What an install sets of a service's memory, CPUs and restarts is what it runs with,
+// in place of the entry's, and an upgrade keeps it, as it keeps what a person changes
+// on the app. The entry's own show on its parts, and a service it doesn't have is
+// refused by name.
+func TestAnInstallsLimitsLastThroughItsUpgrades(t *testing.T) {
+	storetest.Each(t, testAnInstallsLimitsLastThroughItsUpgrades)
+}
+
+func testAnInstallsLimitsLastThroughItsUpgrades(t *testing.T, backend store.Backend) {
+	u := startUpgradingWith(t, backend, testEntry(1, "1.0", firstRelease, ""), &dockwellv1.InstallCatalogEntryRequest{
+		Id:      "thing",
+		Memory:  map[string]string{"web": "1G"},
+		Cpus:    map[string]string{"web": "0.5"},
+		Restart: map[string]resourcev1.RestartPolicy{"web": resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS},
+	})
+	check := func(when, image string) {
+		t.Helper()
+		web := u.web()
+		if web.Config.Image != image || web.HostConfig.Memory != 1<<30 || web.HostConfig.NanoCPUs != 5e8 || web.HostConfig.RestartPolicy.Name != "always" {
+			t.Errorf("%s it runs %s with %d bytes, %d nano-CPUs and restart %q, want 1G, 0.5 and always",
+				when, web.Config.Image, web.HostConfig.Memory, web.HostConfig.NanoCPUs, web.HostConfig.RestartPolicy.Name)
+		}
+	}
+	check("once installed", firstRelease)
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	u.applied(u.upgrade())
+	check("after the upgrade", secondRelease)
+
+	got, err := u.cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Its file says no restart, which Compose reads as never.
+	if web := got.Msg.GetParts()[0]; web.GetService() != "web" || web.GetMemory() != "" || web.GetRestart() != resourcev1.RestartPolicy_RESTART_POLICY_NO {
+		t.Errorf("the entry's own read %q, memory %q and restart %v, want none and never", web.GetService(), web.GetMemory(), web.GetRestart())
+	}
+	_, err = u.cat.InstallCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.InstallCatalogEntryRequest{
+		Id: "thing", Project: "thing-two", Memory: map[string]string{"nope": "1G"},
+	}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "no service called nope") || !strings.Contains(err.Error(), "Name one of web") {
+		t.Errorf("limits for a service the entry doesn't have: %v", err)
+	}
 }
 
 // A release can take away what it gave, and what a person took away doesn't come back.

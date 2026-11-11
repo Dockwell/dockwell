@@ -5,6 +5,7 @@ import {
   type BackupDestinationInfo,
   BackupMethod,
   BackupService,
+  BackupPolicy_Drill as Drill,
   BackupPolicy_Every as Every,
   SettingsService,
 } from "@dockwell/api";
@@ -24,6 +25,9 @@ import "./Backups.css";
 type How = "hour" | "day" | "week";
 
 const EVERY: Readonly<Record<How, Every>> = { hour: Every.HOUR, day: Every.DAY, week: Every.WEEK };
+
+type Check = "week" | "month" | "never";
+const DRILL: Readonly<Record<Check, Drill>> = { week: Drill.WEEKLY, month: Drill.MONTHLY, never: Drill.NEVER };
 
 /**
  * The time zone at reads in, for the form to say: the install's from Settings, or
@@ -60,6 +64,8 @@ export function PolicySheet({
   const [keep, setKeep] = useState("7");
   const [stop, setStop] = useState(true);
   const [destination, setDestination] = useState("");
+  // A schedule checks that its backups restore weekly unless someone chooses otherwise (ADR 0068).
+  const [check, setCheck] = useState<Check>("week");
   const volume = volumes.find((v) => v.id === volumeId);
   const options = useVolumeOptions(volumes);
   const preview = useQuery(
@@ -101,6 +107,7 @@ export function PolicySheet({
                 keep: count,
                 stop: risky && stop,
                 destination,
+                drill: DRILL[check],
               },
             },
           },
@@ -178,6 +185,25 @@ export function PolicySheet({
           error={validKeep ? undefined : t`Use a number from 1 to 1000.`}
           onChange={(event) => setKeep(event.target.value)}
         />
+        <div className="backup-sheet-check">
+          <SegmentedControl<Check>
+            label={t`Check that it restores`}
+            value={check}
+            onChange={setCheck}
+            options={[
+              { value: "week", label: t`Check weekly` },
+              { value: "month", label: t`Check monthly` },
+              { value: "never", label: t`Never check` },
+            ]}
+          />
+          {check !== "never" ? (
+            <p className="backup-sheet-note">
+              {each > 0n
+                ? t`Restores the newest into a throwaway copy, about ${formatBytes(each, i18n.locale)}, an hour after its run, for up to 6 h.`
+                : t`Restores the newest into a throwaway copy an hour after its run, for up to 6 h.`}
+            </p>
+          ) : null}
+        </div>
         {destinations.length > 0 ? (
           <SelectField
             label={t`Send a copy to`}
@@ -193,21 +219,21 @@ export function PolicySheet({
         ) : said && each > 0n ? (
           total > room ? (
             <Callout tone="warning" title={t`This may not fit`}>
-              {t`Keeping ${count} takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${formatBytes(room > 0n ? room : 0n, i18n.locale)} to give. A backup that won't fit fails, and says so on Activity.`}
+              {t`Keeping ${count} takes about ${formatBytes(total, i18n.locale)} while the next is taken; the disk has ${formatBytes(room > 0n ? room : 0n, i18n.locale)}. One that won't fit fails.`}
             </Callout>
           ) : (
             <p className="backup-sheet-note">
               {plural(count, {
-                one: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping one takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${toGive} to give.`,
-                other: `Each backup takes about ${formatBytes(each, i18n.locale)}, so keeping # takes about ${formatBytes(total, i18n.locale)} while the next is taken, and the disk has ${toGive} to give.`,
+                one: `Each backup takes about ${formatBytes(each, i18n.locale)}; keeping one, about ${formatBytes(total, i18n.locale)}. The disk has ${toGive} to give.`,
+                other: `Each backup takes about ${formatBytes(each, i18n.locale)}; keeping #, about ${formatBytes(total, i18n.locale)}. The disk has ${toGive} to give.`,
               })}
             </p>
           )
         ) : said ? (
           <p className="backup-sheet-note">
             <Trans>
-              Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly.
-              The disk has {toGive} to give.
+              Dockwell can't size a backup yet: this volume is empty or too large to measure quickly. The disk has{" "}
+              {toGive}.
             </Trans>
           </p>
         ) : null}

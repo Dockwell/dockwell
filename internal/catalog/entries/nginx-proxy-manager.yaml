@@ -23,7 +23,7 @@ screenshots:
     source: https://raw.githubusercontent.com/NginxProxyManager/nginx-proxy-manager/5b7e34eb67d35aa91dd3fe3818525caa42cfeca5/docs/src/public/screenshots/light/03_dashboard.png
 category: networking
 version: "2.16.0"
-release: 2
+release: 3
 homepage: https://nginxproxymanager.com
 license: AGPL-3.0-only
 appLicense: MIT
@@ -32,17 +32,13 @@ source:
   path: internal/catalog/entries/nginx-proxy-manager.yaml
 web:
   service: proxy
-firstSteps: >-
-  The console answers over plain HTTP, so signing in from outside this server sends
-  your password in clear. Add a domain first, or reach it another way, such as a VPN
-  or an SSH tunnel. Then open the console and sign in with your email and the password
-  in the ADMIN_PASSWORD secret. That secret sets the password on first start only, and
-  Nginx Proxy Manager writes it in its log, so change the password in the console after
-  you first sign in.
+signIn:
+  userInput: "ADMIN_EMAIL"
+  passwordInput: "ADMIN_PASSWORD"
+  changedIn: "the console"
 inputs:
   - name: ADMIN_EMAIL
     label: Your email
-    hint: You sign in to the console with this.
     type: INPUT_TYPE_EMAIL
   - name: ADMIN_PORT
     label: Console port
@@ -59,6 +55,7 @@ inputs:
     type: INPUT_TYPE_PORT
     defaultValue: "8443"
   - name: ADMIN_PASSWORD
+    setOnce: true
     label: Console password
     type: INPUT_TYPE_SECRET
     generate: 32

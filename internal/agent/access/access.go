@@ -76,6 +76,9 @@ type Manager struct {
 	// Tunnels lists the server's WireGuard tunnels, for a plan that turns deny
 	// everything else on to say which the policy would drop. Nil lists none.
 	Tunnels func(ctx context.Context) []Tunnel
+	// DeadMan is the revert that fires without the agent, armed before a change's
+	// table loads and disarmed once it's kept or put back. Nil arms none.
+	DeadMan DeadMan
 	// PanelOverSSH is a control server whose panel has no domain, so people
 	// reach it through SSH (ssh -L): there, deny everything else is refused
 	// unless a rule allows SSH's port.
@@ -92,6 +95,9 @@ type Manager struct {
 	after func(time.Duration, func()) stopper
 	// every is how often KeepCurrent checks, for a test; zero is networksEvery.
 	every time.Duration
+	// deadManGrace is how long after the timer the revert outside the agent
+	// fires, for a test; zero is the package's own.
+	deadManGrace time.Duration
 	// readWait replaces readWait, for a test.
 	readWait time.Duration
 
@@ -249,7 +255,9 @@ func (m *Manager) Ready(ctx context.Context) error {
 	if m.unrestored != nil {
 		return m.unrestored
 	}
-	// Loaded as confirmed: a change that waited is over, on disk too.
+	// Loaded as confirmed: a change that waited is over, on disk too, and
+	// nothing is left for the revert outside the agent.
+	m.disarmDeadManLocked(ctx)
 	return m.removeWaiting()
 }
 
@@ -578,6 +586,16 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 			m.mu.Unlock()
 			return err
 		}
+		// And armed outside the agent before it loads, so an agent that stops
+		// and can't start again doesn't leave the change's table for good. With
+		// no net, nothing loads.
+		if err := m.armDeadManLocked(ctx, d.Change); err != nil {
+			if rerr := m.removeWaiting(); rerr != nil {
+				m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that didn't load", slog.String("error", rerr.Error()))
+			}
+			m.mu.Unlock()
+			return err
+		}
 	}
 	loaded, err := m.Table.Load(ctx, tbl)
 	m.skipped(ctx, loaded)
@@ -587,9 +605,13 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		// either way, what was confirmed goes back.
 		if !first || errors.Is(err, nftables.ErrUnknown) {
 			m.rollBackLocked(ctx, d.Change)
-		} else if rerr := m.removeWaiting(); rerr != nil {
-			m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that didn't load; the agent puts back what was confirmed when it starts again",
-				slog.String("change", d.Change), slog.String("error", rerr.Error()))
+		} else {
+			// Nothing loaded, so there's nothing for the revert outside the agent either.
+			m.disarmDeadManLocked(ctx)
+			if rerr := m.removeWaiting(); rerr != nil {
+				m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that didn't load; the agent puts back what was confirmed when it starts again",
+					slog.String("change", d.Change), slog.String("error", rerr.Error()))
+			}
 		}
 		m.mu.Unlock()
 		return err
@@ -606,6 +628,13 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	// The change's last step here: the person who applied it has the timer's
 	// whole length from now to check and confirm.
 	m.armLocked(d.Change)
+	if err := m.armDeadManLocked(ctx, d.Change); err != nil {
+		// Its earlier steps are loaded, and the net for the wait can't be set:
+		// what was confirmed goes back now.
+		m.rollBackLocked(ctx, d.Change)
+		m.mu.Unlock()
+		return err
+	}
 	done, limit := m.waiting.done, m.announceLocked(ctx)
 	m.mu.Unlock()
 	return m.await(ctx, d.Change, done, limit)
@@ -639,7 +668,104 @@ func (m *Manager) rollBackStepLocked(ctx context.Context, change string, fn func
 		return err
 	}
 	m.confirmed, m.unrestored = c, nil
+	m.settleDeadManLocked(ctx, "")
 	return m.removeWaiting()
+}
+
+// deadManFile is what the revert outside the agent loads: the table as last
+// confirmed, or the script that removes Dockwell's table with nothing
+// confirmed. It's written before the revert is armed, and again as a change is
+// kept, so whenever it fires it loads what was confirmed, and nothing else.
+func (m *Manager) deadManFile() string { return filepath.Join(m.Dir, "deadman.nft") }
+
+// writeDeadManLocked writes what the revert outside the agent would load.
+func (m *Manager) writeDeadManLocked() error {
+	script := nftables.DeleteScript()
+	if !m.confirmed.empty() {
+		var err error
+		if script, err = m.confirmed.table.Script(); err != nil {
+			return err
+		}
+	}
+	return writeFile(m.deadManFile(), []byte(script))
+}
+
+// armDeadManLocked arms the revert outside the agent for a little after the
+// agent's own timer. A change whose revert can't be armed doesn't load: its
+// safety net couldn't be set, and the caller refuses it, saying why. A server
+// with no revert to arm, as where the tools are off in a test, has none.
+func (m *Manager) armDeadManLocked(ctx context.Context, change string) error {
+	if m.DeadMan == nil {
+		return nil
+	}
+	err := m.writeDeadManLocked()
+	if err == nil {
+		grace := deadManGrace
+		if m.deadManGrace > 0 {
+			grace = m.deadManGrace
+		}
+		err = m.DeadMan.Arm(context.WithoutCancel(ctx), m.deadManFile(), m.timer()+grace)
+	}
+	if err != nil {
+		m.logger().WarnContext(ctx, "can't arm the firewall's revert outside the agent, so the change doesn't load",
+			slog.String("change", change), slog.String("error", err.Error()))
+		return resource.Plainly(
+			"This server couldn't set the revert that puts its firewall back if the agent stops, so the change didn't load.",
+			fmt.Errorf("can't arm the revert that puts the firewall back without the agent, so %s doesn't load: %w. Then try again", change, err))
+	}
+	return nil
+}
+
+// stageDeadMan writes what the revert outside the agent would load once c is
+// confirmed, beside the file it loads now, and returns where. "" with no
+// revert to arm.
+func (m *Manager) stageDeadMan(c confirmedState) (string, error) {
+	if m.DeadMan == nil {
+		return "", nil
+	}
+	script := nftables.DeleteScript()
+	if !c.empty() {
+		var err error
+		if script, err = c.table.Script(); err != nil {
+			return "", err
+		}
+	}
+	staged := m.deadManFile() + ".kept"
+	if err := writeFile(staged, []byte(script)); err != nil {
+		return "", err
+	}
+	return staged, nil
+}
+
+// settleDeadManLocked is a change kept: what the revert outside the agent would
+// load becomes the table just confirmed, first, and then it's disarmed, so one
+// that fires all the same loads what was kept. staged is that table as a
+// confirmation wrote it beforehand, which only has to take the file's name;
+// with none, as after a rollback's step, it's written now.
+func (m *Manager) settleDeadManLocked(ctx context.Context, staged string) {
+	if m.DeadMan == nil {
+		return
+	}
+	var err error
+	if staged != "" {
+		err = os.Rename(staged, m.deadManFile())
+	} else {
+		err = m.writeDeadManLocked()
+	}
+	if err != nil {
+		m.logger().ErrorContext(ctx, "can't put in place what the firewall's revert outside the agent would load; if it can't be disarmed either, it loads the firewall as confirmed before this change", slog.String("error", err.Error()))
+	}
+	m.disarmDeadManLocked(ctx)
+}
+
+// disarmDeadManLocked stops the revert outside the agent.
+func (m *Manager) disarmDeadManLocked(ctx context.Context) {
+	if m.DeadMan == nil {
+		return
+	}
+	if err := m.DeadMan.Disarm(context.WithoutCancel(ctx)); err != nil {
+		m.logger().WarnContext(ctx, "can't disarm the firewall's revert outside the agent; when it fires it loads the firewall as last confirmed", slog.String("error", err.Error()))
+	}
 }
 
 // armLocked starts, or starts again, the waiting change's timer.
@@ -740,15 +866,29 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 		return resource.AccessNotWaiting
 	}
 	c := confirmedState{state: w.state, table: w.table, wait: w.wait}
+	// What the revert outside the agent would load once this is kept is written
+	// first, beside the file it loads now: a kept change must never have a stale
+	// revert behind it, so one that can't be written keeps nothing, and the
+	// change goes on waiting.
+	staged, err := m.stageDeadMan(c)
+	if err != nil {
+		m.logger().ErrorContext(ctx, "can't write what the firewall's revert outside the agent would load once this change is kept, so it isn't kept, and still waits",
+			slog.String("change", change), slog.String("error", err.Error()))
+		return resource.AccessNotKept
+	}
 	if err := m.saveConfirmed(c); err != nil {
 		m.logger().ErrorContext(ctx, "can't record a confirmed change to the firewall, so the agent puts back what was confirmed before",
 			slog.String("change", change), slog.String("error", err.Error()))
+		if staged != "" {
+			_ = os.Remove(staged)
+		}
 		m.rollBackLocked(ctx, change)
 		return resource.AccessRolledBack
 	}
 	m.confirmed = c
 	w.timer.Stop()
 	m.waiting = nil
+	m.settleDeadManLocked(ctx, staged)
 	m.record(change, resource.AccessKept)
 	if err := m.removeWaiting(); err != nil {
 		// confirmed.json names this wait, so a start reads it as kept.
@@ -789,6 +929,7 @@ func (m *Manager) rollBackLocked(ctx context.Context, change string) {
 			slog.String("change", change), slog.String("error", err.Error()))
 		return
 	}
+	m.disarmDeadManLocked(ctx)
 	if err := m.removeWaiting(); err != nil {
 		m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that waited", slog.String("error", err.Error()))
 	}

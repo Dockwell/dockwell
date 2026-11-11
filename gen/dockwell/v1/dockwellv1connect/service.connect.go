@@ -50,6 +50,9 @@ const (
 	// ServiceServiceAddServicePortProcedure is the fully-qualified name of the ServiceService's
 	// AddServicePort RPC.
 	ServiceServiceAddServicePortProcedure = "/dockwell.v1.ServiceService/AddServicePort"
+	// ServiceServiceOpenServiceProcedure is the fully-qualified name of the ServiceService's
+	// OpenService RPC.
+	ServiceServiceOpenServiceProcedure = "/dockwell.v1.ServiceService/OpenService"
 )
 
 // ServiceServiceClient is a client for the dockwell.v1.ServiceService service.
@@ -81,6 +84,17 @@ type ServiceServiceClient interface {
 	// service as it is: like DeployService, it needs no one to read the service's
 	// environment back.
 	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
+	// OpenService gives the person who asks a one-time address that opens the web
+	// UI a service publishes on its server, through the panel, on an origin of
+	// the service's own (ADR 0061): the browser that opens it first, within a
+	// minute, gets that app and nothing else, while the panel session that asked
+	// lasts and its role still lets it, and every connection it made ends with
+	// either. It's as much as revealing a secret, as an admin tool or an app's
+	// first account may be behind it, so it takes a developer in a session, never
+	// a token, and a passkey just now, and goes on the audit log. Only a panel
+	// reached on localhost opens apps for now: on its domain, this is refused,
+	// and says so.
+	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
 }
 
 // NewServiceServiceClient constructs a client for the dockwell.v1.ServiceService service. By
@@ -126,6 +140,12 @@ func NewServiceServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(serviceServiceMethods.ByName("AddServicePort")),
 			connect.WithClientOptions(opts...),
 		),
+		openService: connect.NewClient[v1.OpenServiceRequest, v1.OpenServiceResponse](
+			httpClient,
+			baseURL+ServiceServiceOpenServiceProcedure,
+			connect.WithSchema(serviceServiceMethods.ByName("OpenService")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -136,6 +156,7 @@ type serviceServiceClient struct {
 	deployService        *connect.Client[v1.DeployServiceRequest, v1.DeployServiceResponse]
 	rollBackService      *connect.Client[v1.RollBackServiceRequest, v1.RollBackServiceResponse]
 	addServicePort       *connect.Client[v1.AddServicePortRequest, v1.AddServicePortResponse]
+	openService          *connect.Client[v1.OpenServiceRequest, v1.OpenServiceResponse]
 }
 
 // ListServices calls dockwell.v1.ServiceService.ListServices.
@@ -161,6 +182,11 @@ func (c *serviceServiceClient) RollBackService(ctx context.Context, req *connect
 // AddServicePort calls dockwell.v1.ServiceService.AddServicePort.
 func (c *serviceServiceClient) AddServicePort(ctx context.Context, req *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {
 	return c.addServicePort.CallUnary(ctx, req)
+}
+
+// OpenService calls dockwell.v1.ServiceService.OpenService.
+func (c *serviceServiceClient) OpenService(ctx context.Context, req *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error) {
+	return c.openService.CallUnary(ctx, req)
 }
 
 // ServiceServiceHandler is an implementation of the dockwell.v1.ServiceService service.
@@ -192,6 +218,17 @@ type ServiceServiceHandler interface {
 	// service as it is: like DeployService, it needs no one to read the service's
 	// environment back.
 	AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error)
+	// OpenService gives the person who asks a one-time address that opens the web
+	// UI a service publishes on its server, through the panel, on an origin of
+	// the service's own (ADR 0061): the browser that opens it first, within a
+	// minute, gets that app and nothing else, while the panel session that asked
+	// lasts and its role still lets it, and every connection it made ends with
+	// either. It's as much as revealing a secret, as an admin tool or an app's
+	// first account may be behind it, so it takes a developer in a session, never
+	// a token, and a passkey just now, and goes on the audit log. Only a panel
+	// reached on localhost opens apps for now: on its domain, this is refused,
+	// and says so.
+	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
 }
 
 // NewServiceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -233,6 +270,12 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 		connect.WithSchema(serviceServiceMethods.ByName("AddServicePort")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceServiceOpenServiceHandler := connect.NewUnaryHandler(
+		ServiceServiceOpenServiceProcedure,
+		svc.OpenService,
+		connect.WithSchema(serviceServiceMethods.ByName("OpenService")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServiceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceServiceListServicesProcedure:
@@ -245,6 +288,8 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 			serviceServiceRollBackServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceAddServicePortProcedure:
 			serviceServiceAddServicePortHandler.ServeHTTP(w, r)
+		case ServiceServiceOpenServiceProcedure:
+			serviceServiceOpenServiceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -272,4 +317,8 @@ func (UnimplementedServiceServiceHandler) RollBackService(context.Context, *conn
 
 func (UnimplementedServiceServiceHandler) AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.AddServicePort is not implemented"))
+}
+
+func (UnimplementedServiceServiceHandler) OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.OpenService is not implemented"))
 }

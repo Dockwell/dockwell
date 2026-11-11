@@ -46,8 +46,10 @@ message Entry {
   // The service a person opens once it's installed. Unset for an app with
   // nothing to open, such as a tunnel.
   Web web = 13;
-  // What to do first once it runs, in a sentence or two, such as how to sign
-  // in. Empty when there's nothing to say.
+  // What to do first once it runs, in one short sentence, where no field below
+  // says it: the panel shows sign_in, first_visitor_owns, signups and
+  // address_variables as state and actions, and never as words here. Empty when
+  // there's nothing more to say, as for most entries.
   string first_steps = 14;
   // What it reaches on its server beyond its own containers, in words, such as
   // "The server's own network, to reach routes on loopback". A person approves
@@ -72,6 +74,61 @@ message Entry {
   string app_source = 21;
   // A short list of things the app can do, in the catalog's own words.
   repeated string features = 22;
+  // How a person signs in to what web opens, which the panel shows with the
+  // password to reveal and copy, rather than says. Unset for an app with no
+  // sign-in of its own, or whose first visitor makes the account.
+  SignIn sign_in = 23;
+  // The first person to open what web opens makes its owner account. The
+  // panel says so on its page, and before a domain makes it public.
+  bool first_visitor_owns = 24;
+  // What closes sign-ups once the owner's account is made, for an app that lets
+  // anyone who reaches it make one. The panel offers to close them.
+  Signups signups = 25;
+  // Variables a service builds its links or checks requests from, which follow
+  // the domain added to what web opens, such as Ghost's url.
+  repeated AddressVariable address_variables = 26;
+  // What a person may want to know of the app as it runs here, a line each,
+  // such as "Transcodes on the server's CPU". Never steps to follow.
+  repeated string notes = 27;
+}
+
+// SignIn is how a person signs in to an app once it's installed.
+message SignIn {
+  // The user, as the app's sign-in asks for it, such as "root". Empty when
+  // user_input holds it.
+  string user = 1;
+  // The input that holds the user, such as "ADMIN_EMAIL".
+  string user_input = 2;
+  // The secret input that holds the password, such as
+  // "MARIADB_ROOT_PASSWORD".
+  string password_input = 3;
+  // The server the sign-in asks for, where it asks, such as "db" for Adminer.
+  string server = 4;
+  // Where in the app a person changes the password, for an app that reads it
+  // on its first start alone (the input's set_once), such as "Profile".
+  string changed_in = 5;
+}
+
+// Signups is the variable that closes an app's sign-ups.
+message Signups {
+  // The service, by its name in the Compose file, such as "gitea".
+  string service = 1;
+  // The variable, such as "SIGNUPS_ALLOWED".
+  string variable = 2;
+  // What closes them, such as "false".
+  string closed = 3;
+}
+
+// AddressVariable is a variable that follows the domain an app is reached at.
+message AddressVariable {
+  // The service, by its name in the Compose file, such as "ghost".
+  string service = 1;
+  // The variable, such as "url".
+  string variable = 2;
+  // What it's set to, with {domain} where the domain goes, such as
+  // "https://{domain}", or a value of its own that goes with a domain, such
+  // as "https" for Nextcloud's OVERWRITEPROTOCOL.
+  string value = 3;
 }
 
 // Screenshot is a preview a person can read before starting an installation.
@@ -122,6 +179,10 @@ message Input {
   // How a generated secret is written, for an app that reads it as a key: letters
   // and digits unless set.
   GenerateAs generate_as = 80;
+  // The app reads this secret on its first start alone, or encrypts what it
+  // keeps with it, so setting the secret anew changes nothing or loses what it
+  // encrypted. The panel marks it, and says where to change it, if anywhere.
+  bool set_once = 9;
 }
 
 // GenerateAs is how a generated secret is written.
@@ -150,8 +211,8 @@ enum InputType {
   // A value kept as one of the project's secrets, encrypted and used by
   // reference. Its ${NAME} must be a whole environment value, or a word of a
   // command or a health check, so that a rotation reaches the service. An app
-  // that reads it on first start alone keeps what it read, which the entry's
-  // first steps must say.
+  // that reads it on first start alone keeps what it read, which the input's
+  // set_once says.
   INPUT_TYPE_SECRET = 4;
 }
 
