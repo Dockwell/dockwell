@@ -99,7 +99,9 @@ FileService.ReadFile                           read         admin      admin    
 FileService.RestoreFile                        apply        admin      admin      install  session
 FileService.SaveFile                           destructive  admin      admin      install  session
 FileService.UploadFile                         apply        admin      admin      install  session
+FirewallService.GetServerFail2ban              read         admin      admin      install
 FirewallService.GetServerFirewall              read         admin      admin      install
+FirewallService.GetServerSsh                   read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
 ImageService.GetImage                          read         developer  developer  project
 ImageService.ListImageTags                     read         developer  developer  project

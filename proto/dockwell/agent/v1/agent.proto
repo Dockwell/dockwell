@@ -640,6 +640,10 @@ message Call {
     FirewallCall firewall = 43;
     // Keeps a change to the firewall that waits for its confirmation.
     ConfirmAccessCall confirm_access = 44;
+    // Read how SSH lets people in, changing nothing.
+    SshCall ssh = 46;
+    // Read fail2ban's jails and bans, changing nothing.
+    Fail2banCall fail2ban = 47;
     // Ask whether what a website sends to answers, from the server. Numbered in
     // the websites' block, as open work adds to this message.
     ProbeCall probe = 60;
@@ -714,6 +718,14 @@ message ProbeCall {
 // ufw, firewalld and nftables with their own commands, and Docker's published
 // ports, and changes nothing.
 message FirewallCall {}
+
+// SshCall asks how SSH lets people in: the values sshd says are in effect, with
+// sshd -T, and the files that set them (ADR 0052).
+message SshCall {}
+
+// Fail2banCall asks what fail2ban does: whether it's there and running, its
+// jails, and the addresses banned now, through fail2ban-client (ADR 0052).
+message Fail2banCall {}
 
 // ConfirmAccessCall confirms a change to the firewall that waits on this server
 // for its confirmation, so the agent keeps it, rather than put back what was
@@ -1778,6 +1790,8 @@ message CallResult {
     // What a firewall call read.
     dockwell.v1.ServerFirewall firewall = 43;
     ConfirmAccessResult confirm_access = 44;
+    dockwell.v1.ServerSsh ssh = 46;
+    dockwell.v1.ServerFail2ban fail2ban = 47;
     // What a probe found.
     ProbeResult probe = 60;
     // What a disk use call added up. Numbered apart, as open work adds to this

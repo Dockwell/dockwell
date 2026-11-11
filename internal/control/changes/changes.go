@@ -331,7 +331,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan) && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
-			fmt.Errorf("%s changes who reaches a server, which waits for the person who applied it to confirm they still can, so no API token may apply it. %s", r.ID, signIn),
+			fmt.Errorf("%s changes who reaches a server, or who gets onto it, which a person approves with a passkey, so no API token may apply it. %s", r.ID, signIn),
 			authapi.ReasonNeedsSession)
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,

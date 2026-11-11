@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
@@ -100,6 +101,12 @@ type Config struct {
 	// Access keeps a change to the firewall that waits for its confirmation,
 	// when the control plane confirms it. Nil keeps none.
 	Access AccessConfirmer
+	// Jails says the fail2ban jails Dockwell holds, by name, for the read to
+	// carry each beside the jail as it runs. Nil says none.
+	Jails func() map[string]*resourcev1.Jail
+	// SSHSessions says the addresses signed in over SSH from outside now, for a
+	// jail's form to put in what it never bans. Nil says none.
+	SSHSessions func(ctx context.Context) []string
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
 	// Backups takes and removes backups of this server's volumes. Nil takes none.
@@ -137,6 +144,10 @@ type Config struct {
 	forwards *forwardPool
 	// firewall reads what filters the server's inbound traffic, when asked.
 	firewall *firewallReader
+	// ssh reads how SSH lets people in, when asked.
+	ssh *sshReader
+	// fail2ban reads what fail2ban does, when asked.
+	fail2ban *fail2banReader
 	// presence is whether a stream is up, which the reconciler goes by.
 	presence *presence
 	// outlook keeps what the server found out from one stream to the next.
@@ -435,6 +446,8 @@ func Run(ctx context.Context, cfg Config) error {
 	cfg.firewall = newFirewallReader(cfg)
 	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
+	cfg.ssh = newSSHReader(cfg)
+	cfg.fail2ban = newFail2banReader(cfg)
 	cfg.images = newImages(cfg.Docker, cfg.Images, nil)
 	cfg.ports = &ingress.Holders{Client: cfg.Docker, OwnersFor: socketOwnersFor}
 	if cfg.Drivers == nil {

@@ -40,7 +40,7 @@ func TestEveryAgentKindHasAReconcileDecision(t *testing.T) {
 	})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	cfg := agentDrivers(ctx, stdio, slog.New(slog.DiscardHandler), datadir.Dir{Root: root}, nil, nil)
+	cfg := agentDrivers(ctx, stdio, slog.New(slog.DiscardHandler), datadir.Dir{Root: root}, nil, nil, "")
 	kinds := cfg.Drivers.All()
 	if len(kinds) == 0 {
 		t.Fatal("the agent's drivers name no kind")

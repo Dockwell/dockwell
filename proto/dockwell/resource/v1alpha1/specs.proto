@@ -321,6 +321,40 @@ message FirewallPolicy {
   bool deny_everything_else = 1;
 }
 
+// Jail is one of fail2ban's jails on a server, as Dockwell writes it in
+// its own file, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such
+// as sshd (ADR 0052). fail2ban keeps the last value it reads, so a person's
+// jail.local can set it otherwise, and the server's Firewall tab says each jail
+// as fail2ban runs it.
+message Jail {
+  // The filter that says what counts as a failure, as fail2ban names it, such
+  // as "sshd".
+  string filter = 1;
+  // The ports a ban closes to the address, such as 22. Empty closes every
+  // port.
+  repeated uint32 ports = 2;
+  // How many failures within find_time ban an address. 0 takes fail2ban's
+  // default, 5.
+  uint32 max_retry = 3;
+  // How far back failures count, such as "10m". Empty takes fail2ban's
+  // default, 10 min.
+  string find_time = 4;
+  // How long a ban lasts, such as "1h". Empty takes fail2ban's default,
+  // 10 min.
+  string ban_time = 5;
+  // True bans for good, in place of ban_time.
+  bool ban_for_good = 6;
+  // Where it reads failures: "systemd" for the journal, as an SSH jail does on
+  // a server with no /var/log/auth.log, or empty for log_paths.
+  string backend = 7;
+  // The log files it reads failures from, when it doesn't read the journal.
+  repeated string log_paths = 8;
+  // Addresses or ranges it never bans, such as 203.0.113.0/24, beside the
+  // server's own loopback and the control server's addresses, which it never
+  // bans either.
+  repeated string ignore = 9;
+}
+
 // FirewallAction is what a rule does with matching traffic.
 enum FirewallAction {
   // Allow, the default.
@@ -757,6 +791,9 @@ message Spec {
     // What a server's firewall does with what no rule lets in, kind
     // "firewall.policy". Numbered apart, as open work adds to this message.
     FirewallPolicy firewall_policy = 40;
+    // One of fail2ban's jails on a server, kind "fail2ban.jail". Numbered
+    // apart, as open work adds to this message.
+    Jail fail2ban_jail = 41;
     // A volume in an environment, kind "volume".
     Volume volume = 6;
     // A network in an environment, kind "network".

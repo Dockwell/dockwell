@@ -1207,6 +1207,23 @@ message PlanStep {
   // is there, and a stranger's. Unset on a step that leaves SSH open to
   // anywhere.
   AccessStays stays = 43;
+  // What a step that sets a fail2ban jail says of whom it can ban (ADR 0052).
+  JailPlan jail = 44;
+}
+
+// JailPlan is whom a fail2ban jail, as planned, never bans, and who is signed
+// in now that it could.
+message JailPlan {
+  // What it never bans: the server's loopback, the control server's
+  // addresses, and what the jail ignores itself.
+  repeated string never_bans = 1;
+  // The addresses signed in to the server over SSH as it was planned that it
+  // doesn't ignore: a ban can land on each as the change applies, as a jail
+  // that starts counts the failures of just before.
+  repeated string signed_in_not_ignored = 2;
+  // True when what it ignores covers every address, such as 0.0.0.0/0: the
+  // jail then bans nobody.
+  bool ignores_everything = 3;
 }
 
 // AccessStays is who still reaches a server's SSH once a change that narrows

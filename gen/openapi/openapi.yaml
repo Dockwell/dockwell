@@ -2930,6 +2930,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/fail2ban:
+        get:
+            tags:
+                - FirewallService
+            description: |-
+                GetServerFail2ban reads, through the server's agent, what fail2ban does:
+                 whether it's installed and running, each jail as fail2ban says it runs,
+                 and the addresses each has banned now, through fail2ban-client. Reading it
+                 changes nothing. fail2ban is the whole server's, and its bans name the
+                 addresses of people who tried to sign in, so reading it is an admin's (ADR
+                 0049).
+            operationId: FirewallService_GetServerFail2Ban
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerFail2banResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:
         get:
             tags:
@@ -3340,6 +3372,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/EndProcessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/ssh:
+        get:
+            tags:
+                - FirewallService
+            description: |-
+                GetServerSsh reads, through the server's agent, how SSH lets people in: the
+                 values sshd's files say, with sshd -T, which file sets each, the
+                 Match blocks that may set them otherwise for some, and whether sshd_config
+                 includes the drop-in folder Dockwell would write to. Reading it changes
+                 nothing. How SSH lets people in is the whole server's, so reading it is an
+                 admin's (ADR 0049), as reading its firewall is.
+            operationId: FirewallService_GetServerSsh
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerSshResponse'
                 default:
                     description: Default error response
                     content:
@@ -9675,6 +9739,100 @@ components:
                  as seeing it is useful and it rarely holds a secret. What runs keeps a value by
                  name, but for one of several words in a command written as one string. A name,
                  a number or a path doesn't count, as docs/security/compose-variables.md lists.
+        Fail2banBan:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: The address, such as "198.51.100.77".
+                since:
+                    type: string
+                    description: When the ban began. Unset when fail2ban didn't say.
+                    format: date-time
+                until:
+                    type: string
+                    description: When it ends. Unset when it lasts for good, or fail2ban didn't say.
+                    format: date-time
+            description: Fail2banBan is an address a jail has banned.
+        Fail2banJail:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "sshd".
+                maxRetry:
+                    type: integer
+                    description: How many failures within find_time ban an address.
+                    format: uint32
+                findTime:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How far back failures count.
+                banTime:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long a ban lasts. Unset when it lasts for good, or fail2ban didn't say.
+                bansForGood:
+                    type: boolean
+                    description: True when a ban lasts for good.
+                failedNow:
+                    type: integer
+                    description: Addresses that failed within find_time, not banned yet.
+                    format: uint32
+                failedTotal:
+                    type: integer
+                    description: Failures since fail2ban started.
+                    format: uint32
+                bannedNow:
+                    type: integer
+                    description: Addresses banned now.
+                    format: uint32
+                bannedTotal:
+                    type: integer
+                    description: Bans since fail2ban started.
+                    format: uint32
+                files:
+                    type: array
+                    items:
+                        type: string
+                    description: The log files it follows, when it reads files.
+                journalMatches:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What it reads from the journal, when it reads the journal, such as
+                         "_SYSTEMD_UNIT=sshd.service + _COMM=sshd".
+                bans:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Fail2banBan'
+                    description: The addresses banned now, the latest first.
+                unreadable:
+                    type: string
+                    description: Why some of the jail couldn't be read. Empty when all of it could.
+                dockwell:
+                    type: boolean
+                    description: |-
+                        True when Dockwell writes this jail, in its own file, so a change edits it
+                         as a fail2ban.jail resource of the server's. fail2ban reads that file
+                         after its own and before jail.local, so a jail.local can still set it
+                         otherwise, and the values above are as fail2ban runs it.
+                ignore:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What the jail never bans, as fail2ban runs it (fail2ban-client get <jail>
+                         ignoreip), such as "127.0.0.0/8". A section's own ignoreip replaces what
+                         [DEFAULT] sets, so this is what holds, whoever wrote it.
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/Jail'
+                    description: |-
+                        The jail as Dockwell holds it, when Dockwell writes it: what an edit
+                         starts from, so it changes only what it means to.
+            description: Fail2banJail is one of fail2ban's jails, as it runs.
         FetchBackupRequest:
             type: object
             properties:
@@ -10283,6 +10441,20 @@ components:
                         - $ref: '#/components/schemas/ServerDiskUse'
                     description: What takes the room on the disk that holds Docker's data.
             description: GetServerDiskUseResponse says what takes the room on a server's disk.
+        GetServerFail2banResponse:
+            type: object
+            properties:
+                fail2ban:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerFail2ban'
+                    description: fail2ban, as the agent read it.
+                yourAddress:
+                    type: string
+                    description: |-
+                        The address this request came from, as the control plane sees it, such
+                         as "203.0.113.7": the caller's own, for a jail's form to put in what it
+                         never bans. Empty when it's the server itself, as over ssh -L.
+            description: GetServerFail2banResponse is what fail2ban does on a server.
         GetServerFirewallResponse:
             type: object
             properties:
@@ -10299,6 +10471,14 @@ components:
                         - $ref: '#/components/schemas/Server'
                     description: The server, with history.
             description: GetServerResponse carries one server.
+        GetServerSshResponse:
+            type: object
+            properties:
+                ssh:
+                    allOf:
+                        - $ref: '#/components/schemas/ServerSsh'
+                    description: SSH, as the agent read it.
+            description: GetServerSshResponse is how SSH lets people in on a server.
         GetServerUpdatesResponse:
             type: object
             properties:
@@ -11260,6 +11440,91 @@ components:
                          install.
                     format: date-time
             description: Invite is an open invitation to sign in.
+        Jail:
+            type: object
+            properties:
+                filter:
+                    type: string
+                    description: |-
+                        The filter that says what counts as a failure, as fail2ban names it, such
+                         as "sshd".
+                ports:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports a ban closes to the address, such as 22. Empty closes every
+                         port.
+                maxRetry:
+                    type: integer
+                    description: |-
+                        How many failures within find_time ban an address. 0 takes fail2ban's
+                         default, 5.
+                    format: uint32
+                findTime:
+                    type: string
+                    description: |-
+                        How far back failures count, such as "10m". Empty takes fail2ban's
+                         default, 10 min.
+                banTime:
+                    type: string
+                    description: |-
+                        How long a ban lasts, such as "1h". Empty takes fail2ban's default,
+                         10 min.
+                banForGood:
+                    type: boolean
+                    description: True bans for good, in place of ban_time.
+                backend:
+                    type: string
+                    description: |-
+                        Where it reads failures: "systemd" for the journal, as an SSH jail does on
+                         a server with no /var/log/auth.log, or empty for log_paths.
+                logPaths:
+                    type: array
+                    items:
+                        type: string
+                    description: The log files it reads failures from, when it doesn't read the journal.
+                ignore:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Addresses or ranges it never bans, such as 203.0.113.0/24, beside the
+                         server's own loopback and the control server's addresses, which it never
+                         bans either.
+            description: |-
+                Jail is one of fail2ban's jails on a server, as Dockwell writes it in
+                 its own file, /etc/fail2ban/jail.d/dockwell.conf, named as the jail is, such
+                 as sshd (ADR 0052). fail2ban keeps the last value it reads, so a person's
+                 jail.local can set it otherwise, and the server's Firewall tab says each jail
+                 as fail2ban runs it.
+        JailPlan:
+            type: object
+            properties:
+                neverBans:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What it never bans: the server's loopback, the control server's
+                         addresses, and what the jail ignores itself.
+                signedInNotIgnored:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses signed in to the server over SSH as it was planned that it
+                         doesn't ignore: a ban can land on each as the change applies, as a jail
+                         that starts counts the failures of just before.
+                ignoresEverything:
+                    type: boolean
+                    description: |-
+                        True when what it ignores covers every address, such as 0.0.0.0/0: the
+                         jail then bans nobody.
+            description: |-
+                JailPlan is whom a fail2ban jail, as planned, never bans, and who is signed
+                 in now that it could.
         JoinAddress:
             type: object
             properties:
@@ -13239,6 +13504,10 @@ components:
                          SSH stays open from, by name, so a person sees whether their own address
                          is there, and a stranger's. Unset on a step that leaves SSH open to
                          anywhere.
+                jail:
+                    allOf:
+                        - $ref: '#/components/schemas/JailPlan'
+                    description: What a step that sets a fail2ban jail says of whom it can ban (ADR 0052).
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -14671,6 +14940,48 @@ components:
                 ServerDiskUse is what takes the room on the disk that holds Docker's data,
                  as Docker and the agent added it up. Docker's parts can come to more than
                  the disk holds, when Docker's data spans disks of its own.
+        ServerFail2ban:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent read it.
+                    format: date-time
+                state:
+                    enum:
+                        - FAIL2BAN_STATE_UNSPECIFIED
+                        - FAIL2BAN_STATE_NOT_INSTALLED
+                        - FAIL2BAN_STATE_STOPPED
+                        - FAIL2BAN_STATE_RUNNING
+                        - FAIL2BAN_STATE_UNREADABLE
+                    type: string
+                    description: Whether it's there and running.
+                    format: enum
+                why:
+                    type: string
+                    description: |-
+                        Why it isn't running, or couldn't be read, as fail2ban-client said. Empty
+                         otherwise.
+                version:
+                    type: string
+                    description: fail2ban's version, such as "1.0.2".
+                jails:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Fail2banJail'
+                    description: Its jails, by name.
+                signedInFrom:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses signed in to the server over SSH from outside it now, as
+                         the firewall's pins read them, such as "203.0.113.7". A jail's form puts
+                         them in what it never bans, unless the person takes them out.
+            description: |-
+                ServerFail2ban is what fail2ban does on a server, as its agent read it
+                 through fail2ban-client. A jail is as fail2ban says it runs, which may not
+                 be what any one file writes, as fail2ban keeps the last value it reads.
         ServerFirewall:
             type: object
             properties:
@@ -14990,6 +15301,148 @@ components:
                         What holds it, in words, such as "sshd" or "nginx, in the container
                          legacy-site". Empty when nothing does, and when what does can't be named.
             description: ServerPortHeld is what holds one port on a server.
+        ServerSsh:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent read it.
+                    format: date-time
+                unreadable:
+                    type: string
+                    description: |-
+                        Why the agent couldn't read sshd's values, such as that the server has no
+                         sshd, or what sshd -T said. Empty when it could; the rest is unset then.
+                         Every value here is what sshd's files say now, read with sshd -T. The
+                         sshd that listens keeps what it read as it started or last reloaded:
+                         loaded says whether that is the same.
+                version:
+                    type: string
+                    description: The SSH server and its version, as it says them, such as "OpenSSH_9.6p1".
+                passwordLogin:
+                    enum:
+                        - SSH_ANSWER_UNSPECIFIED
+                        - SSH_ANSWER_YES
+                        - SSH_ANSWER_NO
+                    type: string
+                    description: |-
+                        Whether a password signs in, as sshd's files say: PasswordAuthentication
+                         is on, or KbdInteractiveAuthentication with UsePAM, through which PAM asks
+                         for one. Unspecified when sshd -T didn't say, which is "can't tell", never
+                         "no".
+                    format: enum
+                rootLogin:
+                    enum:
+                        - SSH_ROOT_LOGIN_UNSPECIFIED
+                        - SSH_ROOT_LOGIN_YES
+                        - SSH_ROOT_LOGIN_KEYS_ONLY
+                        - SSH_ROOT_LOGIN_FORCED_COMMANDS_ONLY
+                        - SSH_ROOT_LOGIN_NO
+                    type: string
+                    description: Whether root may sign in, and how.
+                    format: enum
+                ports:
+                    type: array
+                    items:
+                        type: integer
+                        format: uint32
+                    description: |-
+                        The ports sshd's files name. Empty when sshd -T named none, which is
+                         "can't tell".
+                keyLogin:
+                    enum:
+                        - SSH_ANSWER_UNSPECIFIED
+                        - SSH_ANSWER_YES
+                        - SSH_ANSWER_NO
+                    type: string
+                    description: |-
+                        Whether a key signs in (PubkeyAuthentication). Unspecified when sshd -T
+                         didn't say.
+                    format: enum
+                setIn:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SshSource'
+                    description: |-
+                        Where each of PasswordAuthentication, KbdInteractiveAuthentication,
+                         PermitRootLogin and Port is set: the line sshd reads first of each, outside
+                         a Match block, or every Port line, as each adds a port. One that no file
+                         sets is sshd's default, and isn't here.
+                matches:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SshMatch'
+                    description: |-
+                        Every Match block that isn't "Match all", whatever it sets: sshd -T doesn't
+                         apply them, so the values above are the defaults for every connection, and
+                         a block may set them otherwise for those it matches.
+                dropInFolder:
+                    type: string
+                    description: |-
+                        The drop-in folder sshd_config includes before its own lines, such as
+                         "/etc/ssh/sshd_config.d", where Dockwell would write its own file. Empty
+                         when it includes none, so Dockwell can't change SSH there: it never edits
+                         sshd_config.
+                dockwellDropIn:
+                    type: boolean
+                    description: True when Dockwell's own drop-in, 00-dockwell.conf, is there.
+                socketUnit:
+                    type: string
+                    description: |-
+                        The systemd socket unit that holds SSH's port, such as "ssh.socket", when
+                         one does, as on Ubuntu 22.10 and later. Empty when sshd holds it itself.
+                accessLists:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        AllowUsers, AllowGroups, DenyUsers and DenyGroups, as sshd -T says them,
+                         such as "allowusers deploy admin": who may sign in at all.
+                unchecked:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Ways in Dockwell can't check, set here: AuthorizedKeysCommand,
+                         TrustedUserCAKeys, AuthorizedPrincipalsFile, GSSAPIAuthentication and
+                         HostbasedAuthentication.
+                loaded:
+                    enum:
+                        - SSH_LOADED_UNSPECIFIED
+                        - SSH_LOADED_STALE
+                        - SSH_LOADED_APART
+                    type: string
+                    description: |-
+                        What Dockwell can say against the values, if anything: it never says the
+                         sshd that listens has read the files as they are.
+                    format: enum
+                loadedWhy:
+                    type: string
+                    description: |-
+                        With loaded apart, how the sshd that listens differs, in a sentence for a
+                         person. With loaded unspecified, what Dockwell couldn't read, for the
+                         record: the panel doesn't show it, as it's no warning.
+                changedFiles:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        With loaded stale: the files, links and folders that changed after sshd
+                         last wrote its PID file.
+                loadedTime:
+                    type: string
+                    description: 'With loaded stale: when the sshd that listens last wrote its PID file.'
+                    format: date-time
+                reloadCommand:
+                    type: string
+                    description: |-
+                        With loaded stale: the command that reloads the sshd that listens, as
+                         the agent can tell how it runs: "systemctl reload ssh.service" under
+                         systemd, "rc-service sshd reload" under OpenRC, or "kill -HUP 812".
+            description: |-
+                ServerSsh is how SSH lets people in on a server, as its agent read it: the
+                 values sshd's files say, read with sshd -T, which may not be what any one file writes,
+                 as sshd keeps the first value it reads of each.
         ServerStats:
             type: object
             properties:
@@ -15725,6 +16178,12 @@ components:
                     description: |-
                         What a server's firewall does with what no rule lets in, kind
                          "firewall.policy". Numbered apart, as open work adds to this message.
+                fail2banJail:
+                    allOf:
+                        - $ref: '#/components/schemas/Jail'
+                    description: |-
+                        One of fail2ban's jails on a server, kind "fail2ban.jail". Numbered
+                         apart, as open work adds to this message.
                 volume:
                     allOf:
                         - $ref: '#/components/schemas/Volume'
@@ -15791,6 +16250,52 @@ components:
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
                  every kind.
+        SshMatch:
+            type: object
+            properties:
+                file:
+                    type: string
+                    description: The file it's in.
+                line:
+                    type: integer
+                    description: The line the block starts on, from 1.
+                    format: uint32
+                criteria:
+                    type: string
+                    description: What it matches, as the file writes it, such as "User deploy".
+                sets:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The keywords it sets, of those ServerSsh says, such as
+                         "PasswordAuthentication". Empty when it sets none of them, or only ones
+                         Dockwell doesn't read.
+            description: |-
+                SshMatch is a Match block that sets one of the values ServerSsh says, for
+                 some people or addresses.
+        SshSource:
+            type: object
+            properties:
+                keyword:
+                    type: string
+                    description: The keyword, as sshd reads it, such as "PasswordAuthentication".
+                file:
+                    type: string
+                    description: The file, such as "/etc/ssh/sshd_config.d/50-cloud-init.conf".
+                line:
+                    type: integer
+                    description: The line, from 1.
+                    format: uint32
+                value:
+                    type: string
+                    description: The value it sets there, as the file writes it, such as "yes".
+                changed:
+                    type: boolean
+                    description: |-
+                        True when the file changed after the sshd that listens last read it, so
+                         this value isn't what runs yet.
+            description: SshSource is a line that sets one of sshd's values.
         StateStore:
             type: object
             properties:

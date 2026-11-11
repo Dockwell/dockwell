@@ -6535,6 +6535,9 @@ msgstr "A service of the same name in the file replaces it, and one the file doe
 msgid "A service of the same name in the file replaces it."
 msgstr "A service of the same name in the file replaces it."
 
+msgid "Add it to what the jail never bans first, or apply this knowing it."
+msgstr "Add it to what the jail never bans first, or apply this knowing it."
+
 msgid "Adds {names}."
 msgstr "Adds {names}."
 
@@ -6662,6 +6665,9 @@ msgstr "If {name} is rolled back, {names} stays as it is: what the new version w
 msgid "Installs of them keep running, with no upgrades."
 msgstr "Installs of them keep running, with no upgrades."
 
+msgid "It bans any other address that keeps failing to sign in, yours included."
+msgstr "It bans any other address that keeps failing to sign in, yours included."
+
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 
@@ -6706,6 +6712,15 @@ msgstr "It leads to <0>{leadsTo}</0> through a symlink, and the server's securit
 
 msgid "It may be an older commit, or a fork's."
 msgstr "It may be an older commit, or a fork's."
+
+msgid "It never bans the server itself or the control server."
+msgstr "It never bans the server itself or the control server."
+
+msgid "It never bans {never}."
+msgstr "It never bans {never}."
+
+msgid "It never bans {never}. {counts} {lifting}"
+msgstr "It never bans {never}. {counts} {lifting}"
 
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "It reaches what the server reaches, past Docker's network and the firewall."
@@ -6821,6 +6836,9 @@ msgstr "SSH on {0} stays open only from {from}"
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
 
+msgid "Take out the range that covers everything for it to ban anyone."
+msgstr "Take out the range that covers everything for it to ban anyone."
+
 msgid "Takes away {names}"
 msgstr "Takes away {names}"
 
@@ -6900,6 +6918,22 @@ msgid "This copy was taken with the app running"
 msgstr "This copy was taken with the app running"
 
 #. placeholder {0}: server.serverName
+msgid "This jail can ban your own address on {0}"
+msgstr "This jail can ban your own address on {0}"
+
+#. placeholder {0}: server.serverName
+msgid "This jail can ban {exposed}, signed in to {0} over SSH now"
+msgstr "This jail can ban {exposed}, signed in to {0} over SSH now"
+
+#. placeholder {0}: server.serverName
+msgid "This jail ignores every address on {0}, so it bans nobody"
+msgstr "This jail ignores every address on {0}, so it bans nobody"
+
+#. placeholder {0}: server.serverName
+msgid "This jail never bans {never} on {0}"
+msgstr "This jail never bans {never} on {0}"
+
+#. placeholder {0}: server.serverName
 msgid "This may cut off access to {0}"
 msgstr "This may cut off access to {0}"
 
@@ -6945,6 +6979,9 @@ msgstr "Undo may not bring everything back."
 msgid "Undoing this puts back {from}. The release before it can't run the data."
 msgstr "Undoing this puts back {from}. The release before it can't run the data."
 
+msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
+msgstr "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
+
 msgid "What asks for {shared} there can reach either."
 msgstr "What asks for {shared} there can reach either."
 
@@ -6968,6 +7005,9 @@ msgstr "Where SELinux is enforced, Docker relabels everything there, to share it
 
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 msgstr "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
+
+msgid "fail2ban counts the failures from just before this applies, so a ban can land as it does."
+msgstr "fail2ban counts the failures from just before this applies, so a ban can land as it does."
 
 msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
 msgstr "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
@@ -7009,6 +7049,9 @@ msgstr "{by} writes there. Code from another image asks again, as a program in a
 
 msgid "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
 msgstr "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
+
+msgid "{counts} {lifting}"
+msgstr "{counts} {lifting}"
 
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
@@ -9846,6 +9889,232 @@ msgstr "{name} didn't stop within 10 s, so it was killed."
 msgid "{name} stopped."
 msgstr "{name} stopped."
 
+msgid "<0>Match {criteria}</0> · {file}, line {line}"
+msgstr "<0>Match {criteria}</0> · {file}, line {line}"
+
+msgid "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+msgstr "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+
+msgid "An address or a range to never ban"
+msgstr "An address or a range to never ban"
+
+msgid "As it is: {s}"
+msgstr "As it is: {s}"
+
+msgid "Banned for"
+msgstr "Banned for"
+
+msgid "Banned now"
+msgstr "Banned now"
+
+msgid "Bans an address that keeps failing to sign in over SSH."
+msgstr "Bans an address that keeps failing to sign in over SSH."
+
+msgid "Change the sshd jail on {name}"
+msgstr "Change the sshd jail on {name}"
+
+msgid "Copy {command}"
+msgstr "Copy {command}"
+
+msgid "Counted within"
+msgstr "Counted within"
+
+msgid "Dockwell writes this jail."
+msgstr "Dockwell writes this jail."
+
+#. placeholder {0}: j.name
+msgid "Edit the {0} jail"
+msgstr "Edit the {0} jail"
+
+msgid "Fail2ban"
+msgstr "Fail2ban"
+
+msgid "Failed sign-ins that ban an address"
+msgstr "Failed sign-ins that ban an address"
+
+msgid "For good"
+msgstr "For good"
+
+msgid "Forced commands only"
+msgstr "Forced commands only"
+
+msgid "Jails"
+msgstr "Jails"
+
+msgid "Keys only"
+msgstr "Keys only"
+
+msgid "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
+msgstr "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
+
+msgid "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
+msgstr "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
+
+msgid "Never banned"
+msgstr "Never banned"
+
+msgid "No"
+msgstr "No"
+
+msgid "Not installed"
+msgstr "Not installed"
+
+msgid "Nowhere"
+msgstr "Nowhere"
+
+msgid "Password login"
+msgstr "Password login"
+
+msgid "Plan it"
+msgstr "Plan it"
+
+msgid "Protect SSH"
+msgstr "Protect SSH"
+
+msgid "Protect SSH on {name}"
+msgstr "Protect SSH on {name}"
+
+msgid "Protect SSH on {name} with fail2ban"
+msgstr "Protect SSH on {name} with fail2ban"
+
+msgid "Reading fail2ban on {name}"
+msgstr "Reading fail2ban on {name}"
+
+msgid "Reading how SSH lets people in on {name}"
+msgstr "Reading how SSH lets people in on {name}"
+
+msgid "Recent bans"
+msgstr "Recent bans"
+
+msgid "Root login"
+msgstr "Root login"
+
+msgid "SSH"
+msgstr "SSH"
+
+msgid "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
+msgstr "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
+
+#. placeholder {0}: j.name
+msgid "Stop writing the {0} jail"
+msgstr "Stop writing the {0} jail"
+
+msgid "Stop writing the {jail} jail on {name}"
+msgstr "Stop writing the {jail} jail on {name}"
+
+msgid "Take out"
+msgstr "Take out"
+
+msgid "Take {address} out"
+msgstr "Take {address} out"
+
+msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+msgstr "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+msgstr "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+
+msgid "The sshd jail on {name}"
+msgstr "The sshd jail on {name}"
+
+msgid "The sshd that listens may not use these files"
+msgstr "The sshd that listens may not use these files"
+
+msgid "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+msgstr "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+
+msgid "This can ban {takenOutList} as it applies"
+msgstr "This can ban {takenOutList} as it applies"
+
+msgid "Until it reloads, it may still accept what this says is off."
+msgstr "Until it reloads, it may still accept what this says is off."
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "fail2ban counts the failures from just before."
+msgstr "fail2ban counts the failures from just before."
+
+msgid "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+msgstr "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+
+msgid "fail2ban isn't running on {name}, so it bans nobody: {why}"
+msgstr "fail2ban isn't running on {name}, so it bans nobody: {why}"
+
+msgid "fail2ban runs with no jails, so it bans nobody."
+msgstr "fail2ban runs with no jails, so it bans nobody."
+
+msgid "ignored now"
+msgstr "ignored now"
+
+msgid "on {iface}"
+msgstr "on {iface}"
+
+msgid "signed in over SSH now"
+msgstr "signed in over SSH now"
+
+msgid "sshd hasn't read {files} since it changed"
+msgstr "sshd hasn't read {files} since it changed"
+
+msgid "sshd lets in only who these allow: {lists}."
+msgstr "sshd lets in only who these allow: {lists}."
+
+msgid "sshd's default"
+msgstr "sshd's default"
+
+msgid "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+msgstr "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+
+msgid "systemd holds SSH's port, through {unit}."
+msgstr "systemd holds SSH's port, through {unit}."
+
+msgid "where you are now"
+msgstr "where you are now"
+
+#. placeholder {0}: ssh.ports.length
+msgid "{0, plural, one {Port} other {Ports}}"
+msgstr "{0, plural, one {Port} other {Ports}}"
+
+msgid "{bannedNow, plural, one {address} other {addresses}}"
+msgstr "{bannedNow, plural, one {address} other {addresses}}"
+
+msgid "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+msgstr "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+
+msgid "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+msgstr "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+
+msgid "{failures} · bans for good"
+msgstr "{failures} · bans for good"
+
+msgid "{failures} · bans for {span}"
+msgstr "{failures} · bans for {span}"
+
+msgid "{file}, line {line}"
+msgstr "{file}, line {line}"
+
+msgid "{file}, line {line} · not in effect until sshd reloads"
+msgstr "{file}, line {line} · not in effect until sshd reloads"
+
+#. placeholder {0}: time.ago(timestampDate(ban.since), now)
+msgid "{jail} · {0}"
+msgstr "{jail} · {0}"
+
+msgid "{more, plural, one {and # more} other {and # more}}"
+msgstr "{more, plural, one {and # more} other {and # more}}"
+
+msgid "{name} itself and the control server are never banned either."
+msgstr "{name} itself and the control server are never banned either."
+
+msgid "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+msgstr "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+
+msgid "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+msgstr "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+
+msgid "{ways} also let people in, which Dockwell can't check."
+msgstr "{ways} also let people in, which Dockwell can't check."
+
 msgid "Action"
 msgstr "Action"
 
@@ -10050,9 +10319,6 @@ msgstr "nftables"
 msgid "nftables table {0}"
 msgstr "nftables table {0}"
 
-msgid "on {iface}"
-msgstr "on {iface}"
-
 msgid "ufw"
 msgstr "ufw"
 
@@ -10138,9 +10404,6 @@ msgstr "Name a port from 1 to 65535, such as 443."
 
 msgid "Nothing listens"
 msgstr "Nothing listens"
-
-msgid "Plan it"
-msgstr "Plan it"
 
 msgid "Removal waiting for Keep"
 msgstr "Removal waiting for Keep"
@@ -10761,9 +11024,6 @@ msgstr "Looked up, {when}. That's its way out, and may not be a way in"
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 
-msgid "No"
-msgstr "No"
-
 msgid "Not checked"
 msgstr "Not checked"
 
@@ -10811,9 +11071,6 @@ msgstr "The certificate authority couldn't connect for {domain} on port 80 or 44
 
 msgid "The cloud's metadata says so, {when}"
 msgstr "The cloud's metadata says so, {when}"
-
-msgid "Yes"
-msgstr "Yes"
 
 msgid "{provider}'s metadata says so, {when}"
 msgstr "{provider}'s metadata says so, {when}"
@@ -13248,9 +13505,6 @@ msgstr "{extra, plural, one {and # more} other {and # more}}"
 
 msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
 msgstr "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-
-msgid "{more, plural, one {and # more} other {and # more}}"
-msgstr "{more, plural, one {and # more} other {and # more}}"
 
 msgid "Can't reach {host}"
 msgstr "Can't reach {host}"

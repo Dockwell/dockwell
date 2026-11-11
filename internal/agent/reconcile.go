@@ -67,6 +67,7 @@ var leftAlone = map[resource.Kind]string{
 	"database.user":   "a user lives in its database's data, which comes back with the volume; making one again runs SQL with a password, which is a change, not a repair",
 	"firewall.rule":   "the access manager keeps the last confirmed table and loads it again as the agent starts, before it connects anywhere (ADR 0052); a step under the firewall's timer isn't desired state until it's confirmed",
 	"firewall.policy": "kept with the firewall's rules, by the access manager, from what was last confirmed (ADR 0052)",
+	"fail2ban.jail":   "fail2ban loads Dockwell's jail file as it starts, and the agent writes that file whole from jails.json at each change; writing a jail again starts it counting the failures of just before, which can ban an address, so a jail changes only through a plan a person reviews (ADR 0052)",
 }
 
 // ReconcileDecided says whether a kind an agent runs is either put back by the
