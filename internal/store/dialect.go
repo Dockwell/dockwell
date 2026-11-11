@@ -35,6 +35,9 @@ type dialect struct {
 	rebind func(string) string
 	// schema turns a portable migration into this dialect's SQL.
 	schema func(string) string
+	// greatest is the function that takes the larger of two values: SQLite's
+	// scalar MAX, Postgres's GREATEST.
+	greatest string
 }
 
 // sqliteDialect relies on BEGIN IMMEDIATE on the single writing
@@ -48,9 +51,10 @@ var sqliteDialect = &dialect{
 	uniqueViolation: func(err error) bool {
 		return strings.Contains(err.Error(), "UNIQUE constraint failed")
 	},
-	survive: func(_ context.Context, _ *sql.Tx, fn func() error) error { return fn() },
-	rebind:  func(q string) string { return q },
-	schema:  func(q string) string { return q },
+	survive:  func(_ context.Context, _ *sql.Tx, fn func() error) error { return fn() },
+	rebind:   func(q string) string { return q },
+	schema:   func(q string) string { return q },
+	greatest: "MAX",
 }
 
 // postgresDialect serializes writes with a transaction-level advisory lock
@@ -76,9 +80,10 @@ func postgresDialect(schema string) *dialect {
 			var pg *pgconn.PgError
 			return errors.As(err, &pg) && pg.Code == "23505"
 		},
-		survive: savepoint,
-		rebind:  cachedRebind,
-		schema:  postgresSchema,
+		survive:  savepoint,
+		rebind:   cachedRebind,
+		schema:   postgresSchema,
+		greatest: "GREATEST",
 	}
 }
 

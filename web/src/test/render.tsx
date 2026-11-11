@@ -122,7 +122,13 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(DomainService, { listDomains: () => ({}), ...api.domains });
       service(ServiceService, { listServices: () => ({}), ...api.services });
       service(ComposeService, api.compose ?? {});
-      service(CatalogService, { listCatalogEntries: () => ({}), listCatalogInstalls: () => ({}), ...api.catalog });
+      service(CatalogService, {
+        listCatalogEntries: () => ({}),
+        listCatalogInstalls: () => ({}),
+        listCatalogSources: () => ({}),
+        listCatalogSourceRefs: () => ({}),
+        ...api.catalog,
+      });
       service(LogService, api.logs ?? {});
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });

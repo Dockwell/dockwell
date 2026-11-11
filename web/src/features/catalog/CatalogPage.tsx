@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { CatalogInstall, Entry } from "@dockwell/api";
-import { Callout, cx, Icon, TextField } from "@dockwell/ui";
+import { Button, Callout, cx, Icon, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -12,7 +12,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, useCatalog, useInstalls } from "./useCatalog";
+import { categoryLabel, installOf, useCatalog, useInstalls, useOrigins } from "./useCatalog";
 import "./Catalog.css";
 
 export interface CatalogPageProps {
@@ -30,6 +30,12 @@ export interface CatalogPageProps {
 export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProps) {
   const { t, i18n } = useLingui();
   const catalog = useCatalog();
+  const origins = useOrigins();
+  // Both reads again, whichever failed.
+  const retry = () => {
+    void catalog.refetch();
+    void origins.refetch();
+  };
   const installs = useInstalls().data?.installs;
   const entries = catalog.data?.entries;
   const words = (category: string) => {
@@ -78,11 +84,16 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
       back="/more"
       lead={t`Find an app for your server. Explore what it does before you install.`}
       actions={
-        count > 0 ? (
-          <RouterButtonLink to="/apps" variant="secondary" icon="service">
-            {t`${count} installed`}
+        <>
+          <RouterButtonLink to="/catalog/sources" variant="ghost" icon="branch">
+            {t`Sources`}
           </RouterButtonLink>
-        ) : undefined
+          {count > 0 ? (
+            <RouterButtonLink to="/apps" variant="secondary" icon="service">
+              {t`${count} installed`}
+            </RouterButtonLink>
+          ) : null}
+        </>
       }
       className="catalog-page"
     >
@@ -119,11 +130,34 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         ) : null}
       </div>
 
+      {/* The sources say which apps come from another catalog. Without them the grid still shows,
+          unmarked, and installing waits for them (InstallSheet). */}
+      {origins.error && !catalog.error ? (
+        <Callout
+          tone="warning"
+          title={t`Couldn't read the sources, so apps from them aren't marked`}
+          actions={
+            <Button size="sm" icon="refresh" onClick={retry}>
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        >
+          {sentence(origins.error)}
+        </Callout>
+      ) : null}
       {catalog.error ? (
-        <Callout tone="critical" title={t`Couldn't read the catalog`}>
+        <Callout
+          tone="critical"
+          title={t`Couldn't read the catalog`}
+          actions={
+            <Button size="sm" icon="refresh" onClick={retry}>
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        >
           {sentence(catalog.error)}
         </Callout>
-      ) : !entries ? (
+      ) : !entries || (!origins.data && !origins.error) ? (
         <p className="catalog-note" aria-busy="true">
           <Trans>Reading the catalog</Trans>
         </p>
@@ -139,7 +173,8 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               entry={entry}
               category={words(entry.category)}
               search={search}
-              installs={(installs ?? []).filter((i) => i.pin?.entry === entry.id)}
+              source={origins.origins.get(entry.id)?.name}
+              installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins))}
             />
           ))}
         </div>
@@ -150,6 +185,14 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
           Not listed? Deploy any image or Compose file as an app.{" "}
           <Link to="/apps/new" className="catalog-link">
             New app
+          </Link>
+        </Trans>
+      </p>
+      <p className="catalog-note">
+        <Trans>
+          Read apps from a catalog in a Git repository too.{" "}
+          <Link to="/catalog/sources" className="catalog-link">
+            Sources
           </Link>
         </Trans>
       </p>
@@ -170,12 +213,15 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 function Card({
   entry,
   category,
+  source,
   installs,
   search,
 }: {
   entry: Entry;
   /** Its category, in words, under its name as Catalog has it. */
   category: string;
+  /** The catalog source it comes from, if it isn't Dockwell's own. */
+  source?: string;
   installs: readonly CatalogInstall[];
   search: CatalogSearch;
 }) {
@@ -204,7 +250,15 @@ function Card({
       </span>
       <span className="catalog-card-summary">{entry.summary}</span>
       <span className="catalog-card-foot">
-        <code>{entry.version}</code>
+        <span className="catalog-card-about">
+          <code>{entry.version}</code>
+          {source ? (
+            <span className="catalog-card-from" title={t`From the catalog ${source}`}>
+              <Icon name="branch" size={12} />
+              <span>{source}</span>
+            </span>
+          ) : null}
+        </span>
         <span className="catalog-card-more">
           <Trans>View app</Trans>
           <Icon name="arrow-right" size={14} />

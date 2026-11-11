@@ -45,10 +45,11 @@ import (
 )
 
 type stack struct {
-	auth   *identity.Authority
-	hub    *fleet.Hub
-	agents *agentapi.Agents
-	url    string
+	auth    *identity.Authority
+	hub     *fleet.Hub
+	agents  *agentapi.Agents
+	history *samples
+	url     string
 	// addHost has the listener's certificate name one more host.
 	addHost func(string)
 }
@@ -88,7 +89,8 @@ func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, wi
 		t.Fatal(err)
 	}
 	agents := agentapi.NewAgents(resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &service.Driver{}), logger)
-	opts := []agentapi.Option{agentapi.WithStreamTiming(silence, 50*time.Millisecond)}
+	kept := &samples{}
+	opts := []agentapi.Option{agentapi.WithStreamTiming(silence, 50*time.Millisecond), agentapi.WithHistory(kept)}
 	if withAgents {
 		opts = append(opts, agentapi.WithAgents(agents))
 	}
@@ -114,7 +116,30 @@ func startStackWith(t *testing.T, silence time.Duration, logger *slog.Logger, wi
 			t.Errorf("agent listener: %v", err)
 		}
 	})
-	return &stack{auth: auth, hub: hub, agents: agents, url: "https://" + ln.Addr().String(), addHost: addHost}
+	return &stack{auth: auth, hub: hub, agents: agents, history: kept, url: "https://" + ln.Addr().String(), addHost: addHost}
+}
+
+// samples is what a server's history is handed, by server.
+type samples struct {
+	mu   sync.Mutex
+	last map[string]*dockwellv1.ServerStats
+}
+
+func (*samples) Connected(string) {}
+
+func (s *samples) Sample(server string, stats *dockwellv1.ServerStats) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.last == nil {
+		s.last = map[string]*dockwellv1.ServerStats{}
+	}
+	s.last[server] = stats
+}
+
+func (s *samples) of(server string) *dockwellv1.ServerStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.last[server]
 }
 
 // enrollLocal makes an identity the way the control server's own agent gets one.
@@ -184,6 +209,10 @@ func TestAgentStreamsToTheFleet(t *testing.T) {
 			srv.GetInventory().GetOsName() == "Debian GNU/Linux 13 (trixie)" &&
 			srv.GetStats().GetMemoryUsedBytes() == 3<<30
 	})
+	// The server's history gets each sample the fleet does (ADR 0065).
+	if got := s.history.of(id.ServerID); got.GetMemoryUsedBytes() != 3<<30 || got.GetInterval() == nil {
+		t.Errorf("the history was handed %v", got)
+	}
 
 	cancel()
 	<-done

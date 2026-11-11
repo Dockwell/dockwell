@@ -1275,10 +1275,14 @@ func (x *ListCatalogSourceRefsRequest) GetRepository() string {
 // ListCatalogSourceRefsResponse is the repository's branches and tags.
 type ListCatalogSourceRefsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Each branch, then each tag, by name. At most 500: more are left out.
+	// The default branch, then each other branch, then each tag, by name. At most
+	// 500: more are left out.
 	Refs []*CatalogSourceRef `protobuf:"bytes,1,rep,name=refs,proto3" json:"refs,omitempty"`
 	// Whether some were left out.
-	More          bool `protobuf:"varint,2,opt,name=more,proto3" json:"more,omitempty"`
+	More bool `protobuf:"varint,2,opt,name=more,proto3" json:"more,omitempty"`
+	// The branch the repository's HEAD names, its default, such as
+	// "refs/heads/main", which leads refs. Empty when it names none.
+	Head          string `protobuf:"bytes,3,opt,name=head,proto3" json:"head,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1325,6 +1329,13 @@ func (x *ListCatalogSourceRefsResponse) GetMore() bool {
 		return x.More
 	}
 	return false
+}
+
+func (x *ListCatalogSourceRefsResponse) GetHead() string {
+	if x != nil {
+		return x.Head
+	}
+	return ""
 }
 
 // CatalogSourceRef is a branch or a tag, and the commit it's at.
@@ -1582,10 +1593,11 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x1cListCatalogSourceRefsRequest\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\tR\n" +
-	"repository\"f\n" +
+	"repository\"z\n" +
 	"\x1dListCatalogSourceRefsResponse\x121\n" +
 	"\x04refs\x18\x01 \x03(\v2\x1d.dockwell.v1.CatalogSourceRefR\x04refs\x12\x12\n" +
-	"\x04more\x18\x02 \x01(\bR\x04more\">\n" +
+	"\x04more\x18\x02 \x01(\bR\x04more\x12\x12\n" +
+	"\x04head\x18\x03 \x01(\tR\x04head\">\n" +
 	"\x10CatalogSourceRef\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06commit\x18\x02 \x01(\tR\x06commit\"0\n" +
