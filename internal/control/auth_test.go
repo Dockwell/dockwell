@@ -42,11 +42,13 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/database"
+	"github.com/dockwell/dockwell/internal/gitfetch/gitfetchtest"
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/https"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
+	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -184,7 +186,7 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, catalogsource.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)
@@ -209,6 +211,8 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		DataDir: dir, KeyFile: filepath.Join(dir, "key"), AgentListen: ls.Agents.Addr().String(),
 		// Tests reach their local channel fixtures through an injected client.
 		AlertClient: &http.Client{},
+		// A test's catalog source is served on loopback, which only a test's client reaches.
+		CatalogClient: gitfetchtest.Client(),
 	}
 	if public != nil {
 		// As dockwell run says it of a domain with plain HTTP on port 80 and HTTPS on 8443: the ingress takes the
