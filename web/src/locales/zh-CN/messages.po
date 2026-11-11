@@ -3417,7 +3417,7 @@ msgid "uid:gid of the folder's owner."
 msgstr "文件夹所有者的 uid:gid。"
 
 msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-msgstr "{others, plural, other {包含 {found} 等 # 项}}"
+msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
 
 msgid "{path} is a file"
 msgstr "{path} 是文件"
