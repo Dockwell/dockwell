@@ -575,3 +575,50 @@ a.alerts-resolved-title:hover {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* A check's last runs, oldest first: a mark for each, and the newest in words. */
+.alerts-runs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.alerts-runs-marks {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+}
+
+.alerts-run {
+  width: 6px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  background: var(--healthy);
+}
+
+.alerts-run.is-failed {
+  background: var(--critical);
+}
+
+.alerts-run-said {
+  color: var(--critical);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* On a domain's row, how its check stands, as a link to Alerts. */
+.alerts-watched {
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.alerts-watched:hover .dw-status-label {
+  text-decoration: underline;
+}
+
+.alerts-run.is-skipped {
+  background: var(--line-strong);
+}

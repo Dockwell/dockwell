@@ -136,7 +136,7 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 		return []Place{p}, err
 	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource,
 		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix(),
-		databaseUser, id.AlertRule, id.AlertChannel:
+		databaseUser, id.AlertRule, id.AlertChannel, id.AlertCheck:
 		r, err := tx.GetResourceByID(ctx, objectID)
 		if err != nil {
 			return nil, err

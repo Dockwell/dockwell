@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+.image-field {
+  position: relative;
+  min-width: 0;
+}
+
+/* Whether the image is there, inside the field after its name, as a port's state is. */
+.image-field .dw-input-suffix {
+  background: transparent;
+  border-left: 0;
+  padding-left: 0;
+}
+.image-field-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.image-field-state.is-found {
+  color: var(--healthy);
+}
+.image-field-state.is-missing {
+  color: var(--warning);
+}
+.image-field-state.is-checking .dw-glyph {
+  color: var(--cobalt);
+}
+
+/* What's typed matches, under the field, over what follows it. */
+.image-field-list {
+  position: absolute;
+  z-index: 5;
+  top: calc(18px + 6px + var(--control-md) + 4px);
+  left: 0;
+  right: 0;
+  max-height: 18rem;
+  margin: 0;
+  padding: var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+  background: var(--surface-raised, var(--surface));
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px #0000001f;
+}
+.image-field-list[hidden] {
+  display: none;
+}
+.image-field-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.image-field-option.is-active,
+.image-field-option:hover {
+  background: var(--surface-sunken);
+}
+.image-field-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+.image-field-tag {
+  padding: 0 6px;
+  border-radius: var(--radius-full, 999px);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: 11.5px;
+  line-height: 18px;
+}
+.image-field-option.is-active .image-field-tag {
+  background: var(--surface);
+}
+.image-field-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+@media (pointer: coarse) {
+  .image-field-list {
+    top: calc(18px + 6px + 44px + 4px);
+  }
+  .image-field-option {
+    min-height: 44px;
+    justify-content: center;
+  }
+}

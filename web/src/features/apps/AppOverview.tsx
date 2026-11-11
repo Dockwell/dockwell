@@ -40,6 +40,7 @@ import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
+import { WatchAddress } from "../alerts/WatchAddress";
 import { type Offer, useMay } from "../auth/may";
 import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
@@ -234,23 +235,21 @@ function HealthNotice({
       const gone = unknown.find((s) =>
         servers?.some((f) => f.id === s.serverId && f.connection !== Connection.CONNECTED),
       );
-      const server = (blind ?? gone ?? unknown[0])?.serverName ?? "";
+      const which = blind ?? gone ?? unknown[0];
+      const server = which?.serverName ?? "";
+      // What puts it right is on the server's page, with the command to run there when only a shell can.
       return (
-        <Callout tone="warning" title={t`Nobody can say how ${name} runs`}>
+        <Callout
+          tone="warning"
+          title={t`Nobody can say how ${name} runs`}
+          actions={which ? <ServerLink id={which.serverId} name={server} /> : undefined}
+        >
           {blind ? (
-            <Trans>
-              The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on
-              the server, with <code>systemctl status docker</code>.
-            </Trans>
+            <Trans>Docker isn't answering the agent on {server}. It may well be running.</Trans>
           ) : gone ? (
-            <Trans>
-              It may well be running. Check that <code>dockwell run</code> is still running on {server}.
-            </Trans>
+            <Trans>The agent on {server} isn't connected. It may well be running.</Trans>
           ) : (
-            <Trans>
-              The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this
-              goes on, read the agent's log on the server, with <code>journalctl -u dockwell</code>.
-            </Trans>
+            <Trans>The agent on {server} hasn't said how it runs lately. It may well be running.</Trans>
           )}
         </Callout>
       );
@@ -298,27 +297,26 @@ function AppNotice() {
             other: `${servers} aren't connected`,
           })}
           actions={
-            service.rolledBackChangeId !== "" ? (
-              <Button onClick={() => openChange(service.rolledBackChangeId)}>
-                <Trans>See why</Trans>
-              </Button>
-            ) : (
-              <Button onClick={() => openChange(service.changeId)}>
-                <Trans>Open the plan</Trans>
-              </Button>
-            )
+            <>
+              <ServerLinks names={state.servers} />
+              {service.rolledBackChangeId !== "" ? (
+                <Button onClick={() => openChange(service.rolledBackChangeId)}>
+                  <Trans>See why</Trans>
+                </Button>
+              ) : (
+                <Button onClick={() => openChange(service.changeId)}>
+                  <Trans>Open the plan</Trans>
+                </Button>
+              )}
+            </>
           }
         >
           {service.rolledBackChangeId !== "" ? (
             <Trans>
-              Once it reconnects, Dockwell puts <code>{image}</code> back, after a deploy that failed. Until then it
-              can't tell what is running there.
+              Once it reconnects, Dockwell puts <code>{image}</code> back, after a deploy that failed.
             </Trans>
           ) : (
-            <Trans>
-              The deploy waits for its agent, and carries on once it reconnects. Check that <code>dockwell run</code> is
-              still running on the server.
-            </Trans>
+            <Trans>The deploy carries on once its agent reconnects.</Trans>
           )}
         </Callout>
       );
@@ -407,11 +405,9 @@ function AppNotice() {
             one: `${servers} isn't connected`,
             other: `${servers} aren't connected`,
           })}
+          actions={<ServerLinks names={state.servers} />}
         >
-          <Trans>
-            Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that{" "}
-            <code>dockwell run</code> is still running on the server.
-          </Trans>
+          <Trans>Dockwell can't see or change {name} there until its agent reconnects. It may well be running.</Trans>
         </Callout>
       );
     case "unreadable":
@@ -618,6 +614,9 @@ function DomainRow({
         <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
       </div>
       <div className="app-reach-acts">
+        {said ? (
+          <WatchAddress url={visitorUrl(domain, route)} where={where} serving={look.state === "serving"} />
+        ) : null}
         {said && look.state === "serving" ? (
           <a
             className="app-reach-open"
@@ -1001,6 +1000,12 @@ function HealthCheckPanel() {
     heard.length > 0 &&
     heard.every((s) => !(s.newest ?? s).last && (s.kind === "healthy" || s.kind === "starting"));
   const said = !about || !hasCheck ? "" : waiting ? t`Waiting for its first result.` : words.says(about, now);
+  // Where a check is set: Settings, at its section.
+  const setCheck = (label: string) => (
+    <Link to="/apps/$serviceId/settings" params={{ serviceId: service.id }} hash="health">
+      {label}
+    </Link>
+  );
   return (
     <Panel title={t`Health check`} actions={badge}>
       <dl className="app-facts">
@@ -1015,7 +1020,9 @@ function HealthCheckPanel() {
               <Trans>A connection to port {check.tcp.port}</Trans>
             </span>
           ) : test[0] === "NONE" ? (
-            <span className="app-muted">{t`Turned off. Without one, Running only means it started.`}</span>
+            <span>
+              <span className="app-muted">{t`Turned off.`}</span> {setCheck(t`Turn it on`)}
+            </span>
           ) : test.length > 0 ? (
             <code>{test.filter((part) => part !== "CMD" && part !== "CMD-SHELL").join(" ")}</code>
           ) : health.check === HealthCheckKind.COMMAND ? (
@@ -1023,9 +1030,13 @@ function HealthCheckPanel() {
               <Trans>The image's own</Trans>
             </span>
           ) : health.check === HealthCheckKind.NONE ? (
-            <span className="app-muted">{t`None. Without one, Running only means it started.`}</span>
+            <span>
+              <span className="app-muted">{t`None.`}</span> {setCheck(t`Add one`)}
+            </span>
           ) : (
-            <span className="app-muted">{t`None set here. The image may have one.`}</span>
+            <span>
+              <span className="app-muted">{t`The image's own, if it has one.`}</span> {setCheck(t`Set one`)}
+            </span>
           )}
         </dd>
         {said ? (
@@ -1249,5 +1260,34 @@ function PanelLink({ offer, onClick, children }: { offer: Offer; onClick: () => 
       <span>{children}</span>
       {off.why}
     </button>
+  );
+}
+
+/**
+ * A server a state is about, as a link to its page, which says what puts it
+ * right and, where only a shell can, the command to run there (#451).
+ */
+function ServerLink({ id, name }: { id: string; name: string }) {
+  const { t } = useLingui();
+  return (
+    <RouterButtonLink to="/servers/$serverId" params={{ serverId: id }} icon="server">
+      {t`Open ${name}`}
+    </RouterButtonLink>
+  );
+}
+
+/** The servers a state names, by name, as links: two at most, as the rest are a click from the first. */
+function ServerLinks({ names }: { names: readonly string[] }) {
+  const { service } = useApp();
+  const found = names.flatMap((name) => {
+    const id = service.deployments.find((d) => d.serverName === name)?.serverId;
+    return id ? [{ id, name }] : [];
+  });
+  return (
+    <>
+      {found.slice(0, 2).map(({ id, name }) => (
+        <ServerLink key={id} id={id} name={name} />
+      ))}
+    </>
   );
 }

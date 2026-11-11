@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
 	"strconv"
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -52,9 +54,75 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.backupsLate(ctx)
 	case resourcev1.AlertRule_CONDITION_CHANGE_FAILED:
 		return s.changesFailed(ctx, r)
+	case resourcev1.AlertRule_CONDITION_CHECK_DOWN:
+		return s.checksDown(), nil
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
+}
+
+// Checks are how the install's checks of a URL stand.
+type Checks interface {
+	Statuses() []checks.Status
+	// Loaded reports whether the checks have been read yet.
+	Loaded() bool
+}
+
+// checksDown says, of each check that has run, whether it's down: as many runs in
+// a row as it says have failed, and not yet checks.UpAfter in a row passed since.
+// A check that's failing fewer isn't down as yet, and one that hasn't run says
+// nothing.
+func (s *signals) checksDown() []finding {
+	if s.e.Checks == nil {
+		return nil
+	}
+	// Until the runner has read the install's checks, it knows nothing of any:
+	// every check is in the dark, and what's open stays open.
+	if !s.e.Checks.Loaded() {
+		return []finding{{thing: "chk:", prefix: true, verdict: unknown}}
+	}
+	var out []finding
+	for _, c := range s.e.Checks.Statuses() {
+		host := c.Spec.GetAddress()
+		if u, err := url.Parse(host); err == nil && u.Host != "" {
+			host = u.Host
+		}
+		f := finding{thing: "chk:" + c.ID, subjectID: c.ID, subjectName: c.Name, path: "/alerts/checks", facts: Facts{Where: host}}
+		if c.Problem != "" {
+			// It can't run: what it had open stays open.
+			f.verdict = unknown
+			out = append(out, f)
+			continue
+		}
+		switch c.State {
+		case dockwellv1.AlertCheckState_ALERT_CHECK_STATE_DOWN:
+			f.verdict, f.since = holds, c.Since
+			f.title = host + " is down"
+			// What the newest failed run said: not a run that couldn't start,
+			// and not a pass on the way back up.
+			said := "it didn't answer as it should"
+			for _, r := range c.Runs {
+				if !r.GetSkipped() && !r.GetOk() && r.GetSaid() != "" {
+					said = r.GetSaid()
+					break
+				}
+			}
+			f.detail = fmt.Sprintf("Checked from %s: %s, %d runs in a row since %s. People reaching %s may get the same. Check what serves it, then its logs.",
+				checks.From, said, max(c.Spec.GetDownAfter(), 1), c.Since.UTC().Format("15:04 UTC, 2 Jan"), host)
+		case dockwellv1.AlertCheckState_ALERT_CHECK_STATE_UP:
+			f.verdict = fine
+		case dockwellv1.AlertCheckState_ALERT_CHECK_STATE_FAILING:
+			// On its way to down, or not yet back up: an open alert stays open and
+			// starts its clear time again, and nothing opens.
+			f.verdict = nearly
+		default:
+			// Waiting for a first run, as after the control plane starts again or
+			// the check changed: an open alert stays open.
+			f.verdict = unknown
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 func (s *signals) fleet() []*dockwellv1.Server {
