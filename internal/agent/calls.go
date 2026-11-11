@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
@@ -577,6 +578,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		step.Ref, step.Pulled, step.Finishing = ref, call.GetApply().GetPulled(), call.GetApply().GetFinishing()
+		// A jail's step writes what the fail2ban read looks at, so the read asked next
+		// starts again, written or put back: the Fail2ban card refetches as the plan
+		// sheet closes, and would otherwise show the jail as it was for a minute.
+		if ref.Kind == fail2ban.Kind {
+			defer c.cfg.fail2ban.forget()
+		}
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
 		if n := call.GetApply().GetDesired().GetScopeName(); n != "" {
 			ctx = resource.WithScopeNames(ctx, map[string]string{ref.Scope: n})

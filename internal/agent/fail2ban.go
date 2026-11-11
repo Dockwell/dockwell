@@ -69,6 +69,14 @@ func (f *fail2banReader) read(ctx context.Context) (*dockwellv1.ServerFail2Ban, 
 	return f.reads.read(ctx, fail2banReadWait, f.readNow)
 }
 
+// forget has the next read start again, as a jail was just written, which a
+// read under way may have looked at before (ADR 0052).
+func (f *fail2banReader) forget() {
+	if f != nil {
+		f.reads.forget()
+	}
+}
+
 // client runs fail2ban-client, and returns what it printed, or why it failed.
 func (f *fail2banReader) client(ctx context.Context, args ...string) (string, error) {
 	res, err := f.tools.Run(ctx, fail2banClient, fail2banWait, nil, args...)

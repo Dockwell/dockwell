@@ -11,7 +11,8 @@ import (
 // shared runs one read at a time, which everyone who asks while it runs
 // shares, so two tabs open on a server run its tools once. The read is
 // everyone's, so it doesn't end as the first who asked leaves; it ends at its
-// own bound.
+// own bound. A write to what it reads forgets it, so a read asked after the
+// write starts again rather than share one that began before it.
 type shared[T any] struct {
 	mu      sync.Mutex
 	reading *sharedRun[T]
@@ -34,7 +35,10 @@ func (s *shared[T]) read(ctx context.Context, bound time.Duration, read func(con
 			defer cancel()
 			r.out = read(readCtx)
 			s.mu.Lock()
-			s.reading = nil
+			// Forgotten, a newer read may be under way by now, which this leaves.
+			if s.reading == r {
+				s.reading = nil
+			}
 			s.mu.Unlock()
 			close(r.done)
 		}()
@@ -47,4 +51,13 @@ func (s *shared[T]) read(ctx context.Context, bound time.Duration, read func(con
 		var zero T
 		return zero, context.Cause(ctx)
 	}
+}
+
+// forget has the next read start again rather than join the one under way, as
+// after a write to what it reads, which that read may not show. Those already
+// waiting on it keep it, and get what it says.
+func (s *shared[T]) forget() {
+	s.mu.Lock()
+	s.reading = nil
+	s.mu.Unlock()
 }
