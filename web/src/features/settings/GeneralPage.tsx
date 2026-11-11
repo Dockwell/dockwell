@@ -145,7 +145,7 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
           maxLength={MAX_NAME}
           disabled={settings === undefined}
           error={nameError}
-          hint={t`The sign-in screen and your browser's tabs say it. Empty, they say Dockwell.`}
+          hint={t`Shown on the sign-in screen and in browser tabs.`}
           onChange={(event) => {
             setName(event.target.value);
             setNameError(undefined);
@@ -158,7 +158,7 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
           value={shownZone}
           disabled={settings === undefined}
           error={zoneError}
-          hint={t`A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with.`}
+          hint={t`New schedules start in it; each keeps the zone it was made with.`}
           onChange={(event) => {
             setZone(event.target.value);
             setZoneError(undefined);

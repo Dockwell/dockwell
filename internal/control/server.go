@@ -169,6 +169,12 @@ type Config struct {
 	// Releases is the URL of Dockwell's releases, in GitHub's layout, which
 	// UpdateService reads the newest release from. Empty reads none.
 	Releases string
+	// CatalogSources is where the catalogs read from Git are kept, by commit
+	// (ADR 0055). Empty keeps none between runs.
+	CatalogSources string
+	// CatalogClient is what catalog sources are read with: netguard's, which reads
+	// only public addresses, unless a test passes one that reaches its own server.
+	CatalogClient *http.Client
 }
 
 // DefaultStepGrace is how long the steps under way get to finish when the
@@ -337,7 +343,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
-		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, cfg.Store, cfg.Secrets, cfg.Build.Commit, cfg.Logger), opts...))
+		sources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
+		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, sources, cfg.Build.Commit, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))

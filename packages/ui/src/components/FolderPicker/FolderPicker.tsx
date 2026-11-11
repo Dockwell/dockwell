@@ -27,7 +27,7 @@ export interface FolderPickerProps {
    */
   list: (path: string) => Promise<FolderListing>;
   /**
-   * What's known of the chosen folder, as one short line beside it, such as "New, made
+   * What's known of the chosen folder, as one short line under it, such as "New, made
    * with the site" or "12 files".
    */
   note?: ReactNode;
@@ -36,6 +36,11 @@ export interface FolderPickerProps {
   /** Starts open, as when a form sends someone back to it. */
   defaultOpen?: boolean;
   disabled?: boolean;
+  /**
+   * Why Change is off for this reader, as a role refuses it. It stays in place and in
+   * the tab order, as the Button's own off does.
+   */
+  off?: string | undefined;
   className?: string;
 }
 
@@ -55,8 +60,8 @@ function crumbs(path: string): { name: string; path: string }[] {
 }
 
 /**
- * Chooses a folder on a server. Closed, it is one line: the folder, what's known of it,
- * and Change. Open, a person browses the server's folders and picks one, names a new
+ * Chooses a folder on a server. Closed, it is the folder and Change, with what's known
+ * of the folder on the line under. Open, a person browses the server's folders and picks one, names a new
  * one inside the folder they're looking at, or types a path, as someone who knows it
  * would. It makes nothing itself: a new folder is whatever uses the path's to make.
  */
@@ -69,6 +74,7 @@ export function FolderPicker({
   error,
   defaultOpen = false,
   disabled = false,
+  off,
   className,
 }: FolderPickerProps) {
   const strings = useUIStrings().folderPicker;
@@ -81,6 +87,13 @@ export function FolderPicker({
   const [naming, setNaming] = useState("");
   const asked = useRef(0);
   const invalid = hasContent(error);
+  const noted = !invalid && hasContent(note);
+
+  // Something refused opens it, with the path to change, and its going away as it's
+  // fixed never closes it under the cursor: only Done does.
+  useEffect(() => {
+    if (invalid) setOpen(true);
+  }, [invalid]);
 
   /** Looks in a folder, and in the one above when it isn't there, up to the top. */
   const look = (path: string) => {
@@ -135,12 +148,17 @@ export function FolderPicker({
         <code className="dw-folder-path" title={value}>
           {value || strings.none}
         </code>
-        {!invalid && hasContent(note) ? <span className="dw-folder-note">{note}</span> : null}
+        {/* Said as it changes, and what Change is described by, as a reader there needs it too. */}
+        <span id={`${id}-note`} className="dw-folder-note" aria-live="polite">
+          {noted ? note : null}
+        </span>
         <Button
           size="sm"
           variant="ghost"
           disabled={disabled}
+          off={off}
           aria-expanded={open}
+          aria-describedby={noted ? `${id}-note` : undefined}
           aria-controls={`${id}-panel`}
           aria-label={open ? strings.done : strings.changeNamed(value)}
           onClick={() => setOpen(!open)}

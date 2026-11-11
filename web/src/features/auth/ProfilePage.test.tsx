@@ -138,9 +138,7 @@ describe("ProfilePage", () => {
     expect(phone).toHaveTextContent("Safari on iOS · 198.51.100.23 · panel.acme.dev · 2 h ago");
     expect(within(current as HTMLElement).queryByRole("button")).toBeNull();
 
-    expect(screen.getByRole("region", { name: "Authenticator app" })).toHaveTextContent(
-      "7 of 10 recovery codes are left",
-    );
+    expect(screen.getByRole("region", { name: "Authenticator app" })).toHaveTextContent("7 of 10 recovery codes left");
   });
 
   it("sets the theme, which this browser keeps", async () => {

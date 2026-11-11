@@ -37,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -85,6 +86,13 @@ func by(ctx context.Context) (revision.By, auth.Principal, error) {
 	return revision.By{Actor: p.Actor(), Via: client.Surface(p)}, p, nil
 }
 
+// ownMethods are the kinds that change only through methods of their own, which do
+// what a plan of one needs, with what to use instead. A catalog source's read its
+// commit, and say in the plan what it holds and leaves out (ADR 0055).
+var ownMethods = map[string]string{
+	string(catalogsource.Kind): "a catalog source changes through dockwell catalog set-source and dockwell catalog remove-source, which read its commit and say in the plan what it holds. Use those",
+}
+
 // ProposeChange plans edits as a new change.
 func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwellv1.ProposeChangeRequest]) (*connect.Response[dockwellv1.ProposeChangeResponse], error) {
 	who, _, err := by(ctx)
@@ -94,6 +102,11 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	summary := strings.TrimSpace(req.Msg.GetSummary())
 	if summary == "" {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
+	}
+	for _, e := range req.Msg.GetEdits() {
+		if how, ok := ownMethods[e.GetResource().GetKind()]; ok {
+			return nil, authapi.Invalid(errors.New(how))
+		}
 	}
 	c, err := h.propose(ctx, who, summary, req.Msg.GetEdits(), nil)
 	if err != nil {

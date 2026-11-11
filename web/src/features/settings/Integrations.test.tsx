@@ -74,9 +74,9 @@ describe("Integrations", () => {
       "href",
       "https://github.com/Dockwell/dockwell/blob/main/docs/install.md#behind-cloudflare-tunnel-or-another-proxy",
     );
-    const later = screen.getByRole("region", { name: "Coming later" });
-    for (const what of ["Git", "Registries", "Cloud providers"]) expect(later).toHaveTextContent(what);
-    expect(later).toHaveTextContent("pulls public images only, without its docker login");
+    // What doesn't connect yet is a line, never a card or a panel of its own.
+    expect(screen.queryByRole("region", { name: "Coming later" })).toBeNull();
+    expect(screen.getByText("Git providers, private registries and cloud providers come later.")).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -143,6 +143,6 @@ describe("Integrations", () => {
     await activateLocale("zh-CN");
     renderAt("/settings/integrations", { backups: { listBackupDestinations: () => ({ destinations: [r2] }) } });
     expect(await screen.findByRole("heading", { level: 1, name: "集成" })).toBeVisible();
-    expect(await screen.findByRole("region", { name: "之后推出" })).toBeVisible();
+    expect(await screen.findByText("Git 服务商、私有镜像仓库和云服务商将在之后推出。")).toBeVisible();
   });
 });

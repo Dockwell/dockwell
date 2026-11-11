@@ -41,6 +41,7 @@ type checkStand struct {
 	runner  *checks.Runner
 	id      string
 	host    string
+	c       dockwellv1connect.ChangeServiceClient
 }
 
 func newCheckStand(t *testing.T) *checkStand {
@@ -85,6 +86,7 @@ func checkStandOf(t *testing.T, spec *resourcev1.AlertCheck) *checkStand {
 	}
 	s.id = got.GetId()
 	s.host = "shop.example.com"
+	s.c = c
 	s.at = &clock{now: time.Now()}
 	// The shop's name leads to the test's site, as DNS would to a real one.
 	to := s.site.Listener.Addr().String()
@@ -109,6 +111,20 @@ func (s *checkStand) restart(keeper checks.Decoder, load bool) {
 	if load {
 		s.load()
 	}
+}
+
+// edit changes the check with a plan, and the runner reads it.
+func (s *checkStand) edit(spec *resourcev1.AlertCheck) {
+	s.t.Helper()
+	made, err := s.c.ProposeChange(s.t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change the shop's check", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: string(alert.CheckKind), Name: "shop"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_AlertCheck{AlertCheck: spec}},
+	}}}))
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	apply(s.t, s.c, made.Msg.GetChange())
+	s.load()
 }
 
 func (s *checkStand) load() {
@@ -242,8 +258,9 @@ func TestACheckFailingEveryOtherRunDoesntResolve(t *testing.T) {
 }
 
 // The control plane starts again during an outage. Until its runner has read the
-// checks, it knows nothing of them; then each waits for a run, and fails once
-// before it reads down again. The alert stays open throughout, and says nothing.
+// checks, it knows nothing of them; then one whose alert is open reads down since
+// the alert opened, and stays down through a failed run. The alert stays open
+// throughout, and says nothing.
 func TestACheckDownAcrossARestartStaysOneAlert(t *testing.T) {
 	s := newCheckStand(t)
 	s.downAndAlerting()
@@ -253,11 +270,42 @@ func TestACheckDownAcrossARestartStaysOneAlert(t *testing.T) {
 		t.Fatalf("an evaluator ticking before the checks were read sent %q", sent)
 	}
 	s.load()
+	if st := s.runner.Statuses()[0]; st.State != dockwellv1.AlertCheckState_ALERT_CHECK_STATE_DOWN || st.Since.IsZero() {
+		t.Errorf("read again with its alert open, the check reads %v since %v, want down since the alert opened", st.State, st.Since)
+	}
 	s.tick(31 * time.Second)
-	s.run(dockwellv1.AlertCheckState_ALERT_CHECK_STATE_FAILING)
 	s.run(dockwellv1.AlertCheckState_ALERT_CHECK_STATE_DOWN)
 	if sent := s.sent(); len(sent) != 1 {
 		t.Fatalf("a restart while it was down sent %q", sent)
+	}
+}
+
+// After a restart or an edit during an outage, a check whose alert is open takes
+// 2 runs in a row that pass to read up, as before: one pass alone doesn't resolve
+// its alert (ADR 0066).
+func TestACheckThatStartsAgainDuringAnOutageTakesTwoPasses(t *testing.T) {
+	for _, how := range []string{"restart", "edit"} {
+		t.Run(how, func(t *testing.T) {
+			s := newCheckStand(t)
+			s.downAndAlerting()
+			if how == "restart" {
+				s.restart(s.f.keeper, true)
+			} else {
+				s.edit(&resourcev1.AlertCheck{Address: "http://shop.example.com/", Timeout: "9s"})
+			}
+			s.failing.Store(false)
+			s.run(dockwellv1.AlertCheckState_ALERT_CHECK_STATE_DOWN)
+			s.tick(3 * time.Minute)
+			if sent := s.sent(); len(sent) != 1 {
+				t.Fatalf("one pass after the %s sent %q, want the firing alone", how, sent)
+			}
+			s.run(dockwellv1.AlertCheckState_ALERT_CHECK_STATE_UP)
+			s.tick(2 * time.Minute)
+			s.tick(31 * time.Second)
+			if sent := s.sent(); len(sent) != 2 || !strings.HasPrefix(sent[1], "resolved: ") {
+				t.Errorf("2 passes after the %s sent %q, want it resolved", how, sent)
+			}
+		})
 	}
 }
 
