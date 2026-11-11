@@ -3126,7 +3126,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		// A kind's cap holds as the change commits, not only as it was planned:
 		// plans made side by side each counted the same, and this transaction,
 		// held under e.mu, is the one count no other apply runs beside. A
-		// rollback puts back what was, which held the cap then.
+		// rollback isn't counted: it puts back what its change removed, which may
+		// overshoot the cap by that much when another apply filled the room
+		// meanwhile, and refusing it would refuse its other edits too (ADR 0066).
 		if !rollback {
 			if err := e.capsHeld(ctx, tx.Tx, items); err != nil {
 				return err

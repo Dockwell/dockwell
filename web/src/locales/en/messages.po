@@ -12559,17 +12559,11 @@ msgstr "What the services in {envName} use, by name. Changing a value restarts e
 msgid "as {0}"
 msgstr "as {0}"
 
-msgid "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
-msgstr "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
+msgid "A static site, sent as its files are."
+msgstr "A static site, sent as its files are."
 
-msgid "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
-msgstr "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
-
-msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "A website runs on one server, as its certificate comes to the one its DNS points at."
-
-msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
-msgstr "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
+msgid "Another site, or an address on your network."
+msgstr "Another site, or an address on your network."
 
 msgid "Choose a server"
 msgstr "Choose a server"
@@ -12577,11 +12571,23 @@ msgstr "Choose a server"
 msgid "Choose the server it runs on."
 msgstr "Choose the server it runs on."
 
+msgid "Go to the website"
+msgstr "Go to the website"
+
+msgid "Handled in front of this server"
+msgstr "Handled in front of this server"
+
 msgid "Name the domain, such as blog.example.com."
 msgstr "Name the domain, such as blog.example.com."
 
 msgid "New website"
 msgstr "New website"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "Off: plain HTTP to anyone"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "On, with a certificate that comes by itself"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "People reach it at its domain, over HTTPS"
@@ -12592,11 +12598,11 @@ msgstr "People reach it at its domain, over plain HTTP"
 msgid "People reach it at its domain, through what's in front of this server"
 msgstr "People reach it at its domain, through what's in front of this server"
 
-msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
-msgstr "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
+msgid "Something listening on this server, such as port 3000."
+msgstr "Something listening on this server, such as port 3000."
 
-msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
-msgstr "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
+msgid "Such as WordPress, run by PHP-FPM of its own."
+msgstr "Such as WordPress, run by PHP-FPM of its own."
 
 msgid "What it serves"
 msgstr "What it serves"
@@ -12700,20 +12706,17 @@ msgstr "{days, plural, one {certificate valid for # day} other {certificate vali
 msgid "{host} answers {code}"
 msgstr "{host} answers {code}"
 
+msgid "From Let's Encrypt once DNS points here, and renewed by itself."
+msgstr "From Let's Encrypt once DNS points here, and renewed by itself."
+
 msgid "Issued"
 msgstr "Issued"
-
-msgid "It comes from Let's Encrypt over HTTP-01 or TLS-ALPN-01 once DNS points here, and renews by itself."
-msgstr "It comes from Let's Encrypt over HTTP-01 or TLS-ALPN-01 once DNS points here, and renews by itself."
 
 msgid "It says"
 msgstr "It says"
 
 msgid "No domain, so no certificate"
 msgstr "No domain, so no certificate"
-
-msgid "No route gives this website a domain now. Delete the website, and add it again with one."
-msgstr "No route gives this website a domain now. Delete the website, and add it again with one."
 
 msgid "None, as TLS ends in front"
 msgstr "None, as TLS ends in front"
@@ -12724,15 +12727,15 @@ msgstr "Not known yet"
 msgid "On its way"
 msgstr "On its way"
 
-msgid "TLS ends before this server, at a tunnel or a proxy in front, so it asks for no certificate here."
-msgstr "TLS ends before this server, at a tunnel or a proxy in front, so it asks for no certificate here."
+msgid "Open its configuration"
+msgstr "Open its configuration"
+
+msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
+msgstr "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 
 #. placeholder {0}: server.serverName
 msgid "{state}, as {0} last said"
 msgstr "{state}, as {0} last said"
-
-msgid "A small web server of its own sends each request on"
-msgstr "A small web server of its own sends each request on"
 
 msgid "Copy the config"
 msgstr "Copy the config"
@@ -12749,29 +12752,26 @@ msgstr "Differs"
 msgid "Go to the websites"
 msgstr "Go to the websites"
 
-msgid "Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them back."
-msgstr "Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them back."
+msgid "Its folder stays on the server, as it is."
+msgstr "Its folder stays on the server, as it is."
 
-msgid "Its route and its web server go. Undo from Activity brings them back."
-msgstr "Its route and its web server go. Undo from Activity brings them back."
+msgid "Its folder stays on the server, with what PHP wrote there."
+msgstr "Its folder stays on the server, with what PHP wrote there."
 
-msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
-msgstr "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
-
-msgid "Its route, its web server and PHP go, and the folder stays on the server with what PHP wrote there. Undo from Activity brings them back."
-msgstr "Its route, its web server and PHP go, and the folder stays on the server with what PHP wrote there. Undo from Activity brings them back."
+msgid "Its route and its web server go."
+msgstr "Its route and its web server go."
 
 msgid "Its web server"
 msgstr "Its web server"
-
-msgid "Its web server serves the files as they are, and an edit shows at once"
-msgstr "Its web server serves the files as they are, and an edit shows at once"
 
 msgid "No route gives it a domain now"
 msgstr "No route gives it a domain now"
 
 msgid "Not valid"
 msgstr "Not valid"
+
+msgid "Nothing of its own runs between, so there's no config to show."
+msgstr "Nothing of its own runs between, so there's no config to show."
 
 msgid "Open in Domains"
 msgstr "Open in Domains"
@@ -12782,9 +12782,6 @@ msgstr "Over HTTPS, with its own certificate"
 msgid "Over plain HTTP, to anyone who reaches the server"
 msgstr "Over plain HTTP, to anyone who reaches the server"
 
-msgid "PHP-FPM runs its code beside a web server that serves its other files"
-msgstr "PHP-FPM runs its code beside a web server that serves its other files"
-
 msgid "Reached"
 msgstr "Reached"
 
@@ -12793,12 +12790,6 @@ msgstr "Route"
 
 msgid "Serves"
 msgstr "Serves"
-
-msgid "The ingress sends each request straight to the port"
-msgstr "The ingress sends each request straight to the port"
-
-msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
-msgstr "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
 
 msgid "The web server's config"
 msgstr "The web server's config"
@@ -12812,8 +12803,11 @@ msgstr "Through a tunnel or a proxy in front, which ends TLS"
 msgid "Was {0}"
 msgstr "Was {0}"
 
-msgid "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
-msgstr "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
+msgid "What listens on the port keeps running."
+msgstr "What listens on the port keeps running."
+
+msgid "edited outside Websites. Review plan puts it back."
+msgstr "edited outside Websites. Review plan puts it back."
 
 msgid "written by Dockwell from these settings"
 msgstr "written by Dockwell from these settings"
@@ -12821,37 +12815,26 @@ msgstr "written by Dockwell from these settings"
 msgid "{changes, plural, one {# change} other {# changes}}"
 msgstr "{changes, plural, one {# change} other {# changes}}"
 
-#. placeholder {0}: shut.name
-#. placeholder {1}: shut.mode
-msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
-msgstr "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
-
-msgid "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
-msgstr "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
-
-msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
-msgstr "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
-
-msgid "<0>{path}</0> is root's, and PHP never runs as root, so it can't write there: uploads, caches and updates fail. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user PHP runs as."
-msgstr "<0>{path}</0> is root's, and PHP never runs as root, so it can't write there: uploads, caches and updates fail. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user PHP runs as."
-
 msgid "A URL"
 msgstr "A URL"
+
+msgid "A path with no file gets the index, for an app that routes in the browser."
+msgstr "A path with no file gets the index, for an app that routes in the browser."
 
 msgid "A port on this server"
 msgstr "A port on this server"
 
-msgid "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
-msgstr "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
+msgid "A user and group by number, as uid:gid. Empty runs it as www-data."
+msgstr "A user and group by number, as uid:gid. Empty runs it as www-data."
 
-msgid "As WordPress, Laravel and most PHP apps want, for their own addresses"
-msgstr "As WordPress, Laravel and most PHP apps want, for their own addresses"
+msgid "Closed to the web server ({mode}), so it would answer 403."
+msgstr "Closed to the web server ({mode}), so it would answer 403."
 
 msgid "Files in a folder"
 msgstr "Files in a folder"
 
-msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
-msgstr "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
+msgid "For a backend that serves several names. Off, it gets this website's domain."
+msgstr "For a backend that serves several names. Off, it gets this website's domain."
 
 msgid "Gets a 404"
 msgstr "Gets a 404"
@@ -12868,43 +12851,47 @@ msgstr "Give the folder from the top, starting with /, such as /var/www/blog."
 msgid "Give the folder that holds its files, such as /var/www/blog."
 msgstr "Give the folder that holds its files, such as /var/www/blog."
 
-msgid "Give the user by number, such as 1000."
-msgstr "Give the user by number, such as 1000."
+msgid "Give the user and group by number, such as 1000:1000."
+msgstr "Give the user and group by number, such as 1000:1000."
 
-msgid "Goes to index.php"
-msgstr "Goes to index.php"
+msgid "Goes to index.php, as WordPress and Laravel want"
+msgstr "Goes to index.php, as WordPress and Laravel want"
 
-msgid "Holds {found}."
-msgstr "Holds {found}."
+msgid "Holds index.php, which only a PHP site runs."
+msgstr "Holds index.php, which only a PHP site runs."
 
 msgid "Index files"
 msgstr "Index files"
 
-msgid "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
-msgstr "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
+msgid "It sees every visitor as local, so the plan asks you to approve it."
+msgstr "It sees every visitor as local, so the plan asks you to approve it."
 
-#. placeholder {0}: parent?.owner || owner
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
-msgstr "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
+msgid "Its owner is {theirs}."
+msgstr "Its owner is {theirs}."
 
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user PHP runs as, so its code can write there. Put the site's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>."
-msgstr "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user PHP runs as, so its code can write there. Put the site's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>."
+msgid "Make it in Files"
+msgstr "Make it in Files"
 
-msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
-msgstr "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
+msgid "New. Made with the site, for PHP to write in."
+msgstr "New. Made with the site, for PHP to write in."
 
-msgid "On the server. PHP reads and writes it as the user below, and its web server reads it as nobody's user, so its files must be readable by everyone."
-msgstr "On the server. PHP reads and writes it as the user below, and its web server reads it as nobody's user, so its files must be readable by everyone."
+msgid "New. Made with the site, owned by {by}."
+msgstr "New. Made with the site, owned by {by}."
 
-msgid "Only what's in the folder answers"
-msgstr "Only what's in the folder answers"
+msgid "New. Made with the site."
+msgstr "New. Made with the site."
+
+msgid "No {first} here yet, so it answers 404 until there is."
+msgstr "No {first} here yet, so it answers 404 until there is."
+
+msgid "Not on the server yet."
+msgstr "Not on the server yet."
 
 msgid "PHP"
 msgstr "PHP"
 
-#. placeholder {0}: directory.mode
-msgid "PHP runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so PHP can't write there: uploads, caches and updates fail. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
-msgstr "PHP runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so PHP can't write there: uploads, caches and updates fail. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
+msgid "PHP runs as {user} and can't write there."
+msgstr "PHP runs as {user} and can't write there."
 
 msgid "PHP version"
 msgstr "PHP version"
@@ -12919,11 +12906,23 @@ msgstr "PHP {0}"
 msgid "PHP {0} · {1}"
 msgstr "PHP {0} · {1}"
 
-msgid "Runs in PHP-FPM of its own, so no other website moves with it"
-msgstr "Runs in PHP-FPM of its own, so no other website moves with it"
+msgid "Root owns it, so PHP can't save uploads there."
+msgstr "Root owns it, so PHP can't save uploads there."
+
+msgid "Runs as {who} · {mb} MiB uploads"
+msgstr "Runs as {who} · {mb} MiB uploads"
+
+msgid "Runs as {who} · {mb} MiB uploads · only files answer"
+msgstr "Runs as {who} · {mb} MiB uploads · only files answer"
 
 msgid "Send the URL's own name as Host"
 msgstr "Send the URL's own name as Host"
+
+msgid "Sends the URL's own name as Host"
+msgstr "Sends the URL's own name as Host"
+
+msgid "Sends this domain as Host"
+msgstr "Sends this domain as Host"
 
 msgid "Single-page app"
 msgstr "Single-page app"
@@ -12931,23 +12930,14 @@ msgstr "Single-page app"
 msgid "Start it with http:// or https://, such as https://backend.example.com."
 msgstr "Start it with http:// or https://, such as https://backend.example.com."
 
-msgid "The first of these in a folder answers for it."
-msgstr "The first of these in a folder answers for it."
+msgid "That's a file, not a folder."
+msgstr "That's a file, not a folder."
 
-msgid "The first of these in a folder answers for it. A script among them runs, and the rest are sent as they are."
-msgstr "The first of these in a folder answers for it. A script among them runs, and the rest are sent as they are."
+msgid "The first one found answers for a folder."
+msgstr "The first one found answers for a folder."
 
-msgid "The folder owner's user and group, as uid:gid, so PHP can write there, and what it writes keeps its owner. stat -c %u:%g on the folder says it. Empty runs it as www-data, 82:82. Never root."
-msgstr "The folder owner's user and group, as uid:gid, so PHP can write there, and what it writes keeps its owner. stat -c %u:%g on the folder says it. Empty runs it as www-data, 82:82. Never root."
-
-msgid "The most a request may send, such as a file uploaded, in MiB, as PHP counts it. Empty takes 64."
-msgstr "The most a request may send, such as a file uploaded, in MiB, as PHP counts it. Empty takes 64."
-
-msgid "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+x {path}</2>, and <3>o+r</3> on its files."
-msgstr "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+x {path}</2>, and <3>o+r</3> on its files."
-
-msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
-msgstr "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
+msgid "The web server can't read {name} ({fileMode})."
+msgstr "The web server can't read {name} ({fileMode})."
 
 msgid "Upload limit"
 msgstr "Upload limit"
@@ -12981,17 +12971,20 @@ msgstr "Was {0} · whatever listens there sees every visitor as local"
 msgid "What isn't a file"
 msgstr "What isn't a file"
 
-msgid "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
-msgstr "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
+msgid "{edited, plural, one {# changed} other {# changed}}"
+msgstr "{edited, plural, one {# changed} other {# changed}}"
 
-msgid "With a path, such as /app, each request goes under it."
-msgstr "With a path, such as /app, each request goes under it."
+msgid "{index} · single-page app"
+msgstr "{index} · single-page app"
 
-msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
-msgstr "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
+msgid "Change the folder"
+msgstr "Change the folder"
 
 msgid "Changed"
 msgstr "Changed"
+
+msgid "It sends its requests on."
+msgstr "It sends its requests on."
 
 msgid "Loading its files"
 msgstr "Loading its files"
@@ -13002,14 +12995,14 @@ msgstr "Mode"
 msgid "No folder of its own"
 msgstr "No folder of its own"
 
-msgid "Put the site's files in it with scp or rsync. Files edits files that are there."
-msgstr "Put the site's files in it with scp or rsync. Files edits files that are there."
-
 msgid "The folder is empty"
 msgstr "The folder is empty"
 
-msgid "This website sends its requests on, so it has no files here. What it sends to keeps its own."
-msgstr "This website sends its requests on, so it has no files here. What it sends to keeps its own."
+msgid "The folder isn't on the server"
+msgstr "The folder isn't on the server"
+
+msgid "Upload files"
+msgstr "Upload files"
 
 msgid "What's in {root}"
 msgstr "What's in {root}"
@@ -13051,17 +13044,17 @@ msgstr "Visit site"
 msgid "Website sections"
 msgstr "Website sections"
 
+msgid "It has no web server of its own now."
+msgstr "It has no web server of its own now."
+
 msgid "Nothing here writes logs"
 msgstr "Nothing here writes logs"
 
-msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
-msgstr "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
-
-msgid "This website has no web server of its own now, so there's nothing of its own to read."
-msgstr "This website has no web server of its own now, so there's nothing of its own to read."
-
 msgid "Web server"
 msgstr "Web server"
+
+msgid "What listens on port {port} keeps its own."
+msgstr "What listens on port {port} keeps its own."
 
 msgid "Whose logs"
 msgstr "Whose logs"
@@ -13069,11 +13062,14 @@ msgstr "Whose logs"
 msgid "Change it"
 msgstr "Change it"
 
+msgid "Goes to index.php"
+msgstr "Goes to index.php"
+
 msgid "How it serves"
 msgstr "How it serves"
 
-msgid "Sends each request straight to the port, with nothing of its own between"
-msgstr "Sends each request straight to the port, with nothing of its own between"
+msgid "Sends each request straight to the port"
+msgstr "Sends each request straight to the port"
 
 msgid "The ingress"
 msgstr "The ingress"
@@ -13100,8 +13096,8 @@ msgstr "Port {port} on the server"
 msgid "Reverse proxy"
 msgstr "Reverse proxy"
 
-msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
-msgstr "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
+msgid "Serve a folder or a PHP app, or send a domain on to a URL or a port."
+msgstr "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 
 msgid "Static files"
 msgstr "Static files"
