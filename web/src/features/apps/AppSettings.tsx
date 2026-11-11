@@ -9,6 +9,7 @@ import {
   type Container,
   type EditSchema,
   HealthcheckSchema,
+  type ImageConfig,
   MountSchema,
   PortMappingSchema,
   Protocol,
@@ -18,27 +19,36 @@ import {
   type ServiceInfo,
 } from "@dockwell/api";
 import {
+  Advanced,
   Button,
   Callout,
   cx,
+  Glyph,
   Icon,
   Panel,
   PHONE_QUERY,
+  PortField,
   SegmentedControl,
   SelectField,
   Switch,
   TextField,
   useMediaQuery,
+  useUIStrings,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+
+import { formatBytes } from "../../lib/format";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { type PortHolder, useServerPorts } from "../servers/ports";
+import { useFleet } from "../servers/useFleet";
 import { useApp } from "./AppContext";
 import { useDeleteApp } from "./AppOverview";
 import { appOf, environmentOf, isMoving, nameOf } from "./app";
 import { isServerPath, pathReach, validPort } from "./form";
+import { useImageConfig } from "./imageConfig";
 import {
   asGoodAsRoot,
   type CheckKind,
@@ -85,6 +95,8 @@ export function AppSettings() {
   const moving = isMoving(state);
   const active = useCurrentSection(SECTIONS);
   const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: environmentOf(service) });
+  // What the image declares, so a setting the app leaves to its image says what that is.
+  const image = useImageConfig(service, app?.image ?? "");
 
   // The rollback of this form's own failed apply lands as a newer revision of the same
   // spec. The form keeps what was typed and plans from that, or the retry is stale.
@@ -179,6 +191,7 @@ export function AppSettings() {
             {form({
               service: from,
               app: fromApp,
+              image,
               name,
               root: from.hostAccess.some((a) => a.sameAsRoot),
               moving,
@@ -214,7 +227,7 @@ export function AppSettings() {
           {section(
             "general",
             (a) => (
-              <GeneralFacts app={a} />
+              <GeneralFacts app={a} image={image} />
             ),
             (props) => (
               <GeneralForm {...props} />
@@ -223,7 +236,7 @@ export function AppSettings() {
           {section(
             "health",
             (a) => (
-              <HealthFacts app={a} />
+              <HealthFacts app={a} image={image} />
             ),
             (props) => (
               <HealthForm {...props} />
@@ -390,6 +403,8 @@ interface FormProps {
   /** The app as it was when Edit was pressed, which the edit is made from. */
   service: ServiceInfo;
   app: Container;
+  /** What its image declares, once read. */
+  image: ImageConfig | undefined;
   name: string;
   root: boolean;
   moving: boolean;
@@ -461,7 +476,18 @@ function Muted({ children }: { children: ReactNode }) {
 
 // General: what it runs, as whom, where, and how it restarts.
 
-function GeneralFacts({ app }: { app: Container }) {
+/** What the image sets where the app sets nothing: its value, once read, beside who set it. */
+function ImagesOwn({ value }: { value: string | undefined }) {
+  const { t } = useLingui();
+  if (!value) return <Muted>{t`The image's own`}</Muted>;
+  return (
+    <span>
+      <code>{value}</code> <Muted>{t({ message: "the image's", context: "a setting the image makes" })}</Muted>
+    </span>
+  );
+}
+
+function GeneralFacts({ app, image }: { app: Container; image: ImageConfig | undefined }) {
   const { t } = useLingui();
   const words = useAppWords();
   return (
@@ -470,7 +496,11 @@ function GeneralFacts({ app }: { app: Container }) {
         <code className="app-settings-image">{app.image}</code>
       </Fact>
       <Fact term={t`Command`}>
-        {app.command.length > 0 ? <code>{joinWords(app.command)}</code> : <Muted>{t`The image's own`}</Muted>}
+        {app.command.length > 0 ? (
+          <code>{joinWords(app.command)}</code>
+        ) : (
+          <ImagesOwn value={image && joinWords(image.command)} />
+        )}
       </Fact>
       <Fact term={t`Entrypoint`}>
         {app.noEntrypoint ? (
@@ -478,12 +508,14 @@ function GeneralFacts({ app }: { app: Container }) {
         ) : app.entrypoint.length > 0 ? (
           <code>{joinWords(app.entrypoint)}</code>
         ) : (
-          <Muted>{t`The image's own`}</Muted>
+          <ImagesOwn value={image && joinWords(image.entrypoint)} />
         )}
       </Fact>
-      <Fact term={t`User`}>{app.user ? <code>{app.user}</code> : <Muted>{t`The image's own`}</Muted>}</Fact>
+      <Fact term={t`User`}>
+        {app.user ? <code>{app.user}</code> : <ImagesOwn value={image && (image.user || "root")} />}
+      </Fact>
       <Fact term={t`Directory`}>
-        {app.workingDir ? <code>{app.workingDir}</code> : <Muted>{t`The image's own`}</Muted>}
+        {app.workingDir ? <code>{app.workingDir}</code> : <ImagesOwn value={image && (image.workingDir || "/")} />}
       </Fact>
       <Fact term={t`Restarts`}>{words.restart(app.restart)}</Fact>
     </Facts>
@@ -492,7 +524,7 @@ function GeneralFacts({ app }: { app: Container }) {
 
 const RESTARTS = [RestartPolicy.UNLESS_STOPPED, RestartPolicy.ALWAYS, RestartPolicy.ON_FAILURE, RestartPolicy.NO];
 
-function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
+function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
   const words = useAppWords();
   const [command, setCommand] = useState(joinWords(app.command));
@@ -545,8 +577,8 @@ function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormP
           label={t`Command`}
           mono
           value={command}
-          placeholder={t`The image's own`}
-          hint={t`Leave it empty to run the image's own.`}
+          placeholder={(image && joinWords(image.command)) || t`The image's own`}
+          hint={t`Empty runs the image's own.`}
           error={errors.command}
           onChange={(event) => setCommand(event.target.value)}
           spellCheck={false}
@@ -558,7 +590,7 @@ function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormP
             mono
             value={noEntrypoint ? "" : entrypoint}
             disabled={noEntrypoint}
-            placeholder={noEntrypoint ? t`None` : t`The image's own`}
+            placeholder={noEntrypoint ? t`None` : (image && joinWords(image.entrypoint)) || t`The image's own`}
             error={errors.entrypoint}
             onChange={(event) => setEntrypoint(event.target.value)}
             spellCheck={false}
@@ -574,7 +606,7 @@ function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormP
           label={t`User`}
           mono
           value={user}
-          placeholder={t`The image's own`}
+          placeholder={image ? image.user || "root" : t`The image's own`}
           hint={t`A name or a number, such as 1000.`}
           onChange={(event) => setUser(event.target.value)}
           spellCheck={false}
@@ -584,7 +616,7 @@ function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormP
           label={t`Directory`}
           mono
           value={dir}
-          placeholder={t`The image's own`}
+          placeholder={image ? image.workingDir || "/" : t`The image's own`}
           error={errors.dir}
           onChange={(event) => setDir(event.target.value)}
           spellCheck={false}
@@ -604,7 +636,7 @@ function GeneralForm({ service, app, name, root, moving, plan, onCancel }: FormP
 
 // Health check: how Dockwell and Docker tell it works.
 
-function HealthFacts({ app }: { app: Container }) {
+function HealthFacts({ app, image }: { app: Container; image: ImageConfig | undefined }) {
   const { t } = useLingui();
   const check = app.healthcheck;
   const kind = checkKindOf(check);
@@ -621,9 +653,9 @@ function HealthFacts({ app }: { app: Container }) {
         ) : kind === "command" ? (
           <code>{checkCommand(check)}</code>
         ) : kind === "none" ? (
-          <Muted>{t`Turned off. Without one, Running only means it started.`}</Muted>
+          <Muted>{t`Turned off, so Running only means it started`}</Muted>
         ) : (
-          <Muted>{t`None set here. The image may have one.`}</Muted>
+          <ImagesCheck image={image} />
         )}
       </Fact>
       {check && kind !== "none" ? (
@@ -648,7 +680,35 @@ function HealthFacts({ app }: { app: Container }) {
   );
 }
 
-function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
+/** The image's own check, as its HEALTHCHECK says, once read. */
+function ImagesCheck({ image }: { image: ImageConfig | undefined }) {
+  const { t } = useLingui();
+  if (!image) return <Muted>{t`The image's own, if it has one`}</Muted>;
+  const test = imageCheckWords(image.healthcheck);
+  if (!test) return <Muted>{t`The image has none, so Running only means it started`}</Muted>;
+  return (
+    <span>
+      <code>{test}</code> <Muted>{t({ message: "the image's", context: "a setting the image makes" })}</Muted>
+    </span>
+  );
+}
+
+/** An image's HEALTHCHECK test as it's written, such as curl -f http://localhost/, or "" for none. */
+function imageCheckWords(test: readonly string[]): string {
+  const [form, ...rest] = test;
+  switch (form) {
+    case "CMD-SHELL":
+      return rest.join(" ");
+    case "CMD":
+      return joinWords(rest);
+  }
+  return "";
+}
+
+/** Paths an app's health is often read at, offered as it's typed. */
+const HEALTH_PATHS = ["/", "/health", "/healthz", "/api/health", "/status", "/ping"];
+
+function HealthForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const check = app.healthcheck;
@@ -664,6 +724,25 @@ function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormPr
     Partial<Record<"port" | "command" | "interval" | "timeout" | "start" | "retries", string>>
   >({});
   const timed = kind === "http" || kind === "tcp" || kind === "command";
+  // What runs it when nothing's typed: the agent's for HTTP and TCP, Docker's for a command.
+  const every = kind === "command" ? "30s" : "10s";
+  const limit = kind === "command" ? "30s" : "5s";
+  const everyNow = interval.trim() || every;
+  const limitNow = timeout.trim() || limit;
+  const failures = retries.trim() || "3";
+  // The ports it listens on, its own and its image's, offered for the check.
+  const listens = [
+    ...new Set(
+      [...app.ports.map((p) => p.containerPort), ...(image?.ports ?? []).map((p) => p.port)].filter((p) => p > 0),
+    ),
+  ];
+  const portsId = useId();
+  const pathsId = useId();
+  const pick = (next: CheckKind) => {
+    setKind(next);
+    // A check of a port starts at the one it listens on.
+    if ((next === "http" || next === "tcp") && port === "" && listens[0]) setPort(String(listens[0]));
+  };
   const checkKinds: { value: CheckKind; label: string }[] = [
     { value: "http", label: t`HTTP` },
     { value: "tcp", label: t`TCP` },
@@ -748,22 +827,24 @@ function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormPr
         <SelectField
           label={t`How it's checked`}
           value={kind}
-          onChange={(event) => setKind(event.target.value as CheckKind)}
+          onChange={(event) => pick(event.target.value as CheckKind)}
           options={checkKinds}
         />
       ) : (
-        <SegmentedControl<CheckKind> label={t`How it's checked`} value={kind} onChange={setKind} options={checkKinds} />
+        <SegmentedControl<CheckKind> label={t`How it's checked`} value={kind} onChange={pick} options={checkKinds} />
       )}
       <p className="app-settings-help">
-        {kind === "http"
-          ? t`Dockwell's agent asks the app for the path on its port. Any status from 200 to 399 passes, and the image needs no curl.`
-          : kind === "tcp"
-            ? t`Dockwell's agent connects to the port. It passes once the app takes the connection.`
-            : kind === "command"
-              ? t`Docker runs this in the container. It passes when it exits with 0.`
-              : kind === "image"
-                ? t`The image's own check, if it has one. Without one, Running only means it started.`
-                : t`No check at all, not even the image's. Running only means it started.`}
+        {kind === "http" ? (
+          t`Any status from 200 to 399 passes.`
+        ) : kind === "tcp" ? (
+          t`It passes once the app takes a connection.`
+        ) : kind === "command" ? (
+          t`It passes when it exits with 0.`
+        ) : kind === "image" ? (
+          <ImagesCheck image={image} />
+        ) : (
+          t`Running only means it started.`
+        )}
       </p>
       {kind === "http" || kind === "tcp" || kind === "command" ? (
         <div className="app-settings-grid">
@@ -774,6 +855,7 @@ function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormPr
               inputMode="numeric"
               value={port}
               error={errors.port}
+              list={listens.length > 0 ? portsId : undefined}
               onChange={(event) => setPort(event.target.value)}
             />
           ) : null}
@@ -783,6 +865,7 @@ function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormPr
               mono
               value={path}
               placeholder="/"
+              list={pathsId}
               onChange={(event) => setPath(event.target.value)}
               spellCheck={false}
             />
@@ -798,43 +881,63 @@ function HealthForm({ service, app, name, root, moving, plan, onCancel }: FormPr
               autoComplete="off"
             />
           ) : null}
-          <TextField
-            label={t`Every`}
-            mono
-            value={interval}
-            placeholder={kind === "command" ? "30s" : "10s"}
-            error={errors.interval}
-            onChange={(event) => setEvery(event.target.value)}
-          />
-          <TextField
-            label={t`Timeout`}
-            mono
-            value={timeout}
-            placeholder={kind === "command" ? "30s" : "5s"}
-            error={errors.timeout}
-            onChange={(event) => setLimit(event.target.value)}
-          />
-          <TextField
-            label={t`Unhealthy after`}
-            mono
-            inputMode="numeric"
-            value={retries}
-            placeholder="3"
-            suffix={t`failures`}
-            error={errors.retries}
-            onChange={(event) => setRetries(event.target.value)}
-          />
-          <TextField
-            label={t`Grace at start`}
-            mono
-            value={start}
-            placeholder="0s"
-            hint={t`Failures in this time don't count.`}
-            error={errors.start}
-            onChange={(event) => setStart(event.target.value)}
-          />
         </div>
       ) : null}
+      {timed ? (
+        <Advanced
+          label={t`Timing`}
+          summary={t`Every ${everyNow}, ${limitNow} to answer, unhealthy after ${failures} failures`}
+          defaultOpen={Object.values(errors).some(Boolean) && !errors.port && !errors.command}
+        >
+          <div className="app-settings-grid">
+            <TextField
+              label={t`Every`}
+              mono
+              value={interval}
+              placeholder={every}
+              error={errors.interval}
+              onChange={(event) => setEvery(event.target.value)}
+            />
+            <TextField
+              label={t`Timeout`}
+              mono
+              value={timeout}
+              placeholder={limit}
+              error={errors.timeout}
+              onChange={(event) => setLimit(event.target.value)}
+            />
+            <TextField
+              label={t`Unhealthy after`}
+              mono
+              inputMode="numeric"
+              value={retries}
+              placeholder="3"
+              suffix={t`failures`}
+              error={errors.retries}
+              onChange={(event) => setRetries(event.target.value)}
+            />
+            <TextField
+              label={t`Grace at start`}
+              mono
+              value={start}
+              placeholder="0s"
+              hint={t`Failures in this time don't count.`}
+              error={errors.start}
+              onChange={(event) => setStart(event.target.value)}
+            />
+          </div>
+        </Advanced>
+      ) : null}
+      <datalist id={portsId}>
+        {listens.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
+      <datalist id={pathsId}>
+        {HEALTH_PATHS.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
       <Foot name={name} root={root} moving={moving} unchanged={unchanged} onCancel={onCancel} />
     </form>
   );
@@ -856,13 +959,39 @@ function ResourcesFacts({ app }: { app: Container }) {
   );
 }
 
+/** What a limit is picked from, up to what the server has, and anything else typed. */
+const MiB = 1024 * 1024;
+const MEMORY_PICKS = [
+  { value: "256M", bytes: 256 * MiB },
+  { value: "512M", bytes: 512 * MiB },
+  { value: "1G", bytes: 1024 * MiB },
+  { value: "2G", bytes: 2048 * MiB },
+  { value: "4G", bytes: 4096 * MiB },
+  { value: "8G", bytes: 8192 * MiB },
+];
+const CPU_PICKS = ["0.5", "1", "2", "4", "8"];
+const OTHER = "other";
+
 function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
+  // What its server has, so a limit is picked from what fits.
+  const fleet = useFleet();
+  const server =
+    fleet.status === "connecting" ? undefined : fleet.servers.find((s) => s.id === service.deployments[0]?.serverId);
+  const memoryTotal = Number(server?.inventory?.memoryBytes ?? 0n);
+  const cpuCount = server?.inventory?.cpuCount ?? 0;
+  const memoryPicks = MEMORY_PICKS.filter((m) => memoryTotal === 0 || m.bytes < memoryTotal).map((m) => m.value);
+  const cpuPicks = CPU_PICKS.filter((c) => cpuCount === 0 || Number(c) <= cpuCount);
+  const totalWords = formatBytes(memoryTotal, i18n.locale);
+  const serverName = server?.name ?? "";
   const r = app.resources;
   const [cpus, setCpus] = useState(r?.cpus ?? "");
   const [memory, setMemory] = useState(r?.memory ?? "");
   const [reserved, setReserved] = useState(r?.memoryReservation ?? "");
   const [errors, setErrors] = useState<Partial<Record<"cpus" | "memory" | "reserved", string>>>({});
+  // A value that isn't one of the picks is typed, under Other.
+  const [memoryOther, setMemoryOther] = useState(memory !== "" && !memoryPicks.includes(memory));
+  const [cpusOther, setCpusOther] = useState(cpus !== "" && !cpuPicks.includes(cpus));
   const unchanged =
     cpus === (r?.cpus ?? "") && memory === (r?.memory ?? "") && reserved === (r?.memoryReservation ?? "");
   const submit = (event: FormEvent) => {
@@ -889,28 +1018,68 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: For
       }),
     ]);
   };
+  const choose = (value: string, set: (v: string) => void, other: (o: boolean) => void) => {
+    other(value === OTHER);
+    if (value !== OTHER) set(value);
+  };
+  const noLimit = t`No limit`;
   return (
     <form className="app-settings-form" aria-label={t`Edit Resources`} onSubmit={submit} noValidate>
       <div className="app-settings-grid">
-        <TextField
-          label={t`CPU limit`}
-          mono
-          inputMode="decimal"
-          value={cpus}
-          placeholder={t`No limit`}
-          suffix="vCPU"
-          error={errors.cpus}
-          onChange={(event) => setCpus(event.target.value)}
-        />
-        <TextField
-          label={t`Memory limit`}
-          mono
-          value={memory}
-          placeholder={t`No limit`}
-          hint={t`Such as 512M or 2G.`}
-          error={errors.memory}
-          onChange={(event) => setMemory(event.target.value)}
-        />
+        <div className="app-settings-field">
+          <SelectField
+            label={t`CPU limit`}
+            value={cpusOther ? OTHER : cpus}
+            hint={server && cpuCount > 0 ? t`${serverName} has ${cpuCount} vCPU.` : undefined}
+            onChange={(event) => choose(event.target.value, setCpus, setCpusOther)}
+            options={[
+              { value: "", label: noLimit },
+              ...cpuPicks.map((c) => ({ value: c, label: t`${c} vCPU` })),
+              { value: OTHER, label: t({ message: "Other", context: "a limit typed in" }) },
+            ]}
+          />
+          {cpusOther ? (
+            <TextField
+              aria-label={t`CPU limit, typed`}
+              mono
+              inputMode="decimal"
+              value={cpus}
+              placeholder="1.5"
+              suffix="vCPU"
+              error={errors.cpus}
+              onChange={(event) => setCpus(event.target.value)}
+            />
+          ) : null}
+        </div>
+        <div className="app-settings-field">
+          <SelectField
+            label={t`Memory limit`}
+            value={memoryOther ? OTHER : memory}
+            hint={server && memoryTotal > 0 ? t`${serverName} has ${totalWords}.` : undefined}
+            onChange={(event) => choose(event.target.value, setMemory, setMemoryOther)}
+            options={[
+              { value: "", label: noLimit },
+              ...memoryPicks.map((m) => ({ value: m, label: m })),
+              { value: OTHER, label: t({ message: "Other", context: "a limit typed in" }) },
+            ]}
+          />
+          {memoryOther ? (
+            <TextField
+              aria-label={t`Memory limit, typed`}
+              mono
+              value={memory}
+              placeholder="768M"
+              error={errors.memory}
+              onChange={(event) => setMemory(event.target.value)}
+            />
+          ) : null}
+        </div>
+      </div>
+      <Advanced
+        label={t`Memory kept for it`}
+        summary={reserved.trim() ? reserved.trim() : t`Nothing set aside`}
+        defaultOpen={errors.reserved !== undefined || reserved !== ""}
+      >
         <TextField
           label={t`Memory kept for it`}
           mono
@@ -920,7 +1089,7 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: For
           error={errors.reserved}
           onChange={(event) => setReserved(event.target.value)}
         />
-      </div>
+      </Advanced>
       <p className="app-settings-help">
         <Trans>Docker changes a limit on the running container, except to lift one, which replaces it.</Trans>
       </p>
@@ -962,6 +1131,10 @@ interface PortRow {
   inApp: string;
   udp: boolean;
   hostIp: string;
+  /** A port added here follows a free one on the server, until someone types their own. */
+  auto?: boolean;
+  /** What a following port showed when someone went into its field: it holds still there while it has focus. */
+  held?: string;
 }
 
 function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
@@ -975,10 +1148,35 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
       hostIp: p.hostIp,
     }),
   );
-  const [rows, setRows] = useState<PortRow[]>(first);
+  const [typed, setRows] = useState<PortRow[]>(first);
   const [next, setNext] = useState(first.length);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const unchanged = JSON.stringify(rows) === JSON.stringify(first);
+  // What holds each port on its servers, besides this app, whose ports are its own to keep.
+  const serverIds = useMemo(() => service.deployments.map((d) => d.serverId), [service.deployments]);
+  // The server is asked about each row's ports as they're typed, over UDP where a row is.
+  const watch = useMemo(() => typed.flatMap((r) => [Number(r.inApp), Number(r.host)]).filter((n) => n > 0), [typed]);
+  const watchUdp = useMemo(() => typed.filter((r) => r.udp).map((r) => Number(r.host)), [typed]);
+  const ports = useServerPorts(serverIds, service.id, watch, watchUdp);
+  const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
+  const strings = useUIStrings();
+  const id = useId();
+  // A port added here takes a free one, in order, so no two rows take one.
+  // A row someone is in holds what it showed, as a free port landing under the cursor would
+  // run into what they type, and counts as taken.
+  const rows = useMemo(() => {
+    const fixed = typed.map((r) => (r.auto && r.held !== undefined ? { ...r, host: r.held } : r));
+    if (!ports.ready) return fixed;
+    const taken = fixed
+      .filter((r) => (!r.auto || r.held !== undefined) && validPort(r.host))
+      .map((r) => Number(r.host));
+    return fixed.map((r) => {
+      if (!r.auto || r.held !== undefined) return r;
+      const free = ports.free(validPort(r.inApp) ? Number(r.inApp) : undefined, r.udp, taken);
+      taken.push(free);
+      return { ...r, host: String(free) };
+    });
+  }, [typed, ports]);
+  const unchanged = JSON.stringify(rows.map(({ auto: _, held: __, ...r }) => r)) === JSON.stringify(first);
   const change = (key: number, part: Partial<PortRow>) =>
     setRows((was) => was.map((r) => (r.key === key ? { ...r, ...part } : r)));
   const submit = (event: FormEvent) => {
@@ -1017,19 +1215,39 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
         <ul className="app-settings-rows">
           {rows.map((row, i) => {
             const n = i + 1;
+            const others = rows
+              .filter((r) => r.key !== row.key && r.udp === row.udp && validPort(r.host))
+              .map((r) => Number(r.host));
+            const check = ports.check(row.host, row.udp, holderName, others);
+            const offer =
+              check.state === "taken"
+                ? ports.free(validPort(row.inApp) ? Number(row.inApp) : undefined, row.udp, [
+                    ...others,
+                    Number(row.host),
+                  ])
+                : undefined;
+            // What's wrong with its server port, under the row, across it, so the row's fields stay level.
+            const said =
+              errors[`${row.key}.host`] ??
+              (check.state === "taken" ? (
+                <>
+                  {check.by ? strings.portField.takenBy(check.by) : strings.portField.taken}
+                  {offer !== undefined ? (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className="dw-port-use"
+                        onClick={() => change(row.key, { host: String(offer), auto: false })}
+                      >
+                        {strings.portField.use(offer)}
+                      </button>
+                    </>
+                  ) : null}
+                </>
+              ) : undefined);
             return (
               <li key={row.key} className="app-settings-row is-port">
-                <TextField
-                  aria-label={t`Port ${n} on the server`}
-                  label={i === 0 ? t`On the server` : undefined}
-                  mono
-                  inputMode="numeric"
-                  // An address it's bound to stays as it is, and shows, as the port is its.
-                  prefix={row.hostIp ? `${row.hostIp}:` : undefined}
-                  value={row.host}
-                  error={errors[`${row.key}.host`]}
-                  onChange={(event) => change(row.key, { host: event.target.value })}
-                />
                 <TextField
                   aria-label={t`Port ${n} in the app`}
                   label={i === 0 ? t`In the app` : undefined}
@@ -1038,6 +1256,20 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
                   value={row.inApp}
                   error={errors[`${row.key}.app`]}
                   onChange={(event) => change(row.key, { inApp: event.target.value })}
+                />
+                <PortField
+                  aria-label={t`Port ${n} on the server`}
+                  label={i === 0 ? t`On the server` : undefined}
+                  // An address it's bound to stays as it is, and shows, as the port is its.
+                  prefix={row.hostIp ? `${row.hostIp}:` : undefined}
+                  inRow
+                  value={row.host}
+                  check={check}
+                  invalid={Boolean(errors[`${row.key}.host`])}
+                  aria-describedby={said ? `${id}-${row.key}` : undefined}
+                  onFocus={() => row.auto && change(row.key, { held: row.host })}
+                  onBlur={() => row.auto && change(row.key, { held: undefined })}
+                  onChange={(host) => change(row.key, { host, auto: false, held: undefined })}
                 />
                 <Switch label="UDP" checked={row.udp} onChange={(udp) => change(row.key, { udp })} />
                 <Button
@@ -1048,6 +1280,12 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
                   aria-label={t`Remove port ${n}`}
                   onClick={() => setRows((was) => was.filter((r) => r.key !== row.key))}
                 />
+                {said ? (
+                  <p id={`${id}-${row.key}`} className="dw-field-error app-settings-row-note" role="alert">
+                    <Glyph shape="square" size={9} />
+                    <span>{said}</span>
+                  </p>
+                ) : null}
               </li>
             );
           })}
@@ -1059,7 +1297,7 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
           variant="secondary"
           icon="plus"
           onClick={() => {
-            setRows((was) => [...was, { key: next, host: "", inApp: "", udp: false, hostIp: "" }]);
+            setRows((was) => [...was, { key: next, host: "", inApp: "", udp: false, hostIp: "", auto: true }]);
             setNext(next + 1);
           }}
         >
@@ -1109,8 +1347,10 @@ interface MountRow {
   rest: { relabel: number; external: boolean };
 }
 
-function MountsForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
+function MountsForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
+  const volumesId = useId();
+  const targetsId = useId();
   const scope = environmentOf(service);
   const volumes = useQuery(
     ResourceService.method.listResources,
@@ -1194,6 +1434,8 @@ function MountsForm({ service, app, name, root, moving, plan, onCancel }: FormPr
               row={row}
               n={i + 1}
               first={i === 0}
+              volumesList={(volumes ?? []).length > 0 ? volumesId : undefined}
+              targetsList={(image?.volumes ?? []).length > 0 ? targetsId : undefined}
               errors={errors}
               onChange={(part) => change(row.key, part)}
               onRemove={() => setRows((was) => was.filter((r) => r.key !== row.key))}
@@ -1217,6 +1459,17 @@ function MountsForm({ service, app, name, root, moving, plan, onCancel }: FormPr
           <Trans>Add a volume or mount</Trans>
         </Button>
       </div>
+      {/* The environment's volumes for a source, and where the image keeps its data for a target. */}
+      <datalist id={volumesId}>
+        {(volumes ?? []).map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+      <datalist id={targetsId}>
+        {(image?.volumes ?? []).map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
       <Foot name={name} root={root || reachesRoot} moving={moving} unchanged={unchanged} onCancel={onCancel} />
     </form>
   );
@@ -1226,6 +1479,8 @@ function MountEditRow({
   row,
   n,
   first,
+  volumesList,
+  targetsList,
   errors,
   onChange,
   onRemove,
@@ -1233,6 +1488,9 @@ function MountEditRow({
   row: MountRow;
   n: number;
   first: boolean;
+  /** The datalists of volumes to offer as a source, and of the image's paths as a target. */
+  volumesList: string | undefined;
+  targetsList: string | undefined;
   errors: Record<string, string>;
   onChange: (part: Partial<MountRow>) => void;
   onRemove: () => void;
@@ -1249,6 +1507,8 @@ function MountEditRow({
         mono
         value={row.source}
         placeholder="data"
+        // A server path is typed until the websites area's folder picker lands (#429).
+        list={volumesList}
         error={errors[`${row.key}.source`]}
         onChange={(event) => onChange({ source: event.target.value })}
         spellCheck={false}
@@ -1260,6 +1520,7 @@ function MountEditRow({
         mono
         value={row.target}
         placeholder="/data"
+        list={targetsList}
         error={errors[`${row.key}.target`]}
         onChange={(event) => onChange({ target: event.target.value })}
         spellCheck={false}

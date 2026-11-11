@@ -243,7 +243,7 @@ services:
   await everywhere("plain", "Running", "running");
   await page
     .getByRole("region", { name: "What runs" })
-    .getByText("Nothing checks it, so this only means it started.")
+    .getByText("No health check, so Running only means it started.")
     .waitFor();
   await page
     .getByRole("region", { name: "Health check" })
@@ -384,7 +384,7 @@ services:
     await page.goto(`${origin}/servers/${second}`);
     const agentPanel = page.getByRole("region", { name: "Agent" });
     await agentPanel.getByText("Can't read Docker").first().waitFor({ timeout: SEEN_WITHIN });
-    await agentPanel.getByText("systemctl status docker").waitFor();
+    await agentPanel.getByRole("button", { name: "Copy the command that restarts Docker" }).waitFor();
     if ((await agentPanel.locator(".dw-tone-healthy").count()) > 0)
       fail("an agent started with Docker down reads green");
     await page
@@ -416,7 +416,7 @@ services:
       // A check the agent makes needs nothing of Docker, so what only Docker can say is what goes.
       await page
         .getByRole("region", { name: "What runs" })
-        .getByText(/can't read Docker/)
+        .getByText(/Docker hasn't answered the agent/)
         .first()
         .waitFor({ timeout: 60_000 });
       const top = page.locator(".topbar");

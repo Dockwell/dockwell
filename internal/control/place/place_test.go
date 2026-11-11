@@ -43,6 +43,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		&database.UserDriver{},
 		alert.Rule{},
 		alert.Channel{},
+		alert.Check{},
 	}
 	err := db.View(t.Context(), func(tx *store.Tx) error {
 		for _, k := range kinds {

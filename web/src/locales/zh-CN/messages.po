@@ -1254,6 +1254,10 @@ msgstr "告警分区"
 msgid "Channels"
 msgstr "渠道"
 
+msgctxt "checks of a URL"
+msgid "Checks"
+msgstr "地址监测"
+
 msgid "Nothing open"
 msgstr "没有未解决的告警"
 
@@ -1276,8 +1280,11 @@ msgstr "{0, plural, other {发送到 # 个渠道}}"
 msgid "{firing} open"
 msgstr "{firing} 个未解决"
 
-msgid "A group's ID, or a channel's name, such as @example_alerts. Add the bot to it first."
-msgstr "群组的 ID，或频道的名称，例如 @example_alerts。请先把机器人加入其中。"
+msgid "A channel needs a name: lowercase letters, digits and dashes."
+msgstr "渠道需要一个名称：使用小写字母、数字和连字符。"
+
+msgid "A group's ID or a channel's @name, with the bot added to it."
+msgstr "群组 ID 或频道的 @名称，需先把机器人加进去。"
 
 msgid "Access token"
 msgstr "访问令牌"
@@ -1285,19 +1292,23 @@ msgstr "访问令牌"
 msgid "Add a channel"
 msgstr "添加渠道"
 
-#. placeholder {0}: form.name
-msgid "Add the alert channel {0}"
-msgstr "添加告警渠道 {0}"
+msgid "Add the alert channel {name}"
+msgstr "添加告警渠道 {name}"
 
-msgid "An address your SMTP server sends as."
-msgstr "你的 SMTP 服务器用来发信的地址。"
+msgid "An address the mail service sends as."
+msgstr "邮件服务用来发信的地址。"
+
+msgid "Another SMTP server"
+msgstr "其他 SMTP 服务器"
+
+msgid "Another channel has this name. Rules name a channel by it, so give this one another."
+msgstr "已有渠道使用这个名称。规则用名称来指代渠道，请换一个。"
 
 msgid "Bot token"
 msgstr "机器人令牌"
 
-#. placeholder {0}: form.name
-msgid "Change the alert channel {0}"
-msgstr "更改告警渠道 {0}"
+msgid "Change the alert channel {name}"
+msgstr "修改告警渠道 {name}"
 
 #. placeholder {0}: channel.name
 msgid "Change {0}"
@@ -1312,8 +1323,8 @@ msgstr "Dockwell 没有发送"
 msgid "Dockwell keeps it sealed. Leave it empty to keep it."
 msgstr "Dockwell 会加密保存它。留空即保留原值。"
 
-msgid "Dockwell posts each alert to it as JSON. It may hold a token, so it's kept sealed, and lists show only its host."
-msgstr "Dockwell 会把每条告警以 JSON 形式发送到这里。它可能含有令牌，因此会加密保存，列表中只显示主机名。"
+msgid "Each alert is posted to it as JSON. Kept sealed; lists show its host."
+msgstr "每条告警以 JSON 发送到这里。加密保存，列表中只显示主机名。"
 
 msgid "For a server or topic that asks for one."
 msgstr "用于需要令牌的服务器或主题。"
@@ -1321,29 +1332,38 @@ msgstr "用于需要令牌的服务器或主题。"
 msgid "From @BotFather, when you make the bot. It's kept sealed."
 msgstr "创建机器人时由 @BotFather 提供。会加密保存。"
 
-msgid "From the channel's settings, under Integrations, then Webhooks. Anyone with it can post there, so it's kept sealed."
-msgstr "在频道设置的“整合”中的“Webhook”里获取。任何拿到它的人都能在那里发消息，因此会加密保存。"
+msgid "From the channel's Integrations, then Webhooks. Kept sealed."
+msgstr "在频道的“整合”中的“Webhooks”里。加密保存。"
 
-msgid "From your Slack app's Incoming Webhooks page. Anyone with it can post there, so it's kept sealed."
-msgstr "在 Slack 应用的 Incoming Webhooks 页面获取。任何拿到它的人都能在那里发消息，因此会加密保存。"
+msgid "From your Slack app's Incoming Webhooks. Kept sealed."
+msgstr "在 Slack 应用的 Incoming Webhooks 中。加密保存。"
 
-msgid "It said: {said}. Check what the form holds, then send another."
-msgstr "它回复：{said}。请检查表单中的内容，然后再发送一次。"
+msgid "It said: {said}."
+msgstr "它说：{said}。"
+
+msgid "Its server changed, so give the password again."
+msgstr "它的服务器变了，请重新输入密码。"
 
 msgid "Kept, sealed"
 msgstr "已保留，已加密"
 
-msgid "Lowercase letters, digits and dashes. Rules name a channel by it."
-msgstr "小写字母、数字和短横线。规则用它来指定渠道。"
+msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
+msgstr "使用小写字母、数字和连字符，并以字母或数字开头和结尾。"
+
+msgid "Made hard to guess, and kept sealed. Subscribe to it in the ntfy app."
+msgstr "已设为难以猜到并加密保存。在 ntfy 应用中订阅它。"
+
+msgid "Mail service"
+msgstr "邮件服务"
 
 msgid "Name"
 msgstr "名称"
 
+msgid "Named {name}"
+msgstr "名为 {name}"
+
 msgid "None, on this network"
 msgstr "无，在本网络内"
-
-msgid "On ntfy.sh anyone who knows a topic can read it, so this one is hard to guess, and kept sealed. Subscribe to it in the ntfy app."
-msgstr "在 ntfy.sh 上，任何知道主题的人都能读取它，因此这个主题很难猜到，并会加密保存。在 ntfy 应用中订阅它。"
 
 msgid "Password"
 msgstr "密码"
@@ -1351,12 +1371,17 @@ msgstr "密码"
 msgid "Port"
 msgstr "端口"
 
+msgid "Region"
+msgstr "区域"
+
 msgid "Remove"
 msgstr "移除"
 
-#. placeholder {0}: form.name
-msgid "Remove the alert channel {0}"
-msgstr "移除告警渠道 {0}"
+msgid "Remove the alert channel {name}"
+msgstr "删除告警渠道 {name}"
+
+msgid "Rules name a channel by it."
+msgstr "规则用它来指代渠道。"
 
 msgid "SMTP server"
 msgstr "SMTP 服务器"
@@ -1376,14 +1401,14 @@ msgstr "正在发送测试…"
 msgid "Sends to"
 msgstr "发送到"
 
-msgid "Sent only over TLS, and kept sealed. Changing the server, port, security or user asks for it again."
-msgstr "只通过 TLS 发送，并加密保存。更改服务器、端口、安全方式或用户时需要重新填写。"
+msgid "Sent only over TLS, and kept sealed."
+msgstr "只通过 TLS 发送，并加密保存。"
 
 msgid "Signing secret"
 msgstr "签名密钥"
 
-msgid "Signs each request in a Dockwell-Signature header, so your endpoint can tell it came from this install."
-msgstr "在 Dockwell-Signature 请求头中为每个请求签名，让你的端点能确认请求来自此安装。"
+msgid "Signs each request, in a Dockwell-Signature header."
+msgstr "在 Dockwell-Signature 请求头中为每个请求签名。"
 
 msgid "TLS"
 msgstr "TLS"
@@ -1403,8 +1428,8 @@ msgstr "主题"
 msgid "URL"
 msgstr "URL"
 
-msgid "Up to 10 addresses, separated by commas."
-msgstr "最多 10 个地址，用逗号分隔。"
+msgid "Up to 10, separated by commas."
+msgstr "最多 10 个，用逗号分隔。"
 
 msgid "User"
 msgstr "用户"
@@ -1412,11 +1437,14 @@ msgstr "用户"
 msgid "Webhook URL"
 msgstr "Webhook URL"
 
+msgid "no TLS"
+msgstr "不使用 TLS"
+
 msgid "ntfy.sh unless you give a server of your own."
 msgstr "除非你填写自己的服务器，否则使用 ntfy.sh。"
 
-msgid "{kindName} answered {said}. Look for a message titled Dockwell test message."
-msgstr "{kindName} 回复了 {said}。请查找标题为 Dockwell test message 的消息。"
+msgid "{kindName} answered {said}."
+msgstr "{kindName} 回复：{said}。"
 
 msgid "A rule that names no channel sends to every one."
 msgstr "没有指定渠道的规则会发送到所有渠道。"
@@ -1533,6 +1561,60 @@ msgstr "{failing, plural, other {# 个发送失败}}"
 msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 msgstr "{waiting, plural, other {添加后，# 条规则会发送到这里。}}"
 
+msgid "Address"
+msgstr "地址"
+
+msgid "Can't load the checks"
+msgstr "无法加载地址监测"
+
+msgid "Every 15 min"
+msgstr "每 15 分钟"
+
+msgid "Every 30 s"
+msgstr "每 30 秒"
+
+msgid "Every 5 min"
+msgstr "每 5 分钟"
+
+msgid "Every minute"
+msgstr "每分钟"
+
+msgid "Inside the network"
+msgstr "在内网中"
+
+msgid "Last answers"
+msgstr "最近的响应"
+
+#. placeholder {0}: runs.length
+msgid "Last {0} runs"
+msgstr "最近 {0} 次检查"
+
+msgid "No address is watched yet"
+msgstr "还没有监测任何地址"
+
+msgid "No answer yet"
+msgstr "尚无响应"
+
+msgctxt "how a check runs"
+msgid "Runs"
+msgstr "检查方式"
+
+msgid "Watch an address"
+msgstr "监测一个地址"
+
+msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
+msgstr "从应用或网站的域名处监测它，地址无响应时 Dockwell 会发出告警。"
+
+msgid "the control server"
+msgstr "控制服务器"
+
+#. placeholder {0}: run.status
+msgid "{0} in {ms} ms"
+msgstr "{0}，耗时 {ms} 毫秒"
+
+msgid "{often} from {from}"
+msgstr "{often}，从{from}检查"
+
 msgid "Alert rules"
 msgstr "告警规则"
 
@@ -1634,6 +1716,136 @@ msgstr "{h} 小时 {m} 分钟"
 
 msgid "{m} min"
 msgstr "{m} 分钟"
+
+msgid "Watch"
+msgstr "监测"
+
+msgid "Watch {where}"
+msgstr "监测 {where}"
+
+msgid "Watched · {word}"
+msgstr "监测中 · {word}"
+
+msgid "{where} is watched: {word}"
+msgstr "{where} 正在监测中：{word}"
+
+msgid "Asking {host} from the control server…"
+msgstr "正在从控制服务器访问 {host}…"
+
+msgid "Change the check of {host}"
+msgstr "更改对 {host} 的监测"
+
+msgid "Change the check of {host}, inside the network"
+msgstr "更改对 {host} 的内网监测"
+
+msgid "Dockwell asks it from the control server, and alerts when it stops answering."
+msgstr "Dockwell 从控制服务器访问它，无响应时发出告警。"
+
+msgid "Down after"
+msgstr "判定为宕机"
+
+msgid "Every 15 minutes"
+msgstr "每 15 分钟"
+
+msgid "Every 30 seconds"
+msgstr "每 30 秒"
+
+msgid "Every 5 minutes"
+msgstr "每 5 分钟"
+
+msgid "How often"
+msgstr "频率"
+
+msgid "It alerts once it has been down {hold}, and reads up again after 2 passing runs in a row."
+msgstr "宕机达 {hold} 后发出告警，连续 2 次正常后恢复为正常。"
+
+#. placeholder {0}: run.status
+msgid "It answered {0} in {ms} ms."
+msgstr "它在 {ms} 毫秒内响应了 {0}。"
+
+#. placeholder {0}: run.status
+msgid "It answered {0}."
+msgstr "它响应了 {0}。"
+
+#. placeholder {0}: run.said
+msgid "It didn't answer as it should: {0}."
+msgstr "它的响应不符合预期：{0}。"
+
+msgid "It shows in plans and on Activity, so leave tokens and passwords out of it."
+msgstr "它会显示在计划和动态中，请不要在其中包含令牌或密码。"
+
+msgid "Leave the user and password out: a check asks as a visitor does."
+msgstr "请去掉用户名和密码：监测像访客一样访问。"
+
+msgid "Reach an address on the control server's private networks too. Without it, a check reaches the internet alone."
+msgstr "也可访问控制服务器所在私有网络中的地址。不开启时，监测只访问互联网。"
+
+msgid "See every check"
+msgstr "查看所有监测"
+
+msgid "Stop watching"
+msgstr "停止监测"
+
+msgid "Stop watching {host}"
+msgstr "停止监测 {host}"
+
+msgid "Type the address to watch, such as https://shop.example.com/."
+msgstr "输入要监测的地址，例如 https://shop.example.com/。"
+
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
+msgstr "{timeout} 内响应 {from} 到 {to} 即为正常，因此重定向也算正常。告警发往哪里由“规则”下的 Address down 规则决定。"
+
+msgid "Use an http or https address, such as https://shop.example.com/."
+msgstr "请使用 http 或 https 地址，例如 https://shop.example.com/。"
+
+msgid "Watch this address"
+msgstr "监测这个地址"
+
+msgid "Watch {host}"
+msgstr "监测 {host}"
+
+msgid "Watch {host}, inside the network"
+msgstr "在内网中监测 {host}"
+
+msgid "Watching {host}"
+msgstr "正在监测 {host}"
+
+msgid "alerts every channel"
+msgstr "告警发往所有渠道"
+
+msgid "alerts {names}"
+msgstr "告警发往 {names}"
+
+msgid "inside the network"
+msgstr "在内网中"
+
+msgid "the Address down rule is off, so nothing is sent"
+msgstr "Address down 规则已关闭，因此不会发送任何告警"
+
+#. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
+msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
+msgstr "{0, plural, other {Dockwell 会自动再次访问，连续 # 次失败后判定为宕机。}}"
+
+msgid "{n, plural, one {# failed run} other {# failed runs}}"
+msgstr "{n, plural, other {# 次失败}}"
+
+msgid "{n, plural, one {down after # failure} other {down after # failures}}"
+msgstr "{n, plural, other {连续 # 次失败判定为宕机}}"
+
+msgctxt "check state"
+msgid "Down"
+msgstr "宕机"
+
+msgctxt "check state"
+msgid "Failing"
+msgstr "失败中"
+
+msgctxt "check state"
+msgid "Up"
+msgstr "正常"
+
+msgid "Waiting for its first run"
+msgstr "等待首次检查"
 
 msgid "Discord"
 msgstr "Discord"
@@ -1852,9 +2064,6 @@ msgstr "正在向 {name} 应用一项更改。等它结束后再审查这里。"
 msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
 msgstr "应用已有的名称会得到新值。在你审查并应用计划之前，什么都不会改变。"
 
-msgid "A variable or secret lives in its environment, and goes only to the servers that run an app using it. Change one here or in <0>Variables and secrets</0>, and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it may hold secrets."
-msgstr "变量和密钥存放在所属的环境中，只会发送到运行使用它的应用的服务器。在这里或在<0>变量和密钥</0>中更改一个，它的计划会重启每个使用它的应用。只在此应用上设置的值不会再显示，因为其中可能有机密信息。"
-
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
 
@@ -1869,6 +2078,9 @@ msgstr "把 {key} 添加到 {name}"
 
 msgid "Can't read the environment's variables and secrets"
 msgstr "无法读取环境中的变量和密钥"
+
+msgid "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
+msgstr "共享的变量请在<0>变量和密钥</0>中修改。在此设置的值不会再次显示。"
 
 msgid "Change the environment of {name}"
 msgstr "更改 {name} 的环境变量"
@@ -2068,6 +2280,9 @@ msgstr "{variables, plural, other {# 个变量}}"
 msgid "<0>{serviceId}</0> may have been deleted, or the link may be wrong."
 msgstr "<0>{serviceId}</0> 可能已被删除，或链接有误。"
 
+msgid "Answers at {at}"
+msgstr "在 {at} 响应"
+
 msgid "App sections"
 msgstr "应用分区"
 
@@ -2146,6 +2361,9 @@ msgstr "连接端口 {0}"
 msgid "Add a port"
 msgstr "添加端口"
 
+msgid "Add one"
+msgstr "添加"
+
 msgid "All deployments"
 msgstr "全部部署"
 
@@ -2179,6 +2397,9 @@ msgstr "正在部署 {name} 的 {revision}"
 msgid "Directory"
 msgstr "目录"
 
+msgid "Docker isn't answering the agent on {server}. It may well be running."
+msgstr "{server} 上的 Docker 没有响应代理。它很可能仍在运行。"
+
 msgid "Docker restarts it only when it exits with an error, and doesn't now. Restart it, or deploy."
 msgstr "Docker 只会在它出错退出时重启它，而现在不会。请重启或部署。"
 
@@ -2191,8 +2412,8 @@ msgstr "Docker 套接字"
 msgid "Dockwell can't read what {name} runs"
 msgstr "Dockwell 无法读取 {name} 运行的内容"
 
-msgid "Dockwell can't see {name} there or change it until its agent reconnects. It may well be running. Check that <0>dockwell run</0> is still running on the server."
-msgstr "在代理重新连接之前，Dockwell 看不到也无法更改那里的 {name}。它很可能仍在运行。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
+msgstr "在代理重新连接之前，Dockwell 无法在那里查看或更改 {name}。它很可能仍在运行。"
 
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell 已恢复 <0>{image}</0>，与那次部署之前一样。"
@@ -2225,9 +2446,6 @@ msgstr "无论你是否留在此页，部署都会继续。步骤显示在计划
 msgid "It may be reached at more than this says. Nothing has changed."
 msgstr "它的访问地址可能不止这里所示。没有任何内容发生变化。"
 
-msgid "It may well be running. Check that <0>dockwell run</0> is still running on {server}."
-msgstr "它很可能仍在运行。请检查 {server} 上的 <0>dockwell run</0> 是否仍在运行。"
-
 msgid "It said"
 msgstr "检查结果"
 
@@ -2252,11 +2470,8 @@ msgstr "无法确定 {name} 的运行情况"
 msgid "None set"
 msgstr "未设置"
 
-msgid "None set here. The image may have one."
-msgstr "这里没有设置。镜像可能自带检查。"
-
-msgid "None. Without one, Running only means it started."
-msgstr "无。没有检查时，“正在运行”只表示它已启动。"
+msgid "None."
+msgstr "无。"
 
 msgid "Nothing outside the server reaches it yet."
 msgstr "服务器外部暂时无法访问它。"
@@ -2270,14 +2485,17 @@ msgstr "没有任何机制会自动再次启动它。请重启或部署。"
 msgid "Nothing yet. It runs once the deploy finishes."
 msgstr "暂无。部署完成后开始运行。"
 
-msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed. Until then it can't tell what is running there."
-msgstr "部署失败后，服务器重新连接时，Dockwell 会恢复 <0>{image}</0>。在此之前，无法确定那里正在运行什么。"
+msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
+msgstr "重新连接后，Dockwell 会在部署失败后恢复 <0>{image}</0>。"
 
 msgid "Open the plan"
 msgstr "打开计划"
 
 msgid "Open {at}"
 msgstr "打开 {at}"
+
+msgid "Open {name}"
+msgstr "打开 {name}"
 
 msgid "Open {where}"
 msgstr "打开 {where}"
@@ -2324,20 +2542,26 @@ msgstr "查看原因"
 msgid "Server path"
 msgstr "服务器路径"
 
+msgid "Set one"
+msgstr "设置"
+
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
 
-msgid "The agent on {server} can't read Docker, so it can't say what runs there. Check that Docker is running on the server, with <0>systemctl status docker</0>."
-msgstr "{server} 上的代理无法读取 Docker，因此无法确定那里运行着什么。请用 <0>systemctl status docker</0> 检查服务器上的 Docker 是否在运行。"
+msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
+msgstr "{server} 上的代理最近没有报告它的运行情况。它很可能仍在运行。"
 
-msgid "The agent on {server} is connected, and hasn't said how it runs lately. It may well be running. If this goes on, read the agent's log on the server, with <0>journalctl -u dockwell</0>."
-msgstr "{server} 上的代理已连接，但最近没有报告它的运行情况。它很可能仍在运行。如果一直这样，请在服务器上用 <0>journalctl -u dockwell</0> 查看代理的日志。"
+msgid "The agent on {server} isn't connected. It may well be running."
+msgstr "{server} 上的代理未连接。它很可能仍在运行。"
 
-msgid "The deploy waits for its agent, and carries on once it reconnects. Check that <0>dockwell run</0> is still running on the server."
-msgstr "部署正在等待其代理，重新连接后会继续。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "The deploy carries on once its agent reconnects."
+msgstr "代理重新连接后，部署会继续进行。"
 
 msgid "The image's own"
 msgstr "镜像自带"
+
+msgid "The image's own, if it has one."
+msgstr "镜像自带的检查（如果有）。"
 
 msgid "The last deploy failed, so Dockwell rolled it back"
 msgstr "上次部署失败，Dockwell 已将其回滚"
@@ -2349,8 +2573,11 @@ msgstr "{name} 的上次部署失败"
 msgid "The newest is {0}. They were proposed with API tokens, and their plans are ones only a signed-in person may apply. Nothing changes until someone does; Activity lists them all."
 msgstr "最新的是 {0}。它们是用 API 令牌提出的，它们的计划只有已登录的人才能应用。在有人应用之前，什么都不会改变；动态页面列出了全部。"
 
-msgid "Turned off. Without one, Running only means it started."
-msgstr "已关闭。没有检查时，“正在运行”只表示它已启动。"
+msgid "Turn it on"
+msgstr "开启"
+
+msgid "Turned off."
+msgstr "已关闭。"
 
 msgid "Unknown until this is put back"
 msgstr "恢复完成前无法确定"
@@ -2462,8 +2689,14 @@ msgstr "有引号没有闭合。请闭合它，或去掉它。"
 msgid "Add a volume or mount"
 msgstr "添加卷或挂载"
 
+msgid "Any status from 200 to 399 passes."
+msgstr "200 到 399 之间的任何状态码都算通过。"
+
 msgid "CPU limit"
 msgstr "CPU 限制"
+
+msgid "CPU limit, typed"
+msgstr "CPU 上限（手动输入）"
 
 msgid "Change how {name} runs"
 msgstr "更改 {name} 的运行方式"
@@ -2493,17 +2726,8 @@ msgstr "危险操作"
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker 会在运行中的容器上直接修改限制；取消限制则会替换容器。"
 
-msgid "Docker runs this in the container. It passes when it exits with 0."
-msgstr "Docker 在容器内运行它。退出码为 0 即为通过。"
-
 msgid "Docker's default"
 msgstr "Docker 默认值"
-
-msgid "Dockwell's agent asks the app for the path on its port. Any status from 200 to 399 passes, and the image needs no curl."
-msgstr "Dockwell 的 agent 会请求应用端口上的这个路径。200 到 399 之间的任何状态码都算通过，镜像里不需要 curl。"
-
-msgid "Dockwell's agent connects to the port. It passes once the app takes the connection."
-msgstr "Dockwell 的 agent 会连接这个端口。应用接受连接即为通过。"
 
 msgid "Edit"
 msgstr "编辑"
@@ -2526,8 +2750,14 @@ msgstr "编辑卷和挂载"
 msgid "Edit {title}"
 msgstr "编辑{title}"
 
+msgid "Empty runs the image's own."
+msgstr "留空则运行镜像自带的命令。"
+
 msgid "Every"
 msgstr "间隔"
+
+msgid "Every {everyNow}, {limitNow} to answer, unhealthy after {failures} failures"
+msgstr "每 {everyNow} 一次，{limitNow} 内应答，连续失败 {failures} 次即为不健康"
 
 msgid "Failures in this time don't count."
 msgstr "这段时间内的失败不计入。"
@@ -2547,6 +2777,12 @@ msgstr "检查方式"
 msgid "It mounts nothing. Add a volume to keep what it writes across deploys."
 msgstr "它没有挂载任何内容。添加一个卷，部署之间就能保留它写入的数据。"
 
+msgid "It passes once the app takes a connection."
+msgstr "应用接受连接即算通过。"
+
+msgid "It passes when it exits with 0."
+msgstr "以 0 退出即算通过。"
+
 msgid "It publishes none. Add one to reach it from outside the server."
 msgstr "它没有发布端口。添加一个，就能从服务器外访问它。"
 
@@ -2559,14 +2795,14 @@ msgstr "为它预留的不能超过它的限制 {memory}。"
 msgid "Kept for it"
 msgstr "为它预留"
 
-msgid "Leave it empty to run the image's own."
-msgstr "留空则运行镜像自带的命令。"
-
 msgid "Memory kept for it"
 msgstr "为它预留的内存"
 
 msgid "Memory limit"
 msgstr "内存限制"
+
+msgid "Memory limit, typed"
+msgstr "内存上限（手动输入）"
 
 msgid "Mount {n}: path in the app"
 msgstr "挂载 {n}：应用内路径"
@@ -2576,9 +2812,6 @@ msgstr "挂载 {n}：卷或服务器路径"
 
 msgid "Name a volume, such as data, or a path on the server, such as /srv/app."
 msgstr "填写卷名，例如 data，或服务器上的路径，例如 /srv/app。"
-
-msgid "No check at all, not even the image's. Running only means it started."
-msgstr "完全不检查，连镜像自带的也不用。“正在运行”只表示它已启动。"
 
 msgid "No limit"
 msgstr "不限制"
@@ -2604,6 +2837,10 @@ msgstr "还没有任何更改。"
 
 msgid "Nothing set aside"
 msgstr "没有预留"
+
+msgctxt "a limit typed in"
+msgid "Other"
+msgstr "其他"
 
 msgid "Path in the app"
 msgstr "应用内路径"
@@ -2632,6 +2869,9 @@ msgstr "审查计划会先说明这会替换什么。在你应用之前，什么
 msgid "Run no entrypoint, not even the image's"
 msgstr "不运行入口点，连镜像自带的也不用"
 
+msgid "Running only means it started."
+msgstr "“运行中”只表示它已启动。"
+
 msgid "Say what to run, such as curl -f http://localhost/."
 msgstr "填写要运行的命令，例如 curl -f http://localhost/。"
 
@@ -2644,23 +2884,29 @@ msgstr "会停止它并移除它的容器，它的域名也会一并移除。它
 msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
 msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先审查一个计划。"
 
-msgid "Such as 512M or 2G."
-msgstr "例如 512M 或 2G。"
-
 msgid "TCP"
 msgstr "TCP"
+
+msgid "The image has none, so Running only means it started"
+msgstr "镜像没有健康检查，因此“运行中”只表示它已启动"
 
 msgid "The image's"
 msgstr "镜像自带"
 
-msgid "The image's own check, if it has one. Without one, Running only means it started."
-msgstr "使用镜像自带的检查（如果有）。没有时，“正在运行”只表示它已启动。"
+msgid "The image's own, if it has one"
+msgstr "镜像自带的检查（如果有）"
 
 msgid "This reaches <0>{source}</0> on the server. You approve this in the plan; API tokens can't."
 msgstr "这会访问服务器上的 <0>{source}</0>。需要你在计划中批准，API 令牌无法批准。"
 
 msgid "Timeout"
 msgstr "超时"
+
+msgid "Timing"
+msgstr "时间设置"
+
+msgid "Turned off, so Running only means it started"
+msgstr "已关闭，因此“运行中”只表示它已启动"
 
 msgid "Unhealthy after"
 msgstr "判定不健康"
@@ -2701,10 +2947,17 @@ msgstr "次失败"
 msgid "on the server, to the app"
 msgstr "服务器端口到应用端口"
 
+msgctxt "a setting the image makes"
+msgid "the image's"
+msgstr "镜像自带"
+
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
 msgstr "{0} vCPU"
+
+msgid "{c} vCPU"
+msgstr "{c} vCPU"
 
 msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
 msgstr "你开始编辑之后，{name} 发生了变化，所以表单现在显示它当前的样子。请重新做一次你的更改。"
@@ -2717,6 +2970,12 @@ msgstr "{name} 在它的服务器上等同于 root，所以应用这次更改需
 
 msgid "{retries} failed checks in a row"
 msgstr "连续 {retries} 次检查失败"
+
+msgid "{serverName} has {cpuCount} vCPU."
+msgstr "{serverName} 有 {cpuCount} 个 vCPU。"
+
+msgid "{serverName} has {totalWords}."
+msgstr "{serverName} 有 {totalWords}。"
 
 msgid "+{others}"
 msgstr "+{others}"
@@ -3009,8 +3268,8 @@ msgstr "因可能包含机密而未导出"
 msgid "Save"
 msgstr "保存"
 
-msgid "Set each variable in the shell, or in an <0>.env</0> file beside the Compose file, before you run <1>docker compose up</1>."
-msgstr "运行 <1>docker compose up</1> 之前，请在 shell 中或 Compose 文件旁的 <0>.env</0> 文件中设置这些变量。"
+msgid "Save an <0>.env</0> to fill in"
+msgstr "保存待填写的 <0>.env</0>"
 
 msgid "This app"
 msgstr "此应用"
@@ -3066,6 +3325,9 @@ msgstr "由你写明连接此服务器的来源。"
 msgid "Checking"
 msgstr "正在检查"
 
+msgid "Docker hasn't answered the agent on {name} since {since}."
+msgstr "自 {since} 起，{name} 上的 Docker 一直没有响应代理。"
+
 msgid "Finished"
 msgstr "已完成"
 
@@ -3090,11 +3352,11 @@ msgstr "它的检查一直失败。"
 msgid "Its check passed."
 msgstr "它的检查已通过。"
 
+msgid "No health check, so Running only means it started."
+msgstr "没有健康检查，因此“运行中”只表示它已启动。"
+
 msgid "Nobody can say how {name} runs now."
 msgstr "现在无法确定 {name} 的运行情况。"
-
-msgid "Nothing checks it, so this only means it started."
-msgstr "没有任何检查，因此这只表示它已启动。"
 
 #. placeholder {0}: server.container
 #. placeholder {1}: server.serverName
@@ -3112,9 +3374,6 @@ msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。
 
 msgid "Starting"
 msgstr "正在启动"
-
-msgid "The agent on {name} can't read Docker, since {since}, so it can't say how this runs. Check that Docker is running there, with {command}."
-msgstr "{name} 上的代理自 {since}起无法读取 Docker，因此无法确定它的运行情况。请用 {command} 检查那里的 Docker 是否在运行。"
 
 msgid "The agent on {name} hasn't read how this runs yet."
 msgstr "{name} 上的代理还没有读取它的运行情况。"
@@ -3167,17 +3426,43 @@ msgstr "{name} 现在没有运行。"
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} 现在正在运行，但未通过健康检查。"
 
+msgid "Can't reach the registry"
+msgstr "无法连接镜像仓库"
+
+msgctxt "an image in its registry"
+msgid "Found"
+msgstr "已找到"
+
+msgid "Images found"
+msgstr "找到的镜像"
+
+msgid "Not found, or private"
+msgstr "未找到，或为私有镜像"
+
+msgctxt "a Docker Hub image"
+msgid "Official"
+msgstr "官方"
+
+msgid "Versions"
+msgstr "版本"
+
+msgid "latest"
+msgstr "latest"
+
 msgid ".env file"
 msgstr ".env 文件"
 
-msgid "<0>{project}</0> is here already, so the plan updates what's in it."
-msgstr "<0>{project}</0> 已存在，因此计划会更新其中的内容。"
+msgid "<0>{project}</0> is here already: the plan updates it."
+msgstr "<0>{project}</0> 已在此处：计划会更新它。"
 
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> 让这个应用能够控制服务器上的 Docker，权限等同于 root。需要你在计划中批准，API 令牌无法批准。"
 
 msgid "A volume such as data at /data, or a server path."
 msgstr "可以是卷（例如挂载到 /data 的 data），也可以是服务器路径。"
+
+msgid "Add a port first."
+msgstr "请先添加端口。"
 
 msgid "Add an .env file"
 msgstr "添加 .env 文件"
@@ -3191,17 +3476,20 @@ msgstr "添加变量"
 msgid "Add volume"
 msgstr "添加卷"
 
+msgid "Always restarts"
+msgstr "总是重启"
+
 msgid "An app named {name} already runs here. Choose another name, or deploy to it from its page."
 msgstr "名为 {name} 的应用已在此运行。请换一个名称，或在它的页面上部署。"
 
 msgid "An image has no spaces. Write it as nginx:1.27."
 msgstr "镜像名称不能有空格，请写成 nginx:1.27。"
 
-msgid "Any image your server can pull, such as nginx:1.27."
-msgstr "服务器能够拉取的任意镜像，例如 nginx:1.27。"
-
 msgid "Anyone who can read {holder}'s {where} can see the value of {names}."
 msgstr "能读取 {holder} 的{where}的任何人，都能看到 {names} 的值。"
+
+msgid "Asked over HTTP on port {port}."
+msgstr "通过 HTTP 在端口 {port} 上检查。"
 
 msgid "Can't make a plan"
 msgstr "无法生成计划"
@@ -3214,6 +3502,9 @@ msgstr "请检查镜像及其变量，然后重试。"
 
 msgid "Check the image and tag, then try again."
 msgstr "请检查镜像和标签，然后重试。"
+
+msgid "Checks {path}"
+msgstr "检查 {path}"
 
 msgid "Choose a file"
 msgstr "选择文件"
@@ -3233,6 +3524,12 @@ msgstr "服务器上的目录"
 msgid "Dockwell makes the volume <0>{source}</0> if it doesn't exist yet."
 msgstr "如果卷 <0>{source}</0> 还不存在，Dockwell 会创建它。"
 
+msgid "Don't pass a secret there."
+msgstr "不要在那里传入密钥。"
+
+msgid "Empty in the image"
+msgstr "镜像中为空"
+
 msgid "Environment variables"
 msgstr "环境变量"
 
@@ -3248,8 +3545,8 @@ msgstr "请修复 .env 文件后再查看计划"
 msgid "Fix the file to review the plan"
 msgstr "修复文件后即可查看计划"
 
-msgid "For the variables the file uses. It's sent to read the file and plan it, never kept in this browser, and a value goes on record only where the file writes it."
-msgstr "用于文件使用的变量。它只用于读取文件和生成计划，不会保存在此浏览器中，值只有在文件写入的地方才会留下记录。"
+msgid "For the variables the file uses. It isn't kept in this browser."
+msgstr "用于文件使用的变量。不会保存在此浏览器中。"
 
 msgid "Give each variable a value to review the plan"
 msgstr "为每个变量填写值后即可查看计划"
@@ -3257,17 +3554,17 @@ msgstr "为每个变量填写值后即可查看计划"
 msgid "Give {first} a value to review the plan"
 msgstr "为 {first} 填写值后即可查看计划"
 
+msgid "Health check path"
+msgstr "健康检查路径"
+
 msgid "Hide the value"
 msgstr "隐藏值"
 
-msgid "It can't be hidden there, so don't pass a secret there."
-msgstr "这里无法隐藏值，所以不要在这里传入机密。"
+msgid "It writes more variables in plain sight. Check before you pass one a secret."
+msgstr "它还明文写入了更多变量。传入密钥前请先检查。"
 
-msgid "Its apps show as one row with this name, on a network of their own. Importing under this name again updates them."
-msgstr "其中的应用会以这个名称显示为一行，并使用独立的网络。再次以此名称导入会更新它们。"
-
-msgid "Its value has a space, a quote or another character Compose reads as part of the line, so one name can't stand for it. To keep it hidden, write the {where} as a list, with each word its own variable."
-msgstr "它的值含有空格、引号或 Compose 会当作这一行一部分来读的其他字符，所以一个名称无法代表它。要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
+msgid "Its apps show as one row with this name."
+msgstr "其应用以此名称显示为一行。"
 
 msgid "Keep editing"
 msgstr "继续编辑"
@@ -3292,20 +3589,26 @@ msgstr "请填写要运行的镜像，例如 nginx:1.27。"
 msgid "Near lines {0}–{1}: {2}"
 msgstr "第 {0}–{1} 行附近：{2}"
 
+msgid "Never restarts"
+msgstr "从不重启"
+
+msgid "No health check"
+msgstr "无健康检查"
+
+msgid "No limits"
+msgstr "不限制资源"
+
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "在发布端口之前，服务器外部无法访问它。"
 
 msgid "Offline"
 msgstr "离线"
 
-msgid "Only a variable's value is hidden, so don't pass a secret there."
-msgstr "只有变量的值会被隐藏，所以不要在这里传入机密。"
-
 msgid "Open {label}"
 msgstr "打开 {label}"
 
-msgid "Other apps are here, so it needs a name of its own, such as <0>shop</0>. Its apps show as one row, on a network of their own."
-msgstr "这里已有其他应用，因此需要单独的名称，例如 <0>shop</0>。其中的应用会显示为一行，并使用独立的网络。"
+msgid "Other apps are here, so give it a name, such as <0>shop</0>."
+msgstr "此处已有其他应用，请为它命名，例如 <0>shop</0>。"
 
 msgid "Other apps on its network reach it by this name."
 msgstr "同一网络上的其他应用通过此名称访问它。"
@@ -3313,8 +3616,8 @@ msgstr "同一网络上的其他应用通过此名称访问它。"
 msgid "Paste a Compose file to review its plan"
 msgstr "粘贴 Compose 文件后即可查看计划"
 
-msgid "Paste it, or drop the file here. Dockwell reads it as you type, and nothing is saved until you apply the plan."
-msgstr "粘贴内容，或将文件拖到这里。Dockwell 会在你输入时读取，应用计划之前不会保存任何内容。"
+msgid "Paste it, or drop the file here."
+msgstr "粘贴文件内容，或将文件拖到此处。"
 
 msgid "Plans say a value changed, and never show it."
 msgstr "计划只说明值已更改，绝不显示内容。"
@@ -3324,6 +3627,9 @@ msgstr "项目"
 
 msgid "Project name"
 msgstr "项目名称"
+
+msgid "Reachable at <0>{at}</0>"
+msgstr "访问地址 <0>{at}</0>"
 
 msgid "Reaches {path}"
 msgstr "可访问 {path}"
@@ -3345,6 +3651,12 @@ msgstr "移除不在此文件中的内容"
 
 msgid "Required"
 msgstr "必填"
+
+msgid "Restarts on errors"
+msgstr "出错时重启"
+
+msgid "Restarts unless stopped"
+msgstr "除非手动停止否则重启"
 
 msgid "Run a Compose file"
 msgstr "运行 Compose 文件"
@@ -3373,8 +3685,8 @@ msgstr "查看应用"
 msgid "Show the value"
 msgstr "显示值"
 
-msgid "Such as 8080 on the server, to 80 in the app."
-msgstr "例如将服务器上的 8080 映射到应用内的 80。"
+msgid "Start it with /, such as /healthz."
+msgstr "以 / 开头，例如 /healthz。"
 
 msgid "The file uses these, and has no default for them."
 msgstr "文件用到了这些变量，且没有默认值。"
@@ -3382,14 +3694,23 @@ msgstr "文件用到了这些变量，且没有默认值。"
 msgid "The file uses these. Leave one with a default empty to use its default."
 msgstr "文件使用这些变量。有默认值的留空即使用默认值。"
 
+msgid "The image's command"
+msgstr "镜像自带的命令"
+
 msgid "This file is too large to read"
 msgstr "文件过大，无法读取"
 
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请删除 Dockwell 不会运行的内容，或把服务拆分到多个文件中导入。"
 
-msgid "This file writes more variables in plain sight than these. Read it before you pass one a secret."
-msgstr "此文件明文写入的变量比这里列出的更多。向其中传入机密之前，请先阅读文件。"
+msgid "Up to {cpus} CPUs"
+msgstr "最多 {cpus} 个 CPU"
+
+msgid "Up to {memory}"
+msgstr "最多 {memory}"
+
+msgid "Up to {memory} and {cpus} CPUs"
+msgstr "最多 {memory}、{cpus} 个 CPU"
 
 msgid "Use an absolute path, such as /data."
 msgstr "请使用绝对路径，例如 /data。"
@@ -3406,11 +3727,14 @@ msgstr "变量"
 msgid "What this file makes"
 msgstr "此文件会创建的内容"
 
-msgid "Where the file is, such as <0>/opt/shop</0>. A path relative to it, such as <1>./data</1>, starts there, and each is a server path you approve in the plan."
-msgstr "文件所在的位置，例如 <0>/opt/shop</0>。相对于它的路径（例如 <1>./data</1>）从这里开始，每个都是你在计划中批准的服务器路径。"
+msgid "Where the file is, such as <0>/opt/shop</0>: its relative paths start there."
+msgstr "文件所在位置，例如 <0>/opt/shop</0>：其中的相对路径从这里开始。"
 
 msgid "Without a volume, what it writes is lost when its container is replaced."
 msgstr "没有卷时，容器被替换后写入的内容会丢失。"
+
+msgid "Write the {where} as a list to keep it hidden."
+msgstr "将 {where} 写成列表即可保持隐藏。"
 
 msgid "You approve what it reaches in the plan"
 msgstr "你将在计划中批准它可访问的内容"
@@ -3451,6 +3775,9 @@ msgstr "{0, plural, other {这会创建 # 个应用}}"
 #. placeholder {0}: volumes.length
 msgid "{0, plural, one {Volume} other {Volumes}}"
 msgstr "{0, plural, other {卷}}"
+
+msgid "{changed, plural, one {# changed} other {# changed}}"
+msgstr "{changed, plural, other {已更改 # 项}}"
 
 msgid "{count, plural, one {# other app is here. Otherwise it stays as it is.} other {# other apps are here. Otherwise they stay as they are.}}"
 msgstr "{count, plural, other {这里还有 # 个其他应用。否则它们保持不变。}}"
@@ -4501,9 +4828,6 @@ msgstr "请将此密码短语保存到其他地方"
 msgid "MinIO or other S3 storage"
 msgstr "MinIO 或其他 S3 存储"
 
-msgid "Named {name}"
-msgstr "名为 {name}"
-
 msgid "No test"
 msgstr "未能测试"
 
@@ -4521,9 +4845,6 @@ msgstr "密码短语"
 
 msgid "Passphrase copied"
 msgstr "密码短语已复制"
-
-msgid "Region"
-msgstr "区域"
 
 msgid "Secret key"
 msgstr "私密密钥"
@@ -4675,9 +4996,6 @@ msgstr "Dockwell 暂时无法说明每次备份占用多少空间，因为这个
 
 msgid "Hourly"
 msgstr "每小时"
-
-msgid "How often"
-msgstr "频率"
 
 msgid "In UTC. Set the install's time zone in Settings to use another."
 msgstr "使用 UTC。要使用其他时区，请在设置中设置这个安装的时区。"
@@ -4874,20 +5192,23 @@ msgstr "<0>{path}</0>，只读"
 msgid "App you open"
 msgstr "你打开的应用"
 
+msgid "Change {what}"
+msgstr "更改{what}"
+
 msgid "Database"
 msgstr "数据库"
 
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
 
+msgid "Generated and sealed"
+msgstr "已生成，加密保存"
+
+msgid "Generated, in {app}'s log"
+msgstr "已生成，写在 {app} 的日志里"
+
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "请填写{missingLabel}，然后审阅计划"
-
-msgid "It reaches past its containers"
-msgstr "它的访问范围超出自身容器"
-
-msgid "Its project, which keeps it apart from your other apps."
-msgstr "它所在的项目，让它与你的其他应用彼此隔离。"
 
 msgid "Its site"
 msgstr "官网"
@@ -4895,14 +5216,11 @@ msgstr "官网"
 msgid "Open {app}"
 msgstr "打开 {app}"
 
-msgid "Version {version}"
-msgstr "版本 {version}"
+msgid "Reaches"
+msgstr "可访问"
 
 msgid "What it installs"
 msgstr "安装内容"
-
-msgid "What to do first"
-msgstr "首先要做的事"
 
 msgid "capability"
 msgstr "能力"
@@ -4922,13 +5240,9 @@ msgstr "服务器网络"
 msgid "the server's own"
 msgstr "服务器自身的"
 
-#. placeholder {0}: sealed.length
-msgid "{0, plural, one {Dockwell generates this and keeps it sealed, for you to reveal with your passkey: {made}} other {Dockwell generates these and keeps them sealed, for you to reveal with your passkey: {made}}}"
-msgstr "{0, plural, one {Dockwell 会生成它并加密保存，你可以用通行密钥查看：{made}} other {Dockwell 会生成以下各项并加密保存，你可以用通行密钥查看：{made}}}"
-
-#. placeholder {0}: logged.length
-msgid "{0, plural, one {Dockwell generates this, but {app} writes it in its log, which takes no passkey to read, so change it after you first sign in: {inLog}} other {Dockwell generates these, but {app} writes them in its log, which takes no passkey to read, so change them after you first sign in: {inLog}}}"
-msgstr "{0, plural, one {Dockwell 会生成它，但 {app} 会把它写进日志，而查看日志不需要通行密钥，所以请在首次登录后更改：{inLog}} other {Dockwell 会生成以下各项，但 {app} 会把它们写进日志，而查看日志不需要通行密钥，所以请在首次登录后更改：{inLog}}}"
+#. placeholder {0}: generated.length
+msgid "{0, plural, one {# secret generated} other {# secrets generated}}"
+msgstr "{0, plural, other {已生成 # 个密钥}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
@@ -6054,6 +6368,9 @@ msgstr "失败之前运行的内容可能已改动数据（例如迁移），当
 msgid "What stops starts again once the volume is restored. If the restore fails, what's there now goes back first."
 msgstr "卷恢复后，被停止的内容会重新启动。如果恢复失败，会先放回现有的内容。"
 
+msgid "What to do first"
+msgstr "首先要做的事"
+
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "卷中现在的内容会存入服务器保留 7 天的副本。"
 
@@ -6881,6 +7198,9 @@ msgstr "正在询问它的服务器"
 msgid "Cache hit"
 msgstr "缓存命中率"
 
+msgid "Change password"
+msgstr "修改密码"
+
 msgid "Connection string"
 msgstr "连接字符串"
 
@@ -7016,6 +7336,9 @@ msgstr "拥有全部权限"
 
 msgid "Can't sign in"
 msgstr "不可登录"
+
+msgid "Change {who}'s password"
+msgstr "修改 {who} 的密码"
 
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
@@ -7182,6 +7505,12 @@ msgstr "位于隧道或代理之后"
 msgid "Can't load the domains"
 msgstr "无法加载域名"
 
+msgid "Can't reach the control plane, so your domains read Unknown. It keeps trying."
+msgstr "无法连接控制平面，因此你的域名显示为未知。面板会继续尝试。"
+
+msgid "Can't reach the control plane, so your domains read Unknown. Last heard {ago}; it keeps trying."
+msgstr "无法连接控制平面，因此你的域名显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
+
 msgid "Can't read your apps"
 msgstr "无法读取你的应用"
 
@@ -7197,8 +7526,22 @@ msgstr "域名"
 msgid "Filter domains"
 msgstr "筛选域名"
 
+msgctxt "show less of the rest"
+msgid "Less"
+msgstr "收起"
+
+msgid "Less about {name}"
+msgstr "收起 {name} 的详情"
+
 msgid "Loading domains"
 msgstr "正在加载域名"
+
+msgctxt "show the rest"
+msgid "More"
+msgstr "展开"
+
+msgid "More about {name}"
+msgstr "展开 {name} 的详情"
 
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
@@ -7221,17 +7564,11 @@ msgstr "把域名指向你的某个应用。任何改动生效前，你都会先
 msgid "Serving"
 msgstr "正在提供服务"
 
-msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定你的域名的状态，它们显示为未知。面板会继续尝试。"
+msgid "This browser is offline, so your domains read Unknown."
+msgstr "此浏览器已离线，因此你的域名显示为未知。"
 
-msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定你的域名的状态，它们显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
-
-msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定你的域名的状态，它们显示为未知。请检查你的网络连接。"
-
-msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定你的域名的状态，它们显示为未知。上次收到消息是在{ago}。请检查你的网络连接。"
+msgid "This browser is offline, so your domains read Unknown. Last heard {ago}."
+msgstr "此浏览器已离线，因此你的域名显示为未知。上次收到消息是在{ago}。"
 
 msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
 msgstr "在此之前，域名无法跳转到它的应用，你也无法在这里添加域名。"
@@ -8345,20 +8682,38 @@ msgstr "{0, plural, other {{source} 有 {lines} 行未显示：这台服务器�
 msgid "{0, plural, one {{lines} older match from {source} not shown: a read to the end holds the newest 2 MB of each container.} other {{lines} older matches from {source} not shown: a read to the end holds the newest 2 MB of each container.}}"
 msgstr "{0, plural, other {{source} 有 {lines} 条较早的匹配未显示：读到末尾时，每个容器只保留最新的 2 MB。}}"
 
-msgid "It joined, but its agent hasn't connected yet. Start it with <0>dockwell run</0> on the server."
-msgstr "它已加入，但它的代理还没有连接。请在服务器上运行 <0>dockwell run</0> 启动它。"
+msgid "Command copied"
+msgstr "命令已复制"
 
-msgid "Its agent has disconnected, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
-msgstr "它的代理已断开，所以集群的数据不含它。请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "Copy the command that restarts Docker"
+msgstr "复制重启 Docker 的命令"
 
-msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on the server."
-msgstr "它的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。请检查服务器上的 Docker 是否在运行。"
+msgid "Copy the restart command"
+msgstr "复制重启命令"
 
-msgid "Its agent last reported {seen}, so its numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on the server."
-msgstr "它的代理最后一次上报于 {seen}，所以集群的数据不含它。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "Copy the start command"
+msgstr "复制启动命令"
 
-msgid "On {list}, the agent is connected but Docker doesn't answer, so nobody can say how what runs there is. Check that Docker is running on each."
-msgstr "{list} 上的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。请检查每台服务器上的 Docker 是否在运行。"
+msgid "It joined, and its agent hasn't connected yet."
+msgstr "它已加入，代理还没有连接。"
+
+msgid "Its agent disconnected."
+msgstr "它的代理已断开。"
+
+msgid "Its agent is connected; Docker doesn't answer."
+msgstr "代理已连接，Docker 没有响应。"
+
+msgid "Last heard {seen}; its numbers are left out of the fleet's."
+msgstr "最后一次收到于{seen}；它的数据未计入集群。"
+
+msgid "On {list}, the agent is connected and Docker doesn't answer."
+msgstr "{list} 上代理已连接，Docker 没有响应。"
+
+msgid "Restart command copied"
+msgstr "已复制重启命令"
+
+msgid "Start command copied"
+msgstr "已复制启动命令"
 
 #. placeholder {0}: blind.length
 msgid "{0, plural, one {# server can't read Docker} other {# servers can't read Docker}}"
@@ -8372,11 +8727,11 @@ msgstr "{0, plural, other {# 台服务器正在等待代理连接}}"
 msgid "{0, plural, one {# server isn't reporting} other {# servers aren't reporting}}"
 msgstr "{0, plural, other {# 台服务器没有上报数据}}"
 
-msgid "{list} joined, but their agents haven't connected yet. Start each with <0>dockwell run</0> on the server."
-msgstr "{list} 已加入，但它们的代理还没有连接。请在每台服务器上运行 <0>dockwell run</0> 启动它。"
+msgid "{list} joined, and their agents haven't connected yet."
+msgstr "{list} 已加入，代理还没有连接。"
 
-msgid "{list} stopped reporting, so their numbers are left out of the fleet's. Check that <0>dockwell run</0> is still running on each."
-msgstr "{list} 停止上报数据，所以集群的数据不含它们。请检查每台服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "{list} stopped reporting; their numbers are left out of the fleet's."
+msgstr "{list} 已停止上报；它们的数据未计入集群。"
 
 msgid "{name} can't read Docker"
 msgstr "{name} 无法读取 Docker"
@@ -8671,6 +9026,9 @@ msgstr "{0} 上的 Docker 没有响应，因此现在无法读取那里运行的
 msgid "Docker runs nothing here that Dockwell didn't make."
 msgstr "这里没有非 Dockwell 创建的 Docker 容器。"
 
+msgid "Dockwell only reads these. Open one to take it on as an app."
+msgstr "Dockwell 只读取这些。打开其中一个即可将其接管为应用。"
+
 msgid "Filter by name, image or project"
 msgstr "按名称、镜像或项目筛选"
 
@@ -8689,9 +9047,6 @@ msgstr "请在服务器上用 <0>docker ps -a</0> 查看全部。"
 #. placeholder {0}: c.name
 msgid "Take {0} on as an app"
 msgstr "将 {0} 接管为应用"
-
-msgid "These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes nothing and they keep running as they are."
-msgstr "这些容器在 Dockwell 之前就已存在，或以其他方式运行。Dockwell 只读取它们，因此在这里查看不会改变任何内容，它们会照常运行。"
 
 #. placeholder {0}: server.name
 msgid "{0} is waiting for its agent, so what Docker runs there can't be read yet."
@@ -8846,9 +9201,6 @@ msgstr "{name} 已停止。"
 
 msgid "Action"
 msgstr "操作"
-
-msgid "Address"
-msgstr "地址"
 
 msgid "Allow"
 msgstr "允许"
@@ -9202,9 +9554,6 @@ msgstr "自 {since} 起 CPU 超过 {HIGH}%"
 msgid "Can't say how it is now"
 msgstr "目前无法判断其状态"
 
-msgid "Check that <0>dockwell run</0> is still running on the server."
-msgstr "请检查服务器上的 <0>dockwell run</0> 是否仍在运行。"
-
 msgid "Copied {address}"
 msgstr "已复制 {address}"
 
@@ -9248,9 +9597,6 @@ msgstr "正在上报"
 
 msgid "Runs here"
 msgstr "在此运行"
-
-msgid "Start it with <0>dockwell run</0> on the server."
-msgstr "请在服务器上用 <0>dockwell run</0> 启动它。"
 
 msgid "Up {uptime}"
 msgstr "已运行 {uptime}"
@@ -9484,14 +9830,8 @@ msgstr "{unknown, plural, other {# 个未知}}"
 msgid "Private"
 msgstr "私有"
 
-msgid "It joined, but its agent hasn't connected yet, so there's nothing to show. Start it with <0>dockwell run</0> on the server."
-msgstr "它已加入，但代理尚未连接，所以还没有数据。请在该服务器上运行 <0>dockwell run</0> 启动代理。"
-
-msgid "Its agent has disconnected. Check that <0>dockwell run</0> is still running on the server."
-msgstr "它的代理已断开连接。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
-
-msgid "Its agent last reported {seen}, and the numbers here are from then. Check that <0>dockwell run</0> is still running on the server."
-msgstr "它的代理最后一次上报于 {seen}，此处显示的是当时的数据。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "Last heard {seen}; the numbers here are from then."
+msgstr "最后一次收到于{seen}；这里的数据来自那时。"
 
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
@@ -9518,20 +9858,14 @@ msgstr "更新"
 msgid "Control server"
 msgstr "控制服务器"
 
-msgid "Its agent is connected, but Docker doesn't answer, so nobody can say how what runs there is."
-msgstr "它的代理已连接，但 Docker 没有响应，所以无法得知上面运行的内容状况如何。"
-
-msgid "Its agent last reported {seen}. Check that <0>dockwell run</0> is still running on the server."
-msgstr "它的代理最后一次上报于 {seen}。请检查该服务器上的 <0>dockwell run</0> 是否仍在运行。"
+msgid "Last heard {seen}."
+msgstr "最后一次收到于{seen}。"
 
 msgid "Last {span}"
 msgstr "最近 {span}"
 
 msgid "No apps run here."
 msgstr "这里没有运行任何应用。"
-
-msgid "Open {name}"
-msgstr "打开 {name}"
 
 msgid "Provider"
 msgstr "云服务商"
@@ -9605,8 +9939,8 @@ msgstr "最后心跳"
 msgid "None reported"
 msgstr "未上报"
 
-msgid "Not answering, since {ago}, so nobody can say what runs here. Check that it's running, with <0>systemctl status docker</0>."
-msgstr "自 {ago}起没有响应，因此无法确定这里运行着什么。请用 <0>systemctl status docker</0> 检查它是否在运行。"
+msgid "Not answering since {ago}"
+msgstr "自{ago}起没有响应"
 
 msgid "Not installed or not running"
 msgstr "未安装或未运行"
@@ -9759,6 +10093,9 @@ msgstr "正在重启"
 msgid "A certificate came for {domain} on port 80 or 443, as of {when}"
 msgstr "{domain} 的证书已通过 80 或 443 端口签发，截至{when}"
 
+msgid "A domain's certificate here would show it"
+msgstr "此处某个域名的证书可以证明"
+
 msgid "A metadata service says so, {when}, and this machine doesn't name that cloud, so it may not be a way in"
 msgstr "元数据服务给出此地址，{when}，但此机器未表明运行在该云上，因此不一定是入站地址"
 
@@ -9791,9 +10128,6 @@ msgstr "在此服务器的某个网络接口上"
 
 msgid "On the internet"
 msgstr "直接连接互联网"
-
-msgid "Only something outside connecting proves a way in, such as a certificate for a domain here"
-msgstr "只有来自外部的连接才能证明可以入站，例如此处某个域名的证书"
 
 msgid "Open ports 80 and 443 in DigitalOcean's Cloud Firewall, if the Droplet has one, and in the machine's own firewall."
 msgstr "请在 DigitalOcean 的云防火墙（如果此 Droplet 有）和这台机器自己的防火墙中开放 80 和 443 端口。"
@@ -10908,9 +11242,6 @@ msgstr "集群操作"
 msgid "Scheduled tasks"
 msgstr "计划任务"
 
-msgid "Command copied"
-msgstr "命令已复制"
-
 msgid "Copied the command"
 msgstr "已复制命令"
 
@@ -10968,6 +11299,56 @@ msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务�
 msgid "Unreachable"
 msgstr "无法访问"
 
+msgid "At minute"
+msgstr "分钟"
+
+msgid "Cron"
+msgstr "Cron"
+
+msgid "Custom, in cron"
+msgstr "自定义（cron）"
+
+msgid "Every day"
+msgstr "每天"
+
+msgid "Every few minutes"
+msgstr "每隔几分钟"
+
+msgid "Every month"
+msgstr "每月"
+
+msgid "Every week"
+msgstr "每周"
+
+msgid "Every weekday"
+msgstr "每个工作日"
+
+msgid "Minute, hour, day of the month, month, day of the week."
+msgstr "分钟、小时、日期、月份、星期。"
+
+#. placeholder {0}: runs.map((ms) => when.format(new Date(ms))).join(" · ")
+msgid "Next, in {zone}: {0}"
+msgstr "接下来（{zone}）：{0}"
+
+msgid "No date matches it, so it never runs."
+msgstr "没有日期符合它，因此永远不会运行。"
+
+msgctxt "a day of the week"
+msgid "On"
+msgstr "星期"
+
+msgid "On day"
+msgstr "日期"
+
+msgid "Schedule"
+msgstr "计划"
+
+msgid "That isn't cron Dockwell reads."
+msgstr "Dockwell 无法识别这个 cron。"
+
+msgid "{n} minutes"
+msgstr "{n} 分钟"
+
 msgid "All runs"
 msgstr "全部运行"
 
@@ -11011,9 +11392,6 @@ msgstr "立即运行"
 msgid "Runs in"
 msgstr "运行于"
 
-msgid "Schedule"
-msgstr "计划"
-
 #. placeholder {0}: newest.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
 msgstr "在此之前输出的 {0} 字节没有保留。"
@@ -11044,11 +11422,8 @@ msgstr "{good} 次成功"
 msgid "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
 msgstr "{retries, plural, other {{timeout}，之后重试 # 次}}"
 
-msgid "Another, in cron"
-msgstr "其他，用 cron 表示"
-
-msgid "Any 2xx when empty."
-msgstr "留空时接受任意 2xx。"
+msgid "Any 2xx"
+msgstr "任意 2xx"
 
 msgid "Change the task {resourceName}"
 msgstr "修改任务 {resourceName}"
@@ -11078,23 +11453,14 @@ msgstr "运行失败时"
 msgid "In an app"
 msgstr "应用中"
 
-msgid "In cron"
-msgstr "cron 表达式"
-
-msgid "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
-msgstr "它在应用镜像的容器中运行，带有应用的环境变量，在入口点之后执行。需要 shell 时请写 sh -c。"
-
-msgid "It runs on its server's own clock, and every change to it is a plan"
-msgstr "它按服务器自己的时钟运行，每次修改都是一个计划"
+msgid "It runs in a new container of the app's image, with its environment."
+msgstr "它在应用镜像的新容器中运行，使用应用的环境变量。"
 
 msgid "It runs only when you run it now."
 msgstr "只有在你立即运行时才会运行。"
 
-msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
-msgstr "它在服务器上以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
-
-msgid "Its schedule reads in this zone, whatever each server's clock is set to."
-msgstr "无论各服务器的时钟如何设置，它的计划都按这个时区计算。"
+msgid "It runs with /bin/sh as root, so applying it takes your passkey."
+msgstr "它以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
 
 msgid "Leave it"
 msgstr "不处理"
@@ -11102,21 +11468,20 @@ msgstr "不处理"
 msgid "Method"
 msgstr "方法"
 
-msgid "Minute, hour, day of the month, month and day of the week, in its time zone."
-msgstr "分钟、小时、日、月和星期，按它的时区计算。"
-
 msgid "New task"
 msgstr "新建任务"
 
 msgid "Nightly sales report"
 msgstr "每晚销售报表"
 
-msgid "Otherwise one runs as the server comes back, however many were missed."
-msgstr "否则在服务器恢复时补跑一次，无论错过了多少次。"
+msgid "Open {shownName}"
+msgstr "打开 {shownName}"
 
-#. placeholder {0}: display.trim() || resourceName
-msgid "Run {0} on a schedule"
-msgstr "按计划运行 {0}"
+msgid "Otherwise one runs as the server comes back."
+msgstr "否则服务器恢复时会补运行一次。"
+
+msgid "Run {shownName} on a schedule"
+msgstr "按计划运行 {shownName}"
 
 msgid "Say what it runs."
 msgstr "请说明它运行什么。"
@@ -11126,6 +11491,9 @@ msgstr "运行它的服务器"
 
 msgid "Shell command"
 msgstr "Shell 命令"
+
+msgid "Short name"
+msgstr "简称"
 
 msgid "Skip runs missed while the server was off"
 msgstr "跳过服务器关机期间错过的运行"
@@ -11140,8 +11508,8 @@ msgstr "安装的时区"
 msgid "The install's, {0}"
 msgstr "安装的时区：{0}"
 
-msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
-msgstr "由服务器发出请求，因此能访问服务器能访问的地址。每次运行只保留状态码和耗时，从不保留返回内容。"
+msgid "The server asks it, so it reaches what the server reaches."
+msgstr "由服务器发出请求，因此能访问服务器能访问的地址。"
 
 msgid "Timeout, in minutes"
 msgstr "超时（分钟）"
@@ -11176,12 +11544,36 @@ msgstr "请使用小写字母、数字和连字符，例如 nightly-report。"
 msgid "What it runs"
 msgstr "运行内容"
 
-msgid "What people call it"
-msgstr "显示名称"
+msgid "What the CLI and the API call it."
+msgstr "CLI 和 API 用它来指代此任务。"
 
 #. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
 msgid "Where it runs now: {0}"
 msgstr "当前运行位置：{0}"
+
+#. placeholder {0}: folder.trim() || "/"
+msgctxt "the folder a task runs in"
+msgid "in {0}"
+msgstr "在 {0} 中运行"
+
+msgid "no retries"
+msgstr "不重试"
+
+msgid "one retry"
+msgstr "重试一次"
+
+msgid "skips missed runs"
+msgstr "跳过错过的运行"
+
+#. placeholder {0}: minutes || "?"
+msgid "stops after {0} min"
+msgstr "{0} 分钟后停止"
+
+msgid "three retries"
+msgstr "重试三次"
+
+msgid "two retries"
+msgstr "重试两次"
 
 msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
 msgstr "任务按服务器自己的时钟运行，控制平面不在时也会照常运行。每次运行都会保留输出，失败的运行会出现在动态中。"
@@ -11252,9 +11644,6 @@ msgstr "每天 {at}"
 
 msgid "Every hour at {at}"
 msgstr "每小时的 {at}"
-
-msgid "Every minute"
-msgstr "每分钟"
 
 msgid "Every weekday at {at}"
 msgstr "每个工作日 {at}"

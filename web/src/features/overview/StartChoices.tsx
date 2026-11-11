@@ -47,9 +47,22 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
       extra:
         shown.length > 0 && !compact ? (
           <span className="start-apps">
-            {shown.map((e) => (
-              <AppIcon key={e.id} name={e.name} path={e.icon} />
-            ))}
+            {/* Each straight into its install sheet, which starts from its defaults. */}
+            {shown.map((e) => {
+              const app = e.name;
+              return (
+                <Link
+                  key={e.id}
+                  to="/catalog/$entryId/install"
+                  params={{ entryId: e.id }}
+                  className="start-app"
+                  aria-label={t`Install ${app}`}
+                  title={app}
+                >
+                  <AppIcon name={e.name} path={e.icon} />
+                </Link>
+              );
+            })}
             {more > 0 ? <span className="start-more">{t`and ${more} more`}</span> : null}
           </span>
         ) : null,

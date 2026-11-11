@@ -241,13 +241,11 @@ export function AppEnvironment() {
 
           <p className="app-note">
             <Trans>
-              A variable or secret lives in its environment, and goes only to the servers that run an app using it.
-              Change one here or in{" "}
+              Change a shared one in{" "}
               <Link to="/variables" search={{ environment }}>
                 Variables and secrets
               </Link>
-              , and its plan restarts each app that uses it. What's set on this app alone is never shown again, as it
-              may hold secrets.
+              . A value set here is never shown again.
             </Trans>
           </p>
         </MayEdit>

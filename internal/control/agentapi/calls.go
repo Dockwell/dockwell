@@ -403,7 +403,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
@@ -488,6 +488,9 @@ type Session struct {
 	pagesListings bool
 	// transfersFiles says the agent uploads and downloads them.
 	transfersFiles bool
+	// firstPasswords says the agent changes a database's first user's password in
+	// it as its service restarts with a new one (ADR 0038).
+	firstPasswords bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -688,6 +691,35 @@ func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error
 		return nil, ErrOlderAgent
 	}
 	return r.GetDiskUse(), nil
+}
+
+// Ports asks the agent what holds some ports on its server.
+func (s *Session) Ports(ctx context.Context, call *agentv1.PortsCall) (*agentv1.PortsResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Ports{Ports: call}}, ObserveTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetPorts() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetPorts(), nil
+}
+
+// ImageTimeout bounds reading an image: the agent's 8 s for a whole read, and
+// room for its answer to come back (ADR 0062).
+const ImageTimeout = 10 * time.Second
+
+// Image asks the agent to read an image from its registry, through the server's
+// network and mirrors.
+func (s *Session) Image(ctx context.Context, call *agentv1.ImageCall) (*agentv1.ImageResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Image{Image: call}}, ImageTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if r.GetImage() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetImage(), nil
 }
 
 // Processes asks the agent what runs on its server.

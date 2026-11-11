@@ -47,6 +47,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/checks"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/databases"
@@ -57,6 +58,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/control/images"
 	"github.com/dockwell/dockwell/internal/control/importapi"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/members"
@@ -108,6 +110,9 @@ type Config struct {
 	// AlertClient sends to alert channels, and tests them, in place of netguard's,
 	// for a test whose channels' far ends listen on loopback. Nil is netguard's.
 	AlertClient *http.Client
+	// CheckClient runs checks of a URL in place of netguard's guarded client, for
+	// a test whose addresses are on this machine (ADR 0066).
+	CheckClient checks.Doer
 	// ManualAlerts leaves evaluating alert rules to whoever calls the evaluator,
 	// as a test does by its own clock. The install's first rules are made all the
 	// same.
@@ -317,6 +322,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	if cfg.Fleet != nil {
 		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet, cfg.Store, cfg.Agents).Tickets(cfg.Identity, cfg.Auth), opts...))
+		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents), opts...))
 		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
 	}
 	if cfg.Changes != nil {
@@ -370,6 +376,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			DB: cfg.Store, Keeper: cfg.Secrets, Engine: cfg.Changes, Domains: cfg.Agents, Health: healthHandler,
 			Standings: cfg.Standings, Panel: cfg.PanelURL, Logger: cfg.Logger,
 			Sender: &alerts.Sender{Client: cfg.AlertClient},
+			Checks: &checks.Runner{DB: cfg.Store, Keeper: cfg.Secrets, Client: cfg.CheckClient, Logger: cfg.Logger},
 		}
 		if cfg.Fleet != nil {
 			(*alertsOut).Fleet = cfg.Fleet
@@ -655,6 +662,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.alerts != nil && !s.manualAlerts {
 		api.Go(func() { s.alerts.Run(apiCtx) })
+		if runner, ok := s.alerts.Checks.(*checks.Runner); ok {
+			api.Go(func() { runner.Run(apiCtx) })
+		}
 	}
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })

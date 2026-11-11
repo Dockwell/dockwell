@@ -406,7 +406,7 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
                   status={serverStatus(s)}
                   label={<code>{s.name}</code>}
                   meta={
-                    s.lastSeenTime
+                    s.lastSeenTime && s.connection !== Connection.PENDING
                       ? t`not connected, last heard ${words.ago(timestampDate(s.lastSeenTime), now)}`
                       : t`hasn't connected yet`
                   }

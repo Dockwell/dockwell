@@ -9,8 +9,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { anApp, ENV } from "../../test/apps";
 import { authError, authState, mira } from "../../test/auth";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt, renderWithApi } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { ImageField } from "../apps/ImageField";
 
 const web = anApp("web", "nginx:1.4");
 const hz1 = aServer({ id: "srv_1", name: "hz-1", controlServer: true });
@@ -152,6 +153,21 @@ describe("what the panel offers, by what you hold", () => {
     renderAt("/apps/svc_web", api(as(["prj_1", Role.DEVELOPER]), true));
     expect(await screen.findByRole("button", { name: "Deploy" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Restart" })).toBeEnabled();
+  });
+
+  it("reads no image for someone who views this environment, whatever they are elsewhere", async () => {
+    const asked: string[] = [];
+    const tell = (what: string) => () => {
+      asked.push(what);
+      return {};
+    };
+    const images = { searchImages: tell("search"), listImageTags: tell("tags"), getImage: tell("image") };
+    const field = <ImageField value="nginx:1.27" onChange={() => {}} environment={ENV} server="srv_1" />;
+    const user = userEvent.setup();
+    renderWithApi(field, { ...api(as(["prj_1", Role.VIEWER], ["prj_other", Role.DEVELOPER])), images });
+    await user.click(await screen.findByRole("combobox", { name: "Image" }));
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(asked).toEqual([]);
   });
 
   it("offers nothing in a project its reader holds nothing in", async () => {
