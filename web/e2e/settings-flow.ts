@@ -68,7 +68,7 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   // Started by hand, as here, nothing it could name would stop it, so it says to, and only copies.
   const backups = page.getByRole("region", { name: "Backups" });
   await backups.getByText(/--exclude 'control\/key\*' -czf \/root\/dockwell-control\.tgz control agent &&/).waitFor();
-  await backups.getByText(/Dockwell doesn't run as a service here/).waitFor();
+  await backups.getByText(/run this as root, then start it again/).waitFor();
   await page
     .getByRole("region", { name: "Updates" })
     .getByText(/ runs here$/)

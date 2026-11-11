@@ -46,6 +46,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
+	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
@@ -366,14 +367,15 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 			Resolve: resolverFor(stdio.Getenv), PortsHeld: portsHeld(stdio.Getenv), Restart: restart,
 			Saved: func(d string) { saved.Store(d) },
 		},
-		AgentListen:   ls.Agents.Addr().String(),
-		PublicAddress: addr.dnsAddress(),
-		ClaimCommand:  claim,
-		Changes:       engine,
-		Agents:        agents,
-		Store:         db,
-		Secrets:       keeper,
-		Releases:      releasesURL(stdio),
+		AgentListen:    ls.Agents.Addr().String(),
+		PublicAddress:  addr.dnsAddress(),
+		ClaimCommand:   claim,
+		Changes:        engine,
+		Agents:         agents,
+		Store:          db,
+		Secrets:        keeper,
+		Releases:       releasesURL(stdio),
+		CatalogSources: filepath.Join(dir.Control(), "catalog-sources"),
 	})
 	if err != nil {
 		closeAll()
@@ -532,7 +534,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string, saved func() string) *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, catalogsource.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{})
 }
 
 // openState opens the control plane's key, its state and its identity,

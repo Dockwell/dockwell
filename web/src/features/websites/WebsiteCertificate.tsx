@@ -6,6 +6,7 @@ import { Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { formatDateTime } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { DomainNote, useDomainState, useSilent } from "../apps/DomainNote";
 import type { DomainLook } from "../apps/domains";
 import { EmptyState } from "../shell/EmptyState";
@@ -20,11 +21,16 @@ export function WebsiteCertificate() {
   const { row } = useWebsiteValue();
   if (!row.domain || !row.look) {
     return (
-      <EmptyState icon="shield" title={<Trans>No domain, so no certificate</Trans>}>
-        <p>
-          <Trans>No route gives this website a domain now. Delete the website, and add it again with one.</Trans>
-        </p>
-      </EmptyState>
+      <EmptyState
+        icon="shield"
+        title={<Trans>No domain, so no certificate</Trans>}
+        // Where to put it right: its configuration, where it can be deleted and made again.
+        action={
+          <RouterButtonLink to="/websites/$websiteId/configuration" params={{ websiteId: row.site.id }} size="lg">
+            <Trans>Open its configuration</Trans>
+          </RouterButtonLink>
+        }
+      />
     );
   }
   return <Certificates domain={row.domain} look={row.look} />;
@@ -52,8 +58,8 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
           ))}
           <p className="websites-muted">
             {domain.routes[0]?.tls === "off"
-              ? t`TLS ends before this server, at a tunnel or a proxy in front, so it asks for no certificate here.`
-              : t`It comes from Let's Encrypt over HTTP-01 or TLS-ALPN-01 once DNS points here, and renews by itself.`}
+              ? t`TLS ends at a tunnel or a proxy in front, so there's no certificate here.`
+              : t`From Let's Encrypt once DNS points here, and renewed by itself.`}
           </p>
         </div>
       </Panel>

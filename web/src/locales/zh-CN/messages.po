@@ -687,6 +687,9 @@ msgstr "已备份 {volume}"
 msgid "Claimed this install"
 msgstr "认领了这个安装"
 
+msgid "Cleared the panel's domain"
+msgstr "清除了面板的域名"
+
 msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "清除了 {server} 的公网地址，原地址为 {previous}"
 
@@ -894,6 +897,12 @@ msgstr "向 {name}（{kind}，{host}）发送了测试，已送达"
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "向 {name}（{kind}，{host}）发送了测试，未送达"
 
+msgid "Set the panel's domain to {value}"
+msgstr "将面板的域名设置为 {value}"
+
+msgid "Set the panel's domain to {value}, which was {previous}"
+msgstr "将面板的域名设置为 {value}，原域名为 {previous}"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "将 {server} 的公网地址设置为 {address}"
 
@@ -911,6 +920,9 @@ msgstr "登录了"
 
 msgid "Signed out other sessions"
 msgstr "退出了其他会话"
+
+msgid "Stopped serving the panel on {previous}"
+msgstr "不再在 {previous} 上提供面板"
 
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "已在 {server} 上停止 {what}（PID {pid}）"
@@ -4370,6 +4382,13 @@ msgstr "版本 <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "你尚未登录"
 
+msgid "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
+msgstr "通行密钥不在手边时，可用 6 位验证码登录，面板的任何地址都可以。"
+
+#. placeholder {0}: state.recoveryCodesLeft
+msgid "A 6-digit code signs you in when your passkey isn't at hand. {0} of 10 recovery codes left."
+msgstr "通行密钥不在手边时，可用 6 位验证码登录。还剩 {0} 个恢复码（共 10 个）。"
+
 msgid "Authenticator app"
 msgstr "身份验证器应用"
 
@@ -4386,8 +4405,8 @@ msgstr "复制恢复码"
 msgid "Download"
 msgstr "下载"
 
-msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
-msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
+msgid "Each signs you in once if you lose your authenticator app. Shown only now: keep them apart from your phone."
+msgstr "丢失身份验证器应用时，每个恢复码可登录一次。只在此时显示：请与手机分开保存。"
 
 msgid "Enter the 6-digit code it shows"
 msgstr "输入它显示的 6 位验证码"
@@ -4434,18 +4453,11 @@ msgstr "设置"
 msgid "Set up an authenticator app"
 msgstr "设置身份验证器应用"
 
-msgid "Sign in with a 6-digit code when your passkey isn't at hand. Codes work at every address, so they also get you in after the panel moves to a new domain."
-msgstr "通行密钥不在手边时，可以用 6 位验证码登录。验证码在所有地址都有效，所以面板换到新域名后也能用它登录。"
-
-#. placeholder {0}: state.recoveryCodesLeft
-msgid "Sign in with a 6-digit code when your passkey isn't at hand. {0} of 10 recovery codes are left."
-msgstr "通行密钥不在手边时，可以用 6 位验证码登录。还剩 {0} 个恢复码（共 10 个）。"
-
 msgid "Such as 1Password, Google Authenticator or Aegis"
 msgstr "例如 1Password、Google Authenticator 或 Aegis"
 
-msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
-msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失效。新的恢复码只显示一次。"
+msgid "Ten new codes replace your {left}, which stop working at once."
+msgstr "十个新恢复码会替换你现有的 {left} 个，旧的立即失效。"
 
 msgid "The authenticator app isn't set up yet"
 msgstr "身份验证器应用尚未设置"
@@ -4459,8 +4471,8 @@ msgstr "关闭并删除恢复码"
 msgid "Turn on"
 msgstr "开启"
 
-msgid "Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on {name} over SSH:"
-msgstr "用来自 {name} 的一次性链接认领它，例如安装结束时打印的那个。如需新链接，请通过 SSH 在 {name} 上运行："
+msgid "Claim it with the link the install printed. For a new one, run this on {name}:"
+msgstr "用安装时输出的链接认领它。要获取新链接，请在 {name} 上运行："
 
 msgid "No owner yet"
 msgstr "还没有所有者"
@@ -4991,8 +5003,8 @@ msgstr "保留的备份数"
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
 
-msgid "Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly. The disk has {toGive} to give."
-msgstr "Dockwell 暂时无法说明每次备份占用多少空间，因为这个卷是空的，或者太大无法快速测量。磁盘还有 {toGive} 可用。"
+msgid "Dockwell can't size a backup yet: this volume is empty or too large to measure quickly. The disk has {toGive}."
+msgstr "Dockwell 暂时无法估算备份大小：这个卷是空的，或太大无法快速测量。磁盘还有 {toGive} 可用。"
 
 msgid "Hourly"
 msgstr "每小时"
@@ -5005,8 +5017,8 @@ msgstr "时区 {zone}"
 
 #. placeholder {0}: formatBytes(total, i18n.locale)
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
-msgid "Keeping {count} takes about {0} while the next is taken, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
-msgstr "保留 {count} 份在下次备份期间约占 {0}，磁盘还有 {1} 可用。放不下的备份会失败，并在“活动”中说明。"
+msgid "Keeping {count} takes about {0} while the next is taken; the disk has {1}. One that won't fit fails."
+msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。放不下的备份会失败。"
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
@@ -5036,8 +5048,8 @@ msgstr "无论结果如何，复制结束后被停止的内容都会重新启动
 #. placeholder {1}: formatBytes(total, i18n.locale)
 #. placeholder {2}: formatBytes(each, i18n.locale)
 #. placeholder {3}: formatBytes(total, i18n.locale)
-msgid "{count, plural, one {Each backup takes about {0}, so keeping one takes about {1} while the next is taken, and the disk has {toGive} to give.} other {Each backup takes about {2}, so keeping # takes about {3} while the next is taken, and the disk has {toGive} to give.}}"
-msgstr "{count, plural, other {每次备份约占 {0}，保留 # 份在下次备份期间约占 {1}，磁盘还有 {toGive} 可用。}}"
+msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
+msgstr "{count, plural, other {每次备份约占 {0}；保留 # 份约占 {1}。磁盘还有 {toGive} 可用。}}"
 
 msgid "Copy of a running app"
 msgstr "运行中应用的副本"
@@ -7111,23 +7123,20 @@ msgstr "{theSecret} 已经是一个密钥。"
 msgid "{wanted} signs in to {name} already."
 msgstr "{wanted} 已经可以登录 {name}。"
 
-msgid "A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7 days."
-msgstr "恢复会通过一个说明此事的计划替换现有内容，并把被替换的内容保留 7 天。"
+msgid "A backup before a change or an upgrade lets you put it back."
+msgstr "在修改或升级前备份，就能恢复回去。"
 
-msgid "Back it up before you change what's in it, or upgrade it."
-msgstr "在修改其中内容或升级之前，先备份它。"
+msgid "A copy of its files, which stops {engine} a moment"
+msgstr "复制其文件，{engine} 会短暂停止"
+
+msgid "A plan, which keeps what it replaces for 7 days"
+msgstr "通过计划进行，被替换的内容保留 7 天"
 
 msgid "Backups of {name}, newest first"
 msgstr "{name} 的备份，最新在前"
 
 msgid "Dockwell can't read the backups of {name}"
 msgstr "Dockwell 无法读取 {name} 的备份"
-
-msgid "Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it running."
-msgstr "每次备份都是它文件的副本：为得到精确副本会先停止 {engine}，除非你选择在运行中复制。"
-
-msgid "Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops."
-msgstr "每次备份都是 {dumpOf} 自带的完整转储，在运行中进行，不会停止任何服务。"
 
 msgid "How it's backed up"
 msgstr "备份方式"
@@ -7137,6 +7146,12 @@ msgstr "{name} 还没有备份"
 
 msgid "Only by hand"
 msgstr "仅手动"
+
+msgid "Restoring"
+msgstr "恢复"
+
+msgid "{dumpOf}'s own dump, while it runs"
+msgstr "{dumpOf} 自带的转储，运行中进行"
 
 msgid "<0>{serviceId}</0> may have been deleted, or it may no longer run a database Dockwell knows."
 msgstr "<0>{serviceId}</0> 可能已被删除，或者它运行的已不是 Dockwell 认识的数据库。"
@@ -7186,8 +7201,8 @@ msgstr "不在卷中"
 msgid "A change to how {engine} {now} runs is out"
 msgstr "{engine} {now} 的运行方式有更新"
 
-msgid "A copy of its files, which stops it for an exact copy unless you choose to copy it running"
-msgstr "复制它的文件：为得到精确副本会先停止它，除非你选择在运行中复制"
+msgid "A copy of its files, which stops it a moment"
+msgstr "复制其文件，会短暂停止它"
 
 msgid "All its backups"
 msgstr "它的全部备份"
@@ -7219,26 +7234,32 @@ msgstr "{place} 中的应用可连接"
 msgid "From this server alone"
 msgstr "仅此服务器可连接"
 
+msgid "Give it a volume"
+msgstr "为它添加卷"
+
 msgid "Host"
 msgstr "主机"
 
 msgid "It sets no most"
 msgstr "未设置上限"
 
-msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it up where it came from, or move the data into a volume of the app's."
-msgstr "它的数据在 <0>{volume}</0> 中，这个卷不是 Dockwell 创建的，因此 Dockwell 不会备份它。请在它原来的地方备份，或把数据移到该应用自己的卷中。"
+msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
+msgstr "其数据位于 <0>{volume}</0>，这个卷不是 Dockwell 创建的，因此不会备份。"
 
-msgid "Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give it a volume on its app's page."
-msgstr "它的数据不在卷中，容器被替换时数据会随之丢失，也没有可备份的内容。请在它的应用页面为它添加一个卷。"
+msgid "Its data isn't in a volume, so it goes with its container."
+msgstr "其数据不在卷中，会随容器一起消失。"
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "各项数值、数据库和用户来自 {server}，它运行在 {count} 台服务器上，这是其中一台。"
 
-msgid "Its numbers, databases and users show again once it does."
-msgstr "它报告后，这里会重新显示各项数值、数据库和用户。"
-
 msgid "Its password is in its own environment, sealed, so it has no secret to reveal."
 msgstr "它的密码保存在自己的环境中并已加密，因此没有可显示的密钥。"
+
+msgid "Its plan backs up its volumes first; undoing it keeps the data as {next} left it."
+msgstr "其计划会先备份卷；撤销时数据保持 {next} 留下的样子。"
+
+msgid "Its plan backs up the data with {dumpOf}'s dump first; undoing it keeps the data as {next} left it."
+msgstr "其计划会先用 {dumpOf} 的转储备份数据；撤销时数据保持 {next} 留下的样子。"
 
 msgid "Its server didn't say"
 msgstr "它的服务器没有说明"
@@ -7292,14 +7313,9 @@ msgstr "本服务器磁盘，未加密"
 msgid "Up for"
 msgstr "已运行"
 
-msgid "Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which backup holds it. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "升级是一个计划：先用 {dumpOf} 自带的转储备份数据，并说明数据在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
-
-msgid "Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "升级是一个计划：先备份它的卷，并说明每个卷在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
-
-msgid "Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the data as the new one left it."
-msgstr "升级是一个计划：先复制卷的文件来备份，这会让 {engine} 停止片刻，并说明每个卷在哪个备份中。撤销会换回这个版本，数据保持新版本留下的样子。"
+msgctxt "what a database or Docker said when it couldn't be read"
+msgid "What it said"
+msgstr "原始信息"
 
 msgid "When you ask"
 msgstr "手动发起时"
@@ -7346,6 +7362,9 @@ msgstr "{name} 中的数据库"
 msgid "Granted on"
 msgstr "已授权"
 
+msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
+msgstr "在其容器内部，PostgreSQL 镜像允许任何进程无需密码以任意用户登录。"
+
 msgid "Its own"
 msgstr "系统自带"
 
@@ -7363,9 +7382,6 @@ msgstr "没有自己的数据库"
 
 msgid "Not one of Dockwell's"
 msgstr "非 Dockwell 创建"
-
-msgid "Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one."
-msgstr "通过网络时，每个用户都要用自己的密码登录。在它自己的容器内，PostgreSQL 官方镜像允许任何进程不用密码以任何用户登录。"
 
 msgid "Owns"
 msgstr "拥有"
@@ -7399,9 +7415,6 @@ msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
 
 msgid "+{left}"
 msgstr "+{left}"
-
-msgid "A database here is a service that runs PostgreSQL, MySQL, MariaDB, Redis or Valkey from its official image. Install one from the catalog, or take on one that's already running on a server."
-msgstr "这里的数据库是指用官方镜像运行 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey 的服务。可以从应用目录安装一个，或接管服务器上已在运行的数据库。"
 
 msgid "Beside it"
 msgstr "同环境服务"
@@ -7457,6 +7470,9 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
 
+msgid "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
+msgstr "来自应用目录，或已在服务器上运行的 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey。"
+
 msgid "Reading what happened"
 msgstr "正在读取动态"
 
@@ -7466,8 +7482,8 @@ msgstr "最近动态"
 msgid "Some on schedule"
 msgstr "部分按计划运行"
 
-msgid "Take one on from its page to see it here. It keeps running as it is, with no restart."
-msgstr "在它的页面接管后，它就会显示在这里。接管时它保持原样运行，不会重启。"
+msgid "Take one on from its page: it keeps running, with no restart."
+msgstr "在它的页面接管：它会继续运行，无需重启。"
 
 msgid "by hand"
 msgstr "手动"
@@ -8034,8 +8050,8 @@ msgstr "选择要上传的文件"
 msgid "Drop files here, or choose them."
 msgstr "将文件拖放到这里，或选择文件。"
 
-msgid "Each .zip, .tar.gz or .tgz also unpacks into a new folder beside it, named after it. Links and anything that could let someone onto the server stop it."
-msgstr "每个 .zip、.tar.gz 或 .tgz 还会解压到旁边一个以它命名的新文件夹。其中若有链接，或任何可能让他人进入服务器的内容，解压会停止。"
+msgid "Each .zip, .tar.gz or .tgz unpacks into a folder beside it, unless it holds links or unsafe paths."
+msgstr "每个 .zip、.tar.gz 或 .tgz 会解压到旁边的文件夹中，除非其中含有链接或不安全的路径。"
 
 msgid "Files to upload"
 msgstr "要上传的文件"
@@ -8064,8 +8080,8 @@ msgstr "停止"
 msgid "Stopped at {part} of {whole}"
 msgstr "停在 {part}，共 {whole}"
 
-msgid "The connection dropped before {name} was all sent. What arrived is kept for a day: upload it again to go on from there."
-msgstr "{name} 尚未全部发送，连接就断开了。已到达的部分会保留一天：再次上传即可从断点继续。"
+msgid "The connection dropped before {name} was all sent. Upload it again within a day to go on from there."
+msgstr "{name} 还没传完连接就断开了。一天内再次上传即可从断点继续。"
 
 #. placeholder {0}: err.status
 msgid "The control plane answered {0}, so {name} stopped. Upload it again to go on from where it got."
@@ -8974,9 +8990,6 @@ msgstr "{minutes} 分钟"
 msgid "Back to the server"
 msgstr "返回服务器"
 
-msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
-msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一个可撤销的计划，并保留它的卷。接管不会重启它，它的环境变量会加密带入，任何计划或日志都不会显示。"
-
 msgid "It mounts none."
 msgstr "它没有挂载任何内容。"
 
@@ -9003,6 +9016,9 @@ msgstr "计划接管 {project} 的全部 {inProject} 个容器"
 
 msgid "Take it on"
 msgstr "接管它"
+
+msgid "Taking it on doesn't restart it or touch its volumes; its environment comes in sealed."
+msgstr "接管不会重启它，也不会动它的卷；它的环境变量会被加密封存。"
 
 msgid "What Docker says of it"
 msgstr "Docker 显示的信息"
@@ -9141,8 +9157,8 @@ msgstr "{0} 上的所有容器都会随之停止，因为 Docker 需要它来运
 msgid "It asks for your passkey, and goes on Activity"
 msgstr "需要你的通行密钥，并会记入动态"
 
-msgid "It gets SIGTERM, to end as it would on shutdown, and SIGKILL if it's still running 10 s later. What it hasn't saved is lost, and this can't be undone."
-msgstr "它会先收到 SIGTERM，像关机时一样结束；10 秒后若仍在运行，则收到 SIGKILL。它尚未保存的内容会丢失，且无法撤销。"
+msgid "It gets SIGTERM, then SIGKILL 10 s later if it's still running. Unsaved work is lost for good."
+msgstr "它会收到 SIGTERM，若 10 秒后仍在运行则收到 SIGKILL。未保存的内容会永久丢失。"
 
 msgid "It runs in {where}, but isn't its main process, so nothing starts it again, and the container goes on running."
 msgstr "它运行在{where}中，但不是其主进程，因此不会被再次启动，容器会继续运行。"
@@ -9154,14 +9170,14 @@ msgstr "它运行在 {0}.service 下，该单元可能会按其配置再次启�
 msgid "It's the main process of {where}, which Docker starts again, as its restart policy says."
 msgstr "它是{where}的主进程，Docker 会按其重启策略再次启动它。"
 
-msgid "It's the main process of {where}, which stops with it, and Docker doesn't start it again, as its restart policy is no."
-msgstr "它是{where}的主进程，{where}会随之停止，且由于其重启策略为 no，Docker 不会再次启动它。"
+msgid "It's the main process of {where}, which stops with it and may stay stopped: Docker restarts it only after an error."
+msgstr "它是 {where} 的主进程，{where} 会随之停止并可能保持停止：Docker 只在出错后重启它。"
+
+msgid "It's the main process of {where}, which stops with it and stays stopped: its restart policy is no."
+msgstr "它是 {where} 的主进程，{where} 会随之停止并保持停止：它的重启策略是 no。"
 
 msgid "It's the main process of {where}, which stops with it, and may start again, as its restart policy says."
 msgstr "它是{where}的主进程，{where}会随之停止，并可能按其重启策略再次启动。"
-
-msgid "It's the main process of {where}, which stops with it. Docker starts it again only if it ends with an error, and a process that takes SIGTERM can end without one."
-msgstr "它是{where}的主进程，{where}会随之停止。Docker 只在它出错退出时再次启动它，而收到 SIGTERM 的进程可能正常退出。"
 
 msgid "Its container stops with it, as this is what runs the container."
 msgstr "它的容器会随之停止，因为容器由它运行。"
@@ -9527,20 +9543,20 @@ msgstr "正在加载服务器"
 msgid "Reconnecting"
 msgstr "正在重新连接"
 
-msgid "The panel can't reach the control plane, so it can't say how this server is. It last heard {ago}, and keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定这台服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+msgid "The panel can't reach the control plane, so this server is shown as of {ago}. It keeps trying."
+msgstr "面板无法连接控制平面，因此这台服务器显示的是{ago}的状态。面板会继续尝试。"
 
-msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定你的服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+msgid "The panel can't reach the control plane, so your servers are shown as of {ago}. It keeps trying."
+msgstr "面板无法连接控制平面，因此你的服务器显示的是{ago}的状态。面板会继续尝试。"
 
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
 
-msgid "This browser is offline, so the panel can't say how this server is. It last heard {ago}. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定这台服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+msgid "This browser is offline, so this server is shown as of {ago}. Check your connection."
+msgstr "此浏览器已离线，因此这台服务器显示的是{ago}的状态。请检查网络连接。"
 
-msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+msgid "This browser is offline, so your servers are shown as of {ago}. Check your connection."
+msgstr "此浏览器已离线，因此你的服务器显示的是{ago}的状态。请检查网络连接。"
 
 msgid "You're offline"
 msgstr "你已离线"
@@ -9713,8 +9729,8 @@ msgid "The agent hasn't reported yet."
 msgstr "代理尚未上报。"
 
 #. placeholder {0}: server.name
-msgid "The agent on {0} isn't connected, so what runs there can't be read now. This page reads again when it reconnects."
-msgstr "{0} 上的代理未连接，因此现在无法读取那里运行的内容。代理重新连接后，此页面会再次读取。"
+msgid "The agent on {0} isn't connected; this reads again once it reconnects."
+msgstr "{0} 上的代理未连接；重新连接后会再次读取。"
 
 msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
 msgstr "此 SSH 服务器接受新的登录，是重新进入服务器的途径。请改为用 systemctl restart ssh 重启它。"
@@ -10333,9 +10349,6 @@ msgstr "{name} 等 {more} 项"
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
 
-msgid "A server that joined upgrades the same way: run the install script again on it."
-msgstr "已加入的服务器以同样方式升级：在它上面再次运行安装脚本。"
-
 msgid "Agents"
 msgstr "代理"
 
@@ -10351,9 +10364,6 @@ msgstr "响应时间"
 msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
 msgstr "应用的卷和数据库有各自的备份，见<0>备份</0>。"
 
-msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
-msgstr "像备份任何 Postgres 数据库一样用 <0>pg_dump</0> 备份它，并按下面的方法复制控制平面的文件夹和密钥。"
-
 msgid "Built from {commit}"
 msgstr "由 {commit} 构建"
 
@@ -10366,17 +10376,11 @@ msgstr "目前需手动"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell 无法获知其控制平面的状态"
 
-msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
-msgstr "Dockwell 还不会备份自己的状态。请把它复制到这台服务器之外，并把密钥分开存放：密钥能打开状态存储中的所有机密，没有密钥，存储的副本一个也打不开。"
-
-msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
-msgstr "Dockwell 还不会检查新版本或自行升级。要安装特定版本，请将命令结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
-
-msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
-msgstr "Dockwell 在这里没有作为服务运行，所以请先停止 <0>dockwell run</0>：只有在没有任何写入时，存储才是完整的。然后以 root 身份运行以下命令，完成后再启动 Dockwell。"
-
 msgid "Engine"
 msgstr "引擎"
+
+msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "要安装特定版本，请将结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
 
 msgid "From elsewhere"
 msgstr "从其他网络"
@@ -10396,6 +10400,12 @@ msgstr "密钥"
 
 msgid "Location"
 msgstr "位置"
+
+msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
+msgstr "这里没有作为服务运行：先停止 <0>dockwell run</0>，以 root 身份运行以下命令，然后再启动它。"
+
+msgid "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
+msgstr "在这台服务器上运行，它会安装最新版本并重启 Dockwell；应用照常提供服务。"
 
 msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 msgstr "一个 · 它停止时，面板和 API 随之停止，服务器上运行的内容照常运行"
@@ -10432,14 +10442,17 @@ msgstr "版本发布"
 msgid "Replicas"
 msgstr "副本"
 
-msgid "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "请以 root 身份，在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，之后的步骤都不会运行，Dockwell 也会一直处于停止状态。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+msgid "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "请以 root 身份通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
 
-msgid "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "请在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，之后的步骤都不会运行，Dockwell 也会一直处于停止状态。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+msgid "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "请通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
 
 msgid "SQLite, on this server"
 msgstr "SQLite，在这台服务器上"
+
+msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
+msgstr "在 Dockwell 启动的地方设置；面板的域名在<0>常规</0>中。"
 
 msgctxt "on disk"
 msgid "Size"
@@ -10448,20 +10461,21 @@ msgstr "磁盘占用"
 msgid "State store"
 msgstr "状态存储"
 
+msgid "The database isn't in it: back it up with <0>pg_dump</0>."
+msgstr "其中不含数据库：请用 <0>pg_dump</0> 备份它。"
+
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
 
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
-
-msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
-msgstr "这些取决于 Dockwell 的启动方式。面板的域名在<0>常规</0>中；其余的也以同样方式设置。"
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
+msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出这台服务器，分开存放：密钥能打开副本中的所有机密。"
 
 msgid "This control plane"
 msgstr "当前控制平面"
 
-msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
-msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚本。如果有新版本，它会验证并安装，然后重启 Dockwell。你的应用照常提供服务。"
+#. placeholder {0}: s.name
+msgid "Update the agent on {0}"
+msgstr "更新 {0} 上的代理"
 
 msgid "agent"
 msgstr "个代理"
@@ -10525,9 +10539,6 @@ msgstr "{0}，自 {1} 起"
 msgid "A change goes on Activity, with what it replaced."
 msgstr "每次更改都会连同被替换的值记入动态。"
 
-msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
-msgstr "新的计划（例如备份计划）除非指定了自己的时区，否则都使用这个时区，无论来自面板、CLI 还是 API。每个计划保留创建时的时区。"
-
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "始终可用，通过到服务器的 SSH 隧道访问"
 
@@ -10548,6 +10559,9 @@ msgstr "本机回环"
 
 msgid "Loopback only"
 msgstr "仅本机回环"
+
+msgid "New schedules start in it; each keeps the zone it was made with."
+msgstr "新的计划使用这个时区；每个计划保留创建时的时区。"
 
 msgid "Not set: UTC"
 msgstr "未设置：UTC"
@@ -10570,8 +10584,8 @@ msgstr "提供方"
 msgid "Show the panel in"
 msgstr "面板显示语言"
 
-msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
-msgstr "登录页和浏览器标签页会显示它。留空时显示 Dockwell。"
+msgid "Shown on the sign-in screen and in browser tabs."
+msgstr "显示在登录页和浏览器标签页上。"
 
 msgid "This install"
 msgstr "此安装"
@@ -10598,11 +10612,8 @@ msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在�
 msgid "A backup didn't get here {when}"
 msgstr "{when}有一份备份未能送达"
 
-msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
-msgstr "路由可以位于 Cloudflare 代理之后并信任其地址，或位于 Cloudflare Tunnel 之后，由它终止 TLS。从 Dockwell 管理其 DNS 记录将在之后推出。"
-
-msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
-msgstr "Amazon S3、Cloudflare R2、Backblaze B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
+msgid "A route can sit behind its proxy or a Tunnel."
+msgstr "路由可以位于它的代理或 Tunnel 之后。"
 
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
@@ -10611,17 +10622,8 @@ msgstr "任何 DNS 服务商"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
 
-msgid "Cloud providers"
-msgstr "云服务商"
-
-msgid "Coming later"
-msgstr "之后推出"
-
 msgid "Connect storage"
 msgstr "连接存储"
-
-msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
-msgstr "私有镜像的凭据。目前服务器只拉取公开镜像，不使用它的 docker login，因此私有镜像只有在有人手动在该服务器上拉取后才能运行。"
 
 msgid "DNS and proxies"
 msgstr "DNS 和代理"
@@ -10629,14 +10631,11 @@ msgstr "DNS 和代理"
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
 
-msgid "Git"
-msgstr "Git"
+msgid "Dockwell says which record to make, then gets the certificate."
+msgstr "Dockwell 会说明要创建哪条记录，然后获取证书。"
 
-msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
-msgstr "GitHub、GitLab 和 Gitea，在仓库变更时部署应用。目前应用运行的是镜像或 Compose 文件。"
-
-msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
-msgstr "Hetzner、DigitalOcean、Vultr 和 AWS，用于创建和替换服务器。目前服务器通过安装脚本和加入凭证加入。"
+msgid "Git providers, private registries and cloud providers come later."
+msgstr "Git 服务商、私有镜像仓库和云服务商将在之后推出。"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
@@ -10659,15 +10658,12 @@ msgstr "对象存储"
 msgid "Open Domains"
 msgstr "打开域名"
 
-msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
-msgstr "将域名记录指向服务器，Dockwell 就会为它获取证书。域名表单会说明要创建哪条记录，并持续跟踪 DNS 直到生效。"
-
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "{0}收到一份备份"
 
-msgid "Registries"
-msgstr "镜像仓库"
+msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
+msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
 
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
@@ -11255,11 +11251,11 @@ msgstr "设置、状态和账户"
 msgid "Variables and secrets"
 msgstr "变量和密钥"
 
+msgid "It arrives in a later release."
+msgstr "它将在之后的版本中推出。"
+
 msgid "Not in this release yet"
 msgstr "此版本尚未提供"
-
-msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
-msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
 
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}：控制平面状态"
@@ -12325,11 +12321,11 @@ msgstr "它读取 apt、dnf 和 apk"
 msgid "It reads them with apt on Debian and Ubuntu, dnf on AlmaLinux, Rocky Linux and RHEL, and apk on Alpine."
 msgstr "它在 Debian 和 Ubuntu 上用 apt、在 AlmaLinux、Rocky Linux 和 RHEL 上用 dnf、在 Alpine 上用 apk 读取更新。"
 
-msgid "It's older than the control plane. Update it by running the install script on {name} again, which keeps what runs:"
-msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可更新它，正在运行的内容不受影响："
+msgid "It's older than the control plane. Run the install script on {name} again; what runs keeps running."
+msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可；正在运行的内容会继续运行。"
 
-msgid "It's older than the control plane. Update it to the control plane's version by running the install script on {name} again, which keeps what runs."
-msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本，把它更新到控制平面的版本，正在运行的内容不受影响。"
+msgid "It's older than the control plane. Run the install script on {name} again; what runs keeps running:"
+msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可；正在运行的内容会继续运行："
 
 msgid "Its agent isn't connected"
 msgstr "它的代理未连接"
@@ -12428,17 +12424,11 @@ msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，�
 msgid "as {0}"
 msgstr "作为 {0}"
 
-msgid "A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan."
-msgstr "PHP 网站，例如 WordPress：由你选择版本的 PHP-FPM 运行它的代码，其他文件原样提供。你需要在计划中批准该文件夹。"
+msgid "A static site, sent as its files are."
+msgstr "静态网站，文件原样发送。"
 
-msgid "A static site: the files in a folder on this server, as they are. You approve the folder in the plan."
-msgstr "静态网站：原样提供此服务器上某个文件夹中的文件。你需要在计划中批准该文件夹。"
-
-msgid "A website runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "网站运行在一台服务器上，因为证书只会颁发给其 DNS 指向的那一台。"
-
-msgid "Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on."
-msgstr "另一个站点，或你网络中的某个地址，例如 http://10.0.0.5:8080。由它自己的小型 Web 服务器转发每个请求。"
+msgid "Another site, or an address on your network."
+msgstr "另一个网站，或你网络中的某个地址。"
 
 msgid "Choose a server"
 msgstr "选择服务器"
@@ -12446,11 +12436,23 @@ msgstr "选择服务器"
 msgid "Choose the server it runs on."
 msgstr "请选择它运行的服务器。"
 
+msgid "Go to the website"
+msgstr "前往该网站"
+
+msgid "Handled in front of this server"
+msgstr "由此服务器前面的服务处理"
+
 msgid "Name the domain, such as blog.example.com."
 msgstr "请填写域名，例如 blog.example.com。"
 
 msgid "New website"
 msgstr "新建网站"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "关闭：对任何人使用普通 HTTP"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "开启，证书自动签发"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "访问者通过 HTTPS 在其域名上访问它"
@@ -12461,11 +12463,11 @@ msgstr "访问者通过明文 HTTP 在其域名上访问它"
 msgid "People reach it at its domain, through what's in front of this server"
 msgstr "访问者经由此服务器前面的隧道或代理在其域名上访问它"
 
-msgid "Point its DNS at this server, before or after. Its certificate comes by itself once it does."
-msgstr "将它的 DNS 指向此服务器，之前或之后均可。指向后证书会自动签发。"
+msgid "Something listening on this server, such as port 3000."
+msgstr "此服务器上正在监听的服务，例如端口 3000。"
 
-msgid "Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan."
-msgstr "服务器本身上监听的程序，例如端口 3000。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+msgid "Such as WordPress, run by PHP-FPM of its own."
+msgstr "例如 WordPress，由独立的 PHP-FPM 运行。"
 
 msgid "What it serves"
 msgstr "提供的内容"
@@ -12560,20 +12562,17 @@ msgstr "{days, plural, other {证书有效期还有 # 天}}"
 msgid "{host} answers {code}"
 msgstr "{host} 返回 {code}"
 
+msgid "From Let's Encrypt once DNS points here, and renewed by itself."
+msgstr "DNS 指向这里后由 Let's Encrypt 签发，并自动续期。"
+
 msgid "Issued"
 msgstr "已签发"
-
-msgid "It comes from Let's Encrypt over HTTP-01 or TLS-ALPN-01 once DNS points here, and renews by itself."
-msgstr "DNS 指向这里后，它会通过 HTTP-01 或 TLS-ALPN-01 从 Let's Encrypt 获取，并自动续期。"
 
 msgid "It says"
 msgstr "它说"
 
 msgid "No domain, so no certificate"
 msgstr "没有域名，因此没有证书"
-
-msgid "No route gives this website a domain now. Delete the website, and add it again with one."
-msgstr "目前没有路由为此网站提供域名。请删除这个网站，再带上域名重新添加。"
 
 msgid "None, as TLS ends in front"
 msgstr "无，TLS 在前端终止"
@@ -12584,15 +12583,15 @@ msgstr "尚不清楚"
 msgid "On its way"
 msgstr "正在签发"
 
-msgid "TLS ends before this server, at a tunnel or a proxy in front, so it asks for no certificate here."
-msgstr "TLS 在此服务器之前、由前面的隧道或代理终止，所以这里不申请证书。"
+msgid "Open its configuration"
+msgstr "打开它的配置"
+
+msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
+msgstr "TLS 在前面的隧道或代理处终止，因此这里没有证书。"
 
 #. placeholder {0}: server.serverName
 msgid "{state}, as {0} last said"
 msgstr "{state}（{0} 上次报告）"
-
-msgid "A small web server of its own sends each request on"
-msgstr "由它自己的小型 Web 服务器转发每个请求"
 
 msgid "Copy the config"
 msgstr "复制配置"
@@ -12609,29 +12608,26 @@ msgstr "不一致"
 msgid "Go to the websites"
 msgstr "前往网站"
 
-msgid "Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them back."
-msgstr "它的路由和 Web 服务器会被删除，文件夹原样保留在服务器上。在“动态”中撤销即可恢复。"
+msgid "Its folder stays on the server, as it is."
+msgstr "它的文件夹原样保留在服务器上。"
 
-msgid "Its route and its web server go. Undo from Activity brings them back."
-msgstr "它的路由和 Web 服务器会被删除。在“动态”中撤销即可恢复。"
+msgid "Its folder stays on the server, with what PHP wrote there."
+msgstr "它的文件夹保留在服务器上，包括 PHP 写入的内容。"
 
-msgid "Its route goes, and what listens on the port keeps running. Undo from Activity brings it back."
-msgstr "它的路由会被删除，端口上监听的程序继续运行。在“动态”中撤销即可恢复。"
-
-msgid "Its route, its web server and PHP go, and the folder stays on the server with what PHP wrote there. Undo from Activity brings them back."
-msgstr "它的路由、Web 服务器和 PHP 会被删除，文件夹连同 PHP 写入的内容保留在服务器上。在“动态”中撤销即可恢复。"
+msgid "Its route and its web server go."
+msgstr "它的路由和 Web 服务器会被移除。"
 
 msgid "Its web server"
 msgstr "它的 Web 服务器"
-
-msgid "Its web server serves the files as they are, and an edit shows at once"
-msgstr "它的 Web 服务器原样提供这些文件，修改会立即生效"
 
 msgid "No route gives it a domain now"
 msgstr "目前没有路由为它提供域名"
 
 msgid "Not valid"
 msgstr "无效"
+
+msgid "Nothing of its own runs between, so there's no config to show."
+msgstr "中间没有它自己的程序运行，因此没有配置可显示。"
 
 msgid "Open in Domains"
 msgstr "在“域名”中打开"
@@ -12642,9 +12638,6 @@ msgstr "通过 HTTPS，使用它自己的证书"
 msgid "Over plain HTTP, to anyone who reaches the server"
 msgstr "通过明文 HTTP，任何能访问到服务器的人都可以访问"
 
-msgid "PHP-FPM runs its code beside a web server that serves its other files"
-msgstr "PHP-FPM 运行它的代码，旁边的 Web 服务器提供其他文件"
-
 msgid "Reached"
 msgstr "访问方式"
 
@@ -12653,12 +12646,6 @@ msgstr "路由"
 
 msgid "Serves"
 msgstr "提供内容"
-
-msgid "The ingress sends each request straight to the port"
-msgstr "入口代理将每个请求直接发送到该端口"
-
-msgid "The ingress sends each request straight to the port, with nothing of its own between, so there's no config here to show. Whatever listens there sees every visitor as local."
-msgstr "入口代理将每个请求直接发送到该端口，中间没有它自己的服务器，所以这里没有配置可显示。在那里监听的程序会把每个访问者都视为本机。"
 
 msgid "The web server's config"
 msgstr "Web 服务器的配置"
@@ -12672,8 +12659,11 @@ msgstr "通过前面终止 TLS 的隧道或代理"
 msgid "Was {0}"
 msgstr "原为 {0}"
 
-msgid "its web server runs a config these settings don't write, as a change edited it outside Websites. Review plan puts them back."
-msgstr "它的 Web 服务器运行的配置与这些设置不符，因为有变更在“网站”之外修改了它。审查计划可将其恢复。"
+msgid "What listens on the port keeps running."
+msgstr "监听该端口的程序会继续运行。"
+
+msgid "edited outside Websites. Review plan puts it back."
+msgstr "在“网站”之外被修改过。审查计划会将其恢复。"
 
 msgid "written by Dockwell from these settings"
 msgstr "由 Dockwell 根据这些设置生成"
@@ -12681,31 +12671,20 @@ msgstr "由 Dockwell 根据这些设置生成"
 msgid "{changes, plural, one {# change} other {# changes}}"
 msgstr "{changes, plural, other {# 处更改}}"
 
-#. placeholder {0}: shut.name
-#. placeholder {1}: shut.mode
-msgid "<0>{0}</0> is <1>{1}</1>, closed to everyone but its owner, so the web server can't read it. Run <2>chmod o+r</2> on it, and on the folder's other files."
-msgstr "<0>{0}</0> 的权限是 <1>{1}</1>，只有所有者可读，所以 Web 服务器读不到它。请对它以及该文件夹中的其他文件运行 <2>chmod o+r</2>。"
-
-msgid "<0>{path}</0> holds <1>index.php</1>. Files in a folder run no script, and hide every one, as its source can hold passwords, so those addresses answer 404."
-msgstr "<0>{path}</0> 中有 <1>index.php</1>。文件夹中的文件不会运行任何脚本，并且会隐藏所有脚本，因为脚本源码中可能有密码，所以这些地址会返回 404。"
-
-msgid "<0>{path}</0> is a file, not a folder. Give the folder that holds the site's files."
-msgstr "<0>{path}</0> 是文件，不是文件夹。请填写存放网站文件的文件夹。"
-
-msgid "<0>{path}</0> is root's, and PHP never runs as root, so it can't write there: uploads, caches and updates fail. Run <1>sudo chown -R {user} {path}</1>, or give the folder to the user PHP runs as."
-msgstr "<0>{path}</0> 归 root 所有，而 PHP 从不以 root 运行，所以无法在其中写入：上传、缓存和更新都会失败。请运行 <1>sudo chown -R {user} {path}</1>，或把文件夹交给 PHP 运行时所用的用户。"
-
 msgid "A URL"
 msgstr "URL"
+
+msgid "A path with no file gets the index, for an app that routes in the browser."
+msgstr "没有对应文件的路径返回首页，适用于在浏览器中路由的应用。"
 
 msgid "A port on this server"
 msgstr "此服务器上的端口"
 
-msgid "Answers a path with no file of its own with the index, as an app that routes in the browser needs. Off, it gets a 404."
-msgstr "没有对应文件的路径用首页文件响应，在浏览器中处理路由的应用需要这样。关闭时返回 404。"
+msgid "A user and group by number, as uid:gid. Empty runs it as www-data."
+msgstr "用户和组的编号，格式为 uid:gid。留空则以 www-data 运行。"
 
-msgid "As WordPress, Laravel and most PHP apps want, for their own addresses"
-msgstr "WordPress、Laravel 等大多数 PHP 应用需要这样处理自己的地址"
+msgid "Closed to the web server ({mode}), so it would answer 403."
+msgstr "Web 服务器无法访问（{mode}），因此会返回 403。"
 
 msgid "Files in a folder"
 msgstr "文件夹中的文件"
@@ -12713,8 +12692,8 @@ msgstr "文件夹中的文件"
 msgid "Folder"
 msgstr "文件夹"
 
-msgid "For a site that serves several names, such as another site over HTTPS. Off, it gets this website's domain."
-msgstr "适用于承载多个域名的站点，例如通过 HTTPS 访问的另一个站点。关闭时，它收到的是此网站的域名。"
+msgid "For a backend that serves several names. Off, it gets this website's domain."
+msgstr "适用于服务多个主机名的后端。关闭时，它收到此网站的域名。"
 
 msgid "Gets a 404"
 msgstr "返回 404"
@@ -12731,46 +12710,50 @@ msgstr "请从根目录写起，以 / 开头，例如 /var/www/blog。"
 msgid "Give the folder that holds its files, such as /var/www/blog."
 msgstr "请填写存放网站文件的文件夹，例如 /var/www/blog。"
 
-msgid "Give the user by number, such as 1000."
-msgstr "请用数字填写用户，例如 1000。"
+msgid "Give the user and group by number, such as 1000:1000."
+msgstr "请用编号填写用户和组，例如 1000:1000。"
 
-msgid "Goes to index.php"
-msgstr "交给 index.php"
+msgid "Goes to index.php, as WordPress and Laravel want"
+msgstr "交给 index.php，符合 WordPress 和 Laravel 的要求"
 
-msgid "Holds {found}."
-msgstr "包含 {found}。"
+msgid "Holds index.php, which only a PHP site runs."
+msgstr "包含 index.php，只有 PHP 网站才会运行它。"
+
+msgid "Holds {found}"
+msgstr "包含 {found}"
 
 msgid "Index files"
 msgstr "首页文件"
 
-msgid "Nothing is at <0>{path}</0> or <1>{up}</1> yet, so the folder would be made root's, and no one else could put the site's files in it. Make it first, as yours, with <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2>."
-msgstr "<0>{path}</0> 和 <1>{up}</1> 都还不存在，所以文件夹会归 root 所有，其他人无法向其中放入网站文件。请先用 <2>sudo install -d -o $(id -u) -g $(id -g) {path}</2> 以你自己的身份创建它。"
+msgid "It sees every visitor as local, so the plan asks you to approve it."
+msgstr "它会把每个访客都视为本地访客，因此计划会请你批准。"
 
-#. placeholder {0}: parent?.owner || owner
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{0}</1> as <2>{up}</2> is, so put the site's files in it as that user, with scp or rsync."
-msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者与 <2>{up}</2> 相同，为 <1>{0}</1>，请以该用户身份用 scp 或 rsync 放入网站文件。"
+msgid "Its owner is {theirs}."
+msgstr "其所有者是 {theirs}。"
 
-msgid "Nothing is at <0>{path}</0> yet. Dockwell makes it as the plan applies, owned by <1>{user}</1>, the user PHP runs as, so its code can write there. Put the site's files in it with <2>sudo rsync</2>, then <3>sudo chown -R {user} {path}</3>."
-msgstr "<0>{path}</0> 还不存在。应用计划时 Dockwell 会创建它，所有者为 PHP 运行时所用的用户 <1>{user}</1>，以便其代码可以写入。请用 <2>sudo rsync</2> 放入网站文件，然后运行 <3>sudo chown -R {user} {path}</3>。"
+msgid "Make it in Files"
+msgstr "在“文件”中创建"
 
-msgid "On the server. Its web server reads it as nobody's user, so what's in it must be readable by everyone."
-msgstr "位于服务器上。它的 Web 服务器以 nobody 用户读取，所以其中的内容必须所有人可读。"
+msgid "New. Made with the site, for PHP to write in."
+msgstr "新文件夹。随网站一起创建，供 PHP 写入。"
 
-msgid "On the server. PHP reads and writes it as the user below, and its web server reads it as nobody's user, so its files must be readable by everyone."
-msgstr "位于服务器上。PHP 以下面的用户读写它，它的 Web 服务器以 nobody 用户读取，所以其中的文件必须所有人可读。"
+msgid "New. Made with the site, owned by {by}."
+msgstr "新文件夹。随网站一起创建，归 {by} 所有。"
 
-msgid "Only what's in the folder answers"
-msgstr "只有文件夹中的文件会响应"
+msgid "New. Made with the site."
+msgstr "新文件夹。随网站一起创建。"
 
-msgid "Open in Files"
-msgstr "在“文件”中打开"
+msgid "No {first} here yet, so it answers 404 until there is."
+msgstr "这里还没有 {first}，在它出现之前会返回 404。"
+
+msgid "Not on the server yet."
+msgstr "服务器上还没有。"
 
 msgid "PHP"
 msgstr "PHP"
 
-#. placeholder {0}: directory.mode
-msgid "PHP runs as <0>{user}</0>, and <1>{path}</1> is <2>{theirs}</2>'s, <3>{0}</3>, so PHP can't write there: uploads, caches and updates fail. Run it as <4>{theirs}</4>, or run <5>sudo chown -R {user} {path}</5>."
-msgstr "PHP 以 <0>{user}</0> 运行，而 <1>{path}</1> 归 <2>{theirs}</2> 所有，权限为 <3>{0}</3>，所以 PHP 无法在其中写入：上传、缓存和更新都会失败。请以 <4>{theirs}</4> 运行，或运行 <5>sudo chown -R {user} {path}</5>。"
+msgid "PHP runs as {user} and can't write there."
+msgstr "PHP 以 {user} 运行，无法写入此处。"
 
 msgid "PHP version"
 msgstr "PHP 版本"
@@ -12785,14 +12768,29 @@ msgstr "PHP {0}"
 msgid "PHP {0} · {1}"
 msgstr "PHP {0} · {1}"
 
+msgid "Root owns it, so PHP can't save uploads there."
+msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
+
+msgid "Run as {theirs}"
+msgstr "以 {theirs} 运行"
+
 msgid "Runs as"
 msgstr "运行用户"
 
-msgid "Runs in PHP-FPM of its own, so no other website moves with it"
-msgstr "在它自己的 PHP-FPM 中运行，其他网站不受影响"
+msgid "Runs as {who} · {mb} MiB uploads"
+msgstr "以 {who} 运行 · 上传上限 {mb} MiB"
+
+msgid "Runs as {who} · {mb} MiB uploads · only files answer"
+msgstr "以 {who} 运行 · 上传上限 {mb} MiB · 仅响应文件"
 
 msgid "Send the URL's own name as Host"
 msgstr "将 URL 自己的主机名作为 Host 发送"
+
+msgid "Sends the URL's own name as Host"
+msgstr "将 URL 自己的主机名作为 Host 发送"
+
+msgid "Sends this domain as Host"
+msgstr "将此域名作为 Host 发送"
 
 msgid "Single-page app"
 msgstr "单页应用"
@@ -12800,23 +12798,14 @@ msgstr "单页应用"
 msgid "Start it with http:// or https://, such as https://backend.example.com."
 msgstr "请以 http:// 或 https:// 开头，例如 https://backend.example.com。"
 
-msgid "The first of these in a folder answers for it."
-msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。"
+msgid "That's a file, not a folder."
+msgstr "这是一个文件，不是文件夹。"
 
-msgid "The first of these in a folder answers for it. A script among them runs, and the rest are sent as they are."
-msgstr "文件夹中按顺序找到的第一个文件用来响应该文件夹。其中的脚本会被执行，其余文件原样发送。"
+msgid "The first one found answers for a folder."
+msgstr "找到的第一个文件用于响应该文件夹。"
 
-msgid "The folder owner's user and group, as uid:gid, so PHP can write there, and what it writes keeps its owner. stat -c %u:%g on the folder says it. Empty runs it as www-data, 82:82. Never root."
-msgstr "文件夹所有者的用户和组，写作 uid:gid，以便 PHP 可以在其中写入，且写入的内容保持该所有者。对文件夹运行 stat -c %u:%g 可查看。留空则以 www-data（82:82）运行。绝不以 root 运行。"
-
-msgid "The most a request may send, such as a file uploaded, in MiB, as PHP counts it. Empty takes 64."
-msgstr "单个请求最多可发送的大小，例如上传的文件，单位为 MiB，与 PHP 的计法相同。留空则为 64。"
-
-msgid "The web server reads the folder as nobody's user, and <0>{path}</0> is <1>{mode}</1>, closed to everyone else, so it answers 403. Run <2>chmod o+x {path}</2>, and <3>o+r</3> on its files."
-msgstr "Web 服务器以 nobody 用户读取该文件夹，而 <0>{path}</0> 的权限为 <1>{mode}</1>，对其他人关闭，所以会返回 403。请运行 <2>chmod o+x {path}</2>，并对其中的文件加上 <3>o+r</3>。"
-
-msgid "There's no <0>{first}</0> in <1>{path}</1>, so its address answers 404 until there is. Add one, or name the index the site has."
-msgstr "<1>{path}</1> 中没有 <0>{first}</0>，所以在添加之前访问它会返回 404。请添加一个，或填写网站已有的首页文件。"
+msgid "The web server can't read {name} ({fileMode})."
+msgstr "Web 服务器无法读取 {name}（{fileMode}）。"
 
 msgid "Upload limit"
 msgstr "上传上限"
@@ -12850,17 +12839,23 @@ msgstr "原为 {0} · 在那里监听的程序会把每个访问者都视为本�
 msgid "What isn't a file"
 msgstr "不是文件的路径"
 
-msgid "What listens on the server itself, on 127.0.0.1 or every address. It sees every visitor as local, so you approve it in the plan."
-msgstr "服务器本身上监听的程序，监听 127.0.0.1 或所有地址。它会把每个访问者都视为本机，所以需要你在计划中批准。"
+msgid "{edited, plural, one {# changed} other {# changed}}"
+msgstr "{edited, plural, other {已更改 # 项}}"
 
-msgid "With a path, such as /app, each request goes under it."
-msgstr "带路径时（例如 /app），每个请求都会放在该路径下。"
+msgid "{index} · single-page app"
+msgstr "{index} · 单页应用"
 
-msgid "{others, plural, one {Holds {found} and # more.} other {Holds {found} and # more.}}"
-msgstr "{others, plural, other {包含 {found} 以及另外 # 项。}}"
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
+
+msgid "Change the folder"
+msgstr "更改文件夹"
 
 msgid "Changed"
 msgstr "更改于"
+
+msgid "It sends its requests on."
+msgstr "它会把请求转发出去。"
 
 msgid "Loading its files"
 msgstr "正在加载文件"
@@ -12871,14 +12866,17 @@ msgstr "权限"
 msgid "No folder of its own"
 msgstr "没有自己的文件夹"
 
-msgid "Put the site's files in it with scp or rsync. Files edits files that are there."
-msgstr "请用 scp 或 rsync 把网站文件放进去。“文件”只能编辑已有的文件。"
+msgid "Open in Files"
+msgstr "在“文件”中打开"
 
 msgid "The folder is empty"
 msgstr "文件夹是空的"
 
-msgid "This website sends its requests on, so it has no files here. What it sends to keeps its own."
-msgstr "这个网站把请求转发出去，所以这里没有它的文件。转发目标保存自己的文件。"
+msgid "The folder isn't on the server"
+msgstr "服务器上没有这个文件夹"
+
+msgid "Upload files"
+msgstr "上传文件"
 
 msgid "What's in {root}"
 msgstr "{root} 中的内容"
@@ -12920,17 +12918,17 @@ msgstr "访问网站"
 msgid "Website sections"
 msgstr "网站分区"
 
+msgid "It has no web server of its own now."
+msgstr "它现在没有自己的 Web 服务器。"
+
 msgid "Nothing here writes logs"
 msgstr "这里没有写日志的程序"
 
-msgid "The ingress sends this website straight to port {port} on the server, with nothing of its own between. What listens there keeps its own logs."
-msgstr "入口代理将此网站直接发送到服务器上的端口 {port}，中间没有它自己的服务器。在那里监听的程序自己保存日志。"
-
-msgid "This website has no web server of its own now, so there's nothing of its own to read."
-msgstr "此网站目前没有自己的 Web 服务器，因此没有它自己的日志可读。"
-
 msgid "Web server"
 msgstr "Web 服务器"
+
+msgid "What listens on port {port} keeps its own."
+msgstr "监听端口 {port} 的程序自己保存日志。"
 
 msgid "Whose logs"
 msgstr "谁的日志"
@@ -12938,11 +12936,14 @@ msgstr "谁的日志"
 msgid "Change it"
 msgstr "修改"
 
+msgid "Goes to index.php"
+msgstr "交给 index.php"
+
 msgid "How it serves"
 msgstr "提供方式"
 
-msgid "Sends each request straight to the port, with nothing of its own between"
-msgstr "将每个请求直接发送到该端口，中间没有它自己的服务器"
+msgid "Sends each request straight to the port"
+msgstr "将每个请求直接发送到该端口"
 
 msgid "The ingress"
 msgstr "入口代理"
@@ -12969,8 +12970,8 @@ msgstr "服务器上的端口 {port}"
 msgid "Reverse proxy"
 msgstr "反向代理"
 
-msgid "Send a domain to a URL, or to a port on your server. You review a plan before anything changes."
-msgstr "将域名转发到某个 URL，或你服务器上的某个端口。任何变更之前，你都会先审查计划。"
+msgid "Serve a folder or a PHP app, or send a domain on to a URL or a port."
+msgstr "托管文件夹或 PHP 应用，或将域名转发到 URL 或端口。"
 
 msgid "Static files"
 msgstr "静态文件"
