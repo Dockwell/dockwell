@@ -72,15 +72,15 @@ export function FrontFields({
       label: t`A tunnel on this server`,
       hint:
         behind === "website"
-          ? t`Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range.`
-          : t`Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range.`,
+          ? t`Such as cloudflared on the server's own network.`
+          : t`Such as cloudflared on the server's own network.`,
     },
     { value: "cloudflare", label: t`Cloudflare's proxy`, hint: t`Cloudflare connects to this server's port 80.` },
     { value: "proxy", label: t`Another proxy`, hint: t`You name what connects to this server.` },
     {
       value: "anyone",
       label: t`Anyone who can reach this server`,
-      hint: t`For a private network with nothing in front. Without this, a request to the server's own address gets a 404.`,
+      hint: t`For a private network with nothing in front.`,
     },
   ];
 

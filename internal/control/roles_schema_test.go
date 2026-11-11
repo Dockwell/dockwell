@@ -215,3 +215,43 @@ func madeUp(t *testing.T, svc, method string, set func(*descriptorpb.MethodOptio
 	}
 	return fd.Services().Get(0)
 }
+
+// A call that carries a secret is never marked as having no side effects. The
+// panel's transport sends such calls as GETs, with the request in the address,
+// where a claim link's token, an invite's secret, a code or a proof would reach
+// a proxy's log and the browser's history. Checking a link is a read, and stays
+// a POST for that reason alone (proto/dockwell/v1/auth.proto says so on each).
+func TestACallThatCarriesASecretIsNeverAGet(t *testing.T) {
+	carriesASecret := map[protoreflect.Name]bool{"token": true, "secret": true, "code": true, "proof": true, "password": true, "credential_json": true}
+	seen := 0
+	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {
+		for i := range fd.Services().Len() {
+			sd := fd.Services().Get(i)
+			for j := range sd.Methods().Len() {
+				md := sd.Methods().Get(j)
+				fields := md.Input().Fields()
+				for k := range fields.Len() {
+					f := fields.Get(k)
+					if !carriesASecret[f.Name()] || f.Kind() != protoreflect.StringKind {
+						continue
+					}
+					seen++
+					opts, _ := md.Options().(*descriptorpb.MethodOptions)
+					if opts.GetIdempotencyLevel() == descriptorpb.MethodOptions_NO_SIDE_EFFECTS {
+						t.Errorf("%s.%s takes %s and is marked NO_SIDE_EFFECTS, so the panel would send it in the address of a GET. Leave idempotency_level off it", sd.Name(), md.Name(), f.Name())
+					}
+				}
+			}
+		}
+		return true
+	})
+	for _, must := range []string{"CheckClaim", "CheckInvite", "SignInWithLink"} {
+		md := dockwellv1.File_dockwell_v1_auth_proto.Services().ByName("AuthService").Methods().ByName(protoreflect.Name(must))
+		if md == nil {
+			t.Errorf("AuthService.%s is gone, which this test names", must)
+		}
+	}
+	if seen < 8 {
+		t.Errorf("found %d calls that carry a secret, which says the walk missed some", seen)
+	}
+}

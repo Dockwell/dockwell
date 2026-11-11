@@ -91,6 +91,9 @@ const (
 	// StepUpRestoreWayBackIn puts back what was deleted where that's a way back
 	// onto a server. Its target is the server's ID and the path it goes back to.
 	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
+	// StepUpInvite invites someone. Its target is the email, the role and the
+	// place, as InviteTarget writes them.
+	StepUpInvite StepUpAction = "member.invite"
 	// StepUpAddServer makes a ticket that adds a server to the fleet.
 	StepUpAddServer StepUpAction = "server.add"
 	// StepUpSetPanelDomain sets or clears the panel's domain (ADR 0063). Its
@@ -124,6 +127,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpMoveWayBackIn:    {"moving", true},
 	StepUpDeleteWayBackIn:  {"deleting", true},
 	StepUpRestoreWayBackIn: {"putting back", true},
+	StepUpInvite:           {"inviting", true},
 	StepUpAddServer:        {"adding a server", false},
 	StepUpSetPanelDomain:   {"setting the panel's domain to", true},
 	// A sign-in link to the domain, for the person asking.
@@ -297,6 +301,13 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 		return Ceremony{}, fmt.Errorf("%w: say which action to confirm, and on what, such as revealing a secret by its ID", ErrInvalid)
 	case !a.targeted:
 		target = p.User.ID // it acts on the person
+	case action == StepUpInvite:
+		// The email is written one way, the server's, so what the panel typed and what
+		// CreateInvite checks against agree whatever the letters (İ lowercases two ways).
+		var err error
+		if target, err = normalizeInviteTarget(target); err != nil {
+			return Ceremony{}, err
+		}
 	}
 	rp, err := s.relyingParty(client.Site)
 	if err != nil {

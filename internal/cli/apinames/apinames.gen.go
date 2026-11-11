@@ -46,6 +46,8 @@ func Commands() []string {
 		"health",
 		"images",
 		"import",
+		"invite",
+		"invites",
 		"join-tickets",
 		"logs",
 		"members",
