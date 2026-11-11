@@ -114,6 +114,20 @@ func sortKey(name string) string {
 	return strings.ToLower(folded)
 }
 
+// With returns the catalog with a source's entries beside its own, sorted as it is.
+// An entry of an ID the catalog has is left out, as one would take over from the
+// other: what checks a source's entries says so first.
+func (c *Catalog) With(more []*catalogv1.Entry) *Catalog {
+	out := &Catalog{entries: slices.Clone(c.entries)}
+	for _, e := range more {
+		if !slices.ContainsFunc(out.entries, func(had *catalogv1.Entry) bool { return had.GetId() == e.GetId() }) {
+			out.entries = append(out.entries, e)
+		}
+	}
+	sortEntries(out.entries)
+	return out
+}
+
 // load reads every entry that matches a pattern.
 func load(dir fs.FS, pattern string) (*Catalog, error) {
 	files, err := fs.Glob(dir, pattern)

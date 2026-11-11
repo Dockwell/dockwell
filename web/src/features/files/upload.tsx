@@ -196,7 +196,7 @@ export function UploadSheet({
     const name = item.file.name;
     if (err instanceof StreamError && err.reason !== "upload_gone") {
       if (err.status === 0) {
-        return t`The connection dropped before ${name} was all sent. What arrived is kept for a day: upload it again to go on from there.`;
+        return t`The connection dropped before ${name} was all sent. Upload it again within a day to go on from there.`;
       }
       return (
         err.message ||
@@ -430,7 +430,7 @@ export function UploadSheet({
             onChange={setUnpack}
             disabled={running}
             label={t`Unpack archives`}
-            description={t`Each .zip, .tar.gz or .tgz also unpacks into a new folder beside it, named after it. Links and anything that could let someone onto the server stop it.`}
+            description={t`Each .zip, .tar.gz or .tgz unpacks into a folder beside it, unless it holds links or unsafe paths.`}
           />
         ) : null}
       </div>

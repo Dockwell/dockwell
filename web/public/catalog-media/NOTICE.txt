@@ -2,9 +2,9 @@ Catalog media
 
 These logos identify the apps offered by Dockwell. Screenshots preview the apps and, where stated in their captions, their included tools or compatible clients. The projects and their owners retain their rights in these images and marks. They do not imply endorsement of Dockwell.
 
-The artwork is separate from Dockwell-authored code and descriptions. It is not relicensed under Dockwell's AGPL-3.0-only licence. The manifest records the original publisher, source URL, upstream commit where available, original and bundled SHA-256 hashes, and the resizing or format conversion applied. Original source notices are retained in licenses/. Their scope and trademark provisions remain as the source states.
+The artwork is separate from Dockwell-authored code and descriptions. It is not relicensed under Dockwell's AGPL-3.0-only licence. The manifest records the original publisher, source URL, upstream commit where available, original and bundled SHA-256 hashes, and the resizing or format conversion applied. Original source notices are retained in licenses/. Their scope and trademark provisions remain as the source states. Where several sources carry the same notice, byte for byte, it is kept once: licenses/agpl-3.0.txt is the GNU Affero General Public License, version 3, as each of those repositories has it, and each entry below names the repository's own copy beside it.
 
-The Nextcloud screenshot is by Nextcloud contributors, under CC BY-SA 4.0. The Jellyfin website artwork is by Jellyfin contributors, under CC BY-ND 4.0; only technical resizing and format conversion were applied. Vaultwarden is independent of Bitwarden: its preview identifies the separate Bitwarden browser extension, not a Vaultwarden-branded interface.
+The Nextcloud screenshot is by Nextcloud contributors, under CC BY-SA 4.0. The Jellyfin website artwork is by Jellyfin contributors, under CC BY-ND 4.0; only technical resizing and format conversion were applied. Vaultwarden is independent of Bitwarden: its preview identifies the separate Bitwarden browser extension, not a Vaultwarden-branded interface. The Gotify logo is by the Gotify contributors, under CC BY 4.0. The LobeChat icon and preview are LobeHub's, under the LobeHub Community License. The OpenClaw preview is a screen its contributors published in the project's repository.
 
 Sources and notices:
 
@@ -28,19 +28,19 @@ coder-icon.webp
   Publisher: https://github.com/coder/coder
   Source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/site/static/icon/coder.svg
   Changes: White project mark placed on a dark 128 × 128 canvas.
-  Source notice: licenses/coder-coder.txt (https://github.com/coder/coder/blob/f776c020ff85ebe1df48c07f582dd74650f5cd54/LICENSE)
+  Source notice: licenses/agpl-3.0.txt (https://github.com/coder/coder/blob/f776c020ff85ebe1df48c07f582dd74650f5cd54/LICENSE)
 
 coder-workspace.webp
   Publisher: https://github.com/coder/coder
   Source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/docs/images/screenshots/workspace-running-with-topbar.png
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
-  Source notice: licenses/coder-coder.txt (https://github.com/coder/coder/blob/f776c020ff85ebe1df48c07f582dd74650f5cd54/LICENSE)
+  Source notice: licenses/agpl-3.0.txt (https://github.com/coder/coder/blob/f776c020ff85ebe1df48c07f582dd74650f5cd54/LICENSE)
 
 coder-workspaces.webp
   Publisher: https://github.com/coder/coder
   Source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/docs/images/screenshots/workspaces-listing.png
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
-  Source notice: licenses/coder-coder.txt (https://github.com/coder/coder/blob/f776c020ff85ebe1df48c07f582dd74650f5cd54/LICENSE)
+  Source notice: licenses/agpl-3.0.txt (https://github.com/coder/coder/blob/f776c020ff85ebe1df48c07f582dd74650f5cd54/LICENSE)
 
 ghost-icon.webp
   Publisher: https://github.com/TryGhost/Ghost
@@ -69,6 +69,18 @@ gitea-review.webp
   Source: https://about.gitea.com/img/home-screenshot-2.png
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
 
+gotify-icon.webp
+  Publisher: https://github.com/gotify/logo
+  Source: https://raw.githubusercontent.com/gotify/logo/25c1d2c08894fcb0ed39c36a2816316a161c0e57/gotify-logo-small.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/gotify-logo.txt (https://github.com/gotify/logo/blob/25c1d2c08894fcb0ed39c36a2816316a161c0e57/LICENSE)
+
+gotify-messages.webp
+  Publisher: https://github.com/gotify/server
+  Source: https://raw.githubusercontent.com/gotify/server/01086b95a8b69ee87383f6e8bcae601d8c33384b/ui.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/gotify-server.txt (https://github.com/gotify/server/blob/01086b95a8b69ee87383f6e8bcae601d8c33384b/LICENSE)
+
 grafana-dashboard.webp
   Publisher: https://github.com/grafana/grafana
   Source: https://raw.githubusercontent.com/grafana/grafana/905a2379d5e165f3240846c25d9a679b23d9f51f/public/img/dashboard-library/dashboard_library_1.jpg
@@ -80,6 +92,18 @@ grafana-icon.webp
   Source: https://raw.githubusercontent.com/grafana/grafana/905a2379d5e165f3240846c25d9a679b23d9f51f/public/img/grafana_icon.svg
   Changes: Rasterized SVG; logo fitted on a white 128 × 128 canvas.
   Source notice: licenses/grafana-grafana.txt (https://github.com/grafana/grafana/blob/905a2379d5e165f3240846c25d9a679b23d9f51f/LICENSE)
+
+hermes-agent-icon.webp
+  Publisher: https://github.com/NousResearch/hermes-agent
+  Source: https://raw.githubusercontent.com/NousResearch/hermes-agent/e782db3f00b36ab03d60977d1454e9fbdbdebbee/website/static/img/apple-touch-icon.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/nousresearch-hermes-agent.txt (https://github.com/NousResearch/hermes-agent/blob/e782db3f00b36ab03d60977d1454e9fbdbdebbee/LICENSE)
+
+hermes-agent-sessions.webp
+  Publisher: https://github.com/NousResearch/hermes-agent
+  Source: https://raw.githubusercontent.com/NousResearch/hermes-agent/e782db3f00b36ab03d60977d1454e9fbdbdebbee/website/static/img/dashboard/admin-sessions.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/nousresearch-hermes-agent.txt (https://github.com/NousResearch/hermes-agent/blob/e782db3f00b36ab03d60977d1454e9fbdbdebbee/LICENSE)
 
 home-assistant-dashboard.webp
   Publisher: https://github.com/home-assistant/frontend
@@ -110,6 +134,30 @@ jellyfin-library.webp
   Source: https://raw.githubusercontent.com/jellyfin/jellyfin.org/4acfc64a884ff59aa6b7329724b7c325ddb4580e/static/images/screenshots/home/10.8-library.png
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
   Source notice: licenses/jellyfin-jellyfin.org.txt (https://github.com/jellyfin/jellyfin.org/blob/4acfc64a884ff59aa6b7329724b7c325ddb4580e/LICENSE)
+
+linkding-bookmarks.webp
+  Publisher: https://github.com/sissbruecker/linkding
+  Source: https://raw.githubusercontent.com/sissbruecker/linkding/27b7303baf41bb28babc610ac8eaa486e1ddfab5/docs/public/linkding-screenshot.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/sissbruecker-linkding.txt (https://github.com/sissbruecker/linkding/blob/27b7303baf41bb28babc610ac8eaa486e1ddfab5/LICENSE.txt)
+
+linkding-icon.webp
+  Publisher: https://github.com/sissbruecker/linkding
+  Source: https://raw.githubusercontent.com/sissbruecker/linkding/27b7303baf41bb28babc610ac8eaa486e1ddfab5/bookmarks/static/logo-512.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/sissbruecker-linkding.txt (https://github.com/sissbruecker/linkding/blob/27b7303baf41bb28babc610ac8eaa486e1ddfab5/LICENSE.txt)
+
+lobechat-chat.webp
+  Publisher: https://github.com/lobehub/lobe-chat
+  Source: https://raw.githubusercontent.com/lobehub/lobe-chat/d718de7e1af2dd7281c4eaca70f627e4b9deddb1/public/screenshots/shot-1.desktop.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/lobehub-lobe-chat.txt (https://github.com/lobehub/lobe-chat/blob/d718de7e1af2dd7281c4eaca70f627e4b9deddb1/LICENSE)
+
+lobechat-icon.webp
+  Publisher: https://github.com/lobehub/lobe-chat
+  Source: https://raw.githubusercontent.com/lobehub/lobe-chat/d718de7e1af2dd7281c4eaca70f627e4b9deddb1/public/icons/icon-512x512.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/lobehub-lobe-chat.txt (https://github.com/lobehub/lobe-chat/blob/d718de7e1af2dd7281c4eaca70f627e4b9deddb1/LICENSE)
 
 mariadb-icon.webp
   Publisher: https://mariadb.org
@@ -144,6 +192,18 @@ n8n-workflow.webp
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
   Source notice: licenses/n8n-io-n8n.txt (https://github.com/n8n-io/n8n/blob/93243edc00b288a840fbb562a5e9f64177f2337f/LICENSE.md)
 
+new-api-dashboard.webp
+  Publisher: https://github.com/QuantumNous/new-api
+  Source: https://raw.githubusercontent.com/QuantumNous/new-api/bd6bb53019fb7e21804b31ab7365c9b2097f4b6c/assets/screenshots/dashboard.en.jpg
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/agpl-3.0.txt (https://github.com/QuantumNous/new-api/blob/bd6bb53019fb7e21804b31ab7365c9b2097f4b6c/LICENSE)
+
+new-api-icon.webp
+  Publisher: https://github.com/QuantumNous/new-api
+  Source: https://raw.githubusercontent.com/QuantumNous/new-api/bd6bb53019fb7e21804b31ab7365c9b2097f4b6c/web/public/logo.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/agpl-3.0.txt (https://github.com/QuantumNous/new-api/blob/bd6bb53019fb7e21804b31ab7365c9b2097f4b6c/LICENSE)
+
 nextcloud-files.webp
   Publisher: https://github.com/nextcloud/screenshots
   Source: https://raw.githubusercontent.com/nextcloud/screenshots/44fe757d7799e9820c1f2ce079d1450978810a38/nextcloud-hub-25-files.png
@@ -174,6 +234,30 @@ nginx-proxy-manager-icon.webp
   Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
   Source notice: licenses/nginxproxymanager-nginx-proxy-manager.txt (https://github.com/NginxProxyManager/nginx-proxy-manager/blob/5b7e34eb67d35aa91dd3fe3818525caa42cfeca5/LICENSE)
 
+openclaw-chat.webp
+  Publisher: https://github.com/openclaw/openclaw
+  Source: https://raw.githubusercontent.com/openclaw/openclaw/1ebc46e1a52ff2b8828b6186e7b5ab943227c9ae/.github/pr-proof/claw-creator/main-chat.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/openclaw-openclaw.txt (https://github.com/openclaw/openclaw/blob/1ebc46e1a52ff2b8828b6186e7b5ab943227c9ae/LICENSE)
+
+openclaw-icon.webp
+  Publisher: https://github.com/openclaw/openclaw
+  Source: https://raw.githubusercontent.com/openclaw/openclaw/1ebc46e1a52ff2b8828b6186e7b5ab943227c9ae/ui/public/apple-touch-icon.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/openclaw-openclaw.txt (https://github.com/openclaw/openclaw/blob/1ebc46e1a52ff2b8828b6186e7b5ab943227c9ae/LICENSE)
+
+openlist-icon.webp
+  Publisher: https://github.com/OpenListTeam/OpenList-Docs
+  Source: https://raw.githubusercontent.com/OpenListTeam/OpenList-Docs/4613ff71087b58d8df9924fc403b716f6c25fa73/assets/logo.webp
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/agpl-3.0.txt (https://github.com/OpenListTeam/OpenList-Docs/blob/4613ff71087b58d8df9924fc403b716f6c25fa73/LICENSE)
+
+openlist-preview.webp
+  Publisher: https://github.com/OpenListTeam/OpenList-Docs
+  Source: https://raw.githubusercontent.com/OpenListTeam/OpenList-Docs/4613ff71087b58d8df9924fc403b716f6c25fa73/public/img/config/open-with.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/agpl-3.0.txt (https://github.com/OpenListTeam/OpenList-Docs/blob/4613ff71087b58d8df9924fc403b716f6c25fa73/LICENSE)
+
 pgadmin-dashboard.webp
   Publisher: https://github.com/pgadmin-org/pgadmin4
   Source: https://raw.githubusercontent.com/pgadmin-org/pgadmin4/ec7ec4b3afc65eedb9fa6b5771ce39d082985636/docs/en_US/images/dashboard_activity.png
@@ -195,13 +279,13 @@ plausible-dashboard.webp
   Publisher: https://github.com/plausible/analytics
   Source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/.github/plausible-analytics-dashboard.webp
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
-  Source notice: licenses/plausible-analytics.txt (https://github.com/plausible/analytics/blob/021c4191593338197544b227f5d3973cb0deb913/LICENSE.md)
+  Source notice: licenses/agpl-3.0.txt (https://github.com/plausible/analytics/blob/021c4191593338197544b227f5d3973cb0deb913/LICENSE.md)
 
 plausible-icon.webp
   Publisher: https://github.com/plausible/analytics
   Source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/priv/static/images/ce/apple-touch-icon.png
   Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
-  Source notice: licenses/plausible-analytics.txt (https://github.com/plausible/analytics/blob/021c4191593338197544b227f5d3973cb0deb913/LICENSE.md)
+  Source notice: licenses/agpl-3.0.txt (https://github.com/plausible/analytics/blob/021c4191593338197544b227f5d3973cb0deb913/LICENSE.md)
 
 postgres-icon.webp
   Publisher: https://www.postgresql.org
@@ -223,6 +307,18 @@ rustfs-icon.webp
   Source: https://raw.githubusercontent.com/rustfs/console/04cf59ad648ef660c3176e285d1111dd37478624/app/icon.svg
   Changes: Rasterized SVG; logo fitted on a white 128 × 128 canvas.
   Source notice: licenses/rustfs-console.txt (https://github.com/rustfs/console/blob/04cf59ad648ef660c3176e285d1111dd37478624/LICENSE)
+
+sftpgo-files.webp
+  Publisher: https://github.com/sftpgo/docs
+  Source: https://raw.githubusercontent.com/sftpgo/docs/e68d37804d7d4f8500de7dd3f6d34ed473a84abc/docs/assets/img/web-client-files.png
+  Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
+  Source notice: licenses/agpl-3.0.txt (https://github.com/sftpgo/docs/blob/e68d37804d7d4f8500de7dd3f6d34ed473a84abc/LICENSE)
+
+sftpgo-icon.webp
+  Publisher: https://github.com/drakkan/sftpgo
+  Source: https://raw.githubusercontent.com/drakkan/sftpgo/a2bc33e5a3e7c65493595ea5c379b2f5f371feb6/static/img/logo.png
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+  Source notice: licenses/drakkan-sftpgo.txt (https://github.com/drakkan/sftpgo/blob/a2bc33e5a3e7c65493595ea5c379b2f5f371feb6/LICENSE)
 
 t3code-icon.webp
   Publisher: https://github.com/pingdotgg/t3code
@@ -268,7 +364,7 @@ vaultwarden-icon.webp
   Publisher: https://github.com/dani-garcia/vaultwarden
   Source: https://raw.githubusercontent.com/dani-garcia/vaultwarden/17b159beff4b892f07f61f38ce2fe452e55251c1/resources/vaultwarden-icon.svg
   Changes: SVG rendered with its masks intact, fitted on a white 128 × 128 canvas.
-  Source notice: licenses/dani-garcia-vaultwarden.txt (https://github.com/dani-garcia/vaultwarden/blob/17b159beff4b892f07f61f38ce2fe452e55251c1/LICENSE.txt)
+  Source notice: licenses/agpl-3.0.txt (https://github.com/dani-garcia/vaultwarden/blob/17b159beff4b892f07f61f38ce2fe452e55251c1/LICENSE.txt)
 
 wordpress-editor.webp
   Publisher: https://wordpress.org

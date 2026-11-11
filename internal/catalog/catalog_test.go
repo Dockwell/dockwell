@@ -76,6 +76,7 @@ func TestTheBuiltInEntries(t *testing.T) {
 		"pgadmin", "redis", "mariadb", "coder",
 		"uptime-kuma", "n8n", "gitea", "vaultwarden", "nextcloud", "rustfs", "grafana", "umami",
 		"plausible", "ghost", "wordpress", "memos", "adminer", "jellyfin", "home-assistant",
+		"openclaw", "hermes-agent", "new-api", "lobechat", "sftpgo", "openlist", "gotify", "linkding",
 	} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
@@ -146,6 +147,9 @@ func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 		"coder": "AGPL-3.0-only, with Enterprise code under Coder's own",
 		// Source-available, with its .ee files under n8n's Enterprise licence.
 		"n8n": "Sustainable Use, with Enterprise code under n8n's own",
+		// The unmodified browser-storage image may be self-hosted. Distributing a
+		// commercial derivative needs the producer's permission; it isn't Apache-2.0.
+		"lobechat": "LobeHub Community License",
 	}
 	for _, e := range c.All() {
 		l := e.GetAppLicense()
@@ -221,6 +225,7 @@ func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 var firstVisitor = []string{
 	"coder", "uptime-kuma", "n8n", "gitea", "vaultwarden",
 	"plausible", "ghost", "wordpress", "memos", "jellyfin", "home-assistant",
+	"new-api", "openlist",
 }
 
 func TestAFirstVisitorAppSaysItsFirstAccountOwnsIt(t *testing.T) {
@@ -248,7 +253,7 @@ func TestAPasswordReadOnFirstStartIsSetOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"nginx-proxy-manager", "pgadmin", "nextcloud", "grafana"} {
+	for _, id := range []string{"nginx-proxy-manager", "pgadmin", "nextcloud", "grafana", "gotify", "linkding", "sftpgo"} {
 		e, _ := c.Entry(id)
 		s := e.GetSignIn()
 		i := slices.IndexFunc(e.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == s.GetPasswordInput() })

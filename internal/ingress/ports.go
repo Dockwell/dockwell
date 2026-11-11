@@ -14,6 +14,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
 )
@@ -87,6 +89,15 @@ type Holders struct {
 	Proc string
 	// PID is this process's. Zero means its own.
 	PID int
+	// OwnersFor keeps which process holds each socket for a while, for a form
+	// that asks again each time typing pauses. Zero reads them each time.
+	OwnersFor time.Duration
+	// Now is the clock; nil takes time.Now.
+	Now func() time.Time
+
+	mu      sync.Mutex
+	owners  map[string]int
+	ownedAt time.Time
 }
 
 func (h *Holders) proc() string {
@@ -137,7 +148,7 @@ func (h *Holders) of(ctx context.Context, ports []Port, on func(netip.Addr) bool
 			continue
 		}
 		if owners == nil {
-			owners = h.socketOwners()
+			owners = h.ownersOf(inodes)
 		}
 		out = append(out, h.holder(ctx, p, inodes, owners))
 	}
@@ -228,6 +239,30 @@ func (h *Holders) sockets(on func(netip.Addr) bool) (map[Port][]string, error) {
 		_ = file.Close()
 	}
 	return out, nil
+}
+
+// ownersOf is which process holds each socket: as read within OwnersFor, while
+// that names the sockets asked about, else read again.
+func (h *Holders) ownersOf(inodes []string) map[string]int {
+	if h.OwnersFor <= 0 {
+		return h.socketOwners()
+	}
+	now := time.Now
+	if h.Now != nil {
+		now = h.Now
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	fresh := h.owners != nil && now().Sub(h.ownedAt) < h.OwnersFor
+	for _, inode := range inodes {
+		if _, ok := h.owners[inode]; !ok {
+			fresh = false
+		}
+	}
+	if !fresh {
+		h.owners, h.ownedAt = h.socketOwners(), now()
+	}
+	return h.owners
 }
 
 // socketOwners reads which process holds each socket, as far as this process

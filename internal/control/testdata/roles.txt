@@ -50,6 +50,10 @@ CatalogService.GetCatalogEntry                 read         viewer     viewer   
 CatalogService.InstallCatalogEntry             plan         admin      admin      install
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared
 CatalogService.ListCatalogInstalls             read         viewer     viewer     project
+CatalogService.ListCatalogSourceRefs           read         admin      admin      install
+CatalogService.ListCatalogSources              read         viewer     viewer     shared
+CatalogService.RemoveCatalogSource             plan         admin      admin      install
+CatalogService.SetCatalogSource                plan         admin      admin      install
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
 ChangeService.AdoptDrift                       plan         developer  developer  project
 ChangeService.ApplyChange                      apply        developer  admin      project
@@ -93,6 +97,9 @@ FileService.SaveFile                           destructive  admin      admin    
 FileService.UploadFile                         apply        admin      admin      install  session
 FirewallService.GetServerFirewall              read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
+ImageService.GetImage                          read         developer  developer  project
+ImageService.ListImageTags                     read         developer  developer  project
+ImageService.SearchImages                      read         developer  developer  project
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
@@ -101,6 +108,7 @@ MemberService.ListMembers                      read         admin      admin    
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
+ServerService.CheckServerPorts                 read         admin      admin      install
 ServerService.CreateJoinTicket                 apply        admin      admin      install  session
 ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named

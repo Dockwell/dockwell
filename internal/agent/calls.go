@@ -801,6 +801,23 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Probe{Probe: found}}
 	}
+	if p := call.GetPorts(); p != nil {
+		if c.cfg.Docker == nil {
+			return fail(errNoPorts)
+		}
+		held, err := portsHeld(ctx, c.cfg.ports, p.GetPorts())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Ports{Ports: held}}
+	}
+	if call.GetImage() != nil {
+		read, err := c.cfg.images.read(ctx, call.GetImage())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Image{Image: read}}
+	}
 	if call.GetReadOnepanel() != nil {
 		if c.cfg.OnePanel == nil {
 			return fail(errors.New("this agent doesn't read 1Panel's records"))

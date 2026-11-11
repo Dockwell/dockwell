@@ -343,7 +343,7 @@ describe("a container's page", () => {
       },
     });
     const panel = await screen.findByRole("region", { name: "Take it on" });
-    expect(within(panel).getByText(/doesn't restart it/)).toBeVisible();
+    expect(within(panel).getByText(/doesn't restart it or touch its volumes/)).toBeVisible();
     expect(within(panel).getByRole("textbox", { name: "Name as a service" })).toHaveValue("legacy-api");
     await userEvent.setup().click(within(panel).getByRole("button", { name: "Plan taking it on" }));
     await vi.waitFor(() => expect(asked).toEqual([{ id: "legacy_api", server: "srv_1", service: "legacy-api" }]));
