@@ -633,3 +633,33 @@ func testTheFirewallSaysDockwellsOwnRules(t *testing.T, backend store.Backend) {
 	}
 	waitWatch(t, w)
 }
+
+// saysNotKept is a server that can't keep a change just now, as when it can't
+// write what its revert would load once kept.
+type saysNotKept struct{ agent.AccessConfirmer }
+
+func (saysNotKept) Confirm(context.Context, string) resource.AccessVerdict {
+	return resource.AccessNotKept
+}
+
+// A confirmation the server couldn't keep isn't read as kept: the person hears
+// the change still waits and why, and it goes on waiting until its time.
+func TestAChangeTheServerCouldntKeepStillWaits(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	srv, tbl := f.addFirewallServer(t, "hz-1", 3*time.Second, func(s *testServer) { s.access = saysNotKept{s.access} })
+	c := changeClient(b, b.origin)
+	open := propose(t, c, "Open http", ruleOn(srv.id.ServerID, "http", 80))
+	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: open.GetId()}); err != nil {
+		t.Fatal(err)
+	}
+	wait := waitingFor(t, c, open.GetId())
+	res, err := c.ConfirmChange(t.Context(), confirmation(open.GetId(), wait))
+	if reasonOf(err) != "not_kept" || res != nil || !strings.Contains(err.Error(), "so it still waits") {
+		t.Errorf("a confirmation the server couldn't keep = %v, %v, want not_kept", res, err)
+	}
+	got, err := c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: open.GetId()}))
+	if err != nil || got.Msg.GetChange().GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLYING || len(tbl.rules()) != 1 {
+		t.Errorf("after it the change is %v, table %v: %v", got.Msg.GetChange().GetState(), tbl.rules(), err)
+	}
+}

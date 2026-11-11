@@ -1498,6 +1498,8 @@ func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.
 		return resource.AccessRolledBack, nil
 	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING:
 		return resource.AccessNotWaiting, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_KEPT:
+		return resource.AccessNotKept, nil
 	case agentv1.AccessVerdict_ACCESS_VERDICT_UNSPECIFIED:
 	}
 	return 0, errors.New("the agent said nothing of the change")
