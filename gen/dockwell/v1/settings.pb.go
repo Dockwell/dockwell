@@ -442,7 +442,11 @@ type PanelServing struct {
 	Problem string `protobuf:"bytes,9,opt,name=problem,proto3" json:"problem,omitempty"`
 	// True once Dockwell holds a certificate for the domain, so the panel answers
 	// there over HTTPS.
-	Certified     bool `protobuf:"varint,10,opt,name=certified,proto3" json:"certified,omitempty"`
+	Certified bool `protobuf:"varint,10,opt,name=certified,proto3" json:"certified,omitempty"`
+	// When this control plane started: a restart changes it, which is how the
+	// panel knows a restart it asked for has happened, as what it reads before
+	// then can already say what it saved.
+	StartTime     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -545,6 +549,13 @@ func (x *PanelServing) GetCertified() bool {
 		return x.Certified
 	}
 	return false
+}
+
+func (x *PanelServing) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
 }
 
 // CheckPanelDomainRequest names a domain to check.
@@ -1507,7 +1518,7 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\ttime_zone\x18\x02 \x01(\tR\btimeZone\x12/\n" +
 	"\x05panel\x18\x03 \x01(\v2\x19.dockwell.v1.PanelServingR\x05panel\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xf7\x02\n" +
+	"createTime\"\xb2\x03\n" +
 	"\fPanelServing\x12\x16\n" +
 	"\x06listen\x18\x01 \x01(\tR\x06listen\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x127\n" +
@@ -1521,7 +1532,9 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"set_domain\x18\b \x01(\tR\tsetDomain\x12\x18\n" +
 	"\aproblem\x18\t \x01(\tR\aproblem\x12\x1c\n" +
 	"\tcertified\x18\n" +
-	" \x01(\bR\tcertified\"1\n" +
+	" \x01(\bR\tcertified\x129\n" +
+	"\n" +
+	"start_time\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\"1\n" +
 	"\x17CheckPanelDomainRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\"\xfc\x01\n" +
 	"\x18CheckPanelDomainResponse\x12\x18\n" +
@@ -1674,39 +1687,40 @@ var file_dockwell_v1_settings_proto_depIdxs = []int32{
 	24, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
 	1,  // 3: dockwell.v1.PanelServing.served_by:type_name -> dockwell.v1.PanelServedBy
 	0,  // 4: dockwell.v1.PanelServing.domain_from:type_name -> dockwell.v1.PanelDomainFrom
-	10, // 5: dockwell.v1.CheckPanelDomainResponse.ports_held:type_name -> dockwell.v1.PanelPortHolder
-	6,  // 6: dockwell.v1.SetPanelDomainResponse.settings:type_name -> dockwell.v1.Settings
-	24, // 7: dockwell.v1.CreatePanelSignInLinkResponse.expire_time:type_name -> google.protobuf.Timestamp
-	6,  // 8: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
-	6,  // 9: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
-	21, // 10: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
-	25, // 11: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
-	24, // 12: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
-	22, // 13: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
-	7,  // 14: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
-	23, // 15: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
-	2,  // 16: dockwell.v1.ControlPlane.service_manager:type_name -> dockwell.v1.ServiceManager
-	3,  // 17: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
-	26, // 18: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
-	4,  // 19: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
-	15, // 20: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
-	17, // 21: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
-	8,  // 22: dockwell.v1.SettingsService.CheckPanelDomain:input_type -> dockwell.v1.CheckPanelDomainRequest
-	11, // 23: dockwell.v1.SettingsService.SetPanelDomain:input_type -> dockwell.v1.SetPanelDomainRequest
-	13, // 24: dockwell.v1.SettingsService.CreatePanelSignInLink:input_type -> dockwell.v1.CreatePanelSignInLinkRequest
-	19, // 25: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
-	5,  // 26: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
-	16, // 27: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
-	18, // 28: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
-	9,  // 29: dockwell.v1.SettingsService.CheckPanelDomain:output_type -> dockwell.v1.CheckPanelDomainResponse
-	12, // 30: dockwell.v1.SettingsService.SetPanelDomain:output_type -> dockwell.v1.SetPanelDomainResponse
-	14, // 31: dockwell.v1.SettingsService.CreatePanelSignInLink:output_type -> dockwell.v1.CreatePanelSignInLinkResponse
-	20, // 32: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
-	26, // [26:33] is the sub-list for method output_type
-	19, // [19:26] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	24, // 5: dockwell.v1.PanelServing.start_time:type_name -> google.protobuf.Timestamp
+	10, // 6: dockwell.v1.CheckPanelDomainResponse.ports_held:type_name -> dockwell.v1.PanelPortHolder
+	6,  // 7: dockwell.v1.SetPanelDomainResponse.settings:type_name -> dockwell.v1.Settings
+	24, // 8: dockwell.v1.CreatePanelSignInLinkResponse.expire_time:type_name -> google.protobuf.Timestamp
+	6,  // 9: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
+	6,  // 10: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
+	21, // 11: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
+	25, // 12: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
+	24, // 13: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
+	22, // 14: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
+	7,  // 15: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
+	23, // 16: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
+	2,  // 17: dockwell.v1.ControlPlane.service_manager:type_name -> dockwell.v1.ServiceManager
+	3,  // 18: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
+	26, // 19: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
+	4,  // 20: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
+	15, // 21: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
+	17, // 22: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
+	8,  // 23: dockwell.v1.SettingsService.CheckPanelDomain:input_type -> dockwell.v1.CheckPanelDomainRequest
+	11, // 24: dockwell.v1.SettingsService.SetPanelDomain:input_type -> dockwell.v1.SetPanelDomainRequest
+	13, // 25: dockwell.v1.SettingsService.CreatePanelSignInLink:input_type -> dockwell.v1.CreatePanelSignInLinkRequest
+	19, // 26: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
+	5,  // 27: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
+	16, // 28: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
+	18, // 29: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
+	9,  // 30: dockwell.v1.SettingsService.CheckPanelDomain:output_type -> dockwell.v1.CheckPanelDomainResponse
+	12, // 31: dockwell.v1.SettingsService.SetPanelDomain:output_type -> dockwell.v1.SetPanelDomainResponse
+	14, // 32: dockwell.v1.SettingsService.CreatePanelSignInLink:output_type -> dockwell.v1.CreatePanelSignInLinkResponse
+	20, // 33: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
+	27, // [27:34] is the sub-list for method output_type
+	20, // [20:27] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_settings_proto_init() }

@@ -336,7 +336,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	var restartOnce sync.Once
 	restart := func() {
 		restartOnce.Do(func() {
-			logger.Info("restarting to serve the panel's domain, as asked from Settings; apps and websites keep running")
+			logger.Info("restarting, as Settings changed the panel's domain; apps and websites keep running")
 			close(restarted)
 			if stopForRestart != nil {
 				stopForRestart()

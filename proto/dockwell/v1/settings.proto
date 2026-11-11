@@ -233,6 +233,10 @@ message PanelServing {
   // True once Dockwell holds a certificate for the domain, so the panel answers
   // there over HTTPS.
   bool certified = 10;
+  // When this control plane started: a restart changes it, which is how the
+  // panel knows a restart it asked for has happened, as what it reads before
+  // then can already say what it saved.
+  google.protobuf.Timestamp start_time = 11;
 }
 
 // PanelDomainFrom is where the panel's domain comes from.

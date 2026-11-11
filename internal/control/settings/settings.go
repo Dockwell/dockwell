@@ -70,6 +70,8 @@ type Serving struct {
 	// Certified reports whether Dockwell holds the domain's certificate. Nil
 	// means it does whenever it has a domain.
 	Certified func() bool
+	// Started is when this control plane started, which a restart changes.
+	Started time.Time
 }
 
 // Handler implements SettingsService.
@@ -252,6 +254,9 @@ func (h *Handler) read(ctx context.Context, tx *store.Tx) (*dockwellv1.Settings,
 func (h *Handler) panel() *dockwellv1.PanelServing {
 	s := h.serving
 	out := &dockwellv1.PanelServing{Listen: s.Listen, Domain: s.Domain, ServedBy: dockwellv1.PanelServedBy_PANEL_SERVED_BY_NONE, DomainFrom: s.From, Problem: s.Problem}
+	if !s.Started.IsZero() {
+		out.StartTime = timestamppb.New(s.Started)
+	}
 	if out.DomainFrom == dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_UNSPECIFIED {
 		out.DomainFrom = dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_NONE
 		if s.Domain != "" {

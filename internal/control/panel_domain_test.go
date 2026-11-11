@@ -143,6 +143,11 @@ func TestTheOwnerSetsThePanelsDomainWithAPasskey(t *testing.T) {
 	if read.Msg.GetSettings().GetPanel().GetSetDomain() != "" || read.Msg.GetSettings().GetPanel().GetDomainFrom() != dockwellv1.PanelDomainFrom_PANEL_DOMAIN_FROM_NONE {
 		t.Errorf("after clearing it, the panel reads %v", read.Msg.GetSettings().GetPanel())
 	}
+	// It says when this control plane started, so the panel tells the restart it
+	// asked for from the control plane that answered before it.
+	if st := read.Msg.GetSettings().GetPanel().GetStartTime(); st == nil || time.Since(st.AsTime()) > time.Minute {
+		t.Errorf("the panel reads its control plane started at %v", st)
+	}
 	events := listEvents(t, dockwellv1connect.NewEventServiceClient(b, b.origin), &dockwellv1.ListEventsRequest{
 		Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_SETTINGS},
 	})

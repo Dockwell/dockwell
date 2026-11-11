@@ -12008,6 +12008,13 @@ components:
                     description: |-
                         True once Dockwell holds a certificate for the domain, so the panel answers
                          there over HTTPS.
+                startTime:
+                    type: string
+                    description: |-
+                        When this control plane started: a restart changes it, which is how the
+                         panel knows a restart it asked for has happened, as what it reads before
+                         then can already say what it saved.
+                    format: date-time
             description: PanelServing is how the panel is served, as dockwell run was started.
         Passkey:
             type: object

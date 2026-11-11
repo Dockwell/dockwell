@@ -35,16 +35,22 @@ const CHANGE_SETTINGS = "https://github.com/Dockwell/dockwell/blob/main/docs/ins
  */
 export function PanelDomain({ panel }: { panel: PanelServing | undefined }) {
   const owner = useSignedIn()?.user?.role === Role.OWNER;
-  const [restarting, setRestarting] = useState<{ to: string } | undefined>();
+  const [restarting, setRestarting] = useState<{ to: string; from: string } | undefined>();
   // While Dockwell restarts, the settings are read again until the new one answers.
   const settings = useQuery(SettingsService.method.getSettings, {}, { refetchInterval: restarting ? 1000 : false });
   const now = settings.data?.settings?.panel ?? panel;
   useEffect(() => {
     if (!restarting || !now) return;
-    const arrived =
-      restarting.to === "" ? !now.setDomain && !now.domain : now.domain === restarting.to || now.problem !== "";
+    // The control plane that answers before it restarts already says what was saved:
+    // only one that started since is the restart.
+    const arrived = restarting.from
+      ? startedAt(now) !== "" && startedAt(now) !== restarting.from
+      : restarting.to === ""
+        ? !now.setDomain && !now.domain
+        : now.domain === restarting.to || now.problem !== "";
     if (arrived) setRestarting(undefined);
   }, [restarting, now]);
+  const onRestart = (r: { to: string }) => setRestarting({ to: r.to, from: startedAt(now) });
   if (!now) return null;
   if (restarting) {
     return (
@@ -71,9 +77,15 @@ export function PanelDomain({ panel }: { panel: PanelServing | undefined }) {
     );
   }
   if (now.setDomain) {
-    return <Served panel={now} owner={owner} onRestart={setRestarting} />;
+    return <Served panel={now} owner={owner} onRestart={onRestart} />;
   }
-  return <DomainField owner={owner} onRestart={setRestarting} />;
+  return <DomainField owner={owner} onRestart={onRestart} />;
+}
+
+/** When the control plane that answered started, which a restart changes; "" when it doesn't say. */
+function startedAt(panel: PanelServing | undefined): string {
+  const t = panel?.startTime;
+  return t ? `${t.seconds}.${t.nanos}` : "";
 }
 
 /** Saving or clearing a domain, with the passkey it takes, then the restart it starts. */

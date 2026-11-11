@@ -302,6 +302,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		serving := settings.Serving{
 			Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA,
 			From: cfg.PanelDomain.From, Problem: cfg.PanelDomain.Problem, Certified: cfg.PanelDomain.Certified,
+			Started: time.Now(),
 		}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()

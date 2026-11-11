@@ -226,6 +226,39 @@ describe("Settings", () => {
     );
   });
 
+  it("waits after Stop using it for the control plane that started since, not the one about to restart", async () => {
+    const user = userEvent.setup();
+    const before = timestampFromDate(new Date(2026, 10, 10, 9, 0));
+    let now = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.NONE,
+        problem: "Dockwell couldn't hold the ports panel.example.com needs: listen tcp :443: bind: permission denied.",
+        startTime: before,
+      },
+    });
+    const setPanelDomain = vi.fn(() => {
+      // The control plane that answers until it restarts says the domain is cleared already.
+      now = settings({ panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE, startTime: before } });
+      return { settings: now, restarting: true };
+    });
+    renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: now }), setPanelDomain } });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.click(await within(panel).findByRole("button", { name: "Stop using it" }));
+    expect(
+      await within(panel).findByText("Dockwell restarts to answer on loopback alone. Apps and websites keep running…"),
+    ).toBeVisible();
+    // Reading the cleared domain from the old control plane isn't the restart.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(within(panel).queryByRole("textbox", { name: "Domain" })).toBeNull();
+    now = settings({
+      panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE, startTime: timestampFromDate(new Date()) },
+    });
+    expect(await within(panel).findByRole("textbox", { name: "Domain" }, { timeout: 3000 })).toBeVisible();
+  });
+
   it("leaves a domain dockwell run was given where it was given", async () => {
     const served = settings({
       panel: {
