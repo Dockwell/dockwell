@@ -63,9 +63,11 @@ var agentPackages = []string{
 	"internal/ingress", // what runs a server's routes on a proxy (ADR 0024)
 	"internal/ingress/caddy",
 	"internal/logging",
-	"internal/mounts", // what's mounted, to keep away from a mount that stopped answering
-	"internal/netif",  // which network interfaces are physical, as sysfs says
+	"internal/mounts",   // what's mounted, to keep away from a mount that stopped answering
+	"internal/netguard", // the one guarded way to an address a person names, for reading registries
+	"internal/netif",    // which network interfaces are physical, as sysfs says
 	"internal/pki",
+	"internal/registry", // reading an image from its registry, for a form (ADR 0062)
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses
 	"internal/resource/container", // the Docker driver's kinds
