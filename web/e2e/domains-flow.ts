@@ -157,7 +157,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await row("gone.example.com").getByText("Not connected").waitFor();
   await row("old.example.com").getByText("Expired").waitFor();
   await row("old.example.com")
-    .getByText(/so browsers refuse this domain/)
+    .getByText(/so browsers refuse it\./)
     .waitFor();
   await page.getByText("8 domains · 3 need a look").waitFor();
   const first = await page.getByRole("row").nth(1).locator(".domains-at").textContent();

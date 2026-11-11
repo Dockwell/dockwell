@@ -1868,14 +1868,18 @@ msgstr "Webhook"
 msgid "ntfy"
 msgstr "ntfy"
 
-msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "一条路由只在一台服务器上运行，因为证书只会发到 DNS 指向的那台服务器。"
+msgid "A route runs on the one server its DNS points at."
+msgstr "路由运行在其 DNS 指向的那台服务器上。"
 
 msgid "Add a domain"
 msgstr "添加域名"
 
 msgid "Add a domain to {name}"
 msgstr "为 {name} 添加域名"
+
+msgctxt "a port typed in"
+msgid "Another port"
+msgstr "其他端口"
 
 msgid "App"
 msgstr "应用"
@@ -1892,11 +1896,14 @@ msgstr "域名"
 msgid "Edit and try again"
 msgstr "修改后重试"
 
-msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
-msgstr "它在服务器自身的网络上，因此填写它在那里监听的端口，例如 8080。80 端口由代理占用。"
+msgid "HTTPS"
+msgstr "HTTPS"
 
-msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
-msgstr "域名能到达此服务器后，证书会自动获取。DNS 在添加之前或之后设置都可以。"
+msgid "Handled in front of this server"
+msgstr "由此服务器前面的服务处理"
+
+msgid "Its certificate comes by itself once its DNS points here."
+msgstr "DNS 指向这里后，证书会自动获取。"
 
 msgid "Move {typed} behind what's in front"
 msgstr "将 {typed} 移到前面的代理之后"
@@ -1909,6 +1916,12 @@ msgstr "请以地址或范围的形式，写明连接此服务器的来源。"
 
 msgid "Nothing changes until you apply the plan"
 msgstr "应用计划之前不会有任何更改"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "关闭：对任何人使用普通 HTTP"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "开启，证书自动签发"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "用户通过这个域名以 HTTPS 访问应用"
@@ -1933,6 +1946,9 @@ msgstr "服务器上的端口"
 
 msgid "Send {wanted} to {name}"
 msgstr "将 {wanted} 发送到 {name}"
+
+msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
+msgstr "它在服务器上监听的端口，例如 8080；80 端口归代理使用。"
 
 msgid "What the app listens on, such as 80."
 msgstr "应用监听的端口，例如 80。"
@@ -3133,8 +3149,8 @@ msgstr "无上报"
 msgid "No server"
 msgstr "无服务器"
 
-msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
-msgstr "已没有服务器运行它，因此没有任何响应。请移除它，或将其放到一台服务器上。"
+msgid "No server runs this any more: remove it, or place it on a server."
+msgstr "已没有服务器运行它：请移除它，或将它放到一台服务器上。"
 
 msgid "Not connected"
 msgstr "未连接"
@@ -3154,8 +3170,8 @@ msgstr "续期失败"
 msgid "TLS ends in front"
 msgstr "TLS 在前端终止"
 
-msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
-msgstr "<0>{server}</0> 上的证书已于{when}过期，因此浏览器会拒绝访问这个域名。Dockwell 会自动续期。如果一直是这样，请<1>查看它的页面</1>。"
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
+msgstr "<0>{server}</0> 上的证书已于 {when} 过期，浏览器会拒绝访问。<1>查看其页面</1>"
 
 msgid "Valid"
 msgstr "有效"
@@ -3172,29 +3188,23 @@ msgstr "{days, plural, other {有效期还有 # 天}}"
 msgid "Can't read DNS"
 msgstr "无法读取 DNS"
 
-msgid "Copy {address}"
-msgstr "复制 {address}"
+msgid "Can't tell"
+msgstr "无法判断"
 
-msgid "DNS has this record"
-msgstr "DNS 已有此记录"
-
-msgid "DNS points at a private address that isn't this server's"
-msgstr "DNS 指向一个不属于此服务器的私有地址"
-
-msgid "DNS points at {found}"
-msgstr "DNS 指向 {found}"
-
-msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
-msgstr "DNS 指向 {found}，Dockwell 无法判断那是否就是此服务器"
-
-msgid "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell 不知道此服务器的公网地址。服务商控制台会显示它。请添加指向该地址的 A 记录，并在此服务器页面的“网络”中设置它。"
-
-msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell 不知道此服务器的公网地址。{provider} 控制台会显示它。请添加指向该地址的 A 记录，并在此服务器页面的“网络”中设置它。"
+msgid "How to open it"
+msgstr "如何开放"
 
 msgid "Install Cloudflare Tunnel from the Catalog"
 msgstr "从目录安装 Cloudflare Tunnel"
+
+msgid "It points at a private address that isn't this server's."
+msgstr "它指向一个不属于此服务器的私有地址。"
+
+msgid "It points at {found}, which may be this server."
+msgstr "它指向 {found}，可能就是此服务器。"
+
+msgid "It points at {found}."
+msgstr "它指向 {found}。"
 
 msgid "Make these records at your DNS provider."
 msgstr "请在 DNS 服务商处添加这些记录。"
@@ -3202,44 +3212,65 @@ msgstr "请在 DNS 服务商处添加这些记录。"
 msgid "Make this record at your DNS provider."
 msgstr "请在 DNS 服务商处添加这条记录。"
 
+msgid "Not set yet"
+msgstr "尚未设置"
+
+msgid "Only a tunnel reaches it."
+msgstr "只有隧道能访问到它。"
+
 msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
 msgstr "或者在路由器上将 80 和 443 端口转发到此服务器，并添加这条记录。"
 
 msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
 msgstr "或者在路由器上将 80 和 443 端口转发到此服务器的 {forwardTo}，并添加这条记录。"
 
-msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
-msgstr "或者添加这条记录，因为此服务器自己有公网 IPv6 地址。只有使用 IPv6 的访问者能通过这种方式访问。"
+msgid "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
+msgstr "或者为它自己的 IPv6 地址添加此记录，使用 IPv6 的访问者可以访问。"
+
+msgid "Point an A record at this server's public address, which your provider's console shows."
+msgstr "将 A 记录指向此服务器的公网地址，该地址可在服务商的控制台中查看。"
+
+msgid "Point an A record at this server's public address, which {provider}'s console shows."
+msgstr "将 A 记录指向此服务器的公网地址，该地址可在 {provider} 的控制台中查看。"
 
 msgid "Point an A record at your router's public address."
 msgstr "请添加指向路由器公网地址的 A 记录。"
 
-msgid "Recommended. It needs no public address and no forwarded port."
-msgstr "推荐。无需公网地址，也无需端口转发。"
+msgid "Points elsewhere"
+msgstr "指向别处"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
-msgstr "这是此服务器访问互联网所用的地址，不一定是入站地址。请在服务商的控制台中核对。"
+msgid "Points here"
+msgstr "指向此服务器"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
-msgstr "这是此服务器访问互联网所用的地址，不一定是入站地址。请在 {provider} 的控制台中核对。"
+msgid "Set it on the server"
+msgstr "在服务器上设置"
 
-msgid "That's your router's address, as far as Dockwell can tell."
-msgstr "据 Dockwell 判断，这是你路由器的地址。"
+msgid "Set the record to DNS only, or turn on \"{tunnelName}\"."
+msgstr "请将记录设为仅 DNS，或开启“{tunnelName}”。"
 
-msgid "This looks like a home or office network, so the internet can't reach this server by itself."
-msgstr "这看起来是家庭或办公网络，互联网无法直接访问此服务器。"
+msgid "That's its way out, which may not be its way in: check it in your provider's console."
+msgstr "这是它的出口地址，不一定是入口地址：请在服务商的控制台中核对。"
 
-msgid "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
-msgstr "此服务器位于运营商级 NAT 之后，DNS 记录和端口转发都无法到达它。隧道两者都不需要。"
+msgid "That's its way out, which may not be its way in: check it in {provider}'s console."
+msgstr "这是它的出口地址，不一定是入口地址：请在 {provider} 的控制台中核对。"
 
-msgid "Waiting for DNS"
-msgstr "正在等待 DNS"
+msgid "The internet can't reach {serverName} on ports 80 and 443."
+msgstr "互联网无法通过 80 和 443 端口访问 {serverName}。"
+
+msgid "This server is behind carrier NAT"
+msgstr "此服务器位于运营商 NAT 之后"
+
+msgid "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
+msgstr "此服务器位于家庭或办公网络中：隧道无需端口转发即可访问它。"
+
+msgid "Your router's address, as far as Dockwell can tell."
+msgstr "这是 Dockwell 判断出的路由器地址。"
 
 msgid "your domain"
 msgstr "你的域名"
 
-msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
-msgstr "{name} 指向 Cloudflare 的代理，这可能会阻止证书验证。请打开“{tunnelName}”，或将该记录设为仅 DNS。"
+msgid "{name} points at Cloudflare's proxy"
+msgstr "{name} 指向 Cloudflare 的代理"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "<0>docker compose</0> 无需 Dockwell 即可运行的文件，其中不含机密信息"
@@ -3295,17 +3326,14 @@ msgstr "Cloudflare 连接此服务器的 80 端口。"
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare 代理"
 
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "用于前面没有任何代理的私有网络。否则，发往服务器自身地址的请求会得到 404。"
+msgid "For a private network with nothing in front."
+msgstr "用于前面没有其他服务的私有网络。"
 
 msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 msgstr "它会通过明文 HTTP 响应任何能访问 80 端口的人，绕过前面的任何代理。你需要在计划中批准此项。"
 
-msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "例如在服务器自身网络上运行的 cloudflared。网站转发到的目标能读取访问者的地址和 https。在桥接网络上的隧道在这里算作其他代理，按该网络的范围填写。"
-
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "例如在服务器自身网络上的 cloudflared。你的应用能读取访问者的地址和 https。桥接网络上的隧道在这里算作其他代理，用该网络的范围来指定。"
+msgid "Such as cloudflared on the server's own network."
+msgstr "例如服务器自身网络上的 cloudflared。"
 
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "这段路径在 Cloudflare 与此服务器之间以未加密方式经过公共互联网。它需要 Cloudflare 的 Flexible 模式，而隧道是更好的方式。"
@@ -7812,12 +7840,6 @@ msgstr "还没有记录"
 msgid "Not read yet"
 msgstr "尚未读取"
 
-msgid "Points elsewhere"
-msgstr "指向别处"
-
-msgid "Points here"
-msgstr "指向此服务器"
-
 msgid "Proxied by Cloudflare"
 msgstr "由 Cloudflare 代理"
 
@@ -9435,9 +9457,6 @@ msgstr "任意 {proto} 端口"
 msgid "Anywhere, IPv6"
 msgstr "任意来源，IPv6"
 
-msgid "Can't tell"
-msgstr "无法判断"
-
 msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 msgstr "无法判断：Docker 没有响应，这可能是它发布的端口，而 {by} 不覆盖这类端口"
 
@@ -10752,9 +10771,6 @@ msgstr "Caddy，即服务器的入口，在服务器有路由期间占用 80 和
 
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell 自身，使用 {ca} 签发并由它续期的证书"
-
-msgid "HTTPS"
-msgstr "HTTPS"
 
 msgid "Language"
 msgstr "语言"
@@ -12589,20 +12605,11 @@ msgstr "请选择它运行的服务器。"
 msgid "Go to the website"
 msgstr "前往该网站"
 
-msgid "Handled in front of this server"
-msgstr "由此服务器前面的服务处理"
-
 msgid "Name the domain, such as blog.example.com."
 msgstr "请填写域名，例如 blog.example.com。"
 
 msgid "New website"
 msgstr "新建网站"
-
-msgid "Off: plain HTTP to anyone"
-msgstr "关闭：对任何人使用普通 HTTP"
-
-msgid "On, with a certificate that comes by itself"
-msgstr "开启，证书自动签发"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "访问者通过 HTTPS 在其域名上访问它"

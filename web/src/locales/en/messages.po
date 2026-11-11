@@ -1868,14 +1868,18 @@ msgstr "Webhook"
 msgid "ntfy"
 msgstr "ntfy"
 
-msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "A route runs on one server, as its certificate comes to the one its DNS points at."
+msgid "A route runs on the one server its DNS points at."
+msgstr "A route runs on the one server its DNS points at."
 
 msgid "Add a domain"
 msgstr "Add a domain"
 
 msgid "Add a domain to {name}"
 msgstr "Add a domain to {name}"
+
+msgctxt "a port typed in"
+msgid "Another port"
+msgstr "Another port"
 
 msgid "App"
 msgstr "App"
@@ -1892,11 +1896,14 @@ msgstr "Domain"
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
-msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
-msgstr "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
+msgid "HTTPS"
+msgstr "HTTPS"
 
-msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
-msgstr "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
+msgid "Handled in front of this server"
+msgstr "Handled in front of this server"
+
+msgid "Its certificate comes by itself once its DNS points here."
+msgstr "Its certificate comes by itself once its DNS points here."
 
 msgid "Move {typed} behind what's in front"
 msgstr "Move {typed} behind what's in front"
@@ -1909,6 +1916,12 @@ msgstr "Name what connects to this server, as an address or a range."
 
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "Off: plain HTTP to anyone"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "On, with a certificate that comes by itself"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "People reach the app at this name, over HTTPS"
@@ -1933,6 +1946,9 @@ msgstr "Port on the server"
 
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
+
+msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
+msgstr "What it listens on on the server, such as 8080; 80 is the proxy's."
 
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
@@ -3133,8 +3149,8 @@ msgstr "No report"
 msgid "No server"
 msgstr "No server"
 
-msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
-msgstr "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
+msgid "No server runs this any more: remove it, or place it on a server."
+msgstr "No server runs this any more: remove it, or place it on a server."
 
 msgid "Not connected"
 msgstr "Not connected"
@@ -3154,8 +3170,8 @@ msgstr "Renewal failing"
 msgid "TLS ends in front"
 msgstr "TLS ends in front"
 
-msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
-msgstr "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
+msgstr "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
 
 msgid "Valid"
 msgstr "Valid"
@@ -3172,29 +3188,23 @@ msgstr "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgid "Can't read DNS"
 msgstr "Can't read DNS"
 
-msgid "Copy {address}"
-msgstr "Copy {address}"
+msgid "Can't tell"
+msgstr "Can't tell"
 
-msgid "DNS has this record"
-msgstr "DNS has this record"
-
-msgid "DNS points at a private address that isn't this server's"
-msgstr "DNS points at a private address that isn't this server's"
-
-msgid "DNS points at {found}"
-msgstr "DNS points at {found}"
-
-msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
-msgstr "DNS points at {found}, and Dockwell can't tell whether that's this server"
-
-msgid "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
-
-msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
+msgid "How to open it"
+msgstr "How to open it"
 
 msgid "Install Cloudflare Tunnel from the Catalog"
 msgstr "Install Cloudflare Tunnel from the Catalog"
+
+msgid "It points at a private address that isn't this server's."
+msgstr "It points at a private address that isn't this server's."
+
+msgid "It points at {found}, which may be this server."
+msgstr "It points at {found}, which may be this server."
+
+msgid "It points at {found}."
+msgstr "It points at {found}."
 
 msgid "Make these records at your DNS provider."
 msgstr "Make these records at your DNS provider."
@@ -3202,44 +3212,65 @@ msgstr "Make these records at your DNS provider."
 msgid "Make this record at your DNS provider."
 msgstr "Make this record at your DNS provider."
 
+msgid "Not set yet"
+msgstr "Not set yet"
+
+msgid "Only a tunnel reaches it."
+msgstr "Only a tunnel reaches it."
+
 msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
 msgstr "Or forward ports 80 and 443 on your router to this server, and make this record."
 
 msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
 msgstr "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
 
-msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
-msgstr "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+msgid "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
+msgstr "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
+
+msgid "Point an A record at this server's public address, which your provider's console shows."
+msgstr "Point an A record at this server's public address, which your provider's console shows."
+
+msgid "Point an A record at this server's public address, which {provider}'s console shows."
+msgstr "Point an A record at this server's public address, which {provider}'s console shows."
 
 msgid "Point an A record at your router's public address."
 msgstr "Point an A record at your router's public address."
 
-msgid "Recommended. It needs no public address and no forwarded port."
-msgstr "Recommended. It needs no public address and no forwarded port."
+msgid "Points elsewhere"
+msgstr "Points elsewhere"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
-msgstr "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
+msgid "Points here"
+msgstr "Points here"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
-msgstr "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
+msgid "Set it on the server"
+msgstr "Set it on the server"
 
-msgid "That's your router's address, as far as Dockwell can tell."
-msgstr "That's your router's address, as far as Dockwell can tell."
+msgid "Set the record to DNS only, or turn on \"{tunnelName}\"."
+msgstr "Set the record to DNS only, or turn on \"{tunnelName}\"."
 
-msgid "This looks like a home or office network, so the internet can't reach this server by itself."
-msgstr "This looks like a home or office network, so the internet can't reach this server by itself."
+msgid "That's its way out, which may not be its way in: check it in your provider's console."
+msgstr "That's its way out, which may not be its way in: check it in your provider's console."
 
-msgid "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
-msgstr "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
+msgid "That's its way out, which may not be its way in: check it in {provider}'s console."
+msgstr "That's its way out, which may not be its way in: check it in {provider}'s console."
 
-msgid "Waiting for DNS"
-msgstr "Waiting for DNS"
+msgid "The internet can't reach {serverName} on ports 80 and 443."
+msgstr "The internet can't reach {serverName} on ports 80 and 443."
+
+msgid "This server is behind carrier NAT"
+msgstr "This server is behind carrier NAT"
+
+msgid "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
+msgstr "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
+
+msgid "Your router's address, as far as Dockwell can tell."
+msgstr "Your router's address, as far as Dockwell can tell."
 
 msgid "your domain"
 msgstr "your domain"
 
-msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
-msgstr "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgid "{name} points at Cloudflare's proxy"
+msgstr "{name} points at Cloudflare's proxy"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -3295,17 +3326,14 @@ msgstr "Cloudflare connects to this server's port 80."
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare's proxy"
 
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+msgid "For a private network with nothing in front."
+msgstr "For a private network with nothing in front."
 
 msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 msgstr "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 
-msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgid "Such as cloudflared on the server's own network."
+msgstr "Such as cloudflared on the server's own network."
 
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
@@ -7812,12 +7840,6 @@ msgstr "No record yet"
 msgid "Not read yet"
 msgstr "Not read yet"
 
-msgid "Points elsewhere"
-msgstr "Points elsewhere"
-
-msgid "Points here"
-msgstr "Points here"
-
 msgid "Proxied by Cloudflare"
 msgstr "Proxied by Cloudflare"
 
@@ -9435,9 +9457,6 @@ msgstr "Any {proto} port"
 msgid "Anywhere, IPv6"
 msgstr "Anywhere, IPv6"
 
-msgid "Can't tell"
-msgstr "Can't tell"
-
 msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 msgstr "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 
@@ -10752,9 +10771,6 @@ msgstr "Caddy, the server's ingress, which holds ports 80 and 443 while the serv
 
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell itself, with a certificate from {ca} that it renews"
-
-msgid "HTTPS"
-msgstr "HTTPS"
 
 msgid "Language"
 msgstr "Language"
@@ -12589,20 +12605,11 @@ msgstr "Choose the server it runs on."
 msgid "Go to the website"
 msgstr "Go to the website"
 
-msgid "Handled in front of this server"
-msgstr "Handled in front of this server"
-
 msgid "Name the domain, such as blog.example.com."
 msgstr "Name the domain, such as blog.example.com."
 
 msgid "New website"
 msgstr "New website"
-
-msgid "Off: plain HTTP to anyone"
-msgstr "Off: plain HTTP to anyone"
-
-msgid "On, with a certificate that comes by itself"
-msgstr "On, with a certificate that comes by itself"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "People reach it at its domain, over HTTPS"
