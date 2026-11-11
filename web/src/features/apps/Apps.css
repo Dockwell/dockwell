@@ -2506,6 +2506,90 @@
   -webkit-text-security: disc;
 }
 
+/* An app from a folder in New app: its port and who it runs as share a row, and the folder's note sits under its field. */
+.app-folder-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 640px) {
+  .app-folder-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.app-folder-holds {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.app-folder-holds a,
+.app-folder-note a {
+  color: var(--link);
+}
+
+/* A folder's state under its field: a word, then what it means. */
+.app-folder-state {
+  margin-right: var(--space-1);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* What the folder's files say it runs on, as one line with a way to change it. */
+.app-folder-runtime {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+/* What an app from a folder runs on, in its Configuration. */
+.app-runtime,
+.app-runtime-folder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.app-runtime-older {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.app-facts .app-runtime-note {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+/* With several servers, the folder's note under each one's name. */
+.app-folder-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.app-folder-on {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 /* Where a port will answer, as it's typed, under the port: an address in mono. */
 .app-port-at {
   display: flex;

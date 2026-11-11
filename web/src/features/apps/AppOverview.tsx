@@ -53,6 +53,7 @@ import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { ReadFailed } from "../shell/ReadFailed";
+import { useRuntimes } from "../websites/website";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
@@ -76,7 +77,9 @@ import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
 import { type AppHealth, type RunsOnServer, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
+import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
+import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
 import { usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 
@@ -1072,6 +1075,84 @@ function HealthCheckPanel() {
   );
 }
 
+/**
+ * What an app from a folder runs on (ADR 0058): its language's version and build, with
+ * a newer build to update to, the folder, and how it installs, starts and listens.
+ */
+function RuntimeFacts() {
+  const { t } = useLingui();
+  const { service } = useApp();
+  const runtimes = useRuntimes().data;
+  const [changing, setChanging] = useState(false);
+  const runtime = runtimeOf(service);
+  if (!runtime) return null;
+  const offered = knownVersion(runtime.language, runtime.version, runtimes);
+  const retired = offered?.retired === true;
+  const newer = newerBuild(service, runtimes);
+  const server = service.deployments[0]?.serverId ?? "";
+  const release = newer ? "" : (offered?.release ?? "");
+  return (
+    <>
+      <dt>{t`Runtime`}</dt>
+      <dd className="app-runtime">
+        <span>
+          {runtimeWords(runtime, runtimes)}
+          {release ? <span className="app-muted"> · {release}</span> : null}
+        </span>
+        {retired ? (
+          <span className="app-runtime-older">
+            <span className="app-muted">
+              <Trans>Dockwell no longer offers this version, so no new app runs on it</Trans>
+            </span>
+            <Button size="sm" onClick={() => setChanging(true)}>
+              <Trans>Change version</Trans>
+            </Button>
+          </span>
+        ) : null}
+        {newer ? (
+          <span className="app-runtime-older">
+            <span className="app-muted">
+              <Trans>An older build of {runtime.version}</Trans>
+            </span>
+            <Button size="sm" onClick={() => setChanging(true)}>
+              <Trans>Update to {newer.release}</Trans>
+            </Button>
+          </span>
+        ) : null}
+        {changing ? <RuntimeSheet service={service} onClose={() => setChanging(false)} /> : null}
+      </dd>
+      <dt>{t`Folder`}</dt>
+      <dd className="app-runtime-folder">
+        <code>{runtime.folder}</code>
+        {server ? (
+          <Link to="/servers/$serverId/files" params={{ serverId: server }} search={{ path: runtime.folder }}>
+            <Trans>Open in Files</Trans>
+          </Link>
+        ) : null}
+      </dd>
+      <dt>{t`Installs with`}</dt>
+      <dd>
+        {runtime.install.trim() === "-" ? (
+          <span className="app-muted">{t`Nothing`}</span>
+        ) : (
+          <code>{runtime.install || offered?.install}</code>
+        )}
+      </dd>
+      <dt>{t`Starts with`}</dt>
+      <dd>
+        <code>{runtime.start || offered?.start}</code>
+      </dd>
+      <dt>{t`Port`}</dt>
+      <dd>
+        <code>{runtime.port}</code>
+      </dd>
+      <dd className="app-runtime-note">
+        <Trans>Each start installs again, so what you change in its folder runs once you restart it.</Trans>
+      </dd>
+    </>
+  );
+}
+
 /** How it is set up, as far as that isn't the image's own. */
 function ConfigurationPanel() {
   const { t } = useLingui();
@@ -1079,7 +1160,9 @@ function ConfigurationPanel() {
   const words = useAppWords();
   const [exporting, setExporting] = useState(false);
   const app = appOf(service);
-  const values = valuesOf(service);
+  const runtime = runtimeOf(service);
+  // What its runtime gives it is said with the runtime, not counted as the app's.
+  const values = valuesOf(service, new Set(runtimeEnv(service).keys())).filter((v) => v.kind !== "runtime");
   const secrets = values.filter((v) => v.kind === "secret").length;
   const plain = values.length - secrets;
   const networks = app?.networks ?? [];
@@ -1093,15 +1176,21 @@ function ConfigurationPanel() {
       }
     >
       <dl className="app-facts">
-        <dt>{t`Command`}</dt>
-        <dd>
-          {app?.command.length ? (
-            <code>{app.command.join(" ")}</code>
-          ) : (
-            <span className="app-muted">{t`The image's own`}</span>
-          )}
-        </dd>
-        {app?.entrypoint.length ? (
+        {runtime ? (
+          <RuntimeFacts />
+        ) : (
+          <>
+            <dt>{t`Command`}</dt>
+            <dd>
+              {app?.command.length ? (
+                <code>{app.command.join(" ")}</code>
+              ) : (
+                <span className="app-muted">{t`The image's own`}</span>
+              )}
+            </dd>
+          </>
+        )}
+        {!runtime && app?.entrypoint.length ? (
           <>
             <dt>{t`Entrypoint`}</dt>
             <dd>
@@ -1117,7 +1206,7 @@ function ConfigurationPanel() {
             </dd>
           </>
         ) : null}
-        {app?.workingDir ? (
+        {!runtime && app?.workingDir ? (
           <>
             <dt>{t`Directory`}</dt>
             <dd>

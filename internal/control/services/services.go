@@ -298,7 +298,15 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.Invalid(errors.New("the deploy names no image. Pass one in image, such as ghcr.io/acme/web:1.4.2"))
 	}
 	intent := &revision.Intent{Kind: revision.IntentDeploy, Image: m.GetImage()}
-	c, err := h.edit(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, app *resourcev1.Container) (editing, error) {
+	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
+		app := svc.GetApp()
+		if app == nil {
+			return editing{}, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", name))
+		}
+		if rt := svc.GetRuntime(); rt != nil {
+			lang, _ := service.LanguageOf(rt.GetLanguage())
+			return editing{}, authapi.Invalid(fmt.Errorf("%s runs from %s on %s %s, so it has no image of its own to deploy. Restart it to run what's in its folder now, or change its version with ChangeServiceRuntime", name, rt.GetFolder(), lang.Name, rt.GetVersion()))
+		}
 		// A tag can move, so naming the one it has means "whatever that is now". Only
 		// a digest can't, and the record can name one no server runs, which deploying
 		// again puts right, so only what the servers say refuses it.
@@ -330,6 +338,44 @@ func (h *Handler) DeployService(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.DeployServiceResponse{Change: c}), nil
+}
+
+// ChangeServiceRuntime plans running an app from a folder on another version of
+// its language, or on the newest build of its own (ADR 0058).
+func (h *Handler) ChangeServiceRuntime(ctx context.Context, req *connect.Request[dockwellv1.ChangeServiceRuntimeRequest]) (*connect.Response[dockwellv1.ChangeServiceRuntimeResponse], error) {
+	m := req.Msg
+	intent := &revision.Intent{Kind: revision.IntentDeploy}
+	c, err := h.editService(ctx, m.GetId(), m.GetProject(), m.GetEnvironment(), intent, func(name string, svc *resourcev1.Service) (editing, error) {
+		rt := svc.GetRuntime()
+		if rt == nil {
+			return editing{}, authapi.Invalid(fmt.Errorf("%s runs an image, not an app from a folder, so it has no runtime to change. Deploy another image instead", name))
+		}
+		lang, _ := service.LanguageOf(rt.GetLanguage())
+		from := rt.GetVersion()
+		version := cmp.Or(m.GetVersion(), from)
+		r, ok := service.RuntimeOf(rt.GetLanguage(), version)
+		if !ok {
+			return editing{}, authapi.Invalid(fmt.Errorf("an app from a folder runs %s %s, not %s. Choose one of those", lang.Name, service.Offered(rt.GetLanguage()), version))
+		}
+		rt.Version = r.Version
+		intent.Image = r.Image
+		// The newest build of the version: an app keeps the one it has otherwise.
+		if app := svc.GetApp(); app != nil {
+			app.Image = ""
+		}
+		did := editing{run: true}
+		if r.Version == from {
+			did.summary = cmp.Or(m.GetSummary(), fmt.Sprintf("Update %s to %s %s", name, lang.Name, r.Release))
+			did.ifNothing = fault.New(revision.ErrInvalid, "%s already runs %s %s, the newest build of %s that Dockwell offers. Choose another version to change it", name, lang.Name, r.Release, r.Version)
+		} else {
+			did.summary = cmp.Or(m.GetSummary(), fmt.Sprintf("Run %s on %s %s, from %s", name, lang.Name, r.Version, from))
+		}
+		return did, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ChangeServiceRuntimeResponse{Change: c}), nil
 }
 
 // AddServicePort plans publishing one more port.
@@ -378,6 +424,17 @@ type editing struct {
 // it stale, as proposing what was read would quietly undo that change. intent is
 // what the plan says it comes to.
 func (h *Handler) edit(ctx context.Context, named, project, environment string, intent *revision.Intent, change func(name string, app *resourcev1.Container) (editing, error)) (*dockwellv1.Change, error) {
+	return h.editService(ctx, named, project, environment, intent, func(name string, svc *resourcev1.Service) (editing, error) {
+		app := svc.GetApp()
+		if app == nil {
+			return editing{}, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", name))
+		}
+		return change(name, app)
+	})
+}
+
+// editService is edit with the whole service to change, as it is on the record.
+func (h *Handler) editService(ctx context.Context, named, project, environment string, intent *revision.Intent, change func(name string, svc *resourcev1.Service) (editing, error)) (*dockwellv1.Change, error) {
 	r, err := h.find(ctx, named, project, environment)
 	if err != nil {
 		return nil, err
@@ -394,11 +451,7 @@ func (h *Handler) edit(ctx context.Context, named, project, environment string, 
 	if err != nil {
 		return nil, h.internal(ctx, "reading a service", err)
 	}
-	app := spec.GetApp()
-	if app == nil {
-		return nil, authapi.Invalid(fmt.Errorf("%s doesn't run an image, so it has nothing to change here", r.Name))
-	}
-	did, err := change(r.Name, app)
+	did, err := change(r.Name, spec)
 	if err != nil {
 		return nil, err
 	}

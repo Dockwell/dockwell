@@ -2373,6 +2373,11 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 		return
 	}
 	writer, detail, user := docker.Repository(images.ImageOf(spec)), "", ""
+	if w, ok := t.(resource.WriterNamer); ok {
+		if named := w.WriterOf(spec); named != "" {
+			writer = named
+		}
+	}
 	switch as, name := docker.UserRunsAs(users.UserOf(spec)); as {
 	case docker.RunsAsOther:
 	case docker.RunsAsRoot:
@@ -4913,12 +4918,14 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	for i, r := range resources {
 		// Agents normalize what they observe, so only real differences
 		// are unequal.
-		if resource.Equal(desired[i], observed[i]) {
+		// What only the control plane keeps, the server never had.
+		want := e.kinds.OnServer(refs[i].Kind, desired[i])
+		if resource.Equal(want, observed[i]) {
 			continue
 		}
 		d := Drift{ID: r.ID, Ref: refs[i], Server: server, Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
 		if !d.Missing {
-			d.Changes = resource.Diff(desired[i], observed[i])
+			d.Changes = resource.Diff(want, observed[i])
 		}
 		out = append(out, d)
 	}
@@ -4947,9 +4954,19 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	if err := e.checkSameElsewhere(ctx, d); err != nil {
 		return nil, err
 	}
+	var it item
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		it, err = e.load(ctx, tx, d.Ref)
+		return err
+	}); err != nil {
+		return nil, err
+	}
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
-	// What the server runs already, so nothing restarts.
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed, Observed: true}}}, "", false)
+	// What the server runs already, so nothing restarts, with what only the control
+	// plane keeps put back where it still holds.
+	kept := e.kinds.Readopted(d.Ref.Kind, it.current, d.Observed)
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: kept, Observed: true}}}, "", false)
 }
 
 // checkSameElsewhere refuses keeping what one server has of a kind that keeps

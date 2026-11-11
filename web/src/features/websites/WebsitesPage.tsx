@@ -129,8 +129,8 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
         ) : null}
         {body}
       </section>
-      {/* What PHP a website can run, once there are websites, as the empty state has its own next step. */}
-      {!pending && !websites.error && count > 0 ? <Runtimes rows={rows} health={health} /> : null}
+      {/* What code runs on, once there are websites or apps from folders, as the empty state has its own next step. */}
+      {!pending && !websites.error ? <Runtimes rows={rows} health={health} /> : null}
       {children}
     </Page>
   );

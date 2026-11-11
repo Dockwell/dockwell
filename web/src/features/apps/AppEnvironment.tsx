@@ -335,6 +335,11 @@ function useCountsWords(rows: readonly EnvRow[]): string {
 
 const MARK: Record<EnvEdit["op"], string> = { add: "+", use: "+", change: "~", remove: "−" };
 
+/** The runtime owns PORT; the app's environment can't override it. */
+function runtimePort(row: EnvRow): boolean {
+  return row.now?.kind === "runtime" && row.name === "PORT";
+}
+
 function useColumns(
   phone: boolean,
   onChange: (row: EnvRow) => void,
@@ -369,8 +374,12 @@ function useColumns(
       <Button size="sm" variant="ghost" icon="undo" aria-label={t`Revert ${name}`} onClick={() => onRevert(row.name)} />
     ) : (
       <span className="app-env-actions">
-        <Button size="sm" variant="ghost" icon="edit" aria-label={t`Change ${name}`} onClick={() => onChange(row)} />
-        <Button size="sm" variant="ghost" icon="trash" aria-label={t`Remove ${name}`} onClick={() => onRemove(row)} />
+        {runtimePort(row) ? null : (
+          <Button size="sm" variant="ghost" icon="edit" aria-label={t`Change ${name}`} onClick={() => onChange(row)} />
+        )}
+        {row.now?.kind === "runtime" ? null : (
+          <Button size="sm" variant="ghost" icon="trash" aria-label={t`Remove ${name}`} onClick={() => onRemove(row)} />
+        )}
       </span>
     );
   };
@@ -436,6 +445,7 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
     );
   }
   if (kind === "own") return <Masked />;
+  if (kind === "runtime") return <code className="app-env-value">{row.runtimeValue}</code>;
   if (row.stored) {
     if (row.stored.secret) return <SecretValue variable={row.stored} />;
     return <code className="app-env-value">{row.stored.value}</code>;
@@ -454,6 +464,7 @@ function Source({ row }: { row: EnvRow }) {
   }
   const now = row.now;
   if (!now) return null;
+  if (now.kind === "runtime" && edit?.op === "change") return <>{t`Set on this app`}</>;
   const from = now.from;
   const named = from !== now.name;
   switch (now.kind) {
@@ -463,6 +474,8 @@ function Source({ row }: { row: EnvRow }) {
       return <>{named ? t`Secret ${from}` : t`Secret`}</>;
     case "own":
       return <>{t`Set on this app`}</>;
+    case "runtime":
+      return <>{t`Set by its runtime`}</>;
   }
 }
 
@@ -634,6 +647,8 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
           <p className="app-env-form-note">
             {changing.now?.kind === "own" ? (
               <Trans>What's set on this app isn't shown, so type the whole value it should have.</Trans>
+            ) : changing.now?.kind === "runtime" ? (
+              <Trans>This app uses the new value instead of its runtime's default.</Trans>
             ) : changing.now?.kind === "secret" ? (
               <Trans>Type the whole value: every app that uses this secret gets it.</Trans>
             ) : (
@@ -797,6 +812,10 @@ function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
     event.preventDefault();
     if (!parsed) {
       setError(t`Each line needs a NAME=value, as an .env file has them. Lines that start with # are skipped.`);
+      return;
+    }
+    if (rows.some((row) => runtimePort(row) && parsed.some((value) => value.name === row.name))) {
+      setError(t`PORT is set by its runtime, so it can't be imported. Remove PORT from this file.`);
       return;
     }
     onImport(edits);

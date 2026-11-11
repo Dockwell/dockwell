@@ -2254,6 +2254,9 @@ msgstr "Not applied"
 msgid "Not loaded"
 msgstr "Not loaded"
 
+msgid "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
+msgstr "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
+
 msgid "Paste the file's text"
 msgstr "Paste the file's text"
 
@@ -2281,6 +2284,9 @@ msgstr "Secret"
 msgid "Secret {from}"
 msgstr "Secret {from}"
 
+msgid "Set by its runtime"
+msgstr "Set by its runtime"
+
 msgid "Set on this app"
 msgstr "Set on this app"
 
@@ -2304,6 +2310,9 @@ msgstr "Their values are hidden, and revealing one takes your passkey."
 
 msgid "Their values stay hidden, and Add waits until they load."
 msgstr "Their values stay hidden, and Add waits until they load."
+
+msgid "This app uses the new value instead of its runtime's default."
+msgstr "This app uses the new value instead of its runtime's default."
 
 msgid "Type the whole value: every app that uses this secret gets it."
 msgstr "Type the whole value: every app that uses this secret gets it."
@@ -2413,6 +2422,9 @@ msgstr "Breadcrumb"
 msgid "Can't load this app"
 msgstr "Can't load this app"
 
+msgid "Change version"
+msgstr "Change version"
+
 msgid "Deploy"
 msgstr "Deploy"
 
@@ -2468,6 +2480,10 @@ msgstr "rolled back by Dockwell {ago}"
 msgid "{name} logs"
 msgstr "{name} logs"
 
+#. placeholder {0}: runtime.folder
+msgid "{runsOn} from <0>{0}</0>"
+msgstr "{runsOn} from <0>{0}</0>"
+
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
@@ -2484,6 +2500,10 @@ msgstr "All deployments"
 
 msgid "All of it"
 msgstr "All of it"
+
+#. placeholder {0}: runtime.version
+msgid "An older build of {0}"
+msgstr "An older build of {0}"
 
 msgid "Checks"
 msgstr "Checks"
@@ -2530,11 +2550,17 @@ msgstr "Dockwell can't read what {name} runs"
 msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 msgstr "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 
+msgid "Dockwell no longer offers this version, so no new app runs on it"
+msgstr "Dockwell no longer offers this version, so no new app runs on it"
+
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell put <0>{image}</0> back, as it was before that deploy."
 
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
+
+msgid "Each start installs again, so what you change in its folder runs once you restart it."
+msgstr "Each start installs again, so what you change in its folder runs once you restart it."
 
 msgid "Entrypoint"
 msgstr "Entrypoint"
@@ -2549,11 +2575,17 @@ msgstr "Failing"
 msgid "Fix what stopped the deploy, then deploy again."
 msgstr "Fix what stopped the deploy, then deploy again."
 
+msgid "Folder"
+msgstr "Folder"
+
 msgid "Follow it"
 msgstr "Follow it"
 
 msgid "Health check"
 msgstr "Health check"
+
+msgid "Installs with"
+msgstr "Installs with"
 
 msgid "It keeps going whether or not you stay here. Its steps show in the plan."
 msgstr "It keeps going whether or not you stay here. Its steps show in the plan."
@@ -2588,6 +2620,9 @@ msgstr "None set"
 msgid "None."
 msgstr "None."
 
+msgid "Nothing"
+msgstr "Nothing"
+
 msgid "Nothing outside the server reaches it yet."
 msgstr "Nothing outside the server reaches it yet."
 
@@ -2602,6 +2637,9 @@ msgstr "Nothing yet. It runs once the deploy finishes."
 
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
+
+msgid "Open in Files"
+msgstr "Open in Files"
 
 msgid "Open the plan"
 msgstr "Open the plan"
@@ -2648,6 +2686,9 @@ msgstr "Rolling back failed {when}"
 msgid "Runs with"
 msgstr "Runs with"
 
+msgid "Runtime"
+msgstr "Runtime"
+
 msgid "See its logs"
 msgstr "See its logs"
 
@@ -2662,6 +2703,9 @@ msgstr "Set one"
 
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
+
+msgid "Starts with"
+msgstr "Starts with"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "The agent on {server} hasn't said how it runs lately. It may well be running."
@@ -2702,6 +2746,11 @@ msgstr "Unknown until {away} reconnects"
 
 msgid "Unknown, as putting it back failed"
 msgstr "Unknown, as putting it back failed"
+
+#. placeholder {0}: newer.release
+#. placeholder {0}: runtime.release
+msgid "Update to {0}"
+msgstr "Update to {0}"
 
 msgid "Volumes"
 msgstr "Volumes"
@@ -2903,6 +2952,15 @@ msgstr "It publishes none. Add one to reach it from outside the server."
 
 msgid "It publishes this port already."
 msgstr "It publishes this port already."
+
+msgid "Its runtime checks its port by TCP, with 10 minutes to start."
+msgstr "Its runtime checks its port by TCP, with 10 minutes to start."
+
+msgid "Its runtime mounts this folder at /app."
+msgstr "Its runtime mounts this folder at /app."
+
+msgid "Its runtime sets the command, entrypoint, user and directory."
+msgstr "Its runtime sets the command, entrypoint, user and directory."
 
 msgid "Keep no more for it than its limit, {memory}."
 msgstr "Keep no more for it than its limit, {memory}."
@@ -3411,6 +3469,96 @@ msgstr "This app"
 msgid "What to export"
 msgstr "What to export"
 
+msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+msgstr "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+
+msgid "Choose the folder that holds the app."
+msgstr "Choose the folder that holds the app."
+
+msgid "Dockwell makes it, owned by <0>{user}</0>"
+msgstr "Dockwell makes it, owned by <0>{user}</0>"
+
+#. placeholder {0}: PORT_FILES[detected.language] ?? ""
+msgid "From {0}. The app gets it as PORT."
+msgstr "From {0}. The app gets it as PORT."
+
+msgid "Holds {found}"
+msgstr "Holds {found}"
+
+msgid "It has no <0>{first}</0>. Put the app's files there."
+msgstr "It has no <0>{first}</0>. Put the app's files there."
+
+msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+msgstr "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+
+#. placeholder {0}: dir.mode
+msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgstr "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+
+msgid "Language"
+msgstr "Language"
+
+msgid "Name the app, or give its folder on the server, such as /srv/shop."
+msgstr "Name the app, or give its folder on the server, such as /srv/shop."
+
+msgctxt "a folder that isn't there yet"
+msgid "New"
+msgstr "New"
+
+msgid "No {languageWord} app in {path} yet"
+msgstr "No {languageWord} app in {path} yet"
+
+msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
+msgstr "Run <0>sudo chown -R {user} {path}</0> on the server."
+
+msgid "Run as {theirs}"
+msgstr "Run as {theirs}"
+
+msgid "Runs as"
+msgstr "Runs as"
+
+msgid "Runs before each start. Write - to install nothing."
+msgstr "Runs before each start. Write - to install nothing."
+
+msgid "The app can't write to {path}"
+msgstr "The app can't write to {path}"
+
+msgid "The app gets it as PORT."
+msgstr "The app gets it as PORT."
+
+msgid "Use a folder of its own, not the server's root."
+msgstr "Use a folder of its own, not the server's root."
+
+msgid "Use a full path on the server, such as /srv/shop."
+msgstr "Use a full path on the server, such as /srv/shop."
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Write it as uid:gid, such as 1000:1000."
+msgstr "Write it as uid:gid, such as 1000:1000."
+
+msgid "as {user}"
+msgstr "as {user}"
+
+msgid "from {from}"
+msgstr "from {from}"
+
+msgid "port {port}"
+msgstr "port {port}"
+
+msgid "uid:gid of the folder's owner."
+msgstr "uid:gid of the folder's owner."
+
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+
+msgid "{path} is a file"
+msgstr "{path} is a file"
+
+msgid "{path} is root's, and an app never runs as root"
+msgstr "{path} is root's, and an app never runs as root"
+
 msgid "A tunnel on this server"
 msgstr "A tunnel on this server"
 
@@ -3452,6 +3600,9 @@ msgstr "What's in front"
 
 msgid "You name what connects to this server."
 msgstr "You name what connects to this server."
+
+msgid "A connection to port {port} was taken."
+msgstr "A connection to port {port} was taken."
 
 msgid "Checking"
 msgstr "Checking"
@@ -3795,6 +3946,9 @@ msgstr "Restarts unless stopped"
 msgid "Run a Compose file"
 msgstr "Run a Compose file"
 
+msgid "Run {name} from {path}"
+msgstr "Run {name} from {path}"
+
 msgid "Run {projectName} from a Compose file"
 msgstr "Run {projectName} from a Compose file"
 
@@ -3927,6 +4081,46 @@ msgstr "{count, plural, one {Show it} other {Show them}}"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
+
+msgid "Change {name}'s version"
+msgstr "Change {name}'s version"
+
+msgid "Check its logs for what the install or the start said, then try again."
+msgstr "Check its logs for what the install or the start said, then try again."
+
+msgid "Choose again"
+msgstr "Choose again"
+
+msgid "Each start installs again, so check the app's lockfile works with the new version."
+msgstr "Each start installs again, so check the app's lockfile works with the new version."
+
+#. placeholder {0}: newer.release
+msgid "It runs an older build of {current}. The plan updates it to {0}."
+msgstr "It runs an older build of {current}. The plan updates it to {0}."
+
+msgid "It runs this version's newest build already"
+msgstr "It runs this version's newest build already"
+
+msgid "It runs what's in its folder on the new version, with the rest as it is"
+msgstr "It runs what's in its folder on the new version, with the rest as it is"
+
+msgid "Run {name} on {word} {version}, from {current}"
+msgstr "Run {name} on {word} {version}, from {current}"
+
+msgid "Update {name} to {word} {release}"
+msgstr "Update {name} to {word} {release}"
+
+#. placeholder {0}: v.version
+#. placeholder {1}: v.release
+msgid "{0} · {1}, the one it runs"
+msgstr "{0} · {1}, the one it runs"
+
+#. placeholder {0}: v.version
+msgid "{0}, the one it runs"
+msgstr "{0}, the one it runs"
+
+msgid "{word} version"
+msgstr "{word} version"
 
 msgid "Changed {field}"
 msgstr "Changed {field}"
@@ -5431,9 +5625,6 @@ msgstr "Source code"
 msgid "Source for: {0}"
 msgstr "Source for: {0}"
 
-msgid "Version"
-msgstr "Version"
-
 msgid "Website"
 msgstr "Website"
 
@@ -5659,9 +5850,6 @@ msgstr "Dockwell's own catalog is all it reads"
 
 msgid "Entries at {folderWords}"
 msgstr "Entries at {folderWords}"
-
-msgid "Folder"
-msgstr "Folder"
 
 msgid "Its top"
 msgstr "Its top"
@@ -8144,9 +8332,6 @@ msgstr "No volume"
 msgid "No volume, so its data goes with its container"
 msgstr "No volume, so its data goes with its container"
 
-msgid "Nothing"
-msgstr "Nothing"
-
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "Nothing changed on the servers. The page tries again by itself."
 
@@ -8895,9 +9080,6 @@ msgstr "Read what 1Panel keeps"
 
 msgid "Review the plan"
 msgstr "Review the plan"
-
-msgid "Runtime"
-msgstr "Runtime"
 
 msgid "Stays with 1Panel"
 msgstr "Stays with 1Panel"
@@ -10511,6 +10693,7 @@ msgstr "Up {uptime}"
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
 
+#. placeholder {0}: apps.length
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
@@ -11429,9 +11612,6 @@ msgstr "Caddy, the server's ingress, which holds ports 80 and 443 while the serv
 
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell itself, with a certificate from {ca} that it renews"
-
-msgid "Language"
-msgstr "Language"
 
 msgid "Loopback"
 msgstr "Loopback"
@@ -13466,11 +13646,18 @@ msgstr "What it serves"
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> runs an older build of {0}"
 
+msgid "<0>{name}</0> runs an older build of {version}"
+msgstr "<0>{name}</0> runs an older build of {version}"
+
 msgid "Build"
 msgstr "Build"
 
 msgid "Extensions"
 msgstr "Extensions"
+
+#. placeholder {0}: newest.version
+msgid "New app on {language} {0}"
+msgstr "New app on {language} {0}"
 
 #. placeholder {0}: runtime.version
 msgid "New website on {0}"
@@ -13479,18 +13666,20 @@ msgstr "New website on {0}"
 msgid "No website yet"
 msgstr "No website yet"
 
-msgid "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
-msgstr "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
-
 msgid "Not used"
 msgstr "Not used"
+
+msgid "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
+msgstr "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
 
 msgid "Runtimes"
 msgstr "Runtimes"
 
-#. placeholder {0}: runtime.release
-msgid "Update to {0}"
-msgstr "Update to {0}"
+msgid "Update to {release}"
+msgstr "Update to {release}"
+
+msgid "Update {name} to {language} {release}"
+msgstr "Update {name} to {language} {release}"
 
 #. placeholder {0}: runtime.release
 msgid "Update {name}'s PHP to {0}"
@@ -13503,8 +13692,8 @@ msgstr "{0, plural, one {# website} other {# websites}}"
 msgid "{extra, plural, one {and # more} other {and # more}}"
 msgstr "{extra, plural, one {and # more} other {and # more}}"
 
-msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-msgstr "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
+msgid "{inUse, plural, one {# in use · each website and app runs its own} other {# in use · each website and app runs its own}}"
+msgstr "{inUse, plural, one {# in use · each website and app runs its own} other {# in use · each website and app runs its own}}"
 
 msgid "Can't reach {host}"
 msgstr "Can't reach {host}"
@@ -13703,9 +13892,6 @@ msgstr "Goes to index.php, as WordPress and Laravel want"
 msgid "Holds index.php, which only a PHP site runs."
 msgstr "Holds index.php, which only a PHP site runs."
 
-msgid "Holds {found}"
-msgstr "Holds {found}"
-
 msgid "Index files"
 msgstr "Index files"
 
@@ -13754,12 +13940,6 @@ msgstr "PHP {0} · {1}"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "Root owns it, so PHP can't save uploads there."
-
-msgid "Run as {theirs}"
-msgstr "Run as {theirs}"
-
-msgid "Runs as"
-msgstr "Runs as"
 
 msgid "Runs as {who} · {mb} MiB uploads"
 msgstr "Runs as {who} · {mb} MiB uploads"
@@ -13829,9 +14009,6 @@ msgstr "{edited, plural, one {# changed} other {# changed}}"
 msgid "{index} · single-page app"
 msgstr "{index} · single-page app"
 
-msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-msgstr "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-
 msgid "Change the folder"
 msgstr "Change the folder"
 
@@ -13849,9 +14026,6 @@ msgstr "Mode"
 
 msgid "No folder of its own"
 msgstr "No folder of its own"
-
-msgid "Open in Files"
-msgstr "Open in Files"
 
 msgid "The folder is empty"
 msgstr "The folder is empty"

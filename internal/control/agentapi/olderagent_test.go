@@ -108,3 +108,42 @@ func TestAnOlderAgentIsRefusedEverythingWhenNothingCanSay(t *testing.T) {
 		}
 	}
 }
+
+// An agent that doesn't say it makes a mount's missing folder as its owner would
+// make it root's, so a plan or a step that asks for one is refused there, with the
+// fix; one that asks for nothing such goes, and an agent that says so takes it.
+func TestAnOlderAgentIsRefusedAFolderToMake(t *testing.T) {
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	owned := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "node:24", Mounts: []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/shop"}, Target: "/app", MakeOwner: "1000:1000"},
+	}}}}
+	plain := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:8"}}}
+	errSent := errors.New("the test stops the call here")
+	open := func(makes bool) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		a.CheckNaming(&naming{})
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, MakesFolders: makes}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for name, entry := range map[string]func(*Session, *resourcev1.Service) error{
+		"planning": func(s *Session, spec *resourcev1.Service) error {
+			_, err := s.Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+			return err
+		},
+		"applying": func(s *Session, spec *resourcev1.Service) error {
+			return s.Apply(t.Context(), resource.Step{Ref: web}, spec)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := entry(open(false), owned)
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell made a missing folder as its owner, which web asks for, so it would be root's. Update the agent on hz-1") {
+				t.Errorf("an older agent, with a folder to make = %v", err)
+			}
+			if err := entry(open(false), plain); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an older agent, with no folder to make = %v", err)
+			}
+			if err := entry(open(true), owned); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an agent that makes folders = %v", err)
+			}
+		})
+	}
+}

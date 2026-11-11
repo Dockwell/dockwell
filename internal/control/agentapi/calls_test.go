@@ -520,6 +520,49 @@ func TestAnAgentKeepsWhatItsServerRuns(t *testing.T) {
 	}
 }
 
+// What only the control plane keeps of a spec, such as how an app from a folder was
+// made (ADR 0058), never reaches the agent's keeping: what it keeps is what its step
+// ran, so the agent puts back the same container while the control plane is away.
+func TestAnAgentKeepsAnAppFromAFolderAsItRuns(t *testing.T) {
+	s := startStack(t, 5*time.Second)
+	id := s.enrollLocal(t)
+	store, err := desired.Open(t.TempDir(), id.ServerID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drivers := resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: containertest.NewFake()}})
+	runKeepingAgent(t, s, id, drivers, store)
+	session := waitForAgent(t, s.agents, id.ServerID, true).(*agentapi.Session)
+	shop := resource.Ref{Kind: service.Kind, Scope: "env_01JD6Z3R8M9QF2K7T4XW5BNC0V", Name: "shop"}
+	svc := &resourcev1.Service{
+		Runtime: &resourcev1.Runtime{Language: "node", Version: "24", Folder: "/srv/shop", User: "1001:1001"},
+		Runs:    &resourcev1.Service_App{App: &resourcev1.Container{}},
+	}
+	if err := (&service.Driver{}).Validate(svc); err != nil {
+		t.Fatal(err)
+	}
+	if svc.GetRuntime() == nil || svc.GetApp().GetImage() == "" {
+		t.Fatalf("the runtime didn't write the app: %v", svc)
+	}
+	if kept, err := session.Remember(t.Context(), shop, svc, 1, "chg_1", ""); err != nil || !kept {
+		t.Fatalf("remembering it = %t, %v; want it kept", kept, err)
+	}
+	got, ok, err := store.Read(shop)
+	if err != nil || !ok {
+		t.Fatalf("it keeps nothing of shop: %v, %v", ok, err)
+	}
+	kept := &resourcev1.Service{}
+	if err := proto.Unmarshal(got.Spec, kept); err != nil {
+		t.Fatal(err)
+	}
+	if kept.GetRuntime() != nil || kept.GetApp().GetImage() != svc.GetApp().GetImage() || kept.GetApp().GetWorkingDir() != "/app" {
+		t.Errorf("the agent keeps %v; want the app as it runs, with no runtime", kept)
+	}
+	if svc.GetRuntime() == nil {
+		t.Error("remembering it took the runtime off the control plane's copy")
+	}
+}
+
 // A step that passes but can't be kept leaves the session saying the agent lacks
 // it, so the next fill sends it again.
 func TestAStepThatCantBeKeptIsLacking(t *testing.T) {

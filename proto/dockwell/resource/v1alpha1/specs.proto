@@ -547,6 +547,49 @@ message Service {
   // service whose variable or secret changes gets a revision of its own,
   // and restarts with the new value. An edit's is ignored.
   map<string, int64> revisions = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // How an app from a folder on the server runs: a language's official image of
+  // a version, with the folder mounted, and the commands that install and start
+  // it. With it, the parts of app it decides are written from it whenever the
+  // spec is checked, whatever an edit sends there: the image, command,
+  // entrypoint, working folder, user, the mount at /app, PORT, what's exposed,
+  // the check and the capabilities dropped. The rest of app, such as its
+  // environment, ports and networks, is the app's own, as an image app's is. See
+  // docs/adr/0058-runtimes-an-app-from-a-folder.md.
+  Runtime runtime = 150;
+}
+
+// Runtime is an app from a folder on the server, run in a language's official
+// image of the version chosen, as a person who edits it there wants it.
+message Runtime {
+  // The language: "node", "python", "go" or "java".
+  string language = 1;
+  // Its version, such as "24" for Node.js or "3.14" for Python. Empty takes the
+  // newest, and is written as it.
+  string version = 2;
+  // The folder on the server that holds the app, such as "/srv/shop". It's
+  // mounted at /app, read-write, as what the app installs goes there. A folder
+  // that isn't there is made as user's.
+  string folder = 3;
+  // What installs what the app needs, run in /app before each start, such as
+  // "npm ci". Empty takes the language's: npm ci or npm install, a virtual
+  // environment and pip install -r requirements.txt, go build, or ./mvnw
+  // package. "-" installs nothing.
+  string install = 4;
+  // What starts the app, in /app, such as "npm start". Empty takes the
+  // language's: npm start, python app.py, the binary go build made, or java
+  // -jar app.jar.
+  string start = 5;
+  // The port the app listens on, which its domain sends to and its check
+  // knocks at, given to it as PORT: 3000 for Node.js, 8000 for Python and 8080
+  // for Go and Java unless set.
+  uint32 port = 6;
+  // Who it runs as, as uid:gid, such as "1000:1000": the folder owner's, as
+  // the panel fills it in. Never root's.
+  string user = 7;
+  // What the runtime wrote into the app's environment, by name: PORT, HOME and
+  // where the language's tools keep caches, where the app sets nothing of its own.
+  // None of it is secret. Dockwell writes it each time the spec is checked.
+  map<string, string> wrote = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Variable is a value of an environment that its services use, such as

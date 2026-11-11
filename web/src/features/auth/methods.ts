@@ -171,6 +171,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.watchServers": "read",
 
   "ServiceService.addServicePort": "may",
+  "ServiceService.changeServiceRuntime": "may",
   "ServiceService.deployService": "may",
   "ServiceService.listServiceRevisions": "read",
   "ServiceService.listServices": "read",

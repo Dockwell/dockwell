@@ -369,6 +369,11 @@ message Hello {
   // server unless a passkey confirmed it. Only the agent can tell where a path
   // leads, so the control plane saves through no agent that doesn't.
   bool guards_ways_in = 7;
+  // True when the agent makes a mount's missing server folder as the owner the
+  // mount names (make_owner), by handle. The control plane plans no such mount on
+  // an agent that doesn't say so, which would make it root's. Numbered in the
+  // websites' block.
+  bool makes_folders = 61;
   // True when the agent reads the server's package updates (ListUpdatesCall).
   // The terminal and updates take 50 to 59 in agent messages, as other work adds
   // to them at once: the terminal 50 to 52, and updates 53, so the next of either

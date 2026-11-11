@@ -527,6 +527,7 @@ const RESTARTS = [RestartPolicy.UNLESS_STOPPED, RestartPolicy.ALWAYS, RestartPol
 function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
   const words = useAppWords();
+  const runtime = service.spec?.runtime !== undefined;
   const [command, setCommand] = useState(joinWords(app.command));
   const [entrypoint, setEntrypoint] = useState(joinWords(app.entrypoint));
   const [noEntrypoint, setNoEntrypoint] = useState(app.noEntrypoint);
@@ -572,13 +573,19 @@ function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }
 
   return (
     <form className="app-settings-form" aria-label={t`Edit General`} onSubmit={submit} noValidate>
+      {runtime ? (
+        <p className="app-settings-help">
+          <Trans>Its runtime sets the command, entrypoint, user and directory.</Trans>
+        </p>
+      ) : null}
       <div className="app-settings-grid">
         <TextField
           label={t`Command`}
           mono
           value={command}
+          disabled={runtime}
           placeholder={(image && joinWords(image.command)) || t`The image's own`}
-          hint={t`Empty runs the image's own.`}
+          hint={runtime ? undefined : t`Empty runs the image's own.`}
           error={errors.command}
           onChange={(event) => setCommand(event.target.value)}
           spellCheck={false}
@@ -589,7 +596,7 @@ function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }
             label={t`Entrypoint`}
             mono
             value={noEntrypoint ? "" : entrypoint}
-            disabled={noEntrypoint}
+            disabled={runtime || noEntrypoint}
             placeholder={noEntrypoint ? t`None` : (image && joinWords(image.entrypoint)) || t`The image's own`}
             error={errors.entrypoint}
             onChange={(event) => setEntrypoint(event.target.value)}
@@ -599,6 +606,7 @@ function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }
           <Switch
             label={t`Run no entrypoint, not even the image's`}
             checked={noEntrypoint}
+            disabled={runtime}
             onChange={setNoEntrypoint}
           />
         </div>
@@ -606,6 +614,7 @@ function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }
           label={t`User`}
           mono
           value={user}
+          disabled={runtime}
           placeholder={image ? image.user || "root" : t`The image's own`}
           hint={t`A name or a number, such as 1000.`}
           onChange={(event) => setUser(event.target.value)}
@@ -616,6 +625,7 @@ function GeneralForm({ service, app, image, name, root, moving, plan, onCancel }
           label={t`Directory`}
           mono
           value={dir}
+          disabled={runtime}
           placeholder={image ? image.workingDir || "/" : t`The image's own`}
           error={errors.dir}
           onChange={(event) => setDir(event.target.value)}
@@ -711,6 +721,7 @@ const HEALTH_PATHS = ["/", "/health", "/healthz", "/api/health", "/status", "/pi
 function HealthForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  const runtime = service.spec?.runtime !== undefined;
   const check = app.healthcheck;
   const [kind, setKind] = useState<CheckKind>(checkKindOf(check));
   const [port, setPort] = useState(String(check?.http?.port || check?.tcp?.port || ""));
@@ -723,7 +734,7 @@ function HealthForm({ service, app, image, name, root, moving, plan, onCancel }:
   const [errors, setErrors] = useState<
     Partial<Record<"port" | "command" | "interval" | "timeout" | "start" | "retries", string>>
   >({});
-  const timed = kind === "http" || kind === "tcp" || kind === "command";
+  const timed = kind === "http" || (kind === "tcp" && !runtime) || kind === "command";
   // What runs it when nothing's typed: the agent's for HTTP and TCP, Docker's for a command.
   const every = kind === "command" ? "30s" : "10s";
   const limit = kind === "command" ? "30s" : "5s";
@@ -750,22 +761,28 @@ function HealthForm({ service, app, image, name, root, moving, plan, onCancel }:
     { value: "image", label: t`The image's` },
     { value: "none", label: t({ message: "None", context: "health check" }) },
   ];
+  const availableCheckKinds = runtime ? checkKinds.filter((choice) => choice.value !== "image") : checkKinds;
   const unchanged =
-    kind === checkKindOf(check) &&
-    port === String(check?.http?.port || check?.tcp?.port || "") &&
-    path === (check?.http?.path ?? "") &&
-    command === checkCommand(check) &&
-    interval === (check?.interval ?? "") &&
-    timeout === (check?.timeout ?? "") &&
-    retries === (check?.retries ? String(check.retries) : "") &&
-    start === (check?.startPeriod ?? "");
+    runtime && kind === "tcp"
+      ? checkKindOf(check) === "tcp"
+      : kind === checkKindOf(check) &&
+        port === String(check?.http?.port || check?.tcp?.port || "") &&
+        path === (check?.http?.path ?? "") &&
+        command === checkCommand(check) &&
+        interval === (check?.interval ?? "") &&
+        timeout === (check?.timeout ?? "") &&
+        retries === (check?.retries ? String(check.retries) : "") &&
+        start === (check?.startPeriod ?? "");
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const duration = (v: string) =>
       v.trim() === "" || validDuration(v) ? undefined : t`Use a duration, such as 10s or 1m.`;
     const next = {
-      port: (kind === "http" || kind === "tcp") && !validPort(port) ? t`Use a port from 1 to 65535.` : undefined,
+      port:
+        (kind === "http" || (kind === "tcp" && !runtime)) && !validPort(port)
+          ? t`Use a port from 1 to 65535.`
+          : undefined,
       command:
         kind === "command" && command.trim() === ""
           ? t`Say what to run, such as curl -f http://localhost/.`
@@ -804,7 +821,8 @@ function HealthForm({ service, app, image, name, root, moving, plan, onCancel }:
             });
             break;
           case "tcp":
-            a.healthcheck = create(HealthcheckSchema, { ...timing, tcp: { port: Number(port) } });
+            // The runtime writes its own TCP check, including its start grace.
+            a.healthcheck = runtime ? undefined : create(HealthcheckSchema, { ...timing, tcp: { port: Number(port) } });
             break;
           case "command": {
             // An exec-form check keeps its words while they're as they were: a shell's form
@@ -828,16 +846,25 @@ function HealthForm({ service, app, image, name, root, moving, plan, onCancel }:
           label={t`How it's checked`}
           value={kind}
           onChange={(event) => pick(event.target.value as CheckKind)}
-          options={checkKinds}
+          options={availableCheckKinds}
         />
       ) : (
-        <SegmentedControl<CheckKind> label={t`How it's checked`} value={kind} onChange={pick} options={checkKinds} />
+        <SegmentedControl<CheckKind>
+          label={t`How it's checked`}
+          value={kind}
+          onChange={pick}
+          options={availableCheckKinds}
+        />
       )}
       <p className="app-settings-help">
         {kind === "http" ? (
           t`Any status from 200 to 399 passes.`
         ) : kind === "tcp" ? (
-          t`It passes once the app takes a connection.`
+          runtime ? (
+            t`Its runtime checks its port by TCP, with 10 minutes to start.`
+          ) : (
+            t`It passes once the app takes a connection.`
+          )
         ) : kind === "command" ? (
           t`It passes when it exits with 0.`
         ) : kind === "image" ? (
@@ -846,7 +873,7 @@ function HealthForm({ service, app, image, name, root, moving, plan, onCancel }:
           t`Running only means it started.`
         )}
       </p>
-      {kind === "http" || kind === "tcp" || kind === "command" ? (
+      {kind === "http" || (kind === "tcp" && !runtime) || kind === "command" ? (
         <div className="app-settings-grid">
           {kind === "http" || kind === "tcp" ? (
             <TextField
@@ -1434,6 +1461,7 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
               row={row}
               n={i + 1}
               first={i === 0}
+              fixed={service.spec?.runtime !== undefined && row.target === "/app"}
               volumesList={(volumes ?? []).length > 0 ? volumesId : undefined}
               targetsList={(image?.volumes ?? []).length > 0 ? targetsId : undefined}
               errors={errors}
@@ -1479,6 +1507,7 @@ function MountEditRow({
   row,
   n,
   first,
+  fixed,
   volumesList,
   targetsList,
   errors,
@@ -1488,6 +1517,7 @@ function MountEditRow({
   row: MountRow;
   n: number;
   first: boolean;
+  fixed: boolean;
   /** The datalists of volumes to offer as a source, and of the image's paths as a target. */
   volumesList: string | undefined;
   targetsList: string | undefined;
@@ -1506,6 +1536,7 @@ function MountEditRow({
         label={first ? t`Volume or server path` : undefined}
         mono
         value={row.source}
+        disabled={fixed}
         placeholder="data"
         // A server path is typed until the websites area's folder picker lands (#429).
         list={volumesList}
@@ -1519,6 +1550,7 @@ function MountEditRow({
         label={first ? t`Path in the app` : undefined}
         mono
         value={row.target}
+        disabled={fixed}
         placeholder="/data"
         list={targetsList}
         error={errors[`${row.key}.target`]}
@@ -1531,6 +1563,7 @@ function MountEditRow({
           id={id}
           type="checkbox"
           checked={row.readOnly}
+          disabled={fixed}
           onChange={(event) => onChange({ readOnly: event.target.checked })}
         />
         <span>{t`Read-only`}</span>
@@ -1541,9 +1574,14 @@ function MountEditRow({
         variant="ghost"
         icon="trash"
         aria-label={t`Remove mount ${n}`}
+        disabled={fixed}
         onClick={onRemove}
       />
-      {reach === "socket" ? (
+      {fixed ? (
+        <p className="app-reach-note">
+          <Trans>Its runtime mounts this folder at /app.</Trans>
+        </p>
+      ) : reach === "socket" ? (
         <p className="app-reach-note is-danger">
           <Icon name="shield" size={14} />
           <span>

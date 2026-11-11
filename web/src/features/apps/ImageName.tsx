@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { ServiceInfo } from "@dockwell/api";
 import { cx } from "@dockwell/ui";
 import { Fragment } from "react";
+
+import { useRuntimes } from "../websites/website";
+import { imageOf } from "./app";
+import { runtimeOf, runtimeWords } from "./runtime";
 
 /**
  * An image's name that keeps its end when it doesn't fit, as the last part and
@@ -37,6 +42,23 @@ export function WholeImage({ image }: { image: string }) {
           ) : null}
         </Fragment>
       ))}
+    </code>
+  );
+}
+
+/**
+ * What an app runs, as a list has room for: its image, or for an app from a folder
+ * what it runs on and the folder, such as "Node.js 24 · /srv/shop" (ADR 0058).
+ */
+export function WhatRuns({ service, className }: { service: ServiceInfo; className?: string | undefined }) {
+  const runtimes = useRuntimes().data;
+  const runtime = runtimeOf(service);
+  if (!runtime) return <ImageName image={imageOf(service)} className={className} />;
+  const words = `${runtimeWords(runtime, runtimes)} · `;
+  return (
+    <code className={cx("image-name", className)} title={words + runtime.folder}>
+      <span className="image-name-path">{words}</span>
+      <span className="image-name-end">{runtime.folder}</span>
     </code>
   );
 }

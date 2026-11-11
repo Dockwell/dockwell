@@ -94,6 +94,21 @@ export function checkPort(form: ImageForm): number | undefined {
   return row ? Number(row.container) : undefined;
 }
 
+/** New app's form, for an app from a folder on the server (ADR 0058): what its runtime says. */
+export interface FolderForm {
+  /** The language as a spec names it, such as "node". */
+  language: string;
+  /** Its version, such as "24". Empty takes the newest. */
+  version: string;
+  folder: string;
+  /** Empty takes the language's. */
+  install: string;
+  start: string;
+  port: string;
+  /** Who it runs as, "uid:gid". Empty is filled from the folder's owner, or the server's first user. */
+  user: string;
+}
+
 /** The form's fields, by a path a refusal can point at, such as "ports.3.host", with the row's key. */
 export type FormErrors = Readonly<Record<string, string>>;
 
@@ -118,6 +133,7 @@ export function appEdits(
   form: ImageForm,
   name: string,
   scope: { environment: string; servers: readonly string[]; volumes: readonly string[] },
+  folder?: FolderForm,
 ): MessageInitShape<typeof EditSchema>[] {
   const servers = [...scope.servers];
   const edits: MessageInitShape<typeof EditSchema>[] = [];
@@ -144,10 +160,24 @@ export function appEdits(
       kind: {
         case: "service",
         value: {
+          // An app from a folder: the server writes its image, command and folder from this.
+          ...(folder
+            ? {
+                runtime: {
+                  language: folder.language,
+                  version: folder.version,
+                  folder: folder.folder.trim(),
+                  install: folder.install.trim(),
+                  start: folder.start.trim(),
+                  port: folder.port.trim() === "" ? 0 : Number(folder.port.trim()),
+                  user: folder.user.trim(),
+                },
+              }
+            : {}),
           runs: {
             case: "app",
             value: {
-              image: form.image.trim(),
+              image: folder ? "" : form.image.trim(),
               env,
               ports: form.ports
                 .filter((p) => p.host.trim() !== "" || p.container.trim() !== "")

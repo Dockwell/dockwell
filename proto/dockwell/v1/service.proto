@@ -96,6 +96,22 @@ service ServiceService {
       body: "*"
     };
   }
+  // ChangeServiceRuntime plans running an app from a folder on another version
+  // of its language, or on the newest build of the version it has, with the
+  // rest of the service as it is: like DeployService, it needs no one to read
+  // the service's environment back. The plan replaces its container. See
+  // docs/adr/0058-runtimes-an-app-from-a-folder.md.
+  rpc ChangeServiceRuntime(ChangeServiceRuntimeRequest) returns (ChangeServiceRuntimeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "change-runtime"};
+    option (google.api.http) = {
+      post: "/v1/services/{id}:change-runtime"
+      body: "*"
+    };
+  }
   // OpenService gives the person who asks a one-time address that opens the web
   // UI a service publishes on its server, through the panel, on an origin of
   // the service's own (ADR 0061): the browser that opens it first, within a
@@ -377,6 +393,30 @@ message AddServicePortRequest {
 
 // AddServicePortResponse carries the planned change.
 message AddServicePortResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// ChangeServiceRuntimeRequest names an app from a folder and the version to run
+// it on.
+message ChangeServiceRuntimeRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The version, such as "24" for Node.js, which ListWebsiteRuntimes lists.
+  // Empty, or the one it has, takes the newest build of that version.
+  string version = 2;
+  // What the change is for, for the timeline. Empty says what it changes.
+  string summary = 3;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 4;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 5;
+}
+
+// ChangeServiceRuntimeResponse carries the planned change.
+message ChangeServiceRuntimeResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

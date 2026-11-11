@@ -93,8 +93,12 @@ export function useHealthWords(): HealthWords {
       says(server, now) {
         const said = server.last?.output ?? "";
         switch (server.kind) {
-          case "healthy":
+          case "healthy": {
+            // The agent says a port check that passed in English, the same each time.
+            const port = /^a connection to port (\d+) was taken\.?$/i.exec(said)?.[1];
+            if (port) return t`A connection to port ${port} was taken.`;
             return said ? asSentence(said) : t`Its check passed.`;
+          }
           case "running":
             return noCheck;
           case "starting":

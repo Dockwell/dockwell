@@ -1659,6 +1659,11 @@ type Hello struct {
 	// server unless a passkey confirmed it. Only the agent can tell where a path
 	// leads, so the control plane saves through no agent that doesn't.
 	GuardsWaysIn bool `protobuf:"varint,7,opt,name=guards_ways_in,json=guardsWaysIn,proto3" json:"guards_ways_in,omitempty"`
+	// True when the agent makes a mount's missing server folder as the owner the
+	// mount names (make_owner), by handle. The control plane plans no such mount on
+	// an agent that doesn't say so, which would make it root's. Numbered in the
+	// websites' block.
+	MakesFolders bool `protobuf:"varint,61,opt,name=makes_folders,json=makesFolders,proto3" json:"makes_folders,omitempty"`
 	// True when the agent reads the server's package updates (ListUpdatesCall).
 	// The terminal and updates take 50 to 59 in agent messages, as other work adds
 	// to them at once: the terminal 50 to 52, and updates 53, so the next of either
@@ -1792,6 +1797,13 @@ func (x *Hello) GetWritesReferences() bool {
 func (x *Hello) GetGuardsWaysIn() bool {
 	if x != nil {
 		return x.GuardsWaysIn
+	}
+	return false
+}
+
+func (x *Hello) GetMakesFolders() bool {
+	if x != nil {
+		return x.MakesFolders
 	}
 	return false
 }
@@ -11733,7 +11745,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xaf\x06\n" +
+	"\bDraining\"\xd4\x06\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -11741,7 +11753,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\vunavailable\x18\x04 \x03(\v2\".dockwell.agent.v1.UnavailableKindR\vunavailable\x12!\n" +
 	"\fdelivery_key\x18\x05 \x01(\fR\vdeliveryKey\x12+\n" +
 	"\x11writes_references\x18\x06 \x01(\bR\x10writesReferences\x12$\n" +
-	"\x0eguards_ways_in\x18\a \x01(\bR\fguardsWaysIn\x12\x18\n" +
+	"\x0eguards_ways_in\x18\a \x01(\bR\fguardsWaysIn\x12#\n" +
+	"\rmakes_folders\x18= \x01(\bR\fmakesFolders\x12\x18\n" +
 	"\aupdates\x185 \x01(\bR\aupdates\x12!\n" +
 	"\ffollows_pace\x18( \x01(\bR\vfollowsPace\x12\x1c\n" +
 	"\tterminals\x182 \x01(\bR\tterminals\x12%\n" +

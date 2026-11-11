@@ -2254,6 +2254,9 @@ msgstr "未应用"
 msgid "Not loaded"
 msgstr "未加载"
 
+msgid "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
+msgstr "PORT 由它的运行时设置，无法导入。请从此文件中移除 PORT。"
+
 msgid "Paste the file's text"
 msgstr "粘贴文件内容"
 
@@ -2281,6 +2284,9 @@ msgstr "密钥"
 msgid "Secret {from}"
 msgstr "密钥 {from}"
 
+msgid "Set by its runtime"
+msgstr "由它的运行时设置"
+
 msgid "Set on this app"
 msgstr "在此应用上设置"
 
@@ -2304,6 +2310,9 @@ msgstr "它们的值会被隐藏，显示其中一个需要你的通行密钥。
 
 msgid "Their values stay hidden, and Add waits until they load."
 msgstr "它们的值暂不显示，添加会等到读取完成。"
+
+msgid "This app uses the new value instead of its runtime's default."
+msgstr "此应用使用新值，替代运行时提供的默认值。"
 
 msgid "Type the whole value: every app that uses this secret gets it."
 msgstr "请输入完整的值：每个使用这个密钥的应用都会得到它。"
@@ -2413,6 +2422,9 @@ msgstr "面包屑导航"
 msgid "Can't load this app"
 msgstr "无法加载此应用"
 
+msgid "Change version"
+msgstr "更改版本"
+
 msgid "Deploy"
 msgstr "部署"
 
@@ -2468,6 +2480,10 @@ msgstr "由 Dockwell 回滚于 {ago}"
 msgid "{name} logs"
 msgstr "{name} 日志"
 
+#. placeholder {0}: runtime.folder
+msgid "{runsOn} from <0>{0}</0>"
+msgstr "{runsOn}，来自 <0>{0}</0>"
+
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
@@ -2484,6 +2500,10 @@ msgstr "全部部署"
 
 msgid "All of it"
 msgstr "查看全部"
+
+#. placeholder {0}: runtime.version
+msgid "An older build of {0}"
+msgstr "{0} 的较旧构建"
 
 msgid "Checks"
 msgstr "检查内容"
@@ -2530,11 +2550,17 @@ msgstr "Dockwell 无法读取 {name} 运行的内容"
 msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 msgstr "在代理重新连接之前，Dockwell 无法在那里查看或更改 {name}。它很可能仍在运行。"
 
+msgid "Dockwell no longer offers this version, so no new app runs on it"
+msgstr "Dockwell 不再提供这个版本，所以不会有新应用运行在它上面"
+
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell 已恢复 <0>{image}</0>，与那次部署之前一样。"
 
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "它运行过的每台服务器都已离开集群，因此 Dockwell 无法在那里查看或更改它，它的容器可能仍在那些服务器上运行。部署它，即可在集群中的服务器上运行。"
+
+msgid "Each start installs again, so what you change in its folder runs once you restart it."
+msgstr "每次启动都会重新安装，所以你在它文件夹里的改动会在重启后生效。"
 
 msgid "Entrypoint"
 msgstr "入口点"
@@ -2549,11 +2575,17 @@ msgstr "未通过"
 msgid "Fix what stopped the deploy, then deploy again."
 msgstr "请修复导致部署失败的问题，然后重新部署。"
 
+msgid "Folder"
+msgstr "文件夹"
+
 msgid "Follow it"
 msgstr "查看进度"
 
 msgid "Health check"
 msgstr "健康检查"
+
+msgid "Installs with"
+msgstr "安装命令"
 
 msgid "It keeps going whether or not you stay here. Its steps show in the plan."
 msgstr "无论你是否留在此页，部署都会继续。步骤显示在计划中。"
@@ -2588,6 +2620,9 @@ msgstr "未设置"
 msgid "None."
 msgstr "无。"
 
+msgid "Nothing"
+msgstr "无"
+
 msgid "Nothing outside the server reaches it yet."
 msgstr "服务器外部暂时无法访问它。"
 
@@ -2602,6 +2637,9 @@ msgstr "暂无。部署完成后开始运行。"
 
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
 msgstr "重新连接后，Dockwell 会在部署失败后恢复 <0>{image}</0>。"
+
+msgid "Open in Files"
+msgstr "在“文件”中打开"
 
 msgid "Open the plan"
 msgstr "打开计划"
@@ -2648,6 +2686,9 @@ msgstr "回滚失败于 {when}"
 msgid "Runs with"
 msgstr "一同运行的应用"
 
+msgid "Runtime"
+msgstr "运行时"
+
 msgid "See its logs"
 msgstr "查看日志"
 
@@ -2662,6 +2703,9 @@ msgstr "设置"
 
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "{name} 有部分在运行，但 Dockwell 无法确定是哪个版本。请检查后部署应当运行的版本，或在服务器上修复。"
+
+msgid "Starts with"
+msgstr "启动命令"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "{server} 上的代理最近没有报告它的运行情况。它很可能仍在运行。"
@@ -2702,6 +2746,11 @@ msgstr "{away} 重新连接前无法确定"
 
 msgid "Unknown, as putting it back failed"
 msgstr "未知，因为恢复失败了"
+
+#. placeholder {0}: newer.release
+#. placeholder {0}: runtime.release
+msgid "Update to {0}"
+msgstr "更新到 {0}"
 
 msgid "Volumes"
 msgstr "卷"
@@ -2903,6 +2952,15 @@ msgstr "它没有发布端口。添加一个，就能从服务器外访问它。
 
 msgid "It publishes this port already."
 msgstr "它已经发布了这个端口。"
+
+msgid "Its runtime checks its port by TCP, with 10 minutes to start."
+msgstr "它的运行时通过 TCP 检查端口，并留出 10 分钟供应用启动。"
+
+msgid "Its runtime mounts this folder at /app."
+msgstr "它的运行时将此文件夹挂载到 /app。"
+
+msgid "Its runtime sets the command, entrypoint, user and directory."
+msgstr "它的运行时设置命令、入口点、用户和目录。"
 
 msgid "Keep no more for it than its limit, {memory}."
 msgstr "为它预留的不能超过它的限制 {memory}。"
@@ -3411,6 +3469,96 @@ msgstr "此应用"
 msgid "What to export"
 msgstr "要导出的内容"
 
+msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+msgstr "应用不会以 root 运行。请使用文件夹所有者的 uid:gid，例如 1000:1000。"
+
+msgid "Choose the folder that holds the app."
+msgstr "请选择存放应用的文件夹。"
+
+msgid "Dockwell makes it, owned by <0>{user}</0>"
+msgstr "Dockwell 会创建它，所有者为 <0>{user}</0>"
+
+#. placeholder {0}: PORT_FILES[detected.language] ?? ""
+msgid "From {0}. The app gets it as PORT."
+msgstr "来自 {0}。应用通过 PORT 获得它。"
+
+msgid "Holds {found}"
+msgstr "包含 {found}"
+
+msgid "It has no <0>{first}</0>. Put the app's files there."
+msgstr "其中没有 <0>{first}</0>。请把应用的文件放进去。"
+
+msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+msgstr "它属于 <0>{theirs}</0>，而应用以 <1>{user}</1> 运行。"
+
+#. placeholder {0}: dir.mode
+msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgstr "它的权限是 <0>{0}</0>。请在服务器上运行 <1>chmod u+w {path}</1>。"
+
+msgid "Language"
+msgstr "语言"
+
+msgid "Name the app, or give its folder on the server, such as /srv/shop."
+msgstr "请为应用命名，或填写它在服务器上的文件夹，例如 /srv/shop。"
+
+msgctxt "a folder that isn't there yet"
+msgid "New"
+msgstr "新建"
+
+msgid "No {languageWord} app in {path} yet"
+msgstr "{path} 中还没有 {languageWord} 应用"
+
+msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
+msgstr "请在服务器上运行 <0>sudo chown -R {user} {path}</0>。"
+
+msgid "Run as {theirs}"
+msgstr "以 {theirs} 运行"
+
+msgid "Runs as"
+msgstr "运行用户"
+
+msgid "Runs before each start. Write - to install nothing."
+msgstr "每次启动前运行。填 - 表示不安装。"
+
+msgid "The app can't write to {path}"
+msgstr "应用无法写入 {path}"
+
+msgid "The app gets it as PORT."
+msgstr "应用通过 PORT 获得它。"
+
+msgid "Use a folder of its own, not the server's root."
+msgstr "请使用它自己的文件夹，不要用服务器的根目录。"
+
+msgid "Use a full path on the server, such as /srv/shop."
+msgstr "请使用服务器上的完整路径，例如 /srv/shop。"
+
+msgid "Version"
+msgstr "版本"
+
+msgid "Write it as uid:gid, such as 1000:1000."
+msgstr "请写成 uid:gid，例如 1000:1000。"
+
+msgid "as {user}"
+msgstr "以 {user} 运行"
+
+msgid "from {from}"
+msgstr "来自 {from}"
+
+msgid "port {port}"
+msgstr "端口 {port}"
+
+msgid "uid:gid of the folder's owner."
+msgstr "文件夹所有者的 uid:gid。"
+
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
+
+msgid "{path} is a file"
+msgstr "{path} 是文件"
+
+msgid "{path} is root's, and an app never runs as root"
+msgstr "{path} 属于 root，而应用不会以 root 运行"
+
 msgid "A tunnel on this server"
 msgstr "此服务器上的隧道"
 
@@ -3452,6 +3600,9 @@ msgstr "前面是什么"
 
 msgid "You name what connects to this server."
 msgstr "由你写明连接此服务器的来源。"
+
+msgid "A connection to port {port} was taken."
+msgstr "连接端口 {port} 成功。"
 
 msgid "Checking"
 msgstr "正在检查"
@@ -3795,6 +3946,9 @@ msgstr "除非手动停止否则重启"
 msgid "Run a Compose file"
 msgstr "运行 Compose 文件"
 
+msgid "Run {name} from {path}"
+msgstr "从 {path} 运行 {name}"
+
 msgid "Run {projectName} from a Compose file"
 msgstr "通过 Compose 文件运行 {projectName}"
 
@@ -3927,6 +4081,46 @@ msgstr "{count, plural, other {显示}}"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
+
+msgid "Change {name}'s version"
+msgstr "更改 {name} 的版本"
+
+msgid "Check its logs for what the install or the start said, then try again."
+msgstr "查看它的日志，看安装或启动时输出了什么，然后重试。"
+
+msgid "Choose again"
+msgstr "重新选择"
+
+msgid "Each start installs again, so check the app's lockfile works with the new version."
+msgstr "每次启动都会重新安装，所以请确认应用的锁文件适用于新版本。"
+
+#. placeholder {0}: newer.release
+msgid "It runs an older build of {current}. The plan updates it to {0}."
+msgstr "它运行的是 {current} 的较旧构建。该计划会把它更新到 {0}。"
+
+msgid "It runs this version's newest build already"
+msgstr "它已在运行这个版本的最新构建"
+
+msgid "It runs what's in its folder on the new version, with the rest as it is"
+msgstr "它会用新版本运行文件夹里的内容，其余保持不变"
+
+msgid "Run {name} on {word} {version}, from {current}"
+msgstr "在 {word} {version} 上运行 {name}（原为 {current}）"
+
+msgid "Update {name} to {word} {release}"
+msgstr "把 {name} 更新到 {word} {release}"
+
+#. placeholder {0}: v.version
+#. placeholder {1}: v.release
+msgid "{0} · {1}, the one it runs"
+msgstr "{0} · {1}，当前运行的版本"
+
+#. placeholder {0}: v.version
+msgid "{0}, the one it runs"
+msgstr "{0}，当前运行的版本"
+
+msgid "{word} version"
+msgstr "{word} 版本"
 
 msgid "Changed {field}"
 msgstr "已更改 {field}"
@@ -5431,9 +5625,6 @@ msgstr "源代码"
 msgid "Source for: {0}"
 msgstr "来源：{0}"
 
-msgid "Version"
-msgstr "版本"
-
 msgid "Website"
 msgstr "网站"
 
@@ -5659,9 +5850,6 @@ msgstr "目前只读取 Dockwell 自带的目录"
 
 msgid "Entries at {folderWords}"
 msgstr "条目位于 {folderWords}"
-
-msgid "Folder"
-msgstr "文件夹"
 
 msgid "Its top"
 msgstr "仓库根目录"
@@ -8144,9 +8332,6 @@ msgstr "没有卷"
 msgid "No volume, so its data goes with its container"
 msgstr "没有卷，数据会随容器一起丢失"
 
-msgid "Nothing"
-msgstr "无"
-
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "服务器上没有任何改动。页面会自动重试。"
 
@@ -8895,9 +9080,6 @@ msgstr "读取 1Panel 保存的内容"
 
 msgid "Review the plan"
 msgstr "查看计划"
-
-msgid "Runtime"
-msgstr "运行环境"
 
 msgid "Stays with 1Panel"
 msgstr "保留在 1Panel 中"
@@ -10511,6 +10693,7 @@ msgstr "已运行 {uptime}"
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
 
+#. placeholder {0}: apps.length
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, other {# 个应用}}"
@@ -11429,9 +11612,6 @@ msgstr "Caddy，即服务器的入口，在服务器有路由期间占用 80 和
 
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell 自身，使用 {ca} 签发并由它续期的证书"
-
-msgid "Language"
-msgstr "语言"
 
 msgid "Loopback"
 msgstr "本机回环"
@@ -13466,11 +13646,18 @@ msgstr "提供的内容"
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> 运行的是 {0} 的旧构建"
 
+msgid "<0>{name}</0> runs an older build of {version}"
+msgstr "<0>{name}</0> 运行的是 {version} 的较旧构建"
+
 msgid "Build"
 msgstr "构建"
 
 msgid "Extensions"
 msgstr "扩展"
+
+#. placeholder {0}: newest.version
+msgid "New app on {language} {0}"
+msgstr "在 {language} {0} 上新建应用"
 
 #. placeholder {0}: runtime.version
 msgid "New website on {0}"
@@ -13479,18 +13666,20 @@ msgstr "用 {0} 新建网站"
 msgid "No website yet"
 msgstr "还没有网站"
 
-msgid "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
-msgstr "Node.js、Python 等其他语言以应用的形式运行，来自镜像或<0>应用目录</0>，并有自己的域名。"
-
 msgid "Not used"
 msgstr "未使用"
+
+msgid "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
+msgstr "其他语言以来自镜像或<0>应用目录</0>的应用运行，并有各自的域名。"
 
 msgid "Runtimes"
 msgstr "运行环境"
 
-#. placeholder {0}: runtime.release
-msgid "Update to {0}"
-msgstr "更新到 {0}"
+msgid "Update to {release}"
+msgstr "更新到 {release}"
+
+msgid "Update {name} to {language} {release}"
+msgstr "把 {name} 更新到 {language} {release}"
 
 #. placeholder {0}: runtime.release
 msgid "Update {name}'s PHP to {0}"
@@ -13503,8 +13692,8 @@ msgstr "{0, plural, other {# 个网站}}"
 msgid "{extra, plural, one {and # more} other {and # more}}"
 msgstr "{extra, plural, other {以及另外 # 个}}"
 
-msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-msgstr "{inUse, plural, other {# 个正在使用 · 每个 PHP 网站各自运行一个}}"
+msgid "{inUse, plural, one {# in use · each website and app runs its own} other {# in use · each website and app runs its own}}"
+msgstr "{inUse, plural, other {# 个在用 · 每个网站和应用各自运行自己的}}"
 
 msgid "Can't reach {host}"
 msgstr "无法访问 {host}"
@@ -13703,9 +13892,6 @@ msgstr "交给 index.php，符合 WordPress 和 Laravel 的要求"
 msgid "Holds index.php, which only a PHP site runs."
 msgstr "包含 index.php，只有 PHP 网站才会运行它。"
 
-msgid "Holds {found}"
-msgstr "包含 {found}"
-
 msgid "Index files"
 msgstr "首页文件"
 
@@ -13754,12 +13940,6 @@ msgstr "PHP {0} · {1}"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
-
-msgid "Run as {theirs}"
-msgstr "以 {theirs} 运行"
-
-msgid "Runs as"
-msgstr "运行用户"
 
 msgid "Runs as {who} · {mb} MiB uploads"
 msgstr "以 {who} 运行 · 上传上限 {mb} MiB"
@@ -13829,9 +14009,6 @@ msgstr "{edited, plural, other {已更改 # 项}}"
 msgid "{index} · single-page app"
 msgstr "{index} · 单页应用"
 
-msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-msgstr "{others, plural, other {包含 {found} 及另外 # 项}}"
-
 msgid "Change the folder"
 msgstr "更改文件夹"
 
@@ -13849,9 +14026,6 @@ msgstr "权限"
 
 msgid "No folder of its own"
 msgstr "没有自己的文件夹"
-
-msgid "Open in Files"
-msgstr "在“文件”中打开"
 
 msgid "The folder is empty"
 msgstr "文件夹是空的"
