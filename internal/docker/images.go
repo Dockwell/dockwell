@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -73,6 +74,25 @@ func (c *Client) InspectImage(ctx context.Context, ref string) (*Image, error) {
 // error that NotPullable reports when the registry won't give it to a pull.
 func (c *Client) CheckPullable(ctx context.Context, ref string) error {
 	return c.do(ctx, http.MethodGet, "/distribution/"+escRef(WithTag(ref))+"/json", nil, nil, &struct{}{})
+}
+
+// Found is an image a search of Docker Hub found.
+type Found struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Official    bool   `json:"is_official"`
+	Stars       int64  `json:"star_count"`
+}
+
+// SearchImages asks Docker Hub, through the engine, for images whose names hold
+// a term, limit at most.
+func (c *Client) SearchImages(ctx context.Context, term string, limit int) ([]Found, error) {
+	var out []Found
+	q := url.Values{"term": {term}, "limit": {strconv.Itoa(limit)}}
+	if err := c.do(ctx, http.MethodGet, "/images/search", q, nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // NotPullable reports what CheckPullable returned for an image a pull can't

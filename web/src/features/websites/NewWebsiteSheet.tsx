@@ -3,7 +3,18 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type Change, ChangeState, type Server, WebsiteService } from "@dockwell/api";
-import { Button, Callout, cx, Icon, PHONE_QUERY, SelectField, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
+import {
+  Advanced,
+  Button,
+  Callout,
+  cx,
+  Icon,
+  PHONE_QUERY,
+  SelectField,
+  Sheet,
+  TextField,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -24,7 +35,7 @@ import {
   refusedField as servesField,
   specOf,
 } from "./settings";
-import { useMissingWords, useServesWords, WebsiteFields } from "./WebsiteFields";
+import { SplitWebsiteFields, useMissingWords, useServesWords } from "./WebsiteFields";
 import "../apps/Apps.css";
 import "./Websites.css";
 import { useMay } from "../auth/may";
@@ -36,10 +47,11 @@ function serverOf(fleet: FleetState, id: string): Server | undefined {
 }
 
 /**
- * New website: its domain, what it serves, and what's in front of the server, then the
- * plan. A folder and a URL are served by a small web server of its own; a folder and a
- * port on the server need a person, which the plan says. The folder follows the domain,
- * as /var/www/<domain>, until it's typed.
+ * New website: its domain, what it serves and where from, then the plan. What has a good
+ * default (index files, who PHP runs as, HTTPS and what's in front) waits under Advanced,
+ * each a line that says what it is. The folder follows the domain, as /var/www/<domain>,
+ * until one is picked, and is made with the site when it isn't there. Once it applies,
+ * the website's own page opens, with its state and its address to visit.
  */
 export function NewWebsiteSheet({
   onClose,
@@ -47,7 +59,8 @@ export function NewWebsiteSheet({
   start,
 }: {
   onClose: () => void;
-  onMade?: (domain: string) => void;
+  /** Opens the website made, by its ID, once its change applies. */
+  onMade?: (websiteId: string) => void;
   /** What it starts from, as a runtime's card asks for PHP of its version. */
   start?: { serves?: Serves; version?: string };
 }) {
@@ -77,6 +90,7 @@ export function NewWebsiteSheet({
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<Opening>();
+  const [httpsOpen, setHttpsOpen] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
   const choiceName = useId();
@@ -116,7 +130,8 @@ export function NewWebsiteSheet({
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy) return;
+    // Enter and Ctrl+Enter follow the role, as the button does.
+    if (busy || !mayCreate.allowed) return;
     const domainOk = typed !== "" && !/\s/.test(typed);
     const gap = missing(settings);
     const named = proxyList(proxies);
@@ -154,10 +169,13 @@ export function NewWebsiteSheet({
       return;
     }
     setBusy(false);
+    // The website is its project, whose ID is the website's.
+    const made = change?.plan?.resources.find((r) => r.resource?.kind === "project")?.id ?? "";
     setPlan({
       kind: "plan",
       make: () => Promise.resolve({ change }),
       retryLabel: t`Edit and try again`,
+      ...(made && onMade ? { doneLabel: t`Go to the website` } : {}),
       onDone: onClose,
       onClose: (after) => {
         // Cancelling comes back here, with what you typed, as failing does, saying why
@@ -166,33 +184,30 @@ export function NewWebsiteSheet({
           land(after.error, typed);
           reveal.current = true;
           setPlan(undefined);
-        } else if (!after || after.state === ChangeState.PLANNED) setPlan(undefined);
-        else {
-          onMade?.(typed);
-          onClose();
-        }
+        } else if (!after || after.state === ChangeState.PLANNED || after.state === ChangeState.DISCARDED) {
+          setPlan(undefined);
+          // Undone in the same sheet, it has no page to open.
+        } else if (made && onMade && after.reverts === "") onMade(made);
+        else onClose();
       },
     });
   };
 
   const choices: { value: Serves; hint: string }[] = [
-    {
-      value: "folder",
-      hint: t`A static site: the files in a folder on this server, as they are. You approve the folder in the plan.`,
-    },
-    {
-      value: "php",
-      hint: t`A PHP site, such as WordPress: PHP-FPM of the version you choose runs its code, and its other files are served as they are. You approve the folder in the plan.`,
-    },
-    {
-      value: "url",
-      hint: t`Another site, or an address on your network, such as http://10.0.0.5:8080. A small web server of its own sends each request on.`,
-    },
-    {
-      value: "port",
-      hint: t`Something listening on the server itself, such as port 3000. It sees every visitor as local, so you approve it in the plan.`,
-    },
+    { value: "folder", hint: t`A static site, sent as its files are.` },
+    { value: "php", hint: t`Such as WordPress, run by PHP-FPM of its own.` },
+    { value: "url", hint: t`Another site, or an address on your network.` },
+    { value: "port", hint: t`Something listening on this server, such as port 3000.` },
   ];
+  const fieldErrors = fieldError ? { [fieldError.field]: fieldError.said } : {};
+  // HTTPS opens on what's in front being refused, and stays open until it's closed by
+  // hand, so fixing it doesn't fold it away under the cursor, as Advanced does.
+  if (proxiesError !== undefined && !httpsOpen) setHttpsOpen(true);
+  const onFields = (next: Settings) => {
+    if (next.root !== settings.root) rootTyped.current = true;
+    setSettings(next);
+    setFieldError(undefined);
+  };
 
   return (
     <Sheet
@@ -252,13 +267,6 @@ export function NewWebsiteSheet({
           placeholder="blog.example.com"
           value={domain}
           error={domainError}
-          hint={
-            !noCertificate
-              ? t`Point its DNS at this server, before or after. Its certificate comes by itself once it does.`
-              : inFront === "anyone"
-                ? t`Point its DNS at this server.`
-                : t`Point its DNS at your tunnel or proxy.`
-          }
           onChange={(event) => {
             setDomain(event.target.value);
             setDomainError(undefined);
@@ -280,7 +288,6 @@ export function NewWebsiteSheet({
         {several ? (
           <SelectField
             label={t`Server`}
-            hint={t`A website runs on one server, as its certificate comes to the one its DNS points at.`}
             error={serverError}
             value={server}
             options={[
@@ -316,32 +323,42 @@ export function NewWebsiteSheet({
             </label>
           ))}
         </fieldset>
-        <WebsiteFields
+        <SplitWebsiteFields
           settings={settings}
           server={serverOf(fleet, server)?.id ?? ""}
-          errors={fieldError ? { [fieldError.field]: fieldError.said } : {}}
-          onChange={(next) => {
-            if (next.root !== settings.root) rootTyped.current = true;
-            setSettings(next);
-            setFieldError(undefined);
-          }}
+          errors={fieldErrors}
+          onChange={onFields}
         />
-        <FrontFields
-          behind="website"
-          noCertificate={noCertificate}
-          onNoCertificate={setNoCertificate}
-          inFront={inFront}
-          onInFront={(value) => {
-            setInFront(value);
-            setProxiesError(undefined);
-          }}
-          proxies={proxies}
-          onProxies={(value) => {
-            setProxies(value);
-            setProxiesError(undefined);
-          }}
-          proxiesError={proxiesError}
-        />
+        {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. */}
+        <Advanced
+          label={t`HTTPS`}
+          summary={
+            !noCertificate
+              ? t`On, with a certificate that comes by itself`
+              : inFront === "anyone"
+                ? t`Off: plain HTTP to anyone`
+                : t`Handled in front of this server`
+          }
+          open={httpsOpen}
+          onOpenChange={setHttpsOpen}
+        >
+          <FrontFields
+            behind="website"
+            noCertificate={noCertificate}
+            onNoCertificate={setNoCertificate}
+            inFront={inFront}
+            onInFront={(value) => {
+              setInFront(value);
+              setProxiesError(undefined);
+            }}
+            proxies={proxies}
+            onProxies={(value) => {
+              setProxies(value);
+              setProxiesError(undefined);
+            }}
+            proxiesError={proxiesError}
+          />
+        </Advanced>
       </form>
     </Sheet>
   );

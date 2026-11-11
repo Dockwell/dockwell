@@ -25,6 +25,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/mattn/go-shellwords v1.0.12
+	github.com/pjbgf/sha1cd v0.7.0
 	github.com/quic-go/quic-go v0.63.0
 	github.com/sirupsen/logrus v1.10.1
 	github.com/spf13/cobra v1.10.2

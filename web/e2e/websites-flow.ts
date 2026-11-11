@@ -140,9 +140,11 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await sheet.getByText("Name the domain, such as blog.example.com.").waitFor();
   await sheet.getByText("Give the folder that holds its files, such as /var/www/blog.").waitFor();
   await sheet.getByRole("textbox", { name: "Domain", exact: true }).fill("blog.example.net");
-  const folder = sheet.getByRole("textbox", { name: "Folder", exact: true });
-  if ((await folder.inputValue()) !== "/var/www/blog.example.net") {
-    fail(`the folder doesn't follow the domain: ${await folder.inputValue()}`);
+  // The folder is picked, not typed. Refused a moment ago, its picker stays open while
+  // it's fixed, and its path follows the domain.
+  const path = sheet.getByRole("textbox", { name: "Path", exact: true });
+  if ((await path.inputValue()) !== "/var/www/blog.example.net") {
+    fail(`the folder doesn't follow the domain: ${await path.inputValue()}`);
   }
   // With several servers, the sheet asks which, as a website runs on one.
   const where = sheet.getByRole("combobox", { name: "Server" });
@@ -151,7 +153,8 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
     await where.selectOption({ index: 1 });
   }
   // What's at the folder is read on its server, which with several is the one chosen.
-  await sheet.getByText(/Nothing is at/).waitFor({ timeout: 15_000 });
+  await sheet.getByText(/^New\. Made with the site/).waitFor({ timeout: 15_000 });
+  if (await sheet.getByLabel("Index files").isVisible()) fail("New website asks for index files, which have a default");
   await shoot(page, "website-new");
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   const plan = page.getByRole("dialog", { name: "Review plan" });
@@ -184,6 +187,8 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   step("websites: one to a port on the server behind a tunnel, which the plan says a person approves");
   await sheet.getByRole("radio", { name: /A port on this server/ }).check();
   await sheet.getByRole("textbox", { name: "Port on the server", exact: true }).fill("3000");
+  // HTTPS is on by default, and what's in front of the server is a step away.
+  await sheet.getByRole("button", { name: "HTTPS" }).click();
   await sheet.getByRole("switch", { name: /tunnel/i }).check();
   await sheet.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
@@ -203,6 +208,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   await version.waitFor();
   const newest = await version.inputValue();
   if (!/^8\.\d$/.test(newest)) fail(`a PHP site starts on PHP ${newest}`);
+  await sheet.getByRole("button", { name: "Advanced" }).click();
   await sheet.getByRole("textbox", { name: "Runs as", exact: true }).fill("1000");
   await shoot(page, "website-new-php");
   await sheet.getByRole("button", { name: /Review plan/ }).click();

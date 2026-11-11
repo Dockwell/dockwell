@@ -224,6 +224,53 @@ type Info struct {
 	SecurityOptions []string
 	// LiveRestoreEnabled says containers keep running while the engine restarts.
 	LiveRestoreEnabled bool
+	// RegistryConfig is how it reaches registries: its mirrors of Docker Hub,
+	// and which registries it reaches over plain HTTP.
+	RegistryConfig *RegistryConfig
+}
+
+// RegistryConfig is how the engine reaches registries, as its daemon.json says.
+type RegistryConfig struct {
+	// Mirrors are where it pulls Docker Hub's images from first, such as
+	// "https://mirror.example.com/".
+	Mirrors []string
+	// IndexConfigs says, by registry, whether it's reached over HTTPS.
+	IndexConfigs map[string]struct {
+		Secure bool
+	}
+	// InsecureRegistryCIDRs are the networks whose registries it reaches over
+	// plain HTTP, such as "10.0.0.0/8".
+	InsecureRegistryCIDRs []string
+}
+
+// Insecure reports a registry the engine reaches over plain HTTP: one its
+// daemon.json names as insecure, by name or by its network, or one on the
+// server itself, as Docker takes 127.0.0.0/8 to be.
+func (r *RegistryConfig) Insecure(host string) bool {
+	if r != nil {
+		if c, ok := r.IndexConfigs[host]; ok {
+			return !c.Secure
+		}
+	}
+	name := host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		name = h
+	}
+	if name == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(name)
+	if ip == nil {
+		return false
+	}
+	if r != nil {
+		for _, cidr := range r.InsecureRegistryCIDRs {
+			if _, n, err := net.ParseCIDR(cidr); err == nil && n.Contains(ip) {
+				return true
+			}
+		}
+	}
+	return ip.IsLoopback()
 }
 
 // Rootless reports an engine that runs as an ordinary user, whose host

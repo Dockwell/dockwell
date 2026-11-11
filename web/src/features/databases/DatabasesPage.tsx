@@ -124,7 +124,7 @@ export function DatabasesPage({
       ) : count === 0 && !query.error ? (
         <Panel>
           <EmptyState icon="database" title={t`No databases yet`} action={newDatabase}>
-            <Trans>PostgreSQL, MySQL, MariaDB or Redis, with its password made for you.</Trans>
+            <Trans>PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server.</Trans>
           </EmptyState>
         </Panel>
       ) : phone ? (
@@ -164,7 +164,7 @@ function Strangers({ strangers }: { strangers: readonly Stranger[] }) {
       })}
     >
       <p className="databases-strangers-line">
-        <Trans>Take one on from its page to see it here. It keeps running as it is, with no restart.</Trans>
+        <Trans>Take one on from its page: it keeps running, with no restart.</Trans>
       </p>
       <ul className="databases-strangers">
         {strangers.map((s) => (

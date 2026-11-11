@@ -54,7 +54,8 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
   if (!row) {
     return (
       <Page title={t`Website`} backLink={backLink} breadcrumb={<Crumbs />}>
-        {websites.isPending ? (
+        {/* One just made may not be in a list read before it was. */}
+        {websites.isPending || websites.isFetching ? (
           <div className="website-loading" aria-busy="true">
             <span className="dw-sr">
               <Trans>Loading the website</Trans>
