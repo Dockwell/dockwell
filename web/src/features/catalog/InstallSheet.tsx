@@ -12,6 +12,7 @@ import {
   HostAccessKind,
   type Input,
   InputType,
+  RestartPolicy,
 } from "@dockwell/api";
 import {
   Advanced,
@@ -26,6 +27,7 @@ import {
   type PlanResource,
   type PortCheck,
   PortField,
+  SelectField,
   Sheet,
   STATUS,
   TextField,
@@ -44,6 +46,8 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
+import { validCpus, validMemory } from "../apps/specEdit";
+import { useAppWords } from "../apps/words";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
@@ -64,6 +68,19 @@ const inSentence = (label: string) =>
 
 /** Whether a person gives an input: Dockwell makes one that generates. */
 const asked = (input: Input) => input.generate === 0;
+
+/** What a person sets of a service's limits and restarts, in place of its entry's. */
+interface Limit {
+  cpus?: string;
+  memory?: string;
+  restart?: RestartPolicy;
+}
+
+const RESTARTS = [RestartPolicy.UNLESS_STOPPED, RestartPolicy.ALWAYS, RestartPolicy.ON_FAILURE, RestartPolicy.NO];
+
+/** When Docker restarts a part as its entry has it, where unset is the driver's default. */
+const entryRestart = (part: CatalogPart) =>
+  part.restart === RestartPolicy.UNSPECIFIED ? RestartPolicy.UNLESS_STOPPED : part.restart;
 
 /**
  * Install from the catalog (Catalog-Install), defaults first: the newest version,
@@ -87,6 +104,7 @@ export function InstallSheet({
   engines?: { entries: readonly Entry[]; onPick: (id: string) => void };
 }) {
   const { t } = useLingui();
+  const words = useAppWords();
   // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
   const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
   const phone = useMediaQuery(PHONE_QUERY);
@@ -114,6 +132,7 @@ export function InstallSheet({
   const [failure, setFailure] = useState<string>();
   const [nameError, setNameError] = useState<string>();
   const [serversError, setServersError] = useState<string>();
+  const [limits, setLimits] = useState<Readonly<Record<string, Limit>>>({});
   // The plan under review takes this sheet over, and Cancel brings the form back as it was.
   const [plan, setPlan] = useState<Opening>();
   const change = (key: string) => setChanging((was) => new Set(was).add(key));
@@ -175,6 +194,48 @@ export function InstallSheet({
   const top = inputs.filter(onTop);
   const more = inputs.filter((input) => !onTop(input));
 
+  // What each part may use and when it restarts: the entry's, unless someone changed it.
+  const parts = got.data?.parts ?? [];
+  const cpusOf = (part: CatalogPart) => limits[part.service]?.cpus ?? part.cpus;
+  const memoryOf = (part: CatalogPart) => limits[part.service]?.memory ?? part.memory;
+  const restartOf = (part: CatalogPart) => limits[part.service]?.restart ?? entryRestart(part);
+  const limitErrors = (part: CatalogPart) => {
+    const cpus = cpusOf(part).trim();
+    const memory = memoryOf(part).trim();
+    return {
+      cpus: cpus === "" || validCpus(cpus) ? undefined : t`Use a number of CPUs above 0, such as 0.5 or 2.`,
+      memory: memory === "" || validMemory(memory) ? undefined : t`Use an amount from 6M, such as 512M or 2G.`,
+    };
+  };
+  // The first limit that's wrong, which the footer names, as Advanced may be closed over it.
+  const badPart = parts.find((part) => {
+    const errors = limitErrors(part);
+    return errors.cpus !== undefined || errors.memory !== undefined;
+  });
+  const limitsInvalid = badPart !== undefined;
+  const badService = badPart?.service ?? "";
+  const setLimit = (part: CatalogPart, next: Limit) =>
+    setLimits((was) => ({ ...was, [part.service]: { ...was[part.service], ...next } }));
+  // Only what differs from the entry goes in the request, so the plan and the command say no more.
+  const tuned = <T,>(of: (part: CatalogPart) => T, entryOf: (part: CatalogPart) => T, given: (value: T) => boolean) =>
+    Object.fromEntries(
+      parts.flatMap((part) => {
+        const v = of(part);
+        return given(v) && v !== entryOf(part) ? [[part.service, v]] : [];
+      }),
+    );
+  const memory: Record<string, string> = tuned(
+    (part) => memoryOf(part).trim(),
+    (part) => part.memory,
+    (v) => v !== "",
+  );
+  const cpus: Record<string, string> = tuned(
+    (part) => cpusOf(part).trim(),
+    (part) => part.cpus,
+    (v) => v !== "",
+  );
+  const restart: Record<string, RestartPolicy> = tuned(restartOf, entryRestart, () => true);
+
   const name = (typedName ?? got.data?.project ?? "").trim();
   const nameOpen = changing.has("name") || nameError !== undefined;
   // A default shows as its field once someone changes it, and from the start when there's no default to show.
@@ -184,7 +245,8 @@ export function InstallSheet({
   // Where it comes from decides what the sheet says of it, so a plan waits until that's read.
   const origins = useOrigins();
   const source = origins.origins.get(id)?.name;
-  const ready = entry !== undefined && origins.data !== undefined && !origins.error && !nameInvalid && !missing;
+  const ready =
+    entry !== undefined && origins.data !== undefined && !origins.error && !nameInvalid && !missing && !limitsInvalid;
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
   const missingLabel = missing?.label ?? "";
@@ -203,6 +265,9 @@ export function InstallSheet({
             Object.entries(values).filter(([key, v]) => v !== "" && v !== (got.data?.values[key] ?? "")),
           ),
           servers: fleet ? [...chosenServers] : [],
+          memory,
+          cpus,
+          restart,
         },
         (_path, key) => !secrets.has(key),
       )
@@ -212,7 +277,16 @@ export function InstallSheet({
     ...(generated.length > 0
       ? [plural(generated.length, { one: "# secret generated", other: "# secrets generated" })]
       : []),
-    ...(got.data?.parts ?? []).map((part) => part.image),
+    // The parts someone set a limit or a restart for, as what they set.
+    ...parts.flatMap((part) => {
+      const set = [
+        cpus[part.service] ? t`${cpus[part.service]} vCPU` : "",
+        memory[part.service] ?? "",
+        restart[part.service] !== undefined ? words.restart(restart[part.service] as RestartPolicy) : "",
+      ].filter(Boolean);
+      return set.length > 0 ? [`${part.service} ${set.join(", ")}`] : [];
+    }),
+    ...parts.map((part) => part.image),
   ].join(" · ");
 
   const review = (planned: Change | undefined) => {
@@ -261,7 +335,15 @@ export function InstallSheet({
     setBusy(true);
     const asked = id;
     try {
-      const res = await client.installCatalogEntry({ id, project: name, values, servers: [...chosenServers] });
+      const res = await client.installCatalogEntry({
+        id,
+        project: name,
+        values,
+        servers: [...chosenServers],
+        memory,
+        cpus,
+        restart,
+      });
       if (picked.current !== asked) return;
       review(res.change);
     } catch (err) {
@@ -305,6 +387,8 @@ export function InstallSheet({
             <Icon name={entry?.hostAccess ? "shield" : "commit"} size={14} />
             {missing ? (
               <Trans>Give {missingLabel} a value to review the plan</Trans>
+            ) : limitsInvalid ? (
+              <Trans>Fix the limits of {badService} to review the plan</Trans>
             ) : entry?.hostAccess ? (
               <Trans>You approve what it reaches in the plan</Trans>
             ) : (
@@ -432,8 +516,18 @@ export function InstallSheet({
                   ))}
                 </div>
               ) : null}
+              <Limits
+                parts={parts}
+                changing={changing}
+                cpusOf={cpusOf}
+                memoryOf={memoryOf}
+                restartOf={restartOf}
+                errorsOf={limitErrors}
+                onChangeLine={(part) => change(`limits:${part.service}`)}
+                onChange={setLimit}
+              />
               <Parts
-                parts={got.data?.parts ?? []}
+                parts={parts}
                 typed={(name) => {
                   const input = inputs.find((i) => i.name === name);
                   return input ? value(input).trim() : "";
@@ -501,6 +595,99 @@ function Chosen({
         ) : null}
       </span>
     </fieldset>
+  );
+}
+
+/**
+ * What each part may use of the server and when Docker restarts it, as its entry
+ * gives them: a line for each, and Change for its fields. An upgrade keeps what's
+ * set here, as it keeps what someone changes on the app.
+ */
+function Limits({
+  parts,
+  changing,
+  cpusOf,
+  memoryOf,
+  restartOf,
+  errorsOf,
+  onChangeLine,
+  onChange,
+}: {
+  parts: readonly CatalogPart[];
+  changing: ReadonlySet<string>;
+  cpusOf: (part: CatalogPart) => string;
+  memoryOf: (part: CatalogPart) => string;
+  restartOf: (part: CatalogPart) => RestartPolicy;
+  errorsOf: (part: CatalogPart) => { cpus?: string; memory?: string };
+  onChangeLine: (part: CatalogPart) => void;
+  onChange: (part: CatalogPart, next: Limit) => void;
+}) {
+  const { t } = useLingui();
+  const words = useAppWords();
+  const titleId = useId();
+  if (parts.length === 0) return null;
+  // A field left empty keeps what the entry gives.
+  const line = (part: CatalogPart) => {
+    const cpus = cpusOf(part).trim() || part.cpus;
+    const memory = memoryOf(part).trim() || part.memory;
+    const uses = [cpus ? t`${cpus} vCPU` : "", memory].filter(Boolean).join(", ");
+    return `${uses || t`No limits`} · ${t`Restarts ${inSentence(words.restart(restartOf(part)))}`}`;
+  };
+  return (
+    <section className="catalog-limits" aria-labelledby={titleId}>
+      <h3 id={titleId}>
+        <Trans>Limits and restarts</Trans>
+      </h3>
+      <div className="catalog-chosen-list">
+        {parts.map((part) => {
+          if (!changing.has(`limits:${part.service}`)) {
+            return (
+              <Chosen
+                key={part.service}
+                label={part.service}
+                value={line(part)}
+                plain
+                onChange={() => onChangeLine(part)}
+              />
+            );
+          }
+          const errors = errorsOf(part);
+          return (
+            <fieldset key={part.service} className="catalog-limit" aria-label={part.service}>
+              <legend className="catalog-chosen-label">{part.service}</legend>
+              <div className="app-settings-grid">
+                <TextField
+                  label={t`CPU limit`}
+                  mono
+                  inputMode="decimal"
+                  autoFocus
+                  value={cpusOf(part)}
+                  placeholder={part.cpus ? t`Entry's: ${part.cpus}` : t`No limit`}
+                  suffix="vCPU"
+                  error={errors.cpus}
+                  onChange={(event) => onChange(part, { cpus: event.target.value })}
+                />
+                <TextField
+                  label={t`Memory limit`}
+                  mono
+                  value={memoryOf(part)}
+                  placeholder={part.memory ? t`Entry's: ${part.memory}` : t`No limit`}
+                  hint={t`Such as 512M or 2G.`}
+                  error={errors.memory}
+                  onChange={(event) => onChange(part, { memory: event.target.value })}
+                />
+                <SelectField
+                  label={t`Restarts`}
+                  value={String(restartOf(part))}
+                  onChange={(event) => onChange(part, { restart: Number(event.target.value) as RestartPolicy })}
+                  options={RESTARTS.map((p) => ({ value: String(p), label: words.restart(p) }))}
+                />
+              </div>
+            </fieldset>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 

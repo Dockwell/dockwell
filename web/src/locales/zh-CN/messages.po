@@ -3039,6 +3039,7 @@ msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "镜像自带"
 
+#. placeholder {0}: cpus[part.service]
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
@@ -5430,6 +5431,14 @@ msgstr "每个镜像都按摘要固定"
 msgid "Engine"
 msgstr "引擎"
 
+#. placeholder {0}: part.cpus
+#. placeholder {0}: part.memory
+msgid "Entry's: {0}"
+msgstr "条目默认：{0}"
+
+msgid "Fix the limits of {badService} to review the plan"
+msgstr "修正 {badService} 的限制后即可查看计划"
+
 msgid "Generated and sealed"
 msgstr "已生成，加密保存"
 
@@ -5442,6 +5451,9 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 msgid "Its site"
 msgstr "官网"
 
+msgid "Limits and restarts"
+msgstr "限制与重启"
+
 msgid "New database"
 msgstr "新建数据库"
 
@@ -5453,6 +5465,13 @@ msgstr "可访问"
 
 msgid "Reading the sources"
 msgstr "正在读取来源"
+
+#. placeholder {0}: inSentence(words.restart(restartOf(part)))
+msgid "Restarts {0}"
+msgstr "重启：{0}"
+
+msgid "Such as 512M or 2G."
+msgstr "例如 512M 或 2G。"
 
 msgid "What it installs"
 msgstr "安装内容"
@@ -5481,6 +5500,9 @@ msgstr "{0, plural, other {已生成 # 个密钥}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
+
+msgid "{cpus} vCPU"
+msgstr "{cpus} 个 vCPU"
 
 msgid "{source} · Not tested by Dockwell"
 msgstr "{source} · 未经 Dockwell 测试"
@@ -9210,9 +9232,6 @@ msgstr "文件"
 
 msgid "No servers yet"
 msgstr "还没有服务器"
-
-msgid "{cpus} vCPU"
-msgstr "{cpus} 个 vCPU"
 
 msgid "Apps on this server"
 msgstr "此服务器上的应用"

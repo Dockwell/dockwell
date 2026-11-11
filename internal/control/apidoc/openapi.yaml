@@ -6645,6 +6645,28 @@ components:
                         The input each server path in host_access comes from, by the path as it reads
                          here, which is the input's default, so a form shows what a person typed in its
                          place, such as "MEDIA_DIR" for "/srv/media".
+                memory:
+                    type: string
+                    description: |-
+                        The most memory it may use, as the entry gives it, such as "1G". Empty has no
+                         limit.
+                cpus:
+                    type: string
+                    description: |-
+                        The most CPUs it may use, as the entry gives them, such as "0.5". Empty has no
+                         limit.
+                restart:
+                    enum:
+                        - RESTART_POLICY_UNSPECIFIED
+                        - RESTART_POLICY_NO
+                        - RESTART_POLICY_ON_FAILURE
+                        - RESTART_POLICY_UNLESS_STOPPED
+                        - RESTART_POLICY_ALWAYS
+                    type: string
+                    description: |-
+                        When Docker restarts it, as the entry gives it. Unspecified is the driver's
+                         default, unless-stopped.
+                    format: enum
             description: CatalogPart is one service an entry installs.
         CatalogPin:
             type: object
@@ -10793,6 +10815,36 @@ components:
                     description: |-
                         Where it runs, by server ID, as an edit's servers. Empty runs it on the only
                          server; once there are several, name them.
+                memory:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The most memory a service may use, by its name in the entry's Compose file,
+                         such as "1G" for db, as a service's resources.memory takes it. A service left
+                         out keeps what the entry gives it. An upgrade keeps what you set here, as it
+                         keeps what you change on the app.
+                cpus:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The most CPUs a service may use, by its name, such as "0.5" for db, as
+                         resources.cpus takes it.
+                restart:
+                    type: object
+                    additionalProperties:
+                        enum:
+                            - RESTART_POLICY_UNSPECIFIED
+                            - RESTART_POLICY_NO
+                            - RESTART_POLICY_ON_FAILURE
+                            - RESTART_POLICY_UNLESS_STOPPED
+                            - RESTART_POLICY_ALWAYS
+                        type: string
+                        format: enum
+                    description: |-
+                        When Docker restarts a service's container, by its name, such as always for
+                         db.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object

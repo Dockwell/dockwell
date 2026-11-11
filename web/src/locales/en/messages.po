@@ -3039,6 +3039,7 @@ msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "the image's"
 
+#. placeholder {0}: cpus[part.service]
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
@@ -5430,6 +5431,14 @@ msgstr "Each image pinned by digest"
 msgid "Engine"
 msgstr "Engine"
 
+#. placeholder {0}: part.cpus
+#. placeholder {0}: part.memory
+msgid "Entry's: {0}"
+msgstr "Entry's: {0}"
+
+msgid "Fix the limits of {badService} to review the plan"
+msgstr "Fix the limits of {badService} to review the plan"
+
 msgid "Generated and sealed"
 msgstr "Generated and sealed"
 
@@ -5442,6 +5451,9 @@ msgstr "Give {missingLabel} a value to review the plan"
 msgid "Its site"
 msgstr "Its site"
 
+msgid "Limits and restarts"
+msgstr "Limits and restarts"
+
 msgid "New database"
 msgstr "New database"
 
@@ -5453,6 +5465,13 @@ msgstr "Reaches"
 
 msgid "Reading the sources"
 msgstr "Reading the sources"
+
+#. placeholder {0}: inSentence(words.restart(restartOf(part)))
+msgid "Restarts {0}"
+msgstr "Restarts {0}"
+
+msgid "Such as 512M or 2G."
+msgstr "Such as 512M or 2G."
 
 msgid "What it installs"
 msgstr "What it installs"
@@ -5481,6 +5500,9 @@ msgstr "{0, plural, one {# secret generated} other {# secrets generated}}"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
+
+msgid "{cpus} vCPU"
+msgstr "{cpus} vCPU"
 
 msgid "{source} · Not tested by Dockwell"
 msgstr "{source} · Not tested by Dockwell"
@@ -9210,9 +9232,6 @@ msgstr "Files"
 
 msgid "No servers yet"
 msgstr "No servers yet"
-
-msgid "{cpus} vCPU"
-msgstr "{cpus} vCPU"
 
 msgid "Apps on this server"
 msgstr "Apps on this server"
