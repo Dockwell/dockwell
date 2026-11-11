@@ -39,6 +39,10 @@ const (
 	AccessVerdict_ACCESS_VERDICT_ROLLED_BACK AccessVerdict = 2
 	// No such change waits on this server, and the agent knows of none.
 	AccessVerdict_ACCESS_VERDICT_NOT_WAITING AccessVerdict = 3
+	// The change still waits: the agent couldn't keep it just now, as it couldn't
+	// write what its revert would load once kept. Its timer goes on, and the
+	// confirmation may be sent again.
+	AccessVerdict_ACCESS_VERDICT_NOT_KEPT AccessVerdict = 4
 )
 
 // Enum value maps for AccessVerdict.
@@ -48,12 +52,14 @@ var (
 		1: "ACCESS_VERDICT_KEPT",
 		2: "ACCESS_VERDICT_ROLLED_BACK",
 		3: "ACCESS_VERDICT_NOT_WAITING",
+		4: "ACCESS_VERDICT_NOT_KEPT",
 	}
 	AccessVerdict_value = map[string]int32{
 		"ACCESS_VERDICT_UNSPECIFIED": 0,
 		"ACCESS_VERDICT_KEPT":        1,
 		"ACCESS_VERDICT_ROLLED_BACK": 2,
 		"ACCESS_VERDICT_NOT_WAITING": 3,
+		"ACCESS_VERDICT_NOT_KEPT":    4,
 	}
 )
 
@@ -11068,12 +11074,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tresources\x18\x01 \x03(\v2#.dockwell.agent.v1.ObservedResourceR\tresources\"4\n" +
 	"\x10ObservedResource\x12\x17\n" +
 	"\x04spec\x18\x01 \x01(\fH\x00R\x04spec\x88\x01\x01B\a\n" +
-	"\x05_spec*\x88\x01\n" +
+	"\x05_spec*\xa5\x01\n" +
 	"\rAccessVerdict\x12\x1e\n" +
 	"\x1aACCESS_VERDICT_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ACCESS_VERDICT_KEPT\x10\x01\x12\x1e\n" +
 	"\x1aACCESS_VERDICT_ROLLED_BACK\x10\x02\x12\x1e\n" +
-	"\x1aACCESS_VERDICT_NOT_WAITING\x10\x032\xab\x05\n" +
+	"\x1aACCESS_VERDICT_NOT_WAITING\x10\x03\x12\x1b\n" +
+	"\x17ACCESS_VERDICT_NOT_KEPT\x10\x042\xab\x05\n" +
 	"\fAgentService\x12M\n" +
 	"\x04Join\x12\x1e.dockwell.agent.v1.JoinRequest\x1a\x1f.dockwell.agent.v1.JoinResponse\"\x04\xa0\xbb\x18\x03\x12q\n" +
 	"\x10RenewCertificate\x12*.dockwell.agent.v1.RenewCertificateRequest\x1a+.dockwell.agent.v1.RenewCertificateResponse\"\x04\xa0\xbb\x18\x03\x12Z\n" +
