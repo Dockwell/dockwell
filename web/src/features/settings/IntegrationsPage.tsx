@@ -2,7 +2,7 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { BackupDestinationInfo } from "@dockwell/api";
-import { Button, Icon, type IconName, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
@@ -23,8 +23,8 @@ const CLOUDFLARE =
 /**
  * Integrations, as Settings-Integrations.dc.html has them, for what Dockwell
  * connects to today: storage backups go to, which a person adds here as a plan,
- * and Cloudflare in front of routes. What comes later is said in words, never
- * drawn as a card to connect.
+ * and Cloudflare in front of routes. What comes later is a line, never drawn as
+ * a card to connect.
  */
 export function IntegrationsPage() {
   const { t } = useLingui();
@@ -106,7 +106,7 @@ export function IntegrationsPage() {
                 icon="archive"
                 name={t`S3-compatible storage`}
                 state={<span className="settings-meta">{t`Not connected`}</span>}
-                text={t`Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave.`}
+                text={t`S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave.`}
                 action={connect}
               />
             ) : null}
@@ -126,7 +126,7 @@ export function IntegrationsPage() {
             icon="globe"
             name="Cloudflare"
             state={<span className="settings-meta">{t`Works in front of routes`}</span>}
-            text={t`A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later.`}
+            text={t`A route can sit behind its proxy or a Tunnel.`}
             action={
               <a href={CLOUDFLARE} target="_blank" rel="noreferrer" className="dw-btn dw-btn-secondary dw-btn-sm">
                 <Icon name="external" size={14} />
@@ -140,7 +140,7 @@ export function IntegrationsPage() {
             icon="link"
             name={t`Domains`}
             state={<span className="settings-meta">{t`Any DNS provider`}</span>}
-            text={t`Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there.`}
+            text={t`Dockwell says which record to make, then gets the certificate.`}
             action={
               <Link to="/domains" className="dw-btn dw-btn-secondary dw-btn-sm">
                 <span>
@@ -152,18 +152,7 @@ export function IntegrationsPage() {
         </div>
       </section>
 
-      <Panel title={t`Coming later`} className="settings-panel">
-        <dl className="settings-facts integrations-later">
-          <dt>{t`Git`}</dt>
-          <dd>{t`GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file.`}</dd>
-          <dt>{t`Registries`}</dt>
-          <dd>
-            {t`Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand.`}
-          </dd>
-          <dt>{t`Cloud providers`}</dt>
-          <dd>{t`Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket.`}</dd>
-        </dl>
-      </Panel>
+      <p className="settings-meta integrations-later">{t`Git providers, private registries and cloud providers come later.`}</p>
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}

@@ -8,7 +8,7 @@ import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegen
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Entry } from "../catalog/v1alpha1/entry_pb";
 import { file_dockwell_catalog_v1alpha1_entry } from "../catalog/v1alpha1/entry_pb";
-import type { CatalogPin, RestartPolicy } from "../resource/v1alpha1/specs_pb";
+import type { CatalogPin, CatalogSource, RestartPolicy } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Change, HostAccess } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/catalog.proto.
  */
 export const file_dockwell_v1_catalog: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0Ik8KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IiQKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAki9QEKF0dldENhdGFsb2dFbnRyeVJlc3BvbnNlEi8KBWVudHJ5GAEgASgLMiAuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbnRyeRIPCgdwcm9qZWN0GAIgASgJEkAKBnZhbHVlcxgDIAMoCzIwLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlc3BvbnNlLlZhbHVlc0VudHJ5EicKBXBhcnRzGAQgAygLMhguZG9ja3dlbGwudjEuQ2F0YWxvZ1BhcnQaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLZAgoLQ2F0YWxvZ1BhcnQSDwoHc2VydmljZRgBIAEoCRINCgVpbWFnZRgCIAEoCRIQCghkYXRhYmFzZRgDIAEoCBIPCgd2b2x1bWVzGAQgAygJEg0KBW9wZW5zGAUgASgIEiwKC2hvc3RfYWNjZXNzGAYgAygLMhcuZG9ja3dlbGwudjEuSG9zdEFjY2VzcxI9CgtwYXRoX2lucHV0cxgHIAMoCzIoLmRvY2t3ZWxsLnYxLkNhdGFsb2dQYXJ0LlBhdGhJbnB1dHNFbnRyeRIOCgZtZW1vcnkYCCABKAkSDAoEY3B1cxgJIAEoCRI6CgdyZXN0YXJ0GAogASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVzdGFydFBvbGljeRoxCg9QYXRoSW5wdXRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIcChpMaXN0Q2F0YWxvZ0luc3RhbGxzUmVxdWVzdCJMChtMaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2USLQoIaW5zdGFsbHMYASADKAsyGy5kb2Nrd2VsbC52MS5DYXRhbG9nSW5zdGFsbCLrAQoOQ2F0YWxvZ0luc3RhbGwSEgoKcHJvamVjdF9pZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEjMKA3BpbhgDIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4SDAoEbmFtZRgEIAEoCRIWCg53ZWJfc2VydmljZV9pZBgFIAEoCRITCgtmaXJzdF9zdGVwcxgGIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgHIAEoCRIsCgd1cGdyYWRlGAggASgLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ1VwZ3JhZGUiMgoOQ2F0YWxvZ1VwZ3JhZGUSDwoHdmVyc2lvbhgBIAEoCRIPCgdyZWxlYXNlGAIgASgNIsgEChpJbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEkkKBnZhbHVlcxgDIAMoCzIzLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBEg8KB3NlcnZlcnMYBCADKAkSQwoGbWVtb3J5GAUgAygLMjMuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuTWVtb3J5RW50cnkSPwoEY3B1cxgGIAMoCzIxLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LkNwdXNFbnRyeRJFCgdyZXN0YXJ0GAcgAygLMjQuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuUmVzdGFydEVudHJ5Gi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTWVtb3J5RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARorCglDcHVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpZCgxSZXN0YXJ0RW50cnkSCwoDa2V5GAEgASgJEjgKBXZhbHVlGAIgASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVzdGFydFBvbGljeToCOAEiQgobSW5zdGFsbENhdGFsb2dFbnRyeVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK7AQocVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVxdWVzdBIKCgJpZBgBIAEoCRJLCgZ2YWx1ZXMYAiADKAsyNS5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBEhMKC3NraXBfYmFja3VwGAMgASgIGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRAodVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlMsoGCg5DYXRhbG9nU2VydmljZRKVAQoSTGlzdENhdGFsb2dFbnRyaWVzEiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlIi6QAgGguxgBwLsYAsi7GALQuxgDgtPkkwIVEhMvdjEvY2F0YWxvZy9lbnRyaWVzEpEBCg9HZXRDYXRhbG9nRW50cnkSIy5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXF1ZXN0GiQuZG9ja3dlbGwudjEuR2V0Q2F0YWxvZ0VudHJ5UmVzcG9uc2UiM5ACAaC7GAHAuxgCyLsYAtC7GAOC0+STAhoSGC92MS9jYXRhbG9nL2VudHJpZXMve2lkfRKnAQoTTGlzdENhdGFsb2dJbnN0YWxscxInLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nSW5zdGFsbHNSZXF1ZXN0GiguZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlIj2QAgGguxgBqrsYChIIaW5zdGFsbHPAuxgCyLsYAtC7GASC0+STAhYSFC92MS9jYXRhbG9nL2luc3RhbGxzErkBChVVcGdyYWRlQ2F0YWxvZ0luc3RhbGwSKS5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0GiouZG9ja3dlbGwudjEuVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVzcG9uc2UiSaC7GAKquxgJEgd1cGdyYWRlwLsYA8i7GAPQuxgEgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9pbnN0YWxscy97aWR9OnVwZ3JhZGUSpQEKE0luc3RhbGxDYXRhbG9nRW50cnkSJy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBooLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZSI7oLsYAsC7GATIuxgE0LsYBoLT5JMCJToBKiIgL3YxL2NhdGFsb2cvZW50cmllcy97aWR9Omluc3RhbGxCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ2F0YWxvZ1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0Ik8KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IiQKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAki9QEKF0dldENhdGFsb2dFbnRyeVJlc3BvbnNlEi8KBWVudHJ5GAEgASgLMiAuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbnRyeRIPCgdwcm9qZWN0GAIgASgJEkAKBnZhbHVlcxgDIAMoCzIwLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlc3BvbnNlLlZhbHVlc0VudHJ5EicKBXBhcnRzGAQgAygLMhguZG9ja3dlbGwudjEuQ2F0YWxvZ1BhcnQaLQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASLZAgoLQ2F0YWxvZ1BhcnQSDwoHc2VydmljZRgBIAEoCRINCgVpbWFnZRgCIAEoCRIQCghkYXRhYmFzZRgDIAEoCBIPCgd2b2x1bWVzGAQgAygJEg0KBW9wZW5zGAUgASgIEiwKC2hvc3RfYWNjZXNzGAYgAygLMhcuZG9ja3dlbGwudjEuSG9zdEFjY2VzcxI9CgtwYXRoX2lucHV0cxgHIAMoCzIoLmRvY2t3ZWxsLnYxLkNhdGFsb2dQYXJ0LlBhdGhJbnB1dHNFbnRyeRIOCgZtZW1vcnkYCCABKAkSDAoEY3B1cxgJIAEoCRI6CgdyZXN0YXJ0GAogASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVzdGFydFBvbGljeRoxCg9QYXRoSW5wdXRzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASIcChpMaXN0Q2F0YWxvZ0luc3RhbGxzUmVxdWVzdCJMChtMaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2USLQoIaW5zdGFsbHMYASADKAsyGy5kb2Nrd2VsbC52MS5DYXRhbG9nSW5zdGFsbCLrAQoOQ2F0YWxvZ0luc3RhbGwSEgoKcHJvamVjdF9pZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEjMKA3BpbhgDIAEoCzImLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dQaW4SDAoEbmFtZRgEIAEoCRIWCg53ZWJfc2VydmljZV9pZBgFIAEoCRITCgtmaXJzdF9zdGVwcxgGIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgHIAEoCRIsCgd1cGdyYWRlGAggASgLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ1VwZ3JhZGUiMgoOQ2F0YWxvZ1VwZ3JhZGUSDwoHdmVyc2lvbhgBIAEoCRIPCgdyZWxlYXNlGAIgASgNIsgEChpJbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEkkKBnZhbHVlcxgDIAMoCzIzLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBEg8KB3NlcnZlcnMYBCADKAkSQwoGbWVtb3J5GAUgAygLMjMuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuTWVtb3J5RW50cnkSPwoEY3B1cxgGIAMoCzIxLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LkNwdXNFbnRyeRJFCgdyZXN0YXJ0GAcgAygLMjQuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuUmVzdGFydEVudHJ5Gi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaLQoLTWVtb3J5RW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARorCglDcHVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ARpZCgxSZXN0YXJ0RW50cnkSCwoDa2V5GAEgASgJEjgKBXZhbHVlGAIgASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUmVzdGFydFBvbGljeToCOAEiQgobSW5zdGFsbENhdGFsb2dFbnRyeVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK7AQocVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVxdWVzdBIKCgJpZBgBIAEoCRJLCgZ2YWx1ZXMYAiADKAsyNS5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBEhMKC3NraXBfYmFja3VwGAMgASgIGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiRAodVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIlkKF1NldENhdGFsb2dTb3VyY2VSZXF1ZXN0EgwKBG5hbWUYASABKAkSEgoKcmVwb3NpdG9yeRgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBmNvbW1pdBgEIAEoCSI/ChhTZXRDYXRhbG9nU291cmNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIhsKGUxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QiTQoaTGlzdENhdGFsb2dTb3VyY2VzUmVzcG9uc2USLwoHc291cmNlcxgBIAMoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvIrEBChFDYXRhbG9nU291cmNlSW5mbxIMCgRuYW1lGAEgASgJEjkKBnNvdXJjZRgCIAEoCzIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dTb3VyY2USDwoHZW50cmllcxgDIAMoCRIyCgdyZWZ1c2VkGAQgAygLMiEuZG9ja3dlbGwudjEuQ2F0YWxvZ1NvdXJjZVJlZnVzYWwSDgoGdW5yZWFkGAUgASgJIjQKFENhdGFsb2dTb3VyY2VSZWZ1c2FsEgwKBGZpbGUYASABKAkSDgoGcmVhc29uGAIgASgJIjIKHExpc3RDYXRhbG9nU291cmNlUmVmc1JlcXVlc3QSEgoKcmVwb3NpdG9yeRgBIAEoCSJaCh1MaXN0Q2F0YWxvZ1NvdXJjZVJlZnNSZXNwb25zZRIrCgRyZWZzGAEgAygLMh0uZG9ja3dlbGwudjEuQ2F0YWxvZ1NvdXJjZVJlZhIMCgRtb3JlGAIgASgIIjAKEENhdGFsb2dTb3VyY2VSZWYSDAoEbmFtZRgBIAEoCRIOCgZjb21taXQYAiABKAkiKgoaUmVtb3ZlQ2F0YWxvZ1NvdXJjZVJlcXVlc3QSDAoEbmFtZRgBIAEoCSJCChtSZW1vdmVDYXRhbG9nU291cmNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlMo8MCg5DYXRhbG9nU2VydmljZRKVAQoSTGlzdENhdGFsb2dFbnRyaWVzEiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlIi6QAgGguxgBwLsYAsi7GALQuxgDgtPkkwIVEhMvdjEvY2F0YWxvZy9lbnRyaWVzEpEBCg9HZXRDYXRhbG9nRW50cnkSIy5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXF1ZXN0GiQuZG9ja3dlbGwudjEuR2V0Q2F0YWxvZ0VudHJ5UmVzcG9uc2UiM5ACAaC7GAHAuxgCyLsYAtC7GAOC0+STAhoSGC92MS9jYXRhbG9nL2VudHJpZXMve2lkfRKnAQoTTGlzdENhdGFsb2dJbnN0YWxscxInLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nSW5zdGFsbHNSZXF1ZXN0GiguZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlIj2QAgGguxgBqrsYChIIaW5zdGFsbHPAuxgCyLsYAtC7GASC0+STAhYSFC92MS9jYXRhbG9nL2luc3RhbGxzErkBChVVcGdyYWRlQ2F0YWxvZ0luc3RhbGwSKS5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXF1ZXN0GiouZG9ja3dlbGwudjEuVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVzcG9uc2UiSaC7GAKquxgJEgd1cGdyYWRlwLsYA8i7GAPQuxgEgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9pbnN0YWxscy97aWR9OnVwZ3JhZGUSpQEKE0luc3RhbGxDYXRhbG9nRW50cnkSJy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBooLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZSI7oLsYAsC7GATIuxgE0LsYBoLT5JMCJToBKiIgL3YxL2NhdGFsb2cvZW50cmllcy97aWR9Omluc3RhbGwSqgEKEFNldENhdGFsb2dTb3VyY2USJC5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nU291cmNlUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dTb3VyY2VSZXNwb25zZSJJoLsYAqq7GAwSCnNldC1zb3VyY2XAuxgEyLsYBNC7GAaC0+STAiM6ASoiHi92MS9jYXRhbG9nL3NvdXJjZXMve25hbWV9OnNldBKiAQoSTGlzdENhdGFsb2dTb3VyY2VzEiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTb3VyY2VzUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlc1Jlc3BvbnNlIjuQAgGguxgBqrsYCRIHc291cmNlc8C7GALIuxgC0LsYA4LT5JMCFRITL3YxL2NhdGFsb2cvc291cmNlcxK0AQoVTGlzdENhdGFsb2dTb3VyY2VSZWZzEikuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVxdWVzdBoqLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlUmVmc1Jlc3BvbnNlIkSguxgBqrsYDRILc291cmNlLXJlZnPAuxgEyLsYBNC7GAaC0+STAh06ASoiGC92MS9jYXRhbG9nL3NvdXJjZXM6cmVmcxK5AQoTUmVtb3ZlQ2F0YWxvZ1NvdXJjZRInLmRvY2t3ZWxsLnYxLlJlbW92ZUNhdGFsb2dTb3VyY2VSZXF1ZXN0GiguZG9ja3dlbGwudjEuUmVtb3ZlQ2F0YWxvZ1NvdXJjZVJlc3BvbnNlIk+guxgCqrsYDxINcmVtb3ZlLXNvdXJjZcC7GATIuxgE0LsYBoLT5JMCJjoBKiIhL3YxL2NhdGFsb2cvc291cmNlcy97bmFtZX06cmVtb3ZlQqUBCg9jb20uZG9ja3dlbGwudjFCDENhdGFsb2dQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations]);
 
 /**
  * ListCatalogEntriesRequest asks for the whole catalog.
@@ -508,6 +508,302 @@ export const UpgradeCatalogInstallResponseSchema: GenMessage<UpgradeCatalogInsta
   messageDesc(file_dockwell_v1_catalog, 12);
 
 /**
+ * SetCatalogSourceRequest names a source, and what it reads.
+ *
+ * @generated from message dockwell.v1.SetCatalogSourceRequest
+ */
+export type SetCatalogSourceRequest = Message<"dockwell.v1.SetCatalogSourceRequest"> & {
+  /**
+   * What to call it, such as "community", which its entries show beside them.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The repository's URL, over HTTPS.
+   *
+   * @generated from field: string repository = 2;
+   */
+  repository: string;
+
+  /**
+   * The folder of entries in it. Empty is its top.
+   *
+   * @generated from field: string path = 3;
+   */
+  path: string;
+
+  /**
+   * The commit to read it at, in full, as 40 hex digits.
+   *
+   * @generated from field: string commit = 4;
+   */
+  commit: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SetCatalogSourceRequest.
+ * Use `create(SetCatalogSourceRequestSchema)` to create a new message.
+ */
+export const SetCatalogSourceRequestSchema: GenMessage<SetCatalogSourceRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 13);
+
+/**
+ * SetCatalogSourceResponse is the change that sets it.
+ *
+ * @generated from message dockwell.v1.SetCatalogSourceResponse
+ */
+export type SetCatalogSourceResponse = Message<"dockwell.v1.SetCatalogSourceResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SetCatalogSourceResponse.
+ * Use `create(SetCatalogSourceResponseSchema)` to create a new message.
+ */
+export const SetCatalogSourceResponseSchema: GenMessage<SetCatalogSourceResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 14);
+
+/**
+ * ListCatalogSourcesRequest asks for every source.
+ *
+ * @generated from message dockwell.v1.ListCatalogSourcesRequest
+ */
+export type ListCatalogSourcesRequest = Message<"dockwell.v1.ListCatalogSourcesRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogSourcesRequest.
+ * Use `create(ListCatalogSourcesRequestSchema)` to create a new message.
+ */
+export const ListCatalogSourcesRequestSchema: GenMessage<ListCatalogSourcesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 15);
+
+/**
+ * ListCatalogSourcesResponse is every source.
+ *
+ * @generated from message dockwell.v1.ListCatalogSourcesResponse
+ */
+export type ListCatalogSourcesResponse = Message<"dockwell.v1.ListCatalogSourcesResponse"> & {
+  /**
+   * Each source, by name.
+   *
+   * @generated from field: repeated dockwell.v1.CatalogSourceInfo sources = 1;
+   */
+  sources: CatalogSourceInfo[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogSourcesResponse.
+ * Use `create(ListCatalogSourcesResponseSchema)` to create a new message.
+ */
+export const ListCatalogSourcesResponseSchema: GenMessage<ListCatalogSourcesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 16);
+
+/**
+ * CatalogSourceInfo is a source, and what Dockwell made of it.
+ *
+ * @generated from message dockwell.v1.CatalogSourceInfo
+ */
+export type CatalogSourceInfo = Message<"dockwell.v1.CatalogSourceInfo"> & {
+  /**
+   * Its name.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * What it reads, as the resource says.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.CatalogSource source = 2;
+   */
+  source?: CatalogSource | undefined;
+
+  /**
+   * The IDs of the entries the catalog shows from it, sorted.
+   *
+   * @generated from field: repeated string entries = 3;
+   */
+  entries: string[];
+
+  /**
+   * What it leaves out, by file.
+   *
+   * @generated from field: repeated dockwell.v1.CatalogSourceRefusal refused = 4;
+   */
+  refused: CatalogSourceRefusal[];
+
+  /**
+   * Why its entries can't be read now, such as a host that doesn't answer. Empty
+   * when they can.
+   *
+   * @generated from field: string unread = 5;
+   */
+  unread: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CatalogSourceInfo.
+ * Use `create(CatalogSourceInfoSchema)` to create a new message.
+ */
+export const CatalogSourceInfoSchema: GenMessage<CatalogSourceInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 17);
+
+/**
+ * CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
+ *
+ * @generated from message dockwell.v1.CatalogSourceRefusal
+ */
+export type CatalogSourceRefusal = Message<"dockwell.v1.CatalogSourceRefusal"> & {
+  /**
+   * The file's name in the source's folder, such as "notes.yaml".
+   *
+   * @generated from field: string file = 1;
+   */
+  file: string;
+
+  /**
+   * Why, such as what the catalog's check says of it.
+   *
+   * @generated from field: string reason = 2;
+   */
+  reason: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CatalogSourceRefusal.
+ * Use `create(CatalogSourceRefusalSchema)` to create a new message.
+ */
+export const CatalogSourceRefusalSchema: GenMessage<CatalogSourceRefusal> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 18);
+
+/**
+ * ListCatalogSourceRefsRequest names a repository.
+ *
+ * @generated from message dockwell.v1.ListCatalogSourceRefsRequest
+ */
+export type ListCatalogSourceRefsRequest = Message<"dockwell.v1.ListCatalogSourceRefsRequest"> & {
+  /**
+   * The repository's URL, over HTTPS.
+   *
+   * @generated from field: string repository = 1;
+   */
+  repository: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogSourceRefsRequest.
+ * Use `create(ListCatalogSourceRefsRequestSchema)` to create a new message.
+ */
+export const ListCatalogSourceRefsRequestSchema: GenMessage<ListCatalogSourceRefsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 19);
+
+/**
+ * ListCatalogSourceRefsResponse is the repository's branches and tags.
+ *
+ * @generated from message dockwell.v1.ListCatalogSourceRefsResponse
+ */
+export type ListCatalogSourceRefsResponse = Message<"dockwell.v1.ListCatalogSourceRefsResponse"> & {
+  /**
+   * Each branch, then each tag, by name. At most 500: more are left out.
+   *
+   * @generated from field: repeated dockwell.v1.CatalogSourceRef refs = 1;
+   */
+  refs: CatalogSourceRef[];
+
+  /**
+   * Whether some were left out.
+   *
+   * @generated from field: bool more = 2;
+   */
+  more: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogSourceRefsResponse.
+ * Use `create(ListCatalogSourceRefsResponseSchema)` to create a new message.
+ */
+export const ListCatalogSourceRefsResponseSchema: GenMessage<ListCatalogSourceRefsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 20);
+
+/**
+ * CatalogSourceRef is a branch or a tag, and the commit it's at.
+ *
+ * @generated from message dockwell.v1.CatalogSourceRef
+ */
+export type CatalogSourceRef = Message<"dockwell.v1.CatalogSourceRef"> & {
+  /**
+   * Its full name, such as "refs/heads/main" or "refs/tags/v1".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The commit it's at, in full. A tag's is the commit it names.
+   *
+   * @generated from field: string commit = 2;
+   */
+  commit: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CatalogSourceRef.
+ * Use `create(CatalogSourceRefSchema)` to create a new message.
+ */
+export const CatalogSourceRefSchema: GenMessage<CatalogSourceRef> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 21);
+
+/**
+ * RemoveCatalogSourceRequest names the source to stop reading.
+ *
+ * @generated from message dockwell.v1.RemoveCatalogSourceRequest
+ */
+export type RemoveCatalogSourceRequest = Message<"dockwell.v1.RemoveCatalogSourceRequest"> & {
+  /**
+   * The source's name.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RemoveCatalogSourceRequest.
+ * Use `create(RemoveCatalogSourceRequestSchema)` to create a new message.
+ */
+export const RemoveCatalogSourceRequestSchema: GenMessage<RemoveCatalogSourceRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 22);
+
+/**
+ * RemoveCatalogSourceResponse is the change that removes it.
+ *
+ * @generated from message dockwell.v1.RemoveCatalogSourceResponse
+ */
+export type RemoveCatalogSourceResponse = Message<"dockwell.v1.RemoveCatalogSourceResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.RemoveCatalogSourceResponse.
+ * Use `create(RemoveCatalogSourceResponseSchema)` to create a new message.
+ */
+export const RemoveCatalogSourceResponseSchema: GenMessage<RemoveCatalogSourceResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 23);
+
+/**
  * CatalogService lists the apps you can install, and plans installing one as a
  * project of its own: a Compose file with sensible ports and generated
  * passwords, sealed, through the same plan as any other change. Nothing runs
@@ -584,6 +880,59 @@ export const CatalogService: GenService<{
     methodKind: "unary";
     input: typeof InstallCatalogEntryRequestSchema;
     output: typeof InstallCatalogEntryResponseSchema;
+  },
+  /**
+   * SetCatalogSource plans adding a catalog from a public Git repository, or moving
+   * one to another commit, ready to apply or discard. Dockwell reads the commit over
+   * Git's own protocol, checking what it reads against its names, and checks each
+   * entry as it checks its own. The plan's notes say what the commit holds, and what
+   * Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
+   * has. A source decides what anyone can install, so setting one is an
+   * admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+   *
+   * @generated from rpc dockwell.v1.CatalogService.SetCatalogSource
+   */
+  setCatalogSource: {
+    methodKind: "unary";
+    input: typeof SetCatalogSourceRequestSchema;
+    output: typeof SetCatalogSourceResponseSchema;
+  },
+  /**
+   * ListCatalogSources returns the catalogs Dockwell reads beside its own, with
+   * how many of each one's entries it shows, and why it leaves out the rest.
+   *
+   * @generated from rpc dockwell.v1.CatalogService.ListCatalogSources
+   */
+  listCatalogSources: {
+    methodKind: "unary";
+    input: typeof ListCatalogSourcesRequestSchema;
+    output: typeof ListCatalogSourcesResponseSchema;
+  },
+  /**
+   * ListCatalogSourceRefs lists the branches and tags of a public Git repository,
+   * each with the commit it's at now, so a form can check a repository as it's
+   * typed and offer its branches to pin a source to. It reads the repository as
+   * SetCatalogSource does, at public addresses alone, and changes nothing. An
+   * admin's, as it reads the network for whoever asks.
+   *
+   * @generated from rpc dockwell.v1.CatalogService.ListCatalogSourceRefs
+   */
+  listCatalogSourceRefs: {
+    methodKind: "unary";
+    input: typeof ListCatalogSourceRefsRequestSchema;
+    output: typeof ListCatalogSourceRefsResponseSchema;
+  },
+  /**
+   * RemoveCatalogSource plans no longer reading a catalog, ready to apply or
+   * discard. What's installed from it stays as it runs, and can't upgrade from it.
+   * An admin's, as setting one is.
+   *
+   * @generated from rpc dockwell.v1.CatalogService.RemoveCatalogSource
+   */
+  removeCatalogSource: {
+    methodKind: "unary";
+    input: typeof RemoveCatalogSourceRequestSchema;
+    output: typeof RemoveCatalogSourceResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_catalog, 0);

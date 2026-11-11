@@ -118,6 +118,22 @@ export function specOf(s: Settings): MessageInitShape<typeof WebsiteSchema> {
   }
 }
 
+/**
+ * What a form sends for a site it changes: what's typed, except where that means what's
+ * stored, which goes as it's stored, so the plan lists no change the form doesn't make.
+ * 64 MiB typed over a stored default, 0, stays 0.
+ */
+export function sendable(now: Settings, was: Settings): Settings {
+  if (
+    now.serves === "php" &&
+    now.uploadMB !== was.uploadMB &&
+    (Number(now.uploadMB) || 64) === (Number(was.uploadMB) || 64)
+  ) {
+    return { ...now, uploadMB: was.uploadMB };
+  }
+  return now;
+}
+
 /** Which of a form's fields differ from what's stored, by name, for the kind it serves now. */
 export function changed(was: Settings, now: Settings): string[] {
   const out: string[] = [];
@@ -133,7 +149,8 @@ export function changed(was: Settings, now: Settings): string[] {
       if (indexOf(now.index).join(" ") !== indexOf(was.index).join(" ")) out.push("index");
       if (now.version !== was.version) out.push("version");
       if (now.user.trim() !== was.user) out.push("user");
-      if ((Number(now.uploadMB) || 0) !== (Number(was.uploadMB) || 0)) out.push("uploadMB");
+      // Empty, or 0 as stored, is the default, 64 MiB, so typing 64 changes nothing.
+      if ((Number(now.uploadMB) || 64) !== (Number(was.uploadMB) || 64)) out.push("uploadMB");
       if (now.filesOnly !== was.filesOnly) out.push("filesOnly");
       break;
     case "url":
@@ -173,7 +190,8 @@ export function missing(s: Settings): Missing | undefined {
     case "php":
       if (s.root.trim() === "") return { field: "root", why: "root" };
       if (!s.root.trim().startsWith("/")) return { field: "root", why: "root-absolute" };
-      if (s.serves === "php" && s.user.trim() !== "" && !/^\d{1,10}$/.test(s.user.trim()))
+      // By number, as the server takes it: a user alone, or a user and a group, as it stores them.
+      if (s.serves === "php" && s.user.trim() !== "" && !/^\d{1,10}(:\d{1,10})?$/.test(s.user.trim()))
         return { field: "user", why: "user" };
       if (s.serves === "php" && s.uploadMB.trim() !== "" && !/^\d{1,4}$/.test(s.uploadMB.trim()))
         return { field: "uploadMB", why: "upload" };

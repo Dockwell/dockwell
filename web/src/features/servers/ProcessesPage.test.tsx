@@ -235,8 +235,8 @@ describe("ProcessesPage", () => {
         "isn't its main process, so nothing starts it again, and the container goes on running",
         { containerMain: false },
       ],
-      ["Docker doesn't start it again, as its restart policy is no", { restartPolicy: "no" }],
-      ["Docker starts it again only if it ends with an error", { restartPolicy: "on-failure" }],
+      ["which stops with it and stays stopped: its restart policy is no", { restartPolicy: "no" }],
+      ["may stay stopped: Docker restarts it only after an error", { restartPolicy: "on-failure" }],
     ];
     for (const [words, change] of cases) {
       const { processes, unmount } = await renderProcesses();

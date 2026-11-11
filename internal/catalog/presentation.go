@@ -24,7 +24,7 @@ func checkPresentation(e *catalogv1.Entry) error {
 	if icon := e.GetIcon(); icon != "" && !mediaPath.MatchString(icon) {
 		return errors.New("its icon needs a local image path under /catalog-media/")
 	}
-	for name, address := range map[string]string{"documentation": e.GetDocumentation(), "app source": e.GetAppSource()} {
+	for name, address := range map[string]string{"homepage": e.GetHomepage(), "documentation": e.GetDocumentation(), "app source": e.GetAppSource()} {
 		if address != "" && !presentationLink(address) {
 			return fmt.Errorf("its %s needs an HTTPS address without sign-in details", name)
 		}
@@ -59,6 +59,10 @@ func checkPresentation(e *catalogv1.Entry) error {
 	}
 	return nil
 }
+
+// Link reports whether an address is one an entry may link to: HTTPS, with a
+// host and no sign-in details. A converter leaves out one that isn't.
+func Link(address string) bool { return presentationLink(address) }
 
 func presentationLink(address string) bool {
 	u, err := url.Parse(address)

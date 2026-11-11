@@ -89,6 +89,65 @@ service CatalogService {
       body: "*"
     };
   }
+  // SetCatalogSource plans adding a catalog from a public Git repository, or moving
+  // one to another commit, ready to apply or discard. Dockwell reads the commit over
+  // Git's own protocol, checking what it reads against its names, and checks each
+  // entry as it checks its own. The plan's notes say what the commit holds, and what
+  // Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
+  // has. A source decides what anyone can install, so setting one is an
+  // admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+  rpc SetCatalogSource(SetCatalogSourceRequest) returns (SetCatalogSourceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {verb: "set-source"};
+    option (google.api.http) = {
+      post: "/v1/catalog/sources/{name}:set"
+      body: "*"
+    };
+  }
+  // ListCatalogSources returns the catalogs Dockwell reads beside its own, with
+  // how many of each one's entries it shows, and why it leaves out the rest.
+  rpc ListCatalogSources(ListCatalogSourcesRequest) returns (ListCatalogSourcesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SHARED;
+    option (dockwell.v1.command) = {verb: "sources"};
+    option (google.api.http) = {get: "/v1/catalog/sources"};
+  }
+  // ListCatalogSourceRefs lists the branches and tags of a public Git repository,
+  // each with the commit it's at now, so a form can check a repository as it's
+  // typed and offer its branches to pin a source to. It reads the repository as
+  // SetCatalogSource does, at public addresses alone, and changes nothing. An
+  // admin's, as it reads the network for whoever asks.
+  rpc ListCatalogSourceRefs(ListCatalogSourceRefsRequest) returns (ListCatalogSourceRefsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {verb: "source-refs"};
+    option (google.api.http) = {
+      post: "/v1/catalog/sources:refs"
+      body: "*"
+    };
+  }
+  // RemoveCatalogSource plans no longer reading a catalog, ready to apply or
+  // discard. What's installed from it stays as it runs, and can't upgrade from it.
+  // An admin's, as setting one is.
+  rpc RemoveCatalogSource(RemoveCatalogSourceRequest) returns (RemoveCatalogSourceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {verb: "remove-source"};
+    option (google.api.http) = {
+      post: "/v1/catalog/sources/{name}:remove"
+      body: "*"
+    };
+  }
 }
 
 // ListCatalogEntriesRequest asks for the whole catalog.
@@ -243,6 +302,90 @@ message UpgradeCatalogInstallRequest {
 
 // UpgradeCatalogInstallResponse carries the planned change.
 message UpgradeCatalogInstallResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// SetCatalogSourceRequest names a source, and what it reads.
+message SetCatalogSourceRequest {
+  // What to call it, such as "community", which its entries show beside them.
+  string name = 1;
+  // The repository's URL, over HTTPS.
+  string repository = 2;
+  // The folder of entries in it. Empty is its top.
+  string path = 3;
+  // The commit to read it at, in full, as 40 hex digits.
+  string commit = 4;
+}
+
+// SetCatalogSourceResponse is the change that sets it.
+message SetCatalogSourceResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// ListCatalogSourcesRequest asks for every source.
+message ListCatalogSourcesRequest {}
+
+// ListCatalogSourcesResponse is every source.
+message ListCatalogSourcesResponse {
+  // Each source, by name.
+  repeated CatalogSourceInfo sources = 1;
+}
+
+// CatalogSourceInfo is a source, and what Dockwell made of it.
+message CatalogSourceInfo {
+  // Its name.
+  string name = 1;
+  // What it reads, as the resource says.
+  dockwell.resource.v1alpha1.CatalogSource source = 2;
+  // The IDs of the entries the catalog shows from it, sorted.
+  repeated string entries = 3;
+  // What it leaves out, by file.
+  repeated CatalogSourceRefusal refused = 4;
+  // Why its entries can't be read now, such as a host that doesn't answer. Empty
+  // when they can.
+  string unread = 5;
+}
+
+// CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
+message CatalogSourceRefusal {
+  // The file's name in the source's folder, such as "notes.yaml".
+  string file = 1;
+  // Why, such as what the catalog's check says of it.
+  string reason = 2;
+}
+
+// ListCatalogSourceRefsRequest names a repository.
+message ListCatalogSourceRefsRequest {
+  // The repository's URL, over HTTPS.
+  string repository = 1;
+}
+
+// ListCatalogSourceRefsResponse is the repository's branches and tags.
+message ListCatalogSourceRefsResponse {
+  // Each branch, then each tag, by name. At most 500: more are left out.
+  repeated CatalogSourceRef refs = 1;
+  // Whether some were left out.
+  bool more = 2;
+}
+
+// CatalogSourceRef is a branch or a tag, and the commit it's at.
+message CatalogSourceRef {
+  // Its full name, such as "refs/heads/main" or "refs/tags/v1".
+  string name = 1;
+  // The commit it's at, in full. A tag's is the commit it names.
+  string commit = 2;
+}
+
+// RemoveCatalogSourceRequest names the source to stop reading.
+message RemoveCatalogSourceRequest {
+  // The source's name.
+  string name = 1;
+}
+
+// RemoveCatalogSourceResponse is the change that removes it.
+message RemoveCatalogSourceResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -38,32 +39,39 @@ import (
 // Handler implements CatalogService.
 type Handler struct {
 	imports *composeapi.Handler
+	changes *changes.Handler
 	db      *store.DB
 	keeper  *secrets.Keeper
+	sources *Sources
 	commit  string
 	logger  *slog.Logger
 }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)
 
-// New returns a handler that plans through imports, and reads specs from db,
-// opening the sealed ones with keeper. commit is the build's.
-func New(imports *composeapi.Handler, db *store.DB, keeper *secrets.Keeper, commit string, logger *slog.Logger) *Handler {
-	return &Handler{imports: imports, db: db, keeper: keeper, commit: commit, logger: logger}
+// New returns a handler that plans installs through imports and other changes
+// through ch, and reads specs from db, opening the sealed ones with keeper. It reads
+// catalog sources through sources, and nil reads them with nothing kept between
+// runs. commit is the build's.
+func New(imports *composeapi.Handler, ch *changes.Handler, db *store.DB, keeper *secrets.Keeper, sources *Sources, commit string, logger *slog.Logger) *Handler {
+	if sources == nil {
+		sources = &Sources{}
+	}
+	return &Handler{imports: imports, changes: ch, db: db, keeper: keeper, sources: sources, commit: commit, logger: logger}
 }
 
 // ListCatalogEntries returns the catalog.
 func (h *Handler) ListCatalogEntries(ctx context.Context, _ *connect.Request[dockwellv1.ListCatalogEntriesRequest]) (*connect.Response[dockwellv1.ListCatalogEntriesResponse], error) {
-	c, err := h.catalog(ctx)
+	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: c.All()}), nil
+	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: s.catalog.All()}), nil
 }
 
 // GetCatalogEntry returns one entry, with what installing it would use.
 func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dockwellv1.GetCatalogEntryRequest]) (*connect.Response[dockwellv1.GetCatalogEntryResponse], error) {
-	entry, err := h.entry(ctx, req.Msg.GetId())
+	entry, _, err := h.entry(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +189,7 @@ func isDatabase(image string) bool {
 // InstallCatalogEntry plans an entry as a project of its own.
 func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[dockwellv1.InstallCatalogEntryRequest]) (*connect.Response[dockwellv1.InstallCatalogEntryResponse], error) {
 	m := req.Msg
-	entry, err := h.entry(ctx, m.GetId())
+	entry, from, err := h.entry(ctx, m.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +214,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Secrets:    filled.Secrets,
 		Servers:    m.GetServers(),
 		FirstSteps: entry.GetFirstSteps(),
-		Pin:        pinTo(entry, filled),
+		Pin:        pinTo(entry, from, filled),
 		Limits:     limitsOf(m),
 	})
 	if err != nil {
@@ -238,13 +246,13 @@ func limitsOf(m *dockwellv1.InstallCatalogEntryRequest) map[string]composeapi.Li
 
 // ListCatalogInstalls says what's installed, and what each can move to.
 func (h *Handler) ListCatalogInstalls(ctx context.Context, _ *connect.Request[dockwellv1.ListCatalogInstallsRequest]) (*connect.Response[dockwellv1.ListCatalogInstallsResponse], error) {
-	c, err := h.catalog(ctx)
+	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var installs []*dockwellv1.CatalogInstall
 	err = h.db.View(ctx, func(tx *store.Tx) (err error) {
-		installs, err = h.installs(ctx, tx, c)
+		installs, err = h.installs(ctx, tx, s)
 		return err
 	})
 	if err != nil {
@@ -254,8 +262,11 @@ func (h *Handler) ListCatalogInstalls(ctx context.Context, _ *connect.Request[do
 }
 
 // installs reads each project's pin, by project, and leaves out a project whose
-// services have all gone, which isn't installed any more, though it stays.
-func (h *Handler) installs(ctx context.Context, tx *store.Tx, c *catalog.Catalog) ([]*dockwellv1.CatalogInstall, error) {
+// services have all gone, which isn't installed any more, though it stays. An
+// install's entry is the catalog's only where it comes from the catalog the install
+// came from: an entry of its ID from elsewhere is another catalog's app, with no
+// upgrade for it.
+func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*dockwellv1.CatalogInstall, error) {
 	tree, err := scope.Load(ctx, tx)
 	if err != nil {
 		return nil, err
@@ -270,7 +281,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, c *catalog.Catalog
 			continue
 		}
 		install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
-		entry, known := c.Entry(pin.GetEntry())
+		entry, known := s.entryFor(pin)
 		if known {
 			install.Name, install.FirstSteps = entry.GetName(), entry.GetFirstSteps()
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
@@ -301,7 +312,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, c *catalog.Catalog
 // UpgradeCatalogInstall plans an install's newest release.
 func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[dockwellv1.UpgradeCatalogInstallRequest]) (*connect.Response[dockwellv1.UpgradeCatalogInstallResponse], error) {
 	m := req.Msg
-	c, err := h.catalog(ctx)
+	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +320,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	var display string
 	held := map[string]bool{}
 	err = h.db.View(ctx, func(tx *store.Tx) error {
-		all, err := h.installs(ctx, tx, c)
+		all, err := h.installs(ctx, tx, s)
 		if err != nil {
 			return err
 		}
@@ -342,10 +353,12 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("nothing installed from the catalog is called %s. Run dockwell catalog installs to see what is", m.GetId()), "not_found")
 	}
 	pin := install.GetPin()
-	entry, ok := c.Entry(pin.GetEntry())
+	entry, ok := s.entryFor(pin)
 	switch {
+	case !ok && s.origins[pin.GetEntry()] != (origin{}):
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s. The %s in the catalog is %s's, another app: install it under another name to move to it", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion(), pin.GetEntry(), s.origins[pin.GetEntry()].words()), "not_in_catalog")
 	case !ok:
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the catalog no longer has %s, so %s stays on %s", pin.GetEntry(), install.GetProject(), pin.GetVersion()), "not_in_catalog")
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion()), "not_in_catalog")
 	case !catalog.Upgrades(entry, pin):
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:
@@ -372,7 +385,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		Variables:   filled.Variables,
 		Secrets:     filled.Secrets,
 		Stands:      filled.Stands(),
-		Pin:         pinTo(entry, filled),
+		Pin:         pinTo(entry, s.origins[entry.GetId()], filled),
 		SkipBackup:  m.GetSkipBackup(),
 
 		Old:          pin.GetFile(),
@@ -385,14 +398,17 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&dockwellv1.UpgradeCatalogInstallResponse{Change: change}), nil
 }
 
-// pinTo is what an install of an entry is pinned to.
-func pinTo(e *catalogv1.Entry, filled *catalog.Filled) *resourcev1.CatalogPin {
+// pinTo is what an install of an entry is pinned to: the entry, and where it came
+// from, as the control plane knows it.
+func pinTo(e *catalogv1.Entry, from origin, filled *catalog.Filled) *resourcev1.CatalogPin {
 	return &resourcev1.CatalogPin{
 		Entry:      e.GetId(),
 		Version:    e.GetVersion(),
 		Release:    e.GetRelease(),
-		Repository: e.GetSource().GetRepository(),
-		Commit:     e.GetSource().GetCommit(),
+		Catalog:    from.catalog,
+		Repository: from.repository,
+		Path:       from.path,
+		Commit:     from.commit,
 		Values:     filled.Plain,
 		File:       []byte(e.GetCompose()),
 	}
@@ -472,24 +488,30 @@ func (h *Handler) addPorts(ctx context.Context, tx *store.Tx, env string, taken 
 	return nil
 }
 
-func (h *Handler) catalog(ctx context.Context) (*catalog.Catalog, error) {
+// catalog is Dockwell's own catalog, then each source's entries, as ADR 0055 has it.
+func (h *Handler) catalog(ctx context.Context) (sourced, error) {
 	c, err := catalog.Load(h.commit)
 	if err != nil {
-		return nil, h.internal(ctx, err)
+		return sourced{}, h.internal(ctx, err)
 	}
-	return c, nil
+	s, err := h.withSources(ctx, c, nil)
+	if err != nil {
+		return sourced{}, h.internal(ctx, err)
+	}
+	return s, nil
 }
 
-func (h *Handler) entry(ctx context.Context, id string) (*catalogv1.Entry, error) {
-	c, err := h.catalog(ctx)
+// entry is the catalog's entry of an ID, and where it comes from.
+func (h *Handler) entry(ctx context.Context, id string) (*catalogv1.Entry, origin, error) {
+	s, err := h.catalog(ctx)
 	if err != nil {
-		return nil, err
+		return nil, origin{}, err
 	}
-	e, ok := c.Entry(id)
+	e, ok := s.catalog.Entry(id)
 	if !ok {
-		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("the catalog has no app %s. Run dockwell catalog list to see what it has", id), "not_found")
+		return nil, origin{}, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("the catalog has no app %s. Run dockwell catalog list to see what it has", id), "not_found")
 	}
-	return e, nil
+	return e, s.origins[id], nil
 }
 
 func (h *Handler) internal(ctx context.Context, err error) error {
