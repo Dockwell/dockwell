@@ -68,9 +68,13 @@ type Ingress interface {
 
 // Driver is the route kind. Reserved is the panel's domain, on the control
 // plane and on the agent beside it: no route may claim it or a name under it.
+// Saved, on the control plane, is a domain saved for the panel and not served
+// yet, as during the restart that serves it (ADR 0063): no route may claim that
+// either.
 type Driver struct {
 	Ingress  Ingress
 	Reserved string
+	Saved    func() string
 }
 
 var (
@@ -235,14 +239,21 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if err := checkTLS(r); err != nil {
 		return err
 	}
-	if d.Reserved != "" && UnderOrIs(r.GetDomain(), d.Reserved) {
-		if r.GetTls() == ingress.TLSOff {
-			return fmt.Errorf("%s can't be served without a certificate, as the panel's passkeys and cookies need HTTPS on its own domain, %s, and the names under it. Choose another name for this route", r.GetDomain(), d.Reserved)
+	reserved := []string{d.Reserved}
+	if d.Saved != nil {
+		reserved = append(reserved, d.Saved())
+	}
+	for _, panel := range reserved {
+		if panel == "" || !UnderOrIs(r.GetDomain(), panel) {
+			continue
 		}
-		if r.GetDomain() == d.Reserved {
+		if r.GetTls() == ingress.TLSOff {
+			return fmt.Errorf("%s can't be served without a certificate, as the panel's passkeys and cookies need HTTPS on its own domain, %s, and the names under it. Choose another name for this route", r.GetDomain(), panel)
+		}
+		if r.GetDomain() == panel {
 			return fmt.Errorf("%s is the panel's own domain, so no route can claim it: the panel's sign-in depends on it. Choose another name for this route", r.GetDomain())
 		}
-		return fmt.Errorf("%s is under the panel's own domain, %s, where browsers offer the panel's passkeys to anything that asks. Choose a name that isn't under it", r.GetDomain(), d.Reserved)
+		return fmt.Errorf("%s is under the panel's own domain, %s, where browsers offer the panel's passkeys to anything that asks. Choose a name that isn't under it", r.GetDomain(), panel)
 	}
 	proxies, err := ingress.NormalizeTrustedProxies(r.GetTrustedProxies())
 	if err != nil {

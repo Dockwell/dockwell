@@ -20,7 +20,7 @@ import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { AddUserSheet } from "./AddUserSheet";
 import { useThisDatabase } from "./DatabaseLayout";
-import { engineName, firstReading, readOf } from "./useDatabases";
+import { engineName, firstReading, makesUsers, readOf } from "./useDatabases";
 
 /** The Users tab: who can sign in to the database, and the databases in it. */
 export function DatabaseUsers() {
@@ -83,6 +83,9 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const mayChange = may(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
+  const mongo = db.engine === DatabaseEngine.MONGODB;
+  // Where Dockwell makes no users yet, there's nothing to add and no secret to name.
+  const makes = makesUsers(db.engine);
   const name = db.resource?.name ?? "";
   const role = (u: DatabaseAccount) =>
     u.superuser ? t`Can do anything` : u.canSignIn ? t`Signs in` : t`Can't sign in`;
@@ -108,34 +111,48 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           },
         ]
       : []),
+    ...(mongo
+      ? [
+          {
+            key: "authDatabase",
+            header: t`Signs in to`,
+            width: 160,
+            render: (u: DatabaseAccount) => <code className="databases-code">{u.authDatabase}</code>,
+          },
+        ]
+      : []),
     { key: "role", header: t`Role`, width: 160, render: role },
-    { key: "databases", header: mysql ? t`Granted on` : t`Owns`, width: 200, render: theirs },
-    {
-      key: "secret",
-      header: t`Password in`,
-      width: 240,
-      render: (u) =>
-        u.secret ? (
-          <code className="databases-code">{u.secret}</code>
-        ) : (
-          <span className="databases-muted">{t`Not one of Dockwell's`}</span>
-        ),
-    },
-    {
-      key: "used",
-      header: t`Used by`,
-      width: 200,
-      render: (u) =>
-        u.usedBy.length > 0 ? (
-          <span className="databases-tags">
-            {u.usedBy.map((app) => (
-              <Tag key={app}>{app}</Tag>
-            ))}
-          </span>
-        ) : (
-          <span className="databases-muted">{u.secret ? t`No app yet` : ""}</span>
-        ),
-    },
+    { key: "databases", header: mysql ? t`Granted on` : mongo ? t`Has roles in` : t`Owns`, width: 200, render: theirs },
+    ...(makes
+      ? ([
+          {
+            key: "secret",
+            header: t`Password in`,
+            width: 240,
+            render: (u) =>
+              u.secret ? (
+                <code className="databases-code">{u.secret}</code>
+              ) : (
+                <span className="databases-muted">{t`Not one of Dockwell's`}</span>
+              ),
+          },
+          {
+            key: "used",
+            header: t`Used by`,
+            width: 200,
+            render: (u) =>
+              u.usedBy.length > 0 ? (
+                <span className="databases-tags">
+                  {u.usedBy.map((app) => (
+                    <Tag key={app}>{app}</Tag>
+                  ))}
+                </span>
+              ) : (
+                <span className="databases-muted">{u.secret ? t`No app yet` : ""}</span>
+              ),
+          },
+        ] satisfies TableColumn<DatabaseAccount & { id: string }>[])
+      : []),
   ];
   // A user Dockwell made gets a new generated password in their secret, and in the database, through a plan.
   const changePassword = (user: string) =>
@@ -143,27 +160,30 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       kind: "plan",
       make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id, user }),
     });
-  columns.push({
-    key: "change",
-    header: <span className="dw-sr">{t`Actions`}</span>,
-    width: 168,
-    align: "right",
-    render: (u) => {
-      const who = u.name;
-      return u.resourceId && u.secret ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => changePassword(who)}
-          aria-label={t`Change ${who}'s password`}
-          {...mayChange.off}
-        >
-          <Trans>Change password</Trans>
-        </Button>
-      ) : null;
-    },
-  });
-  const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host}` }));
+  // Only a user Dockwell made has a password to change here, so with none the column isn't there.
+  if (users.some((u) => u.resourceId && u.secret))
+    columns.push({
+      key: "change",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 168,
+      align: "right",
+      render: (u) => {
+        const who = u.name;
+        return u.resourceId && u.secret ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => changePassword(who)}
+            aria-label={t`Change ${who}'s password`}
+            {...mayChange.off}
+          >
+            <Trans>Change password</Trans>
+          </Button>
+        ) : null;
+      },
+    });
+  // A MongoDB user's name is theirs in one database, so two can share one.
+  const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host || u.authDatabase}` }));
   const count = users.length;
   // A PostgreSQL group is a role that can't sign in, so it's a user here, and says so.
   const signIn = users.filter((u) => u.canSignIn).length;
@@ -180,9 +200,11 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       title={<Trans>Users</Trans>}
       aside={aside}
       action={
-        <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
-          <Trans>Add a user</Trans>
-        </Button>
+        makes ? (
+          <Button size="sm" icon="plus" onClick={() => setAdding(true)}>
+            <Trans>Add a user</Trans>
+          </Button>
+        ) : undefined
       }
     >
       {phone ? (
@@ -190,7 +212,13 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           rows={rows.map((u) => ({
             id: u.id,
             name: u.name,
-            sub: [mysql ? u.host : "", role(u), u.databases.join(", "), u.secret, u.usedBy.join(", ")]
+            sub: [
+              mysql ? u.host : mongo ? u.authDatabase : "",
+              role(u),
+              u.databases.join(", "),
+              u.secret,
+              u.usedBy.join(", "),
+            ]
               .filter(Boolean)
               .join(" · "),
             action:
@@ -212,7 +240,14 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       )}
       {db.engine === DatabaseEngine.POSTGRESQL ? (
         <p className="database-line">
-          {t`Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one.`}
+          {t`Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password.`}
+        </p>
+      ) : null}
+      {mongo ? (
+        <p className="database-line">
+          <Trans>
+            Dockwell can't add a MongoDB user yet. Add one with <code>db.createUser</code> in <code>mongosh</code>.
+          </Trans>
         </p>
       ) : null}
       {adding ? <AddUserSheet db={db} onClose={() => setAdding(false)} /> : null}

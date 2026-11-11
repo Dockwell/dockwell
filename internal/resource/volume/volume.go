@@ -65,6 +65,19 @@ type Runtime interface {
 	Delete(ctx context.Context, t Target) error
 }
 
+// WithoutOptions is spec without its options, if it's a volume's that has some,
+// and spec otherwise. What an agent keeps of a volume needs none, as it never
+// makes one again alone, and options can hold a share's password (ADR 0054).
+func WithoutOptions(spec proto.Message) proto.Message {
+	v, ok := spec.(*resourcev1.Volume)
+	if !ok || len(v.GetOptions()) == 0 {
+		return spec
+	}
+	v = proto.Clone(v).(*resourcev1.Volume)
+	v.Options = nil
+	return v
+}
+
 // Driver manages volumes.
 type Driver struct {
 	Runtime Runtime

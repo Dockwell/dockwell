@@ -112,6 +112,58 @@ service ServiceService {
       body: "*"
     };
   }
+  // OpenService gives the person who asks a one-time address that opens the web
+  // UI a service publishes on its server, through the panel, on an origin of
+  // the service's own (ADR 0061): the browser that opens it first, within a
+  // minute, gets that app and nothing else, while the panel session that asked
+  // lasts and its role still lets it, and every connection it made ends with
+  // either. It's as much as revealing a secret, as an admin tool or an app's
+  // first account may be behind it, so it takes a developer in a session, never
+  // a token, and a passkey just now, and goes on the audit log. Only a panel
+  // reached on localhost opens apps for now: on its domain, this is refused,
+  // and says so.
+  rpc OpenService(OpenServiceRequest) returns (OpenServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {verb: "open"};
+    option (google.api.http) = {
+      post: "/v1/services/{id}:open"
+      body: "*"
+    };
+  }
+}
+
+// OpenServiceRequest names a service and the port of its web UI.
+message OpenServiceRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The port in its container that answers HTTP, such as 80. Empty takes the
+  // one port it publishes, where it publishes one.
+  uint32 port = 2;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 3;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 4;
+  // The proof from FinishStepUp, for opening this service, by its ID. It works
+  // once, within a minute, in the session that made it. Without one, the call
+  // is refused with needs_step_up once nothing else refuses it.
+  string proof = 5;
+}
+
+// OpenServiceResponse carries where to open it.
+message OpenServiceResponse {
+  // Where a browser opens it, such as "http://abcde23456.localhost:7600/.dockwell/open?ticket=…".
+  // It works once.
+  string url = 1;
+  // When the address stops working, if it hasn't been opened.
+  google.protobuf.Timestamp expire_time = 2;
+  // The origin the app answers on, such as "http://abcde23456.localhost:7600".
+  string origin = 3;
 }
 
 // ListServicesRequest asks for a page of services.

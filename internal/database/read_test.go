@@ -3,6 +3,7 @@
 package database
 
 import (
+	"errors"
 	"io"
 	"regexp"
 	"strconv"
@@ -158,6 +159,40 @@ func TestARefusedStatementSaysWhyInItsEnginesWords(t *testing.T) {
 		_, err = Reader{Client: client}.ask(t.Context(), id, eng, cmd, "SELECT 1;")
 		if err == nil || err.Error() != want {
 			t.Errorf("%s says %v, want %q", image, err, want)
+		}
+	}
+}
+
+// A database that doesn't take connections yet, as it starts, says so in a way a
+// caller can wait on, rather than as a statement it refused.
+func TestADatabaseThatsStartingSaysSo(t *testing.T) {
+	e := dockertest.New(t)
+	said := map[string]string{
+		"postgres:17": "psql: error: connection to server on socket \"/var/run/postgresql/.s.PGSQL.5432\" failed: FATAL:  the database system is starting up\n",
+		"postgres:16": "psql: error: connection to server on socket \"/var/run/postgresql/.s.PGSQL.5432\" failed: No such file or directory\n",
+		"mysql:8.4":   "ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)\n",
+		"mariadb:12":  "ERROR 2002 (HY000): Can't connect to local server through socket '/run/mysqld/mysqld.sock' (2)\n",
+	}
+	for image, stderr := range said {
+		e.AddLocalImage(image, dockertest.Image{Config: docker.Config{Cmd: []string{"x"}}, Exec: func(x dockertest.Exec) int {
+			_, _ = io.WriteString(x.Stderr, stderr)
+			return 2
+		}})
+	}
+	client := e.Client()
+	for image := range said {
+		id, err := client.CreateContainer(t.Context(), "c-"+strings.ReplaceAll(image, ":", "-"), &docker.CreateRequest{Config: docker.Config{Image: image}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := client.StartContainer(t.Context(), id); err != nil {
+			t.Fatal(err)
+		}
+		eng := Recognise(image)
+		cmd, _ := eng.reading(0)
+		_, err = Reader{Client: client}.ask(t.Context(), id, eng, cmd, "SELECT 1;")
+		if !errors.Is(err, ErrStarting) || err.Error() != eng.Name+" isn't taking connections yet" {
+			t.Errorf("%s says %v, want that it isn't taking connections yet", image, err)
 		}
 	}
 }

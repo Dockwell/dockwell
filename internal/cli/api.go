@@ -57,7 +57,7 @@ func apiCommands(stdio IO, g *globalFlags) ([]*cobra.Command, error) {
 		Interactive: stdio.Interactive,
 		ReadSecret:  a.readValue,
 		Connect:     a.connect,
-		Kinds:       controlKinds("").With(scope.Types()...),
+		Kinds:       controlKinds("", nil).With(scope.Types()...),
 	}
 	methods, err := apicli.Commands(env, apiMethods(), apicmd.Nouns(), apicmd.Kinds())
 	if err != nil {

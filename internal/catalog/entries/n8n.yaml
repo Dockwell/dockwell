@@ -25,7 +25,7 @@ screenshots:
     source: https://raw.githubusercontent.com/n8n-io/n8n/93243edc00b288a840fbb562a5e9f64177f2337f/assets/n8n-screenshot.png
 category: automation
 version: "2.45.5"
-release: 2
+release: 3
 homepage: https://n8n.io
 license: AGPL-3.0-only
 appLicense: Sustainable Use, with Enterprise code under n8n's own
@@ -34,21 +34,20 @@ source:
   path: internal/catalog/entries/n8n.yaml
 web:
   service: n8n
-firstSteps: >-
-  n8n answers only on this server until you add a domain, as the first person to open
-  it makes its owner account. So make yours first, through an SSH tunnel from your
-  computer: ssh -N -L 5678:127.0.0.1:5678 you@your-server, using the port you gave
-  it, then open http://localhost:5678 in Chrome or Firefox: n8n signs you in only
-  over HTTPS or on localhost, and Safari doesn't take localhost for that. Add a
-  domain on its page only after that, over HTTPS, as a new domain's certificate shows
-  in public logs within minutes. Then set WEBHOOK_URL on the n8n service to that
-  address, so the webhooks it shows use it, and N8N_PROXY_HOPS to 1, so it reads
-  who's calling from the proxy in front. n8n keeps the key that encrypts your
-  credentials on its volume, so a backup of the volume holds both.
+firstVisitorOwns: true
+addressVariables:
+  - service: n8n
+    variable: WEBHOOK_URL
+    value: "https://{domain}/"
+  - service: n8n
+    variable: N8N_PROXY_HOPS
+    value: "1"
+notes:
+  - "Signs in only over HTTPS, or on localhost in Chrome or Firefox."
+  - "Keeps the key that encrypts your credentials on its volume, so its backups hold both."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "5678"
 compose: |

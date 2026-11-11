@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { DescService } from "@bufbuild/protobuf";
 import * as api from "@dockwell/api";
-import { Protocol, RestartPolicy, ServiceService, SpecSchema, WebsiteService } from "@dockwell/api";
+import { CatalogService, Protocol, RestartPolicy, ServiceService, SpecSchema, WebsiteService } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
 import { editCommand, flagName, kindNoun, methodCommand, methodFlags, methodName, shellWord, specFlags } from "./cli";
@@ -217,5 +217,15 @@ describe("methodCommand", () => {
         website: { serves: { case: "proxy", value: { port: 3000 } } },
       }),
     ).toBe(`dockwell websites create --domain blog.example.com --website '{"proxy":{"port":3000}}'`);
+  });
+
+  it("writes a map's enum as the flag's word", () => {
+    expect(
+      methodCommand(CatalogService.method.installCatalogEntry, {
+        id: "postgres",
+        memory: { db: "1G" },
+        restart: { db: RestartPolicy.ALWAYS },
+      }),
+    ).toBe("dockwell catalog install postgres --memory db=1G --restart db=always");
   });
 });

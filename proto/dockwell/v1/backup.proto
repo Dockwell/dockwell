@@ -164,6 +164,75 @@ service BackupService {
       body: "*"
     };
   }
+
+  // DrillBackup checks that a backup on its server restores, in a container and a
+  // volume of its own that nothing reaches and that it throws away, whatever comes
+  // of it (ADR 0068). It replaces nothing, so it takes the roles a backup does. It
+  // returns the drill running; follow it with GetBackup, whose drill says how it
+  // ended. A server runs one at a time, and an API token starts at most one drill of
+  // a volume an hour.
+  rpc DrillBackup(DrillBackupRequest) returns (DrillBackupResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (google.api.http) = {
+      post: "/v1/backups/{id}:drill"
+      body: "*"
+    };
+  }
+}
+
+// DrillBackupRequest names a backup to check.
+message DrillBackupRequest {
+  // The backup's ID.
+  string id = 1;
+}
+
+// DrillBackupResponse is the drill, running.
+message DrillBackupResponse {
+  // The drill.
+  BackupDrill drill = 1;
+}
+
+// BackupDrill is a check that a backup restores (ADR 0068).
+message BackupDrill {
+  // The drill's ID.
+  string id = 1;
+  // How it went.
+  DrillResult result = 2;
+  // What failed, or why it wasn't checked, in a line: "orders.items has no rows; the
+  // dump fills it", or "the disk had no room". Empty once it passed.
+  string why = 3;
+  // What the database printed last, for a drill that failed or wasn't checked,
+  // without what it quoted.
+  string detail = 4;
+  // How much came back, in bytes.
+  int64 restored_bytes = 5;
+  // How many tables it checked, for a database's dump.
+  int32 tables = 6;
+  // True for a copy of files it could only unpack, which proves the archive restores
+  // whole, and not that the app makes sense of it: "Unpacked whole".
+  bool unpacked_only = 7;
+  google.protobuf.Timestamp started_at = 8;
+  // Unset while it runs.
+  google.protobuf.Timestamp finished_at = 9;
+  // Who started it.
+  Actor actor = 10;
+}
+
+// DrillResult says how a restore drill went.
+enum DrillResult {
+  DRILL_RESULT_UNSPECIFIED = 0;
+  // It's under way.
+  DRILL_RESULT_RUNNING = 1;
+  // The backup restored, and held what it should.
+  DRILL_RESULT_PASSED = 2;
+  // The backup didn't restore, or failed a check.
+  DRILL_RESULT_FAILED = 3;
+  // It was cut short, or couldn't run, which says nothing about the backup: no
+  // room, no memory, out of time, the server or the control plane went away.
+  DRILL_RESULT_NOT_CHECKED = 4;
 }
 
 // BackupState says where a backup is.
@@ -234,6 +303,8 @@ message Backup {
   // The connected servers it can be fetched onto, by name: those its volume is on. Set
   // for a stored backup that isn't on a server that can restore it now.
   repeated string fetch_onto = 25;
+  // Its newest restore drill, running or ended. Unset when it was never checked.
+  BackupDrill drill = 26;
 }
 
 // BackupCopy says where a backup stands on its destination.

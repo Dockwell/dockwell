@@ -13,7 +13,7 @@ A drill runs beside the live app, on its disk, its memory and its CPU, so it mus
 
 ### A drill restores a backup into a scratch container, checks it, and throws it away
 
-- **On the server that has the backup,** into a container of its own and a scratch volume of its own. Both carry a label that marks them as a drill's, with the drill's ID. It never touches the live volume, the app or the app's networks. A backup that's only in its destination is fetched first, into a drills directory under the backups root, through the same SHA-256 check as `FetchBackup`, and goes with the drill. Each server a policy runs on drills its own newest backup.
+- **On the server that has the backup,** into a container of its own and a scratch volume of its own. Both carry a label that marks them as a drill's, with the drill's ID. It never touches the live volume, the app or the app's networks. A backup that's only in its destination is fetched first, into a drills directory under the backups root, through the same SHA-256 check as `FetchBackup`, and goes with the drill; the first slices drill only what's on the server, and refuse one that's only stored. Each server a policy runs on drills its own newest backup.
 - **It's new code, not ADR 0033's restore.** A restore empties the live volume and starts the live container again, with that container's own command, variables, networks and mounts (`internal/backup/restore.go`). A drill makes a container of its own. What carries over is waiting for the database to be ready (`awaitReady`) and loading a dump (`loadDump`).
 
 ### What the drill container is given: the image, not the service
@@ -76,7 +76,7 @@ The live passwords never reach the drill, as ADR 0038 keeps them from the agent,
 ### What it is to the revision store, and to Activity
 
 - **The schedule is a field of `backup.policy`,** so setting it, changing it or turning it off is a plan with a revision, history and undo, as any policy change is. Nothing new calls `Revise`.
-- **A drill is an event, not a change,** as a backup is: it changes no desired state, so it makes no revision. It's a row of `backup_drills` (the backup, who or which policy started it, when, how long, the result, why, and what failed in one line, without what a database quotes of its data, as ADR 0033 keeps a failed load). Rows go with their backup.
+- **A drill is an event, not a change,** as a backup is: it changes no desired state, so it makes no revision. It's a row of `backup_drills` (the backup, who or which policy started it, when, how long, the result, why, and what failed in one line, without what a database quotes of its data, as ADR 0033 keeps a failed load). Rows go with their backup, but for a failed drill's, which stays until a backup at least as new passes, so `restore-drill-failed` holds after retention deletes the backup it failed on.
 - **The audit event `backup.drill`,** with its result, which stays on Activity once the backup is gone. It reaches Activity under `EVENT_KIND_BACKUP` once it's one of `backups.Actions`, and `EventBackup` gains the drill's result.
 - **Where it shows:** on the backup's row and the database's Backups tab, "Restored and checked 2 days ago", "Restore check failed 2 days ago: the dump didn't load · Check again", or "Not checked: the disk had no room · Check again", and on the volume's newest backup in the Backups list.
 
@@ -84,7 +84,7 @@ The live passwords never reach the drill, as ADR 0038 keeps them from the agent,
 
 - **`restore-drill-failed`,** critical, never repeated, `CONDITION_RESTORE_DRILL_FAILED`: the newest backup of a volume, on a server, that has been drilled failed its drill. It resolves when a backup at least as new passes; deleting the failed backup doesn't resolve it alone. A drill of an older backup shows on that backup's row only, so last month's backup passing doesn't hide this week's failing, and an old copy from before an upgrade doesn't page anyone.
 - **`restore-drill-late`,** warning, `CONDITION_RESTORE_DRILL_LATE`: a policy that drills has gone two of its periods without a pass, whether its drills were not checked or never ran. `backup-late` reads backups' runs only, so it doesn't cover that.
-- Both are made for every install, as ADR 0044's defaults are, with a row in its table. `MakeDefaults` stops today on an install whose `alerts.defaults` is set, which is every install that has alerts, so it drops that stop and relies on `EverManaged` alone: a new default reaches an install that upgrades, and a rule someone deleted stays deleted.
+- Both are made for every install, as ADR 0044's defaults are, with a row in its table. Each is one of `MakeDefaults`' later rules, with a setting of its own, as ADR 0066's `check-down` is: an install that upgrades gets each once, and a rule someone deleted stays deleted.
 
 ### Who may
 
@@ -94,7 +94,7 @@ The live passwords never reach the drill, as ADR 0038 keeps them from the agent,
 
 ## Consequences
 
-- The agent gains a call, `DrillBackup`, agent protocol 220 and 221 in `Call` and `CallResult`, and the agent build gains nothing to link: it runs the database's own image and its own volume tool. Its memory holds a dump's table names, at most 100,000.
+- The agent gains a call, `DrillBackup`, agent protocol 220 in `Call` and `CallResult` and `Hello.drills` 221, and the agent build gains nothing to link: it runs the database's own image and its own volume tool. Its memory holds a dump's table names, at most 100,000.
 - Backups keep the number of files their read-back counts, and the store gains `backup_drills`.
 - The policy sheet gets one line, "Check a restore: weekly · Change", Backups the callout for policies that never check, and each backup its state and "Check it restores".
 - It lands in two slices. First, drills on demand, with their record, their three results, their checks, everything above that keeps the live server safe and the leftovers sweep, and `restore-drill-failed`, since on-demand drills use the same disk and memory as scheduled ones. Then the policy's schedule, the weekly default for new policies, the callout, and `restore-drill-late`.
@@ -102,4 +102,4 @@ The live passwords never reach the drill, as ADR 0038 keeps them from the agent,
 ### Not in these slices
 
 - **A drill of the stored copy.** A lost server leaves only the copy at the destination, and only a drill of it shows that its passphrase and seal still open it. A monthly drill could fetch and open that copy, or stream it through opening and SHA-256 with nothing written. S3 charges for the egress, R2 doesn't. It's a record of its own once slice 2 lands.
-- **What a drill doesn't prove:** that the backup restores on another server or under another release; that an app makes sense of its files; or the restore path's own stop, swap and undo, which their tests cover. A backup that passed can still hold the wrong data, such as one taken after the data was lost.
+- **What a drill doesn't prove:** that the backup restores on another server or under another release; that an app makes sense of its files; or the restore path's own stop, swap and undo, which their tests cover. A backup that passed can still hold the wrong data, such as one taken after the data was lost. And a drill proves the data loads, nothing about passwords: it signs in over a trusted socket or without grants, while a real restore brings back the role passwords the dump holds, which may no longer match the app's secret.

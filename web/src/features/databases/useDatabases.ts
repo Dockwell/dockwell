@@ -38,15 +38,25 @@ const ENGINES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.MARIADB]: "MariaDB",
   [DatabaseEngine.REDIS]: "Redis",
   [DatabaseEngine.VALKEY]: "Valkey",
+  [DatabaseEngine.MONGODB]: "MongoDB",
 };
 
 export function engineName(engine: DatabaseEngine): string {
   return ENGINES[engine];
 }
 
-/** Whether an engine has databases and users of its own, as SQL ones do. */
+/** Whether an engine has databases and users of its own, as SQL ones and MongoDB do. */
 export function speaksSQL(engine: DatabaseEngine): boolean {
   return engine !== DatabaseEngine.REDIS && engine !== DatabaseEngine.VALKEY;
+}
+
+/**
+ * Whether Dockwell makes users in an engine, each with a database of their own and
+ * a password kept as a secret. MongoDB's are listed, and making them comes later
+ * (ADR 0038).
+ */
+export function makesUsers(engine: DatabaseEngine): boolean {
+  return engine === DatabaseEngine.POSTGRESQL || engine === DatabaseEngine.MYSQL || engine === DatabaseEngine.MARIADB;
 }
 
 /** What the URL of each engine starts with. */
@@ -57,6 +67,7 @@ const SCHEMES: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.MARIADB]: "mysql",
   [DatabaseEngine.REDIS]: "redis",
   [DatabaseEngine.VALKEY]: "redis",
+  [DatabaseEngine.MONGODB]: "mongodb",
 };
 
 /** The first user each engine's image makes, where a reading hasn't said. */
@@ -67,6 +78,7 @@ const FIRST_USER: Readonly<Record<DatabaseEngine, string>> = {
   [DatabaseEngine.MARIADB]: "root",
   [DatabaseEngine.REDIS]: "",
   [DatabaseEngine.VALKEY]: "",
+  [DatabaseEngine.MONGODB]: "",
 };
 
 /** What a database's first server said, which is the one there is for nearly all. */
@@ -101,6 +113,12 @@ export function connectionURL(
   const scheme = SCHEMES[db.engine];
   const where = `${db.host}:${db.port}`;
   const secret = password === undefined ? "" : `:${encodeURIComponent(password)}`;
+  if (db.engine === DatabaseEngine.MONGODB) {
+    // Its root user is in admin, which an app names as where it signs in; one that checks no one takes none.
+    const root = firstUser(db, reading);
+    if (!root || reading?.checksNoOne) return `${scheme}://${where}`;
+    return `${scheme}://${encodeURIComponent(root)}${secret}@${where}/?authSource=admin`;
+  }
   if (!speaksSQL(db.engine)) return `${scheme}://${secret ? `${secret}@` : ""}${where}`;
   const user = encodeURIComponent(firstUser(db, reading));
   const name = db.engine === DatabaseEngine.POSTGRESQL ? `/${firstDatabase(reading) || "postgres"}` : "";
@@ -129,6 +147,7 @@ const IMAGES: Readonly<Record<string, DatabaseEngine>> = {
   mariadb: DatabaseEngine.MARIADB,
   redis: DatabaseEngine.REDIS,
   "valkey/valkey": DatabaseEngine.VALKEY,
+  mongo: DatabaseEngine.MONGODB,
 };
 
 /** The engine an image runs, as the control plane tells (internal/database.Recognise), or undefined. */

@@ -278,6 +278,110 @@ describe("Activity", () => {
     await screen.findByRole("row", { name: /Set the public address of hz-1 to 198\.51\.100\.7(?!,)/ });
   });
 
+  it("says when a server's agent was sent variables and secrets to keep, and what a new cache can mean", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const events = [
+      auditEvent({
+        id: "evt_new",
+        action: "server.desired_sent",
+        kind: EventKind.SERVER,
+        subject: on,
+        desiredSent: { resources: 4, withValues: 1, newCache: true, serverName: "hz-1" },
+      }),
+      auditEvent({
+        id: "evt_sent",
+        action: "server.desired_sent",
+        kind: EventKind.SERVER,
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        subject: on,
+        desiredSent: { resources: 5, withValues: 3, serverName: "hz-1" },
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch, {}, "/activity?event=evt_new");
+    await screen.findByRole("row", {
+      name: /Sent hz-1's agent the variables and secrets of 3 resources it runs, to keep while the control plane is away/,
+    });
+    await screen.findByRole("row", {
+      name: /hz-1's agent has a new cache, and was sent the variables and secrets of 1 resource it runs/,
+    });
+    const detail = await screen.findByRole("region", { name: /hz-1's agent has a new cache/ });
+    expect(within(detail).getByText("4")).toBeVisible();
+    expect(
+      within(detail).getByText(
+        /If neither happened, something else may hold this server's identity: remove hz-1 from the fleet and join it again/,
+      ),
+    ).toBeVisible();
+  });
+
+  it("says plainly when a server's agent is sent values for the first time, and what it keeps that isn't on record", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        auditEvent({
+          id: "evt_unknown",
+          action: "server.desired_unknown",
+          kind: EventKind.SERVER,
+          subject: on,
+          desiredSent: { unknown: 2, serverName: "hz-1" },
+        }),
+        auditEvent({
+          id: "evt_first",
+          action: "server.desired_sent",
+          kind: EventKind.SERVER,
+          time: timestampFromDate(new Date(Date.now() - HOUR)),
+          subject: on,
+          desiredSent: { resources: 3, withValues: 2, firstCache: true, serverName: "hz-1" },
+        }),
+      ]),
+    );
+    renderActivity(watch, {}, "/activity?event=evt_unknown");
+    const first = await screen.findByRole("row", {
+      name: /Sent hz-1's agent, which kept none before, the variables and secrets of 2 resources it runs/,
+    });
+    expect(first).not.toHaveTextContent(/new cache/);
+    const detail = await screen.findByRole("region", {
+      name: /hz-1's agent keeps 2 resources this control plane has no record of at that revision, and they were left as they are/,
+    });
+    expect(within(detail).getByText(/may be the only copy of what runs there/)).toBeVisible();
+    expect(within(detail).queryByText("Resources sent")).toBeNull();
+  });
+
+  it("says what a server's agent did on its own while the control plane was away, and why it couldn't", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
+    const reconciled = (id: string, action: string, hours: number, more: object) =>
+      auditEvent({
+        id,
+        action,
+        kind: EventKind.SERVER,
+        time: at(hours),
+        subject: on,
+        reconciled: { serverName: "hz-1", kind: "service", name: "web", ...more },
+      });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(
+      snapshot([
+        reconciled("evt_wait", "server.reconciled_waiting", 0, { reason: "its image is gone" }),
+        reconciled("evt_made", "server.reconciled_made", 1, {}),
+        reconciled("evt_started", "server.reconciled_started", 2, {}),
+        reconciled("evt_dropped", "server.reconciled_dropped", 3, { name: "", dropped: 4 }),
+      ]),
+    );
+    renderActivity(watch, {}, "/activity?event=evt_wait");
+    await screen.findByRole("row", { name: /hz-1 made web again while the control plane was away/ });
+    await screen.findByRole("row", { name: /hz-1 started web again on its own/ });
+    await screen.findByRole("row", {
+      name: /hz-1 dropped 4 entries of what it did while the control plane was away, as it keeps 500/,
+    });
+    const detail = await screen.findByRole("region", {
+      name: /hz-1 left web as it is, and says why/,
+    });
+    expect(within(detail).getByText("its image is gone")).toBeVisible();
+  });
+
   it("says what the install's settings were set to, and what they were, so they can be put back", async () => {
     const at = (hours: number) => timestampFromDate(new Date(Date.now() - hours * HOUR));
     const events = [

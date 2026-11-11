@@ -3,7 +3,14 @@
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { BackupService, type Database, type DatabaseReading, DatabaseService, VariableService } from "@dockwell/api";
+import {
+  BackupService,
+  type Database,
+  DatabaseEngine,
+  type DatabaseReading,
+  DatabaseService,
+  VariableService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -60,8 +67,10 @@ export function DatabaseOverview() {
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
+      {read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
       <FromServer db={db} reading={reading} />
       <UpgradeNote db={db} />
+      {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
       <Numbers db={db} read={read} />
       <div className="database-panels">
         <BackupsPanel db={db} />
@@ -75,6 +84,57 @@ export function DatabaseOverview() {
       ) : null}
     </div>
   );
+}
+
+/**
+ * A MongoDB that runs without --auth, as its image does with no root user set:
+ * anything that reaches its port signs in as anyone.
+ */
+function ChecksNoOne({ db, read }: { db: Database; read: DatabaseReading }) {
+  const { t } = useLingui();
+  const engine = engineName(db.engine);
+  const set = read.replicaSet;
+  return (
+    <Callout
+      tone="warning"
+      title={t`${engine} lets anyone in`}
+      actions={
+        <RouterButtonLink to="/apps/$serviceId/environment" params={{ serviceId: db.id }} size="sm">
+          <Trans>Its environment</Trans>
+        </RouterButtonLink>
+      }
+    >
+      {set ? (
+        <Trans>
+          Give it a <code>--keyFile</code> every member of {set} shares, make a root user, then set{" "}
+          <code>MONGO_INITDB_ROOT_USERNAME</code> and <code>MONGO_INITDB_ROOT_PASSWORD</code>.
+        </Trans>
+      ) : (
+        <Trans>
+          Make a root user in it, then set <code>MONGO_INITDB_ROOT_USERNAME</code> and{" "}
+          <code>MONGO_INITDB_ROOT_PASSWORD</code>.
+        </Trans>
+      )}
+    </Callout>
+  );
+}
+
+/**
+ * What MongoDB says of its upgrades and its backups, as facts on a line: the features
+ * its data may use, and whether a backup is one moment and can come back into it.
+ */
+function MongoLine({ read }: { read: DatabaseReading }) {
+  const { t } = useLingui();
+  const features = read.featureCompatibility;
+  const release = read.version.split(".").slice(0, 2).join(".");
+  const set = read.replicaSet;
+  const facts = [
+    features && features !== release ? t`Data at ${features}'s features, which its next upgrade raises` : "",
+    set
+      ? t`Replica set ${set}: each backup is one moment, and can't be restored into a member yet`
+      : t`Runs alone: a backup isn't one moment while something writes`,
+  ].filter(Boolean);
+  return <p className="database-line">{facts.join(" · ")}</p>;
 }
 
 /** On a database that runs on several servers, which one its numbers are from. */
@@ -103,23 +163,9 @@ function UpgradeNote({ db }: { db: Database }) {
       tone="info"
       title={next === now ? t`A change to how ${engine} ${now} runs is out` : t`${engine} ${next} is out`}
     >
-      {!how.known ? (
-        <Trans>
-          Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing
-          it puts this version back, and leaves the data as the new one left it.
-        </Trans>
-      ) : how.dump ? (
-        <Trans>
-          Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which
-          backup holds it. Undoing it puts this version back, and leaves the data as the new one left it.
-        </Trans>
-      ) : (
-        <Trans>
-          Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops{" "}
-          {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the
-          data as the new one left it.
-        </Trans>
-      )}
+      {how.known && how.dump
+        ? t`Its plan backs up the data with ${dumpOf}'s dump first; undoing it keeps the data as ${next} left it.`
+        : t`Its plan backs up its volumes first; undoing it keeps the data as ${next} left it.`}
     </Callout>
   );
 }
@@ -138,16 +184,19 @@ export function NoBackups({ db, className }: { db: Database; className?: string 
       <p className="database-line">
         {db.volumeExternal ? (
           <Trans>
-            Its data is in <code>{volume}</code>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it
-            up where it came from, or move the data into a volume of the app's.
+            Its data is in <code>{volume}</code>, a volume Dockwell didn't make, which it doesn't back up.
           </Trans>
         ) : (
-          <Trans>
-            Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give
-            it a volume on its app's page.
-          </Trans>
+          <Trans>Its data isn't in a volume, so it goes with its container.</Trans>
         )}
       </p>
+      {db.volumeExternal ? null : (
+        <div className="databases-panel-actions">
+          <RouterButtonLink to="/apps/$serviceId/settings" params={{ serviceId: db.id }} size="sm">
+            <Trans>Give it a volume</Trans>
+          </RouterButtonLink>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -158,10 +207,28 @@ function UnreadNote({ db, reading }: { db: Database; reading: DatabaseReading })
   const engine = engineName(db.engine);
   return (
     <Callout tone="warning" title={t`${engine} didn't say how it is`}>
-      <span className="database-said">{reading.unread}.</span>{" "}
-      <Trans>Its numbers, databases and users show again once it does.</Trans>
+      {/* What Docker or the database said can run to a whole command line: its first clause, and the rest on asking. */}
+      <span className="database-said">{gist(reading.unread)}</span>
+      {gist(reading.unread) !== reading.unread ? (
+        <details className="database-details">
+          <summary>
+            <Trans context="what a database or Docker said when it couldn't be read">What it said</Trans>
+          </summary>
+          <span className="database-said">{reading.unread}</span>
+        </details>
+      ) : null}
     </Callout>
   );
+}
+
+/**
+ * The first sentence of what a database or Docker said, or its first clause, as what
+ * follows can be a whole command line, with its first letter a capital.
+ */
+export function gist(said: string): string {
+  const clause = said.split(/(?<=\.) |: /, 1)[0] ?? said;
+  const short = clause.replace(/\.$/, "");
+  return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
 /** Its four numbers, as it said them a moment ago. Nothing keeps their history yet, so there's no trend. */
@@ -288,7 +355,7 @@ function BackupsPanel({ db }: { db: Database }) {
                 : t`Asking its server`
               : how.dump
                 ? t`${dumpOf}'s own dump, while it runs: nothing stops`
-                : t`A copy of its files, which stops it for an exact copy unless you choose to copy it running`}
+                : t`A copy of its files, which stops it a moment`}
           </dd>
         </div>
         <div className="databases-fact">
@@ -400,7 +467,8 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       hint: place ? t`From apps in ${place}` : t`From apps beside it`,
     },
     { label: t`Port`, value: String(db.port) },
-    ...(sql ? [{ label: t`User`, value: firstUser(db, read) }] : []),
+    // One that checks no one has no user to sign in as.
+    ...(sql && firstUser(db, read) && !read?.checksNoOne ? [{ label: t`User`, value: firstUser(db, read) }] : []),
     ...(published
       ? [
           {
@@ -417,7 +485,7 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
       className="database-connection"
       items={items}
       secret={
-        secret
+        secret && !read?.checksNoOne
           ? {
               label: t`Password`,
               value: shown.value,
@@ -425,16 +493,18 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
               problem: shown.problem ?? (variables.error ? sentence(variables.error) : undefined),
               hint: t`Kept in the secret ${secret}`,
               revealOff,
-              action: (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={changePassword}
-                  {...may(DatabaseService.method.changeDatabasePassword, where).off}
-                >
-                  <Trans>Change password</Trans>
-                </Button>
-              ),
+              // MongoDB keeps its root user's password in its data, which a new secret doesn't change.
+              action:
+                db.engine === DatabaseEngine.MONGODB ? undefined : (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={changePassword}
+                    {...may(DatabaseService.method.changeDatabasePassword, where).off}
+                  >
+                    <Trans>Change password</Trans>
+                  </Button>
+                ),
               onReveal: () => {
                 if (secretId) reveals.reveal(secretId);
               },
@@ -445,7 +515,11 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
           : undefined
       }
       note={
-        !secret && sql ? t`Its password is in its own environment, sealed, so it has no secret to reveal.` : undefined
+        read?.checksNoOne
+          ? t`It takes no password, as it checks no one.`
+          : !secret && sql
+            ? t`Its password is in its own environment, sealed, so it has no secret to reveal.`
+            : undefined
       }
       connectionString={{ label: t`Connection string`, build: (password) => connectionURL(db, read, password) }}
     />

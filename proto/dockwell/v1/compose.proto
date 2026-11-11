@@ -148,6 +148,10 @@ message ImportComposeRequest {
   // /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
   // ./data, starts there. Each is a server path, which a person approves.
   string directory = 9;
+  // Leave out the backup that comes first when a database moves to a release
+  // its data can't come back from, such as MongoDB raising its feature
+  // compatibility version (ADR 0038). The plan says so.
+  bool skip_backup = 10;
 }
 
 // ImportComposeResponse carries the planned change.

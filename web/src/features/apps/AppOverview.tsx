@@ -4,6 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   ChangeState,
   Connection,
   type Container,
@@ -587,12 +588,15 @@ function DomainRow({
   domain,
   route,
   read,
+  offer,
   onRemove,
   onMoveBehind,
 }: {
   domain: Domain;
   route: DomainRoute;
   read: DomainRead;
+  /** Whether its reader may plan here: removing it is off, with why, when not (ADR 0059). */
+  offer: Offer;
   onRemove: () => void;
   onMoveBehind: () => void;
 }) {
@@ -631,7 +635,14 @@ function DomainRow({
             <Icon name="external" size={16} />
           </a>
         ) : null}
-        <Button variant="ghost" size="sm" icon="trash" aria-label={t`Remove ${where}`} onClick={onRemove} />
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="trash"
+          aria-label={t`Remove ${where}`}
+          onClick={onRemove}
+          {...offer.off}
+        />
       </div>
       {said ? (
         <p className="app-domain-note">
@@ -665,7 +676,9 @@ function ReachedAt({
 }) {
   const { t } = useLingui();
   const { servers } = useFleetView();
-  const mayAdd = useMay()(ServiceService.method.addServicePort, { environment: environmentOf(service) });
+  const may = useMay();
+  const mayAdd = may(ServiceService.method.addServicePort, { environment: environmentOf(service) });
+  const mayPlan = may(ChangeService.method.proposeChange, { environment: environmentOf(service) });
   const { domains, read, isPending, failed, retrying, retry } = useAppDomains(service);
   const sheet = useChangeSheet();
   const name = nameOf(service);
@@ -741,6 +754,7 @@ function ReachedAt({
             domain={domain}
             route={route}
             read={read}
+            offer={mayPlan}
             onRemove={() => remove(routeWhere(domain, route), route.name)}
             onMoveBehind={() => onMoveBehind(moveBehindOf(domain, route))}
           />

@@ -24,7 +24,7 @@ screenshots:
     source: https://uptime.kuma.pet/img/light.jpg
 category: monitoring
 version: "2.5.9"
-release: 2
+release: 3
 homepage: https://uptime.kuma.pet
 license: AGPL-3.0-only
 appLicense: MIT
@@ -33,17 +33,10 @@ source:
   path: internal/catalog/entries/uptime-kuma.yaml
 web:
   service: uptime-kuma
-firstSteps: >-
-  Uptime Kuma answers only on this server until you add a domain, as the first person
-  to open it makes its admin account. So make yours first, through an SSH tunnel from
-  your computer: ssh -N -L 3001:127.0.0.1:3001 you@your-server, using the port you
-  gave it, then open http://localhost:3001. Add a domain on its page only after that,
-  over HTTPS or behind your tunnel, as a new domain's certificate shows in public
-  logs within minutes.
+firstVisitorOwns: true
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "3001"
 compose: |

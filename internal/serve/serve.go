@@ -56,6 +56,11 @@ type Options struct {
 	// TLS, when set, serves HTTPS with this configuration. Otherwise the
 	// listener speaks plaintext HTTP/1.1 and unencrypted HTTP/2.
 	TLS *tls.Config
+	// MaxFrame, when nonzero, is the largest HTTP/2 frame the listener takes,
+	// which its peers send at most. A Go client writes a stream's body through a
+	// buffer of that size, up to 512 KiB, so a peer with many streams, as an agent
+	// is, holds that for each.
+	MaxFrame int
 	// StreamGrace and ShutdownTimeout override the defaults when nonzero.
 	StreamGrace     time.Duration
 	ShutdownTimeout time.Duration
@@ -91,7 +96,7 @@ func Serve(ctx context.Context, ln net.Listener, h http.Handler, opts Options) e
 		// Only for a connection nothing can be written to, as a long stream's
 		// quiet doesn't count: there is nothing to write. Without it, a peer that
 		// stops reading TCP holds whatever waits to be written for good.
-		HTTP2:          &http.HTTP2Config{WriteByteTimeout: writeByteTimeout},
+		HTTP2:          &http.HTTP2Config{WriteByteTimeout: writeByteTimeout, MaxReadFrameSize: opts.MaxFrame},
 		MaxHeaderBytes: maxHeaderBytes,
 		ErrorLog:       slog.NewLogLogger(logger.Handler(), slog.LevelWarn),
 		BaseContext:    func(net.Listener) context.Context { return baseCtx },

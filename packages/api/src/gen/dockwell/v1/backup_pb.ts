@@ -20,7 +20,134 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/backup.proto.
  */
 export const file_dockwell_v1_backup: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9iYWNrdXAucHJvdG8SC2RvY2t3ZWxsLnYxIvQECgZCYWNrdXASCgoCaWQYASABKAkSFgoOZW52aXJvbm1lbnRfaWQYAiABKAkSDgoGdm9sdW1lGAMgASgJEhEKCXZvbHVtZV9pZBgEIAEoCRIRCglzZXJ2ZXJfaWQYBSABKAkSEwoLc2VydmVyX25hbWUYBiABKAkSJwoFc3RhdGUYByABKA4yGC5kb2Nrd2VsbC52MS5CYWNrdXBTdGF0ZRIpCgZtZXRob2QYCCABKA4yGS5kb2Nrd2VsbC52MS5CYWNrdXBNZXRob2QSEAoIZGF0YWJhc2UYCSABKAkSEgoKc2l6ZV9ieXRlcxgKIAEoAxIOCgZzaGEyNTYYCyABKAkSLgoKc3RhcnRlZF9hdBgMIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYDSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiEKBWFjdG9yGA4gASgLMhIuZG9ja3dlbGwudjEuQWN0b3ISDQoFZXJyb3IYDyABKAkSFQoNZmlsZXNfY2hhbmdlZBgQIAEoAxIQCghwcm9ncmVzcxgRIAEoCRIRCglwb2xpY3lfaWQYEiABKAkSEwoLZGVzdGluYXRpb24YEyABKAkSJQoEY29weRgUIAEoDjIXLmRvY2t3ZWxsLnYxLkJhY2t1cENvcHkSEgoKY29weV9lcnJvchgVIAEoCRIRCglvbl9zZXJ2ZXIYFiABKAgSEwoLZmV0Y2hfZXJyb3IYFyABKAkSFgoOc2VhbGVkX2VhcmxpZXIYGCABKAgSEgoKZmV0Y2hfb250bxgZIAMoCSKHAgoVQmFja3VwRGVzdGluYXRpb25JbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIZW5kcG9pbnQYAyABKAkSDgoGYnVja2V0GAQgASgJEg4KBnByZWZpeBgFIAEoCRIPCgdiYWNrdXBzGAYgASgFEhIKCnVzZWRfYnl0ZXMYByABKAMSLwoLbGFzdF91cGxvYWQYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEjAKDGxhc3RfZmFpbHVyZRgJIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASGgoSbGFzdF9mYWlsdXJlX2Vycm9yGAogASgJIh8KHUxpc3RCYWNrdXBEZXN0aW5hdGlvbnNSZXF1ZXN0IloKHkxpc3RCYWNrdXBEZXN0aW5hdGlvbnNSZXNwb25zZRI4CgxkZXN0aW5hdGlvbnMYASADKAsyIi5kb2Nrd2VsbC52MS5CYWNrdXBEZXN0aW5hdGlvbkluZm8iMAoSRmV0Y2hCYWNrdXBSZXF1ZXN0EgoKAmlkGAEgASgJEg4KBnNlcnZlchgCIAEoCSI6ChNGZXRjaEJhY2t1cFJlc3BvbnNlEiMKBmJhY2t1cBgBIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cCLvAQoQQmFja3VwUG9saWN5SW5mbxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhYKDmVudmlyb25tZW50X2lkGAMgASgJEjYKBHNwZWMYBCABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5CYWNrdXBQb2xpY3kSLAoIbmV4dF9ydW4YBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiEKBGxhc3QYBiABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASDAoEa2VwdBgHIAEoBRISCgprZXB0X2J5dGVzGAggASgDIhsKGUxpc3RCYWNrdXBQb2xpY2llc1JlcXVlc3QiTQoaTGlzdEJhY2t1cFBvbGljaWVzUmVzcG9uc2USLwoIcG9saWNpZXMYASADKAsyHS5kb2Nrd2VsbC52MS5CYWNrdXBQb2xpY3lJbmZvImYKEkxpc3RCYWNrdXBzUmVxdWVzdBIRCglwYWdlX3NpemUYASABKAUSEgoKcGFnZV90b2tlbhgCIAEoCRIRCgl2b2x1bWVfaWQYAyABKAkSFgoOZW52aXJvbm1lbnRfaWQYBCABKAkiVAoTTGlzdEJhY2t1cHNSZXNwb25zZRIkCgdiYWNrdXBzGAEgAygLMhMuZG9ja3dlbGwudjEuQmFja3VwEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSIeChBHZXRCYWNrdXBSZXF1ZXN0EgoKAmlkGAEgASgJIjgKEUdldEJhY2t1cFJlc3BvbnNlEiMKBmJhY2t1cBgBIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cCI5ChRQcmV2aWV3QmFja3VwUmVxdWVzdBIRCgl2b2x1bWVfaWQYASABKAkSDgoGc2VydmVyGAIgASgJIqgBChVQcmV2aWV3QmFja3VwUmVzcG9uc2USKQoGbWV0aG9kGAEgASgOMhkuZG9ja3dlbGwudjEuQmFja3VwTWV0aG9kEhAKCGRhdGFiYXNlGAIgASgJEg8KB3J1bm5pbmcYAyADKAkSFgoOZXN0aW1hdGVfYnl0ZXMYBCABKAMSEgoKZnJlZV9ieXRlcxgFIAEoAxIVCg1yZXNlcnZlX2J5dGVzGAYgASgDIlsKE0NyZWF0ZUJhY2t1cFJlcXVlc3QSEQoJdm9sdW1lX2lkGAEgASgJEg4KBnNlcnZlchgCIAEoCRIMCgRzdG9wGAMgASgIEhMKC2Rlc3RpbmF0aW9uGAQgASgJIjsKFENyZWF0ZUJhY2t1cFJlc3BvbnNlEiMKBmJhY2t1cBgBIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cCI2ChNEZWxldGVCYWNrdXBSZXF1ZXN0EgoKAmlkGAEgASgJEhMKC3NlcnZlcl9vbmx5GAIgASgIIhYKFERlbGV0ZUJhY2t1cFJlc3BvbnNlIjMKFFJlc3RvcmVCYWNrdXBSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3N1bW1hcnkYAiABKAkiPAoVUmVzdG9yZUJhY2t1cFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJiChxUZXN0QmFja3VwRGVzdGluYXRpb25SZXF1ZXN0EkIKC2Rlc3RpbmF0aW9uGAEgASgLMi0uZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwRGVzdGluYXRpb24iywEKHVRlc3RCYWNrdXBEZXN0aW5hdGlvblJlc3BvbnNlEhEKCXNpZ25lZF9pbhgBIAEoCBIPCgdidWNrZXRzGAIgAygJEg4KBmxpc3RlZBgDIAEoCBINCgV3cm90ZRgEIAEoCBI2Cgdwcm9ibGVtGAUgASgOMiUuZG9ja3dlbGwudjEuQmFja3VwRGVzdGluYXRpb25Qcm9ibGVtEgwKBHNhaWQYBiABKAkSDgoGcmVnaW9uGAcgASgJEhEKCXRlc3RfZmlsZRgIIAEoCSqYAQoLQmFja3VwU3RhdGUSHAoYQkFDS1VQX1NUQVRFX1VOU1BFQ0lGSUVEEAASJQoUQkFDS1VQX1NUQVRFX1JVTk5JTkcQARoLorsYB1J1bm5pbmcSHwoRQkFDS1VQX1NUQVRFX0RPTkUQAhoIorsYBERvbmUSIwoTQkFDS1VQX1NUQVRFX0ZBSUxFRBADGgqiuxgGRmFpbGVkKpcBCgpCYWNrdXBDb3B5EhsKF0JBQ0tVUF9DT1BZX1VOU1BFQ0lGSUVEEAASJAoTQkFDS1VQX0NPUFlfUEVORElORxABGguiuxgHU2VuZGluZxIiChJCQUNLVVBfQ09QWV9TVE9SRUQQAhoKorsYBlN0b3JlZBIiChJCQUNLVVBfQ09QWV9GQUlMRUQQAxoKorsYBkZhaWxlZCr6AwoYQmFja3VwRGVzdGluYXRpb25Qcm9ibGVtEioKJkJBQ0tVUF9ERVNUSU5BVElPTl9QUk9CTEVNX1VOU1BFQ0lGSUVEEAASOwomQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fVU5SRUFDSEFCTEUQARoPorsYC1VucmVhY2hhYmxlEj0KJ0JBQ0tVUF9ERVNUSU5BVElPTl9QUk9CTEVNX0tFWVNfUkVGVVNFRBACGhCiuxgMS2V5cyByZWZ1c2VkEjwKJEJBQ0tVUF9ERVNUSU5BVElPTl9QUk9CTEVNX05PX0JVQ0tFVBADGhKiuxgOTm8gc3VjaCBidWNrZXQSOgolQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fQ0FOVF9XUklURRAEGg+iuxgLQ2FuJ3Qgd3JpdGUSPQonQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fV1JPTkdfUkVHSU9OEAUaEKK7GAxXcm9uZyByZWdpb24SPAomQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fQ0FOVF9ERUxFVEUQBhoQorsYDENhbid0IGRlbGV0ZRI/CihCQUNLVVBfREVTVElOQVRJT05fUFJPQkxFTV9TVE9SQUdFX0VSUk9SEAcaEaK7GA1TdG9yYWdlIGVycm9yMtsLCg1CYWNrdXBTZXJ2aWNlEngKC0xpc3RCYWNrdXBzEh8uZG9ja3dlbGwudjEuTGlzdEJhY2t1cHNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdEJhY2t1cHNSZXNwb25zZSImkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCDRILL3YxL2JhY2t1cHMSdwoJR2V0QmFja3VwEh0uZG9ja3dlbGwudjEuR2V0QmFja3VwUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkdldEJhY2t1cFJlc3BvbnNlIiuQAgGguxgBwLsYAsi7GALQuxgEgtPkkwISEhAvdjEvYmFja3Vwcy97aWR9EoYBCg1QcmV2aWV3QmFja3VwEiEuZG9ja3dlbGwudjEuUHJldmlld0JhY2t1cFJlcXVlc3QaIi5kb2Nrd2VsbC52MS5QcmV2aWV3QmFja3VwUmVzcG9uc2UiLpACAaC7GAHAuxgCyLsYAtC7GASC0+STAhUSEy92MS9iYWNrdXBzOnByZXZpZXcSewoMQ3JlYXRlQmFja3VwEiAuZG9ja3dlbGwudjEuQ3JlYXRlQmFja3VwUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkNyZWF0ZUJhY2t1cFJlc3BvbnNlIiaguxgDwLsYA8i7GATQuxgEgtPkkwIQOgEqIgsvdjEvYmFja3VwcxKBAQoMRGVsZXRlQmFja3VwEiAuZG9ja3dlbGwudjEuRGVsZXRlQmFja3VwUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRlbGV0ZUJhY2t1cFJlc3BvbnNlIiyguxgEsLsYAcC7GAPIuxgE0LsYBILT5JMCEioQL3YxL2JhY2t1cHMve2lkfRKsAQoSTGlzdEJhY2t1cFBvbGljaWVzEiYuZG9ja3dlbGwudjEuTGlzdEJhY2t1cFBvbGljaWVzUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkxpc3RCYWNrdXBQb2xpY2llc1Jlc3BvbnNlIkWQAgGguxgBqrsYEwoHYmFja3VwcxIIcG9saWNpZXPAuxgCyLsYAtC7GASC0+STAhUSEy92MS9iYWNrdXAtcG9saWNpZXMSwAEKFkxpc3RCYWNrdXBEZXN0aW5hdGlvbnMSKi5kb2Nrd2VsbC52MS5MaXN0QmFja3VwRGVzdGluYXRpb25zUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkxpc3RCYWNrdXBEZXN0aW5hdGlvbnNSZXNwb25zZSJNkAIBoLsYAaq7GBcKB2JhY2t1cHMSDGRlc3RpbmF0aW9uc8C7GALIuxgC0LsYBYLT5JMCGRIXL3YxL2JhY2t1cC1kZXN0aW5hdGlvbnMSxgEKFVRlc3RCYWNrdXBEZXN0aW5hdGlvbhIpLmRvY2t3ZWxsLnYxLlRlc3RCYWNrdXBEZXN0aW5hdGlvblJlcXVlc3QaKi5kb2Nrd2VsbC52MS5UZXN0QmFja3VwRGVzdGluYXRpb25SZXNwb25zZSJWoLsYA6q7GBsKB2JhY2t1cHMSEHRlc3QtZGVzdGluYXRpb27AuxgEyLsYBNC7GAaC0+STAiE6ASoiHC92MS9iYWNrdXAtZGVzdGluYXRpb25zOnRlc3QSgwEKC0ZldGNoQmFja3VwEh8uZG9ja3dlbGwudjEuRmV0Y2hCYWNrdXBSZXF1ZXN0GiAuZG9ja3dlbGwudjEuRmV0Y2hCYWNrdXBSZXNwb25zZSIxoLsYA8C7GAPIuxgE0LsYBILT5JMCGzoBKiIWL3YxL2JhY2t1cHMve2lkfTpmZXRjaBKLAQoNUmVzdG9yZUJhY2t1cBIhLmRvY2t3ZWxsLnYxLlJlc3RvcmVCYWNrdXBSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUmVzdG9yZUJhY2t1cFJlc3BvbnNlIjOguxgCwLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvYmFja3Vwcy97aWR9OnJlc3RvcmVCpAEKD2NvbS5kb2Nrd2VsbC52MUILQmFja3VwUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9iYWNrdXAucHJvdG8SC2RvY2t3ZWxsLnYxIiAKEkRyaWxsQmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCSI+ChNEcmlsbEJhY2t1cFJlc3BvbnNlEicKBWRyaWxsGAEgASgLMhguZG9ja3dlbGwudjEuQmFja3VwRHJpbGwiowIKC0JhY2t1cERyaWxsEgoKAmlkGAEgASgJEigKBnJlc3VsdBgCIAEoDjIYLmRvY2t3ZWxsLnYxLkRyaWxsUmVzdWx0EgsKA3doeRgDIAEoCRIOCgZkZXRhaWwYBCABKAkSFgoOcmVzdG9yZWRfYnl0ZXMYBSABKAMSDgoGdGFibGVzGAYgASgFEhUKDXVucGFja2VkX29ubHkYByABKAgSLgoKc3RhcnRlZF9hdBgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiEKBWFjdG9yGAogASgLMhIuZG9ja3dlbGwudjEuQWN0b3IinQUKBkJhY2t1cBIKCgJpZBgBIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgCIAEoCRIOCgZ2b2x1bWUYAyABKAkSEQoJdm9sdW1lX2lkGAQgASgJEhEKCXNlcnZlcl9pZBgFIAEoCRITCgtzZXJ2ZXJfbmFtZRgGIAEoCRInCgVzdGF0ZRgHIAEoDjIYLmRvY2t3ZWxsLnYxLkJhY2t1cFN0YXRlEikKBm1ldGhvZBgIIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBIQCghkYXRhYmFzZRgJIAEoCRISCgpzaXplX2J5dGVzGAogASgDEg4KBnNoYTI1NhgLIAEoCRIuCgpzdGFydGVkX2F0GAwgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIvCgtmaW5pc2hlZF9hdBgNIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASIQoFYWN0b3IYDiABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchINCgVlcnJvchgPIAEoCRIVCg1maWxlc19jaGFuZ2VkGBAgASgDEhAKCHByb2dyZXNzGBEgASgJEhEKCXBvbGljeV9pZBgSIAEoCRITCgtkZXN0aW5hdGlvbhgTIAEoCRIlCgRjb3B5GBQgASgOMhcuZG9ja3dlbGwudjEuQmFja3VwQ29weRISCgpjb3B5X2Vycm9yGBUgASgJEhEKCW9uX3NlcnZlchgWIAEoCBITCgtmZXRjaF9lcnJvchgXIAEoCRIWCg5zZWFsZWRfZWFybGllchgYIAEoCBISCgpmZXRjaF9vbnRvGBkgAygJEicKBWRyaWxsGBogASgLMhguZG9ja3dlbGwudjEuQmFja3VwRHJpbGwihwIKFUJhY2t1cERlc3RpbmF0aW9uSW5mbxIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCGVuZHBvaW50GAMgASgJEg4KBmJ1Y2tldBgEIAEoCRIOCgZwcmVmaXgYBSABKAkSDwoHYmFja3VwcxgGIAEoBRISCgp1c2VkX2J5dGVzGAcgASgDEi8KC2xhc3RfdXBsb2FkGAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIwCgxsYXN0X2ZhaWx1cmUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEmxhc3RfZmFpbHVyZV9lcnJvchgKIAEoCSIfCh1MaXN0QmFja3VwRGVzdGluYXRpb25zUmVxdWVzdCJaCh5MaXN0QmFja3VwRGVzdGluYXRpb25zUmVzcG9uc2USOAoMZGVzdGluYXRpb25zGAEgAygLMiIuZG9ja3dlbGwudjEuQmFja3VwRGVzdGluYXRpb25JbmZvIjAKEkZldGNoQmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCRIOCgZzZXJ2ZXIYAiABKAkiOgoTRmV0Y2hCYWNrdXBSZXNwb25zZRIjCgZiYWNrdXAYASABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXAi7wEKEEJhY2t1cFBvbGljeUluZm8SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgDIAEoCRI2CgRzcGVjGAQgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQmFja3VwUG9saWN5EiwKCG5leHRfcnVuGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIhCgRsYXN0GAYgASgLMhMuZG9ja3dlbGwudjEuQmFja3VwEgwKBGtlcHQYByABKAUSEgoKa2VwdF9ieXRlcxgIIAEoAyIbChlMaXN0QmFja3VwUG9saWNpZXNSZXF1ZXN0Ik0KGkxpc3RCYWNrdXBQb2xpY2llc1Jlc3BvbnNlEi8KCHBvbGljaWVzGAEgAygLMh0uZG9ja3dlbGwudjEuQmFja3VwUG9saWN5SW5mbyJmChJMaXN0QmFja3Vwc1JlcXVlc3QSEQoJcGFnZV9zaXplGAEgASgFEhIKCnBhZ2VfdG9rZW4YAiABKAkSEQoJdm9sdW1lX2lkGAMgASgJEhYKDmVudmlyb25tZW50X2lkGAQgASgJIlQKE0xpc3RCYWNrdXBzUmVzcG9uc2USJAoHYmFja3VwcxgBIAMoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkiHgoQR2V0QmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCSI4ChFHZXRCYWNrdXBSZXNwb25zZRIjCgZiYWNrdXAYASABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXAiOQoUUHJldmlld0JhY2t1cFJlcXVlc3QSEQoJdm9sdW1lX2lkGAEgASgJEg4KBnNlcnZlchgCIAEoCSKoAQoVUHJldmlld0JhY2t1cFJlc3BvbnNlEikKBm1ldGhvZBgBIAEoDjIZLmRvY2t3ZWxsLnYxLkJhY2t1cE1ldGhvZBIQCghkYXRhYmFzZRgCIAEoCRIPCgdydW5uaW5nGAMgAygJEhYKDmVzdGltYXRlX2J5dGVzGAQgASgDEhIKCmZyZWVfYnl0ZXMYBSABKAMSFQoNcmVzZXJ2ZV9ieXRlcxgGIAEoAyJbChNDcmVhdGVCYWNrdXBSZXF1ZXN0EhEKCXZvbHVtZV9pZBgBIAEoCRIOCgZzZXJ2ZXIYAiABKAkSDAoEc3RvcBgDIAEoCBITCgtkZXN0aW5hdGlvbhgEIAEoCSI7ChRDcmVhdGVCYWNrdXBSZXNwb25zZRIjCgZiYWNrdXAYASABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXAiNgoTRGVsZXRlQmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCRITCgtzZXJ2ZXJfb25seRgCIAEoCCIWChREZWxldGVCYWNrdXBSZXNwb25zZSIzChRSZXN0b3JlQmFja3VwUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJIjwKFVJlc3RvcmVCYWNrdXBSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiYgocVGVzdEJhY2t1cERlc3RpbmF0aW9uUmVxdWVzdBJCCgtkZXN0aW5hdGlvbhgBIAEoCzItLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkJhY2t1cERlc3RpbmF0aW9uIssBCh1UZXN0QmFja3VwRGVzdGluYXRpb25SZXNwb25zZRIRCglzaWduZWRfaW4YASABKAgSDwoHYnVja2V0cxgCIAMoCRIOCgZsaXN0ZWQYAyABKAgSDQoFd3JvdGUYBCABKAgSNgoHcHJvYmxlbRgFIAEoDjIlLmRvY2t3ZWxsLnYxLkJhY2t1cERlc3RpbmF0aW9uUHJvYmxlbRIMCgRzYWlkGAYgASgJEg4KBnJlZ2lvbhgHIAEoCRIRCgl0ZXN0X2ZpbGUYCCABKAkqlQEKC0RyaWxsUmVzdWx0EhwKGERSSUxMX1JFU1VMVF9VTlNQRUNJRklFRBAAEhgKFERSSUxMX1JFU1VMVF9SVU5OSU5HEAESFwoTRFJJTExfUkVTVUxUX1BBU1NFRBACEhcKE0RSSUxMX1JFU1VMVF9GQUlMRUQQAxIcChhEUklMTF9SRVNVTFRfTk9UX0NIRUNLRUQQBCqYAQoLQmFja3VwU3RhdGUSHAoYQkFDS1VQX1NUQVRFX1VOU1BFQ0lGSUVEEAASJQoUQkFDS1VQX1NUQVRFX1JVTk5JTkcQARoLorsYB1J1bm5pbmcSHwoRQkFDS1VQX1NUQVRFX0RPTkUQAhoIorsYBERvbmUSIwoTQkFDS1VQX1NUQVRFX0ZBSUxFRBADGgqiuxgGRmFpbGVkKpcBCgpCYWNrdXBDb3B5EhsKF0JBQ0tVUF9DT1BZX1VOU1BFQ0lGSUVEEAASJAoTQkFDS1VQX0NPUFlfUEVORElORxABGguiuxgHU2VuZGluZxIiChJCQUNLVVBfQ09QWV9TVE9SRUQQAhoKorsYBlN0b3JlZBIiChJCQUNLVVBfQ09QWV9GQUlMRUQQAxoKorsYBkZhaWxlZCr6AwoYQmFja3VwRGVzdGluYXRpb25Qcm9ibGVtEioKJkJBQ0tVUF9ERVNUSU5BVElPTl9QUk9CTEVNX1VOU1BFQ0lGSUVEEAASOwomQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fVU5SRUFDSEFCTEUQARoPorsYC1VucmVhY2hhYmxlEj0KJ0JBQ0tVUF9ERVNUSU5BVElPTl9QUk9CTEVNX0tFWVNfUkVGVVNFRBACGhCiuxgMS2V5cyByZWZ1c2VkEjwKJEJBQ0tVUF9ERVNUSU5BVElPTl9QUk9CTEVNX05PX0JVQ0tFVBADGhKiuxgOTm8gc3VjaCBidWNrZXQSOgolQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fQ0FOVF9XUklURRAEGg+iuxgLQ2FuJ3Qgd3JpdGUSPQonQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fV1JPTkdfUkVHSU9OEAUaEKK7GAxXcm9uZyByZWdpb24SPAomQkFDS1VQX0RFU1RJTkFUSU9OX1BST0JMRU1fQ0FOVF9ERUxFVEUQBhoQorsYDENhbid0IGRlbGV0ZRI/CihCQUNLVVBfREVTVElOQVRJT05fUFJPQkxFTV9TVE9SQUdFX0VSUk9SEAcaEaK7GA1TdG9yYWdlIGVycm9yMuEMCg1CYWNrdXBTZXJ2aWNlEngKC0xpc3RCYWNrdXBzEh8uZG9ja3dlbGwudjEuTGlzdEJhY2t1cHNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdEJhY2t1cHNSZXNwb25zZSImkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCDRILL3YxL2JhY2t1cHMSdwoJR2V0QmFja3VwEh0uZG9ja3dlbGwudjEuR2V0QmFja3VwUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkdldEJhY2t1cFJlc3BvbnNlIiuQAgGguxgBwLsYAsi7GALQuxgEgtPkkwISEhAvdjEvYmFja3Vwcy97aWR9EoYBCg1QcmV2aWV3QmFja3VwEiEuZG9ja3dlbGwudjEuUHJldmlld0JhY2t1cFJlcXVlc3QaIi5kb2Nrd2VsbC52MS5QcmV2aWV3QmFja3VwUmVzcG9uc2UiLpACAaC7GAHAuxgCyLsYAtC7GASC0+STAhUSEy92MS9iYWNrdXBzOnByZXZpZXcSewoMQ3JlYXRlQmFja3VwEiAuZG9ja3dlbGwudjEuQ3JlYXRlQmFja3VwUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkNyZWF0ZUJhY2t1cFJlc3BvbnNlIiaguxgDwLsYA8i7GATQuxgEgtPkkwIQOgEqIgsvdjEvYmFja3VwcxKBAQoMRGVsZXRlQmFja3VwEiAuZG9ja3dlbGwudjEuRGVsZXRlQmFja3VwUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRlbGV0ZUJhY2t1cFJlc3BvbnNlIiyguxgEsLsYAcC7GAPIuxgE0LsYBILT5JMCEioQL3YxL2JhY2t1cHMve2lkfRKsAQoSTGlzdEJhY2t1cFBvbGljaWVzEiYuZG9ja3dlbGwudjEuTGlzdEJhY2t1cFBvbGljaWVzUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkxpc3RCYWNrdXBQb2xpY2llc1Jlc3BvbnNlIkWQAgGguxgBqrsYEwoHYmFja3VwcxIIcG9saWNpZXPAuxgCyLsYAtC7GASC0+STAhUSEy92MS9iYWNrdXAtcG9saWNpZXMSwAEKFkxpc3RCYWNrdXBEZXN0aW5hdGlvbnMSKi5kb2Nrd2VsbC52MS5MaXN0QmFja3VwRGVzdGluYXRpb25zUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkxpc3RCYWNrdXBEZXN0aW5hdGlvbnNSZXNwb25zZSJNkAIBoLsYAaq7GBcKB2JhY2t1cHMSDGRlc3RpbmF0aW9uc8C7GALIuxgC0LsYBYLT5JMCGRIXL3YxL2JhY2t1cC1kZXN0aW5hdGlvbnMSxgEKFVRlc3RCYWNrdXBEZXN0aW5hdGlvbhIpLmRvY2t3ZWxsLnYxLlRlc3RCYWNrdXBEZXN0aW5hdGlvblJlcXVlc3QaKi5kb2Nrd2VsbC52MS5UZXN0QmFja3VwRGVzdGluYXRpb25SZXNwb25zZSJWoLsYA6q7GBsKB2JhY2t1cHMSEHRlc3QtZGVzdGluYXRpb27AuxgEyLsYBNC7GAaC0+STAiE6ASoiHC92MS9iYWNrdXAtZGVzdGluYXRpb25zOnRlc3QSgwEKC0ZldGNoQmFja3VwEh8uZG9ja3dlbGwudjEuRmV0Y2hCYWNrdXBSZXF1ZXN0GiAuZG9ja3dlbGwudjEuRmV0Y2hCYWNrdXBSZXNwb25zZSIxoLsYA8C7GAPIuxgE0LsYBILT5JMCGzoBKiIWL3YxL2JhY2t1cHMve2lkfTpmZXRjaBKLAQoNUmVzdG9yZUJhY2t1cBIhLmRvY2t3ZWxsLnYxLlJlc3RvcmVCYWNrdXBSZXF1ZXN0GiIuZG9ja3dlbGwudjEuUmVzdG9yZUJhY2t1cFJlc3BvbnNlIjOguxgCwLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvYmFja3Vwcy97aWR9OnJlc3RvcmUSgwEKC0RyaWxsQmFja3VwEh8uZG9ja3dlbGwudjEuRHJpbGxCYWNrdXBSZXF1ZXN0GiAuZG9ja3dlbGwudjEuRHJpbGxCYWNrdXBSZXNwb25zZSIxoLsYA8C7GAPIuxgE0LsYBILT5JMCGzoBKiIWL3YxL2JhY2t1cHMve2lkfTpkcmlsbEKkAQoPY29tLmRvY2t3ZWxsLnYxQgtCYWNrdXBQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * DrillBackupRequest names a backup to check.
+ *
+ * @generated from message dockwell.v1.DrillBackupRequest
+ */
+export type DrillBackupRequest = Message<"dockwell.v1.DrillBackupRequest"> & {
+  /**
+   * The backup's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DrillBackupRequest.
+ * Use `create(DrillBackupRequestSchema)` to create a new message.
+ */
+export const DrillBackupRequestSchema: GenMessage<DrillBackupRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_backup, 0);
+
+/**
+ * DrillBackupResponse is the drill, running.
+ *
+ * @generated from message dockwell.v1.DrillBackupResponse
+ */
+export type DrillBackupResponse = Message<"dockwell.v1.DrillBackupResponse"> & {
+  /**
+   * The drill.
+   *
+   * @generated from field: dockwell.v1.BackupDrill drill = 1;
+   */
+  drill?: BackupDrill | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DrillBackupResponse.
+ * Use `create(DrillBackupResponseSchema)` to create a new message.
+ */
+export const DrillBackupResponseSchema: GenMessage<DrillBackupResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_backup, 1);
+
+/**
+ * BackupDrill is a check that a backup restores (ADR 0068).
+ *
+ * @generated from message dockwell.v1.BackupDrill
+ */
+export type BackupDrill = Message<"dockwell.v1.BackupDrill"> & {
+  /**
+   * The drill's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * How it went.
+   *
+   * @generated from field: dockwell.v1.DrillResult result = 2;
+   */
+  result: DrillResult;
+
+  /**
+   * What failed, or why it wasn't checked, in a line: "orders.items has no rows; the
+   * dump fills it", or "the disk had no room". Empty once it passed.
+   *
+   * @generated from field: string why = 3;
+   */
+  why: string;
+
+  /**
+   * What the database printed last, for a drill that failed or wasn't checked,
+   * without what it quoted.
+   *
+   * @generated from field: string detail = 4;
+   */
+  detail: string;
+
+  /**
+   * How much came back, in bytes.
+   *
+   * @generated from field: int64 restored_bytes = 5;
+   */
+  restoredBytes: bigint;
+
+  /**
+   * How many tables it checked, for a database's dump.
+   *
+   * @generated from field: int32 tables = 6;
+   */
+  tables: number;
+
+  /**
+   * True for a copy of files it could only unpack, which proves the archive restores
+   * whole, and not that the app makes sense of it: "Unpacked whole".
+   *
+   * @generated from field: bool unpacked_only = 7;
+   */
+  unpackedOnly: boolean;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp started_at = 8;
+   */
+  startedAt?: Timestamp | undefined;
+
+  /**
+   * Unset while it runs.
+   *
+   * @generated from field: google.protobuf.Timestamp finished_at = 9;
+   */
+  finishedAt?: Timestamp | undefined;
+
+  /**
+   * Who started it.
+   *
+   * @generated from field: dockwell.v1.Actor actor = 10;
+   */
+  actor?: Actor | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.BackupDrill.
+ * Use `create(BackupDrillSchema)` to create a new message.
+ */
+export const BackupDrillSchema: GenMessage<BackupDrill> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_backup, 2);
 
 /**
  * Backup is one backup of one volume.
@@ -207,6 +334,13 @@ export type Backup = Message<"dockwell.v1.Backup"> & {
    * @generated from field: repeated string fetch_onto = 25;
    */
   fetchOnto: string[];
+
+  /**
+   * Its newest restore drill, running or ended. Unset when it was never checked.
+   *
+   * @generated from field: dockwell.v1.BackupDrill drill = 26;
+   */
+  drill?: BackupDrill | undefined;
 };
 
 /**
@@ -214,7 +348,7 @@ export type Backup = Message<"dockwell.v1.Backup"> & {
  * Use `create(BackupSchema)` to create a new message.
  */
 export const BackupSchema: GenMessage<Backup> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 0);
+  messageDesc(file_dockwell_v1_backup, 3);
 
 /**
  * BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
@@ -298,7 +432,7 @@ export type BackupDestinationInfo = Message<"dockwell.v1.BackupDestinationInfo">
  * Use `create(BackupDestinationInfoSchema)` to create a new message.
  */
 export const BackupDestinationInfoSchema: GenMessage<BackupDestinationInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 1);
+  messageDesc(file_dockwell_v1_backup, 4);
 
 /**
  * ListBackupDestinationsRequest asks for the destinations.
@@ -313,7 +447,7 @@ export type ListBackupDestinationsRequest = Message<"dockwell.v1.ListBackupDesti
  * Use `create(ListBackupDestinationsRequestSchema)` to create a new message.
  */
 export const ListBackupDestinationsRequestSchema: GenMessage<ListBackupDestinationsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 2);
+  messageDesc(file_dockwell_v1_backup, 5);
 
 /**
  * ListBackupDestinationsResponse lists them.
@@ -334,7 +468,7 @@ export type ListBackupDestinationsResponse = Message<"dockwell.v1.ListBackupDest
  * Use `create(ListBackupDestinationsResponseSchema)` to create a new message.
  */
 export const ListBackupDestinationsResponseSchema: GenMessage<ListBackupDestinationsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 3);
+  messageDesc(file_dockwell_v1_backup, 6);
 
 /**
  * FetchBackupRequest asks to bring a backup back from its destination.
@@ -362,7 +496,7 @@ export type FetchBackupRequest = Message<"dockwell.v1.FetchBackupRequest"> & {
  * Use `create(FetchBackupRequestSchema)` to create a new message.
  */
 export const FetchBackupRequestSchema: GenMessage<FetchBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 4);
+  messageDesc(file_dockwell_v1_backup, 7);
 
 /**
  * FetchBackupResponse is the backup, on a server again.
@@ -383,7 +517,7 @@ export type FetchBackupResponse = Message<"dockwell.v1.FetchBackupResponse"> & {
  * Use `create(FetchBackupResponseSchema)` to create a new message.
  */
 export const FetchBackupResponseSchema: GenMessage<FetchBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 5);
+  messageDesc(file_dockwell_v1_backup, 8);
 
 /**
  * BackupPolicyInfo is a schedule of backups, as it stands.
@@ -453,7 +587,7 @@ export type BackupPolicyInfo = Message<"dockwell.v1.BackupPolicyInfo"> & {
  * Use `create(BackupPolicyInfoSchema)` to create a new message.
  */
 export const BackupPolicyInfoSchema: GenMessage<BackupPolicyInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 6);
+  messageDesc(file_dockwell_v1_backup, 9);
 
 /**
  * ListBackupPoliciesRequest asks for the schedules of backups.
@@ -468,7 +602,7 @@ export type ListBackupPoliciesRequest = Message<"dockwell.v1.ListBackupPoliciesR
  * Use `create(ListBackupPoliciesRequestSchema)` to create a new message.
  */
 export const ListBackupPoliciesRequestSchema: GenMessage<ListBackupPoliciesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 7);
+  messageDesc(file_dockwell_v1_backup, 10);
 
 /**
  * ListBackupPoliciesResponse lists them.
@@ -489,7 +623,7 @@ export type ListBackupPoliciesResponse = Message<"dockwell.v1.ListBackupPolicies
  * Use `create(ListBackupPoliciesResponseSchema)` to create a new message.
  */
 export const ListBackupPoliciesResponseSchema: GenMessage<ListBackupPoliciesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 8);
+  messageDesc(file_dockwell_v1_backup, 11);
 
 /**
  * ListBackupsRequest asks for a page of backups.
@@ -532,7 +666,7 @@ export type ListBackupsRequest = Message<"dockwell.v1.ListBackupsRequest"> & {
  * Use `create(ListBackupsRequestSchema)` to create a new message.
  */
 export const ListBackupsRequestSchema: GenMessage<ListBackupsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 9);
+  messageDesc(file_dockwell_v1_backup, 12);
 
 /**
  * ListBackupsResponse is a page of backups.
@@ -560,7 +694,7 @@ export type ListBackupsResponse = Message<"dockwell.v1.ListBackupsResponse"> & {
  * Use `create(ListBackupsResponseSchema)` to create a new message.
  */
 export const ListBackupsResponseSchema: GenMessage<ListBackupsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 10);
+  messageDesc(file_dockwell_v1_backup, 13);
 
 /**
  * GetBackupRequest names a backup.
@@ -581,7 +715,7 @@ export type GetBackupRequest = Message<"dockwell.v1.GetBackupRequest"> & {
  * Use `create(GetBackupRequestSchema)` to create a new message.
  */
 export const GetBackupRequestSchema: GenMessage<GetBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 11);
+  messageDesc(file_dockwell_v1_backup, 14);
 
 /**
  * GetBackupResponse is one backup.
@@ -602,7 +736,7 @@ export type GetBackupResponse = Message<"dockwell.v1.GetBackupResponse"> & {
  * Use `create(GetBackupResponseSchema)` to create a new message.
  */
 export const GetBackupResponseSchema: GenMessage<GetBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 12);
+  messageDesc(file_dockwell_v1_backup, 15);
 
 /**
  * PreviewBackupRequest names a volume.
@@ -630,7 +764,7 @@ export type PreviewBackupRequest = Message<"dockwell.v1.PreviewBackupRequest"> &
  * Use `create(PreviewBackupRequestSchema)` to create a new message.
  */
 export const PreviewBackupRequestSchema: GenMessage<PreviewBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 13);
+  messageDesc(file_dockwell_v1_backup, 16);
 
 /**
  * PreviewBackupResponse says what backing up a volume would do.
@@ -690,7 +824,7 @@ export type PreviewBackupResponse = Message<"dockwell.v1.PreviewBackupResponse">
  * Use `create(PreviewBackupResponseSchema)` to create a new message.
  */
 export const PreviewBackupResponseSchema: GenMessage<PreviewBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 14);
+  messageDesc(file_dockwell_v1_backup, 17);
 
 /**
  * CreateBackupRequest asks to back up a volume.
@@ -733,7 +867,7 @@ export type CreateBackupRequest = Message<"dockwell.v1.CreateBackupRequest"> & {
  * Use `create(CreateBackupRequestSchema)` to create a new message.
  */
 export const CreateBackupRequestSchema: GenMessage<CreateBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 15);
+  messageDesc(file_dockwell_v1_backup, 18);
 
 /**
  * CreateBackupResponse is the backup, running.
@@ -754,7 +888,7 @@ export type CreateBackupResponse = Message<"dockwell.v1.CreateBackupResponse"> &
  * Use `create(CreateBackupResponseSchema)` to create a new message.
  */
 export const CreateBackupResponseSchema: GenMessage<CreateBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 16);
+  messageDesc(file_dockwell_v1_backup, 19);
 
 /**
  * DeleteBackupRequest names a backup.
@@ -783,7 +917,7 @@ export type DeleteBackupRequest = Message<"dockwell.v1.DeleteBackupRequest"> & {
  * Use `create(DeleteBackupRequestSchema)` to create a new message.
  */
 export const DeleteBackupRequestSchema: GenMessage<DeleteBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 17);
+  messageDesc(file_dockwell_v1_backup, 20);
 
 /**
  * DeleteBackupResponse says it's gone.
@@ -798,7 +932,7 @@ export type DeleteBackupResponse = Message<"dockwell.v1.DeleteBackupResponse"> &
  * Use `create(DeleteBackupResponseSchema)` to create a new message.
  */
 export const DeleteBackupResponseSchema: GenMessage<DeleteBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 18);
+  messageDesc(file_dockwell_v1_backup, 21);
 
 /**
  * RestoreBackupRequest asks to restore a backup.
@@ -826,7 +960,7 @@ export type RestoreBackupRequest = Message<"dockwell.v1.RestoreBackupRequest"> &
  * Use `create(RestoreBackupRequestSchema)` to create a new message.
  */
 export const RestoreBackupRequestSchema: GenMessage<RestoreBackupRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 19);
+  messageDesc(file_dockwell_v1_backup, 22);
 
 /**
  * RestoreBackupResponse is the change that restores it.
@@ -847,7 +981,7 @@ export type RestoreBackupResponse = Message<"dockwell.v1.RestoreBackupResponse">
  * Use `create(RestoreBackupResponseSchema)` to create a new message.
  */
 export const RestoreBackupResponseSchema: GenMessage<RestoreBackupResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 20);
+  messageDesc(file_dockwell_v1_backup, 23);
 
 /**
  * TestBackupDestinationRequest is what a destination form holds. The passphrase is
@@ -869,7 +1003,7 @@ export type TestBackupDestinationRequest = Message<"dockwell.v1.TestBackupDestin
  * Use `create(TestBackupDestinationRequestSchema)` to create a new message.
  */
 export const TestBackupDestinationRequestSchema: GenMessage<TestBackupDestinationRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 21);
+  messageDesc(file_dockwell_v1_backup, 24);
 
 /**
  * TestBackupDestinationResponse says what the storage answered.
@@ -941,7 +1075,54 @@ export type TestBackupDestinationResponse = Message<"dockwell.v1.TestBackupDesti
  * Use `create(TestBackupDestinationResponseSchema)` to create a new message.
  */
 export const TestBackupDestinationResponseSchema: GenMessage<TestBackupDestinationResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_backup, 22);
+  messageDesc(file_dockwell_v1_backup, 25);
+
+/**
+ * DrillResult says how a restore drill went.
+ *
+ * @generated from enum dockwell.v1.DrillResult
+ */
+export enum DrillResult {
+  /**
+   * @generated from enum value: DRILL_RESULT_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * It's under way.
+   *
+   * @generated from enum value: DRILL_RESULT_RUNNING = 1;
+   */
+  RUNNING = 1,
+
+  /**
+   * The backup restored, and held what it should.
+   *
+   * @generated from enum value: DRILL_RESULT_PASSED = 2;
+   */
+  PASSED = 2,
+
+  /**
+   * The backup didn't restore, or failed a check.
+   *
+   * @generated from enum value: DRILL_RESULT_FAILED = 3;
+   */
+  FAILED = 3,
+
+  /**
+   * It was cut short, or couldn't run, which says nothing about the backup: no
+   * room, no memory, out of time, the server or the control plane went away.
+   *
+   * @generated from enum value: DRILL_RESULT_NOT_CHECKED = 4;
+   */
+  NOT_CHECKED = 4,
+}
+
+/**
+ * Describes the enum dockwell.v1.DrillResult.
+ */
+export const DrillResultSchema: GenEnum<DrillResult> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_backup, 0);
 
 /**
  * BackupState says where a backup is.
@@ -980,7 +1161,7 @@ export enum BackupState {
  * Describes the enum dockwell.v1.BackupState.
  */
 export const BackupStateSchema: GenEnum<BackupState> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_backup, 0);
+  enumDesc(file_dockwell_v1_backup, 1);
 
 /**
  * BackupCopy says where a backup stands on its destination.
@@ -1019,7 +1200,7 @@ export enum BackupCopy {
  * Describes the enum dockwell.v1.BackupCopy.
  */
 export const BackupCopySchema: GenEnum<BackupCopy> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_backup, 1);
+  enumDesc(file_dockwell_v1_backup, 2);
 
 /**
  * BackupDestinationProblem is why a test didn't get as far as writing.
@@ -1086,7 +1267,7 @@ export enum BackupDestinationProblem {
  * Describes the enum dockwell.v1.BackupDestinationProblem.
  */
 export const BackupDestinationProblemSchema: GenEnum<BackupDestinationProblem> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_backup, 2);
+  enumDesc(file_dockwell_v1_backup, 3);
 
 /**
  * BackupService is an app's volumes and databases, backed up on the server that
@@ -1226,6 +1407,21 @@ export const BackupService: GenService<{
     methodKind: "unary";
     input: typeof RestoreBackupRequestSchema;
     output: typeof RestoreBackupResponseSchema;
+  },
+  /**
+   * DrillBackup checks that a backup on its server restores, in a container and a
+   * volume of its own that nothing reaches and that it throws away, whatever comes
+   * of it (ADR 0068). It replaces nothing, so it takes the roles a backup does. It
+   * returns the drill running; follow it with GetBackup, whose drill says how it
+   * ended. A server runs one at a time, and an API token starts at most one drill of
+   * a volume an hour.
+   *
+   * @generated from rpc dockwell.v1.BackupService.DrillBackup
+   */
+  drillBackup: {
+    methodKind: "unary";
+    input: typeof DrillBackupRequestSchema;
+    output: typeof DrillBackupResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_backup, 0);

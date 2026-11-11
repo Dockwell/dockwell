@@ -5,10 +5,12 @@ package control
 import (
 	"testing"
 
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -73,6 +75,27 @@ func TestEveryEnvironmentIsMadeWithItsProtection(t *testing.T) {
 		live := resourceIn(t, apply(t, c, propose(t, c, "Add live", environment(defaultID, "live", "", resourcev1.Protection_PROTECTION_PROTECTED))), "environment")
 		if got := protection(live); got != resourcev1.Protection_PROTECTION_PROTECTED {
 			t.Errorf("live, made protected: %v", got)
+		}
+
+		// The panel reads each one's protection, and nothing else of its spec.
+		listed, err := dockwellv1connect.NewResourceServiceClient(b, b.origin, connect.WithProtoJSON()).ListResources(t.Context(),
+			connect.NewRequest(&dockwellv1.ListResourcesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]bool{production: true, staging: false, live: true, resourceIn(t, blog, "environment"): true}
+		for _, r := range listed.Msg.GetResources() {
+			if w, ok := want[r.GetId()]; ok {
+				if r.GetProtected() != w {
+					t.Errorf("%s lists protected %v, want %v", r.GetResource().GetName(), r.GetProtected(), w)
+				}
+				delete(want, r.GetId())
+			} else if r.GetProtected() {
+				t.Errorf("the %s %s lists as protected, which only an environment is", r.GetResource().GetKind(), r.GetResource().GetName())
+			}
+		}
+		if len(want) > 0 {
+			t.Errorf("environments not listed: %v", want)
 		}
 	})
 }

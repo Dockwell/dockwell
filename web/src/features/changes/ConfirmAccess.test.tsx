@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import {
@@ -12,6 +12,7 @@ import {
   ChangeState,
   type ConfirmChangeRequest,
   Connection,
+  type JailPlanSchema,
   PlanAction,
   PlanWarning,
   type Server,
@@ -98,6 +99,65 @@ async function applyAndWait(change: Change, watch: ReturnType<typeof feed<WatchC
   act(() => watch.push(watched(waits)));
   return user;
 }
+
+// What the watch said a change waits for, which its apply's answer, read before the step began
+// to wait and delivered after, mustn't take away: the server says it once, and the CI flake on
+// #415 and #505 was this sheet losing it, while the Firewall tab listed the rule as waiting.
+it("keeps a wait the watch said, when the apply's own answer comes after it without it", async () => {
+  const user = userEvent.setup();
+  const change = webPlanned();
+  const watch = feed<WatchChangeResponse>();
+  let answer: (value: object) => void = () => {};
+  const running = (confirmation?: MessageInitShape<typeof ChangeConfirmationSchema>) =>
+    create(StepProgressSchema, {
+      serverId: "srv_1",
+      resourceId: "res_web",
+      state: StepState.RUNNING,
+      ...(confirmation ? { confirmation: create(ChangeConfirmationSchema, confirmation) } : {}),
+    });
+  renderWithApi(
+    <FleetProvider>
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) }} />
+      </ChangeSheetProvider>
+    </FleetProvider>,
+    {
+      changes: {
+        watchChange: watch.stream,
+        applyChange: () =>
+          new Promise<object>((resolve) => {
+            answer = resolve;
+          }),
+      },
+    },
+  );
+  const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+  act(() => watch.push(watched(change)));
+  await user.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+  // The run moves on while the apply's answer is still on its way: the step starts, then waits.
+  act(() => watch.push(watched(moved(change, { state: ChangeState.APPLYING, steps: [running()] }))));
+  act(() =>
+    watch.push(
+      create(WatchChangeResponseSchema, {
+        event: {
+          case: "step",
+          value: create(StepUpdateSchema, {
+            index: 0,
+            step: running({
+              serverId: "srv_1",
+              deadline: timestampFromDate(new Date(Date.now() + 45_000)),
+              sshPorts: [22],
+            }),
+          }),
+        },
+      }),
+    ),
+  );
+  expect(await screen.findByRole("button", { name: "Keep the change" })).toBeVisible();
+  // The apply's answer, as it was read, before the step waited.
+  await act(async () => answer({ change: moved(change, { state: ChangeState.APPLYING, steps: [running()] }) }));
+  expect(screen.getByRole("button", { name: "Keep the change" })).toBeVisible();
+});
 
 describe("a change that waits for its confirmation", () => {
   it("says what to test and how long is left, and keeps the change when asked", async () => {
@@ -391,5 +451,90 @@ describe("the confirmation of a change that narrows SSH", () => {
     expect(callout).toHaveTextContent(
       "Only the person who applied this change can keep it, from where they applied it.",
     );
+  });
+});
+
+/** A planned change that sets the SSH jail on hz-1, or stops writing it. */
+function jailPlanned(action: PlanAction, jail?: MessageInitShape<typeof JailPlanSchema>): Change {
+  const resource = () => ({ kind: "fail2ban.jail", scope: "srv_1", name: "sshd" });
+  return create(ChangeSchema, {
+    id: "chg_jail",
+    summary: "Protect SSH on hz-1 with fail2ban",
+    state: ChangeState.PLANNED,
+    createTime: timestampFromDate(new Date()),
+    plan: {
+      fingerprint: "c1c2d3e4f5a60718293a4b5c6d7e8f90",
+      summary: { create: 1 },
+      resources: [{ id: "res_jail", resource: resource(), action, servers: ["srv_1"] }],
+      servers: [
+        {
+          serverId: "srv_1",
+          serverName: "hz-1",
+          steps: [{ resourceId: "res_jail", resource: resource(), action, ...(jail ? { jail } : {}) }],
+        },
+      ],
+    },
+  });
+}
+
+describe("a change to a fail2ban jail", () => {
+  const open = async (change: Change) => {
+    const watch = feed<WatchChangeResponse>();
+    renderWithApi(
+      <FleetProvider>
+        <ChangeSheetProvider>
+          <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) }} />
+        </ChangeSheetProvider>
+      </FleetProvider>,
+      { changes: { watchChange: watch.stream } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    act(() => watch.push(watched(change)));
+    return sheet;
+  };
+
+  const lifting =
+    "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address.";
+
+  it("names whom the jail never bans, and says undo lifts no ban", async () => {
+    const sheet = await open(
+      jailPlanned(PlanAction.CREATE, { neverBans: ["127.0.0.1/8", "::1", "192.0.2.10", "203.0.113.7/32"] }),
+    );
+    expect(sheet).toHaveTextContent("This jail never bans 127.0.0.1/8, ::1, 192.0.2.10, 203.0.113.7/32 on hz-1");
+    expect(sheet).toHaveTextContent("It bans any other address that keeps failing to sign in, yours included.");
+    // Why, and that undo lifts no ban, is one step away.
+    expect(sheet).toHaveTextContent(
+      `How this worksfail2ban counts the failures from just before this applies, so a ban can land as it does. ${lifting}`,
+    );
+  });
+
+  it("says which address signed in over SSH it could ban as it applies", async () => {
+    const sheet = await open(
+      jailPlanned(PlanAction.CREATE, { neverBans: ["127.0.0.1/8", "::1"], signedInNotIgnored: ["203.0.113.7"] }),
+    );
+    expect(sheet).toHaveTextContent("This jail can ban 203.0.113.7, signed in to hz-1 over SSH now");
+    expect(sheet).toHaveTextContent("Add it to what the jail never bans first, or apply this knowing it.");
+    expect(sheet).toHaveTextContent(
+      `It never bans 127.0.0.1/8, ::1. fail2ban counts the failures from just before this applies, so a ban can land as it does. ${lifting}`,
+    );
+  });
+
+  it("says a jail that ignores every address bans nobody", async () => {
+    const sheet = await open(
+      jailPlanned(PlanAction.CREATE, { neverBans: ["127.0.0.1/8", "::1", "0.0.0.0/0"], ignoresEverything: true }),
+    );
+    expect(sheet).toHaveTextContent("This jail ignores every address on hz-1, so it bans nobody");
+  });
+
+  it("says it can ban your own address where an older agent says nothing of whom it ignores", async () => {
+    const sheet = await open(jailPlanned(PlanAction.CREATE));
+    expect(sheet).toHaveTextContent("This jail can ban your own address on hz-1");
+    expect(sheet).toHaveTextContent(lifting);
+  });
+
+  it("says nothing of bans when it stops writing the jail", async () => {
+    const sheet = await open(jailPlanned(PlanAction.DELETE));
+    await within(sheet).findByRole("button", { name: /Delete sshd/ });
+    expect(sheet).not.toHaveTextContent("This jail");
   });
 });

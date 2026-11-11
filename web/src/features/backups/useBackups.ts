@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { type Backup, BackupCopy, BackupService, BackupState, ResourceService } from "@dockwell/api";
+import { type Backup, BackupCopy, BackupService, BackupState, DrillResult, ResourceService } from "@dockwell/api";
 import { useMemo } from "react";
 
 import { usePlaces } from "../apps/useServices";
@@ -13,9 +13,14 @@ const WHILE_RUNNING = 2_000;
 const PAGE_SIZE = 200;
 
 /** The backups, newest first, of one volume or all of them. */
-/** Something is still happening to a backup: it runs, it's on its way to storage, or it's coming back. */
+/** Something is still happening to a backup: it runs, it's on its way to storage, it's coming back, or a drill checks it. */
 function underWay(b: Backup) {
-  return b.state === BackupState.RUNNING || b.copy === BackupCopy.PENDING || b.progress !== "";
+  return (
+    b.state === BackupState.RUNNING ||
+    b.copy === BackupCopy.PENDING ||
+    b.progress !== "" ||
+    b.drill?.result === DrillResult.RUNNING
+  );
 }
 
 export function useBackups(volumeId = "") {

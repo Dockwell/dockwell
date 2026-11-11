@@ -29,26 +29,25 @@ source:
   path: internal/catalog/entries/sftpgo.yaml
 web:
   service: sftpgo
-firstSteps: >-
-  SFTPGo answers only on this server until you add a domain. Add a domain on its page
-  and open /web/admin, or tunnel: ssh -N -L 8088:127.0.0.1:8088 you@your-server, then
-  open http://localhost:8088/web/admin. Sign in as admin with the SFTPGO_PASSWORD secret
-  and make a user for transfers. That secret is read on first start only: to change the
-  password, use Change password in SFTPGo, then set the secret to match. SFTP stays on
-  this server too, and a domain doesn't publish it: tunnel it with ssh -N -L
-  2022:127.0.0.1:2022 you@your-server.
+signIn:
+  user: "admin"
+  passwordInput: "SFTPGO_PASSWORD"
+  changedIn: "Change password"
+notes:
+  - "Its web admin is at /web/admin, where you make a user for transfers."
+  - "SFTP answers on its SFTP port, on this server alone: reach it from your computer through an SSH tunnel."
 inputs:
   - name: PORT
     label: Web port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "8088"
   - name: SFTP_PORT
     label: SFTP port on this server
-    hint: Only this server reaches it. Use an SSH tunnel for file transfers from your computer.
+    hint: SFTP, on this server alone.
     type: INPUT_TYPE_PORT
     defaultValue: "2022"
   - name: SFTPGO_PASSWORD
+    setOnce: true
     label: Admin password
     type: INPUT_TYPE_SECRET
     generate: 32

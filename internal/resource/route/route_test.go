@@ -129,6 +129,25 @@ func TestThePanelsDomainCantBeClaimed(t *testing.T) {
 	}
 }
 
+// A domain saved for the panel and not served yet, as during the restart that
+// serves it, is no route's either (ADR 0063).
+func TestADomainSavedForThePanelCantBeClaimed(t *testing.T) {
+	saved := ""
+	d := &Driver{Saved: func() string { return saved }}
+	if err := d.Validate(spec("x.panel.example.com", "")); err != nil {
+		t.Fatalf("with nothing saved: %v", err)
+	}
+	saved = "panel.example.com"
+	for _, domain := range []string{"panel.example.com", "x.panel.example.com"} {
+		if err := d.Validate(spec(domain, "")); err == nil || !strings.Contains(err.Error(), "panel") {
+			t.Errorf("a route for %s once the panel's is saved = %v, want it refused", domain, err)
+		}
+	}
+	if err := d.Validate(spec("app.example.com", "")); err != nil {
+		t.Errorf("a route elsewhere = %v", err)
+	}
+}
+
 func TestAClaimIsItsDomainAndPath(t *testing.T) {
 	d := &Driver{}
 	got := d.Claims(spec("app.example.com", "/api"))

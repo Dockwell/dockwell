@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { Code, ConnectError } from "@connectrpc/connect";
 import { useQuery } from "@connectrpc/connect-query";
 import { ImageAnswer, type ImageConfig, ImageService } from "@dockwell/api";
 import { cx, Glyph, STATUS, TextField, TONE } from "@dockwell/ui";
@@ -14,6 +15,16 @@ import "./ImageField.css";
 const LOOK_AFTER_MS = 400;
 /** How long a read is good for in this browser, as the agent keeps it for 10 minutes. */
 const READ_FOR_MS = 10 * 60_000;
+
+/**
+ * A read the server was too busy for is asked once more, a moment later, while
+ * the field says it's checking: a form's search, check and tags go out close
+ * together. Anything else isn't asked again.
+ */
+const ONCE_MORE = {
+  retry: (count: number, error: unknown) => count < 1 && ConnectError.from(error).code === Code.Unavailable,
+  retryDelay: 500,
+};
 
 /** A reference a registry could hold, as typed: lowercase name parts, and a tag or digest. */
 const REFERENCE =
@@ -117,13 +128,13 @@ export function ImageField({
   const search = useQuery(
     ImageService.method.searchImages,
     { term, ...where },
-    { enabled: canSearch && open && term.length >= 2, staleTime: READ_FOR_MS, retry: false },
+    { enabled: canSearch && open && term.length >= 2, staleTime: READ_FOR_MS, ...ONCE_MORE },
   );
   const tagsOf = tag === undefined ? "" : repository;
   const tags = useQuery(
     ImageService.method.listImageTags,
     { repository: tagsOf, ...where },
-    { enabled: canList && open && tagsOf !== "" && REFERENCE.test(tagsOf), staleTime: READ_FOR_MS, retry: false },
+    { enabled: canList && open && tagsOf !== "" && REFERENCE.test(tagsOf), staleTime: READ_FOR_MS, ...ONCE_MORE },
   );
 
   // Whether it's there, once typing pauses on what could be a reference.
@@ -132,7 +143,7 @@ export function ImageField({
   const image = useQuery(
     ImageService.method.getImage,
     { reference: settled, ...where },
-    { enabled: checks, staleTime: READ_FOR_MS, retry: false },
+    { enabled: checks, staleTime: READ_FOR_MS, ...ONCE_MORE },
   );
   const read = settled === typed && checks ? image.data : undefined;
   const sent = useRef("");
@@ -220,6 +231,8 @@ export function ImageField({
     if (!checks && typed === "") return undefined;
     if (typed !== settled || (checks && image.isFetching))
       return checks ? { kind: "checking", word: t`Checking` } : undefined;
+    // A check that failed, even asked once more, says so rather than nothing.
+    if (checks && image.isError) return { kind: "unreachable", word: t`Can't reach the registry` };
     if (!read) return undefined;
     switch (read.answer) {
       case ImageAnswer.FOUND:

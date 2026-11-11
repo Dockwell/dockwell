@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
 category: databases
 version: "8.4.11"
-release: 3
+release: 4
 homepage: https://www.mysql.com
 license: AGPL-3.0-only
 appLicense: GPL-2.0-only
@@ -29,15 +29,12 @@ source:
   path: internal/catalog/entries/mysql.yaml
 web:
   service: phpmyadmin
-firstSteps: >-
-  phpMyAdmin answers over plain HTTP, so signing in from outside this server sends
-  MySQL's root password in clear. Add a domain first, or reach it another way, such
-  as a VPN or an SSH tunnel. Then open phpMyAdmin and sign in as user root, with the
-  password in the MYSQL_ROOT_PASSWORD secret.
+signIn:
+  user: "root"
+  passwordInput: "MYSQL_ROOT_PASSWORD"
 inputs:
   - name: ADMIN_PORT
     label: phpMyAdmin port
-    hint: You open phpMyAdmin on this port of the server. It asks for the database's password.
     type: INPUT_TYPE_PORT
     defaultValue: "8082"
   - name: MYSQL_ROOT_PASSWORD

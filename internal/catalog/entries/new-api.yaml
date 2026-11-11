@@ -29,15 +29,12 @@ source:
   path: internal/catalog/entries/new-api.yaml
 web:
   service: new-api
-firstSteps: >-
-  new-api answers only on this server until you add a domain, as its first visitor makes
-  the owner account. Make yours first through a tunnel: ssh -N -L 3004:127.0.0.1:3004
-  you@your-server, then open http://localhost:3004. Add a domain on its page only after
-  that. Leave the SESSION_SECRET secret as it is: changing it signs everyone out.
+firstVisitorOwns: true
+notes:
+  - "Leave the SESSION_SECRET secret as it is: changing it signs everyone out."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "3004"
   - name: SESSION_SECRET

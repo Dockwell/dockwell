@@ -83,12 +83,12 @@ export async function networkFlow(page: Page, { origin, step, shoot }: NetworkFl
   await page.getByRole("button", { name: "Add a domain" }).first().click();
   const form = page.getByRole("dialog", { name: /^Add a domain to / });
   await form.getByLabel("Domain").fill("app.example.com");
-  const row = form.locator(".domain-record-row", { hasText: long });
+  const row = form.locator(".dw-dns-row", { hasText: long });
   await row.waitFor();
   const fits = await row.evaluate((el) => ({
     over: el.scrollWidth - el.clientWidth,
     page: document.documentElement.scrollWidth - window.innerWidth,
-    name: el.querySelector(".domain-record-name")?.getBoundingClientRect().width ?? 0,
+    name: el.querySelector(".dw-dns-name")?.getBoundingClientRect().width ?? 0,
   }));
   if (fits.over > 0) throw new Error(`at 360 px the record's row overflows by ${fits.over} px`);
   if (fits.page > 0) throw new Error(`at 360 px the domain form widens the page by ${fits.page} px`);

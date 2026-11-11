@@ -22,6 +22,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/paging"
@@ -53,6 +54,10 @@ type Handler struct {
 	db      *store.DB
 	keeper  *secrets.Keeper
 	logger  *slog.Logger
+	// Opener issues the addresses OpenService hands out. Nil opens no app.
+	Opener Opener
+	// Auth confirms an open with a passkey, and follows the session that asked.
+	Auth *auth.Service
 }
 
 var _ dockwellv1connect.ServiceServiceHandler = (*Handler)(nil)

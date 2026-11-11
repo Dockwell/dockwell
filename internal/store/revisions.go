@@ -272,6 +272,17 @@ type ChangePage struct {
 	ID        string
 }
 
+// AnyApplying reports whether a change is applying, as one a restart would stop
+// partway.
+func (t *Tx) AnyApplying(ctx context.Context) (bool, error) {
+	rows, err := t.query(ctx, `SELECT id FROM changes WHERE state = ? LIMIT 1`, ChangeApplying)
+	if err != nil {
+		return false, fmt.Errorf("can't read whether a change is applying: %w", err)
+	}
+	defer rows.Close()
+	return rows.Next(), rows.Err()
+}
+
 // ListChanges returns at most limit changes, newest first, without their
 // items, from where page says.
 func (t *Tx) ListChanges(ctx context.Context, page ChangePage, limit int) ([]Change, error) {
@@ -601,6 +612,15 @@ func (t *Tx) ListPlaced(ctx context.Context, server string) ([]Resource, error) 
 	return t.listResources(ctx, `SELECT `+resourceColumns+latest+`
 		JOIN deployments d ON d.resource_id = r.id AND d.revision = r.revision
 		WHERE d.server_id = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.scope, r.name`, server)
+}
+
+// ListLive returns what a server runs as its latest revisions have it: every
+// resource whose latest revision applied there and is live, by kind, scope and
+// name. It's what the server's agent keeps as its desired state (ADR 0054).
+func (t *Tx) ListLive(ctx context.Context, server string) ([]Resource, error) {
+	return t.listResources(ctx, `SELECT `+resourceColumns+latest+`
+		JOIN deployments d ON d.resource_id = r.id AND d.revision = r.revision
+		WHERE d.server_id = ? AND d.state = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.scope, r.name`, server, DeploymentLive)
 }
 
 // SpecAt says where a stored spec lives: in a revision of a resource, by

@@ -77,6 +77,389 @@ func (SignInKind) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{0}
 }
 
+// CreateInviteRequest says whom to invite, as what, and where.
+type CreateInviteRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Who the invite names, such as "ada@example.com". Unverified: it names the
+	// invite in Members and on the page that accepts it.
+	Email string `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	// ROLE_ADMIN, ROLE_DEVELOPER or ROLE_VIEWER.
+	Role Role `protobuf:"varint,2,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
+	// The project's ID or name, for a developer or a viewer of one project.
+	// Empty is the whole install, which an admin's invite always is.
+	Project string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	// From FinishStepUp, for STEP_UP_ACTION_INVITE with the target the email,
+	// lowercased, the role's name and the place, apart by spaces, as "ada@example.com
+	// developer prj_…", or "install" for the whole install.
+	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateInviteRequest) Reset() {
+	*x = CreateInviteRequest{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateInviteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateInviteRequest) ProtoMessage() {}
+
+func (x *CreateInviteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateInviteRequest.ProtoReflect.Descriptor instead.
+func (*CreateInviteRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *CreateInviteRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *CreateInviteRequest) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *CreateInviteRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *CreateInviteRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// CreateInviteResponse carries the invite and its link, shown once.
+type CreateInviteResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Invite *Invite                `protobuf:"bytes,1,opt,name=invite,proto3" json:"invite,omitempty"`
+	// The link to send, as "https://panel.example.com/invite#…". Its secret
+	// isn't kept: it can't be shown again.
+	Link          string `protobuf:"bytes,2,opt,name=link,proto3" json:"link,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateInviteResponse) Reset() {
+	*x = CreateInviteResponse{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateInviteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateInviteResponse) ProtoMessage() {}
+
+func (x *CreateInviteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateInviteResponse.ProtoReflect.Descriptor instead.
+func (*CreateInviteResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *CreateInviteResponse) GetInvite() *Invite {
+	if x != nil {
+		return x.Invite
+	}
+	return nil
+}
+
+func (x *CreateInviteResponse) GetLink() string {
+	if x != nil {
+		return x.Link
+	}
+	return ""
+}
+
+// RevokeInviteRequest names an open invite.
+type RevokeInviteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeInviteRequest) Reset() {
+	*x = RevokeInviteRequest{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeInviteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeInviteRequest) ProtoMessage() {}
+
+func (x *RevokeInviteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeInviteRequest.ProtoReflect.Descriptor instead.
+func (*RevokeInviteRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RevokeInviteRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// RevokeInviteResponse is empty.
+type RevokeInviteResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeInviteResponse) Reset() {
+	*x = RevokeInviteResponse{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeInviteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeInviteResponse) ProtoMessage() {}
+
+func (x *RevokeInviteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeInviteResponse.ProtoReflect.Descriptor instead.
+func (*RevokeInviteResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{3}
+}
+
+// Invite is an open invitation to sign in.
+type Invite struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Who it names, unverified.
+	Email string `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
+	Role  Role   `protobuf:"varint,3,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
+	// The project, for a developer or a viewer of one. Empty for the install.
+	ProjectId string `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// The project's name. Empty for the install.
+	ProjectName string `protobuf:"bytes,5,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	// Who made it, by name.
+	InvitedBy  string                 `protobuf:"bytes,6,opt,name=invited_by,json=invitedBy,proto3" json:"invited_by,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// When it stops working: 7 days after it's made for a developer or a
+	// viewer, 24 hours for an admin, whose link is a bearer credential to the
+	// install.
+	ExpireTime    *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expire_time,json=expireTime,proto3" json:"expire_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Invite) Reset() {
+	*x = Invite{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Invite) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Invite) ProtoMessage() {}
+
+func (x *Invite) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Invite.ProtoReflect.Descriptor instead.
+func (*Invite) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Invite) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Invite) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *Invite) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
+func (x *Invite) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *Invite) GetProjectName() string {
+	if x != nil {
+		return x.ProjectName
+	}
+	return ""
+}
+
+func (x *Invite) GetInvitedBy() string {
+	if x != nil {
+		return x.InvitedBy
+	}
+	return ""
+}
+
+func (x *Invite) GetCreateTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreateTime
+	}
+	return nil
+}
+
+func (x *Invite) GetExpireTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpireTime
+	}
+	return nil
+}
+
+// MemberGrant is a role someone holds in one project.
+type MemberGrant struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	ProjectName   string                 `protobuf:"bytes,2,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	Role          Role                   `protobuf:"varint,3,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MemberGrant) Reset() {
+	*x = MemberGrant{}
+	mi := &file_dockwell_v1_member_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MemberGrant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MemberGrant) ProtoMessage() {}
+
+func (x *MemberGrant) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_member_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MemberGrant.ProtoReflect.Descriptor instead.
+func (*MemberGrant) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *MemberGrant) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *MemberGrant) GetProjectName() string {
+	if x != nil {
+		return x.ProjectName
+	}
+	return ""
+}
+
+func (x *MemberGrant) GetRole() Role {
+	if x != nil {
+		return x.Role
+	}
+	return Role_ROLE_UNSPECIFIED
+}
+
 // ListMembersRequest takes no parameters.
 type ListMembersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -86,7 +469,7 @@ type ListMembersRequest struct {
 
 func (x *ListMembersRequest) Reset() {
 	*x = ListMembersRequest{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[0]
+	mi := &file_dockwell_v1_member_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -98,7 +481,7 @@ func (x *ListMembersRequest) String() string {
 func (*ListMembersRequest) ProtoMessage() {}
 
 func (x *ListMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[0]
+	mi := &file_dockwell_v1_member_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -111,21 +494,23 @@ func (x *ListMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMembersRequest.ProtoReflect.Descriptor instead.
 func (*ListMembersRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{6}
 }
 
 // ListMembersResponse lists who can sign in.
 type ListMembersResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Everyone who can sign in, oldest first.
-	Members       []*Member `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
+	Members []*Member `protobuf:"bytes,1,rep,name=members,proto3" json:"members,omitempty"`
+	// The invites that still work, newest first.
+	Invites       []*Invite `protobuf:"bytes,2,rep,name=invites,proto3" json:"invites,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListMembersResponse) Reset() {
 	*x = ListMembersResponse{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[1]
+	mi := &file_dockwell_v1_member_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -137,7 +522,7 @@ func (x *ListMembersResponse) String() string {
 func (*ListMembersResponse) ProtoMessage() {}
 
 func (x *ListMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[1]
+	mi := &file_dockwell_v1_member_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -150,12 +535,19 @@ func (x *ListMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMembersResponse.ProtoReflect.Descriptor instead.
 func (*ListMembersResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListMembersResponse) GetMembers() []*Member {
 	if x != nil {
 		return x.Members
+	}
+	return nil
+}
+
+func (x *ListMembersResponse) GetInvites() []*Invite {
+	if x != nil {
+		return x.Invites
 	}
 	return nil
 }
@@ -191,14 +583,17 @@ type Member struct {
 	SignIn []SignInKind `protobuf:"varint,9,rep,packed,name=sign_in,json=signIn,proto3,enum=dockwell.v1.SignInKind" json:"sign_in,omitempty"`
 	// True when code sign-in is locked after too many wrong codes, until the
 	// owner lifts it. Only for the person asking.
-	CodesLocked   bool `protobuf:"varint,10,opt,name=codes_locked,json=codesLocked,proto3" json:"codes_locked,omitempty"`
+	CodesLocked bool `protobuf:"varint,10,opt,name=codes_locked,json=codesLocked,proto3" json:"codes_locked,omitempty"`
+	// The roles they hold in projects, by project name. Their role on the
+	// whole install, which covers every project, is user.role.
+	Grants        []*MemberGrant `protobuf:"bytes,11,rep,name=grants,proto3" json:"grants,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Member) Reset() {
 	*x = Member{}
-	mi := &file_dockwell_v1_member_proto_msgTypes[2]
+	mi := &file_dockwell_v1_member_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -210,7 +605,7 @@ func (x *Member) String() string {
 func (*Member) ProtoMessage() {}
 
 func (x *Member) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_member_proto_msgTypes[2]
+	mi := &file_dockwell_v1_member_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -223,7 +618,7 @@ func (x *Member) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Member.ProtoReflect.Descriptor instead.
 func (*Member) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_member_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Member) GetUser() *User {
@@ -296,14 +691,51 @@ func (x *Member) GetCodesLocked() bool {
 	return false
 }
 
+func (x *Member) GetGrants() []*MemberGrant {
+	if x != nil {
+		return x.Grants
+	}
+	return nil
+}
+
 var File_dockwell_v1_member_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\n" +
-	"\x18dockwell/v1/member.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
-	"\x12ListMembersRequest\"D\n" +
+	"\x18dockwell/v1/member.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x82\x01\n" +
+	"\x13CreateInviteRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12%\n" +
+	"\x04role\x18\x02 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12\x18\n" +
+	"\aproject\x18\x03 \x01(\tR\aproject\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"W\n" +
+	"\x14CreateInviteResponse\x12+\n" +
+	"\x06invite\x18\x01 \x01(\v2\x13.dockwell.v1.InviteR\x06invite\x12\x12\n" +
+	"\x04link\x18\x02 \x01(\tR\x04link\"%\n" +
+	"\x13RevokeInviteRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x16\n" +
+	"\x14RevokeInviteResponse\"\xb0\x02\n" +
+	"\x06Invite\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
+	"\x05email\x18\x02 \x01(\tR\x05email\x12%\n" +
+	"\x04role\x18\x03 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x04 \x01(\tR\tprojectId\x12!\n" +
+	"\fproject_name\x18\x05 \x01(\tR\vprojectName\x12\x1d\n" +
+	"\n" +
+	"invited_by\x18\x06 \x01(\tR\tinvitedBy\x12;\n" +
+	"\vcreate_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"createTime\x12;\n" +
+	"\vexpire_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"expireTime\"v\n" +
+	"\vMemberGrant\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12!\n" +
+	"\fproject_name\x18\x02 \x01(\tR\vprojectName\x12%\n" +
+	"\x04role\x18\x03 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\"\x14\n" +
+	"\x12ListMembersRequest\"s\n" +
 	"\x13ListMembersResponse\x12-\n" +
-	"\amembers\x18\x01 \x03(\v2\x13.dockwell.v1.MemberR\amembers\"\x97\x03\n" +
+	"\amembers\x18\x01 \x03(\v2\x13.dockwell.v1.MemberR\amembers\x12-\n" +
+	"\ainvites\x18\x02 \x03(\v2\x13.dockwell.v1.InviteR\ainvites\"\xc9\x03\n" +
 	"\x06Member\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.dockwell.v1.UserR\x04user\x12\x10\n" +
 	"\x03you\x18\x02 \x01(\bR\x03you\x12\x1a\n" +
@@ -315,14 +747,19 @@ const file_dockwell_v1_member_proto_rawDesc = "" +
 	"\x10last_active_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0elastActiveTime\x120\n" +
 	"\asign_in\x18\t \x03(\x0e2\x17.dockwell.v1.SignInKindR\x06signIn\x12!\n" +
 	"\fcodes_locked\x18\n" +
-	" \x01(\bR\vcodesLocked*h\n" +
+	" \x01(\bR\vcodesLocked\x120\n" +
+	"\x06grants\x18\v \x03(\v2\x18.dockwell.v1.MemberGrantR\x06grants*h\n" +
 	"\n" +
 	"SignInKind\x12\x1c\n" +
 	"\x18SIGN_IN_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14SIGN_IN_KIND_PASSKEY\x10\x01\x12\"\n" +
-	"\x1eSIGN_IN_KIND_AUTHENTICATOR_APP\x10\x022\x8d\x01\n" +
+	"\x1eSIGN_IN_KIND_AUTHENTICATOR_APP\x10\x022\xcd\a\n" +
 	"\rMemberService\x12|\n" +
-	"\vListMembers\x12\x1f.dockwell.v1.ListMembersRequest\x1a .dockwell.v1.ListMembersResponse\"*\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\r\x12\v/v1/members\x90\x02\x01B\xa4\x01\n" +
+	"\vListMembers\x12\x1f.dockwell.v1.ListMembersRequest\x1a .dockwell.v1.ListMembersResponse\"*\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\r\x12\v/v1/members\x90\x02\x01\x12\x7f\n" +
+	"\fCreateInvite\x12 .dockwell.v1.CreateInviteRequest\x1a!.dockwell.v1.CreateInviteResponse\"*\xa0\xbb\x18\x03\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/invites\x12\x8b\x01\n" +
+	"\fRevokeInvite\x12 .dockwell.v1.RevokeInviteRequest\x1a!.dockwell.v1.RevokeInviteResponse\"6\xa0\xbb\x18\x03\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/invites/{id}:revoke\x1a\xae\x04\xa2\xbb\x18\xf6\x01\n" +
+	"\amembers\x12\xea\x01Members are the people who sign in to the install, with their roles: on the whole install, or in projects. Listing them names people and their emails, so it needs a signed-in session as an admin or the owner, which no API token gives.\xa2\xbb\x18\xae\x02\n" +
+	"\ainvites\x12\xa2\x02An invite asks someone, by email, to sign in with a role in a place, the install or a project. An admin or the owner makes it in the panel, with a passkey, and sends the link it shows once: Dockwell sends no mail. Making and revoking one needs a signed-in session, which no API token gives.B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vMemberProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -338,27 +775,46 @@ func file_dockwell_v1_member_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_member_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_member_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_dockwell_v1_member_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_dockwell_v1_member_proto_goTypes = []any{
 	(SignInKind)(0),               // 0: dockwell.v1.SignInKind
-	(*ListMembersRequest)(nil),    // 1: dockwell.v1.ListMembersRequest
-	(*ListMembersResponse)(nil),   // 2: dockwell.v1.ListMembersResponse
-	(*Member)(nil),                // 3: dockwell.v1.Member
-	(*User)(nil),                  // 4: dockwell.v1.User
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*CreateInviteRequest)(nil),   // 1: dockwell.v1.CreateInviteRequest
+	(*CreateInviteResponse)(nil),  // 2: dockwell.v1.CreateInviteResponse
+	(*RevokeInviteRequest)(nil),   // 3: dockwell.v1.RevokeInviteRequest
+	(*RevokeInviteResponse)(nil),  // 4: dockwell.v1.RevokeInviteResponse
+	(*Invite)(nil),                // 5: dockwell.v1.Invite
+	(*MemberGrant)(nil),           // 6: dockwell.v1.MemberGrant
+	(*ListMembersRequest)(nil),    // 7: dockwell.v1.ListMembersRequest
+	(*ListMembersResponse)(nil),   // 8: dockwell.v1.ListMembersResponse
+	(*Member)(nil),                // 9: dockwell.v1.Member
+	(Role)(0),                     // 10: dockwell.v1.Role
+	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
+	(*User)(nil),                  // 12: dockwell.v1.User
 }
 var file_dockwell_v1_member_proto_depIdxs = []int32{
-	3, // 0: dockwell.v1.ListMembersResponse.members:type_name -> dockwell.v1.Member
-	4, // 1: dockwell.v1.Member.user:type_name -> dockwell.v1.User
-	5, // 2: dockwell.v1.Member.last_active_time:type_name -> google.protobuf.Timestamp
-	0, // 3: dockwell.v1.Member.sign_in:type_name -> dockwell.v1.SignInKind
-	1, // 4: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
-	2, // 5: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	10, // 0: dockwell.v1.CreateInviteRequest.role:type_name -> dockwell.v1.Role
+	5,  // 1: dockwell.v1.CreateInviteResponse.invite:type_name -> dockwell.v1.Invite
+	10, // 2: dockwell.v1.Invite.role:type_name -> dockwell.v1.Role
+	11, // 3: dockwell.v1.Invite.create_time:type_name -> google.protobuf.Timestamp
+	11, // 4: dockwell.v1.Invite.expire_time:type_name -> google.protobuf.Timestamp
+	10, // 5: dockwell.v1.MemberGrant.role:type_name -> dockwell.v1.Role
+	9,  // 6: dockwell.v1.ListMembersResponse.members:type_name -> dockwell.v1.Member
+	5,  // 7: dockwell.v1.ListMembersResponse.invites:type_name -> dockwell.v1.Invite
+	12, // 8: dockwell.v1.Member.user:type_name -> dockwell.v1.User
+	11, // 9: dockwell.v1.Member.last_active_time:type_name -> google.protobuf.Timestamp
+	0,  // 10: dockwell.v1.Member.sign_in:type_name -> dockwell.v1.SignInKind
+	6,  // 11: dockwell.v1.Member.grants:type_name -> dockwell.v1.MemberGrant
+	7,  // 12: dockwell.v1.MemberService.ListMembers:input_type -> dockwell.v1.ListMembersRequest
+	1,  // 13: dockwell.v1.MemberService.CreateInvite:input_type -> dockwell.v1.CreateInviteRequest
+	3,  // 14: dockwell.v1.MemberService.RevokeInvite:input_type -> dockwell.v1.RevokeInviteRequest
+	8,  // 15: dockwell.v1.MemberService.ListMembers:output_type -> dockwell.v1.ListMembersResponse
+	2,  // 16: dockwell.v1.MemberService.CreateInvite:output_type -> dockwell.v1.CreateInviteResponse
+	4,  // 17: dockwell.v1.MemberService.RevokeInvite:output_type -> dockwell.v1.RevokeInviteResponse
+	15, // [15:18] is the sub-list for method output_type
+	12, // [12:15] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_member_proto_init() }
@@ -374,7 +830,7 @@ func file_dockwell_v1_member_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_member_proto_rawDesc), len(file_dockwell_v1_member_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
