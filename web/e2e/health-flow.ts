@@ -243,7 +243,7 @@ services:
   await everywhere("plain", "Running", "running");
   await page
     .getByRole("region", { name: "What runs" })
-    .getByText("Nothing checks it, so this only means it started.")
+    .getByText("No health check, so Running only means it started.")
     .waitFor();
   await page
     .getByRole("region", { name: "Health check" })
@@ -416,7 +416,7 @@ services:
       // A check the agent makes needs nothing of Docker, so what only Docker can say is what goes.
       await page
         .getByRole("region", { name: "What runs" })
-        .getByText(/can't read Docker/)
+        .getByText(/Docker hasn't answered the agent/)
         .first()
         .waitFor({ timeout: 60_000 });
       const top = page.locator(".topbar");

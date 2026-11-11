@@ -138,8 +138,8 @@ func (r *sshReader) readNow(ctx context.Context) *dockwellv1.ServerSsh {
 	return out
 }
 
-// answer is yes, no, or neither where the line that would say isn't there.
-func answer(value string) dockwellv1.SshAnswer {
+// sshAnswer is yes, no, or neither where the line that would say isn't there.
+func sshAnswer(value string) dockwellv1.SshAnswer {
 	switch value {
 	case "yes":
 		return dockwellv1.SshAnswer_SSH_ANSWER_YES
@@ -175,10 +175,10 @@ func effective(text string, out *dockwellv1.ServerSsh) (pidFile string, said boo
 	// sshd on Linux has nothing to ask with, though the keyword defaults to yes.
 	// An sshd built without PAM prints no usepam line. OpenSSH before 8.7 calls
 	// the keyword ChallengeResponseAuthentication; either line says it.
-	password := answer(first("passwordauthentication"))
-	kbd := answer(first("kbdinteractiveauthentication"))
+	password := sshAnswer(first("passwordauthentication"))
+	kbd := sshAnswer(first("kbdinteractiveauthentication"))
 	if kbd == dockwellv1.SshAnswer_SSH_ANSWER_UNSPECIFIED {
-		kbd = answer(first("challengeresponseauthentication"))
+		kbd = sshAnswer(first("challengeresponseauthentication"))
 	}
 	switch {
 	case password == dockwellv1.SshAnswer_SSH_ANSWER_YES:
@@ -188,7 +188,7 @@ func effective(text string, out *dockwellv1.ServerSsh) (pidFile string, said boo
 	case password == dockwellv1.SshAnswer_SSH_ANSWER_NO && kbd != dockwellv1.SshAnswer_SSH_ANSWER_UNSPECIFIED:
 		out.PasswordLogin = dockwellv1.SshAnswer_SSH_ANSWER_NO
 	}
-	out.KeyLogin = answer(first("pubkeyauthentication"))
+	out.KeyLogin = sshAnswer(first("pubkeyauthentication"))
 	switch first("permitrootlogin") {
 	case "yes":
 		out.RootLogin = dockwellv1.SshRootLogin_SSH_ROOT_LOGIN_YES

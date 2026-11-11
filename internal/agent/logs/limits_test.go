@@ -1116,6 +1116,9 @@ func TestAKeptLogWithAllItsLinesDoesntSaySoOtherwise(t *testing.T) {
 	addContainer(t, e, "app-1", 1)
 	printMany(e, "short", 400_000)
 	r := newReader(t, e)
+	// Time enough for the first copy to take every line, however busy the machine: a
+	// copy that runs out of time is what the next tests are about.
+	r.Archive.CopyWait = time.Hour
 	keep(t, r, e, "app-1", false)
 	if k := r.Archive.List(testProject, testService); k[0].Lines != 400_000 || k[0].CutShort {
 		t.Errorf("kept %d of 400,000 lines, with cut_short %v", k[0].Lines, k[0].CutShort)
