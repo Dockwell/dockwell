@@ -160,26 +160,28 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       kind: "plan",
       make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id, user }),
     });
-  columns.push({
-    key: "change",
-    header: <span className="dw-sr">{t`Actions`}</span>,
-    width: 168,
-    align: "right",
-    render: (u) => {
-      const who = u.name;
-      return u.resourceId && u.secret ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => changePassword(who)}
-          aria-label={t`Change ${who}'s password`}
-          {...mayChange.off}
-        >
-          <Trans>Change password</Trans>
-        </Button>
-      ) : null;
-    },
-  });
+  // Only a user Dockwell made has a password to change here, so with none the column isn't there.
+  if (users.some((u) => u.resourceId && u.secret))
+    columns.push({
+      key: "change",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 168,
+      align: "right",
+      render: (u) => {
+        const who = u.name;
+        return u.resourceId && u.secret ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => changePassword(who)}
+            aria-label={t`Change ${who}'s password`}
+            {...mayChange.off}
+          >
+            <Trans>Change password</Trans>
+          </Button>
+        ) : null;
+      },
+    });
   // A MongoDB user's name is theirs in one database, so two can share one.
   const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host || u.authDatabase}` }));
   const count = users.length;

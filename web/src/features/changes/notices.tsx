@@ -873,6 +873,67 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`Revision ${revision} ran different images of ${image} on each server, so ${name} runs what ${image} is now`,
         };
       }
+      case "catalog_source_refuses": {
+        // The catalog's own check says why, in its words, after the file it's about.
+        const [file = ""] = note.names;
+        const at = note.message.indexOf(": ");
+        const why = at < 0 ? note.message : note.message.slice(at + 2);
+        return { key, title: t`Leaves out ${file}`, detail: why };
+      }
+      case "catalog_source_takes_away": {
+        const names = note.names.join(", ");
+        return {
+          key,
+          title: t`Takes away ${names}`,
+          more: t`Installs of them keep running, with no upgrades.`,
+        };
+      }
+      case "catalog_source_removed":
+        return {
+          key,
+          title: t`Its apps leave the catalog`,
+          more: t`Installs of them keep running, with no upgrades.`,
+        };
+      // A host such as GitHub serves a fork's commits through the repository it was forked from.
+      case "catalog_source_unnamed":
+        return {
+          key,
+          title: t`No branch or tag is at this commit now`,
+          detail: t`Check it's the commit you mean.`,
+          more: t`It may be an older commit, or a fork's.`,
+          notice: true,
+        };
+      case "catalog_source_unlisted":
+        return {
+          key,
+          title: t`Dockwell couldn't list the repository's branches and tags`,
+          detail: t`Check it's the commit you mean.`,
+          notice: true,
+        };
+      case "catalog_source_takes": {
+        const ids = note.names.join(", ");
+        return {
+          key,
+          title: t`Takes ${ids} from another catalog`,
+          more: t`This catalog comes first, so the catalog shows its apps.`,
+        };
+      }
+      case "catalog_source_gives": {
+        const ids = note.names.join(", ");
+        return {
+          key,
+          title: t`${ids} will come from another catalog`,
+          more: t`Nothing installed from this catalog upgrades to them.`,
+        };
+      }
+      case "catalog_source_strands": {
+        const projects = note.names.join(", ");
+        return {
+          key,
+          title: t`${projects} will have no upgrades`,
+          more: t`Each keeps running as it is.`,
+        };
+      }
       case "exposed_more":
         return {
           key,
@@ -937,7 +998,17 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   );
   // These say what a pull does, which is no warning: there is nothing to weigh.
   // And what an edit kept of an app's own values: information, which an aside says once.
-  const quiet = new Set(["pulls_again", "leaves_pin", "starts_stopped", "keeps_env"]);
+  const quiet = new Set([
+    "pulls_again",
+    "leaves_pin",
+    "starts_stopped",
+    "keeps_env",
+    "catalog_source_reads",
+    "catalog_source_adds",
+    "catalog_source_changes",
+    "catalog_source_commit",
+    "catalog_source_restores",
+  ]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
     .map(
@@ -947,7 +1018,17 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         detail: line.lead ? `${line.text}.` : undefined,
       }),
     );
-  return [...rest, ...fromRollouts, ...routes, ...notes.filter((_, i) => !quiet.has(worthWarning[i]?.reason ?? ""))];
+  return [
+    ...rest,
+    ...fromRollouts,
+    ...routes,
+    ...notes.filter((_, i) => {
+      const note = worthWarning[i];
+      // Older source plans carry only a sentence, including unnamed-commit warnings.
+      if (note?.reason === "catalog_source_commit" && note.names.length === 0) return true;
+      return !quiet.has(note?.reason ?? "");
+    }),
+  ];
 }
 
 /**
@@ -979,6 +1060,56 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     if (note.reason === "keeps_env") {
       const key = `keeps-${note.resource?.scope ?? ""}/${name}`;
       if (!out.some((n) => n.key === key)) out.push({ key, title: `${note.message}.` });
+    }
+    // What a catalog's commit holds is what a person reviews it for, and no warning.
+    if (note.reason === "catalog_source_reads") {
+      const count = note.names.length;
+      const names = note.names.join(", ");
+      out.push({
+        key: `catalog-reads-${i}`,
+        title:
+          count === 0
+            ? t`The catalog shows no apps from this commit.`
+            : plural(count, {
+                one: `The catalog shows # app from this commit: ${names}.`,
+                other: `The catalog shows # apps from this commit: ${names}.`,
+              }),
+      });
+    }
+    if (note.reason === "catalog_source_adds") {
+      const names = note.names.join(", ");
+      out.push({ key: `catalog-adds-${i}`, title: t`Adds ${names}.` });
+    }
+    if (note.reason === "catalog_source_changes") {
+      const names = note.names.join(", ");
+      out.push({
+        key: `catalog-moves-${i}`,
+        title: note.names.length ? t`Moves ${names} on, which an install of each can upgrade to.` : note.message,
+      });
+    }
+    // Which branches and tags are at the commit, as refs/heads/main and refs/tags/v1.
+    if (note.reason === "catalog_source_commit" && note.names.length > 0) {
+      const at = note.names
+        .map((ref) =>
+          ref.startsWith("refs/tags/")
+            ? t`the tag ${ref.slice("refs/tags/".length)}`
+            : t`the branch ${ref.slice("refs/heads/".length)}`,
+        )
+        .join(", ");
+      out.push({
+        key: `catalog-commit-${i}`,
+        title: plural(note.names.length, {
+          one: `It's the commit ${at} is at.`,
+          other: `It's the commit ${at} are at.`,
+        }),
+      });
+    }
+    if (note.reason === "catalog_source_restores") {
+      const projects = note.names.join(", ");
+      out.push({
+        key: `catalog-restores-${i}`,
+        title: t`${projects} can upgrade again, from the catalog each came from.`,
+      });
     }
     if (note.reason !== "pulls_again") continue;
     // More than its image may differ on a server, and then the pull doesn't decide it.

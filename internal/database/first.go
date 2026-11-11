@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -25,6 +26,9 @@ import (
 // the database, in the container that runs, signing in as the image does.
 type FirstPasswords struct {
 	Client *docker.Client
+	// Every is how often putting a password back asks again while the database
+	// starts. Zero means a second.
+	Every time.Duration
 }
 
 // Undo puts back a password Change gave the first user, where what runs after a
@@ -38,7 +42,9 @@ type Undo = func(ctx context.Context) error
 // on an empty volume sets the passwords itself, and where no password changes.
 func (f *FirstPasswords) Change(ctx context.Context, project, service string, app *resourcev1.Container) (Undo, error) {
 	e := Recognise(app.GetImage())
-	if e == nil || !e.SQL() || f.Client == nil {
+	// A container of a database's image that runs something else, such as a client
+	// that dumps another server, has no database of its own to change.
+	if e == nil || !e.SQL() || !startsServer(e, app) || f.Client == nil {
 		return nil, nil
 	}
 	c, err := f.running(ctx, project, service)
@@ -58,27 +64,61 @@ func (f *FirstPasswords) Change(ctx context.Context, project, service string, ap
 	if err := f.set(ctx, c, e, moves, rootWas, rootNow); err != nil {
 		return nil, fmt.Errorf("can't give %s's %s the new password in %s before it restarts, so nothing was restarted: %w", service, names(moves), e.Name, err)
 	}
+	// The old container comes back as a rollout fails, and its database takes a moment
+	// to take connections: putting the password back asks again until it does, within
+	// what ctx gives it.
 	return func(ctx context.Context) error {
-		c, err := f.running(ctx, project, service)
-		switch {
-		case err != nil:
-			return err
-		case c == nil:
-			return fmt.Errorf("%s isn't running, so %s's password in %s stays the new one, which the old container doesn't start with", service, names(moves), e.Name)
+		var last error
+		for {
+			err := f.putBack(ctx, project, service, e, moves, rootNow, rootWas)
+			if ctx.Err() != nil && last != nil {
+				// Its time ran out: what it waited on says more than the call that cut short.
+				return last
+			}
+			if err == nil || !stillStarting(err) {
+				return err
+			}
+			last = err
+			select {
+			case <-ctx.Done():
+				return last
+			case <-time.After(cmp.Or(f.Every, time.Second)):
+			}
 		}
-		// What runs is the new container, or something else: the new passwords are its.
-		if env := envMap(c.Config.Env); env[moves[0].variable] != moves[0].from {
-			return nil
-		}
-		back := make([]passwordMove, len(moves))
-		for i, m := range moves {
-			back[i] = passwordMove{user: m.user, variable: m.variable, from: m.to, to: m.from}
-		}
-		if err := f.set(ctx, c, e, back, rootNow, rootWas); err != nil {
-			return fmt.Errorf("can't put %s's password in %s back to the one the old container has: %w", names(moves), e.Name, err)
-		}
-		return nil
 	}, nil
+}
+
+// errNotUpYet is a container that isn't running yet, as one that's starting again.
+var errNotUpYet = errors.New("isn't running yet")
+
+// putBack gives the users back the passwords the old container starts with, once
+// it's the one that runs.
+func (f *FirstPasswords) putBack(ctx context.Context, project, service string, e *Engine, moves []passwordMove, rootNow, rootWas string) error {
+	c, err := f.running(ctx, project, service)
+	switch {
+	case err != nil:
+		return err
+	case c == nil:
+		return fmt.Errorf("%s %w, so %s's password in %s stays the new one, which the old container doesn't start with", service, errNotUpYet, names(moves), e.Name)
+	}
+	// What runs is the new container, or something else: the new passwords are its.
+	if env := envMap(c.Config.Env); env[moves[0].variable] != moves[0].from {
+		return nil
+	}
+	back := make([]passwordMove, len(moves))
+	for i, m := range moves {
+		back[i] = passwordMove{user: m.user, variable: m.variable, from: m.to, to: m.from}
+	}
+	if err := f.set(ctx, c, e, back, rootNow, rootWas); err != nil {
+		return fmt.Errorf("can't put %s's password in %s back to the one the old container has: %w", names(moves), e.Name, err)
+	}
+	return nil
+}
+
+// stillStarting says the old container isn't running yet, or its database isn't
+// taking connections yet, as it starts.
+func stillStarting(err error) bool {
+	return errors.Is(err, errNotUpYet) || errors.Is(err, ErrStarting)
 }
 
 // passwordMove is a user an image makes from its environment, whose password a new
@@ -178,16 +218,57 @@ func (f *FirstPasswords) set(ctx context.Context, c *docker.Container, e *Engine
 	if err != nil {
 		var refused error
 		if said, refused = r.ask(ctx, c.ID, e, withPassword(), rootTo+"\n"+ask); refused != nil {
+			if strings.Contains(err.Error(), "refused Dockwell's sign-in") && strings.Contains(refused.Error(), "refused Dockwell's sign-in") {
+				// Root's password is neither: changed by hand, or random from the start.
+				return fmt.Errorf("%w. Set the secret to the password root has now, then change it here", err)
+			}
 			return err
 		}
 		signIn = rootTo
 	}
-	sql, err := e.alterUsers(accounts(said), moves)
+	hosts := accounts(said)
+	var socket map[string]bool
+	if e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
+		socket = socketAccounts(ctx, &r, c.ID, e, signIn, hosts, moves)
+	}
+	sql, err := e.alterUsers(hosts, moves, socket)
 	if err != nil {
 		return err
 	}
 	_, err = r.ask(ctx, c.ID, e, withPassword(), signIn+"\n"+sql)
 	return err
+}
+
+// socketAccounts reads which of MariaDB's accounts also sign in over its socket
+// (unix_socket), as root@localhost may, by user@host, so a new password keeps that way
+// in. A server too old to show its users has none.
+func socketAccounts(ctx context.Context, r *Reader, id string, e *Engine, signIn string, hosts map[string][]string, moves []passwordMove) map[string]bool {
+	var ask strings.Builder
+	for _, m := range moves {
+		for _, h := range hosts[m.user] {
+			if aUser(m.user) && aHost(h) {
+				ask.WriteString("SHOW CREATE USER '" + m.user + "'@'" + h + "';\n")
+			}
+		}
+	}
+	out := map[string]bool{}
+	if ask.Len() == 0 {
+		return out
+	}
+	said, err := r.ask(ctx, id, e, withPassword(), signIn+"\n"+ask.String())
+	if err != nil {
+		return out
+	}
+	for line := range strings.Lines(string(said)) {
+		// CREATE USER `root`@`localhost` IDENTIFIED VIA mysql_native_password USING '*…' OR unix_socket
+		rest, ok := strings.CutPrefix(line, "CREATE USER `")
+		user, rest, ok2 := strings.Cut(rest, "`@`")
+		host, rest, ok3 := strings.Cut(rest, "`")
+		if ok && ok2 && ok3 && strings.Contains(rest, "unix_socket") {
+			out[user+"@"+host] = true
+		}
+	}
+	return out
 }
 
 // aUser and aHost are a user's name and a host it signs in from, which need nothing
@@ -219,8 +300,8 @@ func accounts(said []byte) map[string][]string {
 
 // alterUsers is the SQL that gives each user, from every host it has, its new
 // password: as MariaDB's own hash, or for MySQL over stdin, which it leaves out of its
-// logs.
-func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove) (string, error) {
+// logs. socket names MariaDB's accounts that sign in over its socket too.
+func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove, socket map[string]bool) (string, error) {
 	var b strings.Builder
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
 		// With no sql_mode, a backslash escapes, as quoted below.
@@ -230,15 +311,22 @@ func (e *Engine) alterUsers(hosts map[string][]string, moves []passwordMove) (st
 		if len(hosts[m.user]) == 0 {
 			return "", fmt.Errorf("%s has no user %s, which its image made from %s", e.Name, m.user, m.variable)
 		}
-		identified := "IDENTIFIED BY PASSWORD '" + mysqlNative(m.to) + "'"
-		if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
-			identified = "IDENTIFIED BY '" + mysqlQuoted(m.to) + "'"
-		}
 		for _, h := range hosts[m.user] {
 			if !aHost(h) {
 				return "", fmt.Errorf("%s has the user %s from a host Dockwell can't name safely, so it changed no password. Change it in %s, then try again", e.Name, m.user, e.Name)
 			}
-			b.WriteString("ALTER USER '" + m.user + "'@'" + h + "' " + identified + ";\n")
+			if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL {
+				b.WriteString("ALTER USER '" + m.user + "'@'" + h + "' IDENTIFIED BY '" + mysqlQuoted(m.to) + "';\n")
+				continue
+			}
+			if socket[m.user+"@"+h] {
+				// It signs in over the socket too, as the image's root@localhost may, which
+				// SET PASSWORD would take away: both ways are said again, the socket first.
+				b.WriteString("ALTER USER '" + m.user + "'@'" + h + "' IDENTIFIED VIA unix_socket OR mysql_native_password USING '" + mysqlNative(m.to) + "';\n")
+				continue
+			}
+			// MariaDB's own hash, so the clear password is never in what it runs.
+			b.WriteString("SET PASSWORD FOR '" + m.user + "'@'" + h + "' = '" + mysqlNative(m.to) + "';\n")
 		}
 	}
 	return b.String(), nil

@@ -27,6 +27,10 @@ var readWait = 8 * time.Second
 // databases waits for the slowest, so whatever asks a server waits longer than this.
 func ReadWait() time.Duration { return readWait }
 
+// errReadWait is why a reading's time ran out, so what it says names readWait only
+// when that was the limit, not a caller's own.
+var errReadWait = errors.New("a reading's time ran out")
+
 // MaxListed is how many databases, and how many users, a reading lists. The rest
 // are counted.
 const MaxListed = 200
@@ -59,7 +63,7 @@ func (r Reader) Read(ctx context.Context, call *agentv1.DatabaseCall) (*agentv1.
 
 // one reads a database, or says why it can't.
 func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwellv1.DatabaseReading {
-	ctx, cancel := context.WithTimeout(ctx, readWait)
+	ctx, cancel := context.WithTimeoutCause(ctx, readWait, errReadWait)
 	defer cancel()
 	e := Of(asked.GetEngine())
 	if e == nil {
@@ -106,6 +110,10 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 	}
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil:
+		if ctx.Err() != nil && !errors.Is(context.Cause(ctx), errReadWait) {
+			// The caller's own time ran out, such as a password's put-back.
+			return nil, fmt.Errorf("%s didn't answer in the time it had", e.Name)
+		}
 		return nil, fmt.Errorf("%s didn't answer within %s", e.Name, readWait)
 	case err != nil:
 		return nil, fmt.Errorf("can't run %s's own tools in its container: %s", e.Name, clause(err))
@@ -114,6 +122,8 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("%s didn't answer within %s", e.Name, clientWait)
 	case code == 126 || code == 127 || notFound(said):
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
+	case code != 0 && e.SQL() && startingUp(said):
+		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
 	case refusedSignIn(said) || e.KeyValue() && redisRefused(out.String()):
 		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, e.SignsInWith())
 	case code != 0 && e.SQL() && sqlRefused.MatchString(said):
@@ -144,6 +154,23 @@ func (e *Engine) tool() string {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 	}
 	return "redis-cli"
+}
+
+// ErrStarting is a database that doesn't take connections yet, as one does while it
+// starts: its socket isn't there yet, or it says it's starting up.
+var ErrStarting = errors.New("isn't taking connections yet")
+
+// startingUp says what a database's client printed is the server not taking
+// connections yet.
+func startingUp(said string) bool {
+	lower := strings.ToLower(said)
+	for _, words := range []string{"error 2002", "error 2013", "the database system is starting up", "not yet accepting connections", "connection refused", "can't connect to local"} {
+		if strings.Contains(lower, words) {
+			return true
+		}
+	}
+	// psql's socket, before the server makes it.
+	return strings.Contains(lower, "failed: no such file or directory")
 }
 
 // notFound says a shell or Docker couldn't find the tool.

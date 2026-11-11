@@ -56,6 +56,11 @@ const (
 	AccessRolledBack
 	// AccessNotWaiting is a change the server knows nothing waiting of.
 	AccessNotWaiting
+	// AccessNotKept is a change that still waits: the server couldn't keep it
+	// just now, as it couldn't write what its revert would load once kept, and
+	// a kept change must never have a stale revert behind it. Its timer goes
+	// on, and a confirmation may be tried again.
+	AccessNotKept
 )
 
 // AccessWait is a change to who reaches a server that waits for the person who

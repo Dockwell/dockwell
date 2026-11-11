@@ -13,7 +13,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, useInstalls } from "./useCatalog";
+import { categoryLabel, installOf, useInstalls, useOrigins } from "./useCatalog";
 import "./Catalog.css";
 
 /** Browsing an app is read-only. Its installation form opens only from the Install action. */
@@ -28,7 +28,10 @@ export function CatalogDetailPage({
 }) {
   const { t, i18n } = useLingui();
   const got = useQuery(CatalogService.method.getCatalogEntry, { id });
-  const installs = (useInstalls().data?.installs ?? []).filter((install) => install.pin?.entry === id);
+  // Where the entry comes from decides which installs are its own, as another catalog's app of this ID is another app.
+  const origins = useOrigins();
+  const from = origins.origins.get(id);
+  const installs = (useInstalls().data?.installs ?? []).filter((install) => installOf(install, id, origins.origins));
   const entry = got.data?.entry;
   const app = entry?.name ?? id;
   const label = categoryLabel(entry?.category ?? "");
@@ -120,6 +123,23 @@ export function CatalogDetailPage({
                 <dd>{entry.appLicense}</dd>
               </div>
             ) : null}
+            {origins.data ? (
+              <div>
+                <dt>
+                  <Trans>Catalog</Trans>
+                </dt>
+                <dd>
+                  {from ? (
+                    <span className="catalog-fact-from">
+                      <Icon name="branch" size={14} />
+                      {from.name}
+                    </span>
+                  ) : (
+                    <Trans>Dockwell's own</Trans>
+                  )}
+                </dd>
+              </div>
+            ) : null}
             {installs.length > 0 ? (
               <div>
                 <dt>
@@ -196,6 +216,52 @@ export function CatalogDetailPage({
               ) : null}
             </div>
             <aside className="catalog-detail-aside" aria-label={t`App information`}>
+              {origins.error ? (
+                <Callout tone="critical" title={t`Couldn't read the sources`}>
+                  <p>{sentence(origins.error)}</p>
+                  <Button onClick={() => void origins.refetch()} icon="refresh">
+                    <Trans>Try again</Trans>
+                  </Button>
+                </Callout>
+              ) : from ? (
+                <section className="dw-panel catalog-info catalog-origin" aria-labelledby="catalog-origin-heading">
+                  <h2 id="catalog-origin-heading">
+                    <Trans>Where it comes from</Trans>
+                  </h2>
+                  <p className="catalog-origin-state">
+                    <Icon name="alert" size={14} />
+                    <Trans>Not tested by Dockwell</Trans>
+                  </p>
+                  <dl className="catalog-origin-facts">
+                    <div>
+                      <dt>
+                        <Trans>Catalog</Trans>
+                      </dt>
+                      <dd>
+                        <Link to="/catalog/sources" className="catalog-link">
+                          {from.name}
+                        </Link>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <Trans>Repository</Trans>
+                      </dt>
+                      <dd>
+                        <code>{from.source?.repository}</code>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        <Trans>Commit</Trans>
+                      </dt>
+                      <dd>
+                        <code title={from.source?.commit}>{(from.source?.commit ?? "").slice(0, 12)}</code>
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
               {[entry.homepage, entry.documentation, entry.appSource].some(projectLink) ? (
                 <section className="dw-panel catalog-info" aria-labelledby="catalog-links-heading">
                   <h2 id="catalog-links-heading">
