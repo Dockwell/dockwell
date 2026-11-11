@@ -34,19 +34,25 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
   step("tasks: a shell command is a plan, which takes a passkey as it runs as root");
   await page.getByRole("button", { name: "New task" }).first().click();
   const sheet = page.getByRole("dialog", { name: "New task" });
-  await sheet.getByLabel("Name").fill("say-hello");
-  await sheet.getByLabel("What people call it").fill("Say hello");
+  // What it runs and when; the name is optional, and the rest waits under Advanced.
   await sheet.getByLabel("Command").fill("echo hello-from-a-task; echo and-on-stderr >&2");
-  // The schedule's words, under the cron that says it: the first is its hidden option.
-  await sheet.getByText("Every day at 04:00").last().waitFor();
+  await sheet.getByRole("textbox", { name: /^Name/ }).fill("Say hello");
+  // Every day at 04:00 unless picked, with the next runs and the cron it makes.
+  await sheet.locator(".schedule-cron", { hasText: "0 4 * * *" }).waitFor();
+  await sheet.getByText(/^Next, in /).waitFor();
+  await sheet
+    .getByRole("button", { name: "Advanced" })
+    .getByText(/Named say-hello/)
+    .waitFor();
   await shoot(page, "tasks-new");
   await sheet.getByRole("button", { name: "Review plan" }).click();
   const plan = page.locator(".plan-sheet");
   await plan.locator(".plan-gate").getByText("Applying this asks for your passkey").waitFor({ timeout: 30_000 });
   await plan.locator(".plan-gate input").fill(await plan.locator(".plan-gate code").first().innerText());
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  await page.getByRole("button", { name: "Done", exact: true }).waitFor({ timeout: 30_000 });
-  await page.getByRole("button", { name: "Done", exact: true }).click();
+  // Applied, it opens the task it made, where Run now is.
+  await page.getByRole("button", { name: "Open Say hello", exact: true }).waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Open Say hello", exact: true }).click();
 
   step("tasks: it's listed with its schedule in words and as cron, and runs now on its server's agent");
   const table = page.getByRole("table", { name: "Scheduled tasks" });

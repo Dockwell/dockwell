@@ -120,6 +120,8 @@ type Engine struct {
 	// RegistryDown has the registry not answer, so the engine can't say what it
 	// has.
 	RegistryDown bool
+	// Hub is what a search of Docker Hub finds, by name.
+	Hub []docker.Found
 	// NCPU is how many CPUs the fake server has. Zero means 8.
 	NCPU int
 	// BindError, when set, says why a server path can't be mounted as a
@@ -389,6 +391,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.inspectExec(w, parts[1])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "resize" && r.Method == http.MethodPost:
 		e.resizeExec(w, r, parts[1])
+	case r.Method == http.MethodGet && path == "/images/search":
+		e.serveSearch(w, r)
 	case parts[0] == "images":
 		e.serveImages(w, r, path)
 	case parts[0] == "distribution" && len(parts) > 2 && parts[len(parts)-1] == "json":
@@ -402,6 +406,27 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	default:
 		fail(w, http.StatusNotFound, "page not found")
 	}
+}
+
+// serveSearch answers a search of Docker Hub from Hub, with the images whose
+// names hold the term, limit at most, as the engine does.
+func (e *Engine) serveSearch(w http.ResponseWriter, r *http.Request) {
+	if e.RegistryDown {
+		fail(w, http.StatusInternalServerError, "Get \"https://index.docker.io/v1/search\": net/http: request canceled while waiting for connection")
+		return
+	}
+	term := strings.ToLower(r.URL.Query().Get("term"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil || limit <= 0 {
+		limit = 25
+	}
+	out := []docker.Found{}
+	for _, f := range e.Hub {
+		if strings.Contains(f.Name, term) && len(out) < limit {
+			out = append(out, f)
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // diskUsage is what /system/df says: each pulled image at its size, each layer

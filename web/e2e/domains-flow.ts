@@ -258,7 +258,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await page.unroute(stubbed);
   await page.route(stubbed, (route) => route.abort());
   await row("shop.example.com").getByText("Unknown").waitFor({ timeout: 45_000 });
-  await page.getByText(/so it can't say where your domains stand, and they read Unknown/).waitFor();
+  await page.getByText(/so your domains read Unknown/).waitFor();
   if ((await page.getByText("need a look").count()) !== 0) fail("what can't be read still counts as needing a look");
   if ((await page.getByText("Valid for 47 days").count()) !== 0) fail("what can't be read still reads as serving");
   if (!(await state.isDisabled())) fail("the state filter stays on with no state to go by");
