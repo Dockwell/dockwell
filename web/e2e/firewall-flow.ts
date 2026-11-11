@@ -83,14 +83,25 @@ export function hostTools(dir: string): string {
   );
   writeFileSync(join(ssh, "sshd_config.d", "50-cloud-init.conf"), "PasswordAuthentication no\n");
   writeFileSync(join(bin, "fail2ban-client"), `#!/bin/sh\n${fail2banClient}`, { mode: 0o755 });
-  // systemd as the init, and its systemctl, which prints the agent's fixtures for a
-  // list of system services (ADR 0067) and nothing for anything else it's asked.
+  // systemd as the init, and its systemctl, which answers exactly what the system
+  // services reader asks (ADR 0067) with the agent's fixtures. Anything else, as SSH's
+  // socket or the firewall's reverts ask, reads as no systemctl at all, rather than as
+  // a systemctl that answers wrongly.
   mkdirSync(join(dir, "run", "systemd", "system"), { recursive: true });
   mkdirSync(join(dir, "usr", "bin"), { recursive: true });
   const fix = resolve("internal/agent/system/testdata/systemd");
   writeFileSync(
     join(dir, "usr", "bin", "systemctl"),
-    `#!/bin/sh\ncase "$1 $2" in\n"list-units "*) cat '${fix}/list-units.txt' ;;\n"list-unit-files "*) cat '${fix}/list-unit-files.txt' ;;\n"show --property=Id,"*) cat '${fix}/show.txt' ;;\nesac\n`,
+    [
+      "#!/bin/sh",
+      'case "$1 $2" in',
+      `"list-units --type=service") cat '${fix}/list-units.txt' ;;`,
+      `"list-unit-files --type=service") cat '${fix}/list-unit-files.txt' ;;`,
+      `"show --property=Id,"*) cat '${fix}/show.txt' ;;`,
+      '*) echo "systemctl: not found" >&2; exit 127 ;;',
+      "esac",
+      "",
+    ].join("\n"),
     { mode: 0o755 },
   );
   return dir;
