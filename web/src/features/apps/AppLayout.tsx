@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeService, LogService, ServiceService } from "@dockwell/api";
+import { ChangeService, LogService, Protocol, ServiceService } from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
@@ -21,6 +21,7 @@ import { Page } from "../shell/Page";
 import { useRuntimes } from "../websites/website";
 import { AppContext, useApp, useRevisions } from "./AppContext";
 import {
+  appOf,
   appState,
   deployedAt,
   environmentOf,
@@ -216,6 +217,30 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const mayRestart = may(ChangeService.method.restartService, here);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
+  // Where it answers, on every tab, as soon as it publishes a port anyone outside the server reaches.
+  const { servers: fleet } = useFleetView();
+  const published = appOf(service)?.ports.find(
+    (p) => p.protocol !== Protocol.UDP && p.hostIp !== "127.0.0.1" && p.hostIp !== "::1",
+  );
+  const address = fleet?.find((s) => s.id === service.deployments[0]?.serverId)?.address;
+  const at =
+    published && address ? `${address.includes(":") ? `[${address}]` : address}:${published.hostPort}` : undefined;
+  const where = at ? (
+    <>
+      {" · "}
+      {/* Named by where it answers: What runs has the link named Open, and two links of one name read as one. */}
+      <a
+        className="app-head-at"
+        href={`http://${at}`}
+        target="_blank"
+        rel="noreferrer"
+        aria-label={t`Answers at ${at}`}
+      >
+        <code>{at}</code>
+        <Icon name="external" size={12} />
+      </a>
+    </>
+  ) : null;
   return (
     <Page
       title={name}
@@ -248,9 +273,12 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             </Trans>
           )
         ) : moving ? (
-          <Trans>
-            Deploying <code>{image}</code>, started {ago}
-          </Trans>
+          <>
+            <Trans>
+              Deploying <code>{image}</code>, started {ago}
+            </Trans>
+            {where}
+          </>
         ) : (
           <>
             {runtime ? (
@@ -266,6 +294,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             ) : (
               who.deployed(latest?.change, ago)
             )}
+            {where}
           </>
         )
       }

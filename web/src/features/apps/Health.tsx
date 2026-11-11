@@ -12,9 +12,6 @@ import { MachineWords } from "../changes/FailureNotice";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import type { AppHealth, HealthKind, RunsOnServer, Unread } from "./health";
 
-/** How to see whether Docker runs on a server. */
-export const DOCKER_STATUS = "systemctl status docker";
-
 /** What a check said, as a sentence: the agent writes it to go inside one. */
 function asSentence(said: string): string {
   const out = said.charAt(0).toUpperCase() + said.slice(1);
@@ -66,7 +63,7 @@ export function useHealthWords(): HealthWords {
           return t`Finished`;
       }
     };
-    const noCheck = t`Nothing checks it, so this only means it started.`;
+    const noCheck = t`No health check, so Running only means it started.`;
     return {
       kind,
       noCheck,
@@ -120,8 +117,7 @@ export function useHealthWords(): HealthWords {
             const name = server.serverName;
             if (server.dockerUnreadableSince) {
               const since = time.ago(server.dockerUnreadableSince, now);
-              const command = DOCKER_STATUS;
-              return t`The agent on ${name} can't read Docker, since ${since}, so it can't say how this runs. Check that Docker is running there, with ${command}.`;
+              return t`Docker hasn't answered the agent on ${name} since ${since}.`;
             }
             const word = server.lastSaid ? kind(server.lastSaid) : "";
             const ago = server.lastKnown ? time.ago(server.lastKnown, now) : "";
@@ -240,9 +236,7 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               {...(span ? { meta: t`for ${span}` } : {})}
             />
             <p className="app-runs-said">
-              <MachineWords names={[server.container, server.serverName, DOCKER_STATUS]}>
-                {words.says(server, now)}
-              </MachineWords>
+              <MachineWords names={[server.container, server.serverName]}>{words.says(server, now)}</MachineWords>
               {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
             </p>
             {/* A shell is a way to a place only an admin reads, so it's left out for anyone else (ADR 0059). */}

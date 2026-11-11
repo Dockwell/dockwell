@@ -27,8 +27,26 @@
 
 /* What's wrong and how to fix it is what the row is for, so all of it shows. */
 .domains-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
   white-space: normal;
   cursor: text;
+}
+
+/* What's wrong takes one line, and More shows the rest where it runs longer. */
+.domains-note-text {
+  flex: 1 1 16em;
+  min-width: 0;
+}
+
+.domains-note-text.is-one-line {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
 }
 
 .domains-note.is-failed {
