@@ -7505,6 +7505,12 @@ msgstr "位于隧道或代理之后"
 msgid "Can't load the domains"
 msgstr "无法加载域名"
 
+msgid "Can't reach the control plane, so your domains read Unknown. It keeps trying."
+msgstr "无法连接控制平面，因此你的域名显示为未知。面板会继续尝试。"
+
+msgid "Can't reach the control plane, so your domains read Unknown. Last heard {ago}; it keeps trying."
+msgstr "无法连接控制平面，因此你的域名显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
+
 msgid "Can't read your apps"
 msgstr "无法读取你的应用"
 
@@ -7520,8 +7526,22 @@ msgstr "域名"
 msgid "Filter domains"
 msgstr "筛选域名"
 
+msgctxt "show less of the rest"
+msgid "Less"
+msgstr "收起"
+
+msgid "Less about {name}"
+msgstr "收起 {name} 的详情"
+
 msgid "Loading domains"
 msgstr "正在加载域名"
+
+msgctxt "show the rest"
+msgid "More"
+msgstr "展开"
+
+msgid "More about {name}"
+msgstr "展开 {name} 的详情"
 
 msgid "No domain here matches what you've chosen. Try part of a name, or another state."
 msgstr "这里没有符合所选条件的域名。请试试名称的一部分，或换一种状态。"
@@ -7544,17 +7564,11 @@ msgstr "把域名指向你的某个应用。任何改动生效前，你都会先
 msgid "Serving"
 msgstr "正在提供服务"
 
-msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定你的域名的状态，它们显示为未知。面板会继续尝试。"
+msgid "This browser is offline, so your domains read Unknown."
+msgstr "此浏览器已离线，因此你的域名显示为未知。"
 
-msgid "The panel can't reach the control plane, so it can't say where your domains stand, and they read Unknown. It last heard {ago}, and keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定你的域名的状态，它们显示为未知。上次收到消息是在{ago}，面板会继续尝试。"
-
-msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定你的域名的状态，它们显示为未知。请检查你的网络连接。"
-
-msgid "This browser is offline, so the panel can't say where your domains stand, and they read Unknown. It last heard {ago}. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定你的域名的状态，它们显示为未知。上次收到消息是在{ago}。请检查你的网络连接。"
+msgid "This browser is offline, so your domains read Unknown. Last heard {ago}."
+msgstr "此浏览器已离线，因此你的域名显示为未知。上次收到消息是在{ago}。"
 
 msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
 msgstr "在此之前，域名无法跳转到它的应用，你也无法在这里添加域名。"
