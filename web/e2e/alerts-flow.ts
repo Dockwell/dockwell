@@ -98,7 +98,9 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await page.getByRole("link", { name: /Rules/ }).click();
     const rules = page.getByRole("table", { name: "Alert rules" });
     await rules.getByRole("row", { name: /server\.connected == false/ }).waitFor();
-    if ((await rules.getByRole("row").count()) !== 10) fail("Rules doesn't list the nine rules an install starts with");
+    if ((await rules.getByRole("row").count()) !== 11) fail("Rules doesn't list the ten rules an install starts with");
+    if ((await rules.getByRole("row", { name: /check\.state == down/ }).count()) !== 1)
+      fail("Rules doesn't list Address down, which tells the channels when a watched address stops answering");
 
     step("alerts: a rule changes from its row, as a plan: disk-full says it again weekly");
     // Only how often it repeats, so nothing later in the flow fires that wouldn't have.
