@@ -37,6 +37,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/catalogsource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -85,6 +86,13 @@ func by(ctx context.Context) (revision.By, auth.Principal, error) {
 	return revision.By{Actor: p.Actor(), Via: client.Surface(p)}, p, nil
 }
 
+// ownMethods are the kinds that change only through methods of their own, which do
+// what a plan of one needs, with what to use instead. A catalog source's read its
+// commit, and say in the plan what it holds and leaves out (ADR 0055).
+var ownMethods = map[string]string{
+	string(catalogsource.Kind): "a catalog source changes through dockwell catalog set-source and dockwell catalog remove-source, which read its commit and say in the plan what it holds. Use those",
+}
+
 // ProposeChange plans edits as a new change.
 func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwellv1.ProposeChangeRequest]) (*connect.Response[dockwellv1.ProposeChangeResponse], error) {
 	who, _, err := by(ctx)
@@ -94,6 +102,11 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 	summary := strings.TrimSpace(req.Msg.GetSummary())
 	if summary == "" {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
+	}
+	for _, e := range req.Msg.GetEdits() {
+		if how, ok := ownMethods[e.GetResource().GetKind()]; ok {
+			return nil, authapi.Invalid(errors.New(how))
+		}
 	}
 	c, err := h.propose(ctx, who, summary, req.Msg.GetEdits(), nil)
 	if err != nil {
@@ -435,6 +448,9 @@ func verdictError(changeID string, v resource.AccessVerdict) error {
 	case resource.AccessRolledBack:
 		return authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("the server's time for %s ran out before the confirmation reached it, so it put back its firewall as it was, and the change rolls back", changeID), "rolled_back")
+	case resource.AccessNotKept:
+		return authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("the server couldn't keep %s yet, as it couldn't write what puts its firewall back if the agent stops, so it still waits. Check the server's disk has room, then keep it again", changeID), "not_kept")
 	case resource.AccessNotWaiting:
 	}
 	return authapi.ReasonError(connect.CodeFailedPrecondition,

@@ -24,10 +24,11 @@ import {
   refusedField,
   type Serves,
   type Settings,
+  sendable,
   settingsOf,
   specOf,
 } from "./settings";
-import { useMissingWords, useServesWords, WasHint, WebsiteFields } from "./WebsiteFields";
+import { SplitWebsiteFields, useMissingWords, useServesWords, WasHint } from "./WebsiteFields";
 import { useWebsiteValue } from "./WebsiteLayout";
 import { changedLines, kindOf } from "./website";
 
@@ -70,7 +71,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const gap = missing(settled);
   const preview = useQuery(
     WebsiteService.method.previewWebsite,
-    { website: specOf(settled) },
+    { website: specOf(sendable(settled, was)) },
     { enabled: gap === undefined, retry: false },
   );
   const refusal = gap ? missingWords(gap) : preview.error ? sentence(preview.error) : "";
@@ -89,7 +90,8 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const review = () =>
     sheet.open({
       kind: "plan",
-      make: () => createClient(WebsiteService, transport).updateWebsite({ id: site.id, website: specOf(now) }),
+      make: () =>
+        createClient(WebsiteService, transport).updateWebsite({ id: site.id, website: specOf(sendable(now, was)) }),
       retryLabel: t`Edit and try again`,
       onClose: (after) => {
         if (after?.state === ChangeState.APPLIED) setNow(settingsOf(site.spec));
@@ -97,10 +99,10 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
     });
 
   const servesHint: Record<Serves, string> = {
-    folder: t`Its web server serves the files as they are, and an edit shows at once`,
-    php: t`PHP-FPM runs its code beside a web server that serves its other files`,
-    url: t`A small web server of its own sends each request on`,
-    port: t`The ingress sends each request straight to the port`,
+    folder: t`A static site, sent as its files are.`,
+    php: t`Such as WordPress, run by PHP-FPM of its own.`,
+    url: t`Another site, or an address on your network.`,
+    port: t`Something listening on this server, such as port 3000.`,
   };
 
   return (
@@ -125,7 +127,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
                 }
                 onChange={(event) => setNow({ ...now, serves: event.target.value as Serves })}
               />
-              <WebsiteFields
+              <SplitWebsiteFields
                 settings={now}
                 was={was}
                 server={site.serverId}
@@ -169,10 +171,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
                   </strong>
                   <span className="websites-muted">
                     {" · "}
-                    <Trans>
-                      its web server runs a config these settings don't write, as a change edited it outside Websites.
-                      Review plan puts them back.
-                    </Trans>
+                    <Trans>edited outside Websites. Review plan puts it back.</Trans>
                   </span>
                 </>
               ) : (
@@ -342,10 +341,7 @@ function RouteView({ port }: { port: string }) {
           ) : null}
         </dl>
         <p>
-          <Trans>
-            The ingress sends each request straight to the port, with nothing of its own between, so there's no config
-            here to show. Whatever listens there sees every visitor as local.
-          </Trans>
+          <Trans>Nothing of its own runs between, so there's no config to show.</Trans>
         </p>
       </div>
     </>
@@ -414,19 +410,13 @@ function DeletePanel({ site }: { site: WebsiteInfo }) {
     <Panel title={<Trans>Delete this website</Trans>} className="website-delete">
       <p>
         {kind === "folder" ? (
-          <Trans>
-            Its route and its web server go, and the folder stays on the server as it is. Undo from Activity brings them
-            back.
-          </Trans>
+          <Trans>Its folder stays on the server, as it is.</Trans>
         ) : kind === "php" ? (
-          <Trans>
-            Its route, its web server and PHP go, and the folder stays on the server with what PHP wrote there. Undo
-            from Activity brings them back.
-          </Trans>
-        ) : kind === "url" ? (
-          <Trans>Its route and its web server go. Undo from Activity brings them back.</Trans>
+          <Trans>Its folder stays on the server, with what PHP wrote there.</Trans>
+        ) : kind === "port" ? (
+          <Trans>What listens on the port keeps running.</Trans>
         ) : (
-          <Trans>Its route goes, and what listens on the port keeps running. Undo from Activity brings it back.</Trans>
+          <Trans>Its route and its web server go.</Trans>
         )}
       </p>
       <Button

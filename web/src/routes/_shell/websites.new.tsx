@@ -25,6 +25,7 @@ export const Route = createFileRoute("/_shell/websites/new")({
         <NewWebsiteSheet
           start={php ? { serves: "php", version: php } : undefined}
           onClose={() => void navigate({ to: "/websites" })}
+          onMade={(websiteId) => void navigate({ to: "/websites/$websiteId", params: { websiteId } })}
         />
       </WebsitesPage>
     );

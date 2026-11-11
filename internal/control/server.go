@@ -57,6 +57,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
+	"github.com/dockwell/dockwell/internal/control/history"
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/control/images"
 	"github.com/dockwell/dockwell/internal/control/importapi"
@@ -169,6 +170,12 @@ type Config struct {
 	// Releases is the URL of Dockwell's releases, in GitHub's layout, which
 	// UpdateService reads the newest release from. Empty reads none.
 	Releases string
+	// CatalogSources is where the catalogs read from Git are kept, by commit
+	// (ADR 0055). Empty keeps none between runs.
+	CatalogSources string
+	// CatalogClient is what catalog sources are read with: netguard's, which reads
+	// only public addresses, unless a test passes one that reaches its own server.
+	CatalogClient *http.Client
 }
 
 // DefaultStepGrace is how long the steps under way get to finish when the
@@ -188,7 +195,10 @@ type Server struct {
 	logs *logapi.Handler
 	// alerts evaluates the alert rules, and sends what's due (ADR 0044), unless
 	// manualAlerts leaves that to a test.
-	alerts       *alerts.Evaluator
+	alerts *alerts.Evaluator
+	// history keeps each server's samples a minute at a time, and by the hour
+	// (ADR 0065).
+	history      *history.Recorder
 	manualAlerts bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
@@ -257,7 +267,12 @@ func New(cfg Config) (*Server, error) {
 		cfg.Agents.NameScopes(scopeNames{db: cfg.Store})
 	}
 	if cfg.Identity != nil {
-		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, agentapi.WithAgents(cfg.Agents))
+		opts := []agentapi.Option{agentapi.WithAgents(cfg.Agents)}
+		if cfg.Store != nil && cfg.Fleet != nil {
+			s.history = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
+			opts = append(opts, agentapi.WithHistory(s.history))
+		}
+		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, opts...)
 		s.agentTLS, s.addAgentHost = agentapi.TLSConfig(cfg.Identity, cfg.AgentHosts)
 	}
 	return s, nil
@@ -331,7 +346,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
-		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, cfg.Store, cfg.Secrets, cfg.Build.Commit, cfg.Logger), opts...))
+		sources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
+		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, sources, cfg.Build.Commit, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
@@ -669,6 +685,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.backups != nil {
 		api.Go(func() { s.backups.KeepRunning(apiCtx) })
 	}
+	if s.history != nil {
+		api.Go(func() { s.history.Run(apiCtx) })
+	}
 	if s.tasks != nil {
 		s.tasks.Start(apiCtx)
 	}
@@ -733,5 +752,17 @@ func agentURLs(a *identity.Authority) func(ctx context.Context) (string, []strin
 			urls = append(urls, u.URL)
 		}
 		return local, urls, nil
+	}
+}
+
+// fleetIDs lists the fleet's servers by ID, for a history row each minute.
+func fleetIDs(hub *fleet.Hub) func() []string {
+	return func() []string {
+		listed := hub.List()
+		ids := make([]string, 0, len(listed))
+		for _, srv := range listed {
+			ids = append(ids, srv.GetId())
+		}
+		return ids
 	}
 }

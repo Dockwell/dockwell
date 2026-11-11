@@ -1250,6 +1250,7 @@ var accessVerdicts = map[resource.AccessVerdict]agentv1.AccessVerdict{
 	resource.AccessKept:       agentv1.AccessVerdict_ACCESS_VERDICT_KEPT,
 	resource.AccessRolledBack: agentv1.AccessVerdict_ACCESS_VERDICT_ROLLED_BACK,
 	resource.AccessNotWaiting: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING,
+	resource.AccessNotKept:    agentv1.AccessVerdict_ACCESS_VERDICT_NOT_KEPT,
 }
 
 // accessWait is what a step waits for, as the agent protocol says it.
