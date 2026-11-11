@@ -868,3 +868,72 @@
   color: var(--critical);
   text-align: right;
 }
+
+/* New database's engine: one of the catalog's databases, picked, each with its newest version. */
+.catalog-engines {
+  display: grid;
+  grid-template-columns: minmax(96px, 9.5rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.catalog-engines .catalog-chosen-label {
+  padding-top: 8px;
+}
+
+.catalog-engines-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.catalog-engine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 7px var(--space-3);
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.catalog-engine input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.catalog-engine.is-picked {
+  border-color: var(--cobalt);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
+}
+
+.catalog-engine:has(input:focus-visible) {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.catalog-engine-version {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.catalog-sheet.is-phone .catalog-engines {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+
+.catalog-sheet.is-phone .catalog-engines .catalog-chosen-label {
+  padding-top: 0;
+}

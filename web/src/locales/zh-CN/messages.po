@@ -5370,6 +5370,9 @@ msgstr "数据库"
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
 
+msgid "Engine"
+msgstr "引擎"
+
 msgid "Generated and sealed"
 msgstr "已生成，加密保存"
 
@@ -5381,6 +5384,9 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 
 msgid "Its site"
 msgstr "官网"
+
+msgid "New database"
+msgstr "新建数据库"
 
 msgid "Open {app}"
 msgstr "打开 {app}"
@@ -7852,9 +7858,6 @@ msgstr "最近运行"
 
 msgid "Loading the databases"
 msgstr "正在加载数据库"
-
-msgid "New database"
-msgstr "新建数据库"
 
 msgid "No databases yet"
 msgstr "还没有数据库"
@@ -10770,9 +10773,6 @@ msgstr "目前需手动"
 
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell 无法获知其控制平面的状态"
-
-msgid "Engine"
-msgstr "引擎"
 
 msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
 msgstr "要安装特定版本，请将结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"

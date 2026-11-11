@@ -5370,6 +5370,9 @@ msgstr "Database"
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
+msgid "Engine"
+msgstr "Engine"
+
 msgid "Generated and sealed"
 msgstr "Generated and sealed"
 
@@ -5381,6 +5384,9 @@ msgstr "Give {missingLabel} a value to review the plan"
 
 msgid "Its site"
 msgstr "Its site"
+
+msgid "New database"
+msgstr "New database"
 
 msgid "Open {app}"
 msgstr "Open {app}"
@@ -7852,9 +7858,6 @@ msgstr "Last run"
 
 msgid "Loading the databases"
 msgstr "Loading the databases"
-
-msgid "New database"
-msgstr "New database"
 
 msgid "No databases yet"
 msgstr "No databases yet"
@@ -10770,9 +10773,6 @@ msgstr "By hand, for now"
 
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell can't say how its control plane is"
-
-msgid "Engine"
-msgstr "Engine"
 
 msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
 msgstr "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
