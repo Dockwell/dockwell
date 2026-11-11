@@ -119,7 +119,8 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     }
 
     step("runtimes: the environment editor overrides a runtime default while keeping its other values");
-    const overviewURL = page.url();
+    // A new app lands on its logs, as it starts: its page is the address without the tab.
+    const overviewURL = new URL(page.url()).href.replace(/(\/apps\/svc_[^/?#]+).*$/, "$1");
     await page.goto(`${overviewURL}/environment`);
     const cache = page.getByRole("row", { name: /^NPM_CONFIG_CACHE/ });
     await cache.getByText("/tmp/.npm", { exact: true }).waitFor();
