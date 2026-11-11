@@ -1211,8 +1211,10 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 		return false, err
 	}
 	// A volume is never made again alone, so its record needs no options, which
-	// can hold a share's password: they aren't sent.
-	spec = volumekind.WithoutOptions(spec)
+	// can hold a share's password: they aren't sent. What only the control plane
+	// keeps, such as how an app from a folder was made (ADR 0058), isn't either, as
+	// a step's spec has none of it: the agent keeps what it ran.
+	spec = s.agents.kinds.OnServer(ref.Kind, volumekind.WithoutOptions(spec))
 	dr, err := desiredProto(ref, spec)
 	if err != nil {
 		return false, err
