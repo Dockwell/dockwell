@@ -284,6 +284,10 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		log.WarnContext(ctx, "the agent is from before a command could name a value, so nothing on this server that names one is read, planned or applied until you update the agent",
 			slog.String("agent", hello.GetBuild().GetVersion()))
 	}
+	if n := hello.GetDesired().GetDamaged(); n > 0 {
+		log.WarnContext(ctx, "the agent found records of what this server should run that don't open, as a power cut or an edit leaves one, and put them aside. "+
+			"The control plane sends it what it lacks now, and its own log says why each didn't open", slog.Uint64("records", uint64(n)))
+	}
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	if h.agents != nil {
@@ -343,6 +347,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.agents.Report(peer.ServerID, msg.GetDomains().GetDomains(), msg.GetDomains().GetIngress())
 				h.fleet.RecordIngress(peer.ServerID, msg.GetDomains().GetIngress())
 				h.fleet.RecordDomains(peer.ServerID, msg.GetDomains().GetDomains())
+			case msg.GetReconciled() != nil && session != nil:
+				go h.agents.reconciled(context.WithoutCancel(ctx), peer.ServerID, session, msg.GetReconciled())
 			case msg.GetHealth() != nil && h.agents != nil:
 				h.agents.ReportHealth(peer.ServerID, msg.GetHealth())
 				h.fleet.RecordDocker(peer.ServerID, msg.GetHealth().GetDockerUnreadableSince())
@@ -418,6 +424,14 @@ func (h *Handler) refuse(ctx context.Context, peer Peer, err error) error {
 	return h.rpcError(ctx, err)
 }
 
+// ReasonKey is the error metadata an agent reads a refusal's reason from, as the
+// API's reasons travel, and ReasonServerRemoved the reason for a server removed
+// from the fleet. The agent names them too (agent.ReasonRemoved).
+const (
+	ReasonKey           = "Dockwell-Error"
+	ReasonServerRemoved = "server_removed"
+)
+
 func requireServer(ctx context.Context) (Peer, error) {
 	p, ok := PeerFrom(ctx)
 	if !ok {
@@ -432,8 +446,15 @@ func requireServer(ctx context.Context) (Peer, error) {
 // authenticated, learns nothing about it.
 func (h *Handler) rpcError(ctx context.Context, err error) error {
 	switch {
-	case errors.Is(err, identity.ErrTicketRejected), errors.Is(err, identity.ErrRevoked),
-		errors.Is(err, identity.ErrUnknownServer), errors.Is(err, identity.ErrStaleCertificate):
+	case errors.Is(err, identity.ErrRevoked):
+		// Said apart from the rest, as the agent then forgets what it kept of what
+		// its server ran, values and all (ADR 0054). A server the control plane
+		// doesn't know isn't told so: that may be a control plane rebuilt, and the
+		// agent's records are what puts its server back.
+		cerr := connect.NewError(connect.CodePermissionDenied, err)
+		cerr.Meta().Set(ReasonKey, ReasonServerRemoved)
+		return cerr
+	case errors.Is(err, identity.ErrTicketRejected), errors.Is(err, identity.ErrUnknownServer), errors.Is(err, identity.ErrStaleCertificate):
 		return connect.NewError(connect.CodePermissionDenied, err)
 	case errors.Is(err, identity.ErrBadRequest):
 		return connect.NewError(connect.CodeInvalidArgument, err)

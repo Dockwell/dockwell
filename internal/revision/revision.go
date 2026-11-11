@@ -135,6 +135,9 @@ type Engine struct {
 	sealer Sealer
 	logger *slog.Logger
 	now    func() time.Time
+	// fills holds, for each server, a *sync.Mutex its fills take turns on, so
+	// one never reads what an agent holds while another is changing it.
+	fills sync.Map
 	// mu makes commits take turns: checking again that nothing moved since
 	// the plan, and committing the revisions, happen together. Planning
 	// asks agents, so it happens outside mu, and so do the steps: a slow

@@ -184,6 +184,29 @@ message Event {
   // For a member's event, such as member.invite or member.join: who, with
   // what role, where. Numbered in the block members hold.
   EventMember member = 120;
+  // What the control plane sent a server's agent to keep as what the server
+  // runs, for an event with the action "server.desired_sent", or found it keeps
+  // and doesn't know, for "server.desired_unknown" (ADR 0054).
+  EventDesiredSent desired_sent = 140;
+  // What a server's agent did, or couldn't do, on its own while the control
+  // plane was away, for an event with an action that starts "server.reconciled"
+  // (ADR 0054).
+  EventReconciled reconciled = 141;
+}
+
+// EventReconciled is what a server's agent did, or couldn't do, on its own while
+// the control plane was away. The event's action says which: made it again,
+// started it, couldn't put it back, or dropped entries it couldn't keep.
+message EventReconciled {
+  // The server's name.
+  string server_name = 1;
+  // The resource, by its kind and name.
+  string kind = 2;
+  string name = 3;
+  // Why it couldn't put the resource back, for people.
+  string reason = 4;
+  // For dropped entries, how many.
+  uint32 dropped = 5;
 }
 
 // EventTaskRun is a scheduled task's run that failed, or the one that succeeded
@@ -206,6 +229,31 @@ message EventTaskRun {
   int32 http_status = 8;
   // Why it failed, for people. Empty when it didn't.
   string error = 9;
+}
+
+// EventDesiredSent says what the control plane sent a server's agent to keep, as
+// what the server runs, when some of it held the values of variables and secrets.
+// An agent keeps those so its server can be put back while the control plane is
+// away, and is sent them as it connects without them.
+message EventDesiredSent {
+  // How many resources the agent was sent.
+  uint32 resources = 1;
+  // How many of them came with the values of variables and secrets.
+  uint32 with_values = 2;
+  // True when the agent's cache isn't the one the control plane last saw: one
+  // made since, as after a reinstall or a lost key, or one of another holder of
+  // the server's identity.
+  bool new_cache = 3;
+  // The server's name.
+  string server_name = 4;
+  // For an event with the action "server.desired_unknown", how many of what the
+  // agent keeps this control plane has no record of, or only at an earlier
+  // revision, as after its store was restored or rebuilt. They were left as they
+  // are, as they may be the only copy of what runs.
+  uint32 unknown = 5;
+  // True when the control plane hadn't seen the agent's cache before, as for an
+  // agent that kept nothing until it was updated.
+  bool first_cache = 6;
 }
 
 // EventProcess is a process someone ended on a server.
