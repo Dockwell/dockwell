@@ -18,6 +18,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { useRuntimes } from "../websites/website";
 import { AppContext, useApp, useRevisions } from "./AppContext";
 import {
   appOf,
@@ -36,7 +37,9 @@ import { DeploySheet } from "./DeploySheet";
 import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
 import { useHealth } from "./health";
 import { WholeImage } from "./ImageName";
+import { RuntimeSheet } from "./RuntimeSheet";
 import { useWhoWords } from "./revision";
+import { runtimeOf, runtimeWords } from "./runtime";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
@@ -189,6 +192,10 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const serviceId = service.id;
   const name = nameOf(service);
   const image = imageOf(service);
+  // An app from a folder says what it runs on, and changes its version where another deploys an image.
+  const runtime = runtimeOf(service);
+  const runtimes = useRuntimes().data;
+  const runsOn = runtime ? runtimeWords(runtime, runtimes) : "";
   const revision = revisionName(service.revision);
   const revisions = useRevisions(serviceId).revisions;
   const latest = revisions?.[0];
@@ -225,6 +232,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const here = { environment: environmentOf(service) };
   const mayRestart = may(ChangeService.method.restartService, here);
   const mayDeploy = may(ServiceService.method.deployService, here);
+  const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
   // Where it answers, on every tab, as soon as it publishes a port anyone outside the server reaches.
   const { servers: fleet } = useFleetView();
   const published = appOf(service)?.ports.find(
@@ -306,6 +314,10 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
                   <code>{shownRepository(source.url)}</code> at <code>{shortCommit(source.commit)}</code>
                 </Trans>
               </span>
+            ) : runtime ? (
+              <Trans>
+                {runsOn} from <code>{runtime.folder}</code>
+              </Trans>
             ) : (
               <WholeImage image={image} />
             )}
@@ -336,8 +348,8 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             <Trans>Logs</Trans>
           </RouterButtonLink>
           {changeable ? (
-            <Button variant="primary" icon="deploy" onClick={deploy} {...mayDeploy.off}>
-              <Trans>Deploy</Trans>
+            <Button variant="primary" icon="deploy" onClick={deploy} {...(runtime ? mayChangeVersion : mayDeploy).off}>
+              {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
             </Button>
           ) : null}
         </>
@@ -353,7 +365,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             phoneAction: <LogsSearchAction opens={searchButton} />,
           }
         : {})}
-      phoneSub={[revision, runsWord, recordWord, phone && !onLogs ? shortImage(image) : ""].filter(Boolean).join(" · ")}
+      phoneSub={[revision, runsWord, recordWord, phone && !onLogs ? runsOn || shortImage(image) : ""]
+        .filter(Boolean)
+        .join(" · ")}
       status={reconnecting ? <Reconnecting /> : undefined}
       className="app-page"
     >
@@ -389,12 +403,19 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          <Button variant="primary" icon="deploy" size="lg" onClick={deploy} {...mayDeploy.off}>
-            <Trans>Deploy</Trans>
+          <Button
+            variant="primary"
+            icon="deploy"
+            size="lg"
+            onClick={deploy}
+            {...(runtime ? mayChangeVersion : mayDeploy).off}
+          >
+            {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
           </Button>
         </div>
       ) : null}
-      {deploying ? <DeploySheet service={service} onClose={() => setDeploying(false)} /> : null}
+      {deploying && runtime ? <RuntimeSheet service={service} onClose={() => setDeploying(false)} /> : null}
+      {deploying && !runtime ? <DeploySheet service={service} onClose={() => setDeploying(false)} /> : null}
     </Page>
   );
 }

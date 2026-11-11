@@ -29,21 +29,20 @@ source:
   path: internal/catalog/entries/hermes-agent.yaml
 web:
   service: hermes
-firstSteps: >-
-  Hermes Agent answers only on this server until you add a domain. Tunnel first: ssh -N
-  -L 9119:127.0.0.1:9119 you@your-server, then open http://localhost:9119 and sign in as
-  admin with the HERMES_PASSWORD secret. Add a domain on its page only behind your VPN:
-  before a public one, replace the HERMES_DASHBOARD_BASIC_AUTH_ variables with Hermes's
-  OAuth provider. Its API is on the API port, at /v1, with the API_KEY secret.
+signIn:
+  user: "admin"
+  passwordInput: "HERMES_PASSWORD"
+notes:
+  - "Add a domain only behind your VPN: a public one needs Hermes's OAuth provider in place of basic auth."
+  - "Its API answers on the API port, on this server alone, at /v1 with the API_KEY secret."
 inputs:
   - name: PORT
     label: Web port on this server
-    hint: Only this server reaches it. Use an SSH tunnel or a domain behind your VPN.
     type: INPUT_TYPE_PORT
     defaultValue: "9119"
   - name: API_PORT
     label: API port on this server
-    hint: Only this server reaches it. Tunnel this port to use the API from your computer.
+    hint: The API, on this server alone.
     type: INPUT_TYPE_PORT
     defaultValue: "8642"
   - name: HERMES_PASSWORD

@@ -4,6 +4,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -101,7 +102,52 @@ var (
 const (
 	logRefusalLines = 5
 	logRefusalWait  = 2 * time.Second
+	// fatalLines is how much of the end of a container's log fatalSaid reads, as a
+	// server may print a line or two as it shuts down after the one that says why.
+	fatalLines = 20
+	// fatalLength bounds what of a fatal line's message a step says.
+	fatalLength = 400
 )
+
+// structuredLine reads a line of MongoDB's structured log, {"t":...,"s":"F","c":
+// "CONTROL","id":...,"ctx":...,"msg":"..."}, as its severity and its message, or
+// "" for any other line.
+func structuredLine(text []byte) (severity, msg string) {
+	if len(text) == 0 || text[0] != '{' {
+		return "", ""
+	}
+	var l struct {
+		T   json.RawMessage `json:"t"`
+		S   string          `json:"s"`
+		C   string          `json:"c"`
+		ID  *int64          `json:"id"`
+		Msg string          `json:"msg"`
+	}
+	if json.Unmarshal(text, &l) != nil || l.T == nil || l.C == "" || l.ID == nil || l.Msg == "" {
+		return "", ""
+	}
+	return l.S, l.Msg
+}
+
+// sentenceOf is a message as a step says it: one line, cut at fatalLength, ending
+// with a full stop.
+func sentenceOf(msg string) string {
+	msg = strings.Join(strings.Fields(msg), " ")
+	if msg == "" {
+		return ""
+	}
+	if len(msg) > fatalLength {
+		cut := fatalLength
+		for cut > 0 && !utf8.RuneStart(msg[cut]) {
+			cut--
+		}
+		msg = strings.TrimSpace(msg[:cut]) + "…"
+	}
+	if !strings.HasSuffix(msg, ".") && !strings.HasSuffix(msg, "…") {
+		msg += "."
+	}
+	return msg
+}
 
 // What the runtime says when a container's command can't run: its binary is
 // for another architecture, isn't in the image, or can't be run.

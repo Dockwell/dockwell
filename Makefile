@@ -94,7 +94,7 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 
 .PHONY: test
 test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
-	go test -timeout 20m -race -coverprofile=coverage.out ./...
+	go test -timeout 30m -race -coverprofile=coverage.out ./...
 	go test -race -tags agent $(AGENT_PKGS)
 	pnpm -r --if-present test
 
@@ -172,7 +172,7 @@ smoke: build build-agent ## Start the built binaries: the full build serves the 
 	scripts/smoke-agent.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: e2e
-e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server's files, read its updates and use its terminal in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
+e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server's files, read its updates, use its terminal and invite someone in headless Chromium, with a virtual passkey and a fake Docker Engine (SHOTS=dir saves screenshots)
 	go build -o bin/fakedocker ./scripts/fakedocker
 	go build -o bin/gitserve ./scripts/gitserve
 	DOCKWELL_E2E_GITSERVE=bin/gitserve node web/e2e/sign-in.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
@@ -180,6 +180,11 @@ e2e: build ## Claim, sign in, run the panel's flows, follow logs, walk a server'
 	node web/e2e/files.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/updates.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
 	node web/e2e/terminal.ts $(BIN) --fake-docker bin/fakedocker $(if $(SHOTS),--shots $(SHOTS))
+	node web/e2e/invites.ts $(BIN) $(if $(SHOTS),--shots $(SHOTS))
+
+.PHONY: chaos
+chaos: build build-agent ## Break a change and local reconciliation, then check recovery on Docker (CHAOS_FAKE_DOCKER=1 uses the fake Engine)
+	scripts/chaos.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: docker-panel-e2e
 docker-panel-e2e: build ## Create, deploy, roll back and export an app in the panel on this machine's Docker, in headless Chromium
@@ -196,6 +201,10 @@ logs-load: build-go build-agent ## Measure an agent's memory while a container f
 .PHONY: transfers-load
 transfers-load: build-go build-agent ## Measure an agent's memory while four files upload and four download at once
 	scripts/transfers-load.sh $(BIN) $(AGENT_BIN)
+
+.PHONY: forwards-load
+forwards-load: build-go build-agent ## Measure an agent's memory while four apps opened through the panel carry 16 connections, on a fake Docker
+	scripts/forwards-load.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: docker-e2e
 docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, build from Git, and run a container through the agent build

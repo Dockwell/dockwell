@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { ServiceInfo } from "@dockwell/api";
 import { Button, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -13,9 +14,11 @@ import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage,
 import { useDomainNames } from "../apps/domains";
 import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
-import { ImageName } from "../apps/ImageName";
+import { WhatRuns } from "../apps/ImageName";
+import { runtimeOf, runtimeWords } from "../apps/runtime";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { useRuntimes } from "../websites/website";
 import "../apps/Apps.css";
 import { StartChoices } from "./StartChoices";
 import "./Overview.css";
@@ -156,7 +159,7 @@ function AppsRows({ rows, health, fleet }: { rows: readonly Row[]; health: Healt
                     {plural(count, { one: "# app", other: "# apps" })}
                   </span>
                 ) : (
-                  <ImageName image={imageOf(first)} className="dw-cell-sub" />
+                  <WhatRuns service={first} className="dw-cell-sub" />
                 )}
               </span>
             );
@@ -236,6 +239,12 @@ function AppsRows({ rows, health, fleet }: { rows: readonly Row[]; health: Healt
 /** On a phone, as M-Overview-Single lists them: a mark, a name and how it runs. */
 function PhoneRows({ rows, health }: { rows: readonly Row[]; health: HealthView }) {
   const words = useHealthWords();
+  const runtimes = useRuntimes().data;
+  // An app from a folder says what it runs on and where, as Apps lists it (ADR 0058).
+  const whatRuns = (service: ServiceInfo): string => {
+    const runtime = runtimeOf(service);
+    return runtime ? `${runtimeWords(runtime, runtimes)} · ${runtime.folder}` : shortImage(imageOf(service));
+  };
   return (
     <Panel flush className="apps-phone">
       {rows.map((row) => {
@@ -260,7 +269,7 @@ function PhoneRows({ rows, health }: { rows: readonly Row[]; health: HealthView 
                 ) : (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span className="apps-phone-image">{shortImage(imageOf(first))}</span>
+                    <span className="apps-phone-image">{whatRuns(first)}</span>
                   </>
                 )}
               </span>

@@ -352,6 +352,8 @@ export async function appsFlow(
   // What it says to do goes by the machine this runs on, and it always says something.
   await addDomain.locator(".domain-record").waitFor();
   await addDomain.getByLabel("Domain").fill("app.example.com");
+  // HTTPS is on, said in a line: what's in front is one step away.
+  await addDomain.getByRole("button", { name: "HTTPS", exact: true }).click();
   await addDomain.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
   await addDomain.getByRole("radio", { name: /Cloudflare's proxy/ }).check();
   await addDomain.getByText(/crosses the open internet unencrypted/).waitFor();
@@ -403,6 +405,7 @@ export async function appsFlow(
     await page.getByRole("button", { name: "Add a domain" }).first().click();
     const form = page.getByRole("dialog", { name: /^Add a domain to / });
     await form.getByLabel("Domain").fill(tunnelled);
+    await form.getByRole("button", { name: "HTTPS", exact: true }).click();
     await form.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
     await form.getByRole("button", { name: /Review plan/ }).click();
     const review = page.getByRole("dialog", { name: "Review plan" });
@@ -564,6 +567,7 @@ export async function appsFlow(
     if ((await portOnServer.inputValue()) !== "")
       fail("the form offers a port on the server's own network that may not work");
     await portOnServer.fill(String(hostPort));
+    await form.getByRole("button", { name: "HTTPS", exact: true }).click();
     await form.getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }).click();
     await form.getByRole("button", { name: /Review plan/ }).click();
     await applyPlan(page, "Done");

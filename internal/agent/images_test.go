@@ -413,13 +413,15 @@ func TestImagesSilenceOnlyWhatDidNotAnswer(t *testing.T) {
 	}
 }
 
-// Two reads reach registries at once, and a third is told to try again.
+// Two reads reach registries at once; a third waits for its turn, as a form
+// sends its search, its check and its tags close together, and is told to try
+// again only when its own time runs out first.
 func TestImagesReadTwoAtOnce(t *testing.T) {
 	f := newImageRegistry(t)
 	im, _ := newTestImages(t, f, nil)
 	hold := make(chan struct{})
 	f.hold.Store(&hold)
-	done := make(chan error, imageCalls)
+	done := make(chan error, imageCalls+1)
 	for i := range imageCalls {
 		go func() {
 			_, err := im.read(context.Background(), imageCall(fmt.Sprintf("ghcr.io/acme/web:%d", i)))
@@ -431,15 +433,57 @@ func TestImagesReadTwoAtOnce(t *testing.T) {
 	for len(im.calls) < imageCalls && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	if _, err := im.read(context.Background(), imageCall("ghcr.io/acme/web:3")); !errors.Is(err, errBusy) {
-		t.Errorf("a third read at once = %v, want errBusy", err)
+	short, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := im.read(short, imageCall("ghcr.io/acme/web:3")); !errors.Is(err, errBusy) {
+		t.Errorf("a third read whose time ran out waiting = %v, want errBusy", err)
 	}
+	var third *agentv1.ImageResult
+	go func() {
+		got, err := im.read(context.Background(), imageCall("ghcr.io/acme/web:4"))
+		third = got
+		done <- err
+	}()
+	time.Sleep(100 * time.Millisecond)
 	f.hold.Store(nil)
 	close(hold)
-	for range imageCalls {
+	for range imageCalls + 1 {
 		if err := <-done; err != nil {
 			t.Error(err)
 		}
+	}
+	if third.GetImage().GetAnswer() != dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND {
+		t.Errorf("a third read that waited its turn reads %v", third.GetImage())
+	}
+}
+
+// A read that ends before its registry answers, as its caller left or its time
+// ran out, says nothing of the registry, which goes on being asked.
+func TestImagesLeaveARegistryAskedWhenAReadEndsFirst(t *testing.T) {
+	f := newImageRegistry(t)
+	im, _ := newTestImages(t, f, nil)
+	hold := make(chan struct{})
+	f.hold.Store(&hold)
+	left, leave := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		leave()
+	}()
+	if got, err := im.read(left, imageCall("nginx:1.2")); err == nil && got.GetImage().GetAnswer() == dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND {
+		t.Fatalf("a read whose caller left reads %v", got.GetImage())
+	}
+	late, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	_, _ = im.read(late, imageCall("ghcr.io/acme/web:1.2"))
+	f.hold.Store(nil)
+	close(hold)
+	for _, host := range []string{registry.Hub, "ghcr.io"} {
+		if im.isSilent(host) {
+			t.Errorf("%s went unasked after a read of it ended first", host)
+		}
+	}
+	if got, _ := im.read(context.Background(), imageCall("nginx:1.27")); got.GetImage().GetAnswer() != dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND {
+		t.Errorf("the next read reads %v", got.GetImage().GetAnswer())
 	}
 }
 

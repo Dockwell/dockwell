@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
@@ -26,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
+	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/secrets"
 )
 
@@ -33,9 +35,10 @@ import (
 // observing read the server; applying may pull an image or wait for a
 // health check.
 const (
-	PlanTimeout    = time.Minute
-	ObserveTimeout = time.Minute
-	ApplyTimeout   = 10 * time.Minute
+	PlanTimeout     = time.Minute
+	ObserveTimeout  = time.Minute
+	ApplyTimeout    = 10 * time.Minute
+	RememberTimeout = time.Minute
 )
 
 // ErrLost means a server's stream ended while a call on it was waiting
@@ -79,6 +82,7 @@ type Agents struct {
 	sessions  map[string]*Session      // the newest stream of each server
 	uploads   map[uint64]*upload       // logs calls under way, by their streams
 	links     map[uint64]*TerminalLink // terminals' attachments under way, by their streams
+	forwards  map[uint64]*forwardLink  // forwarded connections waiting for their streams
 	transfers map[uint64]*transfer     // uploads' writes and downloads under way, by their streams
 	onConnect []func(server string)
 	// opened is closed, and made again, whenever a session opens, for the
@@ -108,13 +112,15 @@ type Agents struct {
 	runsHearer func(server string)
 	// terminalHearer hears how each terminal ended.
 	terminalHearer func(server string, ended *agentv1.TerminalEnded)
+	// reconciledHearer hears what agents did on their own (OnReconciled).
+	reconciledHearer func(ctx context.Context, server string, r *agentv1.Reconciled) error
 }
 
 // NewAgents returns an empty set of agents. kinds reads the specs agents
 // send back.
 func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
-		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
+		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, forwards: map[uint64]*forwardLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
 	}
 }
@@ -173,6 +179,36 @@ func (a *Agents) reportTaskRunsReady(server string) {
 	if hear != nil {
 		hear(server)
 	}
+}
+
+// OnReconciled has fn hear what each server's agent did, or couldn't do, on its own
+// while the control plane was away (ADR 0054), as its stream opens.
+func (a *Agents) OnReconciled(fn func(ctx context.Context, server string, r *agentv1.Reconciled) error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.reconciledHearer = fn
+}
+
+// reconciled has the hook hear what a server's agent did on its own while the
+// control plane was away, and, once it has it, tells the agent, which then drops
+// it. What the hook can't keep is sent again on the agent's next stream.
+func (a *Agents) reconciled(ctx context.Context, server string, s *Session, r *agentv1.Reconciled) {
+	a.mu.Lock()
+	fn := a.reconciledHearer
+	a.mu.Unlock()
+	if fn == nil {
+		return
+	}
+	if err := fn(ctx, server, r); err != nil {
+		a.logger.Warn("can't record what a server's agent did on its own while the control plane was away; the agent sends it again when it next connects",
+			slog.String("server", server), slog.String("error", err.Error()))
+		return
+	}
+	last := ""
+	if entries := r.GetEntries(); len(entries) > 0 {
+		last = entries[len(entries)-1].GetId()
+	}
+	_ = s.write(&agentv1.ConnectResponse{Message: &agentv1.ConnectResponse_Heard{Heard: &agentv1.Heard{Last: last}}})
 }
 
 // OnHealth calls fn with each report of how a server's services are, in the
@@ -423,11 +459,17 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
 		followsPace: hello.GetFollowsPace(),
 		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
+	if d := hello.GetDesired(); d != nil {
+		s.keeps, s.cache, s.held = true, d.GetCache(), make(map[resource.Ref]int64, len(d.GetHeld()))
+		for _, h := range d.GetHeld() {
+			s.held[resourcepb.FromRef(h.GetResource())] = h.GetRevision()
+		}
+	}
 	a.mu.Lock()
 	a.sessions[server] = s
 	delete(a.moved, server)
@@ -487,6 +529,8 @@ type Session struct {
 	deliveryKey []byte
 	// writesReferences says the agent writes a container's references in.
 	writesReferences bool
+	// makesFolders says the agent makes a mount's missing folder as its owner.
+	makesFolders bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -511,6 +555,18 @@ type Session struct {
 	// firstPasswords says the agent changes a database's first user's password in
 	// it as its service restarts with a new one (ADR 0038).
 	firstPasswords bool
+	// drills says the agent checks that a backup restores (ADR 0068).
+	drills bool
+	// forwards says the agent carries a connection to a port a service publishes
+	// (ADR 0061).
+	forwards bool
+	// held is what the agent keeps of its desired state, by resource, as its
+	// hello said and each step, remember and forget since has changed it (ADR
+	// 0054); cache names the agent's cache, and keeps says whether it keeps any.
+	heldMu sync.Mutex
+	held   map[resource.Ref]int64
+	cache  string
+	keeps  bool
 
 	sendMu sync.Mutex
 	send   func(*agentv1.ConnectResponse) error
@@ -1013,7 +1069,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
-		dr, err := desiredProto(d.Ref, d.Spec)
+		dr, err := desiredProto(d.Ref, s.agents.kinds.OnServer(d.Ref.Kind, d.Spec))
 		if err != nil {
 			return nil, err
 		}
@@ -1088,10 +1144,13 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkWrites(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkFolders(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
-	dr, err := desiredProto(step.Ref, desired)
+	dr, err := desiredProto(step.Ref, s.agents.kinds.OnServer(step.Ref.Kind, desired))
 	if err != nil {
 		return err
 	}
@@ -1115,8 +1174,108 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	// What a step waits on by design, such as a health check with a long start
 	// period, comes on top of the time any step gets.
-	_, err = s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
-	return err
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, ApplyTimeout+step.Budget(), seal)
+	if err != nil {
+		return err
+	}
+	// What the agent keeps now, as a step that passed is kept whatever it held,
+	// unless it couldn't be, when the next connect sends it again.
+	switch {
+	case r.GetApply().GetUnkept() || desired == nil:
+		s.forgot(step.Ref)
+	default:
+		s.kept(step.Ref, call.GetDeploy().GetRevision())
+	}
+	return nil
+}
+
+// kept notes that the agent keeps ref at revision, or at what it kept for a step
+// with no revision of its own.
+func (s *Session) kept(ref resource.Ref, revision int64) {
+	s.heldMu.Lock()
+	defer s.heldMu.Unlock()
+	if s.keeps && revision > 0 {
+		s.held[ref] = revision
+	}
+}
+
+// forgot notes that the agent keeps nothing of ref.
+func (s *Session) forgot(ref resource.Ref) {
+	s.heldMu.Lock()
+	defer s.heldMu.Unlock()
+	delete(s.held, ref)
+}
+
+// Holds is what the agent keeps of its desired state, by resource and revision,
+// as its hello said and what was sent or applied since has changed it; its
+// cache's ID; and whether it keeps any at all: an agent from before ADR 0054
+// keeps none, and is sent none to keep.
+func (s *Session) Holds() (held map[resource.Ref]int64, cache string, keeps bool) {
+	s.heldMu.Lock()
+	defer s.heldMu.Unlock()
+	return maps.Clone(s.held), s.cache, s.keeps
+}
+
+// Remember has the agent keep what ref runs now, as its latest revision live
+// there has it, with the values it uses sealed to this stream, as a step's are.
+// It changes nothing on the server. It says whether the agent kept it, which it
+// doesn't when it keeps a later revision.
+func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change, imageDigest string) (bool, error) {
+	if err := s.supports(ref); err != nil {
+		return false, err
+	}
+	if err := s.checkWrites(ref, spec); err != nil {
+		return false, err
+	}
+	if err := s.checkReads(ctx, []resource.Ref{ref}); err != nil {
+		return false, err
+	}
+	// A volume is never made again alone, so its record needs no options, which
+	// can hold a share's password: they aren't sent. What only the control plane
+	// keeps, such as how an app from a folder was made (ADR 0058), isn't either, as
+	// a step's spec has none of it: the agent keeps what it ran.
+	spec = s.agents.kinds.OnServer(ref.Kind, volumekind.WithoutOptions(spec))
+	dr, err := desiredProto(ref, spec)
+	if err != nil {
+		return false, err
+	}
+	dr.ScopeName = s.scopeName(ctx, ref)
+	values, uses, err := s.values(ctx, ref, spec)
+	if err != nil {
+		return false, err
+	}
+	defer clear(values)
+	call := &agentv1.RememberCall{Desired: dr, Deploy: &agentv1.Deploy{Revision: int64(revision), ChangeId: change}, ImageDigest: imageDigest}
+	var seal func(*Session) error
+	if uses {
+		seal = func(on *Session) error {
+			sealed, err := on.seal(ref, values)
+			call.Values = sealed
+			return err
+		}
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Remember{Remember: call}}, RememberTimeout, seal)
+	if err != nil {
+		return false, err
+	}
+	if r.GetRemember().GetKept() {
+		s.kept(ref, int64(revision))
+	}
+	return r.GetRemember().GetKept(), nil
+}
+
+// Forget has the agent forget ref, which its server no longer runs, if it still
+// keeps it at revision, the one this session saw, and says whether it did.
+func (s *Session) Forget(ctx context.Context, ref resource.Ref, revision int64) (bool, error) {
+	call := &agentv1.RememberCall{Desired: &agentv1.DesiredResource{Resource: resourcepb.Ref(ref)}, Deploy: &agentv1.Deploy{Revision: revision}}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Remember{Remember: call}}, RememberTimeout, nil)
+	if err != nil {
+		return false, err
+	}
+	if r.GetRemember().GetKept() {
+		s.forgot(ref)
+	}
+	return r.GetRemember().GetKept(), nil
 }
 
 // scopeName is what people call ref's scope, for an environment's resource.
@@ -1205,14 +1364,55 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
 }
 
-// checkAllWrites is checkWrites for all a plan asks of this agent.
+// checkAllWrites is checkWrites and checkFolders for all a plan asks of this
+// agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for _, d := range desired {
 		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkFolders(d.Ref, d.Spec); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// checkFolders refuses a spec with a mount that makes its missing folder as an
+// owner, for an agent that doesn't say it does: it would make the folder root's,
+// which what runs as that owner can't write.
+func (s *Session) checkFolders(ref resource.Ref, spec proto.Message) error {
+	if s.makesFolders || spec == nil || !makesFolder(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell made a missing folder as its owner, which %s asks for, so it would be root's. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// makesFolder reports a spec with a mount that names an owner to make it as.
+func makesFolder(m protoreflect.Message) bool {
+	found := false
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.Name() == "make_owner" && fd.Kind() == protoreflect.StringKind:
+			found = v.String() != ""
+		case fd.IsList() && fd.Message() != nil:
+			for i := range v.List().Len() {
+				if makesFolder(v.List().Get(i).Message()) {
+					found = true
+				}
+			}
+		case fd.IsMap() && fd.MapValue().Message() != nil:
+			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
+				found = found || makesFolder(e.Message())
+				return !found
+			})
+		case fd.Message() != nil && !fd.IsList() && !fd.IsMap():
+			found = makesFolder(v.Message())
+		}
+		return !found
+	})
+	return found
 }
 
 func (s *Session) noDeliveryKey(ref resource.Ref) error {
@@ -1482,6 +1682,36 @@ func (s *Session) RunTask(ctx context.Context, ref resource.Ref) (*dockwellv1.Ta
 	return r.GetRunTask().GetRun(), nil
 }
 
+// SSH asks the server's agent how SSH lets people in.
+func (s *Session) SSH(ctx context.Context) (*dockwellv1.ServerSsh, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Ssh{Ssh: &agentv1.SshCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrAgentOutdated
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetSsh() == nil {
+		return nil, ErrAgentOutdated
+	}
+	return r.GetSsh(), nil
+}
+
+// Fail2ban asks the server's agent what fail2ban does.
+func (s *Session) Fail2ban(ctx context.Context) (*dockwellv1.ServerFail2Ban, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Fail2Ban{Fail2Ban: &agentv1.Fail2BanCall{}}}, ObserveTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrAgentOutdated
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetFail2Ban() == nil {
+		return nil, ErrAgentOutdated
+	}
+	return r.GetFail2Ban(), nil
+}
+
 // accessWait reads what a step waits for, if anything, with its deadline by
 // the control plane's clock where the agent said how long was left.
 func accessWait(w *agentv1.AccessWait) *resource.AccessWait {
@@ -1514,6 +1744,8 @@ func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.
 		return resource.AccessRolledBack, nil
 	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING:
 		return resource.AccessNotWaiting, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_KEPT:
+		return resource.AccessNotKept, nil
 	case agentv1.AccessVerdict_ACCESS_VERDICT_UNSPECIFIED:
 	}
 	return 0, errors.New("the agent said nothing of the change")
@@ -1564,6 +1796,25 @@ func (s *Session) Backup(ctx context.Context, call *agentv1.BackupCall) (*agentv
 		return nil, err
 	}
 	return r.GetBackup(), nil
+}
+
+// DrillTimeout bounds one restore drill: the agent's own most, and a moment to clean
+// up after it.
+const DrillTimeout = 6*time.Hour + 10*time.Minute
+
+// Drills says the agent checks that a backup restores (ADR 0068).
+func (s *Session) Drills() bool { return s.drills }
+
+// DrillBackup asks the agent to check that a backup on its disk restores, in a
+// container and a volume it throws away. How it went is its result, however it
+// ended; an error is a call that didn't run or didn't come back. Progress comes
+// through ctx.
+func (s *Session) DrillBackup(ctx context.Context, call *agentv1.DrillBackupCall) (*agentv1.DrillBackupResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DrillBackup{DrillBackup: call}}, DrillTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetDrillBackup(), nil
 }
 
 // SendBackup asks the agent to send a backup that's on the disk to its destination,

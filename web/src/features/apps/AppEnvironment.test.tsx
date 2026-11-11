@@ -128,7 +128,7 @@ describe("editing an app's environment", () => {
     const user = userEvent.setup();
     renderAt("/apps/svc_web/environment", api(anApp("web", "nginx:1.5"), []));
     expect(await screen.findByRole("heading", { level: 2, name: "No variables yet" })).toBeVisible();
-    expect(screen.getByText(/This app runs with only what its image sets/)).toBeVisible();
+    expect(screen.getByText("It runs with only what its image sets.")).toBeVisible();
     // No column heads over a sentence.
     expect(screen.queryByRole("table")).toBeNull();
     // Adding waits for what the environment has, so a new name can't clash with one there.
@@ -379,7 +379,9 @@ describe("editing an app's environment, where it could go wrong", () => {
     const callout = await screen.findByText("Can't read the environment's variables and secrets", undefined, {
       timeout: 5000,
     });
-    expect(callout.closest(".dw-callout")).toHaveTextContent("adding waits, so a new name can't clash");
+    expect(callout.closest(".dw-callout")).toHaveTextContent(
+      "Their values stay hidden, and Add waits until they load.",
+    );
     expect(within(form()).getByRole("button", { name: "Add" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Import .env" })).toBeDisabled();
     fail = false;

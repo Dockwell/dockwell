@@ -114,7 +114,7 @@ The interceptor checks `min_role` against the caller's highest grant anywhere, a
 - **Unset reads as protected for an environment named `production`,** and open for any other. That rule is only for environments that exist today, so no revision is rewritten.
 - **From now on, every environment is created with its protection written,** protected for `production`, open otherwise. So an import's `prod`, `live` or `main` doesn't fall to a rule by name. Creating one with other than that default is an admin's, as is changing it later. A rename, if one comes, writes the old protection explicitly.
 - **A name isn't protection.** `display_name` can make `staging` read "Production", so the panel marks protection on its own, beside the name.
-- **The first invite lists each environment's protection,** for the owner to confirm before anyone else signs in.
+- **The first invite lists each environment's protection,** as a reminder to look before anyone else signs in, since it decides whose changes wait. The panel asks whoever invites to tick that they looked, and a switch beside each environment plans a change to it. It is a prompt, not a gate: the control plane keeps no record of the tick and the API asks for none, so it is asked again until a second person signs in, and an invite made with the CLI or a script meets no such question. What holds is the protection itself, which is written on every environment and checked on every change.
 
 **Enforcement is where every other check is:**
 
@@ -182,6 +182,8 @@ A step-up proves who is there; a role says what they may do. Both are checked, a
 
 As ADR 0048 says, with these specifics:
 
+- **An invite's place is checked each time it's opened and when it's accepted.** An invite to a project deleted since is refused, in the words every invite that doesn't work gets, so it never makes someone who holds nothing. "Every project" is said for the install alone, which has no project ID, never for a name that can't be read.
+- **An email is written one way, the control plane's.** The panel sends it as typed, in the passkey's target and in the invite alike, and the control plane lowercases both, so a letter that lowercases differently in a browser can't part them.
 - **The link is `/invite#<secret>`,** with the secret after `#`, so it never reaches a log, a proxy or a referrer. The page clears it from the address bar with `history.replaceState` as soon as it reads it. It works once.
 - **It lasts 7 days for a developer or a viewer, and 24 hours for an admin,** whose link is a bearer credential to the install.
 - **Opening the page never spends it.** Only finishing the passkey does.
@@ -190,7 +192,7 @@ As ADR 0048 says, with these specifics:
 - **The page says who invited them, with what role, where,** and asks for their name and a passkey. That's the claim flow (ADR 0011) for someone else.
 - **Accepting only ever makes a new person.** The page refuses while someone is signed in: "You're signed in as Mira. Sign out, or open the link in a private window". An invite to an existing member's email is refused, pointing to Members.
 - **The email is kept as unverified,** and Dockwell never links an OIDC identity to an account by an unverified email.
-- **Members lists pending invites,** with who made them and when they expire, and each can be revoked. A `member.join` shows the address it came from, with Remove beside it.
+- **Members lists pending invites,** with who made them and when they expire, and each can be revoked. A `member.join` shows the address it came from, on Activity and in the audit log (`EventMember.address`). Remove beside it comes with managing members.
 - **Nobody is invited as owner,** though the mock's invite form offers Owner: ownership moves by transfer (ADR 0048).
 
 ### Who did what

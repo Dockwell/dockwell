@@ -190,7 +190,11 @@ type ImportComposeRequest struct {
 	// The directory the file is in on the servers, as an absolute path, such as
 	// /opt/1panel/apps/postgresql/pg. A path relative to the file, such as
 	// ./data, starts there. Each is a server path, which a person approves.
-	Directory     string `protobuf:"bytes,9,opt,name=directory,proto3" json:"directory,omitempty"`
+	Directory string `protobuf:"bytes,9,opt,name=directory,proto3" json:"directory,omitempty"`
+	// Leave out the backup that comes first when a database moves to a release
+	// its data can't come back from, such as MongoDB raising its feature
+	// compatibility version (ADR 0038). The plan says so.
+	SkipBackup    bool `protobuf:"varint,10,opt,name=skip_backup,json=skipBackup,proto3" json:"skip_backup,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -286,6 +290,13 @@ func (x *ImportComposeRequest) GetDirectory() string {
 		return x.Directory
 	}
 	return ""
+}
+
+func (x *ImportComposeRequest) GetSkipBackup() bool {
+	if x != nil {
+		return x.SkipBackup
+	}
+	return false
 }
 
 // ImportComposeResponse carries the planned change.
@@ -889,7 +900,7 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x04 \x01(\tR\venvironment\"C\n" +
 	"\x14AdoptComposeResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x91\x03\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xb2\x03\n" +
 	"\x14ImportComposeRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
@@ -899,7 +910,10 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12%\n" +
 	"\x0eremove_orphans\x18\a \x01(\bR\rremoveOrphans\x12\x16\n" +
 	"\x03env\x18\b \x01(\tB\x04\xc8\xf3\x18\x01R\x03env\x12\x1c\n" +
-	"\tdirectory\x18\t \x01(\tR\tdirectory\x1a<\n" +
+	"\tdirectory\x18\t \x01(\tR\tdirectory\x12\x1f\n" +
+	"\vskip_backup\x18\n" +
+	" \x01(\bR\n" +
+	"skipBackup\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb2\x01\n" +

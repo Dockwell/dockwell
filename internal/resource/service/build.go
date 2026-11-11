@@ -18,7 +18,6 @@ import (
 	"strings"
 	"unicode"
 
-	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -342,11 +341,10 @@ func buildPath(what, p string) (string, error) {
 	return c, nil
 }
 
-var _ resource.WriterNamer = (*Driver)(nil)
-
-// WriterOf names the code a service runs, for what it writes (ADR 0046). One that
-// runs an image is its image's repository, so another tag of it, as CI deploys, is
-// the same code. One that builds is its repository and how it builds: the folder,
+// buildWriter names the code a service that builds runs, for what it writes (ADR
+// 0046), where one that runs an image is named by its image's repository, so that
+// another tag of it, as CI deploys, is the same code. One that builds is its
+// repository and how it builds: the folder,
 // the Dockerfile, the stage and the build arguments, as ARG BASE in FROM $BASE
 // reaches any image, and with Railpack the builder and the commands it runs. A new commit of the branch it follows is the same code, as a
 // new tag is, and the build checks the commit is on the branch; a commit the build
@@ -355,15 +353,8 @@ var _ resource.WriterNamer = (*Driver)(nil)
 // A plan says it to people, so a build reads as its repository and a digest of how
 // it builds, such as github.com/acme/web@build:5d41402abc4b2a76: 64 bits, which no
 // one can choose a build's settings to match another's by.
-func (d *Driver) WriterOf(spec proto.Message) string {
-	svc, ok := spec.(*resourcev1.Service)
-	if !ok {
-		return ""
-	}
+func buildWriter(svc *resourcev1.Service) string {
 	b := svc.GetBuild()
-	if b == nil {
-		return docker.Repository(svc.GetApp().GetImage())
-	}
 	g := b.GetGit()
 	parts := []string{"git", g.GetUrl(), "context=" + b.GetContext(), "dockerfile=" + b.GetDockerfile(), "target=" + b.GetTarget()}
 	// What builds it, and with Railpack the commands that build and start it, are

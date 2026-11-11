@@ -79,7 +79,7 @@ func (h *Handler) ImportCompose(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	c, err := h.plan(ctx, m, stack, place, planning{})
+	c, err := h.plan(ctx, m, stack, place, planning{skipBackup: m.GetSkipBackup()})
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +115,51 @@ type Install struct {
 	// FirstSteps is what a person needs to know, which the plan says before they
 	// apply it.
 	FirstSteps string
+	// Limits are what a person set for a service, by its name in the file, in place
+	// of what the file gives it.
+	Limits map[string]Limits
+}
+
+// Limits are what a service may use, and when Docker restarts it. An empty field
+// keeps the file's.
+type Limits struct {
+	Memory, CPUs string
+	Restart      resourcev1.RestartPolicy
+}
+
+// limit sets what a person gave each service of a stack, and refuses a service the
+// file doesn't have.
+func limit(stack *compose.Stack, limits map[string]Limits) error {
+	for _, name := range slices.Sorted(maps.Keys(limits)) {
+		i := slices.IndexFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == name })
+		if i < 0 {
+			var names []string
+			for _, s := range stack.Services {
+				names = append(names, s.Name)
+			}
+			return authapi.ReasonError(connect.CodeInvalidArgument,
+				fmt.Errorf("the file has no service called %s, so nothing takes its limits. Name one of %s", name, strings.Join(names, ", ")), "invalid")
+		}
+		app, l := stack.Services[i].Spec.GetApp(), limits[name]
+		if app == nil {
+			continue
+		}
+		if l.Memory != "" || l.CPUs != "" {
+			if app.Resources == nil {
+				app.Resources = &resourcev1.Resources{}
+			}
+			app.Resources.Memory = cmp.Or(l.Memory, app.Resources.GetMemory())
+			app.Resources.Cpus = cmp.Or(l.CPUs, app.Resources.GetCpus())
+		}
+		if l.Restart != resourcev1.RestartPolicy_RESTART_POLICY_UNSPECIFIED {
+			app.Restart = l.Restart
+			// Only on-failure restarts a set number of times, as the entry's may have.
+			if l.Restart != resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE {
+				app.RestartRetries = 0
+			}
+		}
+	}
+	return nil
 }
 
 // PlanInstall plans an entry into a project of its own, as an import does, with
@@ -152,6 +197,9 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		return nil, authapi.ReasonError(connect.CodeAlreadyExists,
 			fmt.Errorf("a project named %s was here before, and its data may come back, which a new password can't open. Choose another name", place.project), "project_exists")
 	}
+	if err := limit(stack, in.Limits); err != nil {
+		return nil, err
+	}
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
 	useSecrets(stack, in.Secrets)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
@@ -178,6 +226,8 @@ type planning struct {
 	deletes []resource.Ref
 	// backUp are the volumes to back up before anything else.
 	backUp []resource.Ref
+	// skipBackup leaves out the backup a database's move takes first.
+	skipBackup bool
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -287,7 +337,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, BackUp: also.backUp, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, BackUp: also.backUp, SkipBackup: also.skipBackup, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // AdoptCompose plans taking on a Compose project made elsewhere: each container as a

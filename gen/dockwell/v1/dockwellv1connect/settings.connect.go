@@ -44,6 +44,15 @@ const (
 	// SettingsServiceSetTimeZoneProcedure is the fully-qualified name of the SettingsService's
 	// SetTimeZone RPC.
 	SettingsServiceSetTimeZoneProcedure = "/dockwell.v1.SettingsService/SetTimeZone"
+	// SettingsServiceCheckPanelDomainProcedure is the fully-qualified name of the SettingsService's
+	// CheckPanelDomain RPC.
+	SettingsServiceCheckPanelDomainProcedure = "/dockwell.v1.SettingsService/CheckPanelDomain"
+	// SettingsServiceSetPanelDomainProcedure is the fully-qualified name of the SettingsService's
+	// SetPanelDomain RPC.
+	SettingsServiceSetPanelDomainProcedure = "/dockwell.v1.SettingsService/SetPanelDomain"
+	// SettingsServiceCreatePanelSignInLinkProcedure is the fully-qualified name of the
+	// SettingsService's CreatePanelSignInLink RPC.
+	SettingsServiceCreatePanelSignInLinkProcedure = "/dockwell.v1.SettingsService/CreatePanelSignInLink"
 	// SettingsServiceGetControlPlaneProcedure is the fully-qualified name of the SettingsService's
 	// GetControlPlane RPC.
 	SettingsServiceGetControlPlaneProcedure = "/dockwell.v1.SettingsService/GetControlPlane"
@@ -63,6 +72,38 @@ type SettingsServiceClient interface {
 	// it was made with, so this moves none. An empty zone clears it, and new
 	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
+	// CheckPanelDomain checks a domain for the panel as it's typed, before it's
+	// set (ADR 0063): whether the panel can take it, by the rules --domain has
+	// and as no route serves it or a name under it; what its A and AAAA records
+	// hold, as the control plane resolves them, and whether they lead to this
+	// server's public addresses; and whether something other than Dockwell or its
+	// Caddy holds port 80 or 443 on the control server, which would stop a
+	// certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
+	// person may set DNS and the domain in either order.
+	CheckPanelDomain(context.Context, *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error)
+	// SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
+	// it (an empty domain), and restarts the control plane to serve it: the
+	// response goes out first, then it re-executes itself, so apps and websites
+	// keep running and the panel answers again within seconds, on loopback and
+	// the domain (ADR 0063). It takes the owner, signed in, and a passkey just
+	// now: call it without a proof first, and it refuses with the reason
+	// needs_step_up, then again with the proof from FinishStepUp for
+	// STEP_UP_ACTION_SET_PANEL_DOMAIN, whose target is the domain, or the one it
+	// clears. Refused while a
+	// change is applying, when dockwell run was given a domain with --domain or
+	// DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
+	// domain to another, which comes later. It's on the activity log with the
+	// domain it replaced.
+	SetPanelDomain(context.Context, *connect.Request[v1.SetPanelDomainRequest]) (*connect.Response[v1.SetPanelDomainResponse], error)
+	// CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
+	// on its domain, once it answers there over HTTPS: passkeys belong to the
+	// address they were made on, so the owner signs in there with the link and
+	// adds one (ADR 0063). It works once, for 15 minutes, and carries its token
+	// after the "#", which no server log or Referer keeps. It takes a passkey just
+	// now: call it without a proof first, then again with the proof from
+	// FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
+	// domain. It's on the activity log as sign_in_link.create.
+	CreatePanelSignInLink(context.Context, *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error)
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
@@ -103,6 +144,25 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(settingsServiceMethods.ByName("SetTimeZone")),
 			connect.WithClientOptions(opts...),
 		),
+		checkPanelDomain: connect.NewClient[v1.CheckPanelDomainRequest, v1.CheckPanelDomainResponse](
+			httpClient,
+			baseURL+SettingsServiceCheckPanelDomainProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("CheckPanelDomain")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		setPanelDomain: connect.NewClient[v1.SetPanelDomainRequest, v1.SetPanelDomainResponse](
+			httpClient,
+			baseURL+SettingsServiceSetPanelDomainProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("SetPanelDomain")),
+			connect.WithClientOptions(opts...),
+		),
+		createPanelSignInLink: connect.NewClient[v1.CreatePanelSignInLinkRequest, v1.CreatePanelSignInLinkResponse](
+			httpClient,
+			baseURL+SettingsServiceCreatePanelSignInLinkProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("CreatePanelSignInLink")),
+			connect.WithClientOptions(opts...),
+		),
 		getControlPlane: connect.NewClient[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse](
 			httpClient,
 			baseURL+SettingsServiceGetControlPlaneProcedure,
@@ -115,10 +175,13 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 
 // settingsServiceClient implements SettingsServiceClient.
 type settingsServiceClient struct {
-	getSettings     *connect.Client[v1.GetSettingsRequest, v1.GetSettingsResponse]
-	setInstallName  *connect.Client[v1.SetInstallNameRequest, v1.SetInstallNameResponse]
-	setTimeZone     *connect.Client[v1.SetTimeZoneRequest, v1.SetTimeZoneResponse]
-	getControlPlane *connect.Client[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse]
+	getSettings           *connect.Client[v1.GetSettingsRequest, v1.GetSettingsResponse]
+	setInstallName        *connect.Client[v1.SetInstallNameRequest, v1.SetInstallNameResponse]
+	setTimeZone           *connect.Client[v1.SetTimeZoneRequest, v1.SetTimeZoneResponse]
+	checkPanelDomain      *connect.Client[v1.CheckPanelDomainRequest, v1.CheckPanelDomainResponse]
+	setPanelDomain        *connect.Client[v1.SetPanelDomainRequest, v1.SetPanelDomainResponse]
+	createPanelSignInLink *connect.Client[v1.CreatePanelSignInLinkRequest, v1.CreatePanelSignInLinkResponse]
+	getControlPlane       *connect.Client[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse]
 }
 
 // GetSettings calls dockwell.v1.SettingsService.GetSettings.
@@ -134,6 +197,21 @@ func (c *settingsServiceClient) SetInstallName(ctx context.Context, req *connect
 // SetTimeZone calls dockwell.v1.SettingsService.SetTimeZone.
 func (c *settingsServiceClient) SetTimeZone(ctx context.Context, req *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error) {
 	return c.setTimeZone.CallUnary(ctx, req)
+}
+
+// CheckPanelDomain calls dockwell.v1.SettingsService.CheckPanelDomain.
+func (c *settingsServiceClient) CheckPanelDomain(ctx context.Context, req *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error) {
+	return c.checkPanelDomain.CallUnary(ctx, req)
+}
+
+// SetPanelDomain calls dockwell.v1.SettingsService.SetPanelDomain.
+func (c *settingsServiceClient) SetPanelDomain(ctx context.Context, req *connect.Request[v1.SetPanelDomainRequest]) (*connect.Response[v1.SetPanelDomainResponse], error) {
+	return c.setPanelDomain.CallUnary(ctx, req)
+}
+
+// CreatePanelSignInLink calls dockwell.v1.SettingsService.CreatePanelSignInLink.
+func (c *settingsServiceClient) CreatePanelSignInLink(ctx context.Context, req *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error) {
+	return c.createPanelSignInLink.CallUnary(ctx, req)
 }
 
 // GetControlPlane calls dockwell.v1.SettingsService.GetControlPlane.
@@ -155,6 +233,38 @@ type SettingsServiceHandler interface {
 	// it was made with, so this moves none. An empty zone clears it, and new
 	// schedules start in UTC again.
 	SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error)
+	// CheckPanelDomain checks a domain for the panel as it's typed, before it's
+	// set (ADR 0063): whether the panel can take it, by the rules --domain has
+	// and as no route serves it or a name under it; what its A and AAAA records
+	// hold, as the control plane resolves them, and whether they lead to this
+	// server's public addresses; and whether something other than Dockwell or its
+	// Caddy holds port 80 or 443 on the control server, which would stop a
+	// certificate. DNS that doesn't lead here yet is a warning, not a refusal: a
+	// person may set DNS and the domain in either order.
+	CheckPanelDomain(context.Context, *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error)
+	// SetPanelDomain sets the domain the panel is served on over HTTPS, or clears
+	// it (an empty domain), and restarts the control plane to serve it: the
+	// response goes out first, then it re-executes itself, so apps and websites
+	// keep running and the panel answers again within seconds, on loopback and
+	// the domain (ADR 0063). It takes the owner, signed in, and a passkey just
+	// now: call it without a proof first, and it refuses with the reason
+	// needs_step_up, then again with the proof from FinishStepUp for
+	// STEP_UP_ACTION_SET_PANEL_DOMAIN, whose target is the domain, or the one it
+	// clears. Refused while a
+	// change is applying, when dockwell run was given a domain with --domain or
+	// DOCKWELL_DOMAIN, for a name the panel can't take, and for a move from one
+	// domain to another, which comes later. It's on the activity log with the
+	// domain it replaced.
+	SetPanelDomain(context.Context, *connect.Request[v1.SetPanelDomainRequest]) (*connect.Response[v1.SetPanelDomainResponse], error)
+	// CreatePanelSignInLink makes the owner a one-time sign-in link to the panel
+	// on its domain, once it answers there over HTTPS: passkeys belong to the
+	// address they were made on, so the owner signs in there with the link and
+	// adds one (ADR 0063). It works once, for 15 minutes, and carries its token
+	// after the "#", which no server log or Referer keeps. It takes a passkey just
+	// now: call it without a proof first, then again with the proof from
+	// FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
+	// domain. It's on the activity log as sign_in_link.create.
+	CreatePanelSignInLink(context.Context, *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error)
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
@@ -191,6 +301,25 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(settingsServiceMethods.ByName("SetTimeZone")),
 		connect.WithHandlerOptions(opts...),
 	)
+	settingsServiceCheckPanelDomainHandler := connect.NewUnaryHandler(
+		SettingsServiceCheckPanelDomainProcedure,
+		svc.CheckPanelDomain,
+		connect.WithSchema(settingsServiceMethods.ByName("CheckPanelDomain")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	settingsServiceSetPanelDomainHandler := connect.NewUnaryHandler(
+		SettingsServiceSetPanelDomainProcedure,
+		svc.SetPanelDomain,
+		connect.WithSchema(settingsServiceMethods.ByName("SetPanelDomain")),
+		connect.WithHandlerOptions(opts...),
+	)
+	settingsServiceCreatePanelSignInLinkHandler := connect.NewUnaryHandler(
+		SettingsServiceCreatePanelSignInLinkProcedure,
+		svc.CreatePanelSignInLink,
+		connect.WithSchema(settingsServiceMethods.ByName("CreatePanelSignInLink")),
+		connect.WithHandlerOptions(opts...),
+	)
 	settingsServiceGetControlPlaneHandler := connect.NewUnaryHandler(
 		SettingsServiceGetControlPlaneProcedure,
 		svc.GetControlPlane,
@@ -206,6 +335,12 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 			settingsServiceSetInstallNameHandler.ServeHTTP(w, r)
 		case SettingsServiceSetTimeZoneProcedure:
 			settingsServiceSetTimeZoneHandler.ServeHTTP(w, r)
+		case SettingsServiceCheckPanelDomainProcedure:
+			settingsServiceCheckPanelDomainHandler.ServeHTTP(w, r)
+		case SettingsServiceSetPanelDomainProcedure:
+			settingsServiceSetPanelDomainHandler.ServeHTTP(w, r)
+		case SettingsServiceCreatePanelSignInLinkProcedure:
+			settingsServiceCreatePanelSignInLinkHandler.ServeHTTP(w, r)
 		case SettingsServiceGetControlPlaneProcedure:
 			settingsServiceGetControlPlaneHandler.ServeHTTP(w, r)
 		default:
@@ -227,6 +362,18 @@ func (UnimplementedSettingsServiceHandler) SetInstallName(context.Context, *conn
 
 func (UnimplementedSettingsServiceHandler) SetTimeZone(context.Context, *connect.Request[v1.SetTimeZoneRequest]) (*connect.Response[v1.SetTimeZoneResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetTimeZone is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) CheckPanelDomain(context.Context, *connect.Request[v1.CheckPanelDomainRequest]) (*connect.Response[v1.CheckPanelDomainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.CheckPanelDomain is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) SetPanelDomain(context.Context, *connect.Request[v1.SetPanelDomainRequest]) (*connect.Response[v1.SetPanelDomainResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetPanelDomain is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) CreatePanelSignInLink(context.Context, *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.CreatePanelSignInLink is not implemented"))
 }
 
 func (UnimplementedSettingsServiceHandler) GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error) {

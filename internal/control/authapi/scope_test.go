@@ -33,6 +33,39 @@ func placeable(md protoreflect.MessageDescriptor) bool {
 	return msg("change", "id") || str(md, "id") || str(md, "environment_id") || msg("resource", "scope") || msg("subject", "id") || str(md, "scope")
 }
 
+// A call of a project's whose request takes a project beside its id takes a name
+// in that id too, which the scope check reads as one only for a call idNames
+// lists: one it doesn't would name no place by name, and pass with nothing
+// checked, as OpenService once did.
+func TestEveryIDThatTakesANameIsReadAsOne(t *testing.T) {
+	checked := 0
+	protoregistry.GlobalFiles.RangeFilesByPackage("dockwell.v1", func(fd protoreflect.FileDescriptor) bool {
+		for i := range fd.Services().Len() {
+			sd := fd.Services().Get(i)
+			for j := range sd.Methods().Len() {
+				md := sd.Methods().Get(j)
+				procedure := "/" + string(sd.FullName()) + "/" + string(md.Name())
+				if roleRules[procedure].reach != dockwellv1.Reach_REACH_PROJECT {
+					continue
+				}
+				in := md.Input().Fields()
+				id, project := in.ByName("id"), in.ByName("project")
+				if id == nil || project == nil || id.Kind() != protoreflect.StringKind || id.IsList() {
+					continue
+				}
+				checked++
+				if idNames[procedure] == "" {
+					t.Errorf("%s takes a project beside its id, so its id may be a name, but idNames doesn't say what it names. Add it there", procedure)
+				}
+			}
+		}
+		return true
+	})
+	if checked < 5 {
+		t.Errorf("checked %d calls, which says the walk missed some", checked)
+	}
+}
+
 // Every list and stream of a project's objects holds what the filter can place,
 // so a project role's narrowed list leaves out only what isn't theirs, never all
 // of it, and a new list can't skip the filter by holding nothing it reads. This

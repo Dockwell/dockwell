@@ -18,6 +18,7 @@ import {
   Connection,
   DeploymentState,
   DomainCheckState,
+  EntrySchema,
   FieldOp,
   HealthState,
   ImageAnswer,
@@ -27,6 +28,7 @@ import {
   NetworkShape,
   Protocol,
   PublicAddressSource,
+  Reachable,
   Role,
   type RollBackServiceRequest,
   RollbackState,
@@ -287,7 +289,7 @@ describe("an app's frame", () => {
     expect(screen.queryByText("None set")).not.toBeInTheDocument();
     await router.navigate({ to: "/apps/$serviceId/environment", params: { serviceId: service.id } });
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
-    expect(screen.queryByText(/This app runs with only what its image sets/)).not.toBeInTheDocument();
+    expect(screen.queryByText("It runs with only what its image sets.")).not.toBeInTheDocument();
     // It reads the environment's variables once, to offer them to the app.
     await waitFor(() => expect(reads).toHaveBeenCalledOnce());
   });
@@ -1119,6 +1121,115 @@ describe("an app's overview", () => {
     });
   });
 
+  it("points a catalog app at its first domain in the same plan", async () => {
+    const user = userEvent.setup();
+    const ghost = anApp("ghost", "ghost:6.4", {}, {});
+    const asked: { summary: string; edits: unknown[] }[] = [];
+    const entry = create(EntrySchema, {
+      id: "ghost",
+      name: "Ghost",
+      version: "6.4",
+      addressVariables: [{ service: "ghost", variable: "url", value: "https://{domain}" }],
+    });
+    renderAt(
+      "/apps/svc_ghost",
+      api([ghost], {
+        services: { listServices: () => ({ services: [ghost] }), listServiceRevisions: () => ({ revisions }) },
+        domains: { listDomains: () => ({ domains: [] }) },
+        catalog: {
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                project: "ghost",
+                name: "Ghost",
+                pin: { entry: "ghost" },
+                webServiceId: "svc_ghost",
+                environmentId: ENV,
+              },
+            ],
+          }),
+          getCatalogEntry: () => ({ entry, project: "ghost" }),
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          proposeChange: (req) => {
+            asked.push({ summary: req.summary, edits: req.edits });
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to ghost" });
+    expect(await within(sheet).findByText("Points Ghost at it too: url")).toBeVisible();
+    await user.type(within(sheet).getByLabelText("Domain"), "blog.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.summary).toBe("Send blog.example.com to ghost, and point Ghost at it");
+    expect(asked[0]?.edits).toHaveLength(3);
+    expect(JSON.stringify(asked[0]?.edits.slice(1), (_, v) => (typeof v === "bigint" ? Number(v) : v))).toContain(
+      "https://blog.example.com",
+    );
+  });
+
+  it("leaves a catalog app's links alone when it has a domain already", async () => {
+    const user = userEvent.setup();
+    const ghost = anApp("ghost", "ghost:6.4", {}, {});
+    const asked: { summary: string; edits: unknown[] }[] = [];
+    const entry = create(EntrySchema, {
+      id: "ghost",
+      name: "Ghost",
+      version: "6.4",
+      addressVariables: [{ service: "ghost", variable: "url", value: "https://{domain}" }],
+    });
+    renderAt(
+      "/apps/svc_ghost",
+      api([ghost], {
+        services: { listServices: () => ({ services: [ghost] }), listServiceRevisions: () => ({ revisions }) },
+        domains: {
+          listDomains: () => ({
+            domains: [
+              { name: "blog.example.com", routes: [{ id: "res_1", name: "blog", service: "ghost", port: 2368 }] },
+            ],
+          }),
+        },
+        catalog: {
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                project: "ghost",
+                name: "Ghost",
+                pin: { entry: "ghost" },
+                webServiceId: "svc_ghost",
+                environmentId: ENV,
+              },
+            ],
+          }),
+          getCatalogEntry: () => ({ entry, project: "ghost" }),
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+          proposeChange: (req) => {
+            asked.push({ summary: req.summary, edits: req.edits });
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    // Once its domain is read, so the sheet knows it isn't the first.
+    await screen.findByText("blog.example.com");
+    await user.click(await screen.findByRole("button", { name: /Add a domain/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain to ghost" });
+    await user.type(within(sheet).getByLabelText("Domain"), "www.example.com");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(within(sheet).queryByText(/Points Ghost at it too/)).not.toBeInTheDocument();
+    expect(asked[0]?.summary).toBe("Send www.example.com to ghost");
+    expect(asked[0]?.edits).toHaveLength(1);
+  });
+
   it("offers a route with no certificate, for a tunnel or a proxy in front", async () => {
     const user = userEvent.setup();
     const alone = anApp("alone", "nginx:1.5", {}, {});
@@ -1152,6 +1263,10 @@ describe("an app's overview", () => {
     const field = within(sheet).getByLabelText("Domain");
     expect(within(sheet).queryByRole("group", { name: "What's in front" })).toBeNull();
     await user.type(field, "app.example.com");
+    // HTTPS is on, said in a line; what's in front is one step away.
+    const https = within(sheet).getByRole("button", { name: "HTTPS" });
+    expect(https).toHaveAccessibleDescription("On, with a certificate that comes by itself");
+    await user.click(https);
     await user.click(within(sheet).getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }));
     expect(field).toHaveAccessibleDescription("Point its DNS at your tunnel or proxy.");
     const front = within(sheet).getByRole("group", { name: "What's in front" });
@@ -1196,7 +1311,7 @@ describe("an app's overview", () => {
 
     // Answering anyone is explicit, in amber, and is what a private network needs.
     const anyone = within(front).getByRole("radio", { name: /Anyone who can reach this server/ });
-    expect(anyone.closest("label")).toHaveTextContent(/private network.*gets a 404/);
+    expect(anyone.closest("label")).toHaveTextContent("For a private network with nothing in front.");
     await user.click(anyone);
     expect(front).toHaveTextContent(/around whatever is in front\. You approve this in the plan/);
     expect(await review()).toMatchObject({ tls: "off", plainForAnyone: true });
@@ -1663,8 +1778,8 @@ describe("an app's overview", () => {
       expect(row).toHaveTextContent("Expired");
       expect(row).not.toHaveTextContent("Valid");
       expect(row).toHaveClass("is-failed");
-      expect(row).toHaveTextContent(/ran out .* so browsers refuse this domain\. Dockwell renews it by itself\./);
-      expect(within(row).getByRole("link", { name: "check its page" })).toHaveAttribute("href", "/servers/srv_1");
+      expect(row).toHaveTextContent(/ran out .* so browsers refuse it\./);
+      expect(within(row).getByRole("link", { name: "Check its page" })).toHaveAttribute("href", "/servers/srv_1");
       expect(within(row).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
     });
 
@@ -1730,7 +1845,7 @@ describe("an app's overview", () => {
         });
         const row = (await within(running).findByText("app.example.com")).closest("li") as HTMLElement;
         expect(row).toHaveTextContent("No server");
-        expect(row).toHaveTextContent(/nothing answers for it\. Remove it/);
+        expect(row).toHaveTextContent("No server runs this any more: remove it, or place it on a server.");
         expect(row).not.toHaveTextContent("Issuing");
         await act(() => vi.advanceTimersByTimeAsync(61_000));
         const settled = reads;
@@ -2392,18 +2507,31 @@ describe("an app's overview", () => {
             state,
             found: state === DomainCheckState.POINTS_HERE ? ["203.0.113.50"] : [],
           }));
-          const row = sheet.querySelector(".domain-record-row");
+          const row = sheet.querySelector(".dw-dns-row");
           expect(row).toHaveTextContent("Aapp.example.com203.0.113.50");
           expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.50" })).toBeVisible();
-          expect(await within(sheet).findByText("Waiting for DNS")).toBeVisible();
-          expect(sheet).toHaveTextContent("the VCN's security list, or a network security group in its place");
-          expect(sheet).toHaveTextContent("insert the rule before the REJECT one with iptables -I");
+          expect(await within(sheet).findByText("Not set yet")).toBeVisible();
+          expect(within(sheet).getByRole("button", { name: "Check again" })).toBeVisible();
+          // Oracle's firewalls aren't said while nothing shows the internet can't reach the server.
+          expect(sheet).not.toHaveTextContent("the VCN's security list");
           state = DomainCheckState.POINTS_HERE;
           await vi.advanceTimersByTimeAsync(5500);
-          expect(await within(sheet).findByText("DNS has this record")).toBeVisible();
+          expect(await within(sheet).findByText("Points here")).toBeVisible();
+          expect(within(sheet).queryByRole("button", { name: "Check again" })).toBeNull();
         } finally {
           vi.useRealTimers();
         }
+      });
+
+      it("says how to open the provider's firewalls only once the internet can't reach the server", async () => {
+        const { sheet } = await open({ ...cloud, reachable: Reachable.NO }, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+        }));
+        expect(sheet).toHaveTextContent("The internet can't reach hz-1 on ports 80 and 443.");
+        const how = within(sheet).getByText("How to open it");
+        expect(how.closest("details")).not.toHaveAttribute("open");
+        expect(how.closest("details")).toHaveTextContent("insert the rule before the REJECT one with iptables -I");
       });
 
       it("says a record on Cloudflare's proxy blocks the certificate, and how to go on", async () => {
@@ -2414,8 +2542,8 @@ describe("an app's overview", () => {
           proxied: true,
         }));
         expect(
-          await within(sheet).findByText(/points at Cloudflare's proxy, which can block the certificate check/),
-        ).toHaveTextContent('Turn on "A tunnel or a proxy in front handles HTTPS", or set the record to DNS only.');
+          (await within(sheet).findByText(/points at Cloudflare's proxy/)).closest(".dw-callout"),
+        ).toHaveTextContent('Set the record to DNS only, or turn on "A tunnel or a proxy in front handles HTTPS".');
       });
 
       it("leads with a tunnel on a home network, with the router's record second", async () => {
@@ -2428,10 +2556,10 @@ describe("an app's overview", () => {
         );
         const tunnel = within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" });
         expect(tunnel).toHaveAttribute("href", "/catalog/cloudflared");
-        expect(sheet).toHaveTextContent("Recommended. It needs no public address and no forwarded port.");
+        expect(sheet).toHaveTextContent("a tunnel reaches it with nothing forwarded");
         expect(sheet).toHaveTextContent("Or forward ports 80 and 443 on your router");
-        expect(sheet.querySelector(".domain-record-row")).toHaveTextContent("203.0.113.7");
-        expect(sheet).toHaveTextContent("That's your router's address");
+        expect(sheet.querySelector(".dw-dns-row")).toHaveTextContent("203.0.113.7");
+        expect(sheet).toHaveTextContent("Your router's address");
       });
 
       it("shows a way out on a cloud as a record to check, and each family's record", async () => {
@@ -2444,15 +2572,15 @@ describe("an app's overview", () => {
           },
           () => ({ domain: "app.example.com", state: DomainCheckState.NO_RECORD }),
         );
-        const rows = sheet.querySelectorAll(".domain-record-row");
+        const rows = sheet.querySelectorAll(".dw-dns-row");
         expect(rows[0]).toHaveTextContent("Aapp.example.com203.0.113.7");
         expect(rows[1]).toHaveTextContent("AAAAapp.example.com2001:db8::5");
         expect(sheet).toHaveTextContent("Make these records at your DNS provider.");
         expect(sheet).toHaveTextContent(
-          "That's how this server reaches the internet, which may not be its way in. Check it against Azure's console.",
+          "That's its way out, which may not be its way in: check it in Azure's console.",
         );
         // Each row says whether DNS has its own record.
-        expect(await within(sheet).findAllByText("Waiting for DNS")).toHaveLength(2);
+        expect(await within(sheet).findAllByText("Not set yet")).toHaveLength(2);
       });
 
       it("says of each record whether DNS has it, as an A record says nothing of an AAAA one", async () => {
@@ -2465,9 +2593,9 @@ describe("an app's overview", () => {
           },
           () => ({ domain: "app.example.com", state: DomainCheckState.POINTS_HERE, found: ["203.0.113.50"] }),
         );
-        expect(await within(sheet).findByText("DNS has this record")).toBeVisible();
-        expect(within(sheet).getAllByText("DNS has this record")).toHaveLength(1);
-        expect(within(sheet).getByText("Waiting for DNS")).toBeVisible();
+        expect(await within(sheet).findByText("Points here")).toBeVisible();
+        expect(within(sheet).getAllByText("Points here")).toHaveLength(1);
+        expect(within(sheet).getByText("Not set yet")).toBeVisible();
       });
 
       it("reads DNS again until it has every record, not just the first", async () => {
@@ -2483,10 +2611,10 @@ describe("an app's overview", () => {
             },
             () => ({ domain: "app.example.com", state: DomainCheckState.POINTS_HERE, found }),
           );
-          expect(await within(sheet).findByText("Waiting for DNS")).toBeVisible();
+          expect(await within(sheet).findByText("Not set yet")).toBeVisible();
           found = ["203.0.113.50", "2001:db8::5"];
           await vi.advanceTimersByTimeAsync(5500);
-          await waitFor(() => expect(within(sheet).getAllByText("DNS has this record")).toHaveLength(2));
+          await waitFor(() => expect(within(sheet).getAllByText("Points here")).toHaveLength(2));
         } finally {
           vi.useRealTimers();
         }
@@ -2503,32 +2631,38 @@ describe("an app's overview", () => {
           "192.168.1.20",
         );
         expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
-        expect(sheet).toHaveTextContent("Or make this record, as this server has a public IPv6 address of its own.");
+        expect(sheet).toHaveTextContent("Or make this record for its own IPv6 address");
         expect(sheet).toHaveTextContent(
           "Or forward ports 80 and 443 on your router to this server, at 192.168.1.20, and make this record.",
         );
-        const rows = sheet.querySelectorAll(".domain-record-row");
+        const rows = sheet.querySelectorAll(".dw-dns-row");
         expect(rows[0]).toHaveTextContent("AAAAapp.example.com2001:db8::5");
         expect(rows[1]).toHaveTextContent("Aapp.example.com203.0.113.7");
         expect(sheet).not.toHaveTextContent("Make these records");
         expect(sheet).not.toHaveTextContent("may not be its way in");
-        expect(sheet).toHaveTextContent("Its certificate comes by itself once the domain reaches this server");
+        expect(sheet).toHaveTextContent("Its certificate comes by itself once its DNS points here.");
       });
 
       it("offers only a tunnel behind carrier NAT", async () => {
         const { sheet } = await open({ shape: NetworkShape.CARRIER_NAT }, () => ({ domain: "app.example.com" }));
         expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
-        expect(sheet).toHaveTextContent("neither can a forwarded port");
-        expect(sheet.querySelector(".domain-record-row")).toBeNull();
+        expect(sheet).toHaveTextContent("This server is behind carrier NAT");
+        expect(sheet).toHaveTextContent("Only a tunnel reaches it.");
+        expect(sheet.querySelector(".dw-dns-row")).toBeNull();
       });
 
       it("says where the address is with none known, and offers a tunnel once the form's switch says so", async () => {
         const { user, sheet } = await open({ provider: CloudProvider.ORACLE, shape: NetworkShape.CLOUD_NAT }, () => ({
           domain: "app.example.com",
         }));
-        expect(sheet).toHaveTextContent("Oracle Cloud's console shows it");
+        expect(sheet).toHaveTextContent("which Oracle Cloud's console shows");
+        expect(within(sheet).getByRole("link", { name: "Set it on the server" })).toHaveAttribute(
+          "href",
+          expect.stringMatching(/\/servers\/.*#network$/),
+        );
         // The form's own switch is the one question, with no second control asking it again.
         expect(within(sheet).queryByRole("radio", { name: "Through a tunnel or a proxy" })).toBeNull();
+        await user.click(within(sheet).getByRole("button", { name: "HTTPS" }));
         await user.click(within(sheet).getByRole("switch", { name: /A tunnel or a proxy in front handles HTTPS/ }));
         expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
       });
@@ -3361,7 +3495,10 @@ describe("an app's overview", () => {
     await waitFor(() => expect(file).toHaveTextContent("web: {}"));
     expect(sheet).toHaveTextContent("Left out as they may hold secrets");
     expect(sheet).toHaveTextContent("web.API_KEY");
-    expect(within(sheet).getByRole("button", { name: "Save an .env to fill in" })).toBeVisible();
+    // An .env's lines, copied: a browser saves a download called .env as env.txt.
+    await user.click(within(sheet).getByRole("button", { name: "Copy as .env" }));
+    expect(await within(sheet).findByRole("button", { name: "Copied as .env" })).toBeVisible();
+    expect(await navigator.clipboard.readText()).toBe("API_KEY=\n");
     expect(asked[0]).toEqual(expect.objectContaining({ service: "web", environment: "env_prod" }));
     await expectAccessible(document.body);
     await user.click(within(sheet).getByRole("radio", { name: "Its whole project" }));

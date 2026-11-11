@@ -29,17 +29,13 @@ source:
   path: internal/catalog/entries/openlist.yaml
 web:
   service: openlist
-firstSteps: >-
-  OpenList answers only on this server until you add a domain, as its first visitor
-  makes the admin account. Make yours first through a tunnel: ssh -N -L
-  5244:127.0.0.1:5244 you@your-server, then open http://localhost:5244. Add a domain on
-  its page only after that. Add storage at /@manage, and turn off guest access there if
-  your files are private. Leave OPENLIST_ADMIN_PASSWORD unset: OpenList prints it in its
-  log.
+firstVisitorOwns: true
+notes:
+  - "Add storage at /@manage, where guest access stays off until you turn it on."
+  - "Leave OPENLIST_ADMIN_PASSWORD unset: OpenList prints it in its log."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "5244"
 compose: |

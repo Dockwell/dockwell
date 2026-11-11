@@ -103,6 +103,64 @@ func TestPlanView(t *testing.T) {
 
 // A person reading a plan learns that it takes the server's public ports, and
 // what DNS says, in words.
+// A jail bans whoever keeps failing to sign in, the person applying it too, so
+// its plan says so; stopping one says nothing of bans.
+func TestAJailsPlanSaysItCanBanYou(t *testing.T) {
+	jail := &dockwellv1.ResourceRef{Kind: "fail2ban.jail", Name: "sshd"}
+	plan := func(action dockwellv1.PlanAction) string {
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{
+			ServerId: "srv_1", ServerName: "hz-1",
+			Steps: []*dockwellv1.PlanStep{{ResourceId: "res_1", Resource: jail, Action: action}},
+		}}})
+		return buf.String()
+	}
+	const says = "      Can ban any address that keeps failing to sign in on hz-1, yours included, counting failures from just before this applies. It never bans the server itself or the control server.\n"
+	if got := plan(dockwellv1.PlanAction_PLAN_ACTION_CREATE); !strings.Contains(got, says) {
+		t.Errorf("a new jail's plan:\n%s", got)
+	}
+	if got := plan(dockwellv1.PlanAction_PLAN_ACTION_DELETE); strings.Contains(got, "Can ban") {
+		t.Errorf("stopping a jail says it bans:\n%s", got)
+	}
+}
+
+// A jail's plan names whom it never bans, which address signed in over SSH it
+// could ban as it applies, and that undo lifts no ban.
+func TestAJailsPlanNamesWhomItCouldBan(t *testing.T) {
+	const lifting = "Undoing this, or removing the jail, doesn't lift a ban already made"
+	for name, c := range map[string]struct {
+		jail *dockwellv1.JailPlan
+		want []string
+	}{
+		"nobody signed in is left out": {
+			&dockwellv1.JailPlan{NeverBans: []string{"127.0.0.1/8", "::1", "203.0.113.7/32"}},
+			[]string{"Never bans 127.0.0.1/8, ::1, 203.0.113.7/32 on hz-1.", lifting},
+		},
+		"someone signed in could be banned": {
+			&dockwellv1.JailPlan{NeverBans: []string{"127.0.0.1/8", "::1"}, SignedInNotIgnored: []string{"203.0.113.7"}},
+			[]string{"Can ban 203.0.113.7, signed in to hz-1 over SSH now, as this applies", lifting},
+		},
+		"it ignores everyone": {
+			&dockwellv1.JailPlan{NeverBans: []string{"0.0.0.0/0"}, IgnoresEverything: true},
+			[]string{"Ignores every address on hz-1, so it bans nobody"},
+		},
+	} {
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{
+			ServerId: "srv_1", ServerName: "hz-1",
+			Steps: []*dockwellv1.PlanStep{{
+				ResourceId: "res_1", Resource: &dockwellv1.ResourceRef{Kind: "fail2ban.jail", Name: "sshd"},
+				Action: dockwellv1.PlanAction_PLAN_ACTION_CREATE, Jail: c.jail,
+			}},
+		}}})
+		for _, want := range c.want {
+			if !strings.Contains(buf.String(), want) {
+				t.Errorf("%s: the plan doesn't say %q:\n%s", name, want, buf.String())
+			}
+		}
+	}
+}
+
 func TestARoutesPlanSaysWhatItDoesToTheServer(t *testing.T) {
 	route := &dockwellv1.ResourceRef{Kind: "route", Name: "www"}
 	plan := &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{ServerName: "hz-1", Steps: []*dockwellv1.PlanStep{{

@@ -23,7 +23,7 @@ screenshots:
     source: https://about.gitea.com/img/home-screenshot-2.png
 category: developer tools
 version: "28.2.0"
-release: 2
+release: 3
 homepage: https://about.gitea.com
 license: AGPL-3.0-only
 appLicense: MIT
@@ -32,31 +32,29 @@ source:
   path: internal/catalog/entries/gitea.yaml
 web:
   service: gitea
-firstSteps: >-
-  Gitea answers only on this server until you add a domain, as the first account
-  registered on it is its admin. So register yours first, through an SSH tunnel from
-  your computer: ssh -N -L 3000:127.0.0.1:3000 you@your-server, using the port you
-  gave it, then open http://localhost:3000. Then set
-  GITEA__service__DISABLE_REGISTRATION to true on the gitea service, so no one else
-  can. Add a domain on its page only after that, over HTTPS or behind your tunnel, as
-  a new domain's certificate shows in public logs within minutes, and set
-  GITEA__server__ROOT_URL on the gitea service to it, so clone links use it. Git over
-  SSH answers on this server's SSH port too, and to push from elsewhere, publish that
-  port on every address on its page. Leave the SECRET_KEY secret as it is: Gitea
-  encrypts two-factor secrets and the passwords of mirrors with it, and can't read
-  them with another.
+firstVisitorOwns: true
+signups:
+  service: gitea
+  variable: GITEA__service__DISABLE_REGISTRATION
+  closed: "true"
+addressVariables:
+  - service: gitea
+    variable: GITEA__server__ROOT_URL
+    value: "https://{domain}/"
+notes:
+  - "Git over SSH answers on its SSH port, on this server alone."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "3000"
   - name: SSH_PORT
     label: SSH port
-    hint: Git over SSH answers on this port of this server, as the server's own SSH has 22.
+    hint: "Git over SSH, beside the server's own on 22."
     type: INPUT_TYPE_PORT
     defaultValue: "2222"
   - name: SECRET_KEY
+    setOnce: true
     label: Secret key
     type: INPUT_TYPE_SECRET
     generate: 64

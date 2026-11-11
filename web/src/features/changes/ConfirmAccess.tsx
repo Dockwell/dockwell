@@ -130,9 +130,11 @@ export function ConfirmAccess({
         <p className="plan-confirm-error" role="alert">
           {reasonOf(error) === "not_yours"
             ? t`Only the person who applied this change can keep it, from where they applied it.`
-            : reasonOf(error) === "not_waiting"
-              ? t`That wait is over: this sheet shows whether the server kept the change.`
-              : sentence(error)}
+            : reasonOf(error) === "not_kept"
+              ? t`The server couldn't keep it yet, so it still waits. Keep it again.`
+              : reasonOf(error) === "not_waiting"
+                ? t`That wait is over: this sheet shows whether the server kept the change.`
+                : sentence(error)}
         </p>
       ) : null}
     </Callout>

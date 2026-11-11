@@ -30,6 +30,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
@@ -132,13 +133,19 @@ type Engine struct {
 	detector Detector
 	// roles has a person's change without a caller in its context refused
 	// (RequireRoles).
-	roles  bool
-	db     *store.DB
-	kinds  *resource.Registry
-	agents Agents
-	sealer Sealer
-	logger *slog.Logger
-	now    func() time.Time
+	roles bool
+	// features says what a service's database last said of the features its data
+	// uses, by the service's ID, or nothing.
+	features func(serviceID string) string
+	db       *store.DB
+	kinds    *resource.Registry
+	agents   Agents
+	sealer   Sealer
+	logger   *slog.Logger
+	now      func() time.Time
+	// fills holds, for each server, a *sync.Mutex its fills take turns on, so
+	// one never reads what an agent holds while another is changing it.
+	fills sync.Map
 	// mu makes commits take turns: checking again that nothing moved since
 	// the plan, and committing the revisions, happen together. Planning
 	// asks agents, so it happens outside mu, and so do the steps: a slow
@@ -294,6 +301,9 @@ type Proposal struct {
 	Unpinned *Proposal
 	// Intent is what it is for, when the method that proposed it knows.
 	Intent *Intent
+	// SkipBackup leaves out the backup a database's move to a release it can't come
+	// back from takes first (ADR 0038).
+	SkipBackup bool
 }
 
 // Place is where a plan's resources live, as far as anyone has a choice: Project
@@ -656,6 +666,22 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err != nil {
 		return nil, err
 	}
+	// Before the check of roles, so that covers a volume this adds to back up, and
+	// before planning, which pulls what the servers don't have: a move that skips
+	// a release is refused without one. A move that raises a database's features
+	// backs up its volume first, unless the proposal says not to.
+	moves, backUp, err := databaseMoves(items, p.SkipBackup, e.features)
+	if err != nil {
+		return nil, err
+	}
+	if len(backUp) > 0 {
+		if p.Edits, err = e.withBackups(ctx, p.Edits, backUp); err != nil {
+			return nil, err
+		}
+		if items, err = e.items(ctx, p.Edits, rotate); err != nil {
+			return nil, err
+		}
+	}
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {
 			return err
@@ -697,6 +723,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.checkRestores(ctx, plan, items); err != nil {
 		return nil, err
 	}
+	// A caller that backs up first, or was asked not to, says so once for the plan.
+	moves = slices.DeleteFunc(moves, func(n Note) bool {
+		return (n.Reason == "backup_first" || n.Reason == "no_backup") && slices.ContainsFunc(p.Notes, func(m Note) bool { return m.Reason == n.Reason })
+	})
+	p.Notes = append(p.Notes, moves...)
 	if p.Unpinned != nil && plan.imageGone() {
 		return e.propose(ctx, *p.Unpinned, reverts, rotate)
 	}
@@ -2357,10 +2388,12 @@ func (e *Engine) writtenAs(kind resource.Kind, spec proto.Message, list []resour
 		return
 	}
 	writer, detail, user := docker.Repository(images.ImageOf(spec)), "", ""
-	// A service that builds its image is named by its code, which its image's
-	// repository, one for each service, doesn't say (ADR 0046).
+	// A service that builds its image, or runs from a folder, is named by its code,
+	// which its image's repository doesn't say (ADR 0046, ADR 0058).
 	if w, ok := t.(resource.WriterNamer); ok {
-		writer = w.WriterOf(spec)
+		if named := w.WriterOf(spec); named != "" {
+			writer = named
+		}
 	}
 	switch as, name := docker.UserRunsAs(users.UserOf(spec)); as {
 	case docker.RunsAsOther:
@@ -4275,6 +4308,117 @@ func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restore: &source}}}, reverts, false)
 }
 
+// FeaturesFrom says where a plan finds what a database last said of the features its
+// data uses, by its service's ID, so a move back can say whether it will go.
+func (e *Engine) FeaturesFrom(fn func(serviceID string) string) { e.features = fn }
+
+// databaseMoves are a plan's notes on the databases it moves from one release to
+// another, the volumes to back up first, or why it's refused: MongoDB moves one
+// major release at a time, raises the features its data may use first, which the
+// release before can't run, so its volume is backed up first unless skip says not
+// to, and moves back only while its data uses nothing newer, which features says
+// where a reading did (ADR 0038).
+func databaseMoves(items []item, skip bool, features func(serviceID string) string) ([]Note, []resource.Ref, error) {
+	var notes []Note
+	var backUp []resource.Ref
+	for i := range items {
+		it := &items[i]
+		current, ok := it.current.(*resourcev1.Service)
+		if !ok {
+			continue
+		}
+		desired, ok := it.spec.(*resourcev1.Service)
+		if !ok {
+			continue
+		}
+		move, err := database.MoveOf(it.ref.Name, current, desired)
+		if err != nil {
+			return nil, nil, fault.New(ErrInvalid, "%w", err)
+		}
+		switch {
+		case move == nil:
+			continue
+		case move.Lowers:
+			fcv := ""
+			if features != nil && it.id != "" {
+				fcv = features(it.id)
+			}
+			n := Note{
+				Reason: "lowers_release", Ref: it.ref, Names: []string{move.From, move.To}, Named: true, IfItChanges: true,
+				Message: fmt.Sprintf("%s moves back to %s %s only while its data uses no newer features. Before it moves, Dockwell asks it, and stops there, with nothing changed, if %s can't run them. "+
+					"Lower its feature compatibility version to %s first if it's higher", it.ref.Name, move.Engine.Name, move.To, move.To, move.To),
+			}
+			if database.Above(fcv, move.To) {
+				n.Names = append(n.Names, fcv)
+				n.Message = fmt.Sprintf("%s's last reading says its data uses %s %s's features, which %s can't run, so applying this stops before it moves, with nothing changed. "+
+					"Lower its feature compatibility version to %s first, with setFeatureCompatibilityVersion and confirm: true", it.ref.Name, move.Engine.Name, fcv, move.To, move.To)
+			}
+			notes = append(notes, n)
+			continue
+		}
+		// A tag that names a major alone runs its newest release, which the agent asks.
+		from := move.From
+		if !strings.Contains(from, ".") {
+			from += ".x"
+		}
+		notes = append(notes, Note{
+			Reason: "raises_features", Ref: it.ref, Names: []string{from, move.To}, Named: true, IfItChanges: true,
+			Message: fmt.Sprintf("Before %s moves to %s %s, its feature compatibility version goes up to the release it runs, %s, where it's lower, so its data may use that release's features. "+
+				"Undoing this puts back %s, which still runs that data; the release before it can't.", it.ref.Name, move.Engine.Name, move.To, from, from),
+		})
+		found, _ := database.FromSpec(desired)
+		switch {
+		case skip:
+			notes = append(notes, Note{
+				Reason: "no_backup", Ref: it.ref, IfItChanges: true,
+				Message: fmt.Sprintf("This move takes no backup of %s first, as you asked. Back up what you can't lose before it", it.ref.Name),
+			})
+		case found.Volume == "" || found.External:
+			notes = append(notes, Note{
+				Reason: "unbacked_move", Ref: it.ref, Named: true, IfItChanges: true,
+				Message: fmt.Sprintf("%s's data isn't in a volume Dockwell made, so Dockwell can't back it up first. Undoing this puts the old release back, not what the new one changed in its data. "+
+					"Back it up yourself before you apply this", it.ref.Name),
+			})
+		default:
+			backUp = append(backUp, resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: found.Volume})
+			notes = append(notes, Note{
+				Reason: "backup_first", Ref: it.ref, IfItChanges: true,
+				Message: fmt.Sprintf("Dockwell backs up %s's volume %s before it changes anything. If the backup fails, the move stops there, with nothing else done", it.ref.Name, found.Volume),
+			})
+		}
+	}
+	return notes, backUp, nil
+}
+
+// volumeKind is the volumes' kind, which a backup is of (volume.Kind, which this
+// package doesn't import).
+const volumeKind resource.Kind = "volume"
+
+// withBackups marks each volume to back up first in edits, adding an edit that
+// keeps a volume as it is where the proposal doesn't name it.
+func (e *Engine) withBackups(ctx context.Context, edits []Edit, refs []resource.Ref) ([]Edit, error) {
+	out := slices.Clone(edits)
+	for _, ref := range refs {
+		if j := slices.IndexFunc(out, func(ed Edit) bool { return ed.Ref == ref }); j >= 0 {
+			out[j].Backup = true
+			continue
+		}
+		var it item
+		if err := e.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			it, err = e.load(ctx, tx, ref)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		if it.current == nil {
+			continue
+		}
+		out = append(out, Edit{Ref: ref, Spec: it.current, Backup: true})
+	}
+	return out, nil
+}
+
 // checkRestores refuses a plan without the step it was made for: an agent from
 // before backups ignores a restore or a backup, and would read as having nothing to do.
 func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) error {
@@ -4367,11 +4511,15 @@ func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q)
 	return append(out, after...)
 }
 
-// TouchesAccess says whether a plan changes who reaches a server: it has a step
-// of a kind under the firewall's timer, so it waits for a confirmation, and
-// takes a person and a passkey to apply.
+// TouchesAccess says whether a plan changes who reaches a server, or who gets
+// onto it: it has a step of a kind under the firewall's timer, or of one that
+// decides who gets in, as a fail2ban jail does, so it takes a person and a
+// passkey to apply (ADR 0052).
 func (e *Engine) TouchesAccess(p *Plan) bool {
-	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.guardsAccess(r.Ref.Kind) })
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		t, err := e.kinds.Type(r.Ref.Kind)
+		return err == nil && resource.TakesAPerson(t)
+	})
 }
 
 // AccessConfirmer is an agent that can keep a change to its server's firewall
@@ -4806,12 +4954,14 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 	for i, r := range resources {
 		// Agents normalize what they observe, so only real differences
 		// are unequal.
-		if resource.Equal(desired[i], observed[i]) {
+		// What only the control plane keeps, the server never had.
+		want := e.kinds.OnServer(refs[i].Kind, desired[i])
+		if resource.Equal(want, observed[i]) {
 			continue
 		}
 		d := Drift{ID: r.ID, Ref: refs[i], Server: server, Revision: r.Revision, Observed: observed[i], Missing: observed[i] == nil}
 		if !d.Missing {
-			d.Changes = resource.Diff(desired[i], observed[i])
+			d.Changes = resource.Diff(want, observed[i])
 		}
 		out = append(out, d)
 	}
@@ -4840,9 +4990,19 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	if err := e.checkSameElsewhere(ctx, d); err != nil {
 		return nil, err
 	}
+	var it item
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		it, err = e.load(ctx, tx, d.Ref)
+		return err
+	}); err != nil {
+		return nil, err
+	}
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
-	// What the server runs already, so nothing restarts.
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: d.Observed, Observed: true}}}, "", false)
+	// What the server runs already, so nothing restarts, with what only the control
+	// plane keeps put back where it still holds.
+	kept := e.kinds.Readopted(d.Ref.Kind, it.current, d.Observed)
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: kept, Observed: true}}}, "", false)
 }
 
 // checkSameElsewhere refuses keeping what one server has of a kind that keeps

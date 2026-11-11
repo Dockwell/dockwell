@@ -129,7 +129,8 @@ func (h *Handler) RunDue(ctx context.Context) error {
 	for i := range runs {
 		h.start(ctx, runs[i])
 	}
-	return nil
+	// Restore drills fall due by their own schedule, and take no turn (ADR 0068).
+	return h.runDrillsDue(ctx)
 }
 
 // isDue reports a policy that's due on a server, and has no run going there.
@@ -224,9 +225,15 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 	}
 	var all []store.Backup
 	var f *rowFacts
+	var drilled map[string]bool
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if all, err = tx.ListBackups(ctx, store.BackupFilter{PolicyID: b.PolicyID, ServerID: b.ServerID}); err != nil {
+			return err
+		}
+		// Retention keeps a backup a restore drill is checking, as it keeps one a
+		// restore names (ADR 0068).
+		if drilled, err = drillsRunning(ctx, tx); err != nil {
 			return err
 		}
 		f, err = h.facts(ctx, tx)
@@ -247,7 +254,7 @@ func (h *Handler) prune(ctx context.Context, s *agentapi.Session, b store.Backup
 			continue
 		case old.State == store.BackupFailed && kept < keep:
 			continue
-		case restoring[old.ID]:
+		case restoring[old.ID], drilled[old.ID]:
 			continue
 		}
 		if old.State == store.BackupDone {

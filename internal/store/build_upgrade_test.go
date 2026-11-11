@@ -15,14 +15,14 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
-// Version 28 is the newest before builds, and keeps scheduled tasks' runs.
+// Version 32 is the newest before builds, and keeps scheduled tasks' runs.
 // Builds must upgrade that database without replacing its history, and keep
 // their own logs and detection.
 func TestBuildMigrationsKeepTaskRuns(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		ctx := t.Context()
 		location := storetest.New(t, backend)
-		old, err := store.OpenAt(ctx, location, 28)
+		old, err := store.OpenAt(ctx, location, 32)
 		if err != nil {
 			t.Fatal(err)
 		}

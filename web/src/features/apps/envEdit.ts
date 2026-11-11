@@ -9,6 +9,7 @@ import {
 } from "@dockwell/api";
 
 import { environmentOf, type ServiceValue, valuesOf } from "./app";
+import { runtimeEnv } from "./runtime";
 
 /**
  * One edit to an app's environment, not yet planned, by the name the app sees
@@ -33,6 +34,8 @@ export interface EnvRow {
   pending?: EnvEdit;
   /** Its environment's variable or secret, as listed, when there is one. */
   stored?: EnvironmentVariable;
+  /** A nonsecret default supplied by its runtime, rather than a stored variable. */
+  runtimeValue?: string;
 }
 
 /** What the editor shows: the app's values and what's pending, by name. */
@@ -43,11 +46,13 @@ export function envRows(
 ): EnvRow[] {
   const find = (name: string, secret: boolean) => store?.find((v) => v.name === name && v.secret === secret);
   const rows = new Map<string, EnvRow>();
-  for (const now of valuesOf(service)) {
+  const defaults = runtimeEnv(service);
+  for (const now of valuesOf(service, new Set(defaults.keys()))) {
     rows.set(now.name, {
       name: now.name,
       now,
-      stored: now.kind === "own" ? undefined : find(now.from, now.kind === "secret"),
+      stored: now.kind === "variable" || now.kind === "secret" ? find(now.from, now.kind === "secret") : undefined,
+      runtimeValue: now.kind === "runtime" ? defaults.get(now.name) : undefined,
     });
   }
   for (const [name, edit] of pending) {
@@ -135,14 +140,14 @@ export function envEdits(
         break;
       case "change":
         if (!was) break;
-        if (was.kind === "own") {
+        if (was.kind === "own" || was.kind === "runtime") {
           own[name] = edit.value;
           touched = true;
         } else edits.push(valueEdit(was.kind, scope, was.from, edit.value));
         break;
       case "remove":
         if (!was) break;
-        if (was.kind === "own") dropped.add(name);
+        if (was.kind === "own" || was.kind === "runtime") dropped.add(name);
         else delete (was.kind === "secret" ? spec.secrets : spec.variables)[name];
         touched = true;
         break;

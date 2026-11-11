@@ -36,9 +36,11 @@ var agentPackages = []string{
 	"internal/agent",
 	"internal/agent/access", // who reaches the server, under the firewall's timer (ADR 0052)
 	"internal/agent/collect",
+	"internal/agent/desired", // what the server should run, kept sealed (ADR 0054)
 	"internal/agent/enroll",
 	"internal/agent/files",      // a server's files, for a person (ADR 0032)
 	"internal/agent/hosttool",   // running the server's own tools, such as ufw and nft (ADR 0043, ADR 0052)
+	"internal/agent/jails",      // fail2ban's jails Dockwell writes (ADR 0052)
 	"internal/agent/logs",       // reading logs, and keeping those of removed containers (ADR 0025)
 	"internal/agent/nftables",   // Dockwell's own nftables table, written with nft (ADR 0052)
 	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
@@ -72,6 +74,7 @@ var agentPackages = []string{
 	"internal/resource",
 	"internal/resource/binding",   // a service's environment and label, from what it uses
 	"internal/resource/container", // the Docker driver's kinds
+	"internal/resource/fail2ban",  // fail2ban's jails, on every server (ADR 0052)
 	"internal/resource/firewall",  // firewall rules and the policy, on every server (ADR 0052)
 	"internal/resource/network",
 	"internal/resource/resourcepb",

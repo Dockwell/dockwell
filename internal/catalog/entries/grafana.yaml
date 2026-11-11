@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/grafana/grafana/905a2379d5e165f3240846c25d9a679b23d9f51f/public/img/dashboard-library/dashboard_library_1.jpg
 category: monitoring
 version: "13.2.4"
-release: 2
+release: 3
 homepage: https://grafana.com/oss/grafana/
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only
@@ -29,28 +29,22 @@ source:
   path: internal/catalog/entries/grafana.yaml
 web:
   service: grafana
-firstSteps: >-
-  Grafana answers only on this server until you add a domain, as it signs in over
-  plain HTTP. Add a domain on its page, over HTTPS or behind your tunnel, and open it
-  there. To open it before that, use an SSH tunnel from your computer: ssh -N -L
-  3000:127.0.0.1:3000 you@your-server, using the port you gave it, then open
-  http://localhost:3000. Sign in as user admin, with the password in the
-  GRAFANA_PASSWORD secret. That secret sets the password on first start only, so
-  changing it doesn't change what signs in. To change the password, choose Change
-  password in your Grafana profile, then set the secret to match. Leave the
-  GRAFANA_SECRET_KEY secret as it is: Grafana encrypts the passwords of your data
-  sources with it, and can't read them with another.
+signIn:
+  user: "admin"
+  passwordInput: "GRAFANA_PASSWORD"
+  changedIn: "your profile"
 inputs:
   - name: PORT
     label: Port on this server
-    hint: Only this server reaches it. To reach it from elsewhere, add a domain once it runs.
     type: INPUT_TYPE_PORT
     defaultValue: "3000"
   - name: GRAFANA_PASSWORD
+    setOnce: true
     label: Admin password
     type: INPUT_TYPE_SECRET
     generate: 32
   - name: GRAFANA_SECRET_KEY
+    setOnce: true
     label: Secret key
     type: INPUT_TYPE_SECRET
     generate: 40

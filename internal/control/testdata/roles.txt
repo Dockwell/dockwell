@@ -11,6 +11,7 @@ AlertService.TestAlertChannel                  apply        admin      admin    
 AlertService.UnacknowledgeAlert                apply        admin      admin      install
 AlertService.UnmuteAlerts                      apply        admin      admin      install
 AuditService.ListAuditEvents                   read         admin      admin      install  session
+AuthService.BeginAcceptInvite                  read         nothing    nothing    anyone
 AuthService.BeginAddPasskey                    read         viewer     viewer     self
 AuthService.BeginClaim                         read         nothing    nothing    anyone
 AuthService.BeginPasskeySignIn                 read         nothing    nothing    anyone
@@ -18,8 +19,10 @@ AuthService.BeginStepUp                        read         viewer     viewer   
 AuthService.BeginTotpSetup                     apply        viewer     viewer     self
 AuthService.CancelTotpSetup                    apply        viewer     viewer     self
 AuthService.CheckClaim                         read         nothing    nothing    anyone
+AuthService.CheckInvite                        read         nothing    nothing    anyone
 AuthService.ConfirmTotpSetup                   apply        viewer     viewer     self
 AuthService.DisableTotp                        destructive  viewer     viewer     self
+AuthService.FinishAcceptInvite                 apply        nothing    nothing    anyone
 AuthService.FinishAddPasskey                   apply        viewer     viewer     self
 AuthService.FinishClaim                        apply        nothing    nothing    anyone
 AuthService.FinishPasskeySignIn                apply        nothing    nothing    anyone
@@ -38,6 +41,7 @@ AuthService.SignOut                            apply        nothing    nothing  
 AuthService.UnlockCodeSignIn                   apply        viewer     viewer     self
 BackupService.CreateBackup                     apply        developer  admin      project
 BackupService.DeleteBackup                     destructive  developer  admin      project  session
+BackupService.DrillBackup                      apply        developer  admin      project
 BackupService.FetchBackup                      apply        developer  admin      project
 BackupService.GetBackup                        read         viewer     viewer     project
 BackupService.ListBackupDestinations           read         viewer     viewer     named
@@ -102,7 +106,9 @@ FileService.ReadFile                           read         admin      admin    
 FileService.RestoreFile                        apply        admin      admin      install  session
 FileService.SaveFile                           destructive  admin      admin      install  session
 FileService.UploadFile                         apply        admin      admin      install  session
+FirewallService.GetServerFail2ban              read         admin      admin      install
 FirewallService.GetServerFirewall              read         admin      admin      install
+FirewallService.GetServerSsh                   read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
 ImageService.GetImage                          read         developer  developer  project
 ImageService.ListImageTags                     read         developer  developer  project
@@ -111,7 +117,9 @@ ImportService.ImportOnePanel                   plan         admin      admin    
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
 LogService.WatchLogs                           read         viewer     viewer     project
+MemberService.CreateInvite                     apply        admin      admin      install  session
 MemberService.ListMembers                      read         admin      admin      install  session
+MemberService.RevokeInvite                     apply        admin      admin      install  session
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
@@ -124,13 +132,18 @@ ServerService.ListServers                      read         viewer     viewer   
 ServerService.SetServerPublicAddress           apply        admin      admin      install
 ServerService.WatchServers                     read         viewer     viewer     named
 ServiceService.AddServicePort                  plan         developer  developer  project
+ServiceService.ChangeServiceRuntime            plan         developer  developer  project
 ServiceService.DeployService                   plan         developer  developer  project
 ServiceService.ListServiceRevisions            read         viewer     viewer     project
 ServiceService.ListServices                    read         viewer     viewer     project
+ServiceService.OpenService                     read         developer  admin      project  session
 ServiceService.RollBackService                 plan         developer  developer  project
+SettingsService.CheckPanelDomain               read         admin      admin      install
+SettingsService.CreatePanelSignInLink          apply        admin      admin      install  session
 SettingsService.GetControlPlane                read         admin      admin      install
 SettingsService.GetSettings                    read         viewer     viewer     shared
 SettingsService.SetInstallName                 apply        admin      admin      install  session
+SettingsService.SetPanelDomain                 apply        admin      admin      install  session
 SettingsService.SetTimeZone                    apply        admin      admin      install
 SystemService.GetVersion                       read         nothing    nothing    anyone
 TaskService.GetTask                            read         viewer     viewer     project

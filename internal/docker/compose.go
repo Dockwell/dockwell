@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"encoding/hex"
 	"regexp"
 	"strconv"
 	"strings"
@@ -59,6 +60,10 @@ func ManagedBy(labels map[string]string) string {
 // a backup or a restore (ADR 0033).
 const LabelVolumeTool = OwnPrefix + "volume-tool"
 
+// LabelDrill marks a restore drill's container and volume, with the drill's ID, which
+// it throws away whatever comes of it (ADR 0068).
+const LabelDrill = OwnPrefix + "drill"
+
 // IsOwnLabel reports a label Dockwell or Compose sets, which a spec can't.
 func IsOwnLabel(key string) bool {
 	return strings.HasPrefix(key, ComposePrefix) || strings.HasPrefix(key, OwnPrefix)
@@ -95,3 +100,13 @@ func ScopedName(project, name string) string { return project + "_" + name }
 // bridge of its own, with no way out and no way between its containers, on
 // which each has a static address (ADR 0024). No spec may name it.
 const IngressNetwork = "dockwell_ingress"
+
+// AnonymousVolume reports a volume Docker made for a path an image declares,
+// which it names by 64 hex digits.
+func AnonymousVolume(name string) bool {
+	if len(name) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(name)
+	return err == nil
+}

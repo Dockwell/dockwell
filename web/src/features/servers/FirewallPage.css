@@ -1,9 +1,268 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-.firewall {
+.firewall,
+.firewall-main,
+.firewall-side {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  min-width: 0;
+}
+
+/* fail2ban takes a column of its own beside the rest once there's room, as the
+   mock has it; on a narrower screen it comes after. */
+@media (min-width: 1200px) {
+  .firewall {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .firewall-main {
+    flex: 1 1 auto;
+  }
+
+  .firewall-side {
+    flex: 0 0 352px;
+  }
+}
+
+.firewall-version {
+  color: var(--ink-muted);
+  font: 500 12px / 16px var(--font-mono);
+}
+
+.firewall-ssh-body,
+.firewall-fail2ban-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.firewall-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: var(--space-4);
+}
+
+.firewall-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.firewall-facts dt {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.firewall-facts dd {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.firewall-facts dd.is-mono,
+.firewall-facts .is-mono {
+  font: 550 13px / 20px var(--font-mono);
+}
+
+.firewall-set-in {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+/* Whom a jail never bans: each address on a line, with why it's there and a way to take it out. */
+.firewall-never-bans {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.firewall-never-bans legend {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.firewall-never-bans ul {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.firewall-never-bans li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.firewall-never-bans-address {
+  overflow-wrap: anywhere;
+}
+
+.firewall-never-bans-out {
+  margin-left: auto;
+}
+
+.firewall-never-bans-add {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.firewall-never-bans-add > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A value from a file sshd hasn't read yet: it isn't what runs. */
+.firewall-set-in.is-waiting {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.firewall-command {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  min-width: 0;
+}
+
+.firewall-command code {
+  overflow-wrap: anywhere;
+}
+
+.firewall-matches summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+.firewall-matches ul {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.firewall-ssh-notes ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.firewall-ssh-notes {
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.firewall-fail2ban-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.firewall-fail2ban-part h3 {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.firewall-bans {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.firewall-ban {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.firewall-ban + .firewall-ban {
+  border-top: 1px solid var(--line);
+}
+
+.firewall-jails {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.firewall-jail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+}
+
+.firewall-jail > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.firewall-jail + .firewall-jail {
+  border-top: 1px solid var(--line);
+}
+
+.firewall-jails code,
+.firewall-bans code {
+  font-size: 12.5px;
+  line-height: 18px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.firewall-jails span,
+.firewall-bans span {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.firewall-count {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.firewall-count.is-zero {
+  color: var(--ink-muted);
 }
 
 .firewall-note {
@@ -91,4 +350,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.firewall-jail-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }

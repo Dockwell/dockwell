@@ -439,6 +439,7 @@ const (
 	ceremonySignIn
 	ceremonyAddPasskey
 	ceremonyStepUp
+	ceremonyInvite
 )
 
 // ceremonies holds ceremonies in memory, at most max of them. They are

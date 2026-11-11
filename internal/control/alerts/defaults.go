@@ -26,7 +26,9 @@ const DefaultsSummary = "Set up the default alert rules"
 // with the setting that says it was made: an upgraded install gets each once, and
 // one someone deleted stays deleted.
 var later = map[string]string{
-	"check-down": "alerts.defaults.check-down",
+	"check-down":           "alerts.defaults.check-down",
+	"restore-drill-failed": "alerts.defaults.restore-drill-failed",
+	"restore-drill-late":   "alerts.defaults.restore-drill-late",
 }
 
 // MakeDefaults makes an install's first rules, one for each condition, as

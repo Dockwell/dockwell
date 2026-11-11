@@ -64,6 +64,7 @@ func controlServerCommands(stdio IO, g *globalFlags) []*cobra.Command {
 		newTokenCmd(stdio, g),
 		newClaimCmd(stdio, g),
 		newRecoverCmd(stdio, g),
+		newPanelDomainCmd(stdio, g),
 		{
 			// The control plane runs this as a child with limits, to read a
 			// Compose file someone sent (compose.UseGuard).

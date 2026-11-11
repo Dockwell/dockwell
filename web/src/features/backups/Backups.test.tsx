@@ -8,6 +8,7 @@ import {
   BackupCopy,
   BackupDestinationProblem,
   BackupMethod,
+  BackupPolicy_Drill,
   BackupPolicy_Every,
   BackupSchema,
   BackupState,
@@ -15,6 +16,8 @@ import {
   ChangeState,
   type CreateBackupRequest,
   type DeleteBackupRequest,
+  type DrillBackupRequest,
+  DrillResult,
   type FetchBackupRequest,
   PlanAction,
   PreviewBackupResponseSchema,
@@ -378,6 +381,11 @@ describe("the backups page", () => {
     const edit = proposed.mock.calls[0]?.[0].edits[0];
     expect(edit?.resource).toMatchObject({ kind: "backup.policy", scope: "env_1", name: "orders-daily" });
     expect(edit?.spec?.kind.value).toMatchObject({ volume: "orders", at: "03:00", keep: 3, stop: true });
+    // It checks that its backups restore weekly unless someone chooses otherwise (ADR 0068).
+    expect(edit?.spec?.kind.value).toMatchObject({ drill: BackupPolicy_Drill.WEEKLY });
+    expect(
+      screen.getByText(/Restores the newest into a throwaway copy, about 100 MB, an hour after its run/),
+    ).toBeVisible();
   });
 
   it("says a schedule starts in the install's time zone, and leaves it for the control plane to set", async () => {
@@ -525,6 +533,65 @@ describe("the backups page", () => {
     await activateLocale("en");
   });
 
+  it("offers weekly checks for schedules made before them, as one plan for a person to apply", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((req: ProposeChangeRequest) => {
+      void req;
+      return {
+        change: create(ChangeSchema, {
+          id: "chg_checks",
+          state: ChangeState.PLANNED,
+          plan: { fingerprint: "abc", resources: [] },
+        }),
+      };
+    });
+    const policy = (name: string, drill: BackupPolicy_Drill) => ({
+      id: `bpl_${name}`,
+      name,
+      environmentId: "env_1",
+      spec: {
+        volume: "orders",
+        every: BackupPolicy_Every.DAY,
+        at: "02:30",
+        keep: 5,
+        timeZone: "UTC",
+        destination: "r2",
+        drill,
+      },
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({
+            policies: [
+              policy("orders-daily", BackupPolicy_Drill.UNSPECIFIED),
+              policy("logs-daily", BackupPolicy_Drill.UNSPECIFIED),
+              policy("media-daily", BackupPolicy_Drill.NEVER),
+              policy("db-daily", BackupPolicy_Drill.WEEKLY),
+            ],
+          }),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    expect(await screen.findByText("2 schedules never check a restore")).toBeVisible();
+    const panel = screen.getByRole("region", { name: "Schedules" });
+    expect(within(panel).getByText("Checks a restore weekly")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Check weekly" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edits = proposed.mock.calls[0]?.[0].edits ?? [];
+    expect(edits.map((e) => e.resource?.name)).toEqual(["orders-daily", "logs-daily"]);
+    // Each whole as it is, but its check.
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      at: "02:30",
+      keep: 5,
+      destination: "r2",
+      drill: BackupPolicy_Drill.WEEKLY,
+    });
+  });
+
   it("shows each schedule, and a failed run where you'll see it", async () => {
     renderAt(
       "/backups",
@@ -559,6 +626,7 @@ describe("the backups page", () => {
     // In the schedule's zone, as its time is: 03:00 UTC is 11:00 there.
     expect(within(panel).getByText(/Next run .*11:00/)).toBeVisible();
     expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
+    expect(within(panel).getByText("Doesn't check a restore")).toBeVisible();
     expect(within(panel).getByText("Last run failed")).toBeVisible();
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });
@@ -801,6 +869,92 @@ describe("the backups page", () => {
     const sheet = await screen.findByRole("dialog", { name: /Delete this backup/ });
     expect(within(sheet).getByText(/where it was sealed with an earlier passphrase/)).toBeVisible();
     expect(within(sheet).queryByRole("button", { name: "Remove from the server only" })).toBeNull();
+  });
+
+  it("checks that a backup restores from its row, and says how that went where you look", async () => {
+    const user = userEvent.setup();
+    const asked: DrillBackupRequest[] = [];
+    const finished = timestampFromDate(new Date(Date.now() - 2 * 3600_000));
+    const rows = [
+      aBackup({ id: "bkp_never" }),
+      aBackup({ id: "bkp_ok", drill: { result: DrillResult.PASSED, finishedAt: finished } }),
+      aBackup({ id: "bkp_files", drill: { result: DrillResult.PASSED, unpackedOnly: true, finishedAt: finished } }),
+      aBackup({
+        id: "bkp_bad",
+        drill: {
+          result: DrillResult.FAILED,
+          why: "orders.items has no rows, and the dump fills it",
+          finishedAt: finished,
+        },
+      }),
+      aBackup({
+        id: "bkp_skip",
+        drill: { result: DrillResult.NOT_CHECKED, why: "the disk it restores to has 1 GB free." },
+      }),
+      aBackup({ id: "bkp_now", drill: { result: DrillResult.RUNNING } }),
+    ];
+    const { container } = renderAt(
+      "/backups",
+      copies(rows, {
+        drillBackup: (req) => {
+          asked.push(req);
+          return { drill: { id: "drl_1", result: DrillResult.RUNNING } };
+        },
+      }),
+    );
+    expect(await screen.findByText("Restored and checked 2 h ago")).toBeVisible();
+    expect(screen.getByText("Unpacked whole 2 h ago")).toBeVisible();
+    expect(
+      screen.getByText("Restore check failed 2 h ago: orders.items has no rows, and the dump fills it"),
+    ).toBeVisible();
+    expect(screen.getByText("Not checked: the disk it restores to has 1 GB free")).toBeVisible();
+    expect(screen.getByText("Checking it restores")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Check again" })).toHaveLength(4);
+    await expectAccessible(container);
+    await user.click(screen.getByRole("button", { name: "Check it restores" }));
+    await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "bkp_never" })]));
+  });
+
+  it("says why a backup can't be checked now, where you are", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      copies([aBackup()], {
+        drillBackup: () => {
+          throw new ConnectError(
+            "a restore check is running on hz-1, which checks one at a time. Check this one once it ends",
+            Code.FailedPrecondition,
+          );
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Check it restores" }));
+    const row = screen.getAllByRole("row")[1] as HTMLElement;
+    expect(await within(row).findByRole("alert")).toHaveTextContent(/^Can't check it now: .*checks one at a time/);
+  });
+
+  it("keeps Check it restores busy while it asks, so a second click sends nothing", async () => {
+    const user = userEvent.setup();
+    let asked = 0;
+    let answer: () => void = () => {};
+    renderAt(
+      "/backups",
+      copies([aBackup()], {
+        drillBackup: () => {
+          asked++;
+          return new Promise((resolve) => {
+            answer = () => resolve({});
+          });
+        },
+      }),
+    );
+    const check = await screen.findByRole("button", { name: "Check it restores" });
+    await user.click(check);
+    expect(check).toHaveAttribute("aria-busy", "true");
+    await user.click(check);
+    expect(asked).toBe(1);
+    answer();
+    await waitFor(() => expect(check).not.toHaveAttribute("aria-busy"));
   });
 
   it("offers a restore while its server has it, and no fetch", async () => {

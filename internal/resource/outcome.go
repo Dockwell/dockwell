@@ -56,6 +56,11 @@ const (
 	AccessRolledBack
 	// AccessNotWaiting is a change the server knows nothing waiting of.
 	AccessNotWaiting
+	// AccessNotKept is a change that still waits: the server couldn't keep it
+	// just now, as it couldn't write what its revert would load once kept, and
+	// a kept change must never have a stale revert behind it. Its timer goes
+	// on, and a confirmation may be tried again.
+	AccessNotKept
 )
 
 // AccessWait is a change to who reaches a server that waits for the person who
@@ -121,14 +126,6 @@ type WhatRunner interface {
 	// runs nothing, such as limits or a schedule, so what's added to a spec later
 	// counts until someone says it doesn't.
 	WhatRuns(spec proto.Message) proto.Message
-}
-
-// WriterNamer is a Type whose spec says whose code it runs, for what it writes on
-// its server: a person approves a folder for the code that writes it, and new code
-// asks again. A Type that isn't one is named by its image's repository.
-type WriterNamer interface {
-	// WriterOf names the code a spec runs, the same for each build or tag of it.
-	WriterOf(spec proto.Message) string
 }
 
 // BareImage is an image without the digest it may be pinned to.

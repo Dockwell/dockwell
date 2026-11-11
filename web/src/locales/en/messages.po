@@ -467,6 +467,12 @@ msgstr "Loading activity"
 msgid "Loading the plan"
 msgstr "Loading the plan"
 
+msgid "New cache"
+msgstr "New cache"
+
+msgid "Not on record"
+msgstr "Not on record"
+
 msgid "Nothing here yet"
 msgstr "Nothing here yet"
 
@@ -501,6 +507,9 @@ msgstr "Proposed by"
 msgid "Ran as"
 msgstr "Ran as"
 
+msgid "Resources sent"
+msgstr "Resources sent"
+
 msgid "Review plan"
 msgstr "Review plan"
 
@@ -527,6 +536,9 @@ msgstr "State"
 
 msgid "Terminal"
 msgstr "Terminal"
+
+msgid "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
+msgstr "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
 
 msgid "Times"
 msgstr "Times"
@@ -573,6 +585,9 @@ msgstr "Why"
 msgid "Why it failed"
 msgstr "Why it failed"
 
+msgid "With variables and secrets"
+msgstr "With variables and secrets"
+
 msgid "Yesterday"
 msgstr "Yesterday"
 
@@ -591,6 +606,9 @@ msgstr "{count}, at {first}"
 msgid "{count}, from {first} to {last}"
 msgstr "{count}, from {first} to {last}"
 
+msgid "{server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove {server} from the fleet and join it again, which gives it a new one."
+msgstr "{server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove {server} from the fleet and join it again, which gives it a new one."
+
 msgid "{times, plural, one {# time} other {# times}}"
 msgstr "{times, plural, one {# time} other {# times}}"
 
@@ -608,6 +626,12 @@ msgstr "Someone"
 
 msgid "A backup of {volume} couldn't be fetched from {destination}"
 msgstr "A backup of {volume} couldn't be fetched from {destination}"
+
+msgid "A backup of {volume} didn't restore in its check"
+msgstr "A backup of {volume} didn't restore in its check"
+
+msgid "A backup of {volume} wasn't checked"
+msgstr "A backup of {volume} wasn't checked"
 
 msgid "A change failed: {subject}"
 msgstr "A change failed: {subject}"
@@ -684,8 +708,14 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Checked that a backup of {volume} restores"
+msgstr "Checked that a backup of {volume} restores"
+
 msgid "Claimed this install"
 msgstr "Claimed this install"
+
+msgid "Cleared the panel's domain"
+msgstr "Cleared the panel's domain"
 
 msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "Cleared the public address of {server}, which was {previous}"
@@ -774,6 +804,11 @@ msgstr "Ended the mute of {server}'s alerts"
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
+#. placeholder {0}: m?.email ?? ""
+#. placeholder {1}: rolePhrase(m?.role ?? Role.UNSPECIFIED, { projectId: m?.projectId ?? "", projectName: m?.projectName ?? "" })
+msgid "Invited {0} as {1}"
+msgstr "Invited {0} as {1}"
+
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 
@@ -822,6 +857,9 @@ msgstr "Named this install {value}"
 msgid "Named this install {value}, which was {previous}"
 msgstr "Named this install {value}, which was {previous}"
 
+msgid "No restore check of {subject} has passed lately"
+msgstr "No restore check of {subject} has passed lately"
+
 msgid "Not running"
 msgstr "Not running"
 
@@ -833,6 +871,12 @@ msgstr "Opened a terminal on {server}"
 
 msgid "Opened a terminal on {server}, as {as}"
 msgstr "Opened a terminal on {server}, as {as}"
+
+msgid "Opened an app through the panel"
+msgstr "Opened an app through the panel"
+
+msgid "Opened {name} through the panel"
+msgstr "Opened {name} through the panel"
 
 msgid "Put back {path} on {server}"
 msgstr "Put back {path} on {server}"
@@ -870,6 +914,10 @@ msgstr "Revoked an API token"
 msgid "Revoked the API token {name}"
 msgstr "Revoked the API token {name}"
 
+#. placeholder {0}: event.member?.email ?? ""
+msgid "Revoked the invite for {0}"
+msgstr "Revoked the invite for {0}"
+
 msgid "Roll back: {reverted}"
 msgstr "Roll back: {reverted}"
 
@@ -894,6 +942,12 @@ msgstr "Sent a test to {name} ({kind}, {host}), which arrived"
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 
+msgid "Set the panel's domain to {value}"
+msgstr "Set the panel's domain to {value}"
+
+msgid "Set the panel's domain to {value}, which was {previous}"
+msgstr "Set the panel's domain to {value}, which was {previous}"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "Set the public address of {server} to {address}"
 
@@ -911,6 +965,9 @@ msgstr "Signed in"
 
 msgid "Signed out other sessions"
 msgstr "Signed out other sessions"
+
+msgid "Stopped serving the panel on {previous}"
+msgstr "Stopped serving the panel on {previous}"
 
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "Stopped {what} (PID {pid}) on {server}"
@@ -938,6 +995,9 @@ msgstr "The backup of {volume} failed"
 
 msgid "The health of {name} changed on {server}"
 msgstr "The health of {name} changed on {server}"
+
+msgid "The newest checked backup of {subject} doesn't restore"
+msgstr "The newest checked backup of {subject} doesn't restore"
 
 msgid "Took back the acknowledgement of the alert: {title}"
 msgstr "Took back the acknowledgement of the alert: {title}"
@@ -1004,6 +1064,21 @@ msgstr "{count, plural, one {It changed once in {span}.} other {It changed # tim
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 
+msgid "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
+msgstr "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
+
+msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+
+msgid "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+msgstr "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+
+msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
+
+msgid "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+msgstr "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+
 msgid "{destination} kept a backup of {volume} that was to go"
 msgstr "{destination} kept a backup of {volume} that was to go"
 
@@ -1028,14 +1103,26 @@ msgstr "{name} was paused on {server}"
 msgid "{server} can't be reached"
 msgstr "{server} can't be reached"
 
+msgid "{server} couldn't see or put back what it should run"
+msgstr "{server} couldn't see or put back what it should run"
+
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
 
 msgid "{server} joined the fleet"
 msgstr "{server} joined the fleet"
 
+msgid "{server} left {resourceName} as it is, and says why"
+msgstr "{server} left {resourceName} as it is, and says why"
+
+msgid "{server} made {resourceName} again while the control plane was away"
+msgstr "{server} made {resourceName} again while the control plane was away"
+
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
+
+msgid "{server} started {resourceName} again on its own"
+msgstr "{server} started {resourceName} again on its own"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} uses {value}% of its memory"
@@ -1072,6 +1159,12 @@ msgstr "{total, plural, one {{done} of # step done} other {{done} of # steps don
 
 msgid "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
 msgstr "{value, plural, one {{subject}'s certificate ends within a day} other {{subject}'s certificate ends in # days}}"
+
+msgid "{who} joined as {as}"
+msgstr "{who} joined as {as}"
+
+msgid "{who} joined as {as}, from {from}"
+msgstr "{who} joined as {as}, from {from}"
 
 msgid "Acknowledge"
 msgstr "Acknowledge"
@@ -1868,14 +1961,18 @@ msgstr "Webhook"
 msgid "ntfy"
 msgstr "ntfy"
 
-msgid "A route runs on one server, as its certificate comes to the one its DNS points at."
-msgstr "A route runs on one server, as its certificate comes to the one its DNS points at."
+msgid "A route runs on the one server its DNS points at."
+msgstr "A route runs on the one server its DNS points at."
 
 msgid "Add a domain"
 msgstr "Add a domain"
 
 msgid "Add a domain to {name}"
 msgstr "Add a domain to {name}"
+
+msgctxt "a port typed in"
+msgid "Another port"
+msgstr "Another port"
 
 msgid "App"
 msgstr "App"
@@ -1892,11 +1989,14 @@ msgstr "Domain"
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
-msgid "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
-msgstr "It's on the server's own network, so what it listens on there, such as 8080. Port 80 is the proxy's."
+msgid "HTTPS"
+msgstr "HTTPS"
 
-msgid "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
-msgstr "Its certificate comes by itself once the domain reaches this server, whether you set its DNS before adding it or after."
+msgid "Handled in front of this server"
+msgstr "Handled in front of this server"
+
+msgid "Its certificate comes by itself once its DNS points here."
+msgstr "Its certificate comes by itself once its DNS points here."
 
 msgid "Move {typed} behind what's in front"
 msgstr "Move {typed} behind what's in front"
@@ -1909,6 +2009,12 @@ msgstr "Name what connects to this server, as an address or a range."
 
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
+
+msgid "Off: plain HTTP to anyone"
+msgstr "Off: plain HTTP to anyone"
+
+msgid "On, with a certificate that comes by itself"
+msgstr "On, with a certificate that comes by itself"
 
 msgid "People reach the app at this name, over HTTPS"
 msgstr "People reach the app at this name, over HTTPS"
@@ -1925,6 +2031,9 @@ msgstr "Point its DNS at this server."
 msgid "Point its DNS at your tunnel or proxy."
 msgstr "Point its DNS at your tunnel or proxy."
 
+msgid "Points {followsApp} at it too: {followsNames}"
+msgstr "Points {followsApp} at it too: {followsNames}"
+
 msgid "Port in the app"
 msgstr "Port in the app"
 
@@ -1933,6 +2042,12 @@ msgstr "Port on the server"
 
 msgid "Send {wanted} to {name}"
 msgstr "Send {wanted} to {name}"
+
+msgid "Send {wanted} to {name}, and point {followsApp} at it"
+msgstr "Send {wanted} to {name}, and point {followsApp} at it"
+
+msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
+msgstr "What it listens on on the server, such as 8080; 80 is the proxy's."
 
 msgid "What the app listens on, such as 80."
 msgstr "What the app listens on, such as 80."
@@ -2078,8 +2193,8 @@ msgstr "{shown} matches the latest revision. If what runs has drifted from it, r
 msgid "A change is applying to {name}. Review this once it ends."
 msgstr "A change is applying to {name}. Review this once it ends."
 
-msgid "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
-msgstr "A name the app has gets the new value. Nothing changes until you review the plan and apply it."
+msgid "A name the app has gets the new value."
+msgstr "A name the app has gets the new value."
 
 msgid "A variable or secret of the environment"
 msgstr "A variable or secret of the environment"
@@ -2126,6 +2241,9 @@ msgstr "Every app that uses this variable gets the new value."
 msgid "Import .env"
 msgstr "Import .env"
 
+msgid "It runs with only what its image sets."
+msgstr "It runs with only what its image sets."
+
 msgid "Keep the new ones as secrets"
 msgstr "Keep the new ones as secrets"
 
@@ -2152,6 +2270,9 @@ msgstr "Not applied"
 
 msgid "Not loaded"
 msgstr "Not loaded"
+
+msgid "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
+msgstr "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
 
 msgid "Paste the file's text"
 msgstr "Paste the file's text"
@@ -2180,6 +2301,9 @@ msgstr "Secret"
 msgid "Secret {from}"
 msgstr "Secret {from}"
 
+msgid "Set by its runtime"
+msgstr "Set by its runtime"
+
 msgid "Set on this app"
 msgstr "Set on this app"
 
@@ -2192,23 +2316,23 @@ msgstr "The environment has a secret {trimmed} already. Use it as it is, or choo
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 
-msgid "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
-msgstr "The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in Variables and secrets, where every app that uses it gets the change."
+msgid "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
+msgstr "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
 
-msgid "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
-msgstr "The environment has {usedList} already, so the app uses them as they are, with their own values. Change them in Variables and secrets, where every app that uses them gets the change."
-
-msgid "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
-msgstr "The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it."
+msgid "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
+msgstr "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "Their values are hidden, and revealing one takes your passkey."
 
-msgid "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
-msgstr "Their values don't show until then, and adding waits, so a new name can't clash with one already there."
+msgid "Their values stay hidden, and Add waits until they load."
+msgstr "Their values stay hidden, and Add waits until they load."
 
-msgid "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
-msgstr "This app runs with only what its image sets. Add a variable above, and it gets it once you apply the plan."
+msgid "This app uses the new value instead of its runtime's default."
+msgstr "This app uses the new value instead of its runtime's default."
+
+msgid "Type the whole value: every app that uses this secret gets it."
+msgstr "Type the whole value: every app that uses this secret gets it."
 
 msgid "Unapplied changes"
 msgstr "Unapplied changes"
@@ -2327,6 +2451,9 @@ msgstr "Building and deploying <0>{0}</0>, started {ago}"
 msgid "Can't load this app"
 msgstr "Can't load this app"
 
+msgid "Change version"
+msgstr "Change version"
+
 msgid "Deploy"
 msgstr "Deploy"
 
@@ -2388,6 +2515,10 @@ msgstr "rolled back by Dockwell {ago}"
 msgid "{name} logs"
 msgstr "{name} logs"
 
+#. placeholder {0}: runtime.folder
+msgid "{runsOn} from <0>{0}</0>"
+msgstr "{runsOn} from <0>{0}</0>"
+
 #. placeholder {0}: check.tcp.port
 #. placeholder {0}: check?.tcp?.port
 msgid "A connection to port {0}"
@@ -2404,6 +2535,10 @@ msgstr "All deployments"
 
 msgid "All of it"
 msgstr "All of it"
+
+#. placeholder {0}: runtime.version
+msgid "An older build of {0}"
+msgstr "An older build of {0}"
 
 msgid "Checks"
 msgstr "Checks"
@@ -2450,11 +2585,17 @@ msgstr "Dockwell can't read what {name} runs"
 msgid "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 msgstr "Dockwell can't see or change {name} there until its agent reconnects. It may well be running."
 
+msgid "Dockwell no longer offers this version, so no new app runs on it"
+msgstr "Dockwell no longer offers this version, so no new app runs on it"
+
 msgid "Dockwell put <0>{image}</0> back, as it was before that deploy."
 msgstr "Dockwell put <0>{image}</0> back, as it was before that deploy."
 
 msgid "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
 msgstr "Each server it ran on has left the fleet, so Dockwell can't see it or change it there, and its containers may still be running on them. Deploy it to run it on a server in the fleet."
+
+msgid "Each start installs again, so what you change in its folder runs once you restart it."
+msgstr "Each start installs again, so what you change in its folder runs once you restart it."
 
 msgid "Entrypoint"
 msgstr "Entrypoint"
@@ -2469,11 +2610,17 @@ msgstr "Failing"
 msgid "Fix what stopped the deploy, then deploy again."
 msgstr "Fix what stopped the deploy, then deploy again."
 
+msgid "Folder"
+msgstr "Folder"
+
 msgid "Follow it"
 msgstr "Follow it"
 
 msgid "Health check"
 msgstr "Health check"
+
+msgid "Installs with"
+msgstr "Installs with"
 
 msgid "It keeps going whether or not you stay here. Its steps show in the plan."
 msgstr "It keeps going whether or not you stay here. Its steps show in the plan."
@@ -2508,6 +2655,9 @@ msgstr "None set"
 msgid "None."
 msgstr "None."
 
+msgid "Nothing"
+msgstr "Nothing"
+
 msgid "Nothing outside the server reaches it yet."
 msgstr "Nothing outside the server reaches it yet."
 
@@ -2522,6 +2672,9 @@ msgstr "Nothing yet. It runs once the deploy finishes."
 
 msgid "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
 msgstr "Once it reconnects, Dockwell puts <0>{image}</0> back, after a deploy that failed."
+
+msgid "Open in Files"
+msgstr "Open in Files"
 
 msgid "Open the plan"
 msgstr "Open the plan"
@@ -2568,6 +2721,9 @@ msgstr "Rolling back failed {when}"
 msgid "Runs with"
 msgstr "Runs with"
 
+msgid "Runtime"
+msgstr "Runtime"
+
 msgid "See its logs"
 msgstr "See its logs"
 
@@ -2582,6 +2738,9 @@ msgstr "Set one"
 
 msgid "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
 msgstr "Something of {name} runs, and Dockwell can't say which version. Check it, then deploy what should run, or fix it on the server."
+
+msgid "Starts with"
+msgstr "Starts with"
 
 msgid "The agent on {server} hasn't said how it runs lately. It may well be running."
 msgstr "The agent on {server} hasn't said how it runs lately. It may well be running."
@@ -2622,6 +2781,11 @@ msgstr "Unknown until {away} reconnects"
 
 msgid "Unknown, as putting it back failed"
 msgstr "Unknown, as putting it back failed"
+
+#. placeholder {0}: newer.release
+#. placeholder {0}: runtime.release
+msgid "Update to {0}"
+msgstr "Update to {0}"
 
 msgid "Volumes"
 msgstr "Volumes"
@@ -2824,6 +2988,15 @@ msgstr "It publishes none. Add one to reach it from outside the server."
 msgid "It publishes this port already."
 msgstr "It publishes this port already."
 
+msgid "Its runtime checks its port by TCP, with 10 minutes to start."
+msgstr "Its runtime checks its port by TCP, with 10 minutes to start."
+
+msgid "Its runtime mounts this folder at /app."
+msgstr "Its runtime mounts this folder at /app."
+
+msgid "Its runtime sets the command, entrypoint, user and directory."
+msgstr "Its runtime sets the command, entrypoint, user and directory."
+
 msgid "Keep no more for it than its limit, {memory}."
 msgstr "Keep no more for it than its limit, {memory}."
 
@@ -2986,6 +3159,7 @@ msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "the image's"
 
+#. placeholder {0}: cpus[part.service]
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
 msgid "{0} vCPU"
@@ -3237,8 +3411,8 @@ msgstr "No report"
 msgid "No server"
 msgstr "No server"
 
-msgid "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
-msgstr "No server runs this any more, so nothing answers for it. Remove it, or place it on a server."
+msgid "No server runs this any more: remove it, or place it on a server."
+msgstr "No server runs this any more: remove it, or place it on a server."
 
 msgid "Not connected"
 msgstr "Not connected"
@@ -3258,8 +3432,8 @@ msgstr "Renewal failing"
 msgid "TLS ends in front"
 msgstr "TLS ends in front"
 
-msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
-msgstr "The certificate on <0>{server}</0> ran out {when}, so browsers refuse this domain. Dockwell renews it by itself. If it stays like this, <1>check its page</1>."
+msgid "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
+msgstr "The certificate on <0>{server}</0> ran out {when}, so browsers refuse it. <1>Check its page</1>"
 
 msgid "Valid"
 msgstr "Valid"
@@ -3276,29 +3450,23 @@ msgstr "{days, plural, one {Valid for # day} other {Valid for # days}}"
 msgid "Can't read DNS"
 msgstr "Can't read DNS"
 
-msgid "Copy {address}"
-msgstr "Copy {address}"
+msgid "Can't tell"
+msgstr "Can't tell"
 
-msgid "DNS has this record"
-msgstr "DNS has this record"
-
-msgid "DNS points at a private address that isn't this server's"
-msgstr "DNS points at a private address that isn't this server's"
-
-msgid "DNS points at {found}"
-msgstr "DNS points at {found}"
-
-msgid "DNS points at {found}, and Dockwell can't tell whether that's this server"
-msgstr "DNS points at {found}, and Dockwell can't tell whether that's this server"
-
-msgid "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell doesn't know this server's public address. Your provider's console shows it. Point an A record at it, and set it under Network on this server's page."
-
-msgid "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
-msgstr "Dockwell doesn't know this server's public address. {provider}'s console shows it. Point an A record at it, and set it under Network on this server's page."
+msgid "How to open it"
+msgstr "How to open it"
 
 msgid "Install Cloudflare Tunnel from the Catalog"
 msgstr "Install Cloudflare Tunnel from the Catalog"
+
+msgid "It points at a private address that isn't this server's."
+msgstr "It points at a private address that isn't this server's."
+
+msgid "It points at {found}, which may be this server."
+msgstr "It points at {found}, which may be this server."
+
+msgid "It points at {found}."
+msgstr "It points at {found}."
 
 msgid "Make these records at your DNS provider."
 msgstr "Make these records at your DNS provider."
@@ -3306,44 +3474,65 @@ msgstr "Make these records at your DNS provider."
 msgid "Make this record at your DNS provider."
 msgstr "Make this record at your DNS provider."
 
+msgid "Not set yet"
+msgstr "Not set yet"
+
+msgid "Only a tunnel reaches it."
+msgstr "Only a tunnel reaches it."
+
 msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
 msgstr "Or forward ports 80 and 443 on your router to this server, and make this record."
 
 msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
 msgstr "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
 
-msgid "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
-msgstr "Or make this record, as this server has a public IPv6 address of its own. Only visitors with IPv6 reach it this way."
+msgid "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
+msgstr "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
+
+msgid "Point an A record at this server's public address, which your provider's console shows."
+msgstr "Point an A record at this server's public address, which your provider's console shows."
+
+msgid "Point an A record at this server's public address, which {provider}'s console shows."
+msgstr "Point an A record at this server's public address, which {provider}'s console shows."
 
 msgid "Point an A record at your router's public address."
 msgstr "Point an A record at your router's public address."
 
-msgid "Recommended. It needs no public address and no forwarded port."
-msgstr "Recommended. It needs no public address and no forwarded port."
+msgid "Points elsewhere"
+msgstr "Points elsewhere"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
-msgstr "That's how this server reaches the internet, which may not be its way in. Check it against your provider's console."
+msgid "Points here"
+msgstr "Points here"
 
-msgid "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
-msgstr "That's how this server reaches the internet, which may not be its way in. Check it against {provider}'s console."
+msgid "Set it on the server"
+msgstr "Set it on the server"
 
-msgid "That's your router's address, as far as Dockwell can tell."
-msgstr "That's your router's address, as far as Dockwell can tell."
+msgid "Set the record to DNS only, or turn on \"{tunnelName}\"."
+msgstr "Set the record to DNS only, or turn on \"{tunnelName}\"."
 
-msgid "This looks like a home or office network, so the internet can't reach this server by itself."
-msgstr "This looks like a home or office network, so the internet can't reach this server by itself."
+msgid "That's its way out, which may not be its way in: check it in your provider's console."
+msgstr "That's its way out, which may not be its way in: check it in your provider's console."
 
-msgid "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
-msgstr "This server is behind carrier NAT, so a DNS record can't reach it, and neither can a forwarded port. A tunnel needs neither."
+msgid "That's its way out, which may not be its way in: check it in {provider}'s console."
+msgstr "That's its way out, which may not be its way in: check it in {provider}'s console."
 
-msgid "Waiting for DNS"
-msgstr "Waiting for DNS"
+msgid "The internet can't reach {serverName} on ports 80 and 443."
+msgstr "The internet can't reach {serverName} on ports 80 and 443."
+
+msgid "This server is behind carrier NAT"
+msgstr "This server is behind carrier NAT"
+
+msgid "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
+msgstr "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
+
+msgid "Your router's address, as far as Dockwell can tell."
+msgstr "Your router's address, as far as Dockwell can tell."
 
 msgid "your domain"
 msgstr "your domain"
 
-msgid "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
-msgstr "{name} points at Cloudflare's proxy, which can block the certificate check. Turn on \"{tunnelName}\", or set the record to DNS only."
+msgid "{name} points at Cloudflare's proxy"
+msgstr "{name} points at Cloudflare's proxy"
 
 msgid "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
 msgstr "A file <0>docker compose</0> runs without Dockwell, with no secrets in it"
@@ -3357,11 +3546,17 @@ msgstr "Compose file"
 msgid "Copied"
 msgstr "Copied"
 
+msgid "Copied as .env"
+msgstr "Copied as .env"
+
 msgid "Copied the Compose file"
 msgstr "Copied the Compose file"
 
 msgid "Copy"
 msgstr "Copy"
+
+msgid "Copy as .env"
+msgstr "Copy as .env"
 
 msgid "Its whole project"
 msgstr "Its whole project"
@@ -3372,14 +3567,101 @@ msgstr "Left out as they may hold secrets"
 msgid "Save"
 msgstr "Save"
 
-msgid "Save an <0>.env</0> to fill in"
-msgstr "Save an <0>.env</0> to fill in"
-
 msgid "This app"
 msgstr "This app"
 
 msgid "What to export"
 msgstr "What to export"
+
+msgid "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+msgstr "An app never runs as root. Use the folder owner's uid:gid, such as 1000:1000."
+
+msgid "Choose the folder that holds the app."
+msgstr "Choose the folder that holds the app."
+
+msgid "Dockwell makes it, owned by <0>{user}</0>"
+msgstr "Dockwell makes it, owned by <0>{user}</0>"
+
+#. placeholder {0}: PORT_FILES[detected.language] ?? ""
+msgid "From {0}. The app gets it as PORT."
+msgstr "From {0}. The app gets it as PORT."
+
+msgid "Holds {found}"
+msgstr "Holds {found}"
+
+msgid "It has no <0>{first}</0>. Put the app's files there."
+msgstr "It has no <0>{first}</0>. Put the app's files there."
+
+msgid "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+msgstr "It's <0>{theirs}</0>'s, and the app runs as <1>{user}</1>."
+
+#. placeholder {0}: dir.mode
+msgid "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+msgstr "Its mode is <0>{0}</0>. Run <1>chmod u+w {path}</1> on the server."
+
+msgid "Language"
+msgstr "Language"
+
+msgid "Name the app, or give its folder on the server, such as /srv/shop."
+msgstr "Name the app, or give its folder on the server, such as /srv/shop."
+
+msgctxt "a folder that isn't there yet"
+msgid "New"
+msgstr "New"
+
+msgid "No {languageWord} app in {path} yet"
+msgstr "No {languageWord} app in {path} yet"
+
+msgid "Run <0>sudo chown -R {user} {path}</0> on the server."
+msgstr "Run <0>sudo chown -R {user} {path}</0> on the server."
+
+msgid "Run as {theirs}"
+msgstr "Run as {theirs}"
+
+msgid "Runs as"
+msgstr "Runs as"
+
+msgid "Runs before each start. Write - to install nothing."
+msgstr "Runs before each start. Write - to install nothing."
+
+msgid "The app can't write to {path}"
+msgstr "The app can't write to {path}"
+
+msgid "The app gets it as PORT."
+msgstr "The app gets it as PORT."
+
+msgid "Use a folder of its own, not the server's root."
+msgstr "Use a folder of its own, not the server's root."
+
+msgid "Use a full path on the server, such as /srv/shop."
+msgstr "Use a full path on the server, such as /srv/shop."
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Write it as uid:gid, such as 1000:1000."
+msgstr "Write it as uid:gid, such as 1000:1000."
+
+msgid "as {user}"
+msgstr "as {user}"
+
+msgid "from {from}"
+msgstr "from {from}"
+
+msgid "port {port}"
+msgstr "port {port}"
+
+msgid "uid:gid of the folder's owner."
+msgstr "uid:gid of the folder's owner."
+
+msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+msgstr "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
+
+msgid "{path} is a file"
+msgstr "{path} is a file"
+
+msgid "{path} is root's, and an app never runs as root"
+msgstr "{path} is root's, and an app never runs as root"
 
 msgid "A tunnel on this server"
 msgstr "A tunnel on this server"
@@ -3399,17 +3681,14 @@ msgstr "Cloudflare connects to this server's port 80."
 msgid "Cloudflare's proxy"
 msgstr "Cloudflare's proxy"
 
-msgid "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
-msgstr "For a private network with nothing in front. Without this, a request to the server's own address gets a 404."
+msgid "For a private network with nothing in front."
+msgstr "For a private network with nothing in front."
 
 msgid "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 msgstr "It answers anyone who can reach port 80 over plain HTTP, around whatever is in front. You approve this in the plan."
 
-msgid "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "Such as cloudflared on the server's own network. What the website sends to reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-
-msgid "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
-msgstr "Such as cloudflared on the server's own network. Your app reads the visitor's address and https. One on a bridge is another proxy here, named by that network's range."
+msgid "Such as cloudflared on the server's own network."
+msgstr "Such as cloudflared on the server's own network."
 
 msgid "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
 msgstr "This path crosses the open internet unencrypted, between Cloudflare and this server. It needs Flexible mode in Cloudflare, and a tunnel is the better way."
@@ -3425,6 +3704,9 @@ msgstr "What's in front"
 
 msgid "You name what connects to this server."
 msgstr "You name what connects to this server."
+
+msgid "A connection to port {port} was taken."
+msgstr "A connection to port {port} was taken."
 
 msgid "Checking"
 msgstr "Checking"
@@ -3685,9 +3967,6 @@ msgstr "Fix the .env file to review the plan"
 msgid "Fix the file to review the plan"
 msgstr "Fix the file to review the plan"
 
-msgid "Folder"
-msgstr "Folder"
-
 msgid "For the variables the file uses. It isn't kept in this browser."
 msgstr "For the variables the file uses. It isn't kept in this browser."
 
@@ -3774,6 +4053,9 @@ msgstr "Paste it, or drop the file here."
 msgid "Paste the repository's URL, such as https://github.com/acme/web."
 msgstr "Paste the repository's URL, such as https://github.com/acme/web."
 
+msgid "Pick a folder on the server"
+msgstr "Pick a folder on the server"
+
 msgid "Plans say a value changed, and never show it."
 msgstr "Plans say a value changed, and never show it."
 
@@ -3832,6 +4114,9 @@ msgstr "Restarts unless stopped"
 msgid "Run a Compose file"
 msgstr "Run a Compose file"
 
+msgid "Run {name} from {path}"
+msgstr "Run {name} from {path}"
+
 msgid "Run {projectName} from a Compose file"
 msgstr "Run {projectName} from a Compose file"
 
@@ -3846,6 +4131,9 @@ msgstr "Say where the file is to review the plan"
 
 msgid "Say which directory it's in"
 msgstr "Say which directory it's in"
+
+msgid "Server folder"
+msgstr "Server folder"
 
 msgid "Show"
 msgstr "Show"
@@ -3894,6 +4182,9 @@ msgstr "Up to {memory}"
 
 msgid "Up to {memory} and {cpus} CPUs"
 msgstr "Up to {memory} and {cpus} CPUs"
+
+msgid "Use a volume instead"
+msgstr "Use a volume instead"
 
 msgid "Use an absolute path, such as /data."
 msgstr "Use an absolute path, such as /data."
@@ -3997,6 +4288,46 @@ msgstr "{name} (default)"
 
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
+
+msgid "Change {name}'s version"
+msgstr "Change {name}'s version"
+
+msgid "Check its logs for what the install or the start said, then try again."
+msgstr "Check its logs for what the install or the start said, then try again."
+
+msgid "Choose again"
+msgstr "Choose again"
+
+msgid "Each start installs again, so check the app's lockfile works with the new version."
+msgstr "Each start installs again, so check the app's lockfile works with the new version."
+
+#. placeholder {0}: newer.release
+msgid "It runs an older build of {current}. The plan updates it to {0}."
+msgstr "It runs an older build of {current}. The plan updates it to {0}."
+
+msgid "It runs this version's newest build already"
+msgstr "It runs this version's newest build already"
+
+msgid "It runs what's in its folder on the new version, with the rest as it is"
+msgstr "It runs what's in its folder on the new version, with the rest as it is"
+
+msgid "Run {name} on {word} {version}, from {current}"
+msgstr "Run {name} on {word} {version}, from {current}"
+
+msgid "Update {name} to {word} {release}"
+msgstr "Update {name} to {word} {release}"
+
+#. placeholder {0}: v.version
+#. placeholder {1}: v.release
+msgid "{0} · {1}, the one it runs"
+msgstr "{0} · {1}, the one it runs"
+
+#. placeholder {0}: v.version
+msgid "{0}, the one it runs"
+msgstr "{0}, the one it runs"
+
+msgid "{word} version"
+msgstr "{word} version"
 
 msgid "Add a Dockerfile, or set both a build command and a start command under Change."
 msgstr "Add a Dockerfile, or set both a build command and a start command under Change."
@@ -4233,6 +4564,63 @@ msgstr "working directory"
 msgid "{servers} offline"
 msgstr "{servers} offline"
 
+msgid "Accept an invite"
+msgstr "Accept an invite"
+
+msgid "An invite makes someone new. Sign out, or open the link in a private window."
+msgstr "An invite makes someone new. Sign out, or open the link in a private window."
+
+msgid "Create passkey and join"
+msgstr "Create passkey and join"
+
+msgid "Creating passkey"
+msgstr "Creating passkey"
+
+msgid "Enter your name."
+msgstr "Enter your name."
+
+#. placeholder {0}: invite.email
+#. placeholder {1}: formatDateTime(timestampDate(invite.expireTime), i18n.locale)
+msgid "For {0}, until {1}. You sign in with a passkey this browser, phone or security key makes for this address."
+msgstr "For {0}, until {1}. You sign in with a passkey this browser, phone or security key makes for this address."
+
+msgid "Open the link in a browser that makes passkeys, such as a recent Chrome, Safari or Firefox."
+msgstr "Open the link in a browser that makes passkeys, such as a recent Chrome, Safari or Firefox."
+
+msgid "Open the link you were sent, including the part after “#”. Whoever invited you can make a new one."
+msgstr "Open the link you were sent, including the part after “#”. Whoever invited you can make a new one."
+
+msgid "Passkeys don't work in this browser"
+msgstr "Passkeys don't work in this browser"
+
+msgid "Reading the invite"
+msgstr "Reading the invite"
+
+msgid "Sign out"
+msgstr "Sign out"
+
+msgid "This invite didn't work"
+msgstr "This invite didn't work"
+
+msgid "This page needs the whole link from your invite"
+msgstr "This page needs the whole link from your invite"
+
+msgid "You're signed in as {name}"
+msgstr "You're signed in as {name}"
+
+msgid "Your account"
+msgstr "Your account"
+
+msgid "Your account wasn't created"
+msgstr "Your account wasn't created"
+
+msgid "Your name"
+msgstr "Your name"
+
+#. placeholder {0}: invite.invitedBy
+msgid "{0} invited you as {where}"
+msgstr "{0} invited you as {where}"
+
 msgid "Add a passkey here"
 msgstr "Add a passkey here"
 
@@ -4309,17 +4697,11 @@ msgstr "Confirm with Touch ID, Windows Hello or a security key."
 msgid "Create passkey"
 msgstr "Create passkey"
 
-msgid "Creating passkey"
-msgstr "Creating passkey"
-
 msgid "Deploy your first app"
 msgstr "Deploy your first app"
 
 msgid "Enter an email address, such as mira@acme.dev."
 msgstr "Enter an email address, such as mira@acme.dev."
-
-msgid "Enter your name."
-msgstr "Enter your name."
 
 msgid "From Git, a Docker image, a Compose file or the catalog."
 msgstr "From Git, a Docker image, a Compose file or the catalog."
@@ -4402,9 +4784,6 @@ msgstr "You sign in with it when you use a code."
 
 msgid "Your domain gets a certificate automatically."
 msgstr "Your domain gets a certificate automatically."
-
-msgid "Your name"
-msgstr "Your name"
 
 msgid "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
 msgstr "Your passkey works at this address only. A domain with HTTPS can come later, under Settings."
@@ -4507,9 +4886,6 @@ msgstr "No passkey works at {rpId} yet"
 
 msgid "Profile and security"
 msgstr "Profile and security"
-
-msgid "Sign out"
-msgstr "Sign out"
 
 msgid "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
 msgstr "Someone entered {count} wrong codes in a row for your account, the last {when}. Unlock code sign-in only if that was you. Otherwise someone may know your email; your passkeys and recovery codes still work."
@@ -4773,6 +5149,9 @@ msgstr "Adding a passkey needs one you have for this address, and you have none 
 msgid "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 msgstr "Code sign-in is locked after 10 wrong codes in a row. Sign in with a passkey or a recovery code, or run dockwell recover on the server, then unlock it under Profile and security."
 
+msgid "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
+msgstr "Invites need the panel's domain, as the link uses it and the invited person's passkey is made there. Set DOCKWELL_DOMAIN for the service, then invite."
+
 msgid "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 msgstr "Passkeys need a hostname, not an IP address. Open the panel at http://localhost on the same port."
 
@@ -4806,6 +5185,9 @@ msgstr "That passkey isn't registered for this address, or it couldn't be verifi
 msgid "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 msgstr "That passkey reported a lower use count than before, which happens when a passkey is copied, so it no longer signs in. Sign in another way and remove it under Profile and security."
 
+msgid "That person signs in here already. Change what they hold in Members instead."
+msgstr "That person signs in here already. Change what they hold in Members instead."
+
 msgid "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
 msgstr "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
 
@@ -4836,6 +5218,9 @@ msgstr "The passkey request expired. Try again."
 msgid "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 msgstr "This browser can't use passkeys at this address. Open the panel through your SSH tunnel at http://localhost, or on its domain over HTTPS."
 
+msgid "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+msgstr "This browser is already signed in, and an invite makes someone new. Sign out, or open the link in a private window."
+
 msgid "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 msgstr "This claim link is invalid, already used, replaced by a newer one, or expired. Run {claimCommand} on the server for a new link."
 
@@ -4844,6 +5229,12 @@ msgstr "This device already has a passkey for your account here. Use it, or pick
 
 msgid "This install already has an owner. Sign in instead."
 msgstr "This install already has an owner. Sign in instead."
+
+msgid "This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one."
+msgstr "This invite is invalid, already used, revoked or expired. Ask whoever invited you for a new one."
+
+msgid "This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it."
+msgstr "This invite works only at the panel's domain, where the install keeps serving. Open the link exactly as you were sent it."
 
 msgid "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
 msgstr "This setup of an authenticator app has ended: it works for 10 minutes, in the session that began it. Close this and set it up again."
@@ -4878,6 +5269,30 @@ msgstr "Owner"
 
 msgid "Viewer"
 msgstr "Viewer"
+
+msgid "a developer of every project"
+msgstr "a developer of every project"
+
+msgid "a developer of {project}"
+msgstr "a developer of {project}"
+
+msgid "a project that's gone"
+msgstr "a project that's gone"
+
+msgid "a viewer of every project"
+msgstr "a viewer of every project"
+
+msgid "a viewer of {project}"
+msgstr "a viewer of {project}"
+
+msgid "an admin"
+msgstr "an admin"
+
+msgid "someone with no role"
+msgstr "someone with no role"
+
+msgid "the owner"
+msgstr "the owner"
 
 msgid "All backups"
 msgstr "All backups"
@@ -4956,6 +5371,19 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 msgid "Backups, newest first"
 msgstr "Backups, newest first"
 
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "Can't check it now: {0}"
+
+msgid "Check it restores"
+msgstr "Check it restores"
+
+msgid "Check weekly"
+msgstr "Check weekly"
+
+msgid "Checking it restores"
+msgstr "Checking it restores"
+
 msgid "Delete from both"
 msgstr "Delete from both"
 
@@ -5000,6 +5428,9 @@ msgstr "Its server can't restore this now: it's away, or no longer has the volum
 msgid "No backups yet"
 msgstr "No backups yet"
 
+msgid "Not checked: {why}"
+msgstr "Not checked: {why}"
+
 msgid "Nothing to back up yet"
 msgstr "Nothing to back up yet"
 
@@ -5024,6 +5455,12 @@ msgstr "Remove from the server only"
 
 msgid "Restore"
 msgstr "Restore"
+
+msgid "Restore check failed {ago}: {why}"
+msgstr "Restore check failed {ago}: {why}"
+
+msgid "Restored and checked {ago}"
+msgstr "Restored and checked {ago}"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "Sealed with an earlier passphrase"
@@ -5057,9 +5494,20 @@ msgstr "This removes it from {destination}, the last place that has it. Nothing 
 msgid "To fetch it, put {0} on a connected server first"
 msgstr "To fetch it, put {0} on a connected server first"
 
+msgid "Unpacked whole {ago}"
+msgstr "Unpacked whole {ago}"
+
 #. placeholder {0}: Number(b.filesChanged)
 msgid "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgstr "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+
+#. placeholder {0}: unchecked.length
+msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
@@ -5216,6 +5664,15 @@ msgstr "Stop sending backups to {0}"
 msgid "{0} backups, {1}"
 msgstr "{0} backups, {1}"
 
+msgid "Checks a restore monthly"
+msgstr "Checks a restore monthly"
+
+msgid "Checks a restore weekly"
+msgstr "Checks a restore weekly"
+
+msgid "Doesn't check a restore"
+msgstr "Doesn't check a restore"
+
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
 
@@ -5266,6 +5723,12 @@ msgstr "Back up {0} on a schedule"
 msgid "Backups to keep"
 msgstr "Backups to keep"
 
+msgid "Check monthly"
+msgstr "Check monthly"
+
+msgid "Check that it restores"
+msgstr "Check that it restores"
+
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
 
@@ -5288,6 +5751,16 @@ msgstr "Keeping {count} takes about {0} while the next is taken; the disk has {1
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "Minutes past the hour, as 00:MM"
+
+msgid "Never check"
+msgstr "Never check"
+
+msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+msgstr "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
+
+#. placeholder {0}: formatBytes(each, i18n.locale)
+msgid "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
+msgstr "Restores the newest into a throwaway copy, about {0}, an hour after its run, for up to 6 h."
 
 msgid "Stop {running} for each backup"
 msgstr "Stop {running} for each backup"
@@ -5350,8 +5823,14 @@ msgstr "Catalog"
 msgid "Category"
 msgstr "Category"
 
+msgid "Couldn't read the sources"
+msgstr "Couldn't read the sources"
+
 msgid "Couldn't read this app"
 msgstr "Couldn't read this app"
+
+msgid "Dockwell's own"
+msgstr "Dockwell's own"
 
 msgid "Documentation"
 msgstr "Documentation"
@@ -5359,8 +5838,8 @@ msgstr "Documentation"
 msgid "Explore the app"
 msgstr "Explore the app"
 
-msgid "Getting started"
-msgstr "Getting started"
+msgid "Good to know"
+msgstr "Good to know"
 
 msgid "Included in this install"
 msgstr "Included in this install"
@@ -5376,6 +5855,9 @@ msgstr "Install {app}"
 
 msgid "Licence"
 msgstr "Licence"
+
+msgid "Not tested by Dockwell"
+msgstr "Not tested by Dockwell"
 
 msgid "On your servers"
 msgstr "On your servers"
@@ -5412,11 +5894,11 @@ msgstr "Source code"
 msgid "Source for: {0}"
 msgstr "Source for: {0}"
 
-msgid "Version"
-msgstr "Version"
-
 msgid "Website"
 msgstr "Website"
+
+msgid "Where it comes from"
+msgstr "Where it comes from"
 
 msgid "You review the plan before anything runs."
 msgstr "You review the plan before anything runs."
@@ -5434,8 +5916,14 @@ msgstr "Categories"
 msgid "Couldn't read the catalog"
 msgstr "Couldn't read the catalog"
 
+msgid "Couldn't read the sources, so apps from them aren't marked"
+msgstr "Couldn't read the sources, so apps from them aren't marked"
+
 msgid "Find an app for your server. Explore what it does before you install."
 msgstr "Find an app for your server. Explore what it does before you install."
+
+msgid "From the catalog {source}"
+msgstr "From the catalog {source}"
 
 msgid "No app matches that. Try another word, or all categories."
 msgstr "No app matches that. Try another word, or all categories."
@@ -5443,11 +5931,17 @@ msgstr "No app matches that. Try another word, or all categories."
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 
+msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
+msgstr "Read apps from a catalog in a Git repository too. <0>Sources</0>"
+
 msgid "Reading the catalog"
 msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
+
+msgid "Sources"
+msgstr "Sources"
 
 msgid "Update out"
 msgstr "Update out"
@@ -5479,6 +5973,17 @@ msgstr "Database"
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
+msgid "Engine"
+msgstr "Engine"
+
+#. placeholder {0}: part.cpus
+#. placeholder {0}: part.memory
+msgid "Entry's: {0}"
+msgstr "Entry's: {0}"
+
+msgid "Fix the limits of {badService} to review the plan"
+msgstr "Fix the limits of {badService} to review the plan"
+
 msgid "Generated and sealed"
 msgstr "Generated and sealed"
 
@@ -5491,11 +5996,27 @@ msgstr "Give {missingLabel} a value to review the plan"
 msgid "Its site"
 msgstr "Its site"
 
+msgid "Limits and restarts"
+msgstr "Limits and restarts"
+
+msgid "New database"
+msgstr "New database"
+
 msgid "Open {app}"
 msgstr "Open {app}"
 
 msgid "Reaches"
 msgstr "Reaches"
+
+msgid "Reading the sources"
+msgstr "Reading the sources"
+
+#. placeholder {0}: inSentence(words.restart(restartOf(part)))
+msgid "Restarts {0}"
+msgstr "Restarts {0}"
+
+msgid "Such as 512M or 2G."
+msgstr "Such as 512M or 2G."
 
 msgid "What it installs"
 msgstr "What it installs"
@@ -5525,17 +6046,23 @@ msgstr "{0, plural, one {# secret generated} other {# secrets generated}}"
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
 
+msgid "{cpus} vCPU"
+msgstr "{cpus} vCPU"
+
+msgid "{source} · Not tested by Dockwell"
+msgstr "{source} · Not tested by Dockwell"
+
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
 
 msgid "From the catalog"
 msgstr "From the catalog"
 
+msgid "Its secrets"
+msgstr "Its secrets"
+
 msgid "Review the change"
 msgstr "Review the change"
-
-msgid "Show its secrets"
-msgstr "Show its secrets"
 
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
@@ -5545,6 +6072,169 @@ msgstr "Version {next} is out."
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "A source adds the apps in a public Git repository."
+msgstr "A source adds the apps in a public Git repository."
+
+msgid "A source is already named {name}. Use another name."
+msgstr "A source is already named {name}. Use another name."
+
+msgid "Add a catalog source"
+msgstr "Add a catalog source"
+
+msgid "Add a source"
+msgstr "Add a source"
+
+msgid "Another commit"
+msgstr "Another commit"
+
+msgid "Apps from a public Git repository, pinned at one commit"
+msgstr "Apps from a public Git repository, pinned at one commit"
+
+#. placeholder {0}: chosen.commit.slice(0, 12)
+msgid "At {0} now. It stays there until you move it."
+msgstr "At {0} now. It stays there until you move it."
+
+msgid "Can't be read now, so its apps are out of the catalog"
+msgstr "Can't be read now, so its apps are out of the catalog"
+
+msgid "Catalog sources"
+msgstr "Catalog sources"
+
+msgid "Catalogs Dockwell reads apps from beside its own"
+msgstr "Catalogs Dockwell reads apps from beside its own"
+
+msgid "Commit copied"
+msgstr "Commit copied"
+
+msgid "Copy the commit"
+msgstr "Copy the commit"
+
+#. placeholder {0}: sentence(err)
+msgid "Dockwell can't read that commit: {0}"
+msgstr "Dockwell can't read that commit: {0}"
+
+msgid "Dockwell's own catalog is all it reads"
+msgstr "Dockwell's own catalog is all it reads"
+
+msgid "Entries at {folderWords}"
+msgstr "Entries at {folderWords}"
+
+msgid "Its top"
+msgstr "Its top"
+
+msgctxt "catalog source"
+msgid "Move"
+msgstr "Move"
+
+msgid "Move to another commit"
+msgstr "Move to another commit"
+
+msgid "Move {name} to another commit"
+msgstr "Move {name} to another commit"
+
+msgid "Named {name} · entries at {folderWords}"
+msgstr "Named {name} · entries at {folderWords}"
+
+msgid "No branch or tag is at this commit."
+msgstr "No branch or tag is at this commit."
+
+msgid "Pin to"
+msgstr "Pin to"
+
+msgid "Read. It has {count} or more branches and tags."
+msgstr "Read. It has {count} or more branches and tags."
+
+msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
+msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as community."
+
+msgid "Use the commit in full, as 40 hex digits, or choose a branch."
+msgstr "Use the commit in full, as 40 hex digits, or choose a branch."
+
+msgid "Use the repository's https:// URL."
+msgstr "Use the repository's https:// URL."
+
+msgid "Where its entries are. Empty is its top."
+msgstr "Where its entries are. Empty is its top."
+
+msgid "its top"
+msgstr "its top"
+
+#. placeholder {0}: at.join(", ")
+msgid "{0} is at this commit."
+msgstr "{0} is at this commit."
+
+msgid "{count, plural, =0 {No apps from here} one {# app from here} other {# apps from here}}"
+msgstr "{count, plural, =0 {No apps from here} one {# app from here} other {# apps from here}}"
+
+msgid "{count, plural, one {Read. It has # branch or tag.} other {Read. It has # branches and tags.}}"
+msgstr "{count, plural, one {Read. It has # branch or tag.} other {Read. It has # branches and tags.}}"
+
+msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
+msgstr "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
+
+msgid "{short} (tag)"
+msgstr "{short} (tag)"
+
+msgid "Answers on this server alone, on port {port}, until it has a domain"
+msgstr "Answers on this server alone, on port {port}, until it has a domain"
+
+msgid "Anyone who reaches it can make an account until sign-ups close"
+msgstr "Anyone who reaches it can make an account until sign-ups close"
+
+msgid "Anyone who reaches it can make an account, until you close sign-ups"
+msgstr "Anyone who reaches it can make an account, until you close sign-ups"
+
+msgid "Close sign-ups"
+msgstr "Close sign-ups"
+
+msgid "Close sign-ups to {app}"
+msgstr "Close sign-ups to {app}"
+
+msgid "Copy the SSH tunnel command"
+msgstr "Copy the SSH tunnel command"
+
+msgid "Its first account is its owner"
+msgstr "Its first account is its owner"
+
+msgid "Its first account is its owner: make yours before it has a domain"
+msgstr "Its first account is its owner: make yours before it has a domain"
+
+msgid "Its links follow its domain, {domain}: {names}"
+msgstr "Its links follow its domain, {domain}: {names}"
+
+msgid "Its links follow the domain you add: {names}"
+msgstr "Its links follow the domain you add: {names}"
+
+msgid "Open {app} in a new tab"
+msgstr "Open {app} in a new tab"
+
+msgid "Point {app} at {domain}"
+msgstr "Point {app} at {domain}"
+
+msgid "Published on port {port}"
+msgstr "Published on port {port}"
+
+msgid "SSH tunnel command copied"
+msgstr "SSH tunnel command copied"
+
+msgid "Set as it first started: change it in {app}, in {where}"
+msgstr "Set as it first started: change it in {app}, in {where}"
+
+msgid "Set to {domain}"
+msgstr "Set to {domain}"
+
+msgid "Signs in as {user}"
+msgstr "Signs in as {user}"
+
+msgid "Signs in as {user}, with a password Dockwell generates and seals"
+msgstr "Signs in as {user}, with a password Dockwell generates and seals"
+
+msgid "Signs in with a key Dockwell generates and seals"
+msgstr "Signs in with a key Dockwell generates and seals"
+
+msgid "Signs in with a key you give"
+msgstr "Signs in with a key you give"
 
 msgid "Open full size"
 msgstr "Open full size"
@@ -5922,6 +6612,9 @@ msgstr "Open a new SSH session to port {port} from here with your key, and keep 
 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "That wait is over: this sheet shows whether the server kept the change."
+
+msgid "The server couldn't keep it yet, so it still waits. Keep it again."
+msgstr "The server couldn't keep it yet, so it still waits. Keep it again."
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "Then open the panel at its own address in a new tab."
@@ -6311,6 +7004,12 @@ msgstr "A service of the same name in the file replaces it, and one the file doe
 msgid "A service of the same name in the file replaces it."
 msgstr "A service of the same name in the file replaces it."
 
+msgid "Add it to what the jail never bans first, or apply this knowing it."
+msgstr "Add it to what the jail never bans first, or apply this knowing it."
+
+msgid "Adds {names}."
+msgstr "Adds {names}."
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "Anyone who can reach this server gets it, around whatever is in front of it."
 
@@ -6332,6 +7031,9 @@ msgstr "Back it up first if you need it: undo may not bring it back."
 msgid "Back it up once from Backups, and the next plan goes by how large that was."
 msgstr "Back it up once from Backups, and the next plan goes by how large that was."
 
+msgid "Back it up yourself before you apply this."
+msgstr "Back it up yourself before you apply this."
+
 msgid "Back up what you can't lose before this."
 msgstr "Back up what you can't lose before this."
 
@@ -6341,6 +7043,9 @@ msgstr "Back up what you can't lose first, or stay on the new version."
 msgid "Back up what you can't lose first."
 msgstr "Back up what you can't lose first."
 
+msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
+msgstr "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
+
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails, what runs stays as it is."
@@ -6348,6 +7053,9 @@ msgstr "Builds {repository} at {commit} ({ref}) on {0} first. If the build fails
 #. placeholder {0}: server.serverName
 msgid "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
 msgstr "Builds {repository} at {commit} on {0} first. If the build fails, what runs stays as it is."
+
+msgid "Check it's the commit you mean."
+msgstr "Check it's the commit you mean."
 
 msgid "Check that it reads its data, and restore a backup if it won't."
 msgstr "Check that it reads its data, and restore a backup if it won't."
@@ -6380,6 +7088,9 @@ msgstr "Deny everything else drops the tunnel's next handshake, and SSH over it 
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "Deploy {writtenBy} first, or restore a dump instead."
 
+msgid "Dockwell couldn't list the repository's branches and tags"
+msgstr "Dockwell couldn't list the repository's branches and tags"
+
 msgid "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 msgstr "Dockwell didn't make that network, and it reaches past the server's firewall. Whatever else is on it, other projects' services too, can reach {name}, and it them."
 
@@ -6394,6 +7105,9 @@ msgstr "Don't start its Compose project again."
 
 msgid "Don't write a secret in a variable's name."
 msgstr "Don't write a secret in a variable's name."
+
+msgid "Each keeps running as it is."
+msgstr "Each keeps running as it is."
 
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "Everything in {name} on {server} goes back to what was there before the restore"
@@ -6425,9 +7139,15 @@ msgstr "If your address isn't one of these, or stops being one, SSH closes to yo
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 
+msgid "Installs of them keep running, with no upgrades."
+msgstr "Installs of them keep running, with no upgrades."
+
 #. placeholder {0}: detected.packages(d).join("; ")
 msgid "Installs {0}."
 msgstr "Installs {0}."
+
+msgid "It bans any other address that keeps failing to sign in, yours included."
+msgstr "It bans any other address that keeps failing to sign in, yours included."
 
 msgid "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
 msgstr "It came from the Compose project {project}. Until Dockwell changes its image, whatever runs that acts on this container. After that, starting the project again starts a second copy, on the same folders and under the same name. If a panel or a script runs it, find out what its remove does to {where} before you use it, as it may delete what this service mounts. If you ran docker compose yourself, don't run that file again."
@@ -6462,11 +7182,26 @@ msgstr "It closes {closes}: add a rule for any you mean to keep open."
 msgid "It has the Linux capability <0>{path}</0>, which is the same as root."
 msgstr "It has the Linux capability <0>{path}</0>, which is the same as root."
 
+msgid "It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data."
+msgstr "It isn't in a volume Dockwell made. Undoing this puts the old release back, not what the new one changed in its data."
+
 msgid "It joins the group <0>{path}</0>, which is the same as root."
 msgstr "It joins the group <0>{path}</0>, which is the same as root."
 
 msgid "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
 msgstr "It leads to <0>{leadsTo}</0> through a symlink, and the server's security rests on what is there, so reaching it is as good as root."
+
+msgid "It may be an older commit, or a fork's."
+msgstr "It may be an older commit, or a fork's."
+
+msgid "It never bans the server itself or the control server."
+msgstr "It never bans the server itself or the control server."
+
+msgid "It never bans {never}."
+msgstr "It never bans {never}."
+
+msgid "It never bans {never}. {counts} {lifting}"
+msgstr "It never bans {never}. {counts} {lifting}"
 
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "It reaches what the server reaches, past Docker's network and the firewall."
@@ -6492,8 +7227,14 @@ msgstr "It takes that proxy's word for where a request came from. Whatever else 
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 
+msgid "Its apps leave the catalog"
+msgstr "Its apps leave the catalog"
+
 msgid "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
 msgstr "Its environment comes into Dockwell with it, sealed. No plan or log shows a value of it, and it keeps running."
+
+msgid "Its last reading says so. Applying this stops before it moves, with nothing changed."
+msgstr "Its last reading says so. Applying this stops before it moves, with nothing changed."
 
 msgid "Its volumes are backed up first"
 msgstr "Its volumes are backed up first"
@@ -6507,8 +7248,23 @@ msgstr "Leave it alone in 1Panel from now on, and never uninstall it there."
 msgid "Leave it alone in {tool} from now on."
 msgstr "Leave it alone in {tool} from now on."
 
+msgid "Leaves out {file}"
+msgstr "Leaves out {file}"
+
+msgid "Lower its feature compatibility version to {to} first if it's higher."
+msgstr "Lower its feature compatibility version to {to} first if it's higher."
+
+msgid "Lower its feature compatibility version to {to} first."
+msgstr "Lower its feature compatibility version to {to} first."
+
+msgid "MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to {from} first, and its data may then use {from}'s features."
+msgstr "MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to {from} first, and its data may then use {from}'s features."
+
 msgid "More than one container answers to {shared} on {network}"
 msgstr "More than one container answers to {shared} on {network}"
+
+msgid "Moves {names} on, which an install of each can upgrade to."
+msgstr "Moves {names} on, which an install of each can upgrade to."
 
 msgid "Name a network the proxy has to itself."
 msgstr "Name a network the proxy has to itself."
@@ -6519,9 +7275,15 @@ msgstr "No backup is taken first"
 msgid "No backup was taken, and the data stays as it is now"
 msgstr "No backup was taken, and the data stays as it is now"
 
+msgid "No branch or tag is at this commit now"
+msgstr "No branch or tag is at this commit now"
+
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
+
+msgid "Nothing installed from this catalog upgrades to them."
+msgstr "Nothing installed from this catalog upgrades to them."
 
 msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
@@ -6558,6 +7320,15 @@ msgstr "SSH on {0} stays open only from {from}"
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
 
+msgid "Take out the range that covers everything for it to ban anyone."
+msgstr "Take out the range that covers everything for it to ban anyone."
+
+msgid "Takes away {names}"
+msgstr "Takes away {names}"
+
+msgid "Takes {ids} from another catalog"
+msgstr "Takes {ids} from another catalog"
+
 msgid "That copy is {size}, and what was made since goes."
 msgstr "That copy is {size}, and what was made since goes."
 
@@ -6578,6 +7349,9 @@ msgstr "That is the server itself, past its containers, at {at}."
 
 msgid "That's what the server kept on {taken}, {size}."
 msgstr "That's what the server kept on {taken}, {size}."
+
+msgid "The catalog shows no apps from this commit."
+msgstr "The catalog shows no apps from this commit."
 
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
@@ -6621,8 +7395,27 @@ msgstr "They run in what {name} runs, so they reach what it reaches on its serve
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 
+msgid "This catalog comes first, so the catalog shows its apps."
+msgstr "This catalog comes first, so the catalog shows its apps."
+
 msgid "This copy was taken with the app running"
 msgstr "This copy was taken with the app running"
+
+#. placeholder {0}: server.serverName
+msgid "This jail can ban your own address on {0}"
+msgstr "This jail can ban your own address on {0}"
+
+#. placeholder {0}: server.serverName
+msgid "This jail can ban {exposed}, signed in to {0} over SSH now"
+msgstr "This jail can ban {exposed}, signed in to {0} over SSH now"
+
+#. placeholder {0}: server.serverName
+msgid "This jail ignores every address on {0}, so it bans nobody"
+msgstr "This jail ignores every address on {0}, so it bans nobody"
+
+#. placeholder {0}: server.serverName
+msgid "This jail never bans {never} on {0}"
+msgstr "This jail never bans {never} on {0}"
 
 #. placeholder {0}: server.serverName
 msgid "This may cut off access to {0}"
@@ -6666,6 +7459,12 @@ msgstr "Two containers may write to {shared}, which can corrupt a database"
 
 msgid "Undo may not bring everything back."
 msgstr "Undo may not bring everything back."
+
+msgid "Undoing this puts back {from}. The release before it can't run the data."
+msgstr "Undoing this puts back {from}. The release before it can't run the data."
+
+msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
+msgstr "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 
 msgid "What asks for {shared} there can reach either."
 msgstr "What asks for {shared} there can reach either."
@@ -6714,15 +7513,30 @@ msgstr "With its Dockerfile."
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 msgstr "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 
+msgid "fail2ban counts the failures from just before this applies, so a ban can land as it does."
+msgstr "fail2ban counts the failures from just before this applies, so a ban can land as it does."
+
 msgid "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
 msgstr "https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out."
+
+#. placeholder {0}: ref.slice("refs/heads/".length)
+msgid "the branch {0}"
+msgstr "the branch {0}"
 
 msgid "the folder it runs from"
 msgstr "the folder it runs from"
 
+#. placeholder {0}: ref.slice("refs/tags/".length)
+msgid "the tag {0}"
+msgstr "the tag {0}"
+
 #. placeholder {0}: all.length
 msgid "{0, plural, one {# resource} other {# resources}}"
 msgstr "{0, plural, one {# resource} other {# resources}}"
+
+#. placeholder {0}: note.names.length
+msgid "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at} are at.}}"
+msgstr "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at} are at.}}"
 
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
@@ -6740,11 +7554,20 @@ msgstr "{by} writes there as root, so it can change any file there, whoever owns
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 
+msgid "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
+msgstr "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
+
+msgid "{counts} {lifting}"
+msgstr "{counts} {lifting}"
+
 msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} can move what {path} leads to on {server}"
+
+msgid "{ids} will come from another catalog"
+msgstr "{ids} will come from another catalog"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} answers plain HTTP on {path} on {server}"
@@ -6798,6 +7621,9 @@ msgstr "{name} mounts the volume {path} on {server}"
 msgid "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 msgstr "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 
+msgid "{name} moves back to {to} only if its data allows"
+msgstr "{name} moves back to {to} only if its data allows"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
@@ -6828,6 +7654,15 @@ msgstr "{name} stops HTTPS on {path} on {server}"
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} takes on the container {path} on {server}"
 
+msgid "{name}'s data isn't backed up first"
+msgstr "{name}'s data isn't backed up first"
+
+msgid "{name}'s data uses {features}'s features, which {to} can't run"
+msgstr "{name}'s data uses {features}'s features, which {to} can't run"
+
+msgid "{name}'s features go up to {from} before it moves to {to}"
+msgstr "{name}'s features go up to {from} before it moves to {to}"
+
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 
@@ -6856,6 +7691,12 @@ msgstr "{name}'s {where} holds the value of {variable} from your .env"
 #. placeholder {0}: line.text
 msgid "{name}: {0}"
 msgstr "{name}: {0}"
+
+msgid "{projects} can upgrade again, from the catalog each came from."
+msgstr "{projects} can upgrade again, from the catalog each came from."
+
+msgid "{projects} will have no upgrades"
+msgstr "{projects} will have no upgrades"
 
 msgid "{project} already runs {names}"
 msgstr "{project} already runs {names}"
@@ -7547,6 +8388,9 @@ msgstr "Connection string"
 msgid "Connections"
 msgstr "Connections"
 
+msgid "Data at {features}'s features, which its next upgrade raises"
+msgstr "Data at {features}'s features, which its next upgrade raises"
+
 msgid "From anywhere that reaches this server"
 msgstr "From anywhere that reaches this server"
 
@@ -7559,6 +8403,9 @@ msgstr "From apps in {place}"
 msgid "From this server alone"
 msgstr "From this server alone"
 
+msgid "Give it a <0>--keyFile</0> every member of {set} shares, make a root user, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2>."
+msgstr "Give it a <0>--keyFile</0> every member of {set} shares, make a root user, then set <1>MONGO_INITDB_ROOT_USERNAME</1> and <2>MONGO_INITDB_ROOT_PASSWORD</2>."
+
 msgid "Give it a volume"
 msgstr "Give it a volume"
 
@@ -7568,11 +8415,17 @@ msgstr "Host"
 msgid "It sets no most"
 msgstr "It sets no most"
 
+msgid "It takes no password, as it checks no one."
+msgstr "It takes no password, as it checks no one."
+
 msgid "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 msgstr "Its data is in <0>{volume}</0>, a volume Dockwell didn't make, which it doesn't back up."
 
 msgid "Its data isn't in a volume, so it goes with its container."
 msgstr "Its data isn't in a volume, so it goes with its container."
+
+msgid "Its environment"
+msgstr "Its environment"
 
 msgid "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
 msgstr "Its numbers, databases and users are as {server} says, one of the {count} servers it runs on."
@@ -7598,6 +8451,9 @@ msgstr "Kept on"
 msgid "Keys asked for that were there"
 msgstr "Keys asked for that were there"
 
+msgid "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <1>MONGO_INITDB_ROOT_PASSWORD</1>."
+
 msgid "Newest"
 msgstr "Newest"
 
@@ -7613,8 +8469,14 @@ msgstr "One is running now"
 msgid "Reads served from memory"
 msgstr "Reads served from memory"
 
+msgid "Replica set {set}: each backup is one moment, and can't be restored into a member yet"
+msgstr "Replica set {set}: each backup is one moment, and can't be restored into a member yet"
+
 msgid "Restore the newest"
 msgstr "Restore the newest"
+
+msgid "Runs alone: a backup isn't one moment while something writes"
+msgstr "Runs alone: a backup isn't one moment while something writes"
 
 msgid "Since"
 msgstr "Since"
@@ -7657,6 +8519,9 @@ msgstr "{dumpOf}'s own dump, while it runs: nothing stops"
 msgid "{engine} didn't say how it is"
 msgstr "{engine} didn't say how it is"
 
+msgid "{engine} lets anyone in"
+msgstr "{engine} lets anyone in"
+
 msgid "{engine} {next} is out"
 msgstr "{engine} {next} is out"
 
@@ -7684,8 +8549,14 @@ msgstr "Change {who}'s password"
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
 
+msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
+msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
+
 msgid "Granted on"
 msgstr "Granted on"
+
+msgid "Has roles in"
+msgstr "Has roles in"
 
 msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
 msgstr "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
@@ -7719,6 +8590,9 @@ msgstr "Role"
 
 msgid "Signs in"
 msgstr "Signs in"
+
+msgid "Signs in to"
+msgstr "Signs in to"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"
@@ -7774,9 +8648,6 @@ msgstr "Last run"
 msgid "Loading the databases"
 msgstr "Loading the databases"
 
-msgid "New database"
-msgstr "New database"
-
 msgid "No databases yet"
 msgstr "No databases yet"
 
@@ -7785,9 +8656,6 @@ msgstr "No volume"
 
 msgid "No volume, so its data goes with its container"
 msgstr "No volume, so its data goes with its container"
-
-msgid "Nothing"
-msgstr "Nothing"
 
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "Nothing changed on the servers. The page tries again by itself."
@@ -7931,12 +8799,6 @@ msgstr "No record yet"
 
 msgid "Not read yet"
 msgstr "Not read yet"
-
-msgid "Points elsewhere"
-msgstr "Points elsewhere"
-
-msgid "Points here"
-msgstr "Points here"
 
 msgid "Proxied by Cloudflare"
 msgstr "Proxied by Cloudflare"
@@ -8544,9 +9406,6 @@ msgstr "Read what 1Panel keeps"
 msgid "Review the plan"
 msgstr "Review the plan"
 
-msgid "Runtime"
-msgstr "Runtime"
-
 msgid "Stays with 1Panel"
 msgstr "Stays with 1Panel"
 
@@ -9138,9 +9997,6 @@ msgstr "Files"
 msgid "No servers yet"
 msgstr "No servers yet"
 
-msgid "{cpus} vCPU"
-msgstr "{cpus} vCPU"
-
 msgid "Apps on this server"
 msgstr "Apps on this server"
 
@@ -9546,6 +10402,232 @@ msgstr "{name} didn't stop within 10 s, so it was killed."
 msgid "{name} stopped."
 msgstr "{name} stopped."
 
+msgid "<0>Match {criteria}</0> · {file}, line {line}"
+msgstr "<0>Match {criteria}</0> · {file}, line {line}"
+
+msgid "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+msgstr "<0>Match {criteria}</0> · {file}, line {line} · sets {sets}"
+
+msgid "An address or a range to never ban"
+msgstr "An address or a range to never ban"
+
+msgid "As it is: {s}"
+msgstr "As it is: {s}"
+
+msgid "Banned for"
+msgstr "Banned for"
+
+msgid "Banned now"
+msgstr "Banned now"
+
+msgid "Bans an address that keeps failing to sign in over SSH."
+msgstr "Bans an address that keeps failing to sign in over SSH."
+
+msgid "Change the sshd jail on {name}"
+msgstr "Change the sshd jail on {name}"
+
+msgid "Copy {command}"
+msgstr "Copy {command}"
+
+msgid "Counted within"
+msgstr "Counted within"
+
+msgid "Dockwell writes this jail."
+msgstr "Dockwell writes this jail."
+
+#. placeholder {0}: j.name
+msgid "Edit the {0} jail"
+msgstr "Edit the {0} jail"
+
+msgid "Fail2ban"
+msgstr "Fail2ban"
+
+msgid "Failed sign-ins that ban an address"
+msgstr "Failed sign-ins that ban an address"
+
+msgid "For good"
+msgstr "For good"
+
+msgid "Forced commands only"
+msgstr "Forced commands only"
+
+msgid "Jails"
+msgstr "Jails"
+
+msgid "Keys only"
+msgstr "Keys only"
+
+msgid "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
+msgstr "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
+
+msgid "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
+msgstr "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
+
+msgid "Never banned"
+msgstr "Never banned"
+
+msgid "No"
+msgstr "No"
+
+msgid "Not installed"
+msgstr "Not installed"
+
+msgid "Nowhere"
+msgstr "Nowhere"
+
+msgid "Password login"
+msgstr "Password login"
+
+msgid "Plan it"
+msgstr "Plan it"
+
+msgid "Protect SSH"
+msgstr "Protect SSH"
+
+msgid "Protect SSH on {name}"
+msgstr "Protect SSH on {name}"
+
+msgid "Protect SSH on {name} with fail2ban"
+msgstr "Protect SSH on {name} with fail2ban"
+
+msgid "Reading fail2ban on {name}"
+msgstr "Reading fail2ban on {name}"
+
+msgid "Reading how SSH lets people in on {name}"
+msgstr "Reading how SSH lets people in on {name}"
+
+msgid "Recent bans"
+msgstr "Recent bans"
+
+msgid "Root login"
+msgstr "Root login"
+
+msgid "SSH"
+msgstr "SSH"
+
+msgid "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
+msgstr "SSH's ports couldn't be read: this closes fail2ban's own sshd port, 22 unless set otherwise."
+
+#. placeholder {0}: j.name
+msgid "Stop writing the {0} jail"
+msgstr "Stop writing the {0} jail"
+
+msgid "Stop writing the {jail} jail on {name}"
+msgstr "Stop writing the {jail} jail on {name}"
+
+msgid "Take out"
+msgstr "Take out"
+
+msgid "Take {address} out"
+msgstr "Take {address} out"
+
+msgid "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+msgstr "The agent on {name} is older than the control plane, so it can't read SSH. Run the install script on {name} again to update it."
+
+msgid "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+msgstr "The agent on {name} is older than the control plane, so it can't read fail2ban. Run the install script on {name} again to update it."
+
+msgid "The sshd jail on {name}"
+msgstr "The sshd jail on {name}"
+
+msgid "The sshd that listens may not use these files"
+msgstr "The sshd that listens may not use these files"
+
+msgid "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+msgstr "These are what sshd's files say; sshd uses what it read when it last started or reloaded."
+
+msgid "This can ban {takenOutList} as it applies"
+msgstr "This can ban {takenOutList} as it applies"
+
+msgid "Until it reloads, it may still accept what this says is off."
+msgstr "Until it reloads, it may still accept what this says is off."
+
+msgid "Yes"
+msgstr "Yes"
+
+msgid "fail2ban counts the failures from just before."
+msgstr "fail2ban counts the failures from just before."
+
+msgid "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+msgstr "fail2ban isn't installed on {name}, so nothing bans an address that keeps failing to sign in."
+
+msgid "fail2ban isn't running on {name}, so it bans nobody: {why}"
+msgstr "fail2ban isn't running on {name}, so it bans nobody: {why}"
+
+msgid "fail2ban runs with no jails, so it bans nobody."
+msgstr "fail2ban runs with no jails, so it bans nobody."
+
+msgid "ignored now"
+msgstr "ignored now"
+
+msgid "on {iface}"
+msgstr "on {iface}"
+
+msgid "signed in over SSH now"
+msgstr "signed in over SSH now"
+
+msgid "sshd hasn't read {files} since it changed"
+msgstr "sshd hasn't read {files} since it changed"
+
+msgid "sshd lets in only who these allow: {lists}."
+msgstr "sshd lets in only who these allow: {lists}."
+
+msgid "sshd's default"
+msgstr "sshd's default"
+
+msgid "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+msgstr "sshd_config includes no drop-in folder, so Dockwell won't change SSH here."
+
+msgid "systemd holds SSH's port, through {unit}."
+msgstr "systemd holds SSH's port, through {unit}."
+
+msgid "where you are now"
+msgstr "where you are now"
+
+#. placeholder {0}: ssh.ports.length
+msgid "{0, plural, one {Port} other {Ports}}"
+msgstr "{0, plural, one {Port} other {Ports}}"
+
+msgid "{bannedNow, plural, one {address} other {addresses}}"
+msgstr "{bannedNow, plural, one {address} other {addresses}}"
+
+msgid "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+msgstr "{bannedTotal, plural, one {# ban since fail2ban started} other {# bans since fail2ban started}}"
+
+msgid "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+msgstr "{count, plural, one {Defaults for every connection: # Match block can set them otherwise} other {Defaults for every connection: # Match blocks can set them otherwise}}"
+
+msgid "{failures} · bans for good"
+msgstr "{failures} · bans for good"
+
+msgid "{failures} · bans for {span}"
+msgstr "{failures} · bans for {span}"
+
+msgid "{file}, line {line}"
+msgstr "{file}, line {line}"
+
+msgid "{file}, line {line} · not in effect until sshd reloads"
+msgstr "{file}, line {line} · not in effect until sshd reloads"
+
+#. placeholder {0}: time.ago(timestampDate(ban.since), now)
+msgid "{jail} · {0}"
+msgstr "{jail} · {0}"
+
+msgid "{more, plural, one {and # more} other {and # more}}"
+msgstr "{more, plural, one {and # more} other {and # more}}"
+
+msgid "{name} itself and the control server are never banned either."
+msgstr "{name} itself and the control server are never banned either."
+
+msgid "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+msgstr "{tries, plural, one {# failed sign-in in {within}} other {# failed sign-ins in {within}}}"
+
+msgid "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+msgstr "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
+
+msgid "{ways} also let people in, which Dockwell can't check."
+msgstr "{ways} also let people in, which Dockwell can't check."
+
 msgid "Action"
 msgstr "Action"
 
@@ -9560,9 +10642,6 @@ msgstr "Any {proto} port"
 
 msgid "Anywhere, IPv6"
 msgstr "Anywhere, IPv6"
-
-msgid "Can't tell"
-msgstr "Can't tell"
 
 msgid "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
 msgstr "Can't tell: Docker isn't answering, and this may be a port it publishes, which {by} doesn't cover"
@@ -9753,9 +10832,6 @@ msgstr "nftables"
 msgid "nftables table {0}"
 msgstr "nftables table {0}"
 
-msgid "on {iface}"
-msgstr "on {iface}"
-
 msgid "ufw"
 msgstr "ufw"
 
@@ -9841,9 +10917,6 @@ msgstr "Name a port from 1 to 65535, such as 443."
 
 msgid "Nothing listens"
 msgstr "Nothing listens"
-
-msgid "Plan it"
-msgstr "Plan it"
 
 msgid "Removal waiting for Keep"
 msgstr "Removal waiting for Keep"
@@ -9951,6 +11024,7 @@ msgstr "Up {uptime}"
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
 
+#. placeholder {0}: apps.length
 #. placeholder {0}: here.length
 msgid "{0, plural, one {# app} other {# apps}}"
 msgstr "{0, plural, one {# app} other {# apps}}"
@@ -10464,9 +11538,6 @@ msgstr "Looked up, {when}. That's its way out, and may not be a way in"
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 
-msgid "No"
-msgstr "No"
-
 msgid "Not checked"
 msgstr "Not checked"
 
@@ -10514,9 +11585,6 @@ msgstr "The certificate authority couldn't connect for {domain} on port 80 or 44
 
 msgid "The cloud's metadata says so, {when}"
 msgstr "The cloud's metadata says so, {when}"
-
-msgid "Yes"
-msgstr "Yes"
 
 msgid "{provider}'s metadata says so, {when}"
 msgstr "{provider}'s metadata says so, {when}"
@@ -10707,9 +11775,6 @@ msgstr "By hand, for now"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell can't say how its control plane is"
 
-msgid "Engine"
-msgstr "Engine"
-
 msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
 msgstr "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
 
@@ -10879,12 +11944,6 @@ msgstr "Caddy, the server's ingress, which holds ports 80 and 443 while the serv
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell itself, with a certificate from {ca} that it renews"
 
-msgid "HTTPS"
-msgstr "HTTPS"
-
-msgid "Language"
-msgstr "Language"
-
 msgid "Loopback"
 msgstr "Loopback"
 
@@ -10903,12 +11962,6 @@ msgstr "Nothing yet: the panel has no domain"
 msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
 msgstr "Only this browser changes. Your other browsers, and the command line, keep their own."
 
-msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
-msgstr "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
-
-msgid "Run by hand, <0>dockwell run --domain …</0>."
-msgstr "Run by hand, <0>dockwell run --domain …</0>."
-
 msgid "Same as this browser ({browser})"
 msgstr "Same as this browser ({browser})"
 
@@ -10924,29 +11977,17 @@ msgstr "Show the panel in"
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "Shown on the sign-in screen and in browser tabs."
 
-msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-msgstr "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-
 msgid "This install"
 msgstr "This install"
 
 msgid "Time zone"
 msgstr "Time zone"
 
-msgid "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
-msgstr "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
-
 msgid "What this install is called, its time zone and how its panel is served"
 msgstr "What this install is called, its time zone and how its panel is served"
 
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "What this install is called, its time zone and how its panel is served · set up {since}"
-
-msgid "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
-msgstr "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
-
-msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
-msgstr "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
@@ -11035,35 +12076,99 @@ msgstr "{connected} connected · the services Dockwell sends backups to and rout
 msgid "1 browser"
 msgstr "1 browser"
 
+msgid "1 open invite"
+msgstr "1 open invite"
+
 msgid "1 passkey"
 msgstr "1 passkey"
 
-msgid "1 person signs in to this install, its owner · inviting others comes later"
-msgstr "1 person signs in to this install, its owner · inviting others comes later"
+msgid "1 person signs in to this install · {invitesWord}"
+msgstr "1 person signs in to this install · {invitesWord}"
+
+msgid "1 person signs in to this install, its owner"
+msgstr "1 person signs in to this install, its owner"
 
 msgid "<0>dockwell recover</0> on the control server"
 msgstr "<0>dockwell recover</0> on the control server"
 
-msgid "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
-msgstr "An install has one person today, the owner who claimed it, as nothing yet tells an admin, a developer or a viewer apart from them. Scripts and integrations sign in with API tokens. <0>What members and roles need</0>"
+msgid "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
+msgstr "A developer's change in a protected environment waits for an admin or the owner, who applies it with a passkey. Check that each environment is as you want it. This is a reminder, shown until someone else signs in: Dockwell keeps no record of the tick."
 
-msgid "Change the install's settings"
-msgstr "Change the install's settings"
+msgid "A project that's gone"
+msgstr "A project that's gone"
 
-msgid "Deploy, and apply any plan"
-msgstr "Deploy, and apply any plan"
+msgid "All projects"
+msgstr "All projects"
+
+msgid "Apply in protected environments"
+msgstr "Apply in protected environments"
+
+msgid "Before anyone else signs in"
+msgstr "Before anyone else signs in"
+
+msgid "Check each environment's protection first, then tick the box: it decides whose changes wait."
+msgstr "Check each environment's protection first, then tick the box: it decides whose changes wait."
+
+msgid "Copy link"
+msgstr "Copy link"
+
+#. placeholder {0}: explain(environments.error)
+msgid "Dockwell can't list the environments: {0}"
+msgstr "Dockwell can't list the environments: {0}"
 
 msgid "Dockwell can't say who signs in"
 msgstr "Dockwell can't say who signs in"
 
-msgid "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
-msgstr "Everything, on every server. Admins, developers and viewers, each seeing and doing less and scoped by project, come with members."
+msgid "Enter an email address, such as ada@example.com."
+msgstr "Enter an email address, such as ada@example.com."
+
+msgid "Environments"
+msgstr "Environments"
+
+msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
+msgstr "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
+
+msgid "Expires"
+msgstr "Expires"
+
+#. placeholder {0}: words.span(left >= DAY ? Math.round(left / DAY) * DAY : left)
+msgid "Expires in {0}"
+msgstr "Expires in {0}"
 
 msgid "How you sign in"
 msgstr "How you sign in"
 
-msgid "Inviting someone comes in a later release"
-msgstr "Inviting someone comes in a later release"
+msgid "I've checked which environments are protected"
+msgstr "I've checked which environments are protected"
+
+msgid "In open environments"
+msgstr "In open environments"
+
+msgid "Invite"
+msgstr "Invite"
+
+msgid "Invite by email"
+msgstr "Invite by email"
+
+msgid "Invite people"
+msgstr "Invite people"
+
+msgid "Invite people and change roles"
+msgstr "Invite people and change roles"
+
+msgid "Invite someone"
+msgstr "Invite someone"
+
+#. placeholder {0}: invite.invitedBy
+msgid "Invited by {0} {when}"
+msgstr "Invited by {0} {when}"
+
+msgid "Invites need the panel's domain"
+msgstr "Invites need the panel's domain"
+
+#. placeholder {0}: formatDateTime(sent.until, i18n.locale)
+msgid "It works once, until {0}, for whoever has it. Dockwell can't show it again."
+msgstr "It works once, until {0}, for whoever has it. Dockwell can't show it again."
 
 msgid "Last active"
 msgstr "Last active"
@@ -11071,17 +12176,20 @@ msgstr "Last active"
 msgid "Last resort"
 msgstr "Last resort"
 
+msgid "Link copied"
+msgstr "Link copied"
+
+msgid "Loading the environments"
+msgstr "Loading the environments"
+
 msgid "Loading who signs in"
 msgstr "Loading who signs in"
 
 msgid "Locked after too many wrong codes, until you lift it in Profile and security"
 msgstr "Locked after too many wrong codes, until you lift it in Profile and security"
 
-msgid "Make and revoke API tokens"
-msgstr "Make and revoke API tokens"
-
-msgid "Manage servers and their files"
-msgstr "Manage servers and their files"
+msgid "Make projects, manage servers and settings"
+msgstr "Make projects, manage servers and settings"
 
 msgid "Member"
 msgstr "Member"
@@ -11091,6 +12199,15 @@ msgstr "Members"
 
 msgid "No way in that works now"
 msgstr "No way in that works now"
+
+msgid "Nobody was invited"
+msgstr "Nobody was invited"
+
+msgid "Not accepted yet"
+msgstr "Not accepted yet"
+
+msgid "Not protected"
+msgstr "Not protected"
 
 msgid "Now"
 msgstr "Now"
@@ -11111,8 +12228,35 @@ msgstr "Passkey and authenticator app"
 msgid "Permission"
 msgstr "Permission"
 
-msgid "Read the audit log"
-msgstr "Read the audit log"
+msgid "Plan and apply in open environments"
+msgstr "Plan and apply in open environments"
+
+msgid "Projects"
+msgstr "Projects"
+
+#. placeholder {0}: named(env)
+msgid "Protect {0}"
+msgstr "Protect {0}"
+
+msgid "Protect {where}"
+msgstr "Protect {where}"
+
+msgid "Read apps, plans, activity and logs"
+msgstr "Read apps, plans, activity and logs"
+
+msgid "Reveal a secret's value"
+msgstr "Reveal a secret's value"
+
+msgid "Revoke"
+msgstr "Revoke"
+
+#. placeholder {0}: invite.email
+msgid "Revoke the invite for {0}"
+msgstr "Revoke the invite for {0}"
+
+#. placeholder {0}: sent.email
+msgid "Send this link to {0}"
+msgstr "Send this link to {0}"
 
 msgid "Sign-in"
 msgstr "Sign-in"
@@ -11123,8 +12267,26 @@ msgstr "Signed in on"
 msgid "Single sign-on"
 msgstr "Single sign-on"
 
-msgid "What the owner can do"
-msgstr "What the owner can do"
+msgid "Stop protecting {where}"
+msgstr "Stop protecting {where}"
+
+msgid "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
+msgstr "The person you invite accepts at it, and their passkey is made there, as an SSH tunnel is yours alone. Set <0>DOCKWELL_DOMAIN</0> for the service to invite someone."
+
+msgid "Their projects"
+msgstr "Their projects"
+
+msgid "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
+msgstr "They accept at <0>{domain}</0> with a passkey. Dockwell sends no mail: send them the link it shows. Inviting asks for your passkey."
+
+msgid "Transfer ownership"
+msgstr "Transfer ownership"
+
+msgid "Up to admin"
+msgstr "Up to admin"
+
+msgid "What each role can do"
+msgstr "What each role can do"
 
 msgid "Who signs in"
 msgstr "Who signs in"
@@ -11142,12 +12304,22 @@ msgstr "all sign in with a passkey"
 msgid "{0} browsers"
 msgstr "{0} browsers"
 
+#. placeholder {0}: invites.length
+msgid "{0} open invites"
+msgstr "{0} open invites"
+
 #. placeholder {0}: m.passkeys
 msgid "{0} passkeys"
 msgstr "{0} passkeys"
 
+msgid "{address} signs in here already."
+msgstr "{address} signs in here already."
+
 msgid "{count} people sign in to this install"
 msgstr "{count} people sign in to this install"
+
+msgid "{count} people sign in to this install · {invitesWord}"
+msgstr "{count} people sign in to this install · {invitesWord}"
 
 msgid "{keys} and an authenticator app"
 msgstr "{keys} and an authenticator app"
@@ -11155,8 +12327,82 @@ msgstr "{keys} and an authenticator app"
 msgid "{keys}, with codes locked"
 msgstr "{keys}, with codes locked"
 
+#. placeholder {0}: projectName(env.resource?.scope ?? "")
+msgid "{name} in {0}"
+msgstr "{name} in {0}"
+
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{withPasskeys} of {count} sign in with a passkey"
+
+msgid "Apps and websites keep running. It asks for your passkey."
+msgstr "Apps and websites keep running. It asks for your passkey."
+
+msgid "DNS doesn't point here yet"
+msgstr "DNS doesn't point here yet"
+
+msgid "Dockwell can't tell whether {domain} leads here"
+msgstr "Dockwell can't tell whether {domain} leads here"
+
+msgid "Dockwell restarts to answer on loopback alone. Apps and websites keep running…"
+msgstr "Dockwell restarts to answer on loopback alone. Apps and websites keep running…"
+
+#. placeholder {0}: restarting.to
+msgid "Dockwell restarts to serve {0}. Apps and websites keep running…"
+msgstr "Dockwell restarts to serve {0}. Apps and websites keep running…"
+
+msgid "Dockwell restarts to serve {domain}"
+msgstr "Dockwell restarts to serve {domain}"
+
+msgid "Getting a certificate for {domain}…"
+msgstr "Getting a certificate for {domain}…"
+
+#. placeholder {0}: found.addresses.join(", ")
+msgid "It leads to {0}"
+msgstr "It leads to {0}"
+
+msgid "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
+msgstr "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
+
+msgid "Only the owner sets it."
+msgstr "Only the owner sets it."
+
+msgid "Open {domain}"
+msgstr "Open {domain}"
+
+msgid "Passkeys belong to the address they were made on: open it, and add one there."
+msgstr "Passkeys belong to the address they were made on: open it, and add one there."
+
+msgid "Restart and serve it"
+msgstr "Restart and serve it"
+
+msgid "Serve the panel there"
+msgstr "Serve the panel there"
+
+msgid "Stop using it"
+msgstr "Stop using it"
+
+msgid "The panel answers on {domain}"
+msgstr "The panel answers on {domain}"
+
+msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
+msgstr "The panel answers there over HTTPS too. The SSH tunnel keeps working."
+
+msgid "This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "This server's public address isn't known: set it, and Dockwell compares the two."
+
+msgid "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
+msgstr "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
+
+#. placeholder {0}: p.program
+#. placeholder {1}: p.port
+msgid "{0} holds port {1} on this server, so no certificate can come until it's freed."
+msgstr "{0} holds port {1} on this server, so no certificate can come until it's freed."
+
+msgid "{domain} isn't served"
+msgstr "{domain} isn't served"
+
+msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 
 msgid "Account"
 msgstr "Account"
@@ -11193,9 +12439,6 @@ msgstr "Dockwell can't list your tokens"
 
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "Each new address it's used from goes in the <0>audit log</0>"
-
-msgid "Expires"
-msgstr "Expires"
 
 msgid "Hide the token"
 msgstr "Hide the token"
@@ -11236,9 +12479,6 @@ msgstr "Read apps' logs, which often hold what apps shouldn't print."
 
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "Read servers, apps, plans and activity. Every token can, and changes nothing."
-
-msgid "Revoke"
-msgstr "Revoke"
 
 #. placeholder {0}: token.name
 msgid "Revoke {0}"
@@ -11443,9 +12683,6 @@ msgstr "Delete a project"
 msgid "Delete the project {projectName}"
 msgstr "Delete the project {projectName}"
 
-msgid "Environments"
-msgstr "Environments"
-
 msgid "Finding your projects"
 msgstr "Finding your projects"
 
@@ -11496,9 +12733,6 @@ msgstr "Opens a plan"
 
 msgid "Pages"
 msgstr "Pages"
-
-msgid "Projects"
-msgstr "Projects"
 
 msgid "Show the activity of {name}"
 msgstr "Show the activity of {name}"
@@ -12721,20 +13955,11 @@ msgstr "Choose the server it runs on."
 msgid "Go to the website"
 msgstr "Go to the website"
 
-msgid "Handled in front of this server"
-msgstr "Handled in front of this server"
-
 msgid "Name the domain, such as blog.example.com."
 msgstr "Name the domain, such as blog.example.com."
 
 msgid "New website"
 msgstr "New website"
-
-msgid "Off: plain HTTP to anyone"
-msgstr "Off: plain HTTP to anyone"
-
-msgid "On, with a certificate that comes by itself"
-msgstr "On, with a certificate that comes by itself"
 
 msgid "People reach it at its domain, over HTTPS"
 msgstr "People reach it at its domain, over HTTPS"
@@ -12758,8 +13983,15 @@ msgstr "What it serves"
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> runs an older build of {0}"
 
+msgid "<0>{name}</0> runs an older build of {version}"
+msgstr "<0>{name}</0> runs an older build of {version}"
+
 msgid "Extensions"
 msgstr "Extensions"
+
+#. placeholder {0}: newest.version
+msgid "New app on {language} {0}"
+msgstr "New app on {language} {0}"
 
 #. placeholder {0}: runtime.version
 msgid "New website on {0}"
@@ -12768,18 +14000,20 @@ msgstr "New website on {0}"
 msgid "No website yet"
 msgstr "No website yet"
 
-msgid "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
-msgstr "Node.js, Python and other languages run as apps, from an image or from the <0>Catalog</0>, with a domain of their own."
-
 msgid "Not used"
 msgstr "Not used"
+
+msgid "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
+msgstr "Other languages run as apps from an image, or from the <0>Catalog</0>, with a domain of their own."
 
 msgid "Runtimes"
 msgstr "Runtimes"
 
-#. placeholder {0}: runtime.release
-msgid "Update to {0}"
-msgstr "Update to {0}"
+msgid "Update to {release}"
+msgstr "Update to {release}"
+
+msgid "Update {name} to {language} {release}"
+msgstr "Update {name} to {language} {release}"
 
 #. placeholder {0}: runtime.release
 msgid "Update {name}'s PHP to {0}"
@@ -12792,11 +14026,8 @@ msgstr "{0, plural, one {# website} other {# websites}}"
 msgid "{extra, plural, one {and # more} other {and # more}}"
 msgstr "{extra, plural, one {and # more} other {and # more}}"
 
-msgid "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-msgstr "{inUse, plural, one {# in use · each PHP website runs its own} other {# in use · each PHP website runs its own}}"
-
-msgid "{more, plural, one {and # more} other {and # more}}"
-msgstr "{more, plural, one {and # more} other {and # more}}"
+msgid "{inUse, plural, one {# in use · each website and app runs its own} other {# in use · each website and app runs its own}}"
+msgstr "{inUse, plural, one {# in use · each website and app runs its own} other {# in use · each website and app runs its own}}"
 
 msgid "Can't reach {host}"
 msgstr "Can't reach {host}"
@@ -12995,9 +14226,6 @@ msgstr "Goes to index.php, as WordPress and Laravel want"
 msgid "Holds index.php, which only a PHP site runs."
 msgstr "Holds index.php, which only a PHP site runs."
 
-msgid "Holds {found}"
-msgstr "Holds {found}"
-
 msgid "Index files"
 msgstr "Index files"
 
@@ -13046,12 +14274,6 @@ msgstr "PHP {0} · {1}"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "Root owns it, so PHP can't save uploads there."
-
-msgid "Run as {theirs}"
-msgstr "Run as {theirs}"
-
-msgid "Runs as"
-msgstr "Runs as"
 
 msgid "Runs as {who} · {mb} MiB uploads"
 msgstr "Runs as {who} · {mb} MiB uploads"
@@ -13121,9 +14343,6 @@ msgstr "{edited, plural, one {# changed} other {# changed}}"
 msgid "{index} · single-page app"
 msgstr "{index} · single-page app"
 
-msgid "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-msgstr "{others, plural, one {Holds {found} and # more} other {Holds {found} and # more}}"
-
 msgid "Change the folder"
 msgstr "Change the folder"
 
@@ -13141,9 +14360,6 @@ msgstr "Mode"
 
 msgid "No folder of its own"
 msgstr "No folder of its own"
-
-msgid "Open in Files"
-msgstr "Open in Files"
 
 msgid "The folder is empty"
 msgstr "The folder is empty"

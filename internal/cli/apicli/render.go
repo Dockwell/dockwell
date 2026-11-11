@@ -811,6 +811,11 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			for _, line := range staysWords(st.GetStays(), s.GetServerName()) {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if st.GetResource().GetKind() == "fail2ban.jail" && st.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_DELETE {
+				for _, line := range jailWords(st.GetJail(), s.GetServerName()) {
+					fmt.Fprintln(tw, "      "+line)
+				}
+			}
 		}
 		_ = tw.Flush()
 	}
@@ -1508,4 +1513,19 @@ func staysWords(a *dockwellv1.AccessStays, server string) []string {
 		out = append(out, fmt.Sprintf("No rule allows the WireGuard tunnel %s, so deny everything else drops its next handshake, and SSH over it. Keep a rule that allows the tunnel's UDP port.", strings.Join(a.GetTunnels(), ", ")))
 	}
 	return out
+}
+
+// jailWords says whom a jail, as planned, can ban, and that undo lifts no ban.
+func jailWords(j *dockwellv1.JailPlan, server string) []string {
+	const lifting = "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
+	never := strings.Join(j.GetNeverBans(), ", ")
+	switch {
+	case j == nil:
+		return []string{"Can ban any address that keeps failing to sign in on " + server + ", yours included, counting failures from just before this applies. It never bans the server itself or the control server.", lifting}
+	case j.GetIgnoresEverything():
+		return []string{"Ignores every address on " + server + ", so it bans nobody: what it never bans covers them all (" + never + ")."}
+	case len(j.GetSignedInNotIgnored()) > 0:
+		return []string{"Can ban " + strings.Join(j.GetSignedInNotIgnored(), ", ") + ", signed in to " + server + " over SSH now, as this applies: it isn't in what the jail never bans (" + never + "), and fail2ban counts the failures from just before. Add it to ignore first, or apply this knowing it.", lifting}
+	}
+	return []string{"Never bans " + never + " on " + server + ". Any other address is banned once it keeps failing to sign in, yours included if it isn't one of these, counting failures from just before this applies.", lifting}
 }

@@ -92,18 +92,17 @@ type HostConfig struct {
 	Memory     int64 `json:"Memory,omitempty"`
 	MemorySwap int64 `json:"MemorySwap,omitempty"`
 	PidsLimit  int64 `json:"PidsLimit,omitempty"`
+	// CPUShares weighs its share of the CPUs against other containers', 1024 each
+	// unless set, when they compete. OomScoreAdj makes the kernel kill it sooner,
+	// up to 1000, or later, when the server runs out of memory.
+	CPUShares   int64 `json:"CpuShares,omitempty"`
+	OomScoreAdj int   `json:"OomScoreAdj,omitempty"`
 	// UsernsMode "host" keeps it in the server's user namespace on an engine
 	// with userns-remap, which refuses the host network otherwise. Elsewhere it
 	// changes nothing.
 	UsernsMode string `json:"UsernsMode,omitempty"`
 	// SecurityOpt sets options such as no-new-privileges.
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
-	// CPUShares is its weight against other containers when the server's CPUs are
-	// busy, where 1024 is an ordinary container's. Zero takes that.
-	CPUShares int64 `json:"CpuShares,omitempty"`
-	// OomScoreAdj says how soon the kernel kills it when the server runs out of
-	// memory, from -1000, never, to 1000, first.
-	OomScoreAdj int `json:"OomScoreAdj,omitempty"`
 }
 
 // Mount is a volume, bind or tmpfs mount, as HostConfig.Mounts has it.

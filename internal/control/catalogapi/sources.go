@@ -58,8 +58,9 @@ type Sources struct {
 	Client *http.Client
 	// Fetch reads a commit's folder, gitfetch.Fetch unless a test sets it.
 	Fetch func(ctx context.Context, client *http.Client, url, commit, dir string, lim gitfetch.Limits) (map[string][]byte, error)
-	// Refs lists a repository's branches and tags, gitfetch.Refs unless a test sets it.
-	Refs func(ctx context.Context, client *http.Client, url string) (map[string]string, error)
+	// Refs lists a repository's branches and tags, and its default branch,
+	// gitfetch.List unless a test sets it.
+	Refs func(ctx context.Context, client *http.Client, url string) (gitfetch.Listing, error)
 	// Now is the time, time.Now unless a test sets it.
 	Now func() time.Time
 
@@ -269,11 +270,12 @@ func (s *Sources) prunePlans() {
 func (s *Sources) commitNote(ctx context.Context, ref resource.Ref, spec *resourcev1.CatalogSource) revision.Note {
 	list := s.Refs
 	if list == nil {
-		list = gitfetch.Refs
+		list = gitfetch.List
 	}
 	ctx, cancel := context.WithTimeout(ctx, fetchWait)
 	defer cancel()
-	refs, err := list(ctx, s.Client, spec.GetRepository())
+	listing, err := list(ctx, s.Client, spec.GetRepository())
+	refs := listing.Refs
 	if err != nil {
 		return revision.Note{
 			Reason: "catalog_source_unlisted", Ref: ref,
@@ -840,8 +842,9 @@ func (h *Handler) ListCatalogSources(ctx context.Context, _ *connect.Request[doc
 // them to choose from, and a repository can hold thousands.
 const mostRefs = 500
 
-// ListCatalogSourceRefs lists a repository's branches, then its tags, each with
-// the commit it's at, read as a source is: at a public address, within a wait.
+// ListCatalogSourceRefs lists a repository's default branch, then its other
+// branches, then its tags, each with the commit it's at, read as a source is: at
+// a public address, within a wait.
 func (h *Handler) ListCatalogSourceRefs(ctx context.Context, req *connect.Request[dockwellv1.ListCatalogSourceRefsRequest]) (*connect.Response[dockwellv1.ListCatalogSourceRefsResponse], error) {
 	repo := strings.TrimSpace(req.Msg.GetRepository())
 	if _, err := gitfetch.CheckURL(repo); err != nil {
@@ -849,18 +852,24 @@ func (h *Handler) ListCatalogSourceRefs(ctx context.Context, req *connect.Reques
 	}
 	list := h.sources.Refs
 	if list == nil {
-		list = gitfetch.Refs
+		list = gitfetch.List
 	}
 	ctx, cancel := context.WithTimeout(ctx, fetchWait)
 	defer cancel()
-	refs, err := list(ctx, h.sources.Client, repo)
+	listing, err := list(ctx, h.sources.Client, repo)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("Dockwell can't read %s: %w", repo, err), "unreadable") //nolint:staticcheck // it starts with a name
 	}
+	refs := listing.Refs
 	out := &dockwellv1.ListCatalogSourceRefsResponse{}
+	// The default branch leads, so it's listed however many others there are.
+	if at, ok := refs[listing.Head]; ok {
+		out.Head = listing.Head
+		out.Refs = append(out.Refs, &dockwellv1.CatalogSourceRef{Name: listing.Head, Commit: at})
+	}
 	for _, prefix := range []string{"refs/heads/", "refs/tags/"} {
 		for _, name := range slices.Sorted(maps.Keys(refs)) {
-			if !strings.HasPrefix(name, prefix) {
+			if !strings.HasPrefix(name, prefix) || name == out.Head {
 				continue
 			}
 			if len(out.Refs) == mostRefs {

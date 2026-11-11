@@ -18,6 +18,7 @@ import {
   type Server,
   ServerInventorySchema,
   ServerStrain,
+  ServiceSchema,
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -477,6 +478,22 @@ function eventsWatch(...events: Parameters<typeof snapshot>[0]) {
   };
 }
 
+/** An app from /srv/shop on Node.js 24, whose image is the runtime's pinned one (ADR 0058). */
+function aFolderApp() {
+  const image = "docker.io/library/node:24.22.0-bookworm-slim";
+  return anApp(
+    "shop",
+    image,
+    {},
+    {
+      spec: create(ServiceSchema, {
+        runtime: { language: "node", version: "24", folder: "/srv/shop", port: 3000 },
+        runs: { case: "app", value: { image } },
+      }),
+    },
+  );
+}
+
 describe("what the overview shows below the numbers", () => {
   const web = anApp("web", "ghcr.io/example/web:1.5.0");
   const api = anApp("api", "ghcr.io/example/api:2.1.0");
@@ -599,6 +616,37 @@ describe("what the overview shows below the numbers", () => {
     const changes = screen.getByRole("region", { name: "Recent changes" });
     expect(app.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(link.compareDocumentPosition(changes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says what an app from a folder runs on and where, not its pinned image", async () => {
+    const shop = aFolderApp();
+    const api = overviewApi();
+    renderAt("/", {
+      ...api,
+      services: { listServices: () => ({ services: [shop] }) },
+      websites: {
+        listWebsiteRuntimes: () => ({ runtimes: [{ id: "node", language: "Node.js", version: "24" }] }),
+      },
+    });
+
+    const table = await screen.findByRole("table", { name: "Apps on this server" });
+    await waitFor(() => expect(table).toHaveTextContent("Node.js 24 · /srv/shop"));
+    expect(table).not.toHaveTextContent("bookworm");
+  });
+
+  it("says the same of an app from a folder on a phone", async () => {
+    onPhone();
+    const shop = aFolderApp();
+    renderAt("/", {
+      ...overviewApi(),
+      services: { listServices: () => ({ services: [shop] }) },
+      websites: {
+        listWebsiteRuntimes: () => ({ runtimes: [{ id: "node", language: "Node.js", version: "24" }] }),
+      },
+    });
+
+    const row = await screen.findByRole("link", { name: /^shop/ });
+    await waitFor(() => expect(row).toHaveTextContent("Node.js 24 · /srv/shop"));
   });
 
   it("lists the apps as rows on a phone, healthy ones quiet", async () => {

@@ -82,6 +82,9 @@ type Handler struct {
 
 	mu   sync.Mutex
 	kept map[string]keptReading
+	// features is the feature compatibility version each service's database said
+	// last, by the service's ID, for a plan that moves it back (LastFeatures).
+	features map[string]string
 }
 
 var _ dockwellv1connect.DatabaseServiceHandler = (*Handler)(nil)
@@ -96,7 +99,7 @@ type keptReading struct {
 // New returns a handler that reads the store through keeper, asks agents what each
 // database says, and backups for what's kept of each.
 func New(ch Changes, agents *agentapi.Agents, backups Backups, db *store.DB, keeper Secrets, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}}
+	return &Handler{changes: ch, agents: agents, backups: backups, db: db, keeper: keeper, logger: logger, now: time.Now, kept: map[string]keptReading{}, features: map[string]string{}}
 }
 
 // placed is a database with where it runs.
@@ -107,6 +110,9 @@ type placed struct {
 	// made is what Dockwell last changed of it: its service's revision, and each of
 	// its users' revisions. A reading kept from before a change is no reading of it.
 	made string
+	// firstUser is who its image makes first, whose password its secret holds:
+	// POSTGRES_USER, or postgres, root for MySQL and MariaDB, none for Redis.
+	firstUser string
 }
 
 // ListDatabases returns every database.
@@ -181,6 +187,10 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 		return nil, h.fail(ctx, err)
 	}
 	engine := database.Of(server.db.GetEngine())
+	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
+		// Its users are read, and making them comes after (ADR 0038).
+		return nil, authapi.Invalid(fmt.Errorf("%s runs MongoDB, and Dockwell can't make users in MongoDB yet. Make one with db.createUser in mongosh, in the database they sign in to", server.ref.Name))
+	}
 	if !engine.SQL() {
 		return nil, authapi.Invalid(fmt.Errorf("%s runs %s, which has no users of its own", server.ref.Name, engine.Name))
 	}
@@ -261,6 +271,11 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 	}
 	engine := database.Of(server.db.GetEngine())
 	name, env := server.ref.Name, server.ref.Scope
+	if engine.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
+		// Its root user's password is kept in its data from the first start on, so a
+		// new secret alone would no longer sign anyone in (ADR 0038).
+		return nil, authapi.Invalid(fmt.Errorf("%s runs MongoDB, and Dockwell can't change its password yet, as MongoDB keeps it in its data. Change it with db.changeUserPassword in mongosh, then set its secret to match", name))
+	}
 	whose, secret := m.GetUser(), server.db.GetPasswordSecret()
 	if whose == "" {
 		if secret == "" {
@@ -270,13 +285,20 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 		if engine.SQL() {
 			for i := range server.servers {
 				on := &server.servers[i]
-				if s, ok := h.agents.Session(on.ID); ok && !s.FirstPasswords() {
+				s, ok := h.agents.Session(on.ID)
+				switch {
+				case !ok:
+					// Its agent changes the password as the database restarts: one that's
+					// away can't say whether it does.
+					return nil, authapi.ReasonError(connect.CodeUnavailable,
+						fmt.Errorf("%s isn't connected, so Dockwell can't tell whether its agent changes a password in %s as it restarts. Try again once it reconnects", on.Name, engine.Name), "unavailable")
+				case !s.FirstPasswords():
 					return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 						fmt.Errorf("%s's agent is too old to change a password in %s as it restarts. Update the agent on %s, then try again", on.Name, engine.Name, on.Name), "agent_outdated")
 				}
 			}
 		}
-		whose = firstUserOf(engine)
+		whose = server.firstUser
 	} else {
 		if err := database.CheckSQLName("user", whose); err != nil {
 			return nil, invalidField("user", err)
@@ -304,16 +326,17 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&dockwellv1.ChangeDatabasePasswordResponse{Change: change}), nil
 }
 
-// firstUserOf is who an engine's image makes first, as its password secret is theirs:
-// empty for Redis and Valkey, which have no users of their own.
-func firstUserOf(e *database.Engine) string {
+// firstUserOf is who an engine's image makes first, from what its service's
+// environment says, as its password secret is theirs: empty for Redis and Valkey,
+// which have no users of their own.
+func firstUserOf(e *database.Engine, env map[string]string) string {
 	switch e.Kind {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
-		return "postgres"
+		return cmp.Or(env["POSTGRES_USER"], "postgres")
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		return "root"
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
-		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 	}
 	return ""
 }
@@ -514,7 +537,10 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 				entries[r.Scope] = entry
 			}
 			db.CatalogEntry = entry
-			p := &placed{db: db, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, made: strconv.Itoa(r.Revision)}
+			p := &placed{
+				db: db, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, made: strconv.Itoa(r.Revision),
+				firstUser: firstUserOf(f.Engine, svc.GetApp().GetEnv()),
+			}
 			for _, u := range users[r.Scope+"/"+r.Name] {
 				p.made += " " + u
 			}
@@ -733,6 +759,9 @@ func (h *Handler) ask(ctx context.Context, server store.Server, dbs []*placed) [
 		}
 		r.ServerId, r.ServerName, r.ReadTime = server.ID, server.Name, timestamppb.New(at)
 		out[i] = r
+		if fcv := r.GetFeatureCompatibility(); fcv != "" {
+			h.features[p.db.GetId()] = fcv
+		}
 		if keep {
 			h.kept[server.ID+"/"+p.db.GetId()] = keptReading{reading: proto.CloneOf(r), at: at, made: p.made}
 		}
@@ -743,6 +772,14 @@ func (h *Handler) ask(ctx context.Context, server store.Server, dbs []*placed) [
 		}
 	}
 	return out
+}
+
+// LastFeatures is the feature compatibility version a service's database said in its
+// last reading since the control plane started, or "" where none did.
+func (h *Handler) LastFeatures(serviceID string) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.features[serviceID]
 }
 
 // fail turns what went wrong into what the API says. An error made for the caller

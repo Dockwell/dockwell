@@ -235,6 +235,10 @@ message ProposeChangeRequest {
   // The edits, at most one for each resource. They apply in this order,
   // and deletions last, in reverse.
   repeated Edit edits = 2;
+  // Leave out the backup that comes first when a database moves to a release
+  // its data can't come back from, such as MongoDB raising its feature
+  // compatibility version (ADR 0038). The plan says so.
+  bool skip_backup = 3;
 }
 
 // Edit sets one resource's desired spec, or deletes it.
@@ -822,16 +826,20 @@ message PlanNote {
   // password it was made with, whatever an edit gave, "kept_passphrase" for a backup
   // destination that keeps its passphrase the same way, and "kept_options" for one
   // that keeps its options, as an edit gave none, "first_steps" for what a catalog
-  // app needs a person to know and do, "backup_first" for one that backs up its volumes first, "backup_unmeasured" for a
-  // volume whose backup gets a guess at the time it needs, "no_backup" for a catalog
-  // upgrade that runs without a backup first, "upgrade_kept" for what a person changed that the upgrade
+  // app needs a person to know and do, "backup_first" for one that backs up its volumes first, as a catalog
+  // upgrade or a database's move to a release it can't come back from does, "backup_unmeasured" for a
+  // volume whose backup gets a guess at the time it needs, "no_backup" for such an
+  // upgrade or move that runs without a backup first, as asked, "upgrade_kept" for what a person changed that the upgrade
   // changes too, which stays, "upgrade_dropped" for what they changed that it
   // drops, which goes, "undo_no_backup" for an undo of a plan that took no backup,
   // whose data stays as the new version left it, "tmpfs_no_size" for a Compose
-  // file's tmpfs that nothing stops taking half the server's memory, and
+  // file's tmpfs that nothing stops taking half the server's memory,
   // "tasks_as_root" for an app this makes reach what's as good as root, whose
-  // scheduled tasks run in it and reach the same. Another reason may come: its
-  // message says what it means.
+  // scheduled tasks run in it and reach the same, "raises_features" for a MongoDB
+  // this moves to its next release, whose feature compatibility version goes up
+  // first, "unbacked_move" for one whose data isn't in a volume Dockwell can back up
+  // first, and "lowers_release" for one this moves back, which goes only while its
+  // data uses nothing newer. Another reason may come: its message says what it means.
   string reason = 1;
   // What it says, for people: the fact, what it means, and what to do.
   string message = 2;
@@ -841,6 +849,9 @@ message PlanNote {
   // "exposed_variable"; the project, then the services it runs, for
   // "updates_project"; the volumes and server paths for "volumes_stay"; the path
   // for "tmpfs_no_size"; each task, then its command, for "tasks_as_root"; the
+  // release it leaves, then the one it moves to, for "raises_features" and
+  // "lowers_release", which adds the feature compatibility version its last
+  // reading said where the release it moves to can't run it; the
   // variables and secrets, by the names the service sees, for "values_latest";
   // the image, the revision and its digest for "digest_pinned" and "digest_gone",
   // and the image and the revision for "digest_differs"; the container_name, or
@@ -1205,6 +1216,8 @@ message PlanStep {
   // that fails leaves what runs as it was. Numbered apart, as open work adds to
   // this message.
   BuildPlan build = 130;
+  // What a step that sets a fail2ban jail says of whom it can ban (ADR 0052).
+  JailPlan jail = 44;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
@@ -1304,6 +1317,21 @@ message DetectedStep {
   string name = 1;
   // The commands, such as "npm ci", in order.
   repeated string commands = 2;
+}
+
+// JailPlan is whom a fail2ban jail, as planned, never bans, and who is signed
+// in now that it could.
+message JailPlan {
+  // What it never bans: the server's loopback, the control server's
+  // addresses, and what the jail ignores itself.
+  repeated string never_bans = 1;
+  // The addresses signed in to the server over SSH as it was planned that it
+  // doesn't ignore: a ban can land on each as the change applies, as a jail
+  // that starts counts the failures of just before.
+  repeated string signed_in_not_ignored = 2;
+  // True when what it ignores covers every address, such as 0.0.0.0/0: the
+  // jail then bans nobody.
+  bool ignores_everything = 3;
 }
 
 // AccessStays is who still reaches a server's SSH once a change that narrows

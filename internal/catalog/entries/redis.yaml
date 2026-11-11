@@ -16,23 +16,19 @@ features:
   - "Append-only persistence"
 category: databases
 version: "8.10.2"
-release: 2
+release: 3
 homepage: https://redis.io
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only
 source:
   repository: https://github.com/Dockwell/dockwell
   path: internal/catalog/entries/redis.yaml
-firstSteps: >-
-  Redis asks for the password in the REDIS_PASSWORD secret. A service in its own
-  project reaches it at redis:6379, and this server itself at 127.0.0.1 on its port.
-  A container in any other project reaches neither, so for one that needs Redis, add a
-  port on its page. Redis reads that secret each time it starts, so changing the secret
-  changes the password. It keeps what you write on its volume, in an append-only file.
+notes:
+  - "Keeps what you write on its volume, in an append-only file."
 inputs:
   - name: PORT
     label: Port on this server
-    hint: This server reaches Redis on 127.0.0.1 at this port. Its containers don't, as its first steps say.
+    hint: "Only this server reaches it, on 127.0.0.1."
     type: INPUT_TYPE_PORT
     defaultValue: "6379"
   - name: REDIS_PASSWORD

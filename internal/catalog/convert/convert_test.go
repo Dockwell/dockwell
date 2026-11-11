@@ -183,9 +183,9 @@ func TestAConvertedEntryKeepsTheRulesEveryEntryKeeps(t *testing.T) {
 	if l := inputs["LOG_LEVEL"]; !l.GetOptional() || l.GetHint() != "One of info, debug." || l.GetLabel() != "Log level" {
 		t.Errorf("LOG_LEVEL is %v", l)
 	}
-	if r.Entry.GetWeb().GetService() != "notes" || !strings.Contains(r.Entry.GetFirstSteps(), "ssh -N -L 8080:127.0.0.1:8080 you@your-server") ||
-		!strings.Contains(r.Entry.GetFirstSteps(), "Its other ports answer only on this server too") {
-		t.Errorf("it opens %q, with the first steps %q", r.Entry.GetWeb().GetService(), r.Entry.GetFirstSteps())
+	// How it's reached, on this server alone until a domain, is the panel's to show, with Open.
+	if r.Entry.GetWeb().GetService() != "notes" || r.Entry.GetFirstSteps() != "" || len(r.Entry.GetNotes()) != 0 {
+		t.Errorf("it opens %q, with the first steps %q and the notes %q", r.Entry.GetWeb().GetService(), r.Entry.GetFirstSteps(), r.Entry.GetNotes())
 	}
 	e := r.Entry
 	if e.GetLicense() != "GPL-3.0-only" || e.GetSource().GetRepository() != "https://github.com/1Panel-dev/appstore" ||
@@ -343,7 +343,15 @@ func TestAnOverlayWins(t *testing.T) {
 		Documentation: "https://example.com/docs", AppSource: "https://example.com/source",
 		Features:    []string{"Search your notes"},
 		Screenshots: []*catalogv1.Screenshot{{Path: "/catalog-media/notes-screen.webp", Caption: "Your notes", Source: "https://example.com/notes.png"}},
-		Inputs:      []*catalogv1.Input{{Name: "ADMIN_USER", Label: "Your name", Hint: "You sign in with it."}},
+		Inputs: []*catalogv1.Input{
+			{Name: "ADMIN_USER", Label: "Your name", Hint: "You sign in with it."},
+			{Name: "ADMIN_PASSWORD", SetOnce: true},
+		},
+		SignIn:           &catalogv1.SignIn{UserInput: "ADMIN_USER", PasswordInput: "ADMIN_PASSWORD"},
+		FirstVisitorOwns: true,
+		Signups:          &catalogv1.Signups{Service: "notes", Variable: "SIGNUPS_ALLOWED", Closed: "false"},
+		AddressVariables: []*catalogv1.AddressVariable{{Service: "notes", Variable: "BASE_URL", Value: "https://{domain}"}},
+		Notes:            []string{"Keeps each note as a file on its volume"},
 	}}
 	r := convertFixture(t, c, "notes")
 	e := r.Entry
@@ -354,6 +362,12 @@ func TestAnOverlayWins(t *testing.T) {
 	if e.GetName() != "Notes Server" || e.GetAppLicense() != "MIT" || e.GetFirstSteps() != "Open it." ||
 		e.GetInputs()[i].GetLabel() != "Your name" || e.GetInputs()[i].GetHint() != "You sign in with it." || e.GetInputs()[i].GetDefaultValue() != "owner" {
 		t.Errorf("the overlay didn't win: %v", e)
+	}
+	password := e.GetInputs()[slices.IndexFunc(e.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == "ADMIN_PASSWORD" })]
+	if !password.GetSetOnce() || password.GetGenerate() != 32 || !e.GetFirstVisitorOwns() ||
+		e.GetSignIn().GetPasswordInput() != "ADMIN_PASSWORD" || e.GetSignups().GetVariable() != "SIGNUPS_ALLOWED" ||
+		e.GetAddressVariables()[0].GetValue() != "https://{domain}" || !slices.Equal(e.GetNotes(), []string{"Keeps each note as a file on its volume"}) {
+		t.Errorf("the overlay's sign-in, sign-ups, address and notes didn't carry: %v", e)
 	}
 	written := c.Overlays["notes"].Entry
 	if e.GetDescription() != written.GetDescription() || e.GetIcon() != written.GetIcon() || e.GetDocumentation() != written.GetDocumentation() || e.GetAppSource() != written.GetAppSource() || !slices.Equal(e.GetFeatures(), written.GetFeatures()) || !proto.Equal(e.GetScreenshots()[0], written.GetScreenshots()[0]) {

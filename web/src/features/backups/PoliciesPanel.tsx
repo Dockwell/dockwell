@@ -2,7 +2,14 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { BackupCopy, type BackupPolicyInfo, BackupService, BackupState } from "@dockwell/api";
+import {
+  BackupCopy,
+  BackupPolicy_Drill,
+  type BackupPolicyInfo,
+  BackupService,
+  BackupState,
+  ChangeService,
+} from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
@@ -10,6 +17,7 @@ import { formatBytes, formatDateTime } from "../../lib/format";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useScheduleWords } from "./words";
 import "./Backups.css";
+import { useMay } from "../auth/may";
 
 /** How often a list of schedules is read again, for each's next run and last. */
 const REFRESH = 30_000;
@@ -22,12 +30,14 @@ export function usePolicies() {
 /** Each schedule: what it does, when next, and how its last run went. */
 export function PoliciesPanel({ policies, onAdd }: { policies: readonly BackupPolicyInfo[]; onAdd: () => void }) {
   const { t } = useLingui();
+  // A schedule is a plan, which is a developer's: off, with why, for a viewer (ADR 0059).
+  const mayPlan = useMay()(ChangeService.method.proposeChange);
   return (
     <Panel
       title={t`Schedules`}
       flush
       actions={
-        <Button size="sm" variant="ghost" icon="plus" onClick={onAdd}>
+        <Button size="sm" variant="ghost" icon="plus" onClick={onAdd} {...mayPlan.off}>
           <Trans>Add</Trans>
         </Button>
       }
@@ -58,6 +68,7 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
   const zone = policy.spec?.timeZone || "UTC";
   const next = policy.nextRun ? formatDateTime(timestampDate(policy.nextRun), i18n.locale, zone) : "";
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
+  const mayRemove = useMay()(ChangeService.method.proposeChange, { environment: policy.environmentId });
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -70,6 +81,13 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
         <code>{volume}</code>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
         <span className="backup-why">{keeps}</span>
+        <span className="backup-why">
+          {policy.spec?.drill === BackupPolicy_Drill.WEEKLY
+            ? t`Checks a restore weekly`
+            : policy.spec?.drill === BackupPolicy_Drill.MONTHLY
+              ? t`Checks a restore monthly`
+              : t`Doesn't check a restore`}
+        </span>
       </div>
       <div className="backup-state">
         {policy.last ? (
@@ -101,7 +119,14 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
         {copyFailed ? <span className="backup-why">{policy.last?.copyError}</span> : null}
         <span className="backup-why">{t`Next run ${next}`}</span>
       </div>
-      <Button size="sm" variant="ghost" icon="trash" aria-label={t`Stop this schedule`} onClick={remove} />
+      <Button
+        size="sm"
+        variant="ghost"
+        icon="trash"
+        aria-label={t`Stop this schedule`}
+        onClick={remove}
+        {...mayRemove.off}
+      />
     </li>
   );
 }

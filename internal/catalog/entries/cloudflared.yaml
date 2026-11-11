@@ -16,7 +16,7 @@ features:
   - "Runs as a background connector"
 category: networking
 version: "2026.10.3"
-release: 2
+release: 3
 homepage: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
 license: AGPL-3.0-only
 appLicense: Apache-2.0
@@ -24,14 +24,11 @@ source:
   repository: https://github.com/Dockwell/dockwell
   path: internal/catalog/entries/cloudflared.yaml
 hostAccess: The server's own network, so the tunnel reaches routes on this server's port 80.
-firstSteps: >-
-  In Cloudflare, add a published application to the tunnel, with your domain as
-  its hostname and http://127.0.0.1:80 as its service. Then add that domain to an
-  app here, as behind a tunnel.
+firstSteps: "In Cloudflare, publish your domain on this tunnel to http://127.0.0.1:80, then add it to an app here as behind a tunnel."
 inputs:
   - name: TUNNEL_TOKEN
     label: Tunnel token
-    hint: From Cloudflare, under Networks, in the tunnel's install command. It's kept as a secret.
+    hint: In Cloudflare, under Networks, in the tunnel's install command.
     type: INPUT_TYPE_SECRET
 compose: |
   services:

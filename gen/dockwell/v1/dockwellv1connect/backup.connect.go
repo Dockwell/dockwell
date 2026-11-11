@@ -64,6 +64,9 @@ const (
 	// BackupServiceRestoreBackupProcedure is the fully-qualified name of the BackupService's
 	// RestoreBackup RPC.
 	BackupServiceRestoreBackupProcedure = "/dockwell.v1.BackupService/RestoreBackup"
+	// BackupServiceDrillBackupProcedure is the fully-qualified name of the BackupService's DrillBackup
+	// RPC.
+	BackupServiceDrillBackupProcedure = "/dockwell.v1.BackupService/DrillBackup"
 )
 
 // BackupServiceClient is a client for the dockwell.v1.BackupService service.
@@ -114,6 +117,13 @@ type BackupServiceClient interface {
 	// The server keeps a copy of what's replaced for 7 days, and undoing the change
 	// puts that back.
 	RestoreBackup(context.Context, *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error)
+	// DrillBackup checks that a backup on its server restores, in a container and a
+	// volume of its own that nothing reaches and that it throws away, whatever comes
+	// of it (ADR 0068). It replaces nothing, so it takes the roles a backup does. It
+	// returns the drill running; follow it with GetBackup, whose drill says how it
+	// ended. A server runs one at a time, and an API token starts at most one drill of
+	// a volume an hour.
+	DrillBackup(context.Context, *connect.Request[v1.DrillBackupRequest]) (*connect.Response[v1.DrillBackupResponse], error)
 }
 
 // NewBackupServiceClient constructs a client for the dockwell.v1.BackupService service. By default,
@@ -192,6 +202,12 @@ func NewBackupServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(backupServiceMethods.ByName("RestoreBackup")),
 			connect.WithClientOptions(opts...),
 		),
+		drillBackup: connect.NewClient[v1.DrillBackupRequest, v1.DrillBackupResponse](
+			httpClient,
+			baseURL+BackupServiceDrillBackupProcedure,
+			connect.WithSchema(backupServiceMethods.ByName("DrillBackup")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -207,6 +223,7 @@ type backupServiceClient struct {
 	testBackupDestination  *connect.Client[v1.TestBackupDestinationRequest, v1.TestBackupDestinationResponse]
 	fetchBackup            *connect.Client[v1.FetchBackupRequest, v1.FetchBackupResponse]
 	restoreBackup          *connect.Client[v1.RestoreBackupRequest, v1.RestoreBackupResponse]
+	drillBackup            *connect.Client[v1.DrillBackupRequest, v1.DrillBackupResponse]
 }
 
 // ListBackups calls dockwell.v1.BackupService.ListBackups.
@@ -259,6 +276,11 @@ func (c *backupServiceClient) RestoreBackup(ctx context.Context, req *connect.Re
 	return c.restoreBackup.CallUnary(ctx, req)
 }
 
+// DrillBackup calls dockwell.v1.BackupService.DrillBackup.
+func (c *backupServiceClient) DrillBackup(ctx context.Context, req *connect.Request[v1.DrillBackupRequest]) (*connect.Response[v1.DrillBackupResponse], error) {
+	return c.drillBackup.CallUnary(ctx, req)
+}
+
 // BackupServiceHandler is an implementation of the dockwell.v1.BackupService service.
 type BackupServiceHandler interface {
 	// ListBackups returns backups, newest first, a page at a time. It reads the
@@ -307,6 +329,13 @@ type BackupServiceHandler interface {
 	// The server keeps a copy of what's replaced for 7 days, and undoing the change
 	// puts that back.
 	RestoreBackup(context.Context, *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error)
+	// DrillBackup checks that a backup on its server restores, in a container and a
+	// volume of its own that nothing reaches and that it throws away, whatever comes
+	// of it (ADR 0068). It replaces nothing, so it takes the roles a backup does. It
+	// returns the drill running; follow it with GetBackup, whose drill says how it
+	// ended. A server runs one at a time, and an API token starts at most one drill of
+	// a volume an hour.
+	DrillBackup(context.Context, *connect.Request[v1.DrillBackupRequest]) (*connect.Response[v1.DrillBackupResponse], error)
 }
 
 // NewBackupServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -381,6 +410,12 @@ func NewBackupServiceHandler(svc BackupServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(backupServiceMethods.ByName("RestoreBackup")),
 		connect.WithHandlerOptions(opts...),
 	)
+	backupServiceDrillBackupHandler := connect.NewUnaryHandler(
+		BackupServiceDrillBackupProcedure,
+		svc.DrillBackup,
+		connect.WithSchema(backupServiceMethods.ByName("DrillBackup")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.BackupService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BackupServiceListBackupsProcedure:
@@ -403,6 +438,8 @@ func NewBackupServiceHandler(svc BackupServiceHandler, opts ...connect.HandlerOp
 			backupServiceFetchBackupHandler.ServeHTTP(w, r)
 		case BackupServiceRestoreBackupProcedure:
 			backupServiceRestoreBackupHandler.ServeHTTP(w, r)
+		case BackupServiceDrillBackupProcedure:
+			backupServiceDrillBackupHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -450,4 +487,8 @@ func (UnimplementedBackupServiceHandler) FetchBackup(context.Context, *connect.R
 
 func (UnimplementedBackupServiceHandler) RestoreBackup(context.Context, *connect.Request[v1.RestoreBackupRequest]) (*connect.Response[v1.RestoreBackupResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BackupService.RestoreBackup is not implemented"))
+}
+
+func (UnimplementedBackupServiceHandler) DrillBackup(context.Context, *connect.Request[v1.DrillBackupRequest]) (*connect.Response[v1.DrillBackupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.BackupService.DrillBackup is not implemented"))
 }

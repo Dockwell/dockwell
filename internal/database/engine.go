@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package database knows the databases Dockwell can read and manage from inside
-// their own containers: PostgreSQL, MySQL, MariaDB, Redis and Valkey, from their
-// official images. The control plane uses it to tell a database from any other
+// their own containers: PostgreSQL, MySQL, MariaDB, Redis, Valkey and MongoDB,
+// from their official images. The control plane uses it to tell a database from any other
 // service by its spec, and the agent to ask one what it holds, with the database's
 // own tools, which sign in with what its environment already has, so no password
 // passes through Dockwell. See docs/adr/0038-databases.md.
 package database
 
 import (
+	"fmt"
 	"path"
 	"slices"
 	"strconv"
@@ -36,11 +37,21 @@ type Engine struct {
 	// there is one.
 	Data, Volume func(major int) string
 	DataVar      string
+	// DataFlag names an option of its server's command that moves the data, as
+	// MongoDB's --dbpath does, where there is one.
+	DataFlag string
 	// Port is what it listens on unless its command says otherwise.
 	Port uint32
 	// Password is the variable its image sets its first user's password from, in
 	// the order it reads them.
 	Password []string
+	// User is the variable its image sets its first user's name from, where that
+	// isn't always the same user, as MongoDB's root can be anyone.
+	User string
+	// Oldest is the oldest release Dockwell reads, where an older one's image lacks
+	// the tools it runs, and its words for that release. Zero reads any.
+	Oldest     int
+	OldestName string
 }
 
 // Engines are the databases Dockwell knows.
@@ -69,6 +80,15 @@ var Engines = []*Engine{
 		Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY, Name: "Valkey", Images: []string{"valkey/valkey"},
 		Servers: []string{"valkey-server", "redis-server"}, Data: always("/data"), Volume: always("/data"),
 		Port: 6379, Password: []string{"VALKEY_PASSWORD", "REDIS_PASSWORD"},
+	},
+	{
+		// Its image declares /data/configdb too, which only a config server of a
+		// sharded cluster keeps its data in.
+		Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB, Name: "MongoDB", Images: []string{"mongo"},
+		Servers: []string{"mongod"}, Data: always("/data/db"), Volume: always("/data/db"), DataFlag: "--dbpath",
+		Port: 27017, Password: []string{"MONGO_INITDB_ROOT_PASSWORD"}, User: "MONGO_INITDB_ROOT_USERNAME",
+		// Its images have mongosh from 6.0, and the old mongo shell before.
+		Oldest: 6, OldestName: "6.0",
 	},
 }
 
@@ -115,15 +135,41 @@ func Of(kind dockwellv1.DatabaseEngine) *Engine {
 	return nil
 }
 
-// SQL says the engine speaks SQL, so it has databases and users of its own.
+// SQL says the engine speaks SQL.
 func (e *Engine) SQL() bool {
 	switch e.Kind {
-	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY,
+		dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
 		return false
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL, dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 	}
 	return true
+}
+
+// KeyValue says the engine keeps keys and values, as Redis and Valkey do, with no
+// databases or users of its own here.
+func (e *Engine) KeyValue() bool {
+	return e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS || e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY
+}
+
+// SignsInWith names the variables its tools sign in with, for people.
+func (e *Engine) SignsInWith() string {
+	with := strings.Join(e.Password, " or ")
+	if e.User != "" {
+		with = e.User + " and " + with
+	}
+	return with
+}
+
+// TooOld says why Dockwell can't read a database on an image older than it reads,
+// or nothing.
+func (e *Engine) TooOld(image string) string {
+	if major := Major(image); e.Oldest > 0 && major > 0 && major < e.Oldest {
+		return fmt.Sprintf("%s %s is older than Dockwell reads, as its image lacks the tools that ask it. Upgrade it to %s or later",
+			e.Name, Version(image), e.OldestName)
+	}
+	return ""
 }
 
 // Repository is an image's repository as Docker Hub names it, without a tag, a
@@ -209,6 +255,9 @@ func FromSpec(svc *resourcev1.Service) (Found, bool) {
 	if v := app.GetEnv()[e.DataVar]; e.DataVar != "" && v != "" {
 		dir, moved = path.Clean(v), true
 	}
+	if v := FlagValue(app.GetCommand(), e.DataFlag); v != "" {
+		dir, moved = path.Clean(v), true
+	}
 	m := dataMount(app.GetMounts(), dir, e.Volume(major))
 	if old := e.Data(1); m == nil && major == 0 && !moved && old != dir {
 		// A tag that names no release, such as latest or alpine, may run an older
@@ -290,6 +339,27 @@ func startsServer(e *Engine, app *resourcev1.Container) bool {
 func (e *Engine) startsFromConf(arg string) bool {
 	return (e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS || e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY) &&
 		strings.HasSuffix(arg, ".conf")
+}
+
+// FlagValue reads an option's value from a command line, as --dbpath /srv or
+// --dbpath=/srv, or nothing. A script's options, as sh -c gives one, are read by
+// its words.
+func FlagValue(cmd []string, flag string) string {
+	if flag == "" {
+		return ""
+	}
+	if len(cmd) >= 3 && (path.Base(cmd[0]) == "sh" || path.Base(cmd[0]) == "bash") && cmd[1] == "-c" {
+		cmd = strings.Fields(cmd[2])
+	}
+	for i, arg := range cmd {
+		if v, ok := strings.CutPrefix(arg, flag+"="); ok {
+			return v
+		}
+		if arg == flag && i+1 < len(cmd) {
+			return cmd[i+1]
+		}
+	}
+	return ""
 }
 
 // Holds says a mount at target has dir on it: it's dir, or dir is under it.
