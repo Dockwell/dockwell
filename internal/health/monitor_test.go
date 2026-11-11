@@ -875,3 +875,40 @@ func TestHowAContainerExitedGoesOutAtOnce(t *testing.T) {
 		}
 	}
 }
+
+// The agent is told each list of the server's containers the monitor reads, with
+// when, a container on its own too, so it notes how what it keeps a record of
+// stands without a look of its own (ADR 0054).
+func TestEachListIsTold(t *testing.T) {
+	e := dockertest.New(t)
+	add(e, "web")
+	type told struct {
+		at    time.Time
+		names []string
+	}
+	got := make(chan told, 100)
+	m := &health.Monitor{Client: e.Client(), Scan: 5 * time.Millisecond, Refresh: 10 * time.Millisecond}
+	before := time.Now()
+	m.OnList(func(_ context.Context, at time.Time, list []docker.ContainerSummary) {
+		var names []string
+		for _, c := range list {
+			names = append(names, strings.Join(c.Names, ","))
+		}
+		select {
+		case got <- told{at, names}:
+		default:
+		}
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); m.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	select {
+	case first := <-got:
+		if first.at.Before(before) || len(first.names) != 1 || !strings.Contains(first.names[0], "web") {
+			t.Errorf("told %v at %v", first.names, first.at)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("told nothing")
+	}
+}

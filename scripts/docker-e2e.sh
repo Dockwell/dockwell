@@ -588,6 +588,16 @@ project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.pr
 says nginx curl -fsS --max-time 10 "http://127.0.0.1:$web_port/" || fail "web doesn't serve on port $web_port"
 env_of() { docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container"; }
 says '^GREETING=hello$' env_of || fail "web's environment is $(env_of)"
+# The agent keeps what web runs, sealed, so it can put it back while the control
+# plane is away (ADR 0054): a record of it, with nothing of its environment in the
+# clear, and a key that's the agent's alone.
+records=$(priv find "$data/agent/desired" -maxdepth 1 -name '*.rec') || fail "can't list the agent's records in $data/agent/desired"
+[[ -n "$records" ]] || fail "the agent keeps no record of what web runs in $data/agent/desired"
+if priv grep -rqa 'GREETING' "$data/agent/desired"; then
+  fail "the agent's records hold web's environment in the clear"
+fi
+key_mode=$(priv stat -c %a "$data/agent/desired.key") || fail "the agent has no key to its records"
+[[ "$key_mode" == 600 ]] || fail "the agent's key to its records is $key_mode, want 600"
 
 step "Its logs read through the CLI, and follow, and stop on an interrupt"
 logs=$(dw logs read web --page-size 50) || fail "logs read failed"

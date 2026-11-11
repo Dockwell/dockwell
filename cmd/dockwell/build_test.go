@@ -36,6 +36,7 @@ var agentPackages = []string{
 	"internal/agent",
 	"internal/agent/access", // who reaches the server, under the firewall's timer (ADR 0052)
 	"internal/agent/collect",
+	"internal/agent/desired", // what the server should run, kept sealed (ADR 0054)
 	"internal/agent/enroll",
 	"internal/agent/files",      // a server's files, for a person (ADR 0032)
 	"internal/agent/hosttool",   // running the server's own tools, such as ufw and nft (ADR 0043, ADR 0052)

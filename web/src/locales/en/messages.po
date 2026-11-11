@@ -467,6 +467,12 @@ msgstr "Loading activity"
 msgid "Loading the plan"
 msgstr "Loading the plan"
 
+msgid "New cache"
+msgstr "New cache"
+
+msgid "Not on record"
+msgstr "Not on record"
+
 msgid "Nothing here yet"
 msgstr "Nothing here yet"
 
@@ -501,6 +507,9 @@ msgstr "Proposed by"
 msgid "Ran as"
 msgstr "Ran as"
 
+msgid "Resources sent"
+msgstr "Resources sent"
+
 msgid "Review plan"
 msgstr "Review plan"
 
@@ -527,6 +536,9 @@ msgstr "State"
 
 msgid "Terminal"
 msgstr "Terminal"
+
+msgid "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
+msgstr "The control plane's data was restored or rebuilt from before these were made or changed, so what {server}'s agent keeps of them, values included, may be the only copy of what runs there. Apply them again from the control plane to bring its record up to date."
 
 msgid "Times"
 msgstr "Times"
@@ -573,6 +585,9 @@ msgstr "Why"
 msgid "Why it failed"
 msgstr "Why it failed"
 
+msgid "With variables and secrets"
+msgstr "With variables and secrets"
+
 msgid "Yesterday"
 msgstr "Yesterday"
 
@@ -590,6 +605,9 @@ msgstr "{count}, at {first}"
 
 msgid "{count}, from {first} to {last}"
 msgstr "{count}, from {first} to {last}"
+
+msgid "{server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove {server} from the fleet and join it again, which gives it a new one."
+msgstr "{server}'s agent keeps its cache under a key it made since the control plane last sent it anything, as after a reinstall, or a data folder that was lost. If neither happened, something else may hold this server's identity: remove {server} from the fleet and join it again, which gives it a new one."
 
 msgid "{times, plural, one {# time} other {# times}}"
 msgstr "{times, plural, one {# time} other {# times}}"
@@ -1019,6 +1037,21 @@ msgstr "{count, plural, one {It changed once in {span}.} other {It changed # tim
 msgid "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 msgstr "{count, plural, one {It changed once more since the last of these.} other {It changed # more times since the last of these.}}"
 
+msgid "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
+msgstr "{count, plural, one {Sent {server}'s agent the variables and secrets of # resource it runs, to keep while the control plane is away} other {Sent {server}'s agent the variables and secrets of # resources it runs, to keep while the control plane is away}}"
+
+msgid "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, one {Sent {server}'s agent, which kept none before, the variables and secrets of # resource it runs} other {Sent {server}'s agent, which kept none before, the variables and secrets of # resources it runs}}"
+
+msgid "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+msgstr "{count, plural, one {{server} dropped # entry of what it did while the control plane was away, as it keeps 500} other {{server} dropped # entries of what it did while the control plane was away, as it keeps 500}}"
+
+msgid "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
+msgstr "{count, plural, one {{server}'s agent has a new cache, and was sent the variables and secrets of # resource it runs} other {{server}'s agent has a new cache, and was sent the variables and secrets of # resources it runs}}"
+
+msgid "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+msgstr "{count, plural, one {{server}'s agent keeps # resource this control plane has no record of at that revision, and it was left as it is} other {{server}'s agent keeps # resources this control plane has no record of at that revision, and they were left as they are}}"
+
 msgid "{destination} kept a backup of {volume} that was to go"
 msgstr "{destination} kept a backup of {volume} that was to go"
 
@@ -1043,14 +1076,26 @@ msgstr "{name} was paused on {server}"
 msgid "{server} can't be reached"
 msgstr "{server} can't be reached"
 
+msgid "{server} couldn't put anything back while the control plane was away"
+msgstr "{server} couldn't put anything back while the control plane was away"
+
+msgid "{server} couldn't put {resourceName} back while the control plane was away"
+msgstr "{server} couldn't put {resourceName} back while the control plane was away"
+
 msgid "{server} joined as the control server"
 msgstr "{server} joined as the control server"
 
 msgid "{server} joined the fleet"
 msgstr "{server} joined the fleet"
 
+msgid "{server} made {resourceName} again while the control plane was away"
+msgstr "{server} made {resourceName} again while the control plane was away"
+
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
+
+msgid "{server} started {resourceName} again while the control plane was away"
+msgstr "{server} started {resourceName} again while the control plane was away"
 
 msgid "{server} uses {value}% of its memory"
 msgstr "{server} uses {value}% of its memory"

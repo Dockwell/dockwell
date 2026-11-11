@@ -46,7 +46,10 @@ type Driver struct {
 	Client *docker.Client
 }
 
-var _ resource.Driver = (*Driver)(nil)
+var (
+	_ resource.Driver   = (*Driver)(nil)
+	_ resource.Attacher = (*Driver)(nil)
+)
 
 // Kind returns "network".
 func (*Driver) Kind() resource.Kind { return Kind }
@@ -182,6 +185,24 @@ func Project(n *docker.Network) *resourcev1.Network {
 		out.Labels[k] = v
 	}
 	return out
+}
+
+// Attached names the containers on the server attached to the network, stopped
+// ones too, by name. One attached to a network that's gone still names it.
+func (d *Driver) Attached(ctx context.Context, ref resource.Ref) ([]string, error) {
+	name := TargetOf(ref).Name
+	list, err := d.Client.ListContainers(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for i := range list {
+		c := &list[i]
+		if _, ok := c.NetworkSettings.Networks[name]; ok && len(c.Names) > 0 {
+			out = append(out, strings.TrimPrefix(c.Names[0], "/"))
+		}
+	}
+	return out, nil
 }
 
 // Observe asks Docker.

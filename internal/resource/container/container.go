@@ -159,7 +159,11 @@ type Driver struct {
 	RecreateDowntime time.Duration
 }
 
-var _ resource.Driver = (*Driver)(nil)
+var (
+	_ resource.Driver  = (*Driver)(nil)
+	_ resource.Imaged  = (*Driver)(nil)
+	_ resource.Reviver = (*Driver)(nil)
+)
 
 // Kind returns "container".
 func (*Driver) Kind() resource.Kind { return Kind }
@@ -789,6 +793,74 @@ func isCheckHost(host string) bool {
 	// A name has no colon, so it ends at the first.
 	name, _, _ := strings.Cut(host, ":")
 	return len(name) <= maxHostname && checkHostRE.MatchString(host)
+}
+
+// imageRuntime is a Runtime that can say which image a container runs.
+type imageRuntime interface {
+	ImageAt(ctx context.Context, t Target) (resource.Image, error)
+}
+
+// RunsImage is the image the container runs.
+func (d *Driver) RunsImage(ctx context.Context, ref resource.Ref) (resource.Image, error) {
+	return d.ImageAt(ctx, HostTarget(ref))
+}
+
+// ImageAt is the image the container at t runs, where its runtime can say.
+func (d *Driver) ImageAt(ctx context.Context, t Target) (resource.Image, error) {
+	if r, ok := d.Runtime.(imageRuntime); ok {
+		return r.ImageAt(ctx, t)
+	}
+	return resource.Image{}, nil
+}
+
+// reviveRuntime is a Runtime an agent can start containers again with, and check
+// before it makes one again, while the control plane is away (ADR 0054).
+type reviveRuntime interface {
+	RunStateAt(ctx context.Context, t Target) (resource.RunState, error)
+	StartAt(ctx context.Context, t Target) error
+	HoldAt(ctx context.Context, t Target, spec *resourcev1.Container, volumes map[string]string) (string, error)
+}
+
+// errCantRevive says the runtime can't start or check containers, as a fake can't.
+var errCantRevive = errors.New("this runtime can't start a container again on its own")
+
+// RunState is how the container stands.
+func (d *Driver) RunState(ctx context.Context, ref resource.Ref) (resource.RunState, error) {
+	return d.RunStateAt(ctx, HostTarget(ref))
+}
+
+// RunStateAt is how the container at t stands.
+func (d *Driver) RunStateAt(ctx context.Context, t Target) (resource.RunState, error) {
+	if r, ok := d.Runtime.(reviveRuntime); ok {
+		return r.RunStateAt(ctx, t)
+	}
+	return resource.RunState{}, errCantRevive
+}
+
+// Start starts the container, as it is.
+func (d *Driver) Start(ctx context.Context, ref resource.Ref) error {
+	return d.StartAt(ctx, HostTarget(ref))
+}
+
+// StartAt starts the container at t.
+func (d *Driver) StartAt(ctx context.Context, t Target) error {
+	if r, ok := d.Runtime.(reviveRuntime); ok {
+		return r.StartAt(ctx, t)
+	}
+	return errCantRevive
+}
+
+// Hold says why the container can't be made again now, if it can't.
+func (d *Driver) Hold(ctx context.Context, ref resource.Ref, spec proto.Message, volumes map[string]string) (string, error) {
+	return d.HoldAt(ctx, HostTarget(ref), spec.(*resourcev1.Container), volumes)
+}
+
+// HoldAt says why the container at t can't be made again from spec now, if it can't.
+func (d *Driver) HoldAt(ctx context.Context, t Target, spec *resourcev1.Container, volumes map[string]string) (string, error) {
+	if r, ok := d.Runtime.(reviveRuntime); ok {
+		return r.HoldAt(ctx, t, spec, volumes)
+	}
+	return "", errCantRevive
 }
 
 // Observe asks Docker.

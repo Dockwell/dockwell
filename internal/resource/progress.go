@@ -42,6 +42,9 @@ type Deploy struct {
 	// under the firewall's timer (AccessGuard): the agent waits for the change
 	// to be confirmed, or its timer to run out, before the step ends (ADR 0052).
 	LastAccess bool
+	// Reconcile identifies a local action durably recorded before creation. It
+	// stays on the container so an agent restart can account for its outcome.
+	Reconcile string
 }
 
 type deployKey struct{}
