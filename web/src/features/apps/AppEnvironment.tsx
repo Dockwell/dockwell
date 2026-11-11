@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type Change, ChangeState, type EnvironmentVariable } from "@dockwell/api";
+import { type Change, ChangeService, ChangeState, type EnvironmentVariable } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -34,6 +34,8 @@ import {
 import { sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
+import { MayEdit } from "../auth/MayEdit";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -66,6 +68,7 @@ export function AppEnvironment() {
   // A secret it uses reveals here as on Variables, with a passkey, for a minute.
   const reveals = useReveals(environment);
   const [pending, setPending] = useDraft(service.id);
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment });
   // While the plan sheet is open, it has the keyboard: ⌘↵ there applies.
   const reviewing = useRef(false);
   const [changing, setChanging] = useState<string>();
@@ -167,72 +170,79 @@ export function AppEnvironment() {
   return (
     <RevealsProvider value={reveals}>
       <div className="app-environment">
-        <div className="app-env-head">
-          <span className="app-env-counts">{counts}</span>
-          <span className="app-env-spacer" />
-          <Button variant="ghost" icon="upload" disabled={store.data === undefined} onClick={() => setImporting(true)}>
-            <Trans>Import .env</Trans>
-          </Button>
-        </div>
+        {/* For someone who may not plan here, it's there to read, with why (ADR 0059). */}
+        <MayEdit offer={mayPlan}>
+          <div className="app-env-head">
+            <span className="app-env-counts">{counts}</span>
+            <span className="app-env-spacer" />
+            <Button
+              variant="ghost"
+              icon="upload"
+              disabled={store.data === undefined}
+              onClick={() => setImporting(true)}
+            >
+              <Trans>Import .env</Trans>
+            </Button>
+          </div>
 
-        {store.error ? (
-          <Callout
-            tone="warning"
-            title={t`Can't read the environment's variables and secrets`}
-            actions={
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="refresh"
-                loading={store.isFetching}
-                onClick={() => void store.refetch()}
-              >
-                <Trans>Try again</Trans>
-              </Button>
-            }
-          >
-            {sentence(store.error)} <Trans>Their values stay hidden, and Add waits until they load.</Trans>
-          </Callout>
-        ) : null}
+          {store.error ? (
+            <Callout
+              tone="warning"
+              title={t`Can't read the environment's variables and secrets`}
+              actions={
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon="refresh"
+                  loading={store.isFetching}
+                  onClick={() => void store.refetch()}
+                >
+                  <Trans>Try again</Trans>
+                </Button>
+              }
+            >
+              {sentence(store.error)} <Trans>Their values stay hidden, and Add waits until they load.</Trans>
+            </Callout>
+          ) : null}
 
-        <AddForm
-          key={changing ?? "add"}
-          name={name}
-          rows={rows}
-          store={store.data?.variables}
-          reading={store.data === undefined}
-          changing={rows.find((row) => row.name === changing)}
-          onAdd={put}
-          onDone={() => setChanging(undefined)}
-        />
+          <AddForm
+            key={changing ?? "add"}
+            name={name}
+            rows={rows}
+            store={store.data?.variables}
+            reading={store.data === undefined}
+            changing={rows.find((row) => row.name === changing)}
+            onAdd={put}
+            onDone={() => setChanging(undefined)}
+          />
 
-        {rows.length === 0 ? (
-          // With nothing set, a table would be four column heads over one sentence, and a lone one on a phone.
-          <EmptyState icon="key" title={t`No variables yet`}>
-            <Trans>It runs with only what its image sets.</Trans>
-          </EmptyState>
-        ) : (
-          <Panel flush>
-            <Table
-              columns={columns}
-              rows={rows.map((row) => ({ ...row, id: row.name }))}
-              rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
-              density="compact"
-              caption={t`Environment variables of ${name}`}
-            />
-          </Panel>
-        )}
+          {rows.length === 0 ? (
+            // With nothing set, a table would be four column heads over one sentence, and a lone one on a phone.
+            <EmptyState icon="key" title={t`No variables yet`}>
+              <Trans>It runs with only what its image sets.</Trans>
+            </EmptyState>
+          ) : (
+            <Panel flush>
+              <Table
+                columns={columns}
+                rows={rows.map((row) => ({ ...row, id: row.name }))}
+                rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
+                density="compact"
+                caption={t`Environment variables of ${name}`}
+              />
+            </Panel>
+          )}
 
-        <p className="app-note">
-          <Trans>
-            Change a shared one in{" "}
-            <Link to="/variables" search={{ environment }}>
-              Variables and secrets
-            </Link>
-            . A value set here is never shown again.
-          </Trans>
-        </p>
-
+          <p className="app-note">
+            <Trans>
+              Change a shared one in{" "}
+              <Link to="/variables" search={{ environment }}>
+                Variables and secrets
+              </Link>
+              . A value set here is never shown again.
+            </Trans>
+          </p>
+        </MayEdit>
         {pending.size > 0 ? (
           <PendingBar
             name={name}

@@ -44,6 +44,8 @@ func TestPresentationIsOptionalAndConstrained(t *testing.T) {
 		{"path traversal", func(e *catalogv1.Entry) { e.Icon = "/catalog-media/../api/logo.png" }, false},
 		{"encoded path", func(e *catalogv1.Entry) { e.Icon = "/catalog-media/%2e%2e/logo.png" }, false},
 		{"script link", func(e *catalogv1.Entry) { e.Documentation = "javascript:alert(1)" }, false},
+		{"script homepage", func(e *catalogv1.Entry) { e.Homepage = "javascript:alert(1)" }, false},
+		{"plain HTTP homepage", func(e *catalogv1.Entry) { e.Homepage = "http://example.com" }, false},
 		{"credentials", func(e *catalogv1.Entry) { e.AppSource = "https://user:secret@example.com" }, false},
 		{"no hostname", func(e *catalogv1.Entry) { e.AppSource = "https:///missing" }, false},
 		{"svg screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Path = "/catalog-media/example.svg" }, false},

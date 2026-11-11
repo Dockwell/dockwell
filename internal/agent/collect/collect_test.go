@@ -5,6 +5,7 @@ package collect
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net"
 	"runtime"
 	"strconv"
@@ -259,5 +260,43 @@ func TestAddressesAreThePhysicalInterfaces(t *testing.T) {
 	}
 	if c.Inventory(t.Context()).GetAddressesPhysical() {
 		t.Error("addresses from a test are said to be physical")
+	}
+}
+
+// A server's disks read and write once each: a partition, an LVM volume, an md
+// array, a loop or a zram device sits on a disk, and counting it too would say
+// the server moved its bytes two or three times.
+func TestDiskBytesCountEachWholeDiskOnce(t *testing.T) {
+	fsys := fixture("cpu  0 0 0 0 0 0 0 0 0 0\n", netdev(0, 0))
+	// major minor name reads merged sectors-read ms writes merged sectors-written ...
+	fsys["proc/diskstats"] = &fstest.MapFile{Data: []byte(`   8       0 sda 100 0 2000 0 50 0 4000 0 0 0 0
+   8       1 sda1 90 0 1800 0 45 0 3600 0 0 0 0
+   8      16 sdb 10 0 200 0 5 0 400 0 0 0 0
+ 259       0 nvme0n1 1 0 10 0 1 0 20 0 0 0 0
+ 259       1 nvme0n1p1 1 0 10 0 1 0 20 0 0 0 0
+ 253       0 dm-0 80 0 1600 0 40 0 3200 0 0 0 0
+   9       0 md0 10 0 200 0 5 0 400 0 0 0 0
+   7       0 loop0 3 0 60 0 0 0 0 0 0 0 0
+ 252       0 zram0 3 0 60 0 3 0 60 0 0 0 0
+ 104       0 cciss/c0d0 1 0 4 0 1 0 8 0 0 0 0
+`)}
+	for _, disk := range []string{"sda", "sdb", "nvme0n1", "cciss!c0d0"} {
+		fsys["sys/block/"+disk+"/device"] = &fstest.MapFile{Mode: fs.ModeDir}
+	}
+	// What the kernel has for these too, without a device link of their own.
+	for _, layer := range []string{"dm-0", "md0", "loop0", "zram0"} {
+		fsys["sys/block/"+layer+"/size"] = &fstest.MapFile{Data: []byte("1\n")}
+	}
+	st := newFixtureCollector(fsys).Stats(time.Now())
+	if want := uint64(2000+200+10+4) * 512; st.GetDiskReadBytes() != want {
+		t.Errorf("read %d bytes, want %d", st.GetDiskReadBytes(), want)
+	}
+	if want := uint64(4000+400+20+8) * 512; st.GetDiskWrittenBytes() != want {
+		t.Errorf("wrote %d bytes, want %d", st.GetDiskWrittenBytes(), want)
+	}
+	// With no diskstats, as in some containers, it says nothing.
+	delete(fsys, "proc/diskstats")
+	if st := newFixtureCollector(fsys).Stats(time.Now()); st.GetDiskReadBytes() != 0 || st.GetDiskWrittenBytes() != 0 {
+		t.Errorf("no diskstats read %d and wrote %d", st.GetDiskReadBytes(), st.GetDiskWrittenBytes())
 	}
 }

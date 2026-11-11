@@ -4,6 +4,7 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   type Change,
+  ChangeService,
   ChangeState,
   type Container,
   type EditSchema,
@@ -38,6 +39,8 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { MayEdit } from "../auth/MayEdit";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleet } from "../servers/useFleet";
@@ -91,6 +94,7 @@ export function AppSettings() {
   const name = nameOf(service);
   const moving = isMoving(state);
   const active = useCurrentSection(SECTIONS);
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: environmentOf(service) });
   // What the image declares, so a setting the app leaves to its image says what that is.
   const image = useImageConfig(service, app?.image ?? "");
 
@@ -218,54 +222,57 @@ export function AppSettings() {
         </nav>
       )}
       <div className="app-settings-main">
-        {section(
-          "general",
-          (a) => (
-            <GeneralFacts app={a} image={image} />
-          ),
-          (props) => (
-            <GeneralForm {...props} />
-          ),
-        )}
-        {section(
-          "health",
-          (a) => (
-            <HealthFacts app={a} image={image} />
-          ),
-          (props) => (
-            <HealthForm {...props} />
-          ),
-        )}
-        {section(
-          "resources",
-          (a) => (
-            <ResourcesFacts app={a} />
-          ),
-          (props) => (
-            <ResourcesForm {...props} />
-          ),
-        )}
-        {section(
-          "ports",
-          (a) => (
-            <PortsFacts app={a} />
-          ),
-          (props) => (
-            <PortsForm {...props} />
-          ),
-        )}
-        {section(
-          "mounts",
-          (a) => (
-            <MountsFacts app={a} />
-          ),
-          (props) => (
-            <MountsForm {...props} />
-          ),
-        )}
-        <div id="danger" className="app-settings-anchor is-wide">
-          <DangerZone title={label.danger} />
-        </div>
+        {/* For someone who may not plan here, its settings are there to read, with why (ADR 0059). */}
+        <MayEdit offer={mayPlan}>
+          {section(
+            "general",
+            (a) => (
+              <GeneralFacts app={a} image={image} />
+            ),
+            (props) => (
+              <GeneralForm {...props} />
+            ),
+          )}
+          {section(
+            "health",
+            (a) => (
+              <HealthFacts app={a} image={image} />
+            ),
+            (props) => (
+              <HealthForm {...props} />
+            ),
+          )}
+          {section(
+            "resources",
+            (a) => (
+              <ResourcesFacts app={a} />
+            ),
+            (props) => (
+              <ResourcesForm {...props} />
+            ),
+          )}
+          {section(
+            "ports",
+            (a) => (
+              <PortsFacts app={a} />
+            ),
+            (props) => (
+              <PortsForm {...props} />
+            ),
+          )}
+          {section(
+            "mounts",
+            (a) => (
+              <MountsFacts app={a} />
+            ),
+            (props) => (
+              <MountsForm {...props} />
+            ),
+          )}
+          <div id="danger" className="app-settings-anchor is-wide">
+            <DangerZone title={label.danger} />
+          </div>
+        </MayEdit>
       </div>
     </div>
   );

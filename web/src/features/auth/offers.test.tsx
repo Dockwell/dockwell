@@ -116,6 +116,39 @@ describe("what the panel offers, by what you hold", () => {
     expect(container.querySelector(".page-off-note")).toBeNull();
   });
 
+  it("shows a viewer an app's settings to read, with why, and nothing in them to change", async () => {
+    renderAt("/apps/svc_web/settings", api(as(["prj_1", Role.VIEWER])));
+    const why = await screen.findByText(DEVELOPERS, { selector: ".may-edit-why span" });
+    expect(why).toBeVisible();
+    const edits = await screen.findAllByRole("button", { name: /^Edit/ });
+    expect(edits.length).toBeGreaterThan(0);
+    for (const edit of edits) expect(edit).toBeDisabled();
+    // The fieldset that turns them off says why as its description.
+    const group = edits[0]?.closest("fieldset");
+    expect(group).toHaveAccessibleDescription(DEVELOPERS);
+  });
+
+  it("gives a developer an app's settings to change, with no note", async () => {
+    const { container } = renderAt("/apps/svc_web/settings", api(as(["prj_1", Role.DEVELOPER])));
+    const edits = await screen.findAllByRole("button", { name: /^Edit/ });
+    for (const edit of edits) expect(edit).toBeEnabled();
+    expect(container.querySelector(".may-edit-why")).toBeNull();
+    expect(container.querySelector("fieldset.may-edit")).toBeNull();
+  });
+
+  it("shows a viewer the variables to read, with the form and each row's actions off", async () => {
+    renderAt("/variables", {
+      ...api(as(["prj_1", Role.VIEWER])),
+      variables: {
+        listVariables: () => ({ environmentId: ENV, variables: [{ id: "var_1", name: "LOG_LEVEL", value: "info" }] }),
+      },
+    });
+    expect(await screen.findByText(DEVELOPERS, { selector: ".may-edit-why span" })).toBeVisible();
+    expectOff(await screen.findByRole("button", { name: "Change LOG_LEVEL" }), DEVELOPERS);
+    expectOff(screen.getByRole("button", { name: "Remove LOG_LEVEL" }), DEVELOPERS);
+    expect(screen.getByText("info")).toBeVisible();
+  });
+
   it("offers a developer their project's actions, in a protected environment too, where the plan then waits", async () => {
     renderAt("/apps/svc_web", api(as(["prj_1", Role.DEVELOPER]), true));
     expect(await screen.findByRole("button", { name: "Deploy" })).toBeEnabled();

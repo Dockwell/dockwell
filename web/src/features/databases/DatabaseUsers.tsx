@@ -143,26 +143,28 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       kind: "plan",
       make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id, user }),
     });
-  columns.push({
-    key: "change",
-    header: <span className="dw-sr">{t`Actions`}</span>,
-    width: 168,
-    align: "right",
-    render: (u) => {
-      const who = u.name;
-      return u.resourceId && u.secret ? (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => changePassword(who)}
-          aria-label={t`Change ${who}'s password`}
-          {...mayChange.off}
-        >
-          <Trans>Change password</Trans>
-        </Button>
-      ) : null;
-    },
-  });
+  // Only a user Dockwell made has a password to change here, so with none the column isn't there.
+  if (users.some((u) => u.resourceId && u.secret))
+    columns.push({
+      key: "change",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 168,
+      align: "right",
+      render: (u) => {
+        const who = u.name;
+        return u.resourceId && u.secret ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => changePassword(who)}
+            aria-label={t`Change ${who}'s password`}
+            {...mayChange.off}
+          >
+            <Trans>Change password</Trans>
+          </Button>
+        ) : null;
+      },
+    });
   const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host}` }));
   const count = users.length;
   // A PostgreSQL group is a role that can't sign in, so it's a user here, and says so.
@@ -212,7 +214,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       )}
       {db.engine === DatabaseEngine.POSTGRESQL ? (
         <p className="database-line">
-          {t`Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one.`}
+          {t`Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password.`}
         </p>
       ) : null}
       {adding ? <AddUserSheet db={db} onClose={() => setAdding(false)} /> : null}
