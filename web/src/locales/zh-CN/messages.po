@@ -11285,6 +11285,56 @@ msgstr "面板已加载，但 {host} 没有响应 API 请求。请确认服务�
 msgid "Unreachable"
 msgstr "无法访问"
 
+msgid "At minute"
+msgstr "分钟"
+
+msgid "Cron"
+msgstr "Cron"
+
+msgid "Custom, in cron"
+msgstr "自定义（cron）"
+
+msgid "Every day"
+msgstr "每天"
+
+msgid "Every few minutes"
+msgstr "每隔几分钟"
+
+msgid "Every month"
+msgstr "每月"
+
+msgid "Every week"
+msgstr "每周"
+
+msgid "Every weekday"
+msgstr "每个工作日"
+
+msgid "Minute, hour, day of the month, month, day of the week."
+msgstr "分钟、小时、日期、月份、星期。"
+
+#. placeholder {0}: runs.map((ms) => when.format(new Date(ms))).join(" · ")
+msgid "Next, in {zone}: {0}"
+msgstr "接下来（{zone}）：{0}"
+
+msgid "No date matches it, so it never runs."
+msgstr "没有日期符合它，因此永远不会运行。"
+
+msgctxt "a day of the week"
+msgid "On"
+msgstr "星期"
+
+msgid "On day"
+msgstr "日期"
+
+msgid "Schedule"
+msgstr "计划"
+
+msgid "That isn't cron Dockwell reads."
+msgstr "Dockwell 无法识别这个 cron。"
+
+msgid "{n} minutes"
+msgstr "{n} 分钟"
+
 msgid "All runs"
 msgstr "全部运行"
 
@@ -11328,9 +11378,6 @@ msgstr "立即运行"
 msgid "Runs in"
 msgstr "运行于"
 
-msgid "Schedule"
-msgstr "计划"
-
 #. placeholder {0}: newest.outputCutBytes
 msgid "What it printed before this, {0} bytes, wasn't kept."
 msgstr "在此之前输出的 {0} 字节没有保留。"
@@ -11361,11 +11408,8 @@ msgstr "{good} 次成功"
 msgid "{retries, plural, one {{timeout}, then retry once} other {{timeout}, then retry # times}}"
 msgstr "{retries, plural, other {{timeout}，之后重试 # 次}}"
 
-msgid "Another, in cron"
-msgstr "其他，用 cron 表示"
-
-msgid "Any 2xx when empty."
-msgstr "留空时接受任意 2xx。"
+msgid "Any 2xx"
+msgstr "任意 2xx"
 
 msgid "Change the task {resourceName}"
 msgstr "修改任务 {resourceName}"
@@ -11395,23 +11439,14 @@ msgstr "运行失败时"
 msgid "In an app"
 msgstr "应用中"
 
-msgid "In cron"
-msgstr "cron 表达式"
-
-msgid "It runs in a container of the app's image, with its environment, after its entrypoint. Name sh -c for a shell."
-msgstr "它在应用镜像的容器中运行，带有应用的环境变量，在入口点之后执行。需要 shell 时请写 sh -c。"
-
-msgid "It runs on its server's own clock, and every change to it is a plan"
-msgstr "它按服务器自己的时钟运行，每次修改都是一个计划"
+msgid "It runs in a new container of the app's image, with its environment."
+msgstr "它在应用镜像的新容器中运行，使用应用的环境变量。"
 
 msgid "It runs only when you run it now."
 msgstr "只有在你立即运行时才会运行。"
 
-msgid "It runs with /bin/sh on the server, as root, so applying it takes your passkey."
-msgstr "它在服务器上以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
-
-msgid "Its schedule reads in this zone, whatever each server's clock is set to."
-msgstr "无论各服务器的时钟如何设置，它的计划都按这个时区计算。"
+msgid "It runs with /bin/sh as root, so applying it takes your passkey."
+msgstr "它以 root 身份用 /bin/sh 运行，因此应用时需要你的通行密钥。"
 
 msgid "Leave it"
 msgstr "不处理"
@@ -11419,21 +11454,20 @@ msgstr "不处理"
 msgid "Method"
 msgstr "方法"
 
-msgid "Minute, hour, day of the month, month and day of the week, in its time zone."
-msgstr "分钟、小时、日、月和星期，按它的时区计算。"
-
 msgid "New task"
 msgstr "新建任务"
 
 msgid "Nightly sales report"
 msgstr "每晚销售报表"
 
-msgid "Otherwise one runs as the server comes back, however many were missed."
-msgstr "否则在服务器恢复时补跑一次，无论错过了多少次。"
+msgid "Open {shownName}"
+msgstr "打开 {shownName}"
 
-#. placeholder {0}: display.trim() || resourceName
-msgid "Run {0} on a schedule"
-msgstr "按计划运行 {0}"
+msgid "Otherwise one runs as the server comes back."
+msgstr "否则服务器恢复时会补运行一次。"
+
+msgid "Run {shownName} on a schedule"
+msgstr "按计划运行 {shownName}"
 
 msgid "Say what it runs."
 msgstr "请说明它运行什么。"
@@ -11443,6 +11477,9 @@ msgstr "运行它的服务器"
 
 msgid "Shell command"
 msgstr "Shell 命令"
+
+msgid "Short name"
+msgstr "简称"
 
 msgid "Skip runs missed while the server was off"
 msgstr "跳过服务器关机期间错过的运行"
@@ -11457,8 +11494,8 @@ msgstr "安装的时区"
 msgid "The install's, {0}"
 msgstr "安装的时区：{0}"
 
-msgid "The server asks it, so it reaches what the server reaches. A run keeps the status and how long it took, never what came back."
-msgstr "由服务器发出请求，因此能访问服务器能访问的地址。每次运行只保留状态码和耗时，从不保留返回内容。"
+msgid "The server asks it, so it reaches what the server reaches."
+msgstr "由服务器发出请求，因此能访问服务器能访问的地址。"
 
 msgid "Timeout, in minutes"
 msgstr "超时（分钟）"
@@ -11493,12 +11530,36 @@ msgstr "请使用小写字母、数字和连字符，例如 nightly-report。"
 msgid "What it runs"
 msgstr "运行内容"
 
-msgid "What people call it"
-msgstr "显示名称"
+msgid "What the CLI and the API call it."
+msgstr "CLI 和 API 用它来指代此任务。"
 
 #. placeholder {0}: task.servers.map((s) => s.serverName).join(", ")
 msgid "Where it runs now: {0}"
 msgstr "当前运行位置：{0}"
+
+#. placeholder {0}: folder.trim() || "/"
+msgctxt "the folder a task runs in"
+msgid "in {0}"
+msgstr "在 {0} 中运行"
+
+msgid "no retries"
+msgstr "不重试"
+
+msgid "one retry"
+msgstr "重试一次"
+
+msgid "skips missed runs"
+msgstr "跳过错过的运行"
+
+#. placeholder {0}: minutes || "?"
+msgid "stops after {0} min"
+msgstr "{0} 分钟后停止"
+
+msgid "three retries"
+msgstr "重试三次"
+
+msgid "two retries"
+msgstr "重试两次"
 
 msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
 msgstr "任务按服务器自己的时钟运行，控制平面不在时也会照常运行。每次运行都会保留输出，失败的运行会出现在动态中。"
