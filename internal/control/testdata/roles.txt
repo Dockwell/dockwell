@@ -127,9 +127,12 @@ ServiceService.ListServiceRevisions            read         viewer     viewer   
 ServiceService.ListServices                    read         viewer     viewer     project
 ServiceService.OpenService                     read         developer  admin      project  session
 ServiceService.RollBackService                 plan         developer  developer  project
+SettingsService.CheckPanelDomain               read         admin      admin      install
+SettingsService.CreatePanelSignInLink          apply        admin      admin      install  session
 SettingsService.GetControlPlane                read         admin      admin      install
 SettingsService.GetSettings                    read         viewer     viewer     shared
 SettingsService.SetInstallName                 apply        admin      admin      install  session
+SettingsService.SetPanelDomain                 apply        admin      admin      install  session
 SettingsService.SetTimeZone                    apply        admin      admin      install
 SystemService.GetVersion                       read         nothing    nothing    anyone
 TaskService.GetTask                            read         viewer     viewer     project

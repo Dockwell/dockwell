@@ -859,6 +859,12 @@ enum StepUpAction {
   // in by itself (ADR 0061). The target is the service's ID. Numbered apart, as
   // open work adds to this enum.
   STEP_UP_ACTION_OPEN_SERVICE = 200;
+  // Setting or clearing the panel's domain, which decides where everyone signs
+  // in (ADR 0063). The target is the domain, or the one it clears.
+  STEP_UP_ACTION_SET_PANEL_DOMAIN = 230;
+  // A one-time sign-in link to the panel on its domain, for the person asking.
+  // The target is the domain.
+  STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN = 231;
 }
 
 // StepUpNeeded is the detail of an error whose reason is "needs_step_up",

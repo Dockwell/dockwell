@@ -57,9 +57,9 @@ The agent has no registry logins, as a pull has none ([`internal/docker/images.g
 
 ### Time
 
-Each request to a registry has 5 seconds, and a whole read 8, inside the control plane's 10 for the agent's answer; a list of tags stops reading pages when the time is up, with what came. Two reads reach registries at once on each server, and a third waits half a second for its turn, then is told to try again.
+Each request to a registry has 5 seconds, and a whole read 8, inside the control plane's 10 for the agent's answer; a list of tags stops reading pages when the time is up, with what came. Two reads reach registries at once on each server, and another waits for its turn for as long as its read may take, then is told to try again; the panel asks such a read once more, saying "Checking" meanwhile.
 
-An endpoint that doesn't answer at all, with no connection or no answer in time, isn't asked again for 5 minutes, as plans leave one alone, and a read through it meanwhile says it couldn't reach it. Each registry, Docker Hub's search and Docker Hub's API go unasked on their own, so a search that fails leaves Docker Hub's images to be read through a mirror. An answer that came back, however odd, such as a 500 or a config too large, says something of one image, and silences nothing.
+An endpoint that doesn't answer at all, with no connection or no answer in time, isn't asked again for 5 minutes, as plans leave one alone, and a read through it meanwhile says it couldn't reach it. Each registry, Docker Hub's search and Docker Hub's API go unasked on their own, so a search that fails leaves Docker Hub's images to be read through a mirror. An answer that came back, however odd, such as a 500 or a config too large, says something of one image, and silences nothing; nor does a read that ends first, as its time runs out or whoever asked leaves, as the panel does when typing goes on.
 
 ### What a registry read may reach
 
@@ -95,4 +95,5 @@ Anyone who may propose an app in an environment: a developer in its project, and
 - The agent build links `internal/registry` and `internal/netguard`.
 - Docker Hub sees at most 10 more counted pulls in 6 hours from each server, and only when someone reads an image no cache had.
 - Private images read as "Not found, or private" until registry logins come.
+- A registry on a private network whose token realm or blob store is on another private host, such as a self-hosted GitLab's registry or blobs kept in MinIO, reads "Can't reach the registry" in the form, as the agent sends nothing into the server's own networks beyond the registry's host. The plan still pulls, through Docker.
 - Deploy can offer the newer tags of what an app runs, from the same read.

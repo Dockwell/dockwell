@@ -201,10 +201,7 @@ export function AppEnvironment() {
                 </Button>
               }
             >
-              {sentence(store.error)}{" "}
-              <Trans>
-                Their values don't show until then, and adding waits, so a new name can't clash with one already there.
-              </Trans>
+              {sentence(store.error)} <Trans>Their values stay hidden, and Add waits until they load.</Trans>
             </Callout>
           ) : null}
 
@@ -222,10 +219,7 @@ export function AppEnvironment() {
           {rows.length === 0 ? (
             // With nothing set, a table would be four column heads over one sentence, and a lone one on a phone.
             <EmptyState icon="key" title={t`No variables yet`}>
-              <Trans>
-                This app runs with only what its image sets. Add a variable above, and it gets it once you apply the
-                plan.
-              </Trans>
+              <Trans>It runs with only what its image sets.</Trans>
             </EmptyState>
           ) : (
             <Panel flush>
@@ -641,9 +635,7 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
             {changing.now?.kind === "own" ? (
               <Trans>What's set on this app isn't shown, so type the whole value it should have.</Trans>
             ) : changing.now?.kind === "secret" ? (
-              <Trans>
-                The secret's value isn't shown, so type the whole value it should have. Every app that uses it gets it.
-              </Trans>
+              <Trans>Type the whole value: every app that uses this secret gets it.</Trans>
             ) : (
               <Trans>Every app that uses this variable gets the new value.</Trans>
             )}
@@ -848,22 +840,19 @@ function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
           </p>
         ) : (
           <p className="app-env-form-note">
-            <Trans>
-              A name the app has gets the new value. Nothing changes until you review the plan and apply it.
-            </Trans>
+            <Trans>A name the app has gets the new value.</Trans>
           </p>
         )}
         {used.length > 0 ? (
           <p className="app-env-form-note" role="status">
             {used.length === 1 ? (
               <Trans>
-                The environment has {usedList} already, so the app uses it as it is, with its own value. Change it in
-                Variables and secrets, where every app that uses it gets the change.
+                The environment has {usedList} already, so the app uses its value: change it in Variables and secrets.
               </Trans>
             ) : (
               <Trans>
-                The environment has {usedList} already, so the app uses them as they are, with their own values. Change
-                them in Variables and secrets, where every app that uses them gets the change.
+                The environment has {usedList} already, so the app uses their values: change them in Variables and
+                secrets.
               </Trans>
             )}
           </p>

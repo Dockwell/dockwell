@@ -138,6 +138,8 @@ type Config struct {
 	// 0024): the settings ask PublicPorts which holds them now, and where.
 	PanelListen, PanelURL, PanelCA string
 	PanelHandsOver                 bool
+	// PanelDomain is what Settings needs to set the panel's domain (ADR 0063).
+	PanelDomain PanelDomain
 	// DataDir is the directory dockwell run keeps its files in, KeyFile the
 	// install's key there, AgentListen where servers' agents reach it, and
 	// ServiceManager what runs it as a service, for the settings to say what
@@ -301,7 +303,11 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	handle(dockwellv1connect.NewSystemServiceHandler(system.New(cfg.Build), opts...))
 	if cfg.Store != nil {
-		serving := settings.Serving{Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA}
+		serving := settings.Serving{
+			Listen: cfg.PanelListen, URL: cfg.PanelURL, CA: cfg.PanelCA,
+			From: cfg.PanelDomain.From, Problem: cfg.PanelDomain.Problem, Certified: cfg.PanelDomain.Certified,
+			Started: time.Now(),
+		}
 		if cfg.Public != nil {
 			serving.Domain = cfg.Public.Domain()
 			serving.HTTPS = func() (string, bool) {
@@ -321,7 +327,14 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Identity != nil {
 			plane.AgentURLs = agentURLs(cfg.Identity)
 		}
-		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane), opts...))
+		domain := settings.Domain{
+			Auth: cfg.Auth, Resolve: cfg.PanelDomain.Resolve, PortsHeld: cfg.PanelDomain.PortsHeld, Restart: cfg.PanelDomain.Restart, Saved: cfg.PanelDomain.Saved,
+			PublicAddresses: func() []string { return controlAddresses(cfg.Fleet) },
+		}
+		if cfg.PanelDomain.PublicAddresses != nil {
+			domain.PublicAddresses = cfg.PanelDomain.PublicAddresses
+		}
+		handle(dockwellv1connect.NewSettingsServiceHandler(settings.New(cfg.Store, serving, plane).WithDomain(domain), opts...))
 		// For a person signed in alone, as its events name where people signed in from.
 		if cfg.Auth != nil {
 			handle(dockwellv1connect.NewAuditServiceHandler(audit.New(cfg.Store, cfg.Changes, cfg.Logger), opts...))
@@ -788,6 +801,46 @@ func agentURLs(a *identity.Authority) func(ctx context.Context) (string, []strin
 		}
 		return local, urls, nil
 	}
+}
+
+// PanelDomain is what Settings needs to set the panel's domain, beyond the store
+// (ADR 0063).
+type PanelDomain struct {
+	// From says where the domain in use comes from.
+	From dockwellv1.PanelDomainFrom
+	// Problem is why the domain the setting holds isn't served, when it isn't.
+	Problem string
+	// Certified reports whether Dockwell holds the domain's certificate.
+	Certified func() bool
+	// Resolve looks a name's addresses up. Nil looks nothing up, as in a test.
+	Resolve func(ctx context.Context, host string) ([]netip.Addr, error)
+	// PortsHeld says what holds port 80 or 443 other than Dockwell or its Caddy.
+	PortsHeld func(ctx context.Context) []*dockwellv1.PanelPortHolder
+	// Restart starts the control plane again, as it was started.
+	Restart func()
+	// Saved hears a domain as it's saved, which no route may claim from then.
+	Saved func(domain string)
+	// PublicAddresses replaces the control server's own, as a test does.
+	PublicAddresses func() []string
+}
+
+// controlAddresses are the control server's public addresses, as it knows them
+// (ADR 0034), where the panel's domain should lead.
+func controlAddresses(hub *fleet.Hub) []string {
+	if hub == nil {
+		return nil
+	}
+	srv := hub.ControlServer()
+	if srv == nil {
+		return nil
+	}
+	var out []string
+	for _, a := range []*dockwellv1.PublicAddress{srv.GetNetwork().GetIpv4(), srv.GetNetwork().GetIpv6()} {
+		if a.GetAddress() != "" {
+			out = append(out, a.GetAddress())
+		}
+	}
+	return out
 }
 
 // fleetIDs lists the fleet's servers by ID, for a history row each minute.

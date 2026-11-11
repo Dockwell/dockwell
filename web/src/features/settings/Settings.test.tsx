@@ -3,15 +3,17 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
-import { PanelServedBy, SettingsSchema } from "@dockwell/api";
+import { PanelDomainFrom, PanelServedBy, Role, SettingsSchema, type WatchServersResponse } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale, chosenLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { authError, authState } from "../../test/auth";
-import { type Api, onPhone, renderAt } from "../../test/render";
+import { authError, authState, mira } from "../../test/auth";
+import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { leave } from "./PanelDomain";
 
 const settings = (init: MessageInitShape<typeof SettingsSchema> = {}) =>
   create(SettingsSchema, {
@@ -83,25 +85,192 @@ describe("Settings", () => {
     expect(await within(install).findByText(/Write it on one line/)).toBeVisible();
   });
 
-  it("says how the panel is served, and how to change that", async () => {
-    renderSettings("/settings/general");
+  it("says how the panel is served, and checks a domain for it as it's typed", async () => {
+    const user = userEvent.setup();
+    const checkPanelDomain = vi.fn(({ domain }: { domain: string }) =>
+      domain === "shop.example.com"
+        ? { refusal: "the route www serves shop.example.com, so the panel can't take shop.example.com" }
+        : {
+            addresses: ["198.51.100.7"],
+            publicAddresses: ["192.0.2.10"],
+            pointsHere: false,
+            portsHeld: [{ port: 80, program: "nginx" }],
+          },
+    );
+    renderSettings("/settings/general", { settings: { checkPanelDomain } });
     const panel = await screen.findByRole("region", { name: "Panel address" });
     await waitFor(() => expect(panel).toHaveTextContent("AddressLoopback only"));
     expect(panel).toHaveTextContent("Loopback127.0.0.1:7600");
-    expect(panel).toHaveTextContent("DOCKWELL_DOMAIN=panel.example.com");
-    expect(panel).toHaveTextContent("Environment=DOCKWELL_DOMAIN=…");
+    expect(panel).not.toHaveTextContent("systemctl edit");
+    const field = within(panel).getByRole("textbox", { name: "Domain" });
+    const save = within(panel).getByRole("button", { name: "Serve the panel there" });
+    await user.type(field, "shop.example.com");
+    expect(await within(panel).findByText(/the route www serves shop.example.com/)).toBeVisible();
+    expect(save).toBeDisabled();
+    await user.clear(field);
+    await user.type(field, "panel.example.com");
+    // Where its record leads, with the record to make, and what holds a port it needs.
+    expect(await within(panel).findByText("DNS doesn't point here yet")).toBeVisible();
+    expect(panel).toHaveTextContent("192.0.2.10");
+    expect(panel).toHaveTextContent("It leads to 198.51.100.7");
+    expect(panel).toHaveTextContent("nginx holds port 80 on this server, so no certificate can come until it's freed.");
+    await waitFor(() => expect(save).toBeEnabled());
+    expect(checkPanelDomain).toHaveBeenLastCalledWith(
+      expect.objectContaining({ domain: "panel.example.com" }),
+      expect.anything(),
+    );
   });
 
-  it("names the domain at its port, what serves it and who issues its certificate", async () => {
+  it("says where a domain leads while this server's public address isn't known, and takes it there", async () => {
+    const user = userEvent.setup();
+    let known = false;
+    const checkPanelDomain = vi.fn(() =>
+      known
+        ? { addresses: ["203.0.113.10"], publicAddresses: ["203.0.113.10"], pointsHere: true }
+        : { dnsProblem: "it has no A or AAAA record" },
+    );
+    const setServerPublicAddress = vi.fn(() => {
+      known = true;
+      return { server: control };
+    });
+    const control = aServer({ id: "srv_1", name: "hz-1", controlServer: true });
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(control), snapshotComplete);
+    renderSettings("/settings/general", {
+      settings: { checkPanelDomain },
+      servers: { watchServers: watch.stream, setServerPublicAddress },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.type(await within(panel).findByRole("textbox", { name: "Domain" }), "panel.example.com");
+    expect(await within(panel).findByText("Dockwell can't tell whether panel.example.com leads here")).toBeVisible();
+    expect(panel).toHaveTextContent(
+      "It has no A or AAAA record. This server's public address isn't known: set it, and Dockwell compares the two.",
+    );
+    await user.click(within(panel).getByRole("button", { name: "Set public address" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set the public address of hz-1" });
+    await user.type(within(sheet).getByLabelText("Public address"), "203.0.113.10{Enter}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(setServerPublicAddress.mock.calls[0]?.at(0)).toMatchObject({ id: "srv_1", address: "203.0.113.10" });
+    // The check runs again with it, and the record reads as one that leads here.
+    expect(await within(panel).findByText("Points here")).toBeVisible();
+    expect(panel).not.toHaveTextContent("Dockwell can't tell");
+  });
+
+  it("saves a domain the owner confirms, waits through the restart and the certificate, then opens it", async () => {
+    const user = userEvent.setup();
+    let now = settings();
+    const setPanelDomain = vi.fn(({ domain }: { domain: string }) => {
+      now = settings({
+        panel: {
+          listen: "127.0.0.1:7600",
+          domain,
+          setDomain: domain,
+          domainFrom: PanelDomainFrom.SETTING,
+          servedBy: PanelServedBy.DOCKWELL,
+          url: `https://${domain}`,
+          certified: false,
+        },
+      });
+      return { settings: now, restarting: true };
+    });
+    const createPanelSignInLink = vi.fn(() => ({ url: "https://panel.example.com/recover#t0ken" }));
+    const went = vi.spyOn(leave, "to").mockImplementation(() => {});
+    renderSettings("/settings/general", {
+      settings: {
+        getSettings: () => ({ settings: now }),
+        checkPanelDomain: () => ({ addresses: ["192.0.2.10"], publicAddresses: ["192.0.2.10"], pointsHere: true }),
+        setPanelDomain,
+        createPanelSignInLink,
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.type(await within(panel).findByRole("textbox", { name: "Domain" }), "panel.example.com");
+    expect(await within(panel).findByText("Points here")).toBeVisible();
+    const save = within(panel).getByRole("button", { name: "Serve the panel there" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+    expect(within(panel).getByText("Dockwell restarts to serve panel.example.com")).toBeVisible();
+    await user.click(within(panel).getByRole("button", { name: "Restart and serve it" }));
+    await waitFor(() => expect(setPanelDomain).toHaveBeenCalledTimes(1));
+    expect(
+      await within(panel).findByText("Getting a certificate for panel.example.com…", undefined, { timeout: 5000 }),
+    ).toBeVisible();
+    now = settings({ panel: { ...now.panel, certified: true } as MessageInitShape<typeof SettingsSchema>["panel"] });
+    await user.click(within(panel).getByRole("button", { name: "Check again" }));
+    await user.click(await within(panel).findByRole("button", { name: "Open panel.example.com" }));
+    await waitFor(() => expect(went).toHaveBeenCalledWith("https://panel.example.com/recover#t0ken"));
+    expect(createPanelSignInLink).toHaveBeenCalledTimes(1);
+    went.mockRestore();
+  });
+
+  it("says why a domain set here isn't served, with the way to stop using it", async () => {
+    const user = userEvent.setup();
+    const setPanelDomain = vi.fn(() => ({ settings: settings(), restarting: true }));
+    const refused = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.NONE,
+        problem:
+          "Dockwell couldn't hold the ports panel.example.com needs: listen tcp :443: bind: address already in use.",
+      },
+    });
+    renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: refused }), setPanelDomain } });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    expect(await within(panel).findByText("panel.example.com isn't served")).toBeVisible();
+    expect(panel).toHaveTextContent("address already in use");
+    await user.click(within(panel).getByRole("button", { name: "Stop using it" }));
+    await waitFor(() =>
+      expect(setPanelDomain).toHaveBeenCalledWith(expect.objectContaining({ domain: "" }), expect.anything()),
+    );
+  });
+
+  it("waits after Stop using it for the control plane that started since, not the one about to restart", async () => {
+    const user = userEvent.setup();
+    const before = timestampFromDate(new Date(2026, 10, 10, 9, 0));
+    let now = settings({
+      panel: {
+        listen: "127.0.0.1:7600",
+        setDomain: "panel.example.com",
+        domainFrom: PanelDomainFrom.SETTING,
+        servedBy: PanelServedBy.NONE,
+        problem: "Dockwell couldn't hold the ports panel.example.com needs: listen tcp :443: bind: permission denied.",
+        startTime: before,
+      },
+    });
+    const setPanelDomain = vi.fn(() => {
+      // The control plane that answers until it restarts says the domain is cleared already.
+      now = settings({ panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE, startTime: before } });
+      return { settings: now, restarting: true };
+    });
+    renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: now }), setPanelDomain } });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.click(await within(panel).findByRole("button", { name: "Stop using it" }));
+    expect(
+      await within(panel).findByText("Dockwell restarts to answer on loopback alone. Apps and websites keep running…"),
+    ).toBeVisible();
+    // Reading the cleared domain from the old control plane isn't the restart.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(within(panel).queryByRole("textbox", { name: "Domain" })).toBeNull();
+    now = settings({
+      panel: { listen: "127.0.0.1:7600", servedBy: PanelServedBy.NONE, startTime: timestampFromDate(new Date()) },
+    });
+    expect(await within(panel).findByRole("textbox", { name: "Domain" }, { timeout: 3000 })).toBeVisible();
+  });
+
+  it("leaves a domain dockwell run was given where it was given", async () => {
     const served = settings({
       panel: {
         listen: "127.0.0.1:7600",
         domain: "panel.example.com",
+        domainFrom: PanelDomainFrom.RUN,
         servedBy: PanelServedBy.DOCKWELL,
         // As a listener on every address names itself.
         httpsListen: "[::]:8443",
         url: "https://panel.example.com:8443",
         certificateAuthority: "acme.example.com",
+        certified: true,
       },
     });
     renderSettings("/settings/general", { settings: { getSettings: () => ({ settings: served }) } });
@@ -112,16 +281,24 @@ describe("Settings", () => {
     );
     expect(panel).toHaveTextContent("Dockwell itself, with a certificate from acme.example.com that it renews");
     expect(panel).not.toHaveTextContent("[::]");
-    expect(panel).toHaveTextContent("The domain is set where Dockwell runs");
-    for (const how of [
-      "sudo systemctl edit dockwell",
-      "/etc/conf.d/dockwell",
-      "dockwell run --domain",
-      "dockwell recover",
-    ]) {
-      expect(panel).toHaveTextContent(how);
-    }
+    expect(panel).toHaveTextContent("dockwell run was started with this domain");
+    expect(within(panel).queryByRole("textbox", { name: "Domain" })).toBeNull();
     expect(within(panel).getByRole("link", { name: "How to change settings" })).toHaveClass("settings-link");
+  });
+
+  it("offers an admin the checks, and the save to the owner alone", async () => {
+    const user = userEvent.setup();
+    renderSettings("/settings/general", {
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.ADMIN } }) },
+      settings: {
+        checkPanelDomain: () => ({ addresses: ["192.0.2.10"], publicAddresses: ["192.0.2.10"], pointsHere: true }),
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "Panel address" });
+    await user.type(await within(panel).findByRole("textbox", { name: "Domain" }), "panel.example.com");
+    expect(await within(panel).findByText("Points here")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Serve the panel there" })).toBeDisabled();
+    expect(panel).toHaveTextContent("Only the owner sets it.");
   });
 
   it("says when the server's ingress serves the domain, while it has routes", async () => {

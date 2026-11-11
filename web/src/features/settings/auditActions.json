@@ -88,6 +88,7 @@
   "service.open",
   "session.revoke",
   "settings.name",
+  "settings.panel_domain",
   "settings.time_zone",
   "sign_in_link.create",
   "task.failed",

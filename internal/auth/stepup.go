@@ -103,6 +103,12 @@ const (
 	// whoever reaches it in by itself, as an admin tool does. Its target is the
 	// service's ID. A proof opens it once (ADR 0061).
 	StepUpOpenService StepUpAction = "service.open"
+	// StepUpSetPanelDomain sets or clears the panel's domain (ADR 0063). Its
+	// target is the domain, or the one it clears.
+	StepUpSetPanelDomain StepUpAction = "settings.panel_domain"
+	// StepUpSignInOnPanelDomain makes a one-time link that signs in on the
+	// panel's domain. Its target is the domain.
+	StepUpSignInOnPanelDomain StepUpAction = "sign_in_link.panel_domain"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -131,6 +137,9 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpInvite:           {"inviting", true},
 	StepUpAddServer:        {"adding a server", false},
 	StepUpOpenService:      {"opening", true},
+	StepUpSetPanelDomain:   {"setting the panel's domain to", true},
+	// A sign-in link to the domain, for the person asking.
+	StepUpSignInOnPanelDomain: {"signing in on", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
