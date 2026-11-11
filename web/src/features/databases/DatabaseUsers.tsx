@@ -238,7 +238,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
       )}
       {db.engine === DatabaseEngine.POSTGRESQL ? (
         <p className="database-line">
-          {t`Over the network, each user signs in with their password. Inside its own container, PostgreSQL's official image lets anything sign in as any user without one.`}
+          {t`Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password.`}
         </p>
       ) : null}
       {mongo ? (

@@ -1,0 +1,197 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ImageService reads images from their registries for a form, through the
+// server an app will run on, so a form can offer names and tags, say whether an
+// image is there as it's typed, and fill in what an image declares. Nothing is
+// pulled, and nothing changes. Each read goes to that server's agent, which
+// reads with the pull's network and mirrors, and keeps what it read for a
+// while; the control plane keeps none of it. An answer says nothing of the
+// server, such as which images it has, which is the install's (ADR 0048). See
+// docs/adr/0062-reading-an-image-from-its-registry.md.
+service ImageService {
+  // SearchImages returns Docker Hub's images whose names hold a term, its
+  // official ones first.
+  rpc SearchImages(SearchImagesRequest) returns (SearchImagesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (google.api.http) = {get: "/v1/images:search"};
+  }
+
+  // ListImageTags returns a repository's tags, newest first, each with the
+  // digest it points at where that's known, so the ones that point where
+  // "latest" does can be told. Docker Hub says when each was pushed; any other
+  // registry's are ordered by version.
+  rpc ListImageTags(ListImageTagsRequest) returns (ListImageTagsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (google.api.http) = {get: "/v1/images:tags"};
+  }
+
+  // GetImage says whether an image is there, as a pull would find it, and what
+  // it declares for the server's platform: the ports it exposes, its
+  // environment variables with their defaults, the paths it keeps data at, its
+  // command and its health check.
+  rpc GetImage(GetImageRequest) returns (GetImageResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (google.api.http) = {get: "/v1/images:inspect"};
+  }
+}
+
+// ImageAnswer is what a registry said, or why it said nothing.
+enum ImageAnswer {
+  IMAGE_ANSWER_UNSPECIFIED = 0;
+  // It's there, and a pull would get it.
+  IMAGE_ANSWER_FOUND = 1;
+  // The registry hasn't got it, or keeps it private: a registry answers the
+  // two alike, and Dockwell has no registry logins yet.
+  IMAGE_ANSWER_NOT_FOUND = 2;
+  // The registry couldn't be reached, or didn't answer in time.
+  IMAGE_ANSWER_UNREACHABLE = 3;
+  // A limit held the question back, such as what the server may ask of Docker
+  // Hub in six hours. It says nothing of the image.
+  IMAGE_ANSWER_NOT_ASKED = 4;
+}
+
+// SearchImagesRequest says what to look for, and where.
+message SearchImagesRequest {
+  // What a name holds, such as "postgres".
+  string term = 1;
+  // The environment the app is for, by name or ID, which says who may ask. It
+  // can be left out while its project has only one.
+  string environment = 2;
+  // The project of the environment, by name or ID. It can be left out while
+  // there is only one.
+  string project = 3;
+  // The server to read from, by ID: the one the app will run on. It can be left
+  // out while there is only one.
+  string server = 4;
+}
+
+// SearchImagesResponse lists what was found.
+message SearchImagesResponse {
+  // The images, at most 25.
+  repeated ImageMatch matches = 1;
+  // How Docker Hub answered the search.
+  ImageAnswer answer = 2;
+}
+
+// ImageMatch is one image a search found.
+message ImageMatch {
+  // Its name as a reference takes it, such as "postgres" or
+  // "ghcr.io/acme/web".
+  string name = 1;
+  // What Docker Hub says it is.
+  string description = 2;
+  // True for one of Docker Hub's official images.
+  bool official = 3;
+  // How many have starred it on Docker Hub.
+  int64 stars = 4;
+}
+
+// ListImageTagsRequest names a repository.
+message ListImageTagsRequest {
+  // The repository, such as "nginx" or "ghcr.io/acme/web", with no tag.
+  string repository = 1;
+  // As SearchImagesRequest's.
+  string environment = 2;
+  string project = 3;
+  string server = 4;
+}
+
+// ListImageTagsResponse lists a repository's tags.
+message ListImageTagsResponse {
+  // The tags, newest first, at most 200.
+  repeated ImageTag tags = 1;
+  // How the registry answered.
+  ImageAnswer answer = 2;
+}
+
+// ImageTag is one of a repository's tags.
+message ImageTag {
+  // The tag, such as "1.27".
+  string name = 1;
+  // The digest it points at, such as "sha256:ab12…". Empty where the registry
+  // lists names alone and it wasn't asked.
+  string digest = 2;
+  // When it was last pushed. Unset where the registry doesn't say.
+  google.protobuf.Timestamp push_time = 3;
+  // True for a tag that points where "latest" does, "latest" among them.
+  bool latest = 4;
+}
+
+// GetImageRequest names an image.
+message GetImageRequest {
+  // The image, such as "nginx:1.27" or "ghcr.io/acme/web@sha256:ab12…". With
+  // no tag, it's "latest".
+  string reference = 1;
+  // As SearchImagesRequest's.
+  string environment = 2;
+  string project = 3;
+  string server = 4;
+}
+
+// GetImageResponse says whether an image is there, and what it declares.
+message GetImageResponse {
+  // Whether it's there.
+  ImageAnswer answer = 1;
+  // What its registry calls it, such as "sha256:ab12…". Empty unless found.
+  string digest = 2;
+  // What it declares, for the server's platform. Unset unless found, and when
+  // its settings couldn't be read this time, as unread says.
+  ImageConfig config = 3;
+  // Why config is unset for an image that was found, such as the server's
+  // allowance of Docker Hub reads for the six hours being spent. Unspecified
+  // otherwise.
+  ImageAnswer unread = 4;
+}
+
+// ImageConfig is what an image declares, as its Dockerfile set it.
+message ImageConfig {
+  // The ports it listens on (EXPOSE), in the order it gives them.
+  repeated ImagePort ports = 1;
+  // Its environment variables, with the values it gives them (ENV).
+  repeated ImageVariable env = 2;
+  // The paths it keeps data at (VOLUME).
+  repeated string volumes = 3;
+  // Its command and entrypoint, word by word.
+  repeated string command = 4;
+  repeated string entrypoint = 5;
+  // The user it runs as, and the directory it runs in. Empty for root and /.
+  string user = 6;
+  string working_dir = 7;
+  // Its health check's command, as Docker takes one. Empty for none.
+  repeated string healthcheck = 8;
+  // The platform these are for, such as "linux/arm64".
+  string platform = 9;
+}
+
+// ImagePort is a port an image exposes.
+message ImagePort {
+  uint32 port = 1;
+  // True for UDP.
+  bool udp = 2;
+}
+
+// ImageVariable is an environment variable an image sets.
+message ImageVariable {
+  string name = 1;
+  string value = 2;
+}

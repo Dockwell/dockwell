@@ -80,7 +80,7 @@ const STATES: readonly {
     on: { state: HealthState.NO_CHECK },
     word: "Running",
     tone: "dw-tone-running",
-    says: /Nothing checks it, so this only means it started/,
+    says: /No health check, so Running only means it started/,
   },
   {
     on: { state: HealthState.STARTING },
@@ -278,7 +278,7 @@ describe("an app that isn't running", () => {
       api([web], reading({ state: HealthState.NOT_RUNNING, check: HealthCheckKind.UNSPECIFIED })),
     );
     const check = await screen.findByRole("region", { name: "Health check" });
-    await waitFor(() => expect(check).toHaveTextContent("None set here. The image may have one."));
+    await waitFor(() => expect(check).toHaveTextContent("The image's own, if it has one. Set one"));
     expect(check).not.toHaveTextContent("Running only means it started");
   });
 });
@@ -302,13 +302,13 @@ describe("an agent that can't read Docker", () => {
     );
     const panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(panel).toHaveTextContent("Unknown"));
-    expect(panel).toHaveTextContent(
-      /The agent on hz-1 can't read Docker, since 2 min ago, so it can't say how this runs. Check that Docker is running there, with systemctl status docker./,
-    );
-    const notice = container.querySelector(".dw-callout");
+    expect(panel).toHaveTextContent("Docker hasn't answered the agent on hz-1 since 2 min ago.");
+    const notice = container.querySelector(".dw-callout") as HTMLElement;
     expect(notice).toHaveTextContent("Nobody can say how web runs");
-    expect(notice).toHaveTextContent("The agent on hz-1 can't read Docker");
-    expect(notice).toHaveTextContent("systemctl status docker");
+    expect(notice).toHaveTextContent("Docker isn't answering the agent on hz-1.");
+    // The state, and the server's page, where the command that fixes it is: no shell here.
+    expect(within(notice).getByRole("link", { name: "Open hz-1" })).toBeVisible();
+    expect(notice).not.toHaveTextContent("systemctl");
     expect(notice).not.toHaveTextContent("dockwell run");
     // Its server isn't healthy either, wherever the panel shows it.
     const top = container.querySelector(".topbar") as HTMLElement;
@@ -332,7 +332,10 @@ describe("an agent that can't read Docker", () => {
     renderAt("/apps/svc_web", api([web], reading({ state: HealthState.UNKNOWN, stale: false })));
     panel = await screen.findByRole("region", { name: "What runs" });
     await waitFor(() => expect(panel).toHaveTextContent("The agent on hz-1 hasn't read how this runs yet."));
-    expect(document.querySelector(".dw-callout")).toHaveTextContent("journalctl -u dockwell");
+    expect(document.querySelector(".dw-callout")).toHaveTextContent(
+      "The agent on hz-1 hasn't said how it runs lately.",
+    );
+    expect(document.querySelector(".dw-callout")).not.toHaveTextContent("journalctl");
   });
 });
 
@@ -383,14 +386,14 @@ describe("what the fleet last said stands by its age too", () => {
     expect(top.querySelector(".dw-status")).toHaveAttribute(
       "title",
       expect.stringMatching(
-        /^The panel can't reach the control plane, so it can't say how your servers are\. It last heard .* ago, and keeps trying\.$/,
+        /^The panel can't reach the control plane, so your servers are shown as of .* ago\. It keeps trying\.$/,
       ),
     );
     const agent = screen.getByRole("region", { name: "Agent" });
     expect(agent).toHaveTextContent("Unknown");
     expect(agent.querySelector(".dw-tone-healthy")).toBeNull();
     expect(page.container.querySelector(".fleet-unread")).toHaveTextContent(
-      /The panel can't reach the control plane, so it can't say how this server is\. It last heard .* ago, and keeps trying\./,
+      /The panel can't reach the control plane, so this server is shown as of .* ago\. It keeps trying\./,
     );
     // The watch that heard nothing made way for others, which wait as it did, and it says so all the while.
     await vi.advanceTimersByTimeAsync(5_000);
@@ -416,11 +419,13 @@ describe("what the fleet last said stands by its age too", () => {
     await waitFor(() => expect(top).toHaveTextContent("Unknown"));
     expect(top.querySelector(".dw-status")).toHaveAttribute(
       "title",
-      expect.stringMatching(/^This browser is offline, so the panel can't say how your servers are\./),
+      expect.stringMatching(
+        /^This browser is offline, so your servers are shown as of .* ago\. Check your connection\.$/,
+      ),
     );
     // The overview of the one server says so, in place of what it last said of it.
     expect(page.container.querySelector(".fleet-unread")).toHaveTextContent(
-      /This browser is offline, so the panel can't say how this server is\./,
+      /This browser is offline, so this server is shown as of .* ago\. Check your connection\./,
     );
   });
 
@@ -1220,9 +1225,13 @@ describe("a health check on the overview", () => {
     expect(said).toHaveTextContent("The image's own");
   });
 
-  it("is honest where there's none: Running only means it started", async () => {
+  it("is honest where there's none, with where to add one", async () => {
     const { said } = await facts({});
-    await waitFor(() => expect(said).toHaveTextContent("None. Without one, Running only means it started."));
+    await waitFor(() => expect(said).toHaveTextContent("None. Add one"));
+    expect(within(said).getByRole("link", { name: "Add one" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/settings#health$/),
+    );
   });
 
   it("says one turned off is off", async () => {
@@ -1232,7 +1241,7 @@ describe("a health check on the overview", () => {
 
   it("doesn't say there's none until it knows", async () => {
     const { said } = await facts({}, { listHealth: () => new Promise(() => {}) });
-    expect(said).toHaveTextContent("None set here. The image may have one.");
+    expect(said).toHaveTextContent("The image's own, if it has one. Set one");
   });
 });
 

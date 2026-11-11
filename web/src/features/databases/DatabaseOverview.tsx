@@ -163,23 +163,9 @@ function UpgradeNote({ db }: { db: Database }) {
       tone="info"
       title={next === now ? t`A change to how ${engine} ${now} runs is out` : t`${engine} ${next} is out`}
     >
-      {!how.known ? (
-        <Trans>
-          Upgrading is a plan that backs up its volumes before anything else, and says which backup holds each. Undoing
-          it puts this version back, and leaves the data as the new one left it.
-        </Trans>
-      ) : how.dump ? (
-        <Trans>
-          Upgrading is a plan that backs up its data with {dumpOf}'s own dump before anything else, and says which
-          backup holds it. Undoing it puts this version back, and leaves the data as the new one left it.
-        </Trans>
-      ) : (
-        <Trans>
-          Upgrading is a plan that backs up its volumes before anything else, with a copy of their files, which stops{" "}
-          {engine} for a moment, and says which backup holds each. Undoing it puts this version back, and leaves the
-          data as the new one left it.
-        </Trans>
-      )}
+      {how.known && how.dump
+        ? t`Its plan backs up the data with ${dumpOf}'s dump first; undoing it keeps the data as ${next} left it.`
+        : t`Its plan backs up its volumes first; undoing it keeps the data as ${next} left it.`}
     </Callout>
   );
 }
@@ -198,16 +184,19 @@ export function NoBackups({ db, className }: { db: Database; className?: string 
       <p className="database-line">
         {db.volumeExternal ? (
           <Trans>
-            Its data is in <code>{volume}</code>, a volume Dockwell didn't make, so Dockwell doesn't back it up. Back it
-            up where it came from, or move the data into a volume of the app's.
+            Its data is in <code>{volume}</code>, a volume Dockwell didn't make, which it doesn't back up.
           </Trans>
         ) : (
-          <Trans>
-            Its data isn't in a volume, so it goes when its container is replaced, and there's nothing to back up. Give
-            it a volume on its app's page.
-          </Trans>
+          <Trans>Its data isn't in a volume, so it goes with its container.</Trans>
         )}
       </p>
+      {db.volumeExternal ? null : (
+        <div className="databases-panel-actions">
+          <RouterButtonLink to="/apps/$serviceId/settings" params={{ serviceId: db.id }} size="sm">
+            <Trans>Give it a volume</Trans>
+          </RouterButtonLink>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -218,10 +207,28 @@ function UnreadNote({ db, reading }: { db: Database; reading: DatabaseReading })
   const engine = engineName(db.engine);
   return (
     <Callout tone="warning" title={t`${engine} didn't say how it is`}>
-      <span className="database-said">{reading.unread}.</span>{" "}
-      <Trans>Its numbers, databases and users show again once it does.</Trans>
+      {/* What Docker or the database said can run to a whole command line: its first clause, and the rest on asking. */}
+      <span className="database-said">{gist(reading.unread)}</span>
+      {gist(reading.unread) !== reading.unread ? (
+        <details className="database-details">
+          <summary>
+            <Trans context="what a database or Docker said when it couldn't be read">What it said</Trans>
+          </summary>
+          <span className="database-said">{reading.unread}</span>
+        </details>
+      ) : null}
     </Callout>
   );
+}
+
+/**
+ * The first sentence of what a database or Docker said, or its first clause, as what
+ * follows can be a whole command line, with its first letter a capital.
+ */
+export function gist(said: string): string {
+  const clause = said.split(/(?<=\.) |: /, 1)[0] ?? said;
+  const short = clause.replace(/\.$/, "");
+  return short.charAt(0).toUpperCase() + short.slice(1);
 }
 
 /** Its four numbers, as it said them a moment ago. Nothing keeps their history yet, so there's no trend. */
@@ -348,7 +355,7 @@ function BackupsPanel({ db }: { db: Database }) {
                 : t`Asking its server`
               : how.dump
                 ? t`${dumpOf}'s own dump, while it runs: nothing stops`
-                : t`A copy of its files, which stops it for an exact copy unless you choose to copy it running`}
+                : t`A copy of its files, which stops it a moment`}
           </dd>
         </div>
         <div className="databases-fact">

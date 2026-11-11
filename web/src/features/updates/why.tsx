@@ -67,15 +67,13 @@ export function useWhyNot() {
           body: command ? (
             <>
               <Trans>
-                It's older than the control plane. Update it by running the install script on {name} again, which keeps
-                what runs:
+                It's older than the control plane. Run the install script on {name} again; what runs keeps running:
               </Trans>
               <code className="updates-command">{command}</code>
             </>
           ) : (
             <Trans>
-              It's older than the control plane. Update it to the control plane's version by running the install script
-              on {name} again, which keeps what runs.
+              It's older than the control plane. Run the install script on {name} again; what runs keeps running.
             </Trans>
           ),
           short: t`Update its agent to read them`,

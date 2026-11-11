@@ -11,6 +11,7 @@ import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
 import "dockwell/v1/firewall.proto";
 import "dockwell/v1/health.proto";
+import "dockwell/v1/image.proto";
 import "dockwell/v1/import.proto";
 import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
@@ -566,6 +567,11 @@ message Call {
     RunTaskCall run_task = 151;
     // Read what 1Panel keeps on the server. The importer takes 180 to 189.
     ReadOnePanelCall read_onepanel = 180;
+    // Read an image from its registry, for a form. Reading images takes 200 to
+    // 209 (ADR 0062).
+    ImageCall image = 200;
+    // Say what holds some ports on the server, for a form. Ports take 210 to 219.
+    PortsCall ports = 210;
     // Make an empty file or a folder. Numbered apart, as open work adds to
     // this message.
     MakeFileCall make_file = 120;
@@ -844,6 +850,39 @@ message ListUpdatesCall {
 // checking nor error: those are the control plane's.
 message ListUpdatesResult {
   dockwell.v1.ServerUpdates updates = 1;
+}
+
+// PortsCall asks what holds some ports on the server, as its kernel and Docker
+// say, for a form that offers a free one.
+message PortsCall {
+  repeated dockwell.v1.ServerPortAsk ports = 1;
+}
+
+// PortsResult says what holds each port asked, in the order asked.
+message PortsResult {
+  repeated dockwell.v1.ServerPortHeld ports = 1;
+}
+
+// ImageCall reads an image from its registry, through the server's network and
+// mirrors, for a form: Docker Hub's search, a repository's tags, or one image.
+// Nothing is pulled. See docs/adr/0062-reading-an-image-from-its-registry.md.
+message ImageCall {
+  // What to read. The requests' environment and project are the control
+  // plane's, and the agent reads neither.
+  oneof ask {
+    dockwell.v1.SearchImagesRequest search = 1;
+    dockwell.v1.ListImageTagsRequest tags = 2;
+    dockwell.v1.GetImageRequest image = 3;
+  }
+}
+
+// ImageResult is what an ImageCall read.
+message ImageResult {
+  oneof answer {
+    dockwell.v1.SearchImagesResponse search = 1;
+    dockwell.v1.ListImageTagsResponse tags = 2;
+    dockwell.v1.GetImageResponse image = 3;
+  }
 }
 
 // ReadOnePanelCall asks what 1Panel keeps on the server, read from its records,
@@ -1570,6 +1609,10 @@ message CallResult {
     RunTaskResult run_task = 151;
     // What read_onepanel found.
     ReadOnePanelResult read_onepanel = 180;
+    // What image read.
+    ImageResult image = 200;
+    // What ports found.
+    PortsResult ports = 210;
     // What make_file made. Numbered apart, as open work adds to this message.
     MakeFileResult make_file = 120;
     // Where move_file moved it.

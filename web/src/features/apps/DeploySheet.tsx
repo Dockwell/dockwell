@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type Change, ChangeState, type ServiceInfo, ServiceService } from "@dockwell/api";
-import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,7 +11,8 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
-import { failedAtField, imageOf, isMoving, nameOf } from "./app";
+import { environmentOf, failedAtField, imageOf, isMoving, nameOf } from "./app";
+import { ImageField } from "./ImageField";
 
 /**
  * Deploys another image: one field, then the plan. Everything else about the
@@ -134,11 +135,13 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
         }}
       >
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
-        <TextField
-          label={t`Image`}
-          mono
-          ref={field}
+        {/* Its versions, newest first, from its registry, with whether a typed one is there. */}
+        <ImageField
+          fieldRef={field}
           value={image}
+          initial={current}
+          environment={environmentOf(service)}
+          server={service.deployments[0]?.serverId}
           error={fieldError}
           hint={
             moving && service.rolledBackChangeId !== "" ? (
@@ -159,8 +162,8 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
               </Trans>
             )
           }
-          onChange={(event) => {
-            setImage(event.target.value);
+          onChange={(next) => {
+            setImage(next);
             setFieldError(undefined);
           }}
         />
