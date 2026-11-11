@@ -5,7 +5,7 @@
 // a way to reach it, what to do first and where its secrets are. Then an app that
 // needs a token and reaches past its containers, and a newer release of an app, which
 // the panel says is out, through its plan and its undo. scripts/docker-e2e.sh runs
-// these apps on real Docker.
+// these apps on real Docker. Last, its sources: none, and one refused for its address.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -296,6 +296,25 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await panel.getByRole("button", { name: "Upgrade to 2.0" }).waitFor({ timeout: 30_000 });
   const back = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
   if (back.length !== 1 || !back[0]?.includes(FIRST_DIGEST)) fail(`after the undo, Docker runs ${back.join(", ")}`);
+
+  step("catalog: its sources are the catalogs it reads beside its own, none until a plan adds one");
+  await page.goto(`${origin}/catalog`);
+  await page.getByRole("link", { name: "Sources", exact: true }).first().click();
+  await page.getByRole("heading", { name: "Dockwell's own catalog is all it reads" }).waitFor();
+  await shoot(page, "catalog-sources");
+
+  // The form reads a repository as it's typed. An address of this server is refused
+  // beside the field, before anything is asked of it, so this asks nothing of the network.
+  step("catalog: a source's repository is checked as it's typed, and one that isn't public is refused, saying why");
+  await page.getByRole("button", { name: "Add a source" }).click();
+  const adding = page.getByRole("dialog", { name: "Add a catalog source" });
+  await adding.getByLabel("Repository").fill("https://127.0.0.1/catalog");
+  await adding
+    .locator("form")
+    .getByText(/this server's own address, so Dockwell reads no source there/)
+    .waitFor();
+  await shoot(page, "catalog-sources-refused");
+  await adding.getByRole("button", { name: "Cancel" }).click();
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

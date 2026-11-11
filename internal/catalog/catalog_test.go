@@ -272,11 +272,14 @@ func TestADatabasesSharedPasswordFollowsItsSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	databases := regexp.MustCompile(`^(postgres|mysql|mariadb):`)
+	// An app that keeps the password it installed with in a file of its own, as
+	// Nextcloud does in config.php, wouldn't follow its database: its note stays.
+	keepsItsOwn := map[string]bool{"nextcloud": true}
 	for _, e := range c.All() {
 		stack, filled := read(t, e)
 		for name, value := range filled.Secrets {
 			for _, s := range stack.Services {
-				if databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
+				if !keepsItsOwn[e.GetId()] && databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
 					strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
 					t.Errorf("%s says to leave its database's %s as it is, which now changes with it", e.GetId(), name)
 				}

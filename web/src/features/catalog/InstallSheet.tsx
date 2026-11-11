@@ -51,6 +51,8 @@ import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
+import { projectLink } from "./media";
+import { useOrigins } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 
@@ -158,7 +160,10 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const open = (input: Input) => changing.has(input.name) || suggested(input) === "";
   const missing = inputs.find((input) => !input.optional && value(input).trim() === "");
   const nameInvalid = name === "" || !SERVICE_NAME.test(name);
-  const ready = entry !== undefined && !nameInvalid && !missing;
+  // Where it comes from decides what the sheet says of it, so a plan waits until that's read.
+  const origins = useOrigins();
+  const source = origins.origins.get(id)?.name;
+  const ready = entry !== undefined && origins.data !== undefined && !origins.error && !nameInvalid && !missing;
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
   const missingLabel = missing?.label ?? "";
@@ -313,6 +318,18 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
             {sentence(got.error)}
           </Callout>
         ) : null}
+        {origins.error ? (
+          <Callout tone="critical" title={t`Couldn't read the sources`}>
+            {sentence(origins.error)}{" "}
+            <Button variant="ghost" onClick={() => void origins.refetch()}>
+              <Trans>Try again</Trans>
+            </Button>
+          </Callout>
+        ) : !origins.data ? (
+          <p className="catalog-note" aria-busy="true">
+            <Trans>Reading the sources</Trans>
+          </p>
+        ) : null}
         {failure ? (
           <Callout tone="critical" title={t`Can't make a plan`}>
             {failure}
@@ -368,6 +385,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                   />
                 ),
               )}
+              {source ? (
+                <Chosen label={t`Catalog`} value={t`${source} · Not tested by Dockwell`} tone="warning" />
+              ) : null}
               {entry.hostAccess ? <Chosen label={t`Reaches`} value={entry.hostAccess} tone="warning" /> : null}
             </div>
             <Facts facts={facts} className="catalog-sheet-facts" />
@@ -396,9 +416,11 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                 <Trans>
                   {app} is under the {license} licence.
                 </Trans>{" "}
-                <a href={entry.homepage} target="_blank" rel="noreferrer" className="catalog-link">
-                  <Trans>Its site</Trans>
-                </a>
+                {projectLink(entry.homepage) ? (
+                  <a href={projectLink(entry.homepage)} target="_blank" rel="noreferrer" className="catalog-link">
+                    <Trans>Its site</Trans>
+                  </a>
+                ) : null}
               </p>
               {command ? <CopyAsCommand command={command} /> : null}
             </Advanced>

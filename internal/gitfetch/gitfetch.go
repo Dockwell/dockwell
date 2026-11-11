@@ -121,63 +121,90 @@ func status(resp *http.Response) string {
 // Refs lists the branches and tags of the repository at repo, by name, such as
 // refs/heads/main, with the commit each is at, a tag's peeled to its commit.
 func Refs(ctx context.Context, client *http.Client, repo string) (map[string]string, error) {
-	u, err := CheckURL(repo)
+	l, err := List(ctx, client, repo)
 	if err != nil {
 		return nil, err
 	}
+	return l.Refs, nil
+}
+
+// A Listing is a repository's branches and tags, and the branch its HEAD names.
+type Listing struct {
+	// Refs are the branches and tags, by name, such as refs/heads/main, with the
+	// commit each is at, a tag's peeled to its commit.
+	Refs map[string]string
+	// Head is the branch HEAD names, its default, such as refs/heads/main, or ""
+	// when it names none.
+	Head string
+}
+
+// List lists the branches and tags of the repository at repo, and which branch is
+// its default.
+func List(ctx context.Context, client *http.Client, repo string) (Listing, error) {
+	u, err := CheckURL(repo)
+	if err != nil {
+		return Listing{}, err
+	}
 	via := guarded(client, 4<<20)
 	if _, err := v2(ctx, via, u); err != nil {
-		return nil, err
+		return Listing{}, err
 	}
 	var body bytes.Buffer
 	for _, line := range []string{"command=ls-refs\n", "agent=dockwell\n"} {
 		writePkt(&body, line)
 	}
 	body.WriteString("0001")
-	for _, line := range []string{"peel\n", "ref-prefix refs/heads/\n", "ref-prefix refs/tags/\n"} {
+	for _, line := range []string{"peel\n", "symrefs\n", "ref-prefix HEAD\n", "ref-prefix refs/heads/\n", "ref-prefix refs/tags/\n"} {
 		writePkt(&body, line)
 	}
 	body.WriteString("0000")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String()+"/git-upload-pack", &body)
 	if err != nil {
-		return nil, err
+		return Listing{}, err
 	}
 	req.Header.Set("Git-Protocol", "version=2")
 	req.Header.Set("Content-Type", "application/x-git-upload-pack-request")
 	resp, err := via.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("asking %s for its branches and tags: %w", u.Host, err)
+		return Listing{}, fmt.Errorf("asking %s for its branches and tags: %w", u.Host, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s answered %s when asked for its branches and tags", u.Host, status(resp))
+		return Listing{}, fmt.Errorf("%s answered %s when asked for its branches and tags", u.Host, status(resp))
 	}
 	r := bufio.NewReader(resp.Body)
-	out := map[string]string{}
+	out := Listing{Refs: map[string]string{}}
 	for {
 		line, kind, err := readPkt(r)
 		switch {
 		case errors.Is(err, io.EOF) || kind == pktFlush && err == nil:
 			return out, nil
 		case err != nil:
-			return nil, fmt.Errorf("reading %s's branches and tags: %w", u.Host, err)
+			return Listing{}, fmt.Errorf("reading %s's branches and tags: %w", u.Host, err)
 		case kind != pktData:
 			continue
 		}
 		fields := strings.Fields(string(line))
 		if len(fields) < 2 || !Commit.MatchString(fields[0]) {
-			return nil, fmt.Errorf("reading %s's branches and tags: a line isn't one", u.Host)
+			return Listing{}, fmt.Errorf("reading %s's branches and tags: a line isn't one", u.Host)
 		}
 		at := fields[0]
 		for _, attr := range fields[2:] {
 			if peeled, ok := strings.CutPrefix(attr, "peeled:"); ok && Commit.MatchString(peeled) {
 				at = peeled
 			}
+			// HEAD names the branch a clone checks out: the repository's default.
+			if target, ok := strings.CutPrefix(attr, "symref-target:"); ok && fields[1] == "HEAD" && strings.HasPrefix(target, "refs/heads/") {
+				out.Head = target
+			}
 		}
-		if len(out) == 10000 {
-			return nil, fmt.Errorf("%s has over 10,000 branches and tags, more than Dockwell lists", u.Host)
+		if fields[1] == "HEAD" {
+			continue
 		}
-		out[fields[1]] = at
+		if len(out.Refs) == 10000 {
+			return Listing{}, fmt.Errorf("%s has over 10,000 branches and tags, more than Dockwell lists", u.Host)
+		}
+		out.Refs[fields[1]] = at
 	}
 }
 

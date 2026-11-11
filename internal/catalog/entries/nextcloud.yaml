@@ -45,6 +45,7 @@ addressVariables:
     value: "172.16.0.0/12"
 notes:
   - "Answers at the domain you gave on its first install; another needs adding to its trusted_domains."
+  - "Leave the POSTGRES_PASSWORD secret as it is: its config.php keeps the password it installed with."
   - "Its first start takes a minute or two."
 inputs:
   - name: PORT

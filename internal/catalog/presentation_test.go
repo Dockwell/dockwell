@@ -141,7 +141,8 @@ func TestFirstWordsSayHowToSignIn(t *testing.T) {
 		"pgadmin": "Sign in to pgadmin as your email, with the password in the PGADMIN_PASSWORD secret. " +
 			"Registers a PostgreSQL that has a port of its own at host.docker.internal, which is this server.",
 		"nextcloud": "Sign in to nextcloud as the admin user you give, with the password in the NEXTCLOUD_ADMIN_PASSWORD secret. " +
-			"Answers at the domain you gave on its first install; another needs adding to its trusted_domains. Its first start takes a minute or two.",
+			"Answers at the domain you gave on its first install; another needs adding to its trusted_domains. " +
+			"Leave the POSTGRES_PASSWORD secret as it is: its config.php keeps the password it installed with. Its first start takes a minute or two.",
 		"gitea": "Its first account is its owner, so make yours before it has a domain. Git over SSH answers on its SSH port, on this server alone.",
 		"t3code": "Sign in to t3code with the key in the T3_SETUP_KEY secret. " +
 			"Anyone who reaches it over plain HTTP gets a shell, so it needs a domain over HTTPS. Open /__setup on its domain and sign in with the setup key.",

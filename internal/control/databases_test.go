@@ -520,8 +520,29 @@ func testADatabasesFirstPasswordChangesThroughAPlan(t *testing.T, backend store.
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
 				Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:7"}},
 			}}},
+		},
+		// An app's own PostgreSQL, whose first user is the app's, as Umami's is.
+		secretSpec("STATS_PASSWORD", "stats-password"),
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Name: "stats-db"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs:    &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17", Env: map[string]string{"POSTGRES_USER": "umami"}}},
+				Secrets: map[string]string{"POSTGRES_PASSWORD": "STATS_PASSWORD"},
+			}}},
 		}))
 	dc := databaseClient(b, b.origin)
+
+	// The plan names the user the image made from POSTGRES_USER, as the agent changes theirs.
+	stats, err := dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "stats-db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := stats.Msg.GetChange().GetSummary(); got != "Change the password of umami in stats-db" {
+		t.Errorf("the change of an app's own PostgreSQL reads %q", got)
+	}
+	if _, err := ch.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: stats.Msg.GetChange().GetId()})); err != nil {
+		t.Fatal(err)
+	}
 
 	planned, err := dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "db"}))
 	if err != nil {
@@ -575,5 +596,17 @@ func testADatabasesFirstPasswordChangesThroughAPlan(t *testing.T, backend store.
 	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "cache"}))
 	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "no_secret" {
 		t.Errorf("a database whose password isn't in a secret: %v", err)
+	}
+
+	// A server that's away can't say whether its agent changes the password as the
+	// database restarts, so nothing is planned.
+	f.lastDocker.stop()
+	eventually(t, "the server to go", func() bool {
+		_, ok := f.agents.Session(f.lastDocker.id.ServerID)
+		return !ok
+	})
+	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "db"}))
+	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "unavailable" || !strings.Contains(err.Error(), "isn't connected") {
+		t.Errorf("a database on a server that's away: %v", err)
 	}
 }
