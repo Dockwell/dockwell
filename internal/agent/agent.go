@@ -38,6 +38,7 @@ import (
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -117,6 +118,9 @@ type Config struct {
 	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
 	// Nil reads nothing.
 	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// Images says how images are read from their registries, for a form (ADR
+	// 0062). The zero value reads them as the server's Docker reaches registries.
+	Images ImageReads
 	// Tasks runs this server's scheduled tasks and keeps their runs (ADR 0053).
 	// Nil runs none.
 	Tasks TaskKeeper
@@ -138,6 +142,12 @@ type Config struct {
 	disks *diskUse
 	// procs lists and ends processes, when asked.
 	procs *processes
+	// images reads images from their registries, when asked, and keeps what it
+	// read for a while.
+	images *images
+	// ports says what holds the server's ports, for a form, keeping which
+	// process holds each socket for a few seconds as the form asks again.
+	ports *ingress.Holders
 	// Hello changes what the agent says of itself as a stream opens, for a test
 	// that stands in for an agent of another version. Nil changes nothing.
 	Hello func(*agentv1.Hello)
@@ -419,6 +429,8 @@ func Run(ctx context.Context, cfg Config) error {
 	cfg.firewall = newFirewallReader(cfg)
 	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
+	cfg.images = newImages(cfg.Docker, cfg.Images, nil)
+	cfg.ports = &ingress.Holders{Client: cfg.Docker, OwnersFor: socketOwnersFor}
 	if cfg.Drivers == nil {
 		cfg.Drivers = resource.NewRegistry()
 	}

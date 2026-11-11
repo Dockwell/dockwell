@@ -46,6 +46,9 @@ const (
 	// ServerServiceGetServerDiskUseProcedure is the fully-qualified name of the ServerService's
 	// GetServerDiskUse RPC.
 	ServerServiceGetServerDiskUseProcedure = "/dockwell.v1.ServerService/GetServerDiskUse"
+	// ServerServiceCheckServerPortsProcedure is the fully-qualified name of the ServerService's
+	// CheckServerPorts RPC.
+	ServerServiceCheckServerPortsProcedure = "/dockwell.v1.ServerService/CheckServerPorts"
 	// ServerServiceSetServerPublicAddressProcedure is the fully-qualified name of the ServerService's
 	// SetServerPublicAddress RPC.
 	ServerServiceSetServerPublicAddressProcedure = "/dockwell.v1.ServerService/SetServerPublicAddress"
@@ -74,6 +77,12 @@ type ServerServiceClient interface {
 	// An answer stands for 30 s, so a page opened twice asks once. See
 	// docs/adr/0040-a-servers-live-use.md.
 	GetServerDiskUse(context.Context, *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error)
+	// CheckServerPorts says what holds each of some ports on a server, as its
+	// kernel and Docker say: a process, a container, or nothing, so a form can
+	// offer a port that's free and say what holds one someone typed. It reads
+	// only when asked. What holds a server's ports is the install's to know (ADR
+	// 0048), so it's an admin's.
+	CheckServerPorts(context.Context, *connect.Request[v1.CheckServerPortsRequest]) (*connect.Response[v1.CheckServerPortsResponse], error)
 	// SetServerPublicAddress records a server's public address, as a person
 	// knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
 	// address are kept apart. An empty address goes back to what Dockwell finds
@@ -132,6 +141,13 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		checkServerPorts: connect.NewClient[v1.CheckServerPortsRequest, v1.CheckServerPortsResponse](
+			httpClient,
+			baseURL+ServerServiceCheckServerPortsProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("CheckServerPorts")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		setServerPublicAddress: connect.NewClient[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse](
 			httpClient,
 			baseURL+ServerServiceSetServerPublicAddressProcedure,
@@ -160,6 +176,7 @@ type serverServiceClient struct {
 	getServer              *connect.Client[v1.GetServerRequest, v1.GetServerResponse]
 	watchServers           *connect.Client[v1.WatchServersRequest, v1.WatchServersResponse]
 	getServerDiskUse       *connect.Client[v1.GetServerDiskUseRequest, v1.GetServerDiskUseResponse]
+	checkServerPorts       *connect.Client[v1.CheckServerPortsRequest, v1.CheckServerPortsResponse]
 	setServerPublicAddress *connect.Client[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse]
 	createJoinTicket       *connect.Client[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse]
 	getJoinTicket          *connect.Client[v1.GetJoinTicketRequest, v1.GetJoinTicketResponse]
@@ -183,6 +200,11 @@ func (c *serverServiceClient) WatchServers(ctx context.Context, req *connect.Req
 // GetServerDiskUse calls dockwell.v1.ServerService.GetServerDiskUse.
 func (c *serverServiceClient) GetServerDiskUse(ctx context.Context, req *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error) {
 	return c.getServerDiskUse.CallUnary(ctx, req)
+}
+
+// CheckServerPorts calls dockwell.v1.ServerService.CheckServerPorts.
+func (c *serverServiceClient) CheckServerPorts(ctx context.Context, req *connect.Request[v1.CheckServerPortsRequest]) (*connect.Response[v1.CheckServerPortsResponse], error) {
+	return c.checkServerPorts.CallUnary(ctx, req)
 }
 
 // SetServerPublicAddress calls dockwell.v1.ServerService.SetServerPublicAddress.
@@ -217,6 +239,12 @@ type ServerServiceHandler interface {
 	// An answer stands for 30 s, so a page opened twice asks once. See
 	// docs/adr/0040-a-servers-live-use.md.
 	GetServerDiskUse(context.Context, *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error)
+	// CheckServerPorts says what holds each of some ports on a server, as its
+	// kernel and Docker say: a process, a container, or nothing, so a form can
+	// offer a port that's free and say what holds one someone typed. It reads
+	// only when asked. What holds a server's ports is the install's to know (ADR
+	// 0048), so it's an admin's.
+	CheckServerPorts(context.Context, *connect.Request[v1.CheckServerPortsRequest]) (*connect.Response[v1.CheckServerPortsResponse], error)
 	// SetServerPublicAddress records a server's public address, as a person
 	// knows it, which no other way of knowing it overrides. An IPv4 and an IPv6
 	// address are kept apart. An empty address goes back to what Dockwell finds
@@ -271,6 +299,13 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceCheckServerPortsHandler := connect.NewUnaryHandler(
+		ServerServiceCheckServerPortsProcedure,
+		svc.CheckServerPorts,
+		connect.WithSchema(serverServiceMethods.ByName("CheckServerPorts")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	serverServiceSetServerPublicAddressHandler := connect.NewUnaryHandler(
 		ServerServiceSetServerPublicAddressProcedure,
 		svc.SetServerPublicAddress,
@@ -300,6 +335,8 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceWatchServersHandler.ServeHTTP(w, r)
 		case ServerServiceGetServerDiskUseProcedure:
 			serverServiceGetServerDiskUseHandler.ServeHTTP(w, r)
+		case ServerServiceCheckServerPortsProcedure:
+			serverServiceCheckServerPortsHandler.ServeHTTP(w, r)
 		case ServerServiceSetServerPublicAddressProcedure:
 			serverServiceSetServerPublicAddressHandler.ServeHTTP(w, r)
 		case ServerServiceCreateJoinTicketProcedure:
@@ -329,6 +366,10 @@ func (UnimplementedServerServiceHandler) WatchServers(context.Context, *connect.
 
 func (UnimplementedServerServiceHandler) GetServerDiskUse(context.Context, *connect.Request[v1.GetServerDiskUseRequest]) (*connect.Response[v1.GetServerDiskUseResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetServerDiskUse is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) CheckServerPorts(context.Context, *connect.Request[v1.CheckServerPortsRequest]) (*connect.Response[v1.CheckServerPortsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.CheckServerPorts is not implemented"))
 }
 
 func (UnimplementedServerServiceHandler) SetServerPublicAddress(context.Context, *connect.Request[v1.SetServerPublicAddressRequest]) (*connect.Response[v1.SetServerPublicAddressResponse], error) {

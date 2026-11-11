@@ -234,6 +234,12 @@ func main() {
 		}
 		return img, true
 	}
+	e.Hub = fakeHub
+	// A registry for the agent's reads of images, where a test names one
+	// (DOCKWELL_TEST_REGISTRY); none otherwise.
+	if addr := os.Getenv("FAKEDOCKER_REGISTRY"); addr != "" {
+		serveRegistry(addr)
+	}
 	e.BindError = func(source string) string {
 		if strings.HasPrefix(source, "/readonly") {
 			return "mkdir " + source + ": read-only file system"
