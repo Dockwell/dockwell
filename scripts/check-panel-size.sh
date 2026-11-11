@@ -25,9 +25,13 @@
 # what the code itself gained. On 2026-11-10, with 32 apps, the code is 3.01 MB
 # and the media 1.60 MB. Allow the code 3.25 MB and the media 2.25 MB. Both are
 # read at start, so the idle RSS budgets still hold their sum.
+# On 2026-11-11 about thirty features landed (roles and invites, the panel's
+# domain, databases, firewall, history, drills, runtimes and more), and with
+# runtimes (#358) the code reached 3.25 MB. A control plane with its agent idled
+# at 66.2 MB of its 250 MB budget, so allow the code 3.75 MB.
 set -euo pipefail
 
-code_limit=3250000
+code_limit=3750000
 media_limit=2250000
 dir=${1:-internal/panel/dist/app}
 media=catalog-media
