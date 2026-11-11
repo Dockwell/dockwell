@@ -119,6 +119,8 @@ var (
 		"token.create", "token.revoke",
 		"sign_in_link.create", "claim_link.create", "join_token.create",
 		"secret.reveal", "secrets.rotate_key",
+		// A test of a destination's keys, before any plan: who tried which storage.
+		backups.ActionTestDestination,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 	}
 )

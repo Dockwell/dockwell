@@ -15,6 +15,7 @@ package apinames
 func Commands() []string {
 	return []string{
 		"alert-channels",
+		"alert-checks",
 		"alert-deliveries",
 		"alert-mutes",
 		"alert-rules",
@@ -42,6 +43,7 @@ func Commands() []string {
 		"firewall-policies",
 		"firewall-rules",
 		"health",
+		"images",
 		"import",
 		"join-tickets",
 		"logs",

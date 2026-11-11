@@ -44,6 +44,9 @@ const (
 	// DatabaseServiceCreateDatabaseUserProcedure is the fully-qualified name of the DatabaseService's
 	// CreateDatabaseUser RPC.
 	DatabaseServiceCreateDatabaseUserProcedure = "/dockwell.v1.DatabaseService/CreateDatabaseUser"
+	// DatabaseServiceChangeDatabasePasswordProcedure is the fully-qualified name of the
+	// DatabaseService's ChangeDatabasePassword RPC.
+	DatabaseServiceChangeDatabasePasswordProcedure = "/dockwell.v1.DatabaseService/ChangeDatabasePassword"
 )
 
 // DatabaseServiceClient is a client for the dockwell.v1.DatabaseService service.
@@ -62,6 +65,16 @@ type DatabaseServiceClient interface {
 	// undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
 	// and MariaDB have users of their own.
 	CreateDatabaseUser(context.Context, *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error)
+	// ChangeDatabasePassword plans a new password for one of a database's users: its
+	// first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+	// the secret the service starts with (Database.password_secret), or a user Dockwell
+	// made (CreateDatabaseUser). The control plane generates it, as it does a new
+	// user's, and sets the secret to it, so the plan restarts the database and every
+	// app that uses the secret, and nobody sees the password unless they reveal it. The
+	// agent changes it in the database as it restarts, so what signs in with the secret
+	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
+	// none to change here.
+	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
 }
 
 // NewDatabaseServiceClient constructs a client for the dockwell.v1.DatabaseService service. By
@@ -95,14 +108,21 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("CreateDatabaseUser")),
 			connect.WithClientOptions(opts...),
 		),
+		changeDatabasePassword: connect.NewClient[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse](
+			httpClient,
+			baseURL+DatabaseServiceChangeDatabasePasswordProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // databaseServiceClient implements DatabaseServiceClient.
 type databaseServiceClient struct {
-	listDatabases      *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
-	getDatabase        *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
-	createDatabaseUser *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
+	listDatabases          *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
+	getDatabase            *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
+	createDatabaseUser     *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
+	changeDatabasePassword *connect.Client[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse]
 }
 
 // ListDatabases calls dockwell.v1.DatabaseService.ListDatabases.
@@ -118,6 +138,11 @@ func (c *databaseServiceClient) GetDatabase(ctx context.Context, req *connect.Re
 // CreateDatabaseUser calls dockwell.v1.DatabaseService.CreateDatabaseUser.
 func (c *databaseServiceClient) CreateDatabaseUser(ctx context.Context, req *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error) {
 	return c.createDatabaseUser.CallUnary(ctx, req)
+}
+
+// ChangeDatabasePassword calls dockwell.v1.DatabaseService.ChangeDatabasePassword.
+func (c *databaseServiceClient) ChangeDatabasePassword(ctx context.Context, req *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
+	return c.changeDatabasePassword.CallUnary(ctx, req)
 }
 
 // DatabaseServiceHandler is an implementation of the dockwell.v1.DatabaseService service.
@@ -136,6 +161,16 @@ type DatabaseServiceHandler interface {
 	// undo, and setting the secret anew changes the password. Only PostgreSQL, MySQL
 	// and MariaDB have users of their own.
 	CreateDatabaseUser(context.Context, *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error)
+	// ChangeDatabasePassword plans a new password for one of a database's users: its
+	// first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+	// the secret the service starts with (Database.password_secret), or a user Dockwell
+	// made (CreateDatabaseUser). The control plane generates it, as it does a new
+	// user's, and sets the secret to it, so the plan restarts the database and every
+	// app that uses the secret, and nobody sees the password unless they reveal it. The
+	// agent changes it in the database as it restarts, so what signs in with the secret
+	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
+	// none to change here.
+	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
 }
 
 // NewDatabaseServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -165,6 +200,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("CreateDatabaseUser")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceChangeDatabasePasswordHandler := connect.NewUnaryHandler(
+		DatabaseServiceChangeDatabasePasswordProcedure,
+		svc.ChangeDatabasePassword,
+		connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DatabaseService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DatabaseServiceListDatabasesProcedure:
@@ -173,6 +214,8 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceGetDatabaseHandler.ServeHTTP(w, r)
 		case DatabaseServiceCreateDatabaseUserProcedure:
 			databaseServiceCreateDatabaseUserHandler.ServeHTTP(w, r)
+		case DatabaseServiceChangeDatabasePasswordProcedure:
+			databaseServiceChangeDatabasePasswordHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -192,4 +235,8 @@ func (UnimplementedDatabaseServiceHandler) GetDatabase(context.Context, *connect
 
 func (UnimplementedDatabaseServiceHandler) CreateDatabaseUser(context.Context, *connect.Request[v1.CreateDatabaseUserRequest]) (*connect.Response[v1.CreateDatabaseUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.CreateDatabaseUser is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ChangeDatabasePassword is not implemented"))
 }

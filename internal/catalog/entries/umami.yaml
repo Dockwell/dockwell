@@ -20,7 +20,7 @@ screenshots:
     source: https://umami.is/_next/static/immutable/media/screenshot-dashboard.3vmc7t3hapnqk.jpg
 category: analytics
 version: "3.4.1"
-release: 2
+release: 3
 homepage: https://umami.is
 license: AGPL-3.0-only
 appLicense: MIT
@@ -36,9 +36,7 @@ firstSteps: >-
   3000:127.0.0.1:3000 you@your-server, using the port you gave it, then open
   http://localhost:3000. Sign in, and change the password under Settings, Profile.
   Add a domain on its page only after that, over HTTPS or behind your tunnel, as your
-  sites load its tracker from it. Leave the POSTGRES_PASSWORD secret as it is: its
-  database keeps the password it started with, and Umami would then use one it
-  doesn't take.
+  sites load its tracker from it.
 inputs:
   - name: PORT
     label: Port on this server

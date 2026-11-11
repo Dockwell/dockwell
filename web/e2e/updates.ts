@@ -232,11 +232,8 @@ async function main() {
 
   step("it leads with the security fixes, then the rest, as Server-Updates has them");
   await page.getByText("6 security updates are ready to install").waitFor();
-  await page.getByText("sudo apt-get upgrade --with-new-pkgs", { exact: true }).first().waitFor();
-  await page
-    .getByText("installs updates by itself, so these go in within about a day", { exact: false })
-    .first()
-    .waitFor();
+  await page.getByRole("button", { name: "Copy the upgrade command" }).first().waitFor();
+  await page.getByText("installs them within about a day", { exact: false }).first().waitFor();
   await page.getByText("6 from noble-security", { exact: false }).waitFor();
   const table = page.getByRole("table", { name: /^Security updates for / });
   await table.waitFor();

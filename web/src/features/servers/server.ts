@@ -63,7 +63,10 @@ export function useServerWords(server: Server): ServerWords {
   const live = server.connection === Connection.CONNECTED;
   const uptime = live && server.stats?.uptime ? words.span(durationMs(server.stats.uptime)) : undefined;
   const up = uptime ? t`up ${uptime}` : "";
-  return { uptime, up, phoneSub: [strings.status[serverStatus(server)], up].filter(Boolean).join(" · ") };
+  // A server that joined and waits for its agent isn't one that stopped, whatever its glyph.
+  const state =
+    server.connection === Connection.PENDING ? t`Waiting for its agent` : strings.status[serverStatus(server)];
+  return { uptime, up, phoneSub: [state, up].filter(Boolean).join(" · ") };
 }
 
 /** What the shell shows of one server: what changes when it is renamed, connects or drops, not with each sample. */

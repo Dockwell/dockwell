@@ -54,6 +54,27 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alert-checks:
+        get:
+            tags:
+                - AlertService
+            description: |-
+                ListAlertChecks returns every check, with how it stands and its last runs,
+                 newest first. A check made a moment ago reads waiting until its first run.
+            operationId: AlertService_ListAlertChecks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListAlertChecksResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/alert-deliveries:
         get:
             tags:
@@ -399,6 +420,39 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListBackupDestinationsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/backup-destinations:test:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                TestBackupDestination signs in to storage with what a destination form holds,
+                 before anything is planned, and says what it found: the buckets the keys may
+                 list, and, given a bucket, whether a file can be written there, which it writes
+                 under the destination's prefix and deletes. It reaches the storage from the
+                 control server, which may reach what some servers can't, or not what they can:
+                 the internet and private networks, never the control server's own loopback, and
+                 it follows no redirect. It keeps nothing, and it's on the activity log without
+                 what signs in.
+            operationId: BackupService_TestBackupDestination
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/TestBackupDestinationRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/TestBackupDestinationResponse'
                 default:
                     description: Default error response
                     content:
@@ -1484,6 +1538,47 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:changePassword:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                ChangeDatabasePassword plans a new password for one of a database's users: its
+                 first user, such as MariaDB's root or PostgreSQL's postgres, whose password is in
+                 the secret the service starts with (Database.password_secret), or a user Dockwell
+                 made (CreateDatabaseUser). The control plane generates it, as it does a new
+                 user's, and sets the secret to it, so the plan restarts the database and every
+                 app that uses the secret, and nobody sees the password unless they reveal it. The
+                 agent changes it in the database as it restarts, so what signs in with the secret
+                 keeps signing in (ADR 0038). A database whose password isn't in a secret has
+                 none to change here.
+            operationId: DatabaseService_ChangeDatabasePassword
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ChangeDatabasePasswordRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ChangeDatabasePasswordResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -1775,6 +1870,140 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListHealthResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/images:inspect:
+        get:
+            tags:
+                - ImageService
+            description: |-
+                GetImage says whether an image is there, as a pull would find it, and what
+                 it declares for the server's platform: the ports it exposes, its
+                 environment variables with their defaults, the paths it keeps data at, its
+                 command and its health check.
+            operationId: ImageService_GetImage
+            parameters:
+                - name: reference
+                  in: query
+                  description: |-
+                    The image, such as "nginx:1.27" or "ghcr.io/acme/web@sha256:ab12…". With
+                     no tag, it's "latest".
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: As SearchImagesRequest's.
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetImageResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/images:search:
+        get:
+            tags:
+                - ImageService
+            description: |-
+                SearchImages returns Docker Hub's images whose names hold a term, its
+                 official ones first.
+            operationId: ImageService_SearchImages
+            parameters:
+                - name: term
+                  in: query
+                  description: What a name holds, such as "postgres".
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    The environment the app is for, by name or ID, which says who may ask. It
+                     can be left out while its project has only one.
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  description: |-
+                    The project of the environment, by name or ID. It can be left out while
+                     there is only one.
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  description: |-
+                    The server to read from, by ID: the one the app will run on. It can be left
+                     out while there is only one.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SearchImagesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/images:tags:
+        get:
+            tags:
+                - ImageService
+            description: |-
+                ListImageTags returns a repository's tags, newest first, each with the
+                 digest it points at where that's known, so the ones that point where
+                 "latest" does can be told. Docker Hub says when each was pushed; any other
+                 registry's are ordered by version.
+            operationId: ImageService_ListImageTags
+            parameters:
+                - name: repository
+                  in: query
+                  description: The repository, such as "nginx" or "ghcr.io/acme/web", with no tag.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: As SearchImagesRequest's.
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListImageTagsResponse'
                 default:
                     description: Default error response
                     content:
@@ -2131,6 +2360,37 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetServerDiskUseResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/ports:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                CheckServerPorts says what holds each of some ports on a server, as its
+                 kernel and Docker say: a process, a container, or nothing, so a form can
+                 offer a port that's free and say what holds one someone typed. It reads
+                 only when asked. What holds a server's ports is the install's to know (ADR
+                 0048), so it's an admin's.
+            operationId: ServerService_CheckServerPorts
+            parameters:
+                - name: id
+                  in: path
+                  description: The server, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckServerPortsResponse'
                 default:
                     description: Default error response
                     content:
@@ -4767,6 +5027,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -4908,6 +5169,127 @@ components:
                         The fields that sign in which it has, such as "email.password". They're
                          sealed and never shown; an update that leaves one empty keeps it.
             description: AlertChannelInfo is a channel, with nothing that signs in to it.
+        AlertCheck:
+            type: object
+            properties:
+                address:
+                    type: string
+                    description: |-
+                        The address it asks, an http or https URL, such as
+                         "https://shop.example.com/".
+                every:
+                    type: string
+                    description: 'How often it''s checked: "30s", "1m", "5m" or "15m". "1m" unless set.'
+                timeout:
+                    type: string
+                    description: |-
+                        How long a run waits for an answer: "10s" unless set, at most "30s", and
+                         less than every.
+                downAfter:
+                    type: integer
+                    description: |-
+                        How many runs in a row have to fail for it to read down: 2 unless set, 1 to 10.
+                         Down, it reads up again after 2 runs in a row pass.
+                    format: uint32
+                expectFrom:
+                    type: integer
+                    description: 'The lowest status that counts as up: 200 unless set.'
+                    format: uint32
+                expectTo:
+                    type: integer
+                    description: 'The highest status that counts as up: 399 unless set, so a redirect is up.'
+                    format: uint32
+                keyword:
+                    type: string
+                    description: Text the answer's first 64 KiB has to hold, when set, such as "Welcome".
+                keywordAbsent:
+                    type: boolean
+                    description: Says the keyword has to be absent instead, such as "Error".
+                insideNetwork:
+                    type: boolean
+                    description: |-
+                        Lets the check reach the private networks the control server is on, such as
+                         an address only the office's network serves. Unset, it reaches the internet
+                         alone, keyword included, and a name that resolves to a private address reads
+                         failing with how to allow it. Never this server's loopback, nor a metadata or
+                         link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
+            description: |-
+                AlertCheck is an address Dockwell asks, every so often, whether it answers as
+                 it should: an uptime check. It lives in the organization, and the control
+                 plane runs it. A run is one GET, with no redirect followed, that keeps nothing
+                 of the answer but its status, how long it took, and whether the keyword was
+                 there. See docs/adr/0066-checks-of-a-url.md.
+        AlertCheckInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The check's ID, "chk_…", and its name.
+                name:
+                    type: string
+                spec:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheck'
+                    description: What it is.
+                state:
+                    enum:
+                        - ALERT_CHECK_STATE_UNSPECIFIED
+                        - ALERT_CHECK_STATE_WAITING
+                        - ALERT_CHECK_STATE_UP
+                        - ALERT_CHECK_STATE_FAILING
+                        - ALERT_CHECK_STATE_DOWN
+                    type: string
+                    description: How it stands.
+                    format: enum
+                since:
+                    type: string
+                    description: Since when it has stood so. Unset while it waits for its first run.
+                    format: date-time
+                runs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertCheckRun'
+                    description: |-
+                        Its last runs, newest first, at most 10. They're in memory, so a restart of
+                         the control plane starts them again.
+                from:
+                    type: string
+                    description: Where it runs from, in words, such as "the control server".
+                problem:
+                    type: string
+                    description: |-
+                        Why Dockwell can't run the check now, such as a spec it can't read; empty
+                         while it can. A check with a problem keeps the alert it had open.
+            description: AlertCheckInfo is a check, how it stands, and its last runs.
+        AlertCheckRun:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it ran.
+                    format: date-time
+                ok:
+                    type: boolean
+                    description: Whether it passed.
+                status:
+                    type: integer
+                    description: The status the address answered with. 0 when nothing answered.
+                    format: uint32
+                took:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long the answer took, to its headers.
+                said:
+                    type: string
+                    description: |-
+                        What went wrong, in words, such as "no answer within 10s" or "502, outside
+                         200 to 399". Empty when it passed.
+                skipped:
+                    type: boolean
+                    description: |-
+                        True for a run that didn't start, as every slot for runs was taken: it says
+                         nothing of the address, and counts neither as up nor as a failure.
+            description: AlertCheckRun is one run of a check.
         AlertDelivery:
             type: object
             properties:
@@ -5039,6 +5421,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: What it watches for.
                     format: enum
@@ -6112,6 +6495,36 @@ components:
                 ChangeConfirmation is what a change to a server's firewall waits for: that
                  the person who applied it confirms they can still reach the server, before
                  the server's timer runs out and it puts back its firewall as it was.
+        ChangeDatabasePasswordRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                user:
+                    type: string
+                    description: |-
+                        The user, by name: one Dockwell made, such as "shop". Empty is its first user,
+                         whose password is in Database.password_secret.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one has a
+                         service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its project has
+                         more than one.
+            description: ChangeDatabasePasswordRequest names a database, and the user whose password changes.
+        ChangeDatabasePasswordResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: ChangeDatabasePasswordResponse is the change that gives the user a new password.
         CheckClaimRequest:
             type: object
             properties:
@@ -6237,6 +6650,14 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckServerPortsResponse:
+            type: object
+            properties:
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerPortHeld'
+            description: CheckServerPortsResponse says what holds each port asked, in the order asked.
         CheckServerUpdatesRequest:
             type: object
             properties:
@@ -7931,6 +8352,7 @@ components:
                         - CONDITION_BACKUP_FAILED
                         - CONDITION_BACKUP_LATE
                         - CONDITION_CHANGE_FAILED
+                        - CONDITION_CHECK_DOWN
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the
@@ -8792,6 +9214,42 @@ components:
                         - $ref: '#/components/schemas/Database'
                     description: The database.
             description: GetDatabaseResponse is one database.
+        GetImageResponse:
+            type: object
+            properties:
+                answer:
+                    enum:
+                        - IMAGE_ANSWER_UNSPECIFIED
+                        - IMAGE_ANSWER_FOUND
+                        - IMAGE_ANSWER_NOT_FOUND
+                        - IMAGE_ANSWER_UNREACHABLE
+                        - IMAGE_ANSWER_NOT_ASKED
+                    type: string
+                    description: Whether it's there.
+                    format: enum
+                digest:
+                    type: string
+                    description: What its registry calls it, such as "sha256:ab12…". Empty unless found.
+                config:
+                    allOf:
+                        - $ref: '#/components/schemas/ImageConfig'
+                    description: |-
+                        What it declares, for the server's platform. Unset unless found, and when
+                         its settings couldn't be read this time, as unread says.
+                unread:
+                    enum:
+                        - IMAGE_ANSWER_UNSPECIFIED
+                        - IMAGE_ANSWER_FOUND
+                        - IMAGE_ANSWER_NOT_FOUND
+                        - IMAGE_ANSWER_UNREACHABLE
+                        - IMAGE_ANSWER_NOT_ASKED
+                    type: string
+                    description: |-
+                        Why config is unset for an image that was found, such as the server's
+                         allowance of Docker Hub reads for the six hours being spent. Unspecified
+                         otherwise.
+                    format: enum
+            description: GetImageResponse says whether an image is there, and what it declares.
         GetJoinTicketResponse:
             type: object
             properties:
@@ -9140,6 +9598,102 @@ components:
             description: |-
                 HttpCheck is a GET the agent sends to a container. It can name nothing but
                  the container: it says a port and a path, and the address is Docker's.
+        ImageConfig:
+            type: object
+            properties:
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImagePort'
+                    description: The ports it listens on (EXPOSE), in the order it gives them.
+                env:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImageVariable'
+                    description: Its environment variables, with the values it gives them (ENV).
+                volumes:
+                    type: array
+                    items:
+                        type: string
+                    description: The paths it keeps data at (VOLUME).
+                command:
+                    type: array
+                    items:
+                        type: string
+                    description: Its command and entrypoint, word by word.
+                entrypoint:
+                    type: array
+                    items:
+                        type: string
+                user:
+                    type: string
+                    description: The user it runs as, and the directory it runs in. Empty for root and /.
+                workingDir:
+                    type: string
+                healthcheck:
+                    type: array
+                    items:
+                        type: string
+                    description: Its health check's command, as Docker takes one. Empty for none.
+                platform:
+                    type: string
+                    description: The platform these are for, such as "linux/arm64".
+            description: ImageConfig is what an image declares, as its Dockerfile set it.
+        ImageMatch:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        Its name as a reference takes it, such as "postgres" or
+                         "ghcr.io/acme/web".
+                description:
+                    type: string
+                    description: What Docker Hub says it is.
+                official:
+                    type: boolean
+                    description: True for one of Docker Hub's official images.
+                stars:
+                    type: string
+                    description: How many have starred it on Docker Hub.
+            description: ImageMatch is one image a search found.
+        ImagePort:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    format: uint32
+                udp:
+                    type: boolean
+                    description: True for UDP.
+            description: ImagePort is a port an image exposes.
+        ImageTag:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The tag, such as "1.27".
+                digest:
+                    type: string
+                    description: |-
+                        The digest it points at, such as "sha256:ab12…". Empty where the registry
+                         lists names alone and it wasn't asked.
+                pushTime:
+                    type: string
+                    description: When it was last pushed. Unset where the registry doesn't say.
+                    format: date-time
+                latest:
+                    type: boolean
+                    description: True for a tag that points where "latest" does, "latest" among them.
+            description: ImageTag is one of a repository's tags.
+        ImageVariable:
+            type: object
+            properties:
+                name:
+                    type: string
+                value:
+                    type: string
+            description: ImageVariable is an environment variable an image sets.
         ImportComposeRequest:
             type: object
             properties:
@@ -9666,6 +10220,14 @@ components:
                     items:
                         $ref: '#/components/schemas/AlertChannelInfo'
             description: ListAlertChannelsResponse lists the channels, by name.
+        ListAlertChecksResponse:
+            type: object
+            properties:
+                checks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AlertCheckInfo'
+            description: ListAlertChecksResponse lists the checks.
         ListAlertDeliveriesResponse:
             type: object
             properties:
@@ -9894,6 +10456,25 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListHealthResponse is a page of services' health.
+        ListImageTagsResponse:
+            type: object
+            properties:
+                tags:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImageTag'
+                    description: The tags, newest first, at most 200.
+                answer:
+                    enum:
+                        - IMAGE_ANSWER_UNSPECIFIED
+                        - IMAGE_ANSWER_FOUND
+                        - IMAGE_ANSWER_NOT_FOUND
+                        - IMAGE_ANSWER_UNREACHABLE
+                        - IMAGE_ANSWER_NOT_ASKED
+                    type: string
+                    description: How the registry answered.
+                    format: enum
+            description: ListImageTagsResponse lists a repository's tags.
         ListLogSourcesResponse:
             type: object
             properties:
@@ -12548,6 +13129,25 @@ components:
             description: |-
                 Screenshot is a preview a person can read before starting an installation.
                  Media ships with the panel; browsing never asks a third-party host for it.
+        SearchImagesResponse:
+            type: object
+            properties:
+                matches:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImageMatch'
+                    description: The images, at most 25.
+                answer:
+                    enum:
+                        - IMAGE_ANSWER_UNSPECIFIED
+                        - IMAGE_ANSWER_FOUND
+                        - IMAGE_ANSWER_NOT_FOUND
+                        - IMAGE_ANSWER_UNREACHABLE
+                        - IMAGE_ANSWER_NOT_ASKED
+                    type: string
+                    description: How Docker Hub answered the search.
+                    format: enum
+            description: SearchImagesResponse lists what was found.
         Secret:
             type: object
             properties:
@@ -13086,6 +13686,23 @@ components:
                         True when the server said nothing listens there yet, so the route answers 502
                          until something does. False, with listening empty, when it couldn't say.
             description: ServerPortCheck is a port on the server that a route sends to.
+        ServerPortHeld:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    format: uint32
+                udp:
+                    type: boolean
+                held:
+                    type: boolean
+                    description: True when something holds it.
+                by:
+                    type: string
+                    description: |-
+                        What holds it, in words, such as "sshd" or "nginx, in the container
+                         legacy-site". Empty when nothing does, and when what does can't be named.
+            description: ServerPortHeld is what holds one port on a server.
         ServerStats:
             type: object
             properties:
@@ -13783,6 +14400,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertChannel'
                     description: Where alerts are sent, kind "alert.channel".
+                alertCheck:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheck'
+                    description: An address checked for whether it answers, kind "alert.check" (ADR 0066).
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'
@@ -13901,7 +14522,9 @@ components:
                     description: |-
                         What a failure comes down to, when the driver knows, so a client can say
                          what to do about it where it is: "image", "command", "exits", "unhealthy",
-                         "port" or "mount". Empty when it doesn't, and it may gain others.
+                         "port", "mount", or "registry" for a registry that didn't answer a pull
+                         properly, where the same pull may work in a while. Empty when it doesn't,
+                         and it may gain others.
                 lost:
                     type: boolean
                     description: |-
@@ -14308,6 +14931,60 @@ components:
                 delivery:
                     $ref: '#/components/schemas/AlertDelivery'
             description: TestAlertChannelResponse says how the test went.
+        TestBackupDestinationRequest:
+            type: object
+            properties:
+                destination:
+                    allOf:
+                        - $ref: '#/components/schemas/BackupDestination'
+                    description: The storage's endpoint, region, bucket (empty to list them alone), prefix and keys.
+            description: |-
+                TestBackupDestinationRequest is what a destination form holds. The passphrase is
+                 left out: nothing is sealed in a test.
+        TestBackupDestinationResponse:
+            type: object
+            properties:
+                signedIn:
+                    type: boolean
+                    description: Whether the storage answered at the endpoint, and took the keys.
+                buckets:
+                    type: array
+                    items:
+                        type: string
+                    description: The buckets the keys may list, by name. A key scoped to one bucket may list none.
+                listed:
+                    type: boolean
+                    description: Whether the keys may list buckets at all.
+                wrote:
+                    type: boolean
+                    description: |-
+                        Whether a test file was written to the bucket. With no problem it was deleted
+                         again; with CANT_DELETE it's still there, as test_file.
+                problem:
+                    enum:
+                        - BACKUP_DESTINATION_PROBLEM_UNSPECIFIED
+                        - BACKUP_DESTINATION_PROBLEM_UNREACHABLE
+                        - BACKUP_DESTINATION_PROBLEM_KEYS_REFUSED
+                        - BACKUP_DESTINATION_PROBLEM_NO_BUCKET
+                        - BACKUP_DESTINATION_PROBLEM_CANT_WRITE
+                        - BACKUP_DESTINATION_PROBLEM_WRONG_REGION
+                        - BACKUP_DESTINATION_PROBLEM_CANT_DELETE
+                        - BACKUP_DESTINATION_PROBLEM_STORAGE_ERROR
+                    type: string
+                    description: What went wrong, when something did.
+                    format: enum
+                said:
+                    type: string
+                    description: |-
+                        What the storage said of it, as its own code, such as AccessDenied, with nothing
+                         that signs in.
+                region:
+                    type: string
+                    description: The region the storage says the bucket is in, with WRONG_REGION.
+                testFile:
+                    type: string
+                    description: The test file that was written and couldn't be deleted, with CANT_DELETE.
+            description: TestBackupDestinationResponse says what the storage answered.
         Tmpfs:
             type: object
             properties:
@@ -15052,6 +15729,16 @@ tags:
 
          Reading it needs the read scope alone, as what a check printed is cut short
          and has what the container's environment holds masked. It isn't a log.
+    - name: ImageService
+      description: |-
+        ImageService reads images from their registries for a form, through the
+         server an app will run on, so a form can offer names and tags, say whether an
+         image is there as it's typed, and fill in what an image declares. Nothing is
+         pulled, and nothing changes. Each read goes to that server's agent, which
+         reads with the pull's network and mirrors, and keeps what it read for a
+         while; the control plane keeps none of it. An answer says nothing of the
+         server, such as which images it has, which is the install's (ADR 0048). See
+         docs/adr/0062-reading-an-image-from-its-registry.md.
     - name: ImportService
       description: |-
         ImportService moves what another panel runs on a server into Dockwell: what

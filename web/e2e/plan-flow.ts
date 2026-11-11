@@ -530,6 +530,11 @@ export async function planFlow(
   await page.getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ }).waitFor();
   await page.getByRole("button", { name: /Open fixme/ }).click();
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
+  // A new app opens at its log; what follows is on its overview.
+  await page
+    .getByRole("navigation", { name: "App sections" })
+    .getByRole("link", { name: "Overview", exact: true })
+    .click();
 
   step("plan: a failed deploy that rolled says what ran never stopped, and it didn't");
   const deployFixme = async (image: string) => {
@@ -716,10 +721,23 @@ export async function planFlow(
   await page.getByRole("heading", { level: 1, name: "fixme", exact: true }).waitFor();
 
   step("plan: a port reads as a port, and focus finds the page's heading when what opened it has gone");
+  // The server's ports come back slowly, so the free one lands after the port is typed,
+  // and must leave what was typed alone.
+  const portsRead = /ContainerService\/ListContainers|ServerService\/CheckServerPorts/;
+  await page.route(portsRead, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.continue();
+  });
   await page.getByRole("button", { name: "Add a port" }).first().click();
   const portForm = page.getByRole("dialog", { name: "Add a port to fixme" });
-  await portForm.getByLabel(/On the server/).fill("9411");
+  const serverPort = portForm.getByLabel(/On the server/);
+  await serverPort.fill("9411");
   await portForm.getByLabel(/In the app/).fill("80");
+  await portForm.locator(".dw-port-state.is-free").waitFor({ timeout: 15_000 });
+  await page.unroute(portsRead);
+  if ((await serverPort.inputValue()) !== "9411") {
+    fail(`the free port ran into the one typed: On the server reads ${await serverPort.inputValue()}`);
+  }
   await portForm.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByText("Publish port", { exact: true }).waitFor();
@@ -767,7 +785,7 @@ export async function planFlow(
   await linkRisk.waitFor();
   if (!(await linkRisk.evaluate((el) => el.classList.contains("dw-tone-critical"))))
     fail("a symlink to /etc isn't red");
-  if (!(await linkRisk.innerText()).includes("It leads to /etc")) fail("it doesn't say where the symlink leads");
+  if (!(await linkRisk.innerText()).includes("which leads to /etc")) fail("it doesn't say where the symlink leads");
   if ((await linked.locator(".plan-gate").count()) !== 1) fail("a symlink to /etc asks for no typing");
   await shoot(page, "plan-symlink");
   await linked.getByRole("button", { name: "Cancel" }).click();
@@ -1146,7 +1164,7 @@ volumes:
     await zh.goto(`${origin}/apps/new`);
     const zhForm = zh.getByRole("dialog", { name: "新建应用" });
     await zhForm.waitFor();
-    await zhForm.getByRole("textbox", { name: "镜像", exact: true }).fill("nginx:1.27-alpine");
+    await zhForm.getByRole("combobox", { name: "镜像", exact: true }).fill("nginx:1.27-alpine");
     await zhForm.getByRole("textbox", { name: /^名称/ }).first().fill("zhong");
     await zhForm.getByRole("button", { name: /审查计划/ }).click();
     const zhPlan = zh.getByRole("dialog", { name: "审查计划" });

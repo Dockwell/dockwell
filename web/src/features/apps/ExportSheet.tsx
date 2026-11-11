@@ -8,10 +8,29 @@ import { useEffect, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 
+/** Saves what's made here as a file the browser downloads. */
+function save(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * The variables an export left out, by name, as an .env beside the file sets
+ * them: "web.API_KEY" is API_KEY. A volume's driver options aren't one.
+ */
+export function envLeftOut(omitted: readonly string[]): string[] {
+  const names = omitted.filter((o) => !o.startsWith("volumes.")).map((o) => o.slice(o.indexOf(".") + 1));
+  return [...new Set(names)].sort();
+}
+
 /**
  * A service or an environment as a Compose file, to read, copy or save (PRD
- * principle 6). It never holds a secret: what it leaves out, it lists, with
- * what to do about it.
+ * principle 6). It never holds a secret: what it leaves out, it lists, and
+ * saves as an .env to fill in.
  */
 export function ExportSheet({
   environment,
@@ -55,14 +74,13 @@ export function ExportSheet({
     }
   };
 
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([file], { type: "application/yaml" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = whole || !service ? "compose.yaml" : `${service}.compose.yaml`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
+  const download = () =>
+    save(
+      new Blob([file], { type: "application/yaml" }),
+      whole || !service ? "compose.yaml" : `${service}.compose.yaml`,
+    );
+  const left = envLeftOut(omitted);
+  const saveEnv = () => save(new Blob([left.map((name) => `${name}=\n`).join("")], { type: "text/plain" }), ".env");
 
   return (
     <Sheet
@@ -112,7 +130,19 @@ export function ExportSheet({
           </Callout>
         ) : null}
         {omitted.length > 0 ? (
-          <Callout tone="info" title={t`Left out as they may hold secrets`}>
+          <Callout
+            tone="info"
+            title={t`Left out as they may hold secrets`}
+            actions={
+              left.length > 0 ? (
+                <Button size="sm" icon="download" onClick={saveEnv}>
+                  <Trans>
+                    Save an <code>.env</code> to fill in
+                  </Trans>
+                </Button>
+              ) : undefined
+            }
+          >
             <ul className="export-omitted">
               {omitted.map((name) => (
                 <li key={name}>
@@ -120,10 +150,6 @@ export function ExportSheet({
                 </li>
               ))}
             </ul>
-            <Trans>
-              Set each variable in the shell, or in an <code>.env</code> file beside the Compose file, before you run{" "}
-              <code>docker compose up</code>.
-            </Trans>
           </Callout>
         ) : null}
         <section

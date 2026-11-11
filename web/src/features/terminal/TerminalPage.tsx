@@ -30,6 +30,7 @@ import {
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { PasskeyError } from "../../lib/webauthn";
+import { AddPasskeyHere } from "../auth/AddPasskeyHere";
 import { useAuthError } from "../auth/messages";
 import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
 import { ServerFrame } from "../servers/ServerFrame";
@@ -154,6 +155,8 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const [selection, setSelection] = useState(false);
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string>();
+  // A terminal took a passkey and there's none for this address: for which shell.
+  const [noPasskey, setNoPasskey] = useState<{ container?: string }>();
   // A container's shell that the agent found as good as root, waiting for the person
   // to go on to the passkey, or not, once they've read why.
   const [asking, setAsking] = useState<{ container: string; go: (yes: boolean) => void }>();
@@ -189,6 +192,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
     async (inContainer?: string) => {
       setOpening(true);
       setProblem(undefined);
+      setNoPasskey(undefined);
       const want = size ?? { columns: 80, rows: 24 };
       // A container's shell asks for a passkey only where the agent finds it as good as root.
       const target = inContainer ? `${serverId}:${inContainer}` : serverId;
@@ -230,17 +234,11 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
         });
       } catch (err) {
         const reason = reasonOf(err);
-        const name = server.name;
         if (err instanceof StepUpDeclined) {
           // They read why, and chose not to: nothing to say.
-        } else if (reason === "no_passkey_here" && inContainer) {
-          setProblem(
-            t`${inContainer} reaches as far as root on ${name}, so a shell in it takes a passkey, and you have none for this address. Add one under Profile and security, or connect to ${name} over SSH.`,
-          );
         } else if (reason === "no_passkey_here") {
-          setProblem(
-            t`Opening a terminal takes a passkey, and you have none for this address. Add one under Profile and security, or connect to ${name} over SSH.`,
-          );
+          // Adding one here opens what was asked for once it's made.
+          setNoPasskey({ container: inContainer });
         } else if (err instanceof PasskeyError && err.problem === "cancelled") {
           setProblem(t`The passkey prompt closed, so no terminal opened. Open one when you're ready.`);
         } else {
@@ -250,7 +248,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
         setOpening(false);
       }
     },
-    [client, explain, queryClient, server.name, serverId, size, t, transport],
+    [client, explain, queryClient, serverId, size, t, transport],
   );
 
   const forget = (id: string) => {
@@ -393,7 +391,17 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
     </Callout>
   ) : null;
 
-  const problemCallout = problem ? (
+  const shellIn = noPasskey?.container ?? "";
+  const problemCallout = noPasskey ? (
+    <AddPasskeyHere
+      title={
+        noPasskey.container
+          ? t`A shell in ${shellIn} takes a passkey, and there's none for this address`
+          : t`A terminal takes a passkey, and there's none for this address`
+      }
+      onAdded={() => void open(noPasskey.container)}
+    />
+  ) : problem ? (
     <Callout tone="critical" title={<Trans>No terminal opened</Trans>}>
       {problem}
     </Callout>

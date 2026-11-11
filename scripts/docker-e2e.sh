@@ -497,8 +497,9 @@ read_updates() {
     sh -c 'sh /prepare.sh || exit; dockwell-updates; code=$?; sh /after.sh >&2; exit $code' 2>"$rollout_dir/said"
 }
 said() { cat "$rollout_dir/said"; }
-# What a package mirror that is down, slow or half way through a sync leaves in what the tools print.
-mirror_trouble='Failed to fetch|Some index files failed to download|Mirror sync in progress|Could not resolve|Temporary failure|Cannot initiate the connection|Connection timed out|Timeout was reached|Curl error|temporary error|didn.t finish within'
+# What a package mirror that is down, slow or half way through a sync leaves in what the tools print:
+# apt's words, then dnf's for a mirror that served a broken or empty repomd.xml.
+mirror_trouble='Failed to fetch|Some index files failed to download|Mirror sync in progress|Could not resolve|Temporary failure|Cannot initiate the connection|Connection timed out|Timeout was reached|Curl error|temporary error|didn.t finish within|Failed to download metadata for repo|repomd.xml parser error|Cannot download repomd.xml|Errors during downloading metadata'
 # read_updates_patiently IMAGE KIND is read_updates, tried up to three times while
 # the mirror is what fails: the reader's exit or its refresh error, with one of the
 # lines above in what was said. Anything else fails at once, as before. It says on

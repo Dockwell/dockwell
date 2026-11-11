@@ -25,6 +25,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { matches, mountSource, portWords, READ_EVERY_MS, statusOf, useContainerStateWord } from "./containers";
+import { useTakeOn } from "./takeOn";
 import "./ContainersPanel.css";
 import { useMay } from "../auth/may";
 
@@ -96,10 +97,7 @@ export function ContainersPanel({ server }: { server: Server }) {
       <div className="containers-lead">
         {count > 0 ? (
           <p>
-            <Trans>
-              These were here before Dockwell, or run some other way. Dockwell only reads them, so looking here changes
-              nothing and they keep running as they are.
-            </Trans>
+            <Trans>Dockwell only reads these. Open one to take it on as an app.</Trans>
           </p>
         ) : (
           <p>
@@ -187,6 +185,7 @@ function Rows({
   const { t } = useLingui();
   const navigate = useNavigate();
   const stateWord = useContainerStateWord();
+  const { take } = useTakeOn(server);
   const columns = useMemo<TableColumn<ServerContainer>[]>(
     () => [
       {
@@ -227,8 +226,28 @@ function Rows({
         mono: true,
         render: (c) => <Some items={c.mounts.map(mountSource)} more={c.moreMounts} />,
       },
+      {
+        // Taking it on, with the name and place Dockwell would give it; its own page picks others.
+        key: "take",
+        header: <span className="dw-sr">{t`Take on`}</span>,
+        width: 96,
+        align: "right",
+        render: (c) => (
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-label={t`Take ${c.name} on as an app`}
+            onClick={(event) => {
+              event.stopPropagation();
+              take(c);
+            }}
+          >
+            {t`Take on`}
+          </Button>
+        ),
+      },
     ],
-    [t, server, stateWord, projects],
+    [t, server, stateWord, projects, take],
   );
   return (
     <Table<ServerContainer>

@@ -200,7 +200,7 @@ type pgState struct {
 
 var (
 	createRole = regexp.MustCompile(`SELECT 'CREATE ROLE "([a-z0-9_]+)" LOGIN' WHERE NOT EXISTS`)
-	alterRole  = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
+	alterRole  = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" (?:LOGIN )?PASSWORD '([^']*)'`)
 	createDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
 	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
@@ -487,4 +487,93 @@ func scramFits(t *testing.T, verifier, password string) bool {
 	h.Write([]byte("Client Key"))
 	stored := sha256.Sum256(h.Sum(nil))
 	return base64.StdEncoding.EncodeToString(stored[:]) == m[3]
+}
+
+// A database's first user gets a new generated password through a plan: the secret
+// its service starts with changes, the agent gives it to the user in the database as
+// the service restarts, and undoing the change puts the old one back.
+func TestADatabasesFirstPasswordChangesThroughAPlan(t *testing.T) {
+	storetest.Each(t, testADatabasesFirstPasswordChangesThroughAPlan)
+}
+
+func testADatabasesFirstPasswordChangesThroughAPlan(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	var redis []string
+	e.Registry["redis:7"] = readableRedis(&redis)
+	ch := changeClient(b, b.origin)
+	// The password is a secret the database's service uses by reference, as a catalog
+	// install's is.
+	apply(t, ch, propose(t, ch, "Run the databases", secretSpec("DB_PASSWORD", "first-password"),
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Name: "db"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs:    &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17"}},
+				Secrets: map[string]string{"POSTGRES_PASSWORD": "DB_PASSWORD"},
+			}}},
+		},
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Name: "cache"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:7"}},
+			}}},
+		}))
+	dc := databaseClient(b, b.origin)
+
+	planned, err := dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := planned.Msg.GetChange()
+	if change.GetSummary() != "Change the password of postgres in db" {
+		t.Errorf("the change reads %q", change.GetSummary())
+	}
+	var kinds []string
+	for _, r := range change.GetPlan().GetResources() {
+		kinds = append(kinds, r.GetResource().GetKind()+" "+r.GetResource().GetName())
+	}
+	slices.Sort(kinds)
+	if !slices.Equal(kinds, []string{"secret DB_PASSWORD", "service db"}) {
+		t.Fatalf("the plan changes %v", kinds)
+	}
+	if done := apply(t, ch, change); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("changing the password ended %v: %v", done.GetState(), done.GetError())
+	}
+	password := revealSecret(t, f, change.GetPlan().GetResources()[0].GetResource().GetScope(), "DB_PASSWORD")
+	pg.mu.Lock()
+	verifier, said := pg.roles["postgres"], strings.Join(pg.said, "\n")
+	pg.mu.Unlock()
+	if len(password) != 32 || !scramFits(t, verifier, password) {
+		t.Fatalf("postgres signs in with %q, and the secret holds %d characters", verifier, len(password))
+	}
+	if strings.Contains(said, password) {
+		t.Error("what ran in PostgreSQL's container holds the password as it is")
+	}
+
+	back, err := ch.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: change.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := apply(t, ch, back.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("undoing it ended %v: %v", got.GetState(), got.GetError())
+	}
+	pg.mu.Lock()
+	verifier = pg.roles["postgres"]
+	pg.mu.Unlock()
+	if !scramFits(t, verifier, "first-password") {
+		t.Error("undoing the change didn't give postgres its first password back")
+	}
+
+	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "db", User: "ghost"}))
+	var refused *connect.Error
+	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "invalid_user" || !strings.Contains(err.Error(), "no user ghost that Dockwell made") {
+		t.Errorf("a user Dockwell didn't make: %v", err)
+	}
+	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "cache"}))
+	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "no_secret" {
+		t.Errorf("a database whose password isn't in a secret: %v", err)
+	}
 }

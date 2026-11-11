@@ -85,12 +85,12 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rules = res.Msg.GetRules(); len(rules) == 9 || time.Now().After(deadline) {
+		if rules = res.Msg.GetRules(); len(rules) == len(alert.Defaults()) || time.Now().After(deadline) {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	if len(rules) != 9 || !slices.ContainsFunc(rules, func(r *dockwellv1.AlertRuleInfo) bool {
+	if len(rules) != len(alert.Defaults()) || !slices.ContainsFunc(rules, func(r *dockwellv1.AlertRuleInfo) bool {
 		return r.GetName() == "server-unreachable" && r.GetBuiltIn() && r.GetTitle() == "Server unreachable" && r.GetExpression() == "server.connected == false"
 	}) {
 		t.Fatalf("an install starts with the rules %v", rules)
@@ -122,7 +122,7 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := listed.Msg.GetChannels(); len(got) != 1 || got[0].GetType() != "webhook" || got[0].GetRules() != 9 || strings.Contains(got[0].GetTarget(), "t0ken") || !strings.HasPrefix(got[0].GetTarget(), "127.0.0.1:") {
+	if got := listed.Msg.GetChannels(); len(got) != 1 || got[0].GetType() != "webhook" || got[0].GetRules() != int32(len(alert.Defaults())) || strings.Contains(got[0].GetTarget(), "t0ken") || !strings.HasPrefix(got[0].GetTarget(), "127.0.0.1:") {
 		t.Errorf("ListAlertChannels = %v", got)
 	}
 	tested, err := sites.TestAlertChannel(t.Context(), connect.NewRequest(&dockwellv1.TestAlertChannelRequest{Name: "ops"}))
