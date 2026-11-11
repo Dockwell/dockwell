@@ -652,7 +652,8 @@ describe("an app from a folder", () => {
     expect(within(form).queryByRole("textbox", { name: "Port in the app" })).toBeNull();
     expect(within(form).queryByRole("radio", { name: "The image's" })).toBeNull();
     await user.click(within(form).getByRole("radio", { name: "HTTP" }));
-    await user.type(within(form).getByRole("textbox", { name: "Path" }), "/health");
+    // It offers the paths an app's health is often at, so the field is a combobox.
+    await user.type(within(form).getByRole("combobox", { name: "Path" }), "/health");
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(proposals).toHaveLength(1));
     const http = proposals[0]?.edits[0]?.spec?.kind;
