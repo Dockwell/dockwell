@@ -102,6 +102,21 @@ func TestWhatFiresAndWhatResolves(t *testing.T) {
 	if opens, _ = e.judge(r, []finding{since}, nil, now, false); len(opens) != 1 {
 		t.Errorf("a condition its signal says has held for 10 minutes didn't fire: %v", opens)
 	}
+	// An alert whose write didn't land is still held: the next look opens it at
+	// once. Once one lands, what was held for it goes.
+	unwritten := full
+	unwritten.thing = "disk:srv_d:/"
+	e.judge(r, []finding{unwritten}, nil, now.Add(-5*time.Minute), false)
+	if opens, _ = e.judge(r, []finding{unwritten}, nil, now, false); len(opens) != 1 {
+		t.Fatalf("after 5 minutes, %v opens", opens)
+	}
+	if opens, _ = e.judge(r, []finding{unwritten}, nil, now.Add(Every), false); len(opens) != 1 {
+		t.Error("an alert whose write failed waits the rule's 5 minutes again, want the next look")
+	}
+	e.letGo(r.id, opens, nil)
+	if _, held := e.pending[r.id+"|"+unwritten.thing]; held {
+		t.Error("what was pending for an alert that was written is still held")
+	}
 	// What resolved before it fired leaves nothing pending.
 	brief := full
 	brief.thing = "disk:srv_c:/"

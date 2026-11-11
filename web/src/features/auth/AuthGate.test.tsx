@@ -79,7 +79,7 @@ describe("the sign-in gate", () => {
     });
     expect(await screen.findByRole("heading", { level: 1, name: "hz-1 has no owner yet" })).toBeVisible();
     expect(screen.getByText("sudo dockwell claim")).toBeVisible();
-    expect(screen.getByText(/such as the one the install printed/)).toBeVisible();
+    expect(screen.getByText(/Claim it with the link the install printed/)).toBeVisible();
   });
 
   it("lets the claim and sign-in screens through", async () => {

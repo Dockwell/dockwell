@@ -365,9 +365,7 @@ describe("the backups page", () => {
     await user.click(
       within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
     );
-    expect(
-      await screen.findByText(/keeping 7 takes about 960 MB while the next is taken, and the disk has 9 GB to give/),
-    ).toBeVisible();
+    expect(await screen.findByText(/keeping 7, about 960 MB\. The disk has 9 GB to give\./)).toBeVisible();
     expect(screen.getByRole("switch", { name: "Stop web for each backup" })).toBeChecked();
     const keep = screen.getByLabelText("Backups to keep");
     await user.clear(keep);
@@ -454,7 +452,7 @@ describe("the backups page", () => {
     await user.click(
       await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
     );
-    expect(await screen.findByText(/can't say yet what each backup takes.*the disk has 9 GB to give/i)).toBeVisible();
+    expect(await screen.findByText(/can't size a backup yet.*The disk has 9 GB\./)).toBeVisible();
   });
 
   function schedulePreview() {
@@ -484,7 +482,7 @@ describe("the backups page", () => {
       await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
     );
     expect(await screen.findByRole("dialog", { name: "Back up on a schedule" })).toBeVisible();
-    expect(await screen.findByText(/keeping 7 takes about 960 MB/)).toBeVisible();
+    expect(await screen.findByText(/keeping 7, about 960 MB/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Review plan" })).toBeVisible();
     await expectAccessible(container);
   });

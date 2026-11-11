@@ -50,7 +50,7 @@ export function WebsiteOverview() {
                     <Trans>The ingress</Trans>
                   </span>
                   <span className="website-part-detail">
-                    <Trans>Sends each request straight to the port, with nothing of its own between</Trans>
+                    <Trans>Sends each request straight to the port</Trans>
                   </span>
                 </li>
               )}

@@ -776,10 +776,12 @@ export async function appsFlow(
     .click();
   await page.getByRole("button", { name: "Edit Resources" }).click();
   const limits = page.getByRole("form", { name: "Edit Resources" });
-  await limits.getByRole("textbox", { name: "Memory limit" }).fill("lots");
+  // A limit is picked from what fits the server; any other amount is typed under Other, and checked.
+  await limits.getByRole("combobox", { name: "Memory limit" }).selectOption("other");
+  await limits.getByRole("textbox", { name: "Memory limit, typed" }).fill("lots");
   await limits.getByRole("button", { name: /Review plan/ }).click();
   await limits.getByText("Use an amount from 6M, such as 512M or 2G.").waitFor();
-  await limits.getByRole("textbox", { name: "Memory limit" }).fill("256M");
+  await limits.getByRole("combobox", { name: "Memory limit" }).selectOption("256M");
   await shoot(page, "apps-settings-resources");
   await limits.getByRole("button", { name: /Review plan/ }).click();
   await applyPlan(page, "Done");

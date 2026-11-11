@@ -279,7 +279,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		Category: app.Category,
 		Version:  app.Version,
 		Release:  1,
-		Homepage: app.Homepage,
+		Homepage: homepage(app.Homepage),
 		License:  c.Source.License,
 		Source:   &catalogv1.Source{Repository: c.Source.Repository, Path: app.Path, Commit: c.Source.Commit},
 		Compose:  string(file),
@@ -697,3 +697,12 @@ func (e youngError) Error() string { return string(e) }
 
 // ErrNoApps says a source had nothing to convert, as a wrong folder would.
 var ErrNoApps = errors.New("found no apps")
+
+// homepage is a template's site, where it's an address an entry may link to. One
+// that isn't, such as plain HTTP, is left out rather than refusing the app.
+func homepage(address string) string {
+	if catalog.Link(address) {
+		return address
+	}
+	return ""
+}
