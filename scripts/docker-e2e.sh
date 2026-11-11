@@ -4163,16 +4163,40 @@ planned=$(dw compose import --compose "$(mongo_file mongo:8.0)" --env-file "$dat
 jq -e '[.change.plan.notes[] | select(.reason == "raises_features" and .names == ["7.0", "8.0"])] | length == 1' <<<"$planned" >/dev/null ||
   fail "moving to 8.0 says nothing of its features: $planned"
 upgrade=$(jq -r .change.id <<<"$planned")
-# What MongoDB printed in the containers the move made, should the move fail: a
-# container that stops says why only in its own log.
+# While its image moves, what Docker says of MongoDB's containers goes to a file:
+# each kill with its signal, each stop with its exit code, and the last of what a
+# stopped one printed, read as it stops, before a rollback can remove it. A
+# container that stops says why only in its own log, and whether the old one
+# stopped cleanly or was killed at the end of its grace is what the next release
+# starts from.
+mongo_watch="$data/mongo-events.log"
+: >"$mongo_watch"
+(
+  docker events --filter type=container --filter "label=com.docker.compose.project=$mongo_project" \
+    --until "$(($(date +%s) + 600))" \
+    --format '{{.Time}} {{.Action}} {{.Actor.ID}} {{index .Actor.Attributes "name"}} {{index .Actor.Attributes "image"}} exit={{index .Actor.Attributes "exitCode"}} signal={{index .Actor.Attributes "signal"}}' |
+    while read -r when action id rest; do
+      echo "$when $action $rest" >>"$mongo_watch"
+      if [[ "$action" == die ]]; then
+        docker logs --tail 80 "$id" 2>&1 | sed "s/$mongo_password/<the password>/g" | sed 's/^/    /' >>"$mongo_watch" || true
+      fi
+    done
+) >/dev/null 2>&1 &
+mongo_watcher=$!
+# What MongoDB printed, should the move fail: what Docker said as its containers
+# stopped, then the lines the agent keeps of the containers the move made.
 mongo_printed() {
-  echo "--- what docs printed in the containers $upgrade made" >&2
-  dw logs read docs --project "$mongo_project" --change-id "$upgrade" --page-size 120 2>&1 | sed "s/$mongo_password/<the password>/g" >&2
+  echo "--- what Docker said of docs's containers as $upgrade ran" >&2
+  cat "$mongo_watch" >&2
+  echo "--- what docs printed in the containers $upgrade made, as the agent keeps it" >&2
+  dw logs read docs --project e2e-mongo --change-id "$upgrade" --page-size 120 2>&1 | sed "s/$mongo_password/<the password>/g" >&2
 }
 fail_also=mongo_printed
 person_apply "$upgrade"
 backup_healthy "$(mongo_db)"
 fail_also=
+pkill -P "$mongo_watcher" 2>/dev/null || true
+kill "$mongo_watcher" 2>/dev/null || true
 said=$(mongo_reads)
 jq -e '.readings[0] | (.version | startswith("8.0.")) and .featureCompatibility == "7.0"' <<<"$said" >/dev/null || fail "MongoDB 8.0 reads as: $said"
 [[ "$(mongo_eval 'print(db.getSiblingDB("shop").orders.countDocuments())')" == 500 ]] || fail "the orders didn't move to 8.0"
