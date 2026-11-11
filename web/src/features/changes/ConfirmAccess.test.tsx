@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { create } from "@bufbuild/protobuf";
+import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import {
@@ -98,6 +98,65 @@ async function applyAndWait(change: Change, watch: ReturnType<typeof feed<WatchC
   act(() => watch.push(watched(waits)));
   return user;
 }
+
+// What the watch said a change waits for, which its apply's answer, read before the step began
+// to wait and delivered after, mustn't take away: the server says it once, and the CI flake on
+// #415 and #505 was this sheet losing it, while the Firewall tab listed the rule as waiting.
+it("keeps a wait the watch said, when the apply's own answer comes after it without it", async () => {
+  const user = userEvent.setup();
+  const change = webPlanned();
+  const watch = feed<WatchChangeResponse>();
+  let answer: (value: object) => void = () => {};
+  const running = (confirmation?: MessageInitShape<typeof ChangeConfirmationSchema>) =>
+    create(StepProgressSchema, {
+      serverId: "srv_1",
+      resourceId: "res_web",
+      state: StepState.RUNNING,
+      ...(confirmation ? { confirmation: create(ChangeConfirmationSchema, confirmation) } : {}),
+    });
+  renderWithApi(
+    <FleetProvider>
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) }} />
+      </ChangeSheetProvider>
+    </FleetProvider>,
+    {
+      changes: {
+        watchChange: watch.stream,
+        applyChange: () =>
+          new Promise<object>((resolve) => {
+            answer = resolve;
+          }),
+      },
+    },
+  );
+  const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+  act(() => watch.push(watched(change)));
+  await user.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+  // The run moves on while the apply's answer is still on its way: the step starts, then waits.
+  act(() => watch.push(watched(moved(change, { state: ChangeState.APPLYING, steps: [running()] }))));
+  act(() =>
+    watch.push(
+      create(WatchChangeResponseSchema, {
+        event: {
+          case: "step",
+          value: create(StepUpdateSchema, {
+            index: 0,
+            step: running({
+              serverId: "srv_1",
+              deadline: timestampFromDate(new Date(Date.now() + 45_000)),
+              sshPorts: [22],
+            }),
+          }),
+        },
+      }),
+    ),
+  );
+  expect(await screen.findByRole("button", { name: "Keep the change" })).toBeVisible();
+  // The apply's answer, as it was read, before the step waited.
+  await act(async () => answer({ change: moved(change, { state: ChangeState.APPLYING, steps: [running()] }) }));
+  expect(screen.getByRole("button", { name: "Keep the change" })).toBeVisible();
+});
 
 describe("a change that waits for its confirmation", () => {
   it("says what to test and how long is left, and keeps the change when asked", async () => {
