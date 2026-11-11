@@ -41,7 +41,7 @@ func newRotateKeyCmd(stdio IO, g *globalFlags) *cobra.Command {
 			defer db.Close()
 			// Which domain the panel has matters only to checking a new route, and this
 			// reads stored specs alone.
-			keeper := secrets.New(db, key, controlKinds("").With(scope.Types()...))
+			keeper := secrets.New(db, key, controlKinds("", nil).With(scope.Types()...))
 			kekID, n, err := keeper.RotateKEK(ctx, actor(), store.SurfaceCLI)
 			if err != nil {
 				return fmt.Errorf("can't rotate the key-encryption key, so nothing changed: %w", err)

@@ -1080,7 +1080,7 @@ func (x *EventProcess) GetError() string {
 // EventSetting is a setting of the install as someone changed it.
 type EventSetting struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Which: "name" or "time_zone".
+	// Which: "name", "time_zone" or "panel_domain".
 	Setting string `protobuf:"bytes,1,opt,name=setting,proto3" json:"setting,omitempty"`
 	// What it is now. Empty when they cleared it.
 	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`

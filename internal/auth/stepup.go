@@ -96,6 +96,12 @@ const (
 	StepUpInvite StepUpAction = "member.invite"
 	// StepUpAddServer makes a ticket that adds a server to the fleet.
 	StepUpAddServer StepUpAction = "server.add"
+	// StepUpSetPanelDomain sets or clears the panel's domain (ADR 0063). Its
+	// target is the domain, or the one it clears.
+	StepUpSetPanelDomain StepUpAction = "settings.panel_domain"
+	// StepUpSignInOnPanelDomain makes a one-time link that signs in on the
+	// panel's domain. Its target is the domain.
+	StepUpSignInOnPanelDomain StepUpAction = "sign_in_link.panel_domain"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -123,6 +129,9 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpRestoreWayBackIn: {"putting back", true},
 	StepUpInvite:           {"inviting", true},
 	StepUpAddServer:        {"adding a server", false},
+	StepUpSetPanelDomain:   {"setting the panel's domain to", true},
+	// A sign-in link to the domain, for the person asking.
+	StepUpSignInOnPanelDomain: {"signing in on", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

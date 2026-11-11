@@ -222,6 +222,12 @@ const (
 	// Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
 	// has no target of its own: the person's ID, which BeginStepUp fills in.
 	StepUpAction_STEP_UP_ACTION_ADD_SERVER StepUpAction = 130
+	// Setting or clearing the panel's domain, which decides where everyone signs
+	// in (ADR 0063). The target is the domain, or the one it clears.
+	StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN StepUpAction = 230
+	// A one-time sign-in link to the panel on its domain, for the person asking.
+	// The target is the domain.
+	StepUpAction_STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN StepUpAction = 231
 )
 
 // Enum value maps for StepUpAction.
@@ -246,6 +252,8 @@ var (
 		114: "STEP_UP_ACTION_APPROVE_CHANGE",
 		110: "STEP_UP_ACTION_INVITE",
 		130: "STEP_UP_ACTION_ADD_SERVER",
+		230: "STEP_UP_ACTION_SET_PANEL_DOMAIN",
+		231: "STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":               0,
@@ -267,6 +275,8 @@ var (
 		"STEP_UP_ACTION_APPROVE_CHANGE":            114,
 		"STEP_UP_ACTION_INVITE":                    110,
 		"STEP_UP_ACTION_ADD_SERVER":                130,
+		"STEP_UP_ACTION_SET_PANEL_DOMAIN":          230,
+		"STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN":   231,
 	}
 )
 
@@ -3836,7 +3846,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
 	"\x13SIGN_IN_METHOD_LINK\x10\x05\x12\x19\n" +
-	"\x15SIGN_IN_METHOD_INVITE\x10\x06*\xa9\x05\n" +
+	"\x15SIGN_IN_METHOD_INVITE\x10\x06*\xfc\x05\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -3857,7 +3867,9 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\"STEP_UP_ACTION_RESTORE_WAY_BACK_IN\x10]\x12!\n" +
 	"\x1dSTEP_UP_ACTION_APPROVE_CHANGE\x10r\x12\x19\n" +
 	"\x15STEP_UP_ACTION_INVITE\x10n\x12\x1e\n" +
-	"\x19STEP_UP_ACTION_ADD_SERVER\x10\x82\x012\xd2-\n" +
+	"\x19STEP_UP_ACTION_ADD_SERVER\x10\x82\x01\x12$\n" +
+	"\x1fSTEP_UP_ACTION_SET_PANEL_DOMAIN\x10\xe6\x01\x12+\n" +
+	"&STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN\x10\xe7\x012\xd2-\n" +
 	"\vAuthService\x12}\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12\x89\x01\n" +
 	"\n" +

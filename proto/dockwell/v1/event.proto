@@ -278,7 +278,7 @@ message EventProcess {
 
 // EventSetting is a setting of the install as someone changed it.
 message EventSetting {
-  // Which: "name" or "time_zone".
+  // Which: "name", "time_zone" or "panel_domain".
   string setting = 1;
   // What it is now. Empty when they cleared it.
   string value = 2;

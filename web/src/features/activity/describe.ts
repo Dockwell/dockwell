@@ -303,6 +303,18 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             ? { title: t`Named this install ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Named this install ${value}`, icon: "settings" };
         }
+        case "settings.panel_domain": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          if (!value) {
+            return previous
+              ? { title: t`Stopped serving the panel on ${previous}`, icon: "settings" }
+              : { title: t`Cleared the panel's domain`, icon: "settings" };
+          }
+          return previous
+            ? { title: t`Set the panel's domain to ${value}, which was ${previous}`, icon: "settings" }
+            : { title: t`Set the panel's domain to ${value}`, icon: "settings" };
+        }
         case "settings.time_zone": {
           const value = event.setting?.value ?? "";
           const previous = event.setting?.previous ?? "";

@@ -854,6 +854,12 @@ enum StepUpAction {
   // Making a ticket that adds a server, with ServerService.CreateJoinTicket. It
   // has no target of its own: the person's ID, which BeginStepUp fills in.
   STEP_UP_ACTION_ADD_SERVER = 130;
+  // Setting or clearing the panel's domain, which decides where everyone signs
+  // in (ADR 0063). The target is the domain, or the one it clears.
+  STEP_UP_ACTION_SET_PANEL_DOMAIN = 230;
+  // A one-time sign-in link to the panel on its domain, for the person asking.
+  // The target is the domain.
+  STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN = 231;
 }
 
 // StepUpNeeded is the detail of an error whose reason is "needs_step_up",

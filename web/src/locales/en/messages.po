@@ -705,6 +705,9 @@ msgstr "Backed up {volume}"
 msgid "Claimed this install"
 msgstr "Claimed this install"
 
+msgid "Cleared the panel's domain"
+msgstr "Cleared the panel's domain"
+
 msgid "Cleared the public address of {server}, which was {previous}"
 msgstr "Cleared the public address of {server}, which was {previous}"
 
@@ -921,6 +924,12 @@ msgstr "Sent a test to {name} ({kind}, {host}), which arrived"
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 
+msgid "Set the panel's domain to {value}"
+msgstr "Set the panel's domain to {value}"
+
+msgid "Set the panel's domain to {value}, which was {previous}"
+msgstr "Set the panel's domain to {value}, which was {previous}"
+
 msgid "Set the public address of {server} to {address}"
 msgstr "Set the public address of {server} to {address}"
 
@@ -938,6 +947,9 @@ msgstr "Signed in"
 
 msgid "Signed out other sessions"
 msgstr "Signed out other sessions"
+
+msgid "Stopped serving the panel on {previous}"
+msgstr "Stopped serving the panel on {previous}"
 
 msgid "Stopped {what} (PID {pid}) on {server}"
 msgstr "Stopped {what} (PID {pid}) on {server}"
@@ -10937,12 +10949,6 @@ msgstr "Nothing yet: the panel has no domain"
 msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
 msgstr "Only this browser changes. Your other browsers, and the command line, keep their own."
 
-msgid "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
-msgstr "Ports 80 and 443 must reach this server for the certificate, and Dockwell won't start with a domain one of this server's routes already serves. Passkeys belong to the address they were made on, so those for an old domain won't work on the new one: over SSH, run <0>dockwell recover</0> on the server, open its link on the new domain, and add a passkey there."
-
-msgid "Run by hand, <0>dockwell run --domain …</0>."
-msgstr "Run by hand, <0>dockwell run --domain …</0>."
-
 msgid "Same as this browser ({browser})"
 msgstr "Same as this browser ({browser})"
 
@@ -10958,29 +10964,17 @@ msgstr "Show the panel in"
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "Shown on the sign-in screen and in browser tabs."
 
-msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-msgstr "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
-
 msgid "This install"
 msgstr "This install"
 
 msgid "Time zone"
 msgstr "Time zone"
 
-msgid "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
-msgstr "To reach the panel over HTTPS on a domain of yours, point the domain's DNS at this server, set <0>DOCKWELL_DOMAIN=panel.example.com</0> where Dockwell runs, and restart it:"
-
 msgid "What this install is called, its time zone and how its panel is served"
 msgstr "What this install is called, its time zone and how its panel is served"
 
 msgid "What this install is called, its time zone and how its panel is served · set up {since}"
 msgstr "What this install is called, its time zone and how its panel is served · set up {since}"
-
-msgid "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
-msgstr "With OpenRC, <0>export DOCKWELL_DOMAIN=…</0> in <1>/etc/conf.d/dockwell</1>, then <2>sudo rc-service dockwell restart</2>."
-
-msgid "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
-msgstr "With systemd, <0>sudo systemctl edit dockwell</0> adds the line as <1>Environment=DOCKWELL_DOMAIN=…</1>, then <2>sudo systemctl restart dockwell</2>."
 
 #. placeholder {0}: formatBytes(d.usedBytes, i18n.locale)
 msgid "1 backup, {0}"
@@ -11326,6 +11320,76 @@ msgstr "{name} in {0}"
 
 msgid "{withPasskeys} of {count} sign in with a passkey"
 msgstr "{withPasskeys} of {count} sign in with a passkey"
+
+msgid "Apps and websites keep running. It asks for your passkey."
+msgstr "Apps and websites keep running. It asks for your passkey."
+
+msgid "DNS doesn't point here yet"
+msgstr "DNS doesn't point here yet"
+
+msgid "Dockwell can't tell whether {domain} leads here"
+msgstr "Dockwell can't tell whether {domain} leads here"
+
+msgid "Dockwell restarts to answer on loopback alone. Apps and websites keep running…"
+msgstr "Dockwell restarts to answer on loopback alone. Apps and websites keep running…"
+
+#. placeholder {0}: restarting.to
+msgid "Dockwell restarts to serve {0}. Apps and websites keep running…"
+msgstr "Dockwell restarts to serve {0}. Apps and websites keep running…"
+
+msgid "Dockwell restarts to serve {domain}"
+msgstr "Dockwell restarts to serve {domain}"
+
+msgid "Getting a certificate for {domain}…"
+msgstr "Getting a certificate for {domain}…"
+
+#. placeholder {0}: found.addresses.join(", ")
+msgid "It leads to {0}"
+msgstr "It leads to {0}"
+
+msgid "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
+msgstr "Once DNS leads here and ports 80 and 443 reach this server, it comes on its own."
+
+msgid "Only the owner sets it."
+msgstr "Only the owner sets it."
+
+msgid "Open {domain}"
+msgstr "Open {domain}"
+
+msgid "Passkeys belong to the address they were made on: open it, and add one there."
+msgstr "Passkeys belong to the address they were made on: open it, and add one there."
+
+msgid "Restart and serve it"
+msgstr "Restart and serve it"
+
+msgid "Serve the panel there"
+msgstr "Serve the panel there"
+
+msgid "Stop using it"
+msgstr "Stop using it"
+
+msgid "The panel answers on {domain}"
+msgstr "The panel answers on {domain}"
+
+msgid "The panel answers there over HTTPS too. The SSH tunnel keeps working."
+msgstr "The panel answers there over HTTPS too. The SSH tunnel keeps working."
+
+msgid "This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "This server's public address isn't known: set it, and Dockwell compares the two."
+
+msgid "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
+msgstr "dockwell run was started with this domain, as <0>DOCKWELL_DOMAIN</0> or <1>--domain</1>, which wins over Settings. Change it there."
+
+#. placeholder {0}: p.program
+#. placeholder {1}: p.port
+msgid "{0} holds port {1} on this server, so no certificate can come until it's freed."
+msgstr "{0} holds port {1} on this server, so no certificate can come until it's freed."
+
+msgid "{domain} isn't served"
+msgstr "{domain} isn't served"
+
+msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
+msgstr "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 
 msgid "Account"
 msgstr "Account"

@@ -93,6 +93,23 @@ func (a *ACME) TLSConfig() *tls.Config {
 	return c
 }
 
+// Obtain gets the domain's certificate now, as a browser's first connection
+// would, so a panel waiting on it needn't wait for someone to open it. It asks as
+// a client that takes ECDSA does, which is the certificate Current reads.
+func (a *ACME) Obtain(ctx context.Context) error {
+	_, err := a.manager.GetCertificate(&tls.ClientHelloInfo{
+		ServerName:        a.domain,
+		CipherSuites:      []uint16{tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256},
+		SignatureSchemes:  []tls.SignatureScheme{tls.ECDSAWithP256AndSHA256},
+		SupportedCurves:   []tls.CurveID{tls.CurveP256},
+		SupportedVersions: []uint16{tls.VersionTLS13, tls.VersionTLS12},
+	})
+	if err != nil {
+		return fmt.Errorf("can't get a certificate for %s: %w", a.domain, err)
+	}
+	return ctx.Err()
+}
+
 // Current returns the certificate the cache holds for the domain, and its key,
 // in PEM, or nothing if it holds none that serves. It only reads: it never asks
 // the CA for one, which is for when this server's proxy takes the ports and the
