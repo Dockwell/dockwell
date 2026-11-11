@@ -19,7 +19,7 @@ service FirewallService {
   };
   option (dockwell.v1.nouns) = {
     name: "ssh"
-    help: "How SSH lets people in on a server: password and root login, its ports, as sshd's files say, the file that sets each, and whether the sshd that listens has read them. Reading it changes nothing."
+    help: "How SSH lets people in on a server: password and root login, its ports, as sshd's files say, the file that sets each, and a warning when the sshd that listens may not have read them, or that there's nothing to warn of, which doesn't say it has. Reading it changes nothing."
   };
   option (dockwell.v1.nouns) = {
     name: "fail2ban"
@@ -354,7 +354,8 @@ message ServerSsh {
   // sshd, or what sshd -T said. Empty when it could; the rest is unset then.
   // Every value here is what sshd's files say now, read with sshd -T. The
   // sshd that listens keeps what it read as it started or last reloaded:
-  // loaded says whether that is the same.
+  // loaded says when there's something against that, and never that it has
+  // read them.
   string unreadable = 2;
   // The SSH server and its version, as it says them, such as "OpenSSH_9.6p1".
   string version = 3;
@@ -401,17 +402,24 @@ message ServerSsh {
   // sshd that listens has read the files as they are.
   SshLoaded loaded = 15;
   // With loaded apart, how the sshd that listens differs, in a sentence for a
-  // person. With loaded unspecified, what Dockwell couldn't read, for the
-  // record: the panel doesn't show it, as it's no warning.
+  // person. With loaded unspecified, what Dockwell couldn't read to tell, for
+  // the record: the panel doesn't show it, as it's no warning.
   string loaded_why = 16;
   // With loaded stale: the files, links and folders that changed after sshd
-  // last wrote its PID file.
+  // last wrote its PID file, a folder with "/" after it; or, where systemd
+  // holds SSH's ports in a socket unit other than the files' ports, the files
+  // that set Port, or sshd_config when none does.
   repeated string changed_files = 17;
   // With loaded stale: when the sshd that listens last wrote its PID file.
+  // Unset when it's the socket unit's ports that differ.
   google.protobuf.Timestamp loaded_time = 18;
-  // With loaded stale: the command that reloads the sshd that listens, as
-  // the agent can tell how it runs: "systemctl reload ssh.service" under
-  // systemd, "rc-service sshd reload" under OpenRC, or "kill -HUP 812".
+  // With loaded stale: the command that has the files read, as the agent can
+  // tell how sshd runs: "systemctl reload ssh.service" under systemd,
+  // "rc-service sshd reload" under OpenRC, or "kill -HUP "$(cat
+  // /run/sshd.pid)"". Where the socket unit's ports differ, and Ubuntu's
+  // generator builds it from sshd_config, "systemctl daemon-reload &&
+  // systemctl restart ssh.socket", as a reload doesn't move them; empty where
+  // the unit sets its ports itself.
   string reload_command = 19;
 }
 
@@ -435,19 +443,24 @@ enum SshLoaded {
   reserved 1, 3;
   reserved "SSH_LOADED_CURRENT", "SSH_LOADED_AT_EACH_START";
 
-  // Nothing to warn of, which isn't a confirmation: the values are what the
-  // files say, and the sshd that listens uses what it read as it last started
-  // or reloaded. loaded_why may say what Dockwell couldn't read.
+  // Dockwell couldn't read what it would warn from, and loaded_why says
+  // what, or an older agent read it. No warning, and no confirmation.
   SSH_LOADED_UNSPECIFIED = 0;
   // A file changed after the sshd that listens last wrote its PID file, as it
   // does each time it reads its files (changed_files): until it reloads, it
   // runs with what they said before, and may still let in what the values
-  // here say is off.
+  // here say is off. Or systemd holds SSH's ports in a socket unit, and they
+  // aren't the ports the files set, which a reload of sshd doesn't move.
   SSH_LOADED_STALE = 2;
   // The sshd that listens doesn't take what it runs with from these files
   // alone, and loaded_why says how: it's another sshd than the one Dockwell
   // asked, or it was started with -o, -f, -p or -C.
   SSH_LOADED_APART = 4;
+  // Nothing Dockwell read is against the values, which isn't a confirmation:
+  // they're what the files say, and the sshd that listens uses what it read
+  // as it last started or reloaded. Said, rather than left out, so a reader
+  // of the API or the CLI's output never takes nothing for "it has".
+  SSH_LOADED_NOTHING_TO_WARN_OF = 5;
 }
 
 // SshRootLogin is whether root may sign in over SSH, and how (PermitRootLogin).

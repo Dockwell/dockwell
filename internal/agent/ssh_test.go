@@ -443,6 +443,9 @@ func inodesAt(inodes map[string]time.Time) func(fs.FS, string) time.Time {
 func TestTheReadNeverSaysSSHDHasReadItsFiles(t *testing.T) {
 	day := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
 	now := day.Add(24 * time.Hour)
+	// With nothing against the values it says so, and says nothing more; where it
+	// can't read what it would warn from, it says neither.
+	nothing := dockwellv1.SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF
 	for name, prepare := range map[string]func(t *testing.T, s standIns){
 		"nothing changed since the PID file": func(*testing.T, standIns) {},
 		"no PID file": func(t *testing.T, s standIns) {
@@ -450,16 +453,28 @@ func TestTheReadNeverSaysSSHDHasReadItsFiles(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
-		"a PID file that names another process":  func(t *testing.T, s standIns) { s.file(t, "/run/sshd.pid", "4242\n", 0o644) },
-		"a PID file from a clock that ran ahead": func(t *testing.T, s standIns) { s.at(t, "/run/sshd.pid", now.Add(365*24*time.Hour)) },
-		"no sshd that listens":                   func(t *testing.T, s standIns) { s.file(t, "/proc/net/tcp", "header\n", 0o644) },
+		"a PID file that names another process":               func(t *testing.T, s standIns) { s.file(t, "/run/sshd.pid", "4242\n", 0o644) },
+		"a PID file from a clock that ran ahead":              func(t *testing.T, s standIns) { s.at(t, "/run/sshd.pid", now.Add(365*24*time.Hour)) },
+		"no listening socket, and a PID file that names sshd": func(t *testing.T, s standIns) { s.file(t, "/proc/net/tcp", "header\n", 0o644) },
+		"no sshd at all": func(t *testing.T, s standIns) {
+			s.file(t, "/proc/net/tcp", "header\n", 0o644)
+			s.file(t, "/proc/100/comm", "nginx\n", 0o644)
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := stood(t, day)
 			prepare(t, s)
 			got := readSSHAt(t, s, inodesAt(nil), now)
-			if got.GetLoaded() != 0 || len(got.GetChangedFiles()) != 0 || got.GetLoadedTime() != nil {
+			want := dockwellv1.SshLoaded_SSH_LOADED_UNSPECIFIED
+			// Without a listening socket, the PID file still names the sshd that is.
+			if name == "nothing changed since the PID file" || name == "no listening socket, and a PID file that names sshd" {
+				want = nothing
+			}
+			if got.GetLoaded() != want || len(got.GetChangedFiles()) != 0 || got.GetLoadedTime() != nil || got.GetReloadCommand() != "" {
 				t.Errorf("loaded %v, why %q, changed %v, at %v", got.GetLoaded(), got.GetLoadedWhy(), got.GetChangedFiles(), got.GetLoadedTime())
+			}
+			if want == 0 && got.GetLoadedWhy() == "" {
+				t.Error("no warning, and nothing says what couldn't be read")
 			}
 			for _, src := range got.GetSetIn() {
 				if src.GetChanged() {
@@ -493,8 +508,8 @@ func TestTheReadWarnsOfFilesChangedAfterSSHDLastReadThem(t *testing.T) {
 	}{
 		"a drop-in written after":                        {func(t *testing.T, s standIns) { s.at(t, dropIn, later) }, nil, "[" + dropIn + "]"},
 		"a drop-in rewritten with its written time kept": {func(*testing.T, standIns) {}, map[string]time.Time{dropIn: later}, "[" + dropIn + "]"},
-		"a drop-in taken away, which changes its folder": {func(t *testing.T, s standIns) { s.at(t, "/etc/ssh/sshd_config.d", later) }, nil, "[/etc/ssh/sshd_config.d]"},
-		"sshd_config put in place by a rename":           {func(t *testing.T, s standIns) { s.at(t, "/etc/ssh", later) }, nil, "[/etc/ssh]"},
+		"a drop-in taken away, which changes its folder": {func(t *testing.T, s standIns) { s.at(t, "/etc/ssh/sshd_config.d", later) }, nil, "[/etc/ssh/sshd_config.d/]"},
+		"sshd_config put in place by a rename":           {func(t *testing.T, s standIns) { s.at(t, "/etc/ssh", later) }, nil, "[/etc/ssh/]"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			s := stood(t, day)
@@ -629,7 +644,7 @@ func TestTheReadSaysWhenTheListenerIsntRunFromTheseFiles(t *testing.T) {
 		if err := os.Symlink("/usr/sbin/sshd (deleted)", exe); err != nil {
 			t.Fatal(err)
 		}
-		if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != 0 {
+		if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != dockwellv1.SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF {
 			t.Errorf("loaded %v, why %q", got.GetLoaded(), got.GetLoadedWhy())
 		}
 	})
@@ -652,7 +667,7 @@ func TestTheReadSaysWhenTheListenerIsntRunFromTheseFiles(t *testing.T) {
 	t.Run("a command line that can't be read says nothing", func(t *testing.T) {
 		s := stood(t, day)
 		s.file(t, "/proc/100/cmdline", "", 0o644)
-		if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != 0 {
+		if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != dockwellv1.SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF {
 			t.Errorf("loaded %v, why %q", got.GetLoaded(), got.GetLoadedWhy())
 		}
 	})
@@ -694,9 +709,9 @@ func TestTheReloadCommandIsTheListenersOwn(t *testing.T) {
 		"0::/system.slice/ssh.service\n": "systemctl reload ssh.service",
 		"12:pids:/system.slice/sshd.service\n1:name=systemd:/system.slice/sshd.service\n": "systemctl reload sshd.service",
 		"0::/openrc.sshd\n":                   "rc-service sshd reload",
-		"0::/\n":                              "kill -HUP 100",
-		"0::/system.slice/x;rm -rf.service\n": "kill -HUP 100",
-		"":                                    "kill -HUP 100",
+		"0::/\n":                              `kill -HUP "$(cat /run/sshd.pid)"`,
+		"0::/system.slice/x;rm -rf.service\n": `kill -HUP "$(cat /run/sshd.pid)"`,
+		"":                                    `kill -HUP "$(cat /run/sshd.pid)"`,
 	} {
 		s := stood(t, day)
 		if cgroup != "" {
@@ -710,5 +725,162 @@ func TestTheReloadCommandIsTheListenersOwn(t *testing.T) {
 	}
 	if got := readSSHAt(t, stood(t, day), inodesAt(nil), now); got.GetReloadCommand() != "" {
 		t.Errorf("with nothing to warn of, a reload command %q", got.GetReloadCommand())
+	}
+}
+
+// The narrow check's M1: where /usr/sbin links to bin, as on Arch and on Fedora
+// from 42, the kernel names the listener /usr/bin/sshd, which is the sshd the
+// agent asked as /usr/sbin/sshd, and not another.
+func TestAMergedUsrSbinIsTheSameSSHD(t *testing.T) {
+	day := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+	now := day.Add(24 * time.Hour)
+	s := stood(t, day)
+	usr := filepath.Join(string(s), "usr")
+	if err := os.Rename(filepath.Join(usr, "sbin", "sshd"), filepath.Join(usr, "bin", "sshd")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(usr, "sbin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("bin", filepath.Join(usr, "sbin")); err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(string(s), "proc", "100", "exe")
+	if err := os.Remove(exe); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/usr/bin/sshd", exe); err != nil {
+		t.Fatal(err)
+	}
+	if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != dockwellv1.SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF {
+		t.Errorf("loaded %v, why %q", got.GetLoaded(), got.GetLoadedWhy())
+	}
+	if got := resolved(os.DirFS(string(s)), "/usr/sbin/sshd"); got != "/usr/bin/sshd" {
+		t.Errorf("resolved %q", got)
+	}
+	// Another sshd is still another, through the link or not.
+	if err := os.Remove(exe); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/usr/local/sbin/sshd", exe); err != nil {
+		t.Fatal(err)
+	}
+	if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != apart {
+		t.Errorf("another sshd: loaded %v, why %q", got.GetLoaded(), got.GetLoadedWhy())
+	}
+}
+
+// socketHolds makes systemd hold port in ssh.socket, on the Ubuntu stand.
+func (s standIns) socketHolds(t *testing.T, ports ...string) {
+	t.Helper()
+	var listen strings.Builder
+	for _, p := range ports {
+		listen.WriteString("echo '[::]:" + p + " (Stream)'\n")
+	}
+	s.tool(t, "/usr/bin/systemctl", `case "$*" in
+"is-active ssh.socket sshd.socket") echo active; echo inactive; exit 3 ;;
+"show ssh.socket --property=Listen --value") `+listen.String()+` ;;
+*) exit 9 ;;
+esac
+`)
+}
+
+// The narrow check's M3: on Ubuntu from 22.10, systemd holds SSH's port in
+// ssh.socket, which its generator builds from sshd_config at daemon-reload. A
+// Port moved in the files reaches nothing until then, whatever sshd read, so
+// the warning goes by the ports alone, says the command that moves them, and
+// stays after a reload of sshd has written its PID file again.
+func TestAPortSystemdStillHoldsIsWarnedOfUntilTheSocketTakesTheFilesPorts(t *testing.T) {
+	day := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+	now := day.Add(24 * time.Hour)
+	portFile := "/etc/ssh/sshd_config.d/60-port.conf"
+	t.Run("the socket still holds 22, after sshd reloaded", func(t *testing.T) {
+		s := stood(t, day)
+		s.socketHolds(t, "22")
+		s.file(t, "/usr/lib/systemd/system-generators/sshd-socket-generator", "#!/bin/sh\n", 0o755)
+		s.at(t, "/run/sshd.pid", day.Add(3*time.Hour))
+		got := readSSHAt(t, s, inodesAt(nil), now)
+		if got.GetLoaded() != stale || fmt.Sprint(got.GetChangedFiles()) != "["+portFile+"]" || got.GetLoadedTime() != nil ||
+			got.GetReloadCommand() != "systemctl daemon-reload && systemctl restart ssh.socket" {
+			t.Fatalf("loaded %v, changed %v, at %v, command %q", got.GetLoaded(), got.GetChangedFiles(), got.GetLoadedTime(), got.GetReloadCommand())
+		}
+		for _, src := range got.GetSetIn() {
+			if src.GetChanged() != (src.GetKeyword() == "Port") {
+				t.Errorf("%s marked changed %t", src.GetKeyword(), src.GetChanged())
+			}
+		}
+	})
+	t.Run("a socket that names its own ports gets no command", func(t *testing.T) {
+		s := stood(t, day)
+		s.socketHolds(t, "22")
+		got := readSSHAt(t, s, inodesAt(nil), now)
+		if got.GetLoaded() != stale || got.GetReloadCommand() != "" {
+			t.Errorf("loaded %v, command %q", got.GetLoaded(), got.GetReloadCommand())
+		}
+	})
+	t.Run("the socket holds 22 beside 2222", func(t *testing.T) {
+		s := stood(t, day)
+		s.socketHolds(t, "22", "2222")
+		if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != stale {
+			t.Errorf("loaded %v", got.GetLoaded())
+		}
+	})
+	t.Run("once it holds the files' ports, the PID file says the rest", func(t *testing.T) {
+		s := stood(t, day)
+		s.socketHolds(t, "2222")
+		if got := readSSHAt(t, s, inodesAt(nil), now); got.GetLoaded() != dockwellv1.SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF {
+			t.Errorf("loaded %v, changed %v", got.GetLoaded(), got.GetChangedFiles())
+		}
+		s.at(t, "/etc/ssh/sshd_config.d/50-cloud-init.conf", day.Add(time.Hour))
+		got := readSSHAt(t, s, inodesAt(nil), now)
+		if got.GetLoaded() != stale || got.GetReloadCommand() != `kill -HUP "$(cat /run/sshd.pid)"` {
+			t.Errorf("loaded %v, command %q", got.GetLoaded(), got.GetReloadCommand())
+		}
+	})
+	t.Run("no files set Port, and the socket holds another", func(t *testing.T) {
+		s := stood(t, day)
+		s.socketHolds(t, "2200")
+		if err := os.Remove(filepath.Join(string(s), "etc", "ssh", "sshd_config.d", "60-port.conf")); err != nil {
+			t.Fatal(err)
+		}
+		got := readSSHAt(t, s, inodesAt(nil), now)
+		if got.GetLoaded() != stale || fmt.Sprint(got.GetChangedFiles()) != "[/etc/ssh/sshd_config]" {
+			t.Errorf("loaded %v, changed %v", got.GetLoaded(), got.GetChangedFiles())
+		}
+	})
+}
+
+// The narrow check's L3: with PidFile none, sshd keeps no PID file, so an old
+// one at the default place says nothing of when it last read its files.
+func TestPidFileNoneTakesNoTime(t *testing.T) {
+	day := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
+	now := day.Add(24 * time.Hour)
+	s := stood(t, day)
+	s.tool(t, "/usr/sbin/sshd", `case "$1" in
+-T) cat <<'EOF'
+`+ubuntuSSHD+`pidfile none
+EOF
+;;
+esac
+`)
+	s.at(t, "/etc/ssh/sshd_config.d/50-cloud-init.conf", day.Add(time.Hour))
+	got := readSSHAt(t, s, inodesAt(nil), now)
+	if got.GetLoaded() != 0 || len(got.GetChangedFiles()) != 0 || !strings.Contains(got.GetLoadedWhy(), "keeps no PID file") {
+		t.Errorf("loaded %v, why %q, changed %v", got.GetLoaded(), got.GetLoadedWhy(), got.GetChangedFiles())
+	}
+}
+
+// The narrow check's L2: the signal goes to the process the PID file names as
+// it's run, and a PID file whose path a shell would read otherwise is never
+// named in the command.
+func TestTheSignalNamesThePIDFile(t *testing.T) {
+	proc := os.DirFS(t.TempDir())
+	if got := reloadCommand(proc, "812", "/run/sshd.pid"); got != `kill -HUP "$(cat /run/sshd.pid)"` {
+		t.Errorf("command %q", got)
+	}
+	for _, pidFile := range []string{"/run/ssh d.pid", "/run/$(x).pid", "run/sshd.pid", ""} {
+		if got := reloadCommand(proc, "812", pidFile); got != "kill -HUP 812" {
+			t.Errorf("%q: command %q", pidFile, got)
+		}
 	}
 }

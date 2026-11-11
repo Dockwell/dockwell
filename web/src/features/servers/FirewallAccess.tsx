@@ -44,6 +44,17 @@ function fileName(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
+/**
+ * The files a warning names: each by its name, but a folder, which the agent
+ * sends with "/" after it, and two files of one name, by their whole path.
+ */
+function changedNames(paths: readonly string[]): string {
+  const names = paths.map(fileName);
+  return paths
+    .map((p, i) => (p.endsWith("/") || names.filter((n) => n === names[i]).length > 1 ? p : names[i]))
+    .join(", ");
+}
+
 /** Where a value is set: a file and line, or sshd's default where no file sets it. */
 function SetIn({ source, known = true }: { source: SshSource | undefined; known?: boolean }) {
   // A value Dockwell can't tell has no line to name, and isn't sshd's default either.
@@ -80,8 +91,9 @@ function SetIn({ source, known = true }: { source: SshSource | undefined; known?
 /**
  * SSH on a server, as Server-Firewall.dc.html's SSH card has it, read-only for
  * now: whether a password and root sign in, its port and how far it reaches,
- * as sshd's files say, with the file that sets each, whether the sshd that
- * listens has read them, and what may set them otherwise (ADR 0052).
+ * as sshd's files say, with the file that sets each, a warning when the sshd
+ * that listens may not have read them, and what may set them otherwise. With
+ * nothing to warn of it says only that, never that sshd has read them (ADR 0052).
  */
 export function SshPanel({
   server,
@@ -217,7 +229,7 @@ function SshValues({ ssh, listening }: { ssh: ServerSsh; listening: readonly Hos
  */
 function SshLoadedNote({ ssh }: { ssh: ServerSsh }) {
   const { t } = useLingui();
-  const files = ssh.changedFiles.map(fileName).join(", ");
+  const files = changedNames(ssh.changedFiles);
   const command = ssh.reloadCommand;
   return (
     <>
@@ -225,7 +237,13 @@ function SshLoadedNote({ ssh }: { ssh: ServerSsh }) {
         <Trans>These are what sshd's files say; sshd uses what it read when it last started or reloaded.</Trans>
       </p>
       {ssh.loaded === SshLoaded.STALE ? (
-        <Callout tone="warning" title={t`sshd hasn't read ${files} since it changed`}>
+        <Callout
+          tone="warning"
+          title={plural(ssh.changedFiles.length, {
+            one: `sshd hasn't read ${files} since it changed`,
+            other: `sshd hasn't read ${files} since they changed`,
+          })}
+        >
           <Trans>Until it reloads, it may still accept what this says is off.</Trans>
           {command ? (
             <span className="firewall-command">

@@ -573,3 +573,55 @@ func TestAConfirmationWhoseRevertFileCantBeWrittenKeepsNothing(t *testing.T) {
 		t.Error("the staged file is left behind")
 	}
 }
+
+// The narrow check's L1: a revert that fired, and ends between the list and the
+// stop, is gone, which systemctl says as exit 5: what's still there is stopped
+// once more, and the stop holds. One that stays and can't be stopped still fails it.
+func TestARevertThatEndsBetweenTheListAndTheStopIsStopped(t *testing.T) {
+	root := t.TempDir()
+	state := filepath.Join(root, "units")
+	path := filepath.Join(root, "usr", "bin", "systemctl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A unit named in "ended" leaves as it's stopped, as one --collect let go;
+	// one named in "stuck" stays, and both say exit 5.
+	script := `#!/bin/sh
+case "$1" in
+list-units) cat ` + state + ` 2>/dev/null; exit 0 ;;
+stop) shift; code=0
+  for u in "$@"; do
+    if grep -qx "$u" ` + root + `/ended 2>/dev/null || grep -qx "$u" ` + root + `/stuck 2>/dev/null; then
+      echo "Failed to stop $u: Unit $u not loaded." >&2; code=5
+      grep -qx "$u" ` + root + `/stuck 2>/dev/null && continue
+    fi
+    grep -v "^$u " ` + state + ` > ` + state + `.new; mv ` + state + `.new ` + state + `
+  done
+  exit $code ;;
+esac
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d := &systemdDeadMan{tools: &hosttool.Runner{Root: root}, nft: "/usr/sbin/nft"}
+	write := func(name, text string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(root, name), []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("units", "dockwell-access-revert-a.timer loaded active waiting x\ndockwell-access-revert-b.service loaded activating start x\n")
+	write("ended", "dockwell-access-revert-b.service\n")
+	if err := d.Disarm(t.Context()); err != nil {
+		t.Errorf("a revert that ended as it was stopped: %v", err)
+	}
+	if b, _ := os.ReadFile(state); strings.TrimSpace(string(b)) != "" {
+		t.Errorf("left %q", b)
+	}
+	write("units", "dockwell-access-revert-c.service loaded activating start x\n")
+	write("ended", "")
+	write("stuck", "dockwell-access-revert-c.service\n")
+	if err := d.Disarm(t.Context()); err == nil || !strings.Contains(err.Error(), "dockwell-access-revert-c.service") {
+		t.Errorf("a revert that stays and can't be stopped: %v", err)
+	}
+}

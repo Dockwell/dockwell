@@ -80,11 +80,16 @@ type sshDaemon struct {
 // warn says what the agent can show against the values, if anything: that a
 // file changed after the sshd that listens last read its files, with each
 // value from such a file marked; or that the listener doesn't take what it
-// runs with from these files alone. It never says the listener has read them.
-// asked is the sshd the agent ran -T with.
-func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile, asked string, now time.Time) {
+// runs with from these files alone; or that systemd holds SSH's ports in a
+// socket unit, and they aren't the ports the files set. It never says the
+// listener has read them: with nothing against them, it says just that.
+// asked is the sshd the agent ran -T with, and socket what systemd holds.
+func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile, asked string, socket sshSocket, now time.Time) {
 	silent := func(why string) {
 		out.Loaded, out.LoadedWhy, out.ChangedFiles = dockwellv1.SshLoaded_SSH_LOADED_UNSPECIFIED, why, nil
+		if why == "" {
+			out.Loaded = dockwellv1.SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF
+		}
 	}
 	proc, err := fs.Sub(r.root, "proc")
 	if err != nil {
@@ -97,13 +102,19 @@ func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile
 		return
 	}
 	candidates := defaultPIDFiles
-	if pidFile != "" && pidFile != "none" {
+	switch pidFile {
+	case "":
+	case "none":
+		// It keeps none, and a file at the default place is an older sshd's.
+		candidates = nil
+	default:
 		candidates = []string{pidFile}
 	}
 	// The PID file counts where it names a process that is sshd: one found by
 	// its listening socket, or, where /proc showed no socket of its, one named
 	// sshd that isn't a session's.
 	var wrote time.Time
+	var wroteIn string
 	for _, name := range candidates {
 		b, err := fs.ReadFile(r.root, strings.TrimPrefix(name, "/"))
 		info, serr := fs.Stat(r.root, strings.TrimPrefix(name, "/"))
@@ -120,21 +131,20 @@ func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile
 			known = true
 		}
 		if known && len(daemons) == 1 {
-			wrote = info.ModTime()
+			wrote, wroteIn = info.ModTime(), name
 		}
 		break
-	}
-	if len(daemons) == 0 {
-		silent("No sshd that listens was found among the server's processes.")
-		return
 	}
 	// The listener may not be the sshd the agent asked, or may have been started
 	// with what outranks its files: -o sets a value, -f names another file, -p a
 	// port, -C a connection to test with. Debian's unit passes whatever
 	// /etc/default/ssh puts in SSHD_OPTS. Then the files read here may not be
 	// what it runs with at all, which is said as that, not as files changed.
+	// The kernel names the listener's program with every link followed, as
+	// /usr/bin/sshd where /usr/sbin links to bin, as on Arch and on Fedora from 42.
+	program := resolved(r.root, asked)
 	for _, d := range daemons {
-		if exe := listenerExe(proc, d.pid); exe != "" && asked != "" && exe != asked {
+		if exe := listenerExe(proc, d.pid); exe != "" && asked != "" && exe != asked && exe != program {
 			out.Loaded = dockwellv1.SshLoaded_SSH_LOADED_APART
 			out.LoadedWhy = "It's " + exe + ", not the " + asked + " these were read with."
 			return
@@ -144,6 +154,16 @@ func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile
 			out.LoadedWhy = "It was started with " + flag + ", which sets values apart from its files."
 			return
 		}
+	}
+	// Where systemd holds SSH's ports, a connection reaches those, whatever sshd
+	// read: its reload doesn't move them, so this is said until they're the
+	// files' own, by the ports alone.
+	if socketApart(out, socket) {
+		return
+	}
+	if len(daemons) == 0 {
+		silent("No sshd that listens was found among the server's processes.")
+		return
 	}
 	switch {
 	case wrote.IsZero():
@@ -155,7 +175,11 @@ func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile
 	}
 	for _, w := range walked {
 		if !w.changed.IsZero() && w.changed.After(wrote) {
-			out.ChangedFiles = append(out.ChangedFiles, w.path)
+			if w.dir {
+				out.ChangedFiles = append(out.ChangedFiles, strings.TrimSuffix(w.path, "/")+"/")
+			} else {
+				out.ChangedFiles = append(out.ChangedFiles, w.path)
+			}
 		}
 	}
 	if len(out.GetChangedFiles()) == 0 {
@@ -163,16 +187,77 @@ func (r *sshReader) warn(out *dockwellv1.ServerSsh, walked []walkedFile, pidFile
 		return
 	}
 	out.Loaded, out.LoadedTime = dockwellv1.SshLoaded_SSH_LOADED_STALE, timestamppb.New(wrote)
-	out.ReloadCommand = reloadCommand(proc, daemons[0].pid)
+	out.ReloadCommand = reloadCommand(proc, daemons[0].pid, wroteIn)
 	for _, s := range out.GetSetIn() {
 		s.Changed = slices.Contains(out.GetChangedFiles(), s.GetFile())
 	}
 }
 
+// socketApart warns, and reports true, where systemd holds SSH's ports in a
+// socket unit and they aren't the ports the files set, as after Port changes
+// on Ubuntu 22.10 and later: sshd's reload doesn't move them, so the command
+// is the one that has the generator build them again and the socket take
+// them, where Ubuntu's generator builds them; elsewhere the unit names its own.
+func socketApart(out *dockwellv1.ServerSsh, socket sshSocket) bool {
+	if socket.unit == "" || len(socket.ports) == 0 || len(out.GetPorts()) == 0 {
+		return false
+	}
+	held, set := slices.Sorted(slices.Values(socket.ports)), slices.Sorted(slices.Values(out.GetPorts()))
+	if slices.Equal(held, set) {
+		return false
+	}
+	out.Loaded, out.LoadedTime, out.ChangedFiles, out.ReloadCommand = dockwellv1.SshLoaded_SSH_LOADED_STALE, nil, nil, ""
+	for _, s := range out.GetSetIn() {
+		if strings.EqualFold(s.GetKeyword(), "Port") || strings.EqualFold(s.GetKeyword(), "ListenAddress") {
+			s.Changed = true
+			if !slices.Contains(out.ChangedFiles, s.GetFile()) {
+				out.ChangedFiles = append(out.ChangedFiles, s.GetFile())
+			}
+		}
+	}
+	if len(out.ChangedFiles) == 0 {
+		out.ChangedFiles = []string{sshdConfig}
+	}
+	if socket.generated {
+		out.ReloadCommand = "systemctl daemon-reload && systemctl restart " + socket.unit
+	}
+	return true
+}
+
+// resolved is name inside root with every link on its way followed, as the
+// kernel follows them: name as it is where a part can't be read.
+func resolved(root fs.FS, name string) string {
+	if name == "" {
+		return ""
+	}
+	parts := strings.Split(strings.Trim(path.Clean(name), "/"), "/")
+	at := "/"
+	for hops := 0; len(parts) > 0; {
+		next := path.Join(at, parts[0])
+		parts = parts[1:]
+		target, err := fs.ReadLink(root, strings.TrimPrefix(next, "/"))
+		if err != nil {
+			at = next
+			continue
+		}
+		hops++
+		if hops > 40 {
+			return name
+		}
+		if !path.IsAbs(target) {
+			target = path.Join(at, target)
+		}
+		parts = append(strings.Split(strings.Trim(path.Clean(target), "/"), "/"), parts...)
+		at = "/"
+	}
+	return at
+}
+
 // reloadCommand is how to reload the sshd that listens, by how it runs: the
 // systemd service or OpenRC service its cgroup names, or, with neither, the
-// signal sshd reloads on, sent to its process.
-func reloadCommand(proc fs.FS, pid string) string {
+// signal sshd reloads on, sent to the process its PID file names as it's run,
+// so a number copied earlier never reaches what took it since.
+func reloadCommand(proc fs.FS, pid, pidFile string) string {
 	b, _ := fs.ReadFile(proc, pid+"/cgroup")
 	for line := range strings.SplitSeq(strings.TrimSpace(string(b)), "\n") {
 		// "0::/system.slice/ssh.service", or "1:name=systemd:/system.slice/sshd.service".
@@ -186,8 +271,14 @@ func reloadCommand(proc fs.FS, pid string) string {
 			return "rc-service " + strings.TrimPrefix(last, "openrc.") + " reload"
 		}
 	}
+	if safePath.MatchString(pidFile) {
+		return `kill -HUP "$(cat ` + pidFile + `)"`
+	}
 	return "kill -HUP " + pid
 }
+
+// safePath is a path a command may name as it is, with no quoting.
+var safePath = regexp.MustCompile(`^/[A-Za-z0-9._/-]+$`)
 
 // serviceName is a unit's or a service's name a command may name as it is.
 var serviceName = regexp.MustCompile(`^[A-Za-z0-9@._-]+$`)

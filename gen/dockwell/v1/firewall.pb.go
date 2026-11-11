@@ -362,19 +362,24 @@ func (SshAnswer) EnumDescriptor() ([]byte, []int) {
 type SshLoaded int32
 
 const (
-	// Nothing to warn of, which isn't a confirmation: the values are what the
-	// files say, and the sshd that listens uses what it read as it last started
-	// or reloaded. loaded_why may say what Dockwell couldn't read.
+	// Dockwell couldn't read what it would warn from, and loaded_why says
+	// what, or an older agent read it. No warning, and no confirmation.
 	SshLoaded_SSH_LOADED_UNSPECIFIED SshLoaded = 0
 	// A file changed after the sshd that listens last wrote its PID file, as it
 	// does each time it reads its files (changed_files): until it reloads, it
 	// runs with what they said before, and may still let in what the values
-	// here say is off.
+	// here say is off. Or systemd holds SSH's ports in a socket unit, and they
+	// aren't the ports the files set, which a reload of sshd doesn't move.
 	SshLoaded_SSH_LOADED_STALE SshLoaded = 2
 	// The sshd that listens doesn't take what it runs with from these files
 	// alone, and loaded_why says how: it's another sshd than the one Dockwell
 	// asked, or it was started with -o, -f, -p or -C.
 	SshLoaded_SSH_LOADED_APART SshLoaded = 4
+	// Nothing Dockwell read is against the values, which isn't a confirmation:
+	// they're what the files say, and the sshd that listens uses what it read
+	// as it last started or reloaded. Said, rather than left out, so a reader
+	// of the API or the CLI's output never takes nothing for "it has".
+	SshLoaded_SSH_LOADED_NOTHING_TO_WARN_OF SshLoaded = 5
 )
 
 // Enum value maps for SshLoaded.
@@ -383,11 +388,13 @@ var (
 		0: "SSH_LOADED_UNSPECIFIED",
 		2: "SSH_LOADED_STALE",
 		4: "SSH_LOADED_APART",
+		5: "SSH_LOADED_NOTHING_TO_WARN_OF",
 	}
 	SshLoaded_value = map[string]int32{
-		"SSH_LOADED_UNSPECIFIED": 0,
-		"SSH_LOADED_STALE":       2,
-		"SSH_LOADED_APART":       4,
+		"SSH_LOADED_UNSPECIFIED":        0,
+		"SSH_LOADED_STALE":              2,
+		"SSH_LOADED_APART":              4,
+		"SSH_LOADED_NOTHING_TO_WARN_OF": 5,
 	}
 )
 
@@ -1481,7 +1488,8 @@ type ServerSsh struct {
 	// sshd, or what sshd -T said. Empty when it could; the rest is unset then.
 	// Every value here is what sshd's files say now, read with sshd -T. The
 	// sshd that listens keeps what it read as it started or last reloaded:
-	// loaded says whether that is the same.
+	// loaded says when there's something against that, and never that it has
+	// read them.
 	Unreadable string `protobuf:"bytes,2,opt,name=unreadable,proto3" json:"unreadable,omitempty"`
 	// The SSH server and its version, as it says them, such as "OpenSSH_9.6p1".
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -1528,17 +1536,24 @@ type ServerSsh struct {
 	// sshd that listens has read the files as they are.
 	Loaded SshLoaded `protobuf:"varint,15,opt,name=loaded,proto3,enum=dockwell.v1.SshLoaded" json:"loaded,omitempty"`
 	// With loaded apart, how the sshd that listens differs, in a sentence for a
-	// person. With loaded unspecified, what Dockwell couldn't read, for the
-	// record: the panel doesn't show it, as it's no warning.
+	// person. With loaded unspecified, what Dockwell couldn't read to tell, for
+	// the record: the panel doesn't show it, as it's no warning.
 	LoadedWhy string `protobuf:"bytes,16,opt,name=loaded_why,json=loadedWhy,proto3" json:"loaded_why,omitempty"`
 	// With loaded stale: the files, links and folders that changed after sshd
-	// last wrote its PID file.
+	// last wrote its PID file, a folder with "/" after it; or, where systemd
+	// holds SSH's ports in a socket unit other than the files' ports, the files
+	// that set Port, or sshd_config when none does.
 	ChangedFiles []string `protobuf:"bytes,17,rep,name=changed_files,json=changedFiles,proto3" json:"changed_files,omitempty"`
 	// With loaded stale: when the sshd that listens last wrote its PID file.
+	// Unset when it's the socket unit's ports that differ.
 	LoadedTime *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=loaded_time,json=loadedTime,proto3" json:"loaded_time,omitempty"`
-	// With loaded stale: the command that reloads the sshd that listens, as
-	// the agent can tell how it runs: "systemctl reload ssh.service" under
-	// systemd, "rc-service sshd reload" under OpenRC, or "kill -HUP 812".
+	// With loaded stale: the command that has the files read, as the agent can
+	// tell how sshd runs: "systemctl reload ssh.service" under systemd,
+	// "rc-service sshd reload" under OpenRC, or "kill -HUP "$(cat
+	// /run/sshd.pid)"". Where the socket unit's ports differ, and Ubuntu's
+	// generator builds it from sshd_config, "systemctl daemon-reload &&
+	// systemctl restart ssh.socket", as a reload doesn't move them; empty where
+	// the unit sets its ports itself.
 	ReloadCommand string `protobuf:"bytes,19,opt,name=reload_command,json=reloadCommand,proto3" json:"reload_command,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2509,11 +2524,12 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\tSshAnswer\x12\x1a\n" +
 	"\x16SSH_ANSWER_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSSH_ANSWER_YES\x10\x01\x12\x11\n" +
-	"\rSSH_ANSWER_NO\x10\x02*\x8d\x01\n" +
+	"\rSSH_ANSWER_NO\x10\x02*\xb0\x01\n" +
 	"\tSshLoaded\x12\x1a\n" +
 	"\x16SSH_LOADED_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SSH_LOADED_STALE\x10\x02\x12\x14\n" +
-	"\x10SSH_LOADED_APART\x10\x04\"\x04\b\x01\x10\x01\"\x04\b\x03\x10\x03*\x12SSH_LOADED_CURRENT*\x18SSH_LOADED_AT_EACH_START*\xa4\x01\n" +
+	"\x10SSH_LOADED_APART\x10\x04\x12!\n" +
+	"\x1dSSH_LOADED_NOTHING_TO_WARN_OF\x10\x05\"\x04\b\x01\x10\x01\"\x04\b\x03\x10\x03*\x12SSH_LOADED_CURRENT*\x18SSH_LOADED_AT_EACH_START*\xa4\x01\n" +
 	"\fSshRootLogin\x12\x1e\n" +
 	"\x1aSSH_ROOT_LOGIN_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12SSH_ROOT_LOGIN_YES\x10\x01\x12\x1c\n" +
@@ -2525,7 +2541,8 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x1cFAIL2BAN_STATE_NOT_INSTALLED\x10\x01\x12\x1a\n" +
 	"\x16FAIL2BAN_STATE_STOPPED\x10\x02\x12\x1a\n" +
 	"\x16FAIL2BAN_STATE_RUNNING\x10\x03\x12\x1d\n" +
-	"\x19FAIL2BAN_STATE_UNREADABLE\x10\x042\xd2\t\n" +
+	"\x19FAIL2BAN_STATE_UNREADABLE\x10\x042\xa0\n" +
+	"\n" +
 	"\x0fFirewallService\x12\xb2\x01\n" +
 	"\x11GetServerFirewall\x12%.dockwell.v1.GetServerFirewallRequest\x1a&.dockwell.v1.GetServerFirewallResponse\"N\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
 	"\bfirewall\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/firewall\x90\x02\x01\x12\x99\x01\n" +
@@ -2533,9 +2550,9 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\n" +
 	"\x03ssh\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1d\x12\x1b/v1/servers/{server_id}/ssh\x90\x02\x01\x12\xb2\x01\n" +
 	"\x11GetServerFail2ban\x12%.dockwell.v1.GetServerFail2banRequest\x1a&.dockwell.v1.GetServerFail2banResponse\"N\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
-	"\bfail2ban\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/fail2ban\x90\x02\x01\x1a\xb8\x05\xa2\xbb\x18\xc4\x02\n" +
-	"\bfirewall\x12\xb7\x02What filters a server's inbound traffic: the firewalls already there, ufw, firewalld and nftables, each read with its own tool, how far what listens reaches past them, and the ports Docker publishes, which reach their containers past them. Dockwell's own rules are firewall.rule resources, which a change edits.\xa2\xbb\x18\xca\x01\n" +
-	"\x03ssh\x12\xc2\x01How SSH lets people in on a server: password and root login, its ports, as sshd's files say, the file that sets each, and whether the sshd that listens has read them. Reading it changes nothing.\xa2\xbb\x18\x9b\x01\n" +
+	"\bfail2ban\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\"\x12 /v1/servers/{server_id}/fail2ban\x90\x02\x01\x1a\x86\x06\xa2\xbb\x18\xc4\x02\n" +
+	"\bfirewall\x12\xb7\x02What filters a server's inbound traffic: the firewalls already there, ufw, firewalld and nftables, each read with its own tool, how far what listens reaches past them, and the ports Docker publishes, which reach their containers past them. Dockwell's own rules are firewall.rule resources, which a change edits.\xa2\xbb\x18\x98\x02\n" +
+	"\x03ssh\x12\x90\x02How SSH lets people in on a server: password and root login, its ports, as sshd's files say, the file that sets each, and a warning when the sshd that listens may not have read them, or that there's nothing to warn of, which doesn't say it has. Reading it changes nothing.\xa2\xbb\x18\x9b\x01\n" +
 	"\bfail2ban\x12\x8e\x01What fail2ban does on a server: whether it runs, its jails as it runs them, and the addresses each has banned now. Reading it changes nothing.B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rFirewallProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 

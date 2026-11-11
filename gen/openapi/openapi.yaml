@@ -16244,7 +16244,8 @@ components:
                          sshd, or what sshd -T said. Empty when it could; the rest is unset then.
                          Every value here is what sshd's files say now, read with sshd -T. The
                          sshd that listens keeps what it read as it started or last reloaded:
-                         loaded says whether that is the same.
+                         loaded says when there's something against that, and never that it has
+                         read them.
                 version:
                     type: string
                     description: The SSH server and its version, as it says them, such as "OpenSSH_9.6p1".
@@ -16340,6 +16341,7 @@ components:
                         - SSH_LOADED_UNSPECIFIED
                         - SSH_LOADED_STALE
                         - SSH_LOADED_APART
+                        - SSH_LOADED_NOTHING_TO_WARN_OF
                     type: string
                     description: |-
                         What Dockwell can say against the values, if anything: it never says the
@@ -16349,25 +16351,33 @@ components:
                     type: string
                     description: |-
                         With loaded apart, how the sshd that listens differs, in a sentence for a
-                         person. With loaded unspecified, what Dockwell couldn't read, for the
-                         record: the panel doesn't show it, as it's no warning.
+                         person. With loaded unspecified, what Dockwell couldn't read to tell, for
+                         the record: the panel doesn't show it, as it's no warning.
                 changedFiles:
                     type: array
                     items:
                         type: string
                     description: |-
                         With loaded stale: the files, links and folders that changed after sshd
-                         last wrote its PID file.
+                         last wrote its PID file, a folder with "/" after it; or, where systemd
+                         holds SSH's ports in a socket unit other than the files' ports, the files
+                         that set Port, or sshd_config when none does.
                 loadedTime:
                     type: string
-                    description: 'With loaded stale: when the sshd that listens last wrote its PID file.'
+                    description: |-
+                        With loaded stale: when the sshd that listens last wrote its PID file.
+                         Unset when it's the socket unit's ports that differ.
                     format: date-time
                 reloadCommand:
                     type: string
                     description: |-
-                        With loaded stale: the command that reloads the sshd that listens, as
-                         the agent can tell how it runs: "systemctl reload ssh.service" under
-                         systemd, "rc-service sshd reload" under OpenRC, or "kill -HUP 812".
+                        With loaded stale: the command that has the files read, as the agent can
+                         tell how sshd runs: "systemctl reload ssh.service" under systemd,
+                         "rc-service sshd reload" under OpenRC, or "kill -HUP "$(cat
+                         /run/sshd.pid)"". Where the socket unit's ports differ, and Ubuntu's
+                         generator builds it from sshd_config, "systemctl daemon-reload &&
+                         systemctl restart ssh.socket", as a reload doesn't move them; empty where
+                         the unit sets its ports itself.
             description: |-
                 ServerSsh is how SSH lets people in on a server, as its agent read it: the
                  values sshd's files say, read with sshd -T, which may not be what any one file writes,
