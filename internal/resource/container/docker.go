@@ -1334,6 +1334,37 @@ func (d *Docker) loggedRefusal(ctx context.Context, c *docker.Container) bool {
 	}
 }
 
+// fatalSaid is why a container's last lines say it stopped, where they say it in a
+// form whose words carry nothing of the app's: a MongoDB server's fatal or error line,
+// whose message is MongoDB's own, such as "MongoDB cannot start: Linux kernel
+// versions 6.19 and newer has a known incompatibility...". The line's attributes,
+// which can hold what the app stores, are left out. Anything else stays in the log,
+// which only someone who may read logs reads (ADR 0025). "" where nothing says, or
+// the log can't be read.
+func (d *Docker) fatalSaid(ctx context.Context, c *docker.Container) string {
+	reading, cancel := context.WithTimeout(ctx, logRefusalWait)
+	defer cancel()
+	r, err := d.Client.ContainerLogs(reading, c.ID, c.Config.Tty, docker.LogOptions{Tail: fatalLines})
+	if err != nil {
+		return ""
+	}
+	defer r.Close()
+	var fatal, failed string
+	for {
+		line, err := r.Next()
+		if err != nil {
+			break
+		}
+		switch severity, msg := structuredLine(line.Text); severity {
+		case "F":
+			fatal = msg
+		case "E":
+			failed = msg
+		}
+	}
+	return sentenceOf(cmp.Or(fatal, failed))
+}
+
 // NotRunning says how the container at t isn't running, in a word.
 func (d *Docker) NotRunning(ctx context.Context, t Target) (string, error) {
 	c, err := d.current(ctx, t)
@@ -1906,11 +1937,19 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 				return wrongArchitectureFailure(t, restarting)
 			}
 			// No word of docker logs in the plain words: a rollback takes this container away.
+			if said := d.fatalSaid(ctx, c); said != "" {
+				return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d, saying: %s", t.Service, s.ExitCode, said),
+					fmt.Errorf("%w, saying: %s", restarting, said))
+			}
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s keeps restarting: it exited with code %d. Check its command and variables, then try again.", t.Service, s.ExitCode), restarting)
 		case !s.Running:
 			stopped := fmt.Errorf("%s stopped right after it started, with exit code %d", name, s.ExitCode)
 			if s.ExitCode != 0 && d.binaryRefused(ctx, c) {
 				return wrongArchitectureFailure(t, stopped)
+			}
+			if said := d.fatalSaid(ctx, c); s.ExitCode != 0 && said != "" {
+				return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d, saying: %s", t.Service, s.ExitCode, said),
+					fmt.Errorf("%w, saying: %s", stopped, said))
 			}
 			return resource.PlainlyBecause(resource.ReasonExits, fmt.Sprintf("%s stopped right after it started, with exit code %d. Check its command and variables, then try again.", t.Service, s.ExitCode), stopped)
 		case s.Paused:

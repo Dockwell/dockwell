@@ -4149,10 +4149,12 @@ mongo_db() { docker ps --filter label=com.docker.compose.service=docs --filter l
 mongo_eval() { docker exec -e HOME=/tmp "$(mongo_db)" mongosh --quiet --norc -u root -p "$mongo_password" --authenticationDatabase admin --eval "$1"; }
 # mongo_reads is what Dockwell reads of it.
 mongo_reads() { dw databases list --json | jq -c '.databases[] | select(.engine == "DATABASE_ENGINE_MONGODB")'; }
-# MongoDB 8.0 refuses to start on Linux 6.19 and newer (SERVER-121912), which the
-# runners have, so the move this step proves is 6.0 to 7.0: the same rules, and
-# the same raise before the image changes.
-dw compose import --compose "$(mongo_file mongo:6.0)" --env-file "$data/mongo.env" --yes || fail "importing MongoDB 6.0 failed"
+# MongoDB 8.0 to 8.0.36 refuses to start on the runners' kernel: "Linux kernel
+# versions 6.19 and newer has a known incompatibility" (SERVER-121912). 8.0.37,
+# 8.3.16 and 9.0.4 know more fixed kernels, and only 9.0.4 is on Docker Hub, which
+# has no 8.x to move to it from. So the move this step proves is 6.0 to 7.0, by
+# patch: the same rules, and the same raise before the image changes.
+dw compose import --compose "$(mongo_file mongo:6.0.28)" --env-file "$data/mongo.env" --yes || fail "importing MongoDB 6.0 failed"
 mongo_project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$(docker ps --filter label=com.docker.compose.service=docs --format '{{.Names}}' | head -1)") ||
   fail "MongoDB runs nothing"
 backup_healthy "$(mongo_db)"
@@ -4185,7 +4187,7 @@ backup_healthy "$(mongo_db)"
 [[ "$(mongo_eval 'print(db.getMongo().getDBNames().includes("made_since"))')" == false ]] || fail "what was made since the backup is still there"
 
 # It moves one release up, with its features left as they were, so its undo runs the data.
-planned=$(dw compose import --compose "$(mongo_file mongo:7.0)" --env-file "$data/mongo.env" --plan-only --json) || fail "planning MongoDB 7.0 failed: $planned"
+planned=$(dw compose import --compose "$(mongo_file mongo:7.0.45)" --env-file "$data/mongo.env" --plan-only --json) || fail "planning MongoDB 7.0 failed: $planned"
 jq -e '[.change.plan.notes[] | select(.reason == "raises_features" and .names == ["6.0", "7.0"])] | length == 1' <<<"$planned" >/dev/null ||
   fail "moving to 7.0 says nothing of its features: $planned"
 upgrade=$(jq -r .change.id <<<"$planned")

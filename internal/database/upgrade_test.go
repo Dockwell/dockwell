@@ -27,6 +27,10 @@ func TestMongoMovesOneReleaseAtATime(t *testing.T) {
 		refused  string
 	}{
 		{"mongo:7.0", "mongo:8.0", true, true, ""},
+		// As CI's Docker job moves it, by patch.
+		{"mongo:6.0.28", "mongo:7.0.45", true, true, ""},
+		{"mongo:7.0.45", "mongo:9.0", false, false, "Change its image to mongo:8.0 first, then to mongo:9.0 once that's healthy"},
+		{"mongo:7.0.45", "mongo:5.0", false, false, "which goes back one major release at most. Change its image to mongo:6.0 first"},
 		{"mongo:8.0.34", "mongo:9", true, true, ""},
 		{"mongo:8.3", "mongo:9.0", true, true, ""},
 		// The tag names no minor: the agent asks the server what it runs.
