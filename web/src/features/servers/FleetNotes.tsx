@@ -18,12 +18,12 @@ export function useFleetUnreadWords(): (why: Unread, heard: Date, now: number, o
     const ago = time.ago(heard, now);
     if (why === "offline") {
       return of === "server"
-        ? t`This browser is offline, so the panel can't say how this server is. It last heard ${ago}. Check your connection.`
-        : t`This browser is offline, so the panel can't say how your servers are. It last heard ${ago}. Check your connection.`;
+        ? t`This browser is offline, so this server is shown as of ${ago}. Check your connection.`
+        : t`This browser is offline, so your servers are shown as of ${ago}. Check your connection.`;
     }
     return of === "server"
-      ? t`The panel can't reach the control plane, so it can't say how this server is. It last heard ${ago}, and keeps trying.`
-      : t`The panel can't reach the control plane, so it can't say how your servers are. It last heard ${ago}, and keeps trying.`;
+      ? t`The panel can't reach the control plane, so this server is shown as of ${ago}. It keeps trying.`
+      : t`The panel can't reach the control plane, so your servers are shown as of ${ago}. It keeps trying.`;
   };
 }
 
