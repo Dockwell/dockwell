@@ -97,6 +97,11 @@ var requestBound = map[string]bool{
 	dockwellv1connect.ComposeServiceCheckComposeProcedure:         true,
 	dockwellv1connect.ComposeServiceImportComposeProcedure:        true,
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure: true,
+	// What a registry says of an image belongs to no project, and holds nothing
+	// of the server it was read through (ADR 0062).
+	dockwellv1connect.ImageServiceSearchImagesProcedure:  true,
+	dockwellv1connect.ImageServiceListImageTagsProcedure: true,
+	dockwellv1connect.ImageServiceGetImageProcedure:      true,
 }
 
 // containerLogs are the calls that, given a server, read a container there
@@ -449,6 +454,10 @@ func namedChoice(found []place.Found, what string) error {
 	return choice(&dockwellv1.Choice{Level: "environment", Field: "environment", Options: envs, Project: projects[0]},
 		fmt.Errorf("%s is in more than one environment of %s, %s, so say which one you mean", what, projects[0], human.List(envs)))
 }
+
+// ChoiceError is a request's choice to make, as choice says it, for a handler
+// that finds one, such as which server to read from.
+func ChoiceError(detail *dockwellv1.Choice, err error) error { return choice(detail, err) }
 
 // choice is a request's choice to make, with what to choose from in a detail.
 func choice(detail *dockwellv1.Choice, err error) error {

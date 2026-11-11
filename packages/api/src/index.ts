@@ -25,6 +25,7 @@ export * from "./gen/dockwell/v1/event_pb";
 export * from "./gen/dockwell/v1/file_pb";
 export * from "./gen/dockwell/v1/firewall_pb";
 export * from "./gen/dockwell/v1/health_pb";
+export * from "./gen/dockwell/v1/image_pb";
 export * from "./gen/dockwell/v1/import_pb";
 export * from "./gen/dockwell/v1/log_pb";
 export * from "./gen/dockwell/v1/member_pb";

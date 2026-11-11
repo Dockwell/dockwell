@@ -222,7 +222,9 @@ export function AppDeployments() {
         width: 136,
         render: (rev) => {
           const name = who.name(rev.change);
-          const via = rev.change ? words.via(rev.change.appliedVia || rev.change.proposedVia) : "";
+          // "the CLI on hz-1" says where already, so it isn't said again.
+          const via =
+            rev.change && !who.saysWhere(rev.change) ? words.via(rev.change.appliedVia || rev.change.proposedVia) : "";
           return (
             <span className="dw-cell deploy-who">
               <span className="deploy-who-name">
@@ -732,8 +734,12 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
       <dl className="app-facts">
         <dt>{t`Who`}</dt>
         <dd>{who.name(change) || t`Someone`}</dd>
-        <dt>{t`From`}</dt>
-        <dd>{via}</dd>
+        {who.saysWhere(change) ? null : (
+          <>
+            <dt>{t`From`}</dt>
+            <dd>{via}</dd>
+          </>
+        )}
         {proposedApart ? (
           <>
             <dt>{t`Proposed by`}</dt>

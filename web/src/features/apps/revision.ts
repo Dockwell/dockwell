@@ -183,6 +183,11 @@ export function useWhoWords() {
   const { t } = useLingui();
   return useMemo(
     () => ({
+      /** Whether the name says where it came from already, as "the CLI on hz-1" does. */
+      saysWhere(change: Change | undefined): boolean {
+        const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;
+        return Boolean(localHost(actor));
+      },
       /** The name alone, for a row with room for a name: "Mira Chen", "the CLI on hz-1". */
       name(change: Change | undefined): string {
         const actor = change?.appliedBy?.name ? change.appliedBy : change?.proposedBy;

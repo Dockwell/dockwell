@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { type EditSchema, ImageBuild_Builder, Protocol } from "@dockwell/api";
+import { type EditSchema, ImageBuild_Builder, type ImageConfig, Protocol, RestartPolicy } from "@dockwell/api";
 
 import { toLabel } from "./app";
+import { splitWords } from "./specEdit";
 
 /** One port someone is publishing. */
 export interface PortRow {
@@ -11,6 +12,16 @@ export interface PortRow {
   host: string;
   container: string;
   protocol: "tcp" | "udp";
+  /** The server's port follows a free one, until someone types their own. */
+  auto?: boolean;
+  /**
+   * What a following port showed when someone went into its field: it holds still
+   * there while the field has focus, as a free port landing under the cursor would
+   * run into what they type.
+   */
+  held?: string;
+  /** The image's EXPOSE filled it, and nobody has changed it since. */
+  fromImage?: boolean;
 }
 
 /** One environment variable someone is setting. */
@@ -18,6 +29,10 @@ export interface EnvRow {
   key: number;
   name: string;
   value: string;
+  /** The image's ENV filled it, and nobody has changed it since. */
+  fromImage?: boolean;
+  /** The value the image gives it: left as it is, the app takes it from the image, and the spec needn't say it. */
+  imageDefault?: string;
 }
 
 /** One volume or server path someone is mounting. */
@@ -26,7 +41,32 @@ export interface MountRow {
   source: string;
   target: string;
   readOnly: boolean;
+  /** The image's VOLUME filled it, and nobody has changed it since. */
+  fromImage?: boolean;
 }
+
+/** What New app starts at a default, under Advanced: each empty takes the image's own, or none. */
+export interface MoreSettings {
+  /** The command, as a shell line. */
+  command: string;
+  user: string;
+  restart: RestartPolicy;
+  /** The most memory it may use, such as 512M. */
+  memory: string;
+  /** The most CPUs it may use, such as 0.5. */
+  cpus: string;
+  /** A path to ask over HTTP on its first port, such as /healthz, which makes it a health check. */
+  healthPath: string;
+}
+
+export const DEFAULT_SETTINGS: MoreSettings = {
+  command: "",
+  user: "",
+  restart: RestartPolicy.UNSPECIFIED,
+  memory: "",
+  cpus: "",
+  healthPath: "",
+};
 
 /** New app's form, for an image. */
 export interface ImageForm {
@@ -36,6 +76,23 @@ export interface ImageForm {
   ports: PortRow[];
   env: EnvRow[];
   mounts: MountRow[];
+  /** What Advanced holds; leaving it out leaves each at its default. */
+  more?: MoreSettings;
+}
+
+/** How many of Advanced's settings differ from their defaults. */
+export function changedSettings(more: MoreSettings | undefined): number {
+  if (!more) return 0;
+  return (Object.keys(DEFAULT_SETTINGS) as (keyof MoreSettings)[]).filter((k) => {
+    const v = more[k];
+    return typeof v === "string" ? v.trim() !== DEFAULT_SETTINGS[k] : v !== DEFAULT_SETTINGS[k];
+  }).length;
+}
+
+/** The port in the app a health check over HTTP asks on: the first one the form publishes. */
+export function checkPort(form: ImageForm): number | undefined {
+  const row = form.ports.find((p) => validPort(p.container) && p.protocol === "tcp");
+  return row ? Number(row.container) : undefined;
 }
 
 /** What New app asks of an app that builds from Git, beside what any app has (ADR 0046). */
@@ -157,6 +214,8 @@ export function appEdits(
   }
   const env: Record<string, string> = {};
   for (const row of form.env) {
+    // A value the image gives it already needn't be written again.
+    if (row.imageDefault !== undefined && row.value === row.imageDefault) continue;
     if (row.name.trim() !== "") env[row.name.trim()] = row.value;
   }
   edits.push({
@@ -187,6 +246,7 @@ export function appEdits(
                   target: m.target.trim(),
                   readOnly: m.readOnly,
                 })),
+              ...moreFields(form),
             },
           },
           ...(git ? { build: buildOf(git) } : {}),
@@ -196,6 +256,97 @@ export function appEdits(
     servers,
   });
   return edits;
+}
+
+/** What Advanced sets in the app's spec: only what someone changed from its default. */
+function moreFields(form: ImageForm) {
+  const more = form.more;
+  if (!more) return {};
+  const command = splitWords(more.command.trim()) ?? [];
+  const port = checkPort(form);
+  const path = more.healthPath.trim();
+  return {
+    ...(command.length > 0 ? { command } : {}),
+    ...(more.user.trim() ? { user: more.user.trim() } : {}),
+    ...(more.restart !== RestartPolicy.UNSPECIFIED ? { restart: more.restart } : {}),
+    ...(more.memory.trim() || more.cpus.trim()
+      ? { resources: { memory: more.memory.trim(), cpus: more.cpus.trim() } }
+      : {}),
+    ...(path && port ? { healthcheck: { http: { port, path } } } : {}),
+  };
+}
+
+/** What an image's ENV sets for itself, which nobody running it sets: its search path, locale and versions. */
+const IMAGE_NOISE =
+  /^(PATH|HOME|HOSTNAME|LANG|LANGUAGE|LC_[A-Z]+|TERM|SHLVL|GPG_KEYS?|.*_(VERSION|MAJOR|SHA\d*|SHA256|CHECKSUM|DOWNLOAD_URL|DOWNLOAD_SHA\d*))$/;
+
+/** Whether an image's variable is one a person may want to change, rather than one it sets for itself. */
+export function settable(name: string): boolean {
+  return !IMAGE_NOISE.test(name);
+}
+
+/**
+ * The form filled from what an image declares, where nobody has changed it:
+ * the port its first EXPOSE names, a volume for each path its VOLUME keeps, and
+ * the variables it sets with their values. What the image filled before goes,
+ * and what someone added or changed stays.
+ */
+export function fillFromImage(
+  form: ImageForm,
+  config: ImageConfig | undefined,
+  app: string,
+  key: () => number,
+): ImageForm {
+  if (!config) return form;
+  const ownPorts = form.ports.filter((p) => !p.fromImage);
+  // A database's or a broker's port isn't published by default: other apps reach it by name.
+  const tcp = config.ports.find((p) => !p.udp && !KEPT_IN.has(p.port));
+  const ports: PortRow[] =
+    ownPorts.length > 0 || !tcp
+      ? ownPorts
+      : [{ key: key(), host: "", container: String(tcp.port), protocol: "tcp", auto: true, fromImage: true }];
+  const ownEnv = form.env.filter((e) => !e.fromImage);
+  const env: EnvRow[] = [
+    ...ownEnv,
+    ...config.env
+      .filter((v) => settable(v.name) && !ownEnv.some((e) => e.name.trim() === v.name))
+      .map((v) => ({ key: key(), name: v.name, value: v.value, fromImage: true, imageDefault: v.value })),
+  ];
+  const ownMounts = form.mounts.filter((m) => !m.fromImage);
+  const prefix = app || "app";
+  const mounts: MountRow[] = [
+    ...ownMounts,
+    ...config.volumes
+      .filter((path) => !ownMounts.some((m) => m.target.trim() === path))
+      .map((path) => ({
+        key: key(),
+        source: volumeName(prefix, path),
+        target: path,
+        readOnly: false,
+        fromImage: true,
+      })),
+  ];
+  return { ...form, ports, env, mounts };
+}
+
+/**
+ * The ports of databases, caches and brokers, which New app doesn't publish on
+ * the server for an image that exposes one, as what uses them is another app on
+ * its network: PostgreSQL, MySQL and MariaDB, Redis, MongoDB, SQL Server,
+ * Elasticsearch, Memcached, RabbitMQ and NATS. A port also used for a web UI,
+ * such as 9000 or 8086, isn't one of them.
+ */
+const KEPT_IN = new Set([5432, 3306, 6379, 27017, 1433, 9200, 11211, 5672, 4222]);
+
+/** A volume's name for a path an image keeps, such as postgres-data for /var/lib/postgresql/data. */
+export function volumeName(app: string, path: string): string {
+  const last = path.split("/").filter(Boolean).pop() ?? "data";
+  const slug =
+    last
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "data";
+  return `${app}-${slug}`.slice(0, 63);
 }
 
 /** A name a process's environment takes. */

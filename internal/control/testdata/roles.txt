@@ -100,6 +100,9 @@ FileService.SaveFile                           destructive  admin      admin    
 FileService.UploadFile                         apply        admin      admin      install  session
 FirewallService.GetServerFirewall              read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
+ImageService.GetImage                          read         developer  developer  project
+ImageService.ListImageTags                     read         developer  developer  project
+ImageService.SearchImages                      read         developer  developer  project
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project
@@ -108,6 +111,7 @@ MemberService.ListMembers                      read         admin      admin    
 ProcessService.EndProcess                      destructive  admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
+ServerService.CheckServerPorts                 read         admin      admin      install
 ServerService.CreateJoinTicket                 apply        admin      admin      install  session
 ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named

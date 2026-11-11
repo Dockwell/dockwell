@@ -20,6 +20,7 @@ import {
   DomainCheckState,
   FieldOp,
   HealthState,
+  ImageAnswer,
   ImageBuild_Builder,
   ImageBuildSchema,
   IntentKind,
@@ -472,6 +473,32 @@ describe("an app's frame", () => {
     await waitFor(() => expect(container.querySelector(".page-lead")).toHaveTextContent("from the CLI on home-t3code"));
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("Local access");
     expect(container.querySelector(".page-lead")).not.toHaveTextContent("read-write");
+  });
+
+  it("says once where a deploy came from, when its name says it already", async () => {
+    const cli = aRevision(3n, "ghcr.io/acme/web:1.5", {
+      change: {
+        id: "chg_3",
+        summary: "Deploy",
+        state: ChangeState.APPLIED,
+        appliedBy: {
+          kind: ActorKind.TOKEN,
+          id: "tok_9",
+          name: "Local access on home-t3code, read-write",
+          localAccess: { account: "t3@home-t3code", scope: TokenScope.READ_WRITE },
+        },
+        appliedVia: Surface.CLI,
+      },
+    });
+    renderAt(
+      "/apps/svc_web/deployments",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: [cli] }) },
+      }),
+    );
+    const row = await screen.findByRole("row", { name: /r3/ });
+    expect(row).toHaveTextContent("the CLI on home-t3code");
+    expect(row).not.toHaveTextContent("From the CLI");
   });
 
   it("names a token by its name, whatever it's called, unless local access made it", async () => {
@@ -2837,9 +2864,14 @@ describe("an app's overview", () => {
     const note = await screen.findByRole("status");
     await within(note).findByText(/hz-1 isn't connected/);
     expect(note).toHaveTextContent("Once it reconnects, Dockwell puts nginx:1.27 back");
-    expect(note).toHaveTextContent("Until then it can't tell what is running there.");
-    expect(note).not.toHaveTextContent("The deploy waits");
+    expect(note).not.toHaveTextContent("The deploy carries on");
     expect(within(note).getByRole("button", { name: "See why" })).toBeVisible();
+    // What brings the server back is on its page, one step away, never a shell command here.
+    expect(within(note).getByRole("link", { name: "Open hz-1" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/servers/"),
+    );
+    expect(note).not.toHaveTextContent("dockwell run");
     expect(container.querySelector(".page-lead")).toHaveTextContent(
       "Dockwell puts nginx:1.27 back once hz-1 reconnects",
     );
@@ -3329,6 +3361,7 @@ describe("an app's overview", () => {
     await waitFor(() => expect(file).toHaveTextContent("web: {}"));
     expect(sheet).toHaveTextContent("Left out as they may hold secrets");
     expect(sheet).toHaveTextContent("web.API_KEY");
+    expect(within(sheet).getByRole("button", { name: "Save an .env to fill in" })).toBeVisible();
     expect(asked[0]).toEqual(expect.objectContaining({ service: "web", environment: "env_prod" }));
     await expectAccessible(document.body);
     await user.click(within(sheet).getByRole("radio", { name: "Its whole project" }));
@@ -4040,5 +4073,34 @@ describe("an app's deployments", () => {
     const sheet = await screen.findByRole("dialog", { name: "r2" });
     expect(within(sheet).getByRole("button", { name: "Roll back to r2" })).toBeVisible();
     await expectAccessible(document.body);
+  });
+});
+
+describe("Deploy", () => {
+  it("lists the versions of what it runs, newest first, and says a typed one is there", async () => {
+    const user = userEvent.setup();
+    const service = anApp("web", "ghcr.io/acme/web:1.5");
+    renderAt(
+      "/apps/svc_web",
+      api([service], {
+        images: {
+          listImageTags: () => ({
+            answer: ImageAnswer.FOUND,
+            tags: [{ name: "1.6", latest: true }, { name: "latest", latest: true }, { name: "1.5" }],
+          }),
+          getImage: (req) => ({ answer: req.reference.endsWith(":1.6") ? ImageAnswer.FOUND : ImageAnswer.NOT_FOUND }),
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Deploy" }));
+    const sheet = await screen.findByRole("dialog", { name: "Deploy web" });
+    const field = within(sheet).getByRole("combobox", { name: "Image" });
+    expect(field).toHaveValue("ghcr.io/acme/web:1.5");
+    // What it runs lists every version, not only itself.
+    const versions = await within(sheet).findAllByRole("option");
+    expect(versions.map((o) => o.textContent)).toEqual(["1.6latest", "latest", "1.5"]);
+    await user.click(versions[0] as HTMLElement);
+    expect(field).toHaveValue("ghcr.io/acme/web:1.6");
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/Found/));
   });
 });
