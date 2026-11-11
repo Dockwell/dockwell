@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -43,8 +44,8 @@ const (
 // as Debian's policy says, an architecture after the name included: the agent
 // installs nothing else, whatever it's sent.
 var (
-	packageName    = regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]*(:[a-z0-9-]+)?$`)
-	packageVersion = regexp.MustCompile(`^[A-Za-z0-9.+~:-]+$`)
+	packageName    = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]*(:[a-z0-9-]+)?$`) })
+	packageVersion = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9.+~:-]+$`) })
 )
 
 // ErrChanged is an install whose updates aren't what its plan said any more, at
@@ -214,7 +215,7 @@ func (in *Installer) Install(ctx context.Context, change string, planned []*dock
 		return nil
 	}
 	for _, p := range planned {
-		if !packageName.MatchString(p.GetName()) || !packageVersion.MatchString(p.GetAvailable()) {
+		if !packageName().MatchString(p.GetName()) || !packageVersion().MatchString(p.GetAvailable()) {
 			return fmt.Errorf("refused to install %q at %q: that isn't a package's name and version", p.GetName(), p.GetAvailable())
 		}
 	}

@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -59,7 +60,7 @@ var sockets = []string{"docker.socket", "ssh.socket"}
 
 // unitName is a unit's name as systemctl knows it, instance escapes such as
 // \x2d included. A name that isn't is never passed on.
-var unitName = regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]+\.(service|socket)$`)
+var unitName = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9:_.@\\-]+\.(service|socket)$`) })
 
 // Reader reads a server's system services.
 type Reader struct {
@@ -142,7 +143,7 @@ func (r *Reader) systemd(ctx context.Context) ([]*dockwellv1.SystemServiceInfo, 
 	names = append(names, sockets...)
 	names = slices.DeleteFunc(names, func(n string) bool {
 		// A template, such as getty@.service, isn't a unit that runs.
-		return !unitName.MatchString(n) || strings.Contains(n, "@.")
+		return !unitName().MatchString(n) || strings.Contains(n, "@.")
 	})
 	slices.Sort(names)
 	names = slices.Compact(names)
@@ -271,7 +272,7 @@ func (r *Reader) openrc(ctx context.Context) ([]*dockwellv1.SystemServiceInfo, e
 }
 
 // rcLine is one service in rc-status's list: its name, then its state in brackets.
-var rcLine = regexp.MustCompile(`^\s+(\S+)\s+\[\s*([a-z]+)`)
+var rcLine = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^\s+(\S+)\s+\[\s*([a-z]+)`) })
 
 func parseRCStatus(out []byte) []*dockwellv1.SystemServiceInfo {
 	seen := map[string]*dockwellv1.SystemServiceInfo{}
@@ -288,7 +289,7 @@ func parseRCStatus(out []byte) []*dockwellv1.SystemServiceInfo {
 			runlevel = ""
 			continue
 		}
-		m := rcLine.FindStringSubmatch(line)
+		m := rcLine().FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
