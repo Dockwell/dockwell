@@ -62,12 +62,12 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await inApp.waitFor();
   if ((await inApp.inputValue()) !== "8080") fail(`the port in the app reads ${await inApp.inputValue()}, not 8080`);
   if (!/^\d+$/.test(await sheet.getByLabel("On the server").inputValue())) fail("no port on the server was filled");
-  await sheet.getByLabel(/^Name/).fill("storefront");
+  await sheet.getByLabel(/^Name/).fill("order-api");
   await shoot(page, "build-new-app");
   // A port someone removes stays removed, and later flows publish 8080 themselves.
   await sheet.getByRole("button", { name: "Remove this port" }).click();
-  await sheet.getByLabel(/^Name/).fill("storefront2");
-  await sheet.getByLabel(/^Name/).fill("storefront");
+  await sheet.getByLabel(/^Name/).fill("order-api2");
+  await sheet.getByLabel(/^Name/).fill("order-api");
   if ((await sheet.getByLabel("In the app").count()) !== 0) fail("a port removed from the form came back");
   await sheet.getByRole("button", { name: "Review plan" }).click();
   const plan = planSheet(page);
@@ -76,10 +76,10 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
     .waitFor();
   await shoot(page, "build-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  const live = page.getByRole("dialog", { name: /^storefront is (live|deployed|running)$/ });
+  const live = page.getByRole("dialog", { name: /^order-api is (live|deployed|running)$/ });
   await live.waitFor({ timeout: 60_000 });
-  await live.getByRole("button", { name: "Open storefront" }).click();
-  await page.getByRole("heading", { level: 1, name: "storefront" }).waitFor();
+  await live.getByRole("button", { name: "Open order-api" }).click();
+  await page.getByRole("heading", { level: 1, name: "order-api" }).waitFor();
   // The header says where it's built from, and on which branch.
   await page.getByText("main", { exact: true }).first().waitFor();
   const first =
@@ -87,7 +87,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
     fail("the header doesn't say which commit runs");
 
   await page.getByRole("link", { name: /Deployments/ }).click();
-  const table = page.getByRole("table", { name: "Revisions of storefront" });
+  const table = page.getByRole("table", { name: "Revisions of order-api" });
   await table.getByRole("row").filter({ hasText: "Add order export endpoint" }).first().waitFor();
   const log = page.getByRole("log", { name: "Build log" });
   // The step, whether it ran or came from the cache, where it prints nothing.
@@ -107,7 +107,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await failed
     .getByText(/The build failed at step 4 of 4, "RUN echo .*": its log marks what it printed last/)
     .waitFor();
-  await failed.getByText(new RegExp(`^storefront stay(s|ed) on ${first}$`)).waitFor();
+  await failed.getByText(new RegExp(`^order-api stay(s|ed) on ${first}$`)).waitFor();
   await shoot(page, "build-failed-sheet");
   await failed.getByRole("button", { name: "Done" }).click();
   // Revisions are numbered by what the app has been through, so a row is found by its commit.
