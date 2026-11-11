@@ -1704,6 +1704,7 @@ func TestAnOlderAgentIsToUpdate(t *testing.T) {
 		{"processes", func() error { _, err := session.Processes(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetProcesses() != nil }},
 		{"system services", func() error { _, err := session.SystemServices(t.Context()); return err }, func(c *agentv1.Call) bool { return c.GetSystemServices() != nil }},
 	} {
+		done := make(chan error, 1)
 		go func() { done <- read.call() }()
 		msg, err := nextCall(stream)
 		if err != nil || !read.is(msg.GetCall()) {
