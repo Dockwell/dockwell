@@ -4370,6 +4370,13 @@ msgstr "版本 <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "你尚未登录"
 
+msgid "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
+msgstr "通行密钥不在手边时，可用 6 位验证码登录，面板的任何地址都可以。"
+
+#. placeholder {0}: state.recoveryCodesLeft
+msgid "A 6-digit code signs you in when your passkey isn't at hand. {0} of 10 recovery codes left."
+msgstr "通行密钥不在手边时，可用 6 位验证码登录。还剩 {0} 个恢复码（共 10 个）。"
+
 msgid "Authenticator app"
 msgstr "身份验证器应用"
 
@@ -4386,8 +4393,8 @@ msgstr "复制恢复码"
 msgid "Download"
 msgstr "下载"
 
-msgid "Each code signs you in once, with your email, if you lose your authenticator app. They're shown only now. Keep them somewhere safe, apart from your phone."
-msgstr "如果你丢了身份验证器应用，每个恢复码可以配合你的邮箱登录一次。它们只在此时显示。请把它们保存在安全的地方，不要和手机放在一起。"
+msgid "Each signs you in once if you lose your authenticator app. Shown only now: keep them apart from your phone."
+msgstr "丢失身份验证器应用时，每个恢复码可登录一次。只在此时显示：请与手机分开保存。"
 
 msgid "Enter the 6-digit code it shows"
 msgstr "输入它显示的 6 位验证码"
@@ -4434,18 +4441,11 @@ msgstr "设置"
 msgid "Set up an authenticator app"
 msgstr "设置身份验证器应用"
 
-msgid "Sign in with a 6-digit code when your passkey isn't at hand. Codes work at every address, so they also get you in after the panel moves to a new domain."
-msgstr "通行密钥不在手边时，可以用 6 位验证码登录。验证码在所有地址都有效，所以面板换到新域名后也能用它登录。"
-
-#. placeholder {0}: state.recoveryCodesLeft
-msgid "Sign in with a 6-digit code when your passkey isn't at hand. {0} of 10 recovery codes are left."
-msgstr "通行密钥不在手边时，可以用 6 位验证码登录。还剩 {0} 个恢复码（共 10 个）。"
-
 msgid "Such as 1Password, Google Authenticator or Aegis"
 msgstr "例如 1Password、Google Authenticator 或 Aegis"
 
-msgid "Ten new codes replace the {left} you have now, and the old ones stop working at once. You see the new ones only once."
-msgstr "10 个新恢复码将替换你现有的 {left} 个，旧的会立即失效。新的恢复码只显示一次。"
+msgid "Ten new codes replace your {left}, which stop working at once."
+msgstr "十个新恢复码会替换你现有的 {left} 个，旧的立即失效。"
 
 msgid "The authenticator app isn't set up yet"
 msgstr "身份验证器应用尚未设置"
@@ -4459,8 +4459,8 @@ msgstr "关闭并删除恢复码"
 msgid "Turn on"
 msgstr "开启"
 
-msgid "Claim it with a one-time link from {name}, such as the one the install printed. For a new link, run this on {name} over SSH:"
-msgstr "用来自 {name} 的一次性链接认领它，例如安装结束时打印的那个。如需新链接，请通过 SSH 在 {name} 上运行："
+msgid "Claim it with the link the install printed. For a new one, run this on {name}:"
+msgstr "用安装时输出的链接认领它。要获取新链接，请在 {name} 上运行："
 
 msgid "No owner yet"
 msgstr "还没有所有者"
@@ -4991,8 +4991,8 @@ msgstr "保留的备份数"
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
 
-msgid "Dockwell can't say yet what each backup takes, as this volume is empty or too large to measure quickly. The disk has {toGive} to give."
-msgstr "Dockwell 暂时无法说明每次备份占用多少空间，因为这个卷是空的，或者太大无法快速测量。磁盘还有 {toGive} 可用。"
+msgid "Dockwell can't size a backup yet: this volume is empty or too large to measure quickly. The disk has {toGive}."
+msgstr "Dockwell 暂时无法估算备份大小：这个卷是空的，或太大无法快速测量。磁盘还有 {toGive} 可用。"
 
 msgid "Hourly"
 msgstr "每小时"
@@ -5005,8 +5005,8 @@ msgstr "时区 {zone}"
 
 #. placeholder {0}: formatBytes(total, i18n.locale)
 #. placeholder {1}: formatBytes(room > 0n ? room : 0n, i18n.locale)
-msgid "Keeping {count} takes about {0} while the next is taken, and the disk has {1} to give. A backup that won't fit fails, and says so on Activity."
-msgstr "保留 {count} 份在下次备份期间约占 {0}，磁盘还有 {1} 可用。放不下的备份会失败，并在“活动”中说明。"
+msgid "Keeping {count} takes about {0} while the next is taken; the disk has {1}. One that won't fit fails."
+msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。放不下的备份会失败。"
 
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
@@ -5036,8 +5036,8 @@ msgstr "无论结果如何，复制结束后被停止的内容都会重新启动
 #. placeholder {1}: formatBytes(total, i18n.locale)
 #. placeholder {2}: formatBytes(each, i18n.locale)
 #. placeholder {3}: formatBytes(total, i18n.locale)
-msgid "{count, plural, one {Each backup takes about {0}, so keeping one takes about {1} while the next is taken, and the disk has {toGive} to give.} other {Each backup takes about {2}, so keeping # takes about {3} while the next is taken, and the disk has {toGive} to give.}}"
-msgstr "{count, plural, other {每次备份约占 {0}，保留 # 份在下次备份期间约占 {1}，磁盘还有 {toGive} 可用。}}"
+msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
+msgstr "{count, plural, other {每次备份约占 {0}；保留 # 份约占 {1}。磁盘还有 {toGive} 可用。}}"
 
 msgid "Copy of a running app"
 msgstr "运行中应用的副本"
@@ -8038,8 +8038,8 @@ msgstr "选择要上传的文件"
 msgid "Drop files here, or choose them."
 msgstr "将文件拖放到这里，或选择文件。"
 
-msgid "Each .zip, .tar.gz or .tgz also unpacks into a new folder beside it, named after it. Links and anything that could let someone onto the server stop it."
-msgstr "每个 .zip、.tar.gz 或 .tgz 还会解压到旁边一个以它命名的新文件夹。其中若有链接，或任何可能让他人进入服务器的内容，解压会停止。"
+msgid "Each .zip, .tar.gz or .tgz unpacks into a folder beside it, unless it holds links or unsafe paths."
+msgstr "每个 .zip、.tar.gz 或 .tgz 会解压到旁边的文件夹中，除非其中含有链接或不安全的路径。"
 
 msgid "Files to upload"
 msgstr "要上传的文件"
@@ -8068,8 +8068,8 @@ msgstr "停止"
 msgid "Stopped at {part} of {whole}"
 msgstr "停在 {part}，共 {whole}"
 
-msgid "The connection dropped before {name} was all sent. What arrived is kept for a day: upload it again to go on from there."
-msgstr "{name} 尚未全部发送，连接就断开了。已到达的部分会保留一天：再次上传即可从断点继续。"
+msgid "The connection dropped before {name} was all sent. Upload it again within a day to go on from there."
+msgstr "{name} 还没传完连接就断开了。一天内再次上传即可从断点继续。"
 
 #. placeholder {0}: err.status
 msgid "The control plane answered {0}, so {name} stopped. Upload it again to go on from where it got."
@@ -8978,9 +8978,6 @@ msgstr "{minutes} 分钟"
 msgid "Back to the server"
 msgstr "返回服务器"
 
-msgid "Dockwell runs it as a service from then on, so changing its image is a plan you can undo, and it keeps its volumes. Taking it on doesn't restart it, and its environment comes in sealed, so no plan or log shows it."
-msgstr "此后 Dockwell 会把它作为服务运行，因此更换镜像是一个可撤销的计划，并保留它的卷。接管不会重启它，它的环境变量会加密带入，任何计划或日志都不会显示。"
-
 msgid "It mounts none."
 msgstr "它没有挂载任何内容。"
 
@@ -9007,6 +9004,9 @@ msgstr "计划接管 {project} 的全部 {inProject} 个容器"
 
 msgid "Take it on"
 msgstr "接管它"
+
+msgid "Taking it on doesn't restart it or touch its volumes; its environment comes in sealed."
+msgstr "接管不会重启它，也不会动它的卷；它的环境变量会被加密封存。"
 
 msgid "What Docker says of it"
 msgstr "Docker 显示的信息"
@@ -9145,8 +9145,8 @@ msgstr "{0} 上的所有容器都会随之停止，因为 Docker 需要它来运
 msgid "It asks for your passkey, and goes on Activity"
 msgstr "需要你的通行密钥，并会记入动态"
 
-msgid "It gets SIGTERM, to end as it would on shutdown, and SIGKILL if it's still running 10 s later. What it hasn't saved is lost, and this can't be undone."
-msgstr "它会先收到 SIGTERM，像关机时一样结束；10 秒后若仍在运行，则收到 SIGKILL。它尚未保存的内容会丢失，且无法撤销。"
+msgid "It gets SIGTERM, then SIGKILL 10 s later if it's still running. Unsaved work is lost for good."
+msgstr "它会收到 SIGTERM，若 10 秒后仍在运行则收到 SIGKILL。未保存的内容会永久丢失。"
 
 msgid "It runs in {where}, but isn't its main process, so nothing starts it again, and the container goes on running."
 msgstr "它运行在{where}中，但不是其主进程，因此不会被再次启动，容器会继续运行。"
@@ -9158,14 +9158,14 @@ msgstr "它运行在 {0}.service 下，该单元可能会按其配置再次启�
 msgid "It's the main process of {where}, which Docker starts again, as its restart policy says."
 msgstr "它是{where}的主进程，Docker 会按其重启策略再次启动它。"
 
-msgid "It's the main process of {where}, which stops with it, and Docker doesn't start it again, as its restart policy is no."
-msgstr "它是{where}的主进程，{where}会随之停止，且由于其重启策略为 no，Docker 不会再次启动它。"
+msgid "It's the main process of {where}, which stops with it and may stay stopped: Docker restarts it only after an error."
+msgstr "它是 {where} 的主进程，{where} 会随之停止并可能保持停止：Docker 只在出错后重启它。"
+
+msgid "It's the main process of {where}, which stops with it and stays stopped: its restart policy is no."
+msgstr "它是 {where} 的主进程，{where} 会随之停止并保持停止：它的重启策略是 no。"
 
 msgid "It's the main process of {where}, which stops with it, and may start again, as its restart policy says."
 msgstr "它是{where}的主进程，{where}会随之停止，并可能按其重启策略再次启动。"
-
-msgid "It's the main process of {where}, which stops with it. Docker starts it again only if it ends with an error, and a process that takes SIGTERM can end without one."
-msgstr "它是{where}的主进程，{where}会随之停止。Docker 只在它出错退出时再次启动它，而收到 SIGTERM 的进程可能正常退出。"
 
 msgid "Its container stops with it, as this is what runs the container."
 msgstr "它的容器会随之停止，因为容器由它运行。"
@@ -9531,20 +9531,20 @@ msgstr "正在加载服务器"
 msgid "Reconnecting"
 msgstr "正在重新连接"
 
-msgid "The panel can't reach the control plane, so it can't say how this server is. It last heard {ago}, and keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定这台服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+msgid "The panel can't reach the control plane, so this server is shown as of {ago}. It keeps trying."
+msgstr "面板无法连接控制平面，因此这台服务器显示的是{ago}的状态。面板会继续尝试。"
 
-msgid "The panel can't reach the control plane, so it can't say how your servers are. It last heard {ago}, and keeps trying."
-msgstr "面板无法连接控制平面，因此无法确定你的服务器的情况。上次收到消息是在{ago}，面板会继续尝试。"
+msgid "The panel can't reach the control plane, so your servers are shown as of {ago}. It keeps trying."
+msgstr "面板无法连接控制平面，因此你的服务器显示的是{ago}的状态。面板会继续尝试。"
 
 msgid "The server list didn't load. Dockwell keeps trying."
 msgstr "服务器列表未能加载。Dockwell 会继续重试。"
 
-msgid "This browser is offline, so the panel can't say how this server is. It last heard {ago}. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定这台服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+msgid "This browser is offline, so this server is shown as of {ago}. Check your connection."
+msgstr "此浏览器已离线，因此这台服务器显示的是{ago}的状态。请检查网络连接。"
 
-msgid "This browser is offline, so the panel can't say how your servers are. It last heard {ago}. Check your connection."
-msgstr "此浏览器已离线，因此面板无法确定你的服务器的情况。上次收到消息是在{ago}。请检查你的网络连接。"
+msgid "This browser is offline, so your servers are shown as of {ago}. Check your connection."
+msgstr "此浏览器已离线，因此你的服务器显示的是{ago}的状态。请检查网络连接。"
 
 msgid "You're offline"
 msgstr "你已离线"
@@ -9717,8 +9717,8 @@ msgid "The agent hasn't reported yet."
 msgstr "代理尚未上报。"
 
 #. placeholder {0}: server.name
-msgid "The agent on {0} isn't connected, so what runs there can't be read now. This page reads again when it reconnects."
-msgstr "{0} 上的代理未连接，因此现在无法读取那里运行的内容。代理重新连接后，此页面会再次读取。"
+msgid "The agent on {0} isn't connected; this reads again once it reconnects."
+msgstr "{0} 上的代理未连接；重新连接后会再次读取。"
 
 msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
 msgstr "此 SSH 服务器接受新的登录，是重新进入服务器的途径。请改为用 systemctl restart ssh 重启它。"
@@ -10337,9 +10337,6 @@ msgstr "{name} 等 {more} 项"
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
 
-msgid "A server that joined upgrades the same way: run the install script again on it."
-msgstr "已加入的服务器以同样方式升级：在它上面再次运行安装脚本。"
-
 msgid "Agents"
 msgstr "代理"
 
@@ -10355,9 +10352,6 @@ msgstr "响应时间"
 msgid "Apps' volumes and databases have backups of their own, under <0>Backups</0>."
 msgstr "应用的卷和数据库有各自的备份，见<0>备份</0>。"
 
-msgid "Back the database up with <0>pg_dump</0>, as any Postgres database, and copy the control plane's folder and the key as below."
-msgstr "像备份任何 Postgres 数据库一样用 <0>pg_dump</0> 备份它，并按下面的方法复制控制平面的文件夹和密钥。"
-
 msgid "Built from {commit}"
 msgstr "由 {commit} 构建"
 
@@ -10370,17 +10364,11 @@ msgstr "目前需手动"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell 无法获知其控制平面的状态"
 
-msgid "Dockwell doesn't back up its own state yet. Copy it off this server, with the key apart from it: the key opens every secret the state store keeps, and a copy of the store opens none without it."
-msgstr "Dockwell 还不会备份自己的状态。请把它复制到这台服务器之外，并把密钥分开存放：密钥能打开状态存储中的所有机密，没有密钥，存储的副本一个也打不开。"
-
-msgid "Dockwell doesn't check for releases or upgrade itself yet. For a particular release, end the command with <0>sudo sh -s -- --version 0.4.0</0>."
-msgstr "Dockwell 还不会检查新版本或自行升级。要安装特定版本，请将命令结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
-
-msgid "Dockwell doesn't run as a service here, so stop <0>dockwell run</0> first: the store is whole only while nothing writes to it. Then run this as root, and start Dockwell again after."
-msgstr "Dockwell 在这里没有作为服务运行，所以请先停止 <0>dockwell run</0>：只有在没有任何写入时，存储才是完整的。然后以 root 身份运行以下命令，完成后再启动 Dockwell。"
-
 msgid "Engine"
 msgstr "引擎"
+
+msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
+msgstr "要安装特定版本，请将结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
 
 msgid "From elsewhere"
 msgstr "从其他网络"
@@ -10400,6 +10388,12 @@ msgstr "密钥"
 
 msgid "Location"
 msgstr "位置"
+
+msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
+msgstr "这里没有作为服务运行：先停止 <0>dockwell run</0>，以 root 身份运行以下命令，然后再启动它。"
+
+msgid "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
+msgstr "在这台服务器上运行，它会安装最新版本并重启 Dockwell；应用照常提供服务。"
 
 msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 msgstr "一个 · 它停止时，面板和 API 随之停止，服务器上运行的内容照常运行"
@@ -10436,14 +10430,17 @@ msgstr "版本发布"
 msgid "Replicas"
 msgstr "副本"
 
-msgid "Run this as root, in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "请以 root 身份，在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，之后的步骤都不会运行，Dockwell 也会一直处于停止状态。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+msgid "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "请以 root 身份通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
 
-msgid "Run this in an SSH session on the control server, not in a terminal Dockwell opens: stopping Dockwell ends that terminal, so nothing after the stop runs and Dockwell stays stopped. It stops Dockwell for the copy, so the store is whole, and copies nothing if it can't. Your apps keep serving while it's stopped, and servers reconnect when it's back."
-msgstr "请在控制服务器上的 SSH 会话中运行，不要在 Dockwell 打开的终端里运行：停止 Dockwell 会结束那个终端，之后的步骤都不会运行，Dockwell 也会一直处于停止状态。它会在复制前停止 Dockwell，以保证存储完整；如果停止失败，则不会复制任何内容。停止期间你的应用会继续提供服务，Dockwell 恢复后服务器会重新连接。"
+msgid "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
+msgstr "请通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
 
 msgid "SQLite, on this server"
 msgstr "SQLite，在这台服务器上"
+
+msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
+msgstr "在 Dockwell 启动的地方设置；面板的域名在<0>常规</0>中。"
 
 msgctxt "on disk"
 msgid "Size"
@@ -10452,20 +10449,21 @@ msgstr "磁盘占用"
 msgid "State store"
 msgstr "状态存储"
 
+msgid "The database isn't in it: back it up with <0>pg_dump</0>."
+msgstr "其中不含数据库：请用 <0>pg_dump</0> 备份它。"
+
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
 
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off the server, to two different places."
-msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出服务器，分别存放在两个不同的地方。"
-
-msgid "These come from how Dockwell was started. The panel's domain is under <0>General</0>; the rest is set the same way."
-msgstr "这些取决于 Dockwell 的启动方式。面板的域名在<0>常规</0>中；其余的也以同样方式设置。"
+msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
+msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出这台服务器，分开存放：密钥能打开副本中的所有机密。"
 
 msgid "This control plane"
 msgstr "当前控制平面"
 
-msgid "To upgrade, run the install script again on this server, as root. If there's a newer release, it verifies and installs it, then restarts Dockwell. Your apps keep serving."
-msgstr "要升级，请以 root 身份在这台服务器上再次运行安装脚本。如果有新版本，它会验证并安装，然后重启 Dockwell。你的应用照常提供服务。"
+#. placeholder {0}: s.name
+msgid "Update the agent on {0}"
+msgstr "更新 {0} 上的代理"
 
 msgid "agent"
 msgstr "个代理"
@@ -10529,9 +10527,6 @@ msgstr "{0}，自 {1} 起"
 msgid "A change goes on Activity, with what it replaced."
 msgstr "每次更改都会连同被替换的值记入动态。"
 
-msgid "A new schedule, such as a backup's, starts in it unless it names its own, from the panel, the CLI or the API. Each keeps the zone it was made with."
-msgstr "新的计划（例如备份计划）除非指定了自己的时区，否则都使用这个时区，无论来自面板、CLI 还是 API。每个计划保留创建时的时区。"
-
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "始终可用，通过到服务器的 SSH 隧道访问"
 
@@ -10552,6 +10547,9 @@ msgstr "本机回环"
 
 msgid "Loopback only"
 msgstr "仅本机回环"
+
+msgid "New schedules start in it; each keeps the zone it was made with."
+msgstr "新的计划使用这个时区；每个计划保留创建时的时区。"
 
 msgid "Not set: UTC"
 msgstr "未设置：UTC"
@@ -10580,11 +10578,11 @@ msgstr "提供方"
 msgid "Show the panel in"
 msgstr "面板显示语言"
 
+msgid "Shown on the sign-in screen and in browser tabs."
+msgstr "显示在登录页和浏览器标签页上。"
+
 msgid "The domain is set where Dockwell runs, as <0>DOCKWELL_DOMAIN</0>, and read as it starts. Change it there and restart Dockwell:"
 msgstr "域名在 Dockwell 运行的地方以 <0>DOCKWELL_DOMAIN</0> 设置，并在启动时读取。请在那里修改并重启 Dockwell："
-
-msgid "The sign-in screen and your browser's tabs say it. Empty, they say Dockwell."
-msgstr "登录页和浏览器标签页会显示它。留空时显示 Dockwell。"
 
 msgid "This install"
 msgstr "此安装"
@@ -10620,11 +10618,8 @@ msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在�
 msgid "A backup didn't get here {when}"
 msgstr "{when}有一份备份未能送达"
 
-msgid "A route can sit behind Cloudflare's proxy, trusting its addresses, or behind a Cloudflare Tunnel, with TLS ending there. Managing its DNS records from Dockwell comes later."
-msgstr "路由可以位于 Cloudflare 代理之后并信任其地址，或位于 Cloudflare Tunnel 之后，由它终止 TLS。从 Dockwell 管理其 DNS 记录将在之后推出。"
-
-msgid "Amazon S3, Cloudflare R2, Backblaze B2, MinIO or any S3 API. Backups are sealed on their server before they leave."
-msgstr "Amazon S3、Cloudflare R2、Backblaze B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
+msgid "A route can sit behind its proxy or a Tunnel."
+msgstr "路由可以位于它的代理或 Tunnel 之后。"
 
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
@@ -10633,17 +10628,8 @@ msgstr "任何 DNS 服务商"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
 
-msgid "Cloud providers"
-msgstr "云服务商"
-
-msgid "Coming later"
-msgstr "之后推出"
-
 msgid "Connect storage"
 msgstr "连接存储"
-
-msgid "Credentials for private images. Today a server pulls public images only, without its docker login, so a private image runs only once someone has pulled it on that server by hand."
-msgstr "私有镜像的凭据。目前服务器只拉取公开镜像，不使用它的 docker login，因此私有镜像只有在有人手动在该服务器上拉取后才能运行。"
 
 msgid "DNS and proxies"
 msgstr "DNS 和代理"
@@ -10651,14 +10637,11 @@ msgstr "DNS 和代理"
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
 
-msgid "Git"
-msgstr "Git"
+msgid "Dockwell says which record to make, then gets the certificate."
+msgstr "Dockwell 会说明要创建哪条记录，然后获取证书。"
 
-msgid "GitHub, GitLab and Gitea, to deploy an app from a repository when it changes. Today an app runs an image, or a Compose file."
-msgstr "GitHub、GitLab 和 Gitea，在仓库变更时部署应用。目前应用运行的是镜像或 Compose 文件。"
-
-msgid "Hetzner, DigitalOcean, Vultr and AWS, to make and replace servers. Today a server joins with the install script and a ticket."
-msgstr "Hetzner、DigitalOcean、Vultr 和 AWS，用于创建和替换服务器。目前服务器通过安装脚本和加入凭证加入。"
+msgid "Git providers, private registries and cloud providers come later."
+msgstr "Git 服务商、私有镜像仓库和云服务商将在之后推出。"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
@@ -10681,15 +10664,12 @@ msgstr "对象存储"
 msgid "Open Domains"
 msgstr "打开域名"
 
-msgid "Point a domain's record at a server and Dockwell gets its certificate. The domain form says which record to make, and follows DNS until it's there."
-msgstr "将域名记录指向服务器，Dockwell 就会为它获取证书。域名表单会说明要创建哪条记录，并持续跟踪 DNS 直到生效。"
-
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "{0}收到一份备份"
 
-msgid "Registries"
-msgstr "镜像仓库"
+msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
+msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
 
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
@@ -11207,11 +11187,11 @@ msgstr "设置、状态和账户"
 msgid "Variables and secrets"
 msgstr "变量和密钥"
 
+msgid "It arrives in a later release."
+msgstr "它将在之后的版本中推出。"
+
 msgid "Not in this release yet"
 msgstr "此版本尚未提供"
-
-msgid "This part of Dockwell isn't built yet; it arrives in a later release. Until then, the overview shows how your servers are doing."
-msgstr "Dockwell 的这一部分尚未完成，会在之后的版本中推出。在此之前，可以在概览中查看服务器的运行情况。"
 
 msgid "Dockwell {short}: control plane status"
 msgstr "Dockwell {short}：控制平面状态"
@@ -12277,11 +12257,11 @@ msgstr "它读取 apt、dnf 和 apk"
 msgid "It reads them with apt on Debian and Ubuntu, dnf on AlmaLinux, Rocky Linux and RHEL, and apk on Alpine."
 msgstr "它在 Debian 和 Ubuntu 上用 apt、在 AlmaLinux、Rocky Linux 和 RHEL 上用 dnf、在 Alpine 上用 apk 读取更新。"
 
-msgid "It's older than the control plane. Update it by running the install script on {name} again, which keeps what runs:"
-msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可更新它，正在运行的内容不受影响："
+msgid "It's older than the control plane. Run the install script on {name} again; what runs keeps running."
+msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可；正在运行的内容会继续运行。"
 
-msgid "It's older than the control plane. Update it to the control plane's version by running the install script on {name} again, which keeps what runs."
-msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本，把它更新到控制平面的版本，正在运行的内容不受影响。"
+msgid "It's older than the control plane. Run the install script on {name} again; what runs keeps running:"
+msgstr "它比控制平面旧。在 {name} 上再次运行安装脚本即可；正在运行的内容会继续运行："
 
 msgid "Its agent isn't connected"
 msgstr "它的代理未连接"
