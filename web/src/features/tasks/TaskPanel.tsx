@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type TaskInfo, TaskKind, type TaskRun, TaskRunState, TaskService } from "@dockwell/api";
+import { ChangeService, type TaskInfo, TaskKind, type TaskRun, TaskRunState, TaskService } from "@dockwell/api";
 import { Button, Callout, Glyph, type GlyphShape, SelectField, StatusBadge } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -69,7 +69,8 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
     return last.exitCode === -1 ? t`stopped` : t`exit ${last.exitCode}`;
   };
 
-  const mayRun = useMay()(TaskService.method.runTask);
+  const may = useMay();
+  const mayRun = may(TaskService.method.runTask);
   const runNow = async () => {
     setRunning(true);
     setRunFailure(undefined);
@@ -235,7 +236,11 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
           <Button icon="play" loading={running} onClick={() => void runNow()} {...mayRun.off}>
             <Trans>Run now</Trans>
           </Button>
-          <Button icon="edit" onClick={() => setEditing(true)}>
+          <Button
+            icon="edit"
+            onClick={() => setEditing(true)}
+            {...may(ChangeService.method.proposeChange, { environment: task.resource?.scope ?? "" }).off}
+          >
             <Trans>Edit</Trans>
           </Button>
           <span className="tasks-fill" />

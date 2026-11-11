@@ -25,6 +25,7 @@ const (
 	MethodAuthenticator = "authenticator_code"
 	MethodRecoveryCode  = "recovery_code"
 	MethodLink          = "link"
+	MethodInvite        = "invite"
 )
 
 // Principal is who a call acts for: a signed-in user and the session they

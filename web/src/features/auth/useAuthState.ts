@@ -88,7 +88,7 @@ function matchesAuth(key: readonly unknown[]): boolean {
 }
 
 /** The screens for signing in, which a visit is never headed for once it has. */
-const SIGN_IN_PATHS = new Set(["/sign-in", "/claim", "/recover"]);
+const SIGN_IN_PATHS = new Set(["/sign-in", "/claim", "/recover", "/invite"]);
 
 /**
  * Where to go after signing in: a path on this panel, never another site,
