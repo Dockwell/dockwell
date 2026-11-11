@@ -84,6 +84,10 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "CatalogService.installCatalogEntry": "may",
   "CatalogService.listCatalogEntries": "read",
   "CatalogService.listCatalogInstalls": "read",
+  "CatalogService.listCatalogSourceRefs": "unused",
+  "CatalogService.listCatalogSources": "unused",
+  "CatalogService.removeCatalogSource": "unused",
+  "CatalogService.setCatalogSource": "unused",
   "CatalogService.upgradeCatalogInstall": "may",
 
   "ChangeService.adoptDrift": "unused",

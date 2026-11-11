@@ -1017,6 +1017,131 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/sources:
+        get:
+            tags:
+                - CatalogService
+            description: |-
+                ListCatalogSources returns the catalogs Dockwell reads beside its own, with
+                 how many of each one's entries it shows, and why it leaves out the rest.
+            operationId: CatalogService_ListCatalogSources
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCatalogSourcesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/sources/{name}:remove:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                RemoveCatalogSource plans no longer reading a catalog, ready to apply or
+                 discard. What's installed from it stays as it runs, and can't upgrade from it.
+                 An admin's, as setting one is.
+            operationId: CatalogService_RemoveCatalogSource
+            parameters:
+                - name: name
+                  in: path
+                  description: The source's name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemoveCatalogSourceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveCatalogSourceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/sources/{name}:set:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SetCatalogSource plans adding a catalog from a public Git repository, or moving
+                 one to another commit, ready to apply or discard. Dockwell reads the commit over
+                 Git's own protocol, checking what it reads against its names, and checks each
+                 entry as it checks its own. The plan's notes say what the commit holds, and what
+                 Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
+                 has. A source decides what anyone can install, so setting one is an
+                 admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+            operationId: CatalogService_SetCatalogSource
+            parameters:
+                - name: name
+                  in: path
+                  description: What to call it, such as "community", which its entries show beside them.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetCatalogSourceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetCatalogSourceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/sources:refs:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                ListCatalogSourceRefs lists the branches and tags of a public Git repository,
+                 each with the commit it's at now, so a form can check a repository as it's
+                 typed and offer its branches to pin a source to. It reads the repository as
+                 SetCatalogSource does, at public addresses alone, and changes nothing. An
+                 admin's, as it reads the network for whoever asks.
+            operationId: CatalogService_ListCatalogSourceRefs
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListCatalogSourceRefsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCatalogSourceRefsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes:
         get:
             tags:
@@ -6719,10 +6844,12 @@ components:
                     format: uint32
                 repository:
                     type: string
-                    description: The repository the entry came from.
+                    description: |-
+                        The repository the entry came from, as the control plane knows it: Dockwell's
+                         own for its built-in catalog, or a catalog source's. Never what the entry says.
                 commit:
                     type: string
-                    description: The commit it came from.
+                    description: 'The commit it came from: the build''s, or the source''s when it was installed.'
                 values:
                     type: object
                     additionalProperties:
@@ -6738,9 +6865,85 @@ components:
                          needs to tell that from what a person changed since. Empty for an install from
                          before Dockwell kept it, which can't be upgraded.
                     format: bytes
+                catalog:
+                    type: string
+                    description: |-
+                        The catalog source it came from, by name, or empty for Dockwell's own. An
+                         upgrade comes only from the same catalog, at the same repository and folder,
+                         whatever else has an entry of its ID (ADR 0055).
+                path:
+                    type: string
+                    description: The folder in the repository its source reads, for an entry from a source.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
+        CatalogSource:
+            type: object
+            properties:
+                repository:
+                    type: string
+                    description: |-
+                        The repository's URL, over HTTPS, such as
+                         "https://github.com/example/catalog".
+                path:
+                    type: string
+                    description: |-
+                        The folder of entries in it, one <id>.yaml each, such as "entries". Empty is
+                         its top.
+                commit:
+                    type: string
+                    description: The commit it's read at, in full, as 40 hex digits.
+            description: |-
+                CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
+                 entries in its format in a public Git repository, at one commit. Moving it to
+                 another commit is a change, so what anyone can install from it moves only with a
+                 plan. See docs/adr/0055-catalogs-from-a-git-url.md.
+        CatalogSourceInfo:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name.
+                source:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogSource'
+                    description: What it reads, as the resource says.
+                entries:
+                    type: array
+                    items:
+                        type: string
+                    description: The IDs of the entries the catalog shows from it, sorted.
+                refused:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceRefusal'
+                    description: What it leaves out, by file.
+                unread:
+                    type: string
+                    description: |-
+                        Why its entries can't be read now, such as a host that doesn't answer. Empty
+                         when they can.
+            description: CatalogSourceInfo is a source, and what Dockwell made of it.
+        CatalogSourceRef:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its full name, such as "refs/heads/main" or "refs/tags/v1".
+                commit:
+                    type: string
+                    description: The commit it's at, in full. A tag's is the commit it names.
+            description: CatalogSourceRef is a branch or a tag, and the commit it's at.
+        CatalogSourceRefusal:
+            type: object
+            properties:
+                file:
+                    type: string
+                    description: The file's name in the source's folder, such as "notes.yaml".
+                reason:
+                    type: string
+                    description: Why, such as what the catalog's check says of it.
+            description: CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
         CatalogUpgrade:
             type: object
             properties:
@@ -10975,6 +11178,34 @@ components:
                         $ref: '#/components/schemas/CatalogInstall'
                     description: The installs, sorted by project.
             description: ListCatalogInstallsResponse lists what's installed from the catalog.
+        ListCatalogSourceRefsRequest:
+            type: object
+            properties:
+                repository:
+                    type: string
+                    description: The repository's URL, over HTTPS.
+            description: ListCatalogSourceRefsRequest names a repository.
+        ListCatalogSourceRefsResponse:
+            type: object
+            properties:
+                refs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceRef'
+                    description: 'Each branch, then each tag, by name. At most 500: more are left out.'
+                more:
+                    type: boolean
+                    description: Whether some were left out.
+            description: ListCatalogSourceRefsResponse is the repository's branches and tags.
+        ListCatalogSourcesResponse:
+            type: object
+            properties:
+                sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceInfo'
+                    description: Each source, by name.
+            description: ListCatalogSourcesResponse is every source.
         ListChangesResponse:
             type: object
             properties:
@@ -13072,6 +13303,21 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now.
             description: RegenerateRecoveryCodesResponse carries the new codes.
+        RemoveCatalogSourceRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The source's name.
+            description: RemoveCatalogSourceRequest names the source to stop reading.
+        RemoveCatalogSourceResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: RemoveCatalogSourceResponse is the change that removes it.
         RemovePasskeyRequest:
             type: object
             properties:
@@ -14869,6 +15115,30 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetCatalogSourceRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: What to call it, such as "community", which its entries show beside them.
+                repository:
+                    type: string
+                    description: The repository's URL, over HTTPS.
+                path:
+                    type: string
+                    description: The folder of entries in it. Empty is its top.
+                commit:
+                    type: string
+                    description: The commit to read it at, in full, as 40 hex digits.
+            description: SetCatalogSourceRequest names a source, and what it reads.
+        SetCatalogSourceResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: SetCatalogSourceResponse is the change that sets it.
         SetInstallNameRequest:
             type: object
             properties:
@@ -15108,6 +15378,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertCheck'
                     description: An address checked for whether it answers, kind "alert.check" (ADR 0066).
+                catalogSource:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogSource'
+                    description: |-
+                        A catalog read from a Git repository, kind "catalog.source". Numbered
+                         apart, as open work adds to this message.
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'

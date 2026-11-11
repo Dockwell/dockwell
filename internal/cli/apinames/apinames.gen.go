@@ -28,6 +28,7 @@ func Commands() []string {
 		"backups",
 		"builds",
 		"catalog",
+		"catalog-sources",
 		"changes",
 		"claim-link",
 		"compose",

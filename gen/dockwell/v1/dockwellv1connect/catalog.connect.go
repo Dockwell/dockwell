@@ -50,6 +50,18 @@ const (
 	// CatalogServiceInstallCatalogEntryProcedure is the fully-qualified name of the CatalogService's
 	// InstallCatalogEntry RPC.
 	CatalogServiceInstallCatalogEntryProcedure = "/dockwell.v1.CatalogService/InstallCatalogEntry"
+	// CatalogServiceSetCatalogSourceProcedure is the fully-qualified name of the CatalogService's
+	// SetCatalogSource RPC.
+	CatalogServiceSetCatalogSourceProcedure = "/dockwell.v1.CatalogService/SetCatalogSource"
+	// CatalogServiceListCatalogSourcesProcedure is the fully-qualified name of the CatalogService's
+	// ListCatalogSources RPC.
+	CatalogServiceListCatalogSourcesProcedure = "/dockwell.v1.CatalogService/ListCatalogSources"
+	// CatalogServiceListCatalogSourceRefsProcedure is the fully-qualified name of the CatalogService's
+	// ListCatalogSourceRefs RPC.
+	CatalogServiceListCatalogSourceRefsProcedure = "/dockwell.v1.CatalogService/ListCatalogSourceRefs"
+	// CatalogServiceRemoveCatalogSourceProcedure is the fully-qualified name of the CatalogService's
+	// RemoveCatalogSource RPC.
+	CatalogServiceRemoveCatalogSourceProcedure = "/dockwell.v1.CatalogService/RemoveCatalogSource"
 )
 
 // CatalogServiceClient is a client for the dockwell.v1.CatalogService service.
@@ -82,6 +94,27 @@ type CatalogServiceClient interface {
 	// response carries it, and revealing it takes a passkey. Making a project is
 	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
+	// SetCatalogSource plans adding a catalog from a public Git repository, or moving
+	// one to another commit, ready to apply or discard. Dockwell reads the commit over
+	// Git's own protocol, checking what it reads against its names, and checks each
+	// entry as it checks its own. The plan's notes say what the commit holds, and what
+	// Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
+	// has. A source decides what anyone can install, so setting one is an
+	// admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+	SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error)
+	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
+	// how many of each one's entries it shows, and why it leaves out the rest.
+	ListCatalogSources(context.Context, *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error)
+	// ListCatalogSourceRefs lists the branches and tags of a public Git repository,
+	// each with the commit it's at now, so a form can check a repository as it's
+	// typed and offer its branches to pin a source to. It reads the repository as
+	// SetCatalogSource does, at public addresses alone, and changes nothing. An
+	// admin's, as it reads the network for whoever asks.
+	ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error)
+	// RemoveCatalogSource plans no longer reading a catalog, ready to apply or
+	// discard. What's installed from it stays as it runs, and can't upgrade from it.
+	// An admin's, as setting one is.
+	RemoveCatalogSource(context.Context, *connect.Request[v1.RemoveCatalogSourceRequest]) (*connect.Response[v1.RemoveCatalogSourceResponse], error)
 }
 
 // NewCatalogServiceClient constructs a client for the dockwell.v1.CatalogService service. By
@@ -128,6 +161,31 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("InstallCatalogEntry")),
 			connect.WithClientOptions(opts...),
 		),
+		setCatalogSource: connect.NewClient[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse](
+			httpClient,
+			baseURL+CatalogServiceSetCatalogSourceProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("SetCatalogSource")),
+			connect.WithClientOptions(opts...),
+		),
+		listCatalogSources: connect.NewClient[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse](
+			httpClient,
+			baseURL+CatalogServiceListCatalogSourcesProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("ListCatalogSources")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		listCatalogSourceRefs: connect.NewClient[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse](
+			httpClient,
+			baseURL+CatalogServiceListCatalogSourceRefsProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("ListCatalogSourceRefs")),
+			connect.WithClientOptions(opts...),
+		),
+		removeCatalogSource: connect.NewClient[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse](
+			httpClient,
+			baseURL+CatalogServiceRemoveCatalogSourceProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("RemoveCatalogSource")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -138,6 +196,10 @@ type catalogServiceClient struct {
 	listCatalogInstalls   *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
 	upgradeCatalogInstall *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
 	installCatalogEntry   *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
+	setCatalogSource      *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
+	listCatalogSources    *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
+	listCatalogSourceRefs *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
+	removeCatalogSource   *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
 }
 
 // ListCatalogEntries calls dockwell.v1.CatalogService.ListCatalogEntries.
@@ -163,6 +225,26 @@ func (c *catalogServiceClient) UpgradeCatalogInstall(ctx context.Context, req *c
 // InstallCatalogEntry calls dockwell.v1.CatalogService.InstallCatalogEntry.
 func (c *catalogServiceClient) InstallCatalogEntry(ctx context.Context, req *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error) {
 	return c.installCatalogEntry.CallUnary(ctx, req)
+}
+
+// SetCatalogSource calls dockwell.v1.CatalogService.SetCatalogSource.
+func (c *catalogServiceClient) SetCatalogSource(ctx context.Context, req *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error) {
+	return c.setCatalogSource.CallUnary(ctx, req)
+}
+
+// ListCatalogSources calls dockwell.v1.CatalogService.ListCatalogSources.
+func (c *catalogServiceClient) ListCatalogSources(ctx context.Context, req *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error) {
+	return c.listCatalogSources.CallUnary(ctx, req)
+}
+
+// ListCatalogSourceRefs calls dockwell.v1.CatalogService.ListCatalogSourceRefs.
+func (c *catalogServiceClient) ListCatalogSourceRefs(ctx context.Context, req *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error) {
+	return c.listCatalogSourceRefs.CallUnary(ctx, req)
+}
+
+// RemoveCatalogSource calls dockwell.v1.CatalogService.RemoveCatalogSource.
+func (c *catalogServiceClient) RemoveCatalogSource(ctx context.Context, req *connect.Request[v1.RemoveCatalogSourceRequest]) (*connect.Response[v1.RemoveCatalogSourceResponse], error) {
+	return c.removeCatalogSource.CallUnary(ctx, req)
 }
 
 // CatalogServiceHandler is an implementation of the dockwell.v1.CatalogService service.
@@ -195,6 +277,27 @@ type CatalogServiceHandler interface {
 	// response carries it, and revealing it takes a passkey. Making a project is
 	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
+	// SetCatalogSource plans adding a catalog from a public Git repository, or moving
+	// one to another commit, ready to apply or discard. Dockwell reads the commit over
+	// Git's own protocol, checking what it reads against its names, and checks each
+	// entry as it checks its own. The plan's notes say what the commit holds, and what
+	// Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
+	// has. A source decides what anyone can install, so setting one is an
+	// admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+	SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error)
+	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
+	// how many of each one's entries it shows, and why it leaves out the rest.
+	ListCatalogSources(context.Context, *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error)
+	// ListCatalogSourceRefs lists the branches and tags of a public Git repository,
+	// each with the commit it's at now, so a form can check a repository as it's
+	// typed and offer its branches to pin a source to. It reads the repository as
+	// SetCatalogSource does, at public addresses alone, and changes nothing. An
+	// admin's, as it reads the network for whoever asks.
+	ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error)
+	// RemoveCatalogSource plans no longer reading a catalog, ready to apply or
+	// discard. What's installed from it stays as it runs, and can't upgrade from it.
+	// An admin's, as setting one is.
+	RemoveCatalogSource(context.Context, *connect.Request[v1.RemoveCatalogSourceRequest]) (*connect.Response[v1.RemoveCatalogSourceResponse], error)
 }
 
 // NewCatalogServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -237,6 +340,31 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("InstallCatalogEntry")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceSetCatalogSourceHandler := connect.NewUnaryHandler(
+		CatalogServiceSetCatalogSourceProcedure,
+		svc.SetCatalogSource,
+		connect.WithSchema(catalogServiceMethods.ByName("SetCatalogSource")),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceListCatalogSourcesHandler := connect.NewUnaryHandler(
+		CatalogServiceListCatalogSourcesProcedure,
+		svc.ListCatalogSources,
+		connect.WithSchema(catalogServiceMethods.ByName("ListCatalogSources")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceListCatalogSourceRefsHandler := connect.NewUnaryHandler(
+		CatalogServiceListCatalogSourceRefsProcedure,
+		svc.ListCatalogSourceRefs,
+		connect.WithSchema(catalogServiceMethods.ByName("ListCatalogSourceRefs")),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceRemoveCatalogSourceHandler := connect.NewUnaryHandler(
+		CatalogServiceRemoveCatalogSourceProcedure,
+		svc.RemoveCatalogSource,
+		connect.WithSchema(catalogServiceMethods.ByName("RemoveCatalogSource")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.CatalogService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case CatalogServiceListCatalogEntriesProcedure:
@@ -249,6 +377,14 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceUpgradeCatalogInstallHandler.ServeHTTP(w, r)
 		case CatalogServiceInstallCatalogEntryProcedure:
 			catalogServiceInstallCatalogEntryHandler.ServeHTTP(w, r)
+		case CatalogServiceSetCatalogSourceProcedure:
+			catalogServiceSetCatalogSourceHandler.ServeHTTP(w, r)
+		case CatalogServiceListCatalogSourcesProcedure:
+			catalogServiceListCatalogSourcesHandler.ServeHTTP(w, r)
+		case CatalogServiceListCatalogSourceRefsProcedure:
+			catalogServiceListCatalogSourceRefsHandler.ServeHTTP(w, r)
+		case CatalogServiceRemoveCatalogSourceProcedure:
+			catalogServiceRemoveCatalogSourceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -276,4 +412,20 @@ func (UnimplementedCatalogServiceHandler) UpgradeCatalogInstall(context.Context,
 
 func (UnimplementedCatalogServiceHandler) InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.InstallCatalogEntry is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SetCatalogSource is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) ListCatalogSources(context.Context, *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogSources is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogSourceRefs is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) RemoveCatalogSource(context.Context, *connect.Request[v1.RemoveCatalogSourceRequest]) (*connect.Response[v1.RemoveCatalogSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.RemoveCatalogSource is not implemented"))
 }

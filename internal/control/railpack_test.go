@@ -136,7 +136,7 @@ func TestDetectBuildOfAServiceReadsItsBranchNow(t *testing.T) {
 
 // A repository's branches are listed from the control server, the default first,
 // so a form checks a URL as it's typed and offers a branch to choose.
-func TestARepositorysBranchesAreListed(t *testing.T) {
+func TestARepositorysBranchesAreListedForABuild(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		g := newGitBench(t, backend)
 		g.repo.Commit("main", "Works", map[string]string{"Dockerfile": webDockerfile})
