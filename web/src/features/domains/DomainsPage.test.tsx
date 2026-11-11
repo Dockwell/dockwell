@@ -4,6 +4,7 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CertificateState,
+  ChangeState,
   Connection,
   DomainCheckState,
   type ProposeChangeRequest,
@@ -17,7 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
-import { webPlanned } from "../../test/changes";
+import { moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -332,10 +333,8 @@ describe("the list of domains", () => {
     expect(row.querySelector(".dw-tone-healthy")).toBeNull();
     expect(row.querySelector(".dw-tone-critical")).not.toBeNull();
     expect(row.querySelector(".domains-note")).toHaveClass("is-failed");
-    expect(row).toHaveTextContent(
-      /The certificate on hz-1 ran out .+, so browsers refuse this domain\. Dockwell renews it by itself\./,
-    );
-    expect(within(row).getByRole("link", { name: "check its page" })).toHaveAttribute("href", `/servers/${SERVER}`);
+    expect(row).toHaveTextContent(/The certificate on hz-1 ran out .+, so browsers refuse it\./);
+    expect(within(row).getByRole("link", { name: "Check its page" })).toHaveAttribute("href", `/servers/${SERVER}`);
     expect(within(row).queryByRole("link", { name: /^Open / })).toBeNull();
     expect(container.querySelector(".page-lead")).toHaveTextContent("1 domain · 1 needs a look");
   });
@@ -1220,6 +1219,45 @@ describe("adding a domain from the list", () => {
       },
     );
   const some = [aDomain({ name: "shop.example.com", certificate: issued })];
+
+  it("picks the port from the app's own, and lands on the app once its domain is added", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const watch = feed<WatchChangeResponse>();
+    const { router } = renderAt(
+      "/domains",
+      api(some, {
+        services: [web, api_],
+        more: {
+          changes: {
+            ...changes(edits),
+            watchChange: watch.stream,
+            applyChange: () => ({ change: moved(webPlanned(), { state: ChangeState.APPLYING }) }),
+          },
+        },
+      }),
+    );
+    await screen.findByRole("row", { name: /shop\.example\.com/ });
+    await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a domain" });
+    await user.selectOptions(within(sheet).getByRole("combobox", { name: "App" }), "api");
+    await user.type(within(sheet).getByLabelText("Domain"), "app.example.com");
+    // The port is picked from what the app listens on, with another one a choice away.
+    const port = within(sheet).getByRole("combobox", { name: "Port in the app" });
+    expect(port).toHaveValue("3000");
+    expect(
+      within(port)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["3000", "Another port"]);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ domain: "app.example.com", service: "api", port: 3000 });
+    await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
+    act(() => watch.push(watched(moved(webPlanned(), { state: ChangeState.APPLIED }))));
+    await user.click(await screen.findByRole("button", { name: /^Done/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${api_.id}`));
+  });
 
   it("asks for the app, once there's a choice, and refuses to guess", async () => {
     const user = userEvent.setup();

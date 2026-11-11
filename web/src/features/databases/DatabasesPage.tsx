@@ -2,7 +2,16 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
-import { type Backup, BackupState, type Database, type Event, EventKind, EventService } from "@dockwell/api";
+import {
+  type Backup,
+  BackupState,
+  CatalogService,
+  type Database,
+  type Entry,
+  type Event,
+  EventKind,
+  EventService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -38,6 +47,7 @@ import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import type { VolumeChoice } from "../backups/useBackups";
 import { useMethodWord, useScheduleWords } from "../backups/words";
+import { InstallSheet } from "../catalog/InstallSheet";
 import { useCatalog } from "../catalog/useCatalog";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -58,12 +68,24 @@ import "./Databases.css";
 /** How many events the recent activity shows. */
 const RECENT = 4;
 
+/** What the Databases page's URL holds: the engine a new database is being made from. */
+export interface DatabasesSearch {
+  new?: string;
+}
+
 /**
  * Every database Dockwell runs or has taken on, with how each is and what it holds,
- * the way to make another from the catalog, how they're backed up, and what happened
- * to them lately (Databases-List). With one server, where each runs is left out.
+ * the way to make another, how they're backed up, and what happened to them lately
+ * (Databases-List). With one server, where each runs is left out. New database
+ * opens here, from an engine picked on the page or in the sheet (Catalog-Install).
  */
-export function DatabasesPage() {
+export function DatabasesPage({
+  search = {},
+  onSearch = () => {},
+}: {
+  search?: DatabasesSearch;
+  onSearch?: (next: DatabasesSearch) => void;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const view = useFleetView();
@@ -75,11 +97,13 @@ export function DatabasesPage() {
     ? plural(view.servers?.length ?? 0, { one: "# server", other: "# servers" })
     : (view.only?.name ?? "");
   const lead = query.isPending || !where ? undefined : plural(count, { one: `# on ${where}`, other: `# on ${where}` });
-  const newDatabase = (
-    <RouterButtonLink to="/catalog" search={{ category: "databases" }} variant="primary" icon="plus">
+  const engines = useEngines();
+  const firstEngine = engines.find((e) => e.id === "postgres")?.id ?? engines[0]?.id;
+  const newDatabase = firstEngine ? (
+    <RouterButtonLink to="/databases" search={{ new: firstEngine }} variant="primary" icon="plus">
       <Trans>New database</Trans>
     </RouterButtonLink>
-  );
+  ) : null;
   return (
     <Page
       title={t`Databases`}
@@ -108,7 +132,14 @@ export function DatabasesPage() {
       ) : count > 0 ? (
         <DatabasesTable databases={databases} fleet={view.fleet} />
       ) : null}
-      <Engines />
+      <Engines engines={engines} />
+      {search.new ? (
+        <InstallSheet
+          id={search.new}
+          engines={{ entries: engines, onPick: (id) => onSearch({ new: id }) }}
+          onClose={() => onSearch({})}
+        />
+      ) : null}
       {count > 0 ? (
         <div className="databases-panels">
           <BackupsPanel databases={databases} />
@@ -375,10 +406,26 @@ function DatabasesSkeleton({ fleet }: { fleet: boolean }) {
   );
 }
 
-/** The catalog's databases, each a way to make one. */
-function Engines() {
-  const { t } = useLingui();
+/**
+ * The catalog's databases, as engines a new database is made from: its database
+ * entries that install one, which leaves out the tools that only manage one, such
+ * as Adminer. Each entry's parts say, and the install sheet reads them too.
+ */
+function useEngines(): Entry[] {
+  const transport = useTransport();
   const entries = (useCatalog().data?.entries ?? []).filter((e) => e.category === "databases");
+  const reads = useQueries({
+    queries: entries.map((entry) => ({
+      ...createQueryOptions(CatalogService.method.getCatalogEntry, { id: entry.id }, { transport }),
+      staleTime: 60_000,
+    })),
+  });
+  return entries.filter((_, i) => reads[i]?.data?.parts.some((part) => part.database));
+}
+
+/** The engines, each a way to make a database. */
+function Engines({ engines: entries }: { engines: readonly Entry[] }) {
+  const { t } = useLingui();
   if (entries.length === 0) return null;
   return (
     <section className="databases-engines" aria-labelledby="databases-create">
@@ -394,8 +441,8 @@ function Engines() {
         {entries.map((entry) => (
           <li key={entry.id}>
             <Link
-              to="/catalog/$entryId"
-              params={{ entryId: entry.id }}
+              to="/databases"
+              search={{ new: entry.id }}
               className="dw-btn dw-btn-secondary dw-btn-md databases-engine"
             >
               <span className="databases-engine-plus" aria-hidden="true">

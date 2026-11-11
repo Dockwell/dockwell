@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
@@ -101,6 +102,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
 	})
+	cfg.Desired, cfg.Journal = keptDesired(logger, dir, id)
 	lookups(&cfg, stdio, g)
 	err := agent.Run(ctx, cfg)
 	if cfg.Tasks != nil && ctx.Err() != nil {
@@ -153,6 +155,27 @@ func hostTools(stdio IO) *hosttool.Runner {
 		return &hosttool.Runner{Root: dir}
 	}
 	return &hosttool.Runner{Off: true}
+}
+
+// keptDesired is the agent's cache of what this server should run, sealed in its
+// data folder, and the journal of what it puts back on its own while the control
+// plane is away (ADR 0054), or neither if they can't be opened, which the log
+// says: the server then runs as it does, and isn't put back while the control
+// plane is away.
+func keptDesired(logger *slog.Logger, dir datadir.Dir, id *enroll.Identity) (agent.Desired, *desired.Journal) {
+	if id == nil {
+		return nil, nil
+	}
+	store, err := desired.Open(dir.Agent(), id.ServerID, logger)
+	if err == nil {
+		var journal *desired.Journal
+		if journal, err = desired.OpenJournal(dir.Agent()); err == nil {
+			return store, journal
+		}
+	}
+	logger.Warn("can't keep what this server should run, so it can't be put back while the control plane is away. Check that the agent's data folder is writable",
+		slog.String("folder", dir.Agent()), slog.String("error", err.Error()))
+	return nil, nil
 }
 
 // lookups says how this server's agent finds out how the internet sees it: what the

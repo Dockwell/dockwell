@@ -121,8 +121,10 @@ type Ingress interface {
 // by. They are Dockwell's own, so they aren't drift, and a container without
 // them, as one docker compose made, isn't recreated for them.
 const (
-	LabelRevision = docker.OwnPrefix + "revision"
+	LabelRevision = docker.LabelRevision
 	LabelChange   = docker.OwnPrefix + "change"
+	// LabelReconcile identifies the durable local action that created it.
+	LabelReconcile = docker.OwnPrefix + "reconcile"
 	// LabelLeads says where the server paths a container mounts led (docker.LabelLeads).
 	LabelLeads = docker.LabelLeads
 )
@@ -569,13 +571,7 @@ func healthcheck(hc *resourcev1.Healthcheck) *docker.Healthcheck {
 
 // anonymous reports a volume Docker made for a path an image declares,
 // which is named by 64 hex digits.
-func anonymous(name string) bool {
-	if len(name) != 64 {
-		return false
-	}
-	_, err := hex.DecodeString(name)
-	return err == nil
-}
+func anonymous(name string) bool { return docker.AnonymousVolume(name) }
 
 // createRequest is what Docker is asked to create for spec at t. Volumes
 // Docker made for paths the image declares move from old, the container
@@ -587,6 +583,9 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	if deploy := resource.DeployOf(ctx); deploy.Revision > 0 {
 		labels[LabelRevision] = strconv.Itoa(deploy.Revision)
 		labels[LabelChange] = deploy.Change
+	}
+	if id := resource.DeployOf(ctx).Reconcile; id != "" {
+		labels[LabelReconcile] = id
 	}
 	req := &docker.CreateRequest{Config: docker.Config{
 		Image:       spec.GetImage(),
@@ -649,6 +648,13 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		}
 	}
 	from := imageVolumes(old)
+	// Made again while the control plane is away, it mounts the data its image kept
+	// before, as a replace would (ADR 0054).
+	for p, name := range resource.ImageVolumesFrom(ctx) {
+		if _, ok := from[p]; !ok {
+			from[p] = name
+		}
+	}
 	restored := map[string]string{}
 	for _, p := range slices.Sorted(maps.Keys(kept)) {
 		if _, ok := from[p]; !ok && !targets[p] {
@@ -1171,6 +1177,160 @@ func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Container, 
 		return nil, err
 	}
 	return d.projected(ctx, t, c)
+}
+
+// ImageAt is the image the container at t runs: its ID, and what its registry
+// calls it, as name@sha256:…, where one does. A container that's gone runs none.
+func (d *Docker) ImageAt(ctx context.Context, t Target) (resource.Image, error) {
+	c, err := d.current(ctx, t)
+	if err != nil || c == nil {
+		return resource.Image{}, err
+	}
+	out := resource.Image{ID: c.Image}
+	img, err := d.Client.InspectImage(ctx, c.Image)
+	switch {
+	case docker.IsNotFound(err):
+		return out, nil
+	case err != nil:
+		return resource.Image{}, err
+	}
+	if digest := img.Digest(c.Config.Image); digest != "" {
+		out.Digest = docker.Repository(c.Config.Image) + "@" + digest
+	}
+	return out, nil
+}
+
+// RunStateAt is how the container at t stands: whether it runs, why Docker
+// couldn't start it, if it couldn't, and whether its policy has it run.
+func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, error) {
+	c, sole, err := d.stands(ctx, t)
+	if err != nil || c == nil {
+		return resource.RunState{}, err
+	}
+	policy := c.HostConfig.RestartPolicy.Name
+	return resource.RunState{
+		Exists: true, Running: c.State.Running || c.State.Restarting, Failed: c.State.Error,
+		Sole: sole, Revision: c.Stand(0).Revision, Adopted: c.Stand(0).Adopted, Image: c.Image,
+		ID: c.ID, Reconcile: c.Config.Labels[LabelReconcile], Created: c.State.Status == "created" && c.State.StartedAt.IsZero(),
+		Leaving: c.State.Status == "removing" || c.State.Status == "dead",
+		Wants:   policy == "unless-stopped" || policy == "always" || policy == "on-failure",
+		Volumes: imageVolumes(c),
+	}, nil
+}
+
+// StartAt starts the container at t, as it is.
+func (d *Docker) StartAt(ctx context.Context, t Target) error {
+	c, _, err := d.stands(ctx, t)
+	if err != nil {
+		return err
+	}
+	if c == nil {
+		return fmt.Errorf("there's no container for %s to start", t.Name)
+	}
+	return d.Client.StartContainer(ctx, c.ID)
+}
+
+// stands is the container that says how t stands, for the agent's own look while
+// the control plane is away: chosen as the health monitor's list is read, so the
+// two looks can't disagree (docker.Pick), with whether it's the only one that
+// isn't leaving. One that's leaving is returned only when nothing else answers
+// to t, and then says so (RunState.Leaving). A step reads current instead, whose
+// order finishes a rollout that was cut short.
+func (d *Docker) stands(ctx context.Context, t Target) (c *docker.Container, sole bool, err error) {
+	all, err := d.instances(ctx, t)
+	if err != nil {
+		return nil, false, err
+	}
+	var pick docker.Pick
+	var best *instance
+	for _, i := range all {
+		if pick.Add(i.Stand(i.number)) {
+			best = i
+		}
+	}
+	if best != nil {
+		return best.Container, pick.Sole(), nil
+	}
+	if left, ok := pick.Leaving(); ok {
+		for _, i := range all {
+			if i.ID == left.ID {
+				return i.Container, false, nil
+			}
+		}
+	}
+	c, err = d.find(ctx, t.Name)
+	return c, c != nil, err
+}
+
+// HoldAt says why the container at t can't be made again from spec now, with
+// volumes, the volumes Docker made for its image's paths as last seen, or nothing
+// when it can (resource.Reviver).
+func (d *Docker) HoldAt(ctx context.Context, t Target, spec *resourcev1.Container, volumes map[string]string) (string, error) {
+	targets := mountTargets(spec)
+	mine := map[string]string{} // by volume, what it's to people
+	for _, m := range spec.GetMounts() {
+		if m.GetVolume() == "" {
+			continue
+		}
+		name := t.VolumeName(m)
+		if _, err := d.Client.InspectVolume(ctx, name); docker.IsNotFound(err) {
+			return fmt.Sprintf("The volume %s it mounts is gone, and Docker would make it again empty, which would hide that its data is gone. "+
+				"Put the volume back, or apply it again from the control plane to start it empty", m.GetVolume()), nil
+		} else if err != nil {
+			return "", err
+		}
+		mine[name] = "the volume " + m.GetVolume()
+	}
+	for _, p := range slices.Sorted(maps.Keys(volumes)) {
+		if targets[p] {
+			continue
+		}
+		if _, err := d.Client.InspectVolume(ctx, volumes[p]); docker.IsNotFound(err) {
+			return fmt.Sprintf("The volume Docker made for %s, where its image keeps its data, is gone, and making it again would start it empty. "+
+				"Apply it again from the control plane to start it empty", p), nil
+		} else if err != nil {
+			return "", err
+		}
+		mine[volumes[p]] = "the volume at " + p
+	}
+	// Where the image keeps data is only known from the image, so one that isn't
+	// here, or that Docker can't read, holds the container back: made again
+	// unchecked, it could start empty beside its old data. The caller has the
+	// image its record names in place before it asks (ADR 0054).
+	img, err := d.Client.InspectImage(ctx, spec.GetImage())
+	switch {
+	case docker.IsNotFound(err):
+		return fmt.Sprintf("Its image, %s, isn't on this server, so the agent can't tell where it keeps data, and making it again could start it empty. "+
+			"Apply it again from the control plane once it's back", spec.GetImage()), nil
+	case err != nil:
+		return "", fmt.Errorf("can't read its image, %s, to see where it keeps data: %w", spec.GetImage(), err)
+	}
+	if img.Config != nil {
+		for _, p := range slices.Sorted(maps.Keys(img.Config.Volumes)) {
+			if _, seen := volumes[p]; !seen && !targets[p] {
+				return fmt.Sprintf("Its image keeps data at %s, and the agent never saw the volume it was in, so making it again would start it empty. "+
+					"Apply it again from the control plane once it's back", p), nil
+			}
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(mine)) {
+		list, err := d.Client.ListContainers(ctx, map[string][]string{"volume": {name}})
+		if err != nil {
+			return "", err
+		}
+		for i := range list {
+			other := &list[i]
+			if other.Labels[docker.LabelProject] != t.Project || other.Labels[docker.LabelService] != t.Service {
+				who := other.ID
+				if len(other.Names) > 0 {
+					who = strings.TrimPrefix(other.Names[0], "/")
+				}
+				return fmt.Sprintf("Another container, %s, mounts %s now, as one that took its place would, and two on one volume can damage its data. "+
+					"Remove %s, or apply this again from the control plane once it's back", who, mine[name], who), nil
+			}
+		}
+	}
+	return "", nil
 }
 
 // projected reads a container back into a spec, with its image's defaults.

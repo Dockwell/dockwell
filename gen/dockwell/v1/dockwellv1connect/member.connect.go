@@ -38,12 +38,28 @@ const (
 	// MemberServiceListMembersProcedure is the fully-qualified name of the MemberService's ListMembers
 	// RPC.
 	MemberServiceListMembersProcedure = "/dockwell.v1.MemberService/ListMembers"
+	// MemberServiceCreateInviteProcedure is the fully-qualified name of the MemberService's
+	// CreateInvite RPC.
+	MemberServiceCreateInviteProcedure = "/dockwell.v1.MemberService/CreateInvite"
+	// MemberServiceRevokeInviteProcedure is the fully-qualified name of the MemberService's
+	// RevokeInvite RPC.
+	MemberServiceRevokeInviteProcedure = "/dockwell.v1.MemberService/RevokeInvite"
 )
 
 // MemberServiceClient is a client for the dockwell.v1.MemberService service.
 type MemberServiceClient interface {
 	// ListMembers returns everyone who can sign in, oldest first.
 	ListMembers(context.Context, *connect.Request[v1.ListMembersRequest]) (*connect.Response[v1.ListMembersResponse], error)
+	// CreateInvite invites someone by email to sign in with a role in a place,
+	// and returns the link to send them, once: Dockwell sends no mail. It takes a
+	// passkey step-up bound to the email, the role and the place
+	// (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+	// uses. Nobody is invited as owner, an admin's place is the install, and an
+	// admin invites no one above admin. An invite to someone who signs in here
+	// already is refused; a newer one to the same email replaces an open one.
+	CreateInvite(context.Context, *connect.Request[v1.CreateInviteRequest]) (*connect.Response[v1.CreateInviteResponse], error)
+	// RevokeInvite stops an open invite working.
+	RevokeInvite(context.Context, *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error)
 }
 
 // NewMemberServiceClient constructs a client for the dockwell.v1.MemberService service. By default,
@@ -64,12 +80,26 @@ func NewMemberServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		createInvite: connect.NewClient[v1.CreateInviteRequest, v1.CreateInviteResponse](
+			httpClient,
+			baseURL+MemberServiceCreateInviteProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("CreateInvite")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeInvite: connect.NewClient[v1.RevokeInviteRequest, v1.RevokeInviteResponse](
+			httpClient,
+			baseURL+MemberServiceRevokeInviteProcedure,
+			connect.WithSchema(memberServiceMethods.ByName("RevokeInvite")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // memberServiceClient implements MemberServiceClient.
 type memberServiceClient struct {
-	listMembers *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
+	listMembers  *connect.Client[v1.ListMembersRequest, v1.ListMembersResponse]
+	createInvite *connect.Client[v1.CreateInviteRequest, v1.CreateInviteResponse]
+	revokeInvite *connect.Client[v1.RevokeInviteRequest, v1.RevokeInviteResponse]
 }
 
 // ListMembers calls dockwell.v1.MemberService.ListMembers.
@@ -77,10 +107,30 @@ func (c *memberServiceClient) ListMembers(ctx context.Context, req *connect.Requ
 	return c.listMembers.CallUnary(ctx, req)
 }
 
+// CreateInvite calls dockwell.v1.MemberService.CreateInvite.
+func (c *memberServiceClient) CreateInvite(ctx context.Context, req *connect.Request[v1.CreateInviteRequest]) (*connect.Response[v1.CreateInviteResponse], error) {
+	return c.createInvite.CallUnary(ctx, req)
+}
+
+// RevokeInvite calls dockwell.v1.MemberService.RevokeInvite.
+func (c *memberServiceClient) RevokeInvite(ctx context.Context, req *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error) {
+	return c.revokeInvite.CallUnary(ctx, req)
+}
+
 // MemberServiceHandler is an implementation of the dockwell.v1.MemberService service.
 type MemberServiceHandler interface {
 	// ListMembers returns everyone who can sign in, oldest first.
 	ListMembers(context.Context, *connect.Request[v1.ListMembersRequest]) (*connect.Response[v1.ListMembersResponse], error)
+	// CreateInvite invites someone by email to sign in with a role in a place,
+	// and returns the link to send them, once: Dockwell sends no mail. It takes a
+	// passkey step-up bound to the email, the role and the place
+	// (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+	// uses. Nobody is invited as owner, an admin's place is the install, and an
+	// admin invites no one above admin. An invite to someone who signs in here
+	// already is refused; a newer one to the same email replaces an open one.
+	CreateInvite(context.Context, *connect.Request[v1.CreateInviteRequest]) (*connect.Response[v1.CreateInviteResponse], error)
+	// RevokeInvite stops an open invite working.
+	RevokeInvite(context.Context, *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error)
 }
 
 // NewMemberServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -97,10 +147,26 @@ func NewMemberServiceHandler(svc MemberServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	memberServiceCreateInviteHandler := connect.NewUnaryHandler(
+		MemberServiceCreateInviteProcedure,
+		svc.CreateInvite,
+		connect.WithSchema(memberServiceMethods.ByName("CreateInvite")),
+		connect.WithHandlerOptions(opts...),
+	)
+	memberServiceRevokeInviteHandler := connect.NewUnaryHandler(
+		MemberServiceRevokeInviteProcedure,
+		svc.RevokeInvite,
+		connect.WithSchema(memberServiceMethods.ByName("RevokeInvite")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.MemberService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MemberServiceListMembersProcedure:
 			memberServiceListMembersHandler.ServeHTTP(w, r)
+		case MemberServiceCreateInviteProcedure:
+			memberServiceCreateInviteHandler.ServeHTTP(w, r)
+		case MemberServiceRevokeInviteProcedure:
+			memberServiceRevokeInviteHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -112,4 +178,12 @@ type UnimplementedMemberServiceHandler struct{}
 
 func (UnimplementedMemberServiceHandler) ListMembers(context.Context, *connect.Request[v1.ListMembersRequest]) (*connect.Response[v1.ListMembersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.ListMembers is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) CreateInvite(context.Context, *connect.Request[v1.CreateInviteRequest]) (*connect.Response[v1.CreateInviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.CreateInvite is not implemented"))
+}
+
+func (UnimplementedMemberServiceHandler) RevokeInvite(context.Context, *connect.Request[v1.RevokeInviteRequest]) (*connect.Response[v1.RevokeInviteResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.MemberService.RevokeInvite is not implemented"))
 }
