@@ -76,6 +76,7 @@ func TestTheBuiltInEntries(t *testing.T) {
 		"pgadmin", "redis", "mariadb", "coder",
 		"uptime-kuma", "n8n", "gitea", "vaultwarden", "nextcloud", "rustfs", "grafana", "umami",
 		"plausible", "ghost", "wordpress", "memos", "adminer", "jellyfin", "home-assistant",
+		"openclaw", "hermes-agent", "new-api", "lobechat", "sftpgo", "openlist", "gotify", "linkding",
 	} {
 		if !slices.Contains(ids, want) {
 			t.Errorf("the catalog has no %s: %v", want, ids)
@@ -146,6 +147,9 @@ func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 		"coder": "AGPL-3.0-only, with Enterprise code under Coder's own",
 		// Source-available, with its .ee files under n8n's Enterprise licence.
 		"n8n": "Sustainable Use, with Enterprise code under n8n's own",
+		// The unmodified browser-storage image may be self-hosted. Distributing a
+		// commercial derivative needs the producer's permission; it isn't Apache-2.0.
+		"lobechat": "LobeHub Community License",
 	}
 	for _, e := range c.All() {
 		l := e.GetAppLicense()
@@ -234,6 +238,7 @@ func TestAnAppAnswersOnlyOnThisServerUntilItHasADomain(t *testing.T) {
 var firstVisitor = []string{
 	"coder", "uptime-kuma", "n8n", "gitea", "vaultwarden", "umami",
 	"plausible", "ghost", "wordpress", "memos", "jellyfin", "home-assistant",
+	"new-api", "openlist",
 }
 
 func TestAFirstVisitorAppMakesItsAccountBeforeItsDomain(t *testing.T) {
@@ -268,6 +273,9 @@ func TestAPasswordReadOnFirstStartSaysSo(t *testing.T) {
 		"pgadmin":             "choose Change password",
 		"nextcloud":           "under Security",
 		"grafana":             "choose Change password",
+		"gotify":              "use Change password",
+		"linkding":            "use Change password",
+		"sftpgo":              "use Change password",
 	} {
 		e, _ := c.Entry(id)
 		if steps := e.GetFirstSteps(); !strings.Contains(steps, "on first start only") || !strings.Contains(steps, how) {
@@ -285,11 +293,14 @@ func TestADatabasesSharedPasswordFollowsItsSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	databases := regexp.MustCompile(`^(postgres|mysql|mariadb):`)
+	// An app that keeps the password it installed with in a file of its own, as
+	// Nextcloud does in config.php, wouldn't follow its database: its note stays.
+	keepsItsOwn := map[string]bool{"nextcloud": true}
 	for _, e := range c.All() {
 		stack, filled := read(t, e)
 		for name, value := range filled.Secrets {
 			for _, s := range stack.Services {
-				if databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
+				if !keepsItsOwn[e.GetId()] && databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
 					strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
 					t.Errorf("%s says to leave its database's %s as it is, which now changes with it", e.GetId(), name)
 				}

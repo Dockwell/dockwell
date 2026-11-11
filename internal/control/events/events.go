@@ -24,6 +24,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -124,6 +125,7 @@ var (
 		// A test of a destination's keys, before any plan: who tried which storage.
 		backups.ActionTestDestination,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
+		"member.invite", "member.invite_revoke", "member.join",
 	}
 )
 
@@ -626,6 +628,15 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if a.Target != "" {
 		e.Subject = &dockwellv1.EventSubject{Id: a.Target, Name: look.Name(a.Target), Scope: look.Scope(a.Target)}
+	}
+	if strings.HasPrefix(a.Action, "member.") {
+		// Who, with what role, where (ADR 0049): only internal/auth writes these.
+		if m, ok := auth.ReadMemberDetail(a.Detail); ok {
+			e.Member = &dockwellv1.EventMember{Email: m.Email, Name: m.Name, Role: authapi.RoleProto(m.Role), ProjectId: m.Project, Address: m.From}
+			if m.Project != store.Install {
+				e.Member.ProjectName = look.Name(m.Project)
+			}
+		}
 	}
 	if setting, ok := settings.ReadEvent(a.Action, a.Detail); ok {
 		e.Kind, e.Setting = dockwellv1.EventKind_EVENT_KIND_SETTINGS, setting

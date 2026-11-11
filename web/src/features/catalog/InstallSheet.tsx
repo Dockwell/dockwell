@@ -7,6 +7,7 @@ import {
   CatalogService,
   type Change,
   ChangeState,
+  type Entry,
   type HostAccess,
   HostAccessKind,
   type Input,
@@ -36,7 +37,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useId, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useMemo, useRef, useState } from "react";
 
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
@@ -50,8 +51,12 @@ import { asGoodAsRoot } from "../changes/plan";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
+import { projectLink } from "./media";
+import { useOrigins } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
+// Its lines and the engine picker, wherever the sheet opens: on the Databases page too, which loads no catalog page.
+import "./Catalog.css";
 
 /** A label as it reads inside a sentence: "Adminer port" is "adminer port", while "API key" keeps its capitals. */
 const inSentence = (label: string) =>
@@ -68,9 +73,19 @@ const asked = (input: Input) => input.generate === 0;
  * under Advanced. Nothing runs until the plan applies, and a password no one
  * types is made and sealed by the control plane, so it's never here. Once it
  * applies, it leads to where what it made is used: a database's page, with how
- * to connect, or the app's.
+ * to connect, or the app's. Given engines, it's New database: the engine is the
+ * first line, picked from them, and picking another keeps the sheet open.
  */
-export function InstallSheet({ id, onClose }: { id: string; onClose: () => void }) {
+export function InstallSheet({
+  id,
+  onClose,
+  engines,
+}: {
+  id: string;
+  onClose: () => void;
+  /** The databases to pick from, for New database on the Databases page. */
+  engines?: { entries: readonly Entry[]; onPick: (id: string) => void };
+}) {
   const { t } = useLingui();
   // Installing makes a project of its own, which is an admin's (ADR 0049): off, with why, for anyone else.
   const mayInstall = useMay()(CatalogService.method.installCatalogEntry);
@@ -93,12 +108,25 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const [changing, setChanging] = useState<ReadonlySet<string>>(new Set());
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The entry picked now, so a plan asked for another one, before the pick changed, is dropped.
+  const picked = useRef(id);
+  picked.current = id;
   const [failure, setFailure] = useState<string>();
   const [nameError, setNameError] = useState<string>();
   const [serversError, setServersError] = useState<string>();
   // The plan under review takes this sheet over, and Cancel brings the form back as it was.
   const [plan, setPlan] = useState<Opening>();
   const change = (key: string) => setChanging((was) => new Set(was).add(key));
+  // Another engine starts from its own defaults.
+  const [shown, setShown] = useState(id);
+  if (shown !== id) {
+    setShown(id);
+    setTyped({});
+    setTypedName(undefined);
+    setChanging(new Set());
+    setFailure(undefined);
+    setNameError(undefined);
+  }
 
   // What's free is read on the servers it will run on: the one there is, or those chosen.
   const onlyId = only?.id;
@@ -153,7 +181,10 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
   const open = (input: Input) => changing.has(input.name) || suggested(input) === "";
   const missing = inputs.find((input) => !input.optional && value(input).trim() === "");
   const nameInvalid = name === "" || !SERVICE_NAME.test(name);
-  const ready = entry !== undefined && !nameInvalid && !missing;
+  // Where it comes from decides what the sheet says of it, so a plan waits until that's read.
+  const origins = useOrigins();
+  const source = origins.origins.get(id)?.name;
+  const ready = entry !== undefined && origins.data !== undefined && !origins.error && !nameInvalid && !missing;
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
   const missingLabel = missing?.label ?? "";
@@ -228,10 +259,13 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
       return;
     }
     setBusy(true);
+    const asked = id;
     try {
       const res = await client.installCatalogEntry({ id, project: name, values, servers: [...chosenServers] });
+      if (picked.current !== asked) return;
       review(res.change);
     } catch (err) {
+      if (picked.current !== asked) return;
       if (reasonOf(err) === "project_exists") {
         setNameError(sentence(err));
         change("name");
@@ -261,8 +295,8 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
     <Sheet
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
-      title={t`Install ${app}`}
-      subtitle={entry?.summary}
+      title={engines ? t`New database` : t`Install ${app}`}
+      subtitle={engines ? undefined : entry?.summary}
       onClose={onClose}
       className={cx("app-sheet", "catalog-sheet", phone && "is-phone")}
       footer={
@@ -308,6 +342,18 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
             {sentence(got.error)}
           </Callout>
         ) : null}
+        {origins.error ? (
+          <Callout tone="critical" title={t`Couldn't read the sources`}>
+            {sentence(origins.error)}{" "}
+            <Button variant="ghost" onClick={() => void origins.refetch()}>
+              <Trans>Try again</Trans>
+            </Button>
+          </Callout>
+        ) : !origins.data ? (
+          <p className="catalog-note" aria-busy="true">
+            <Trans>Reading the sources</Trans>
+          </p>
+        ) : null}
         {failure ? (
           <Callout tone="critical" title={t`Can't make a plan`}>
             {failure}
@@ -316,7 +362,11 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
         {entry ? (
           <>
             <div className="catalog-chosen-list">
-              <Chosen label={t`Version`} value={entry.version} />
+              {engines ? (
+                <EnginePicker entries={engines.entries} value={id} onPick={engines.onPick} disabled={busy} />
+              ) : (
+                <Chosen label={t`Version`} value={entry.version} />
+              )}
               {nameOpen ? (
                 <TextField
                   label={t`Name`}
@@ -363,6 +413,9 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                   />
                 ),
               )}
+              {source ? (
+                <Chosen label={t`Catalog`} value={t`${source} · Not tested by Dockwell`} tone="warning" />
+              ) : null}
               {entry.hostAccess ? <Chosen label={t`Reaches`} value={entry.hostAccess} tone="warning" /> : null}
             </div>
             <Advanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={summary}>
@@ -390,9 +443,11 @@ export function InstallSheet({ id, onClose }: { id: string; onClose: () => void 
                 <Trans>
                   {app} is under the {license} licence.
                 </Trans>{" "}
-                <a href={entry.homepage} target="_blank" rel="noreferrer" className="catalog-link">
-                  <Trans>Its site</Trans>
-                </a>
+                {projectLink(entry.homepage) ? (
+                  <a href={projectLink(entry.homepage)} target="_blank" rel="noreferrer" className="catalog-link">
+                    <Trans>Its site</Trans>
+                  </a>
+                ) : null}
               </p>
               {command ? <CopyAsCommand command={command} /> : null}
             </Advanced>
@@ -444,6 +499,45 @@ function Chosen({
             <Trans>Change</Trans>
           </button>
         ) : null}
+      </span>
+    </fieldset>
+  );
+}
+
+/** The engine of a new database, picked from those the catalog has, each with its newest version. */
+function EnginePicker({
+  entries,
+  value,
+  onPick,
+  disabled,
+}: {
+  entries: readonly Entry[];
+  value: string;
+  onPick: (id: string) => void;
+  // While its plan is asked for, the pick stays as it is.
+  disabled?: boolean;
+}) {
+  const { t } = useLingui();
+  const id = useId();
+  return (
+    <fieldset className="catalog-engines" aria-labelledby={id} disabled={disabled}>
+      <span id={id} className="catalog-chosen-label">
+        {t`Engine`}
+      </span>
+      <span className="catalog-engines-list">
+        {entries.map((entry) => (
+          <label key={entry.id} className={cx("catalog-engine", entry.id === value && "is-picked")}>
+            <input
+              type="radio"
+              name={id}
+              value={entry.id}
+              checked={entry.id === value}
+              onChange={() => onPick(entry.id)}
+            />
+            <span className="catalog-engine-name">{entry.name}</span>
+            <code className="catalog-engine-version">{entry.version}</code>
+          </label>
+        ))}
       </span>
     </fieldset>
   );

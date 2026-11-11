@@ -383,6 +383,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
 		Pins: pins.Read, Docker: networks, Exposed: exposed,
 		PanelOverSSH: panelOverSSH,
+		DeadMan:      access.NewDeadMan(tools, filepath.Join(dir.Agent(), "access")),
 		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
 	}
 	if err := m.Ready(ctx); err != nil {

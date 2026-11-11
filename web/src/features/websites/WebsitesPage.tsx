@@ -82,7 +82,7 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
     body = (
       <EmptyState icon="browser" title={<Trans>No websites yet</Trans>} action={newWebsite("lg")}>
         <p>
-          <Trans>Send a domain to a URL, or to a port on your server. You review a plan before anything changes.</Trans>
+          <Trans>Serve a folder or a PHP app, or send a domain on to a URL or a port.</Trans>
         </p>
       </EmptyState>
     );

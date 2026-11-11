@@ -73,22 +73,22 @@ function VolumeBackups({ db }: { db: Database }) {
           )
         }
       >
-        <p className="database-line">
-          {!how.known ? null : how.dump ? (
-            <Trans>
-              Each backup is {dumpOf}'s own dump of everything in it, taken while it runs, so nothing stops.
-            </Trans>
-          ) : (
-            <Trans>
-              Each backup is a copy of its files, which stops {engine} for an exact copy unless you choose to copy it
-              running.
-            </Trans>
-          )}{" "}
-          <Trans>
-            A restore replaces what's there through a plan that says so, and keeps a copy of what it replaced for 7
-            days.
-          </Trans>
-        </p>
+        <dl className="databases-facts">
+          {how.known ? (
+            <div className="databases-fact">
+              <dt>{t`How`}</dt>
+              <dd>
+                {how.dump
+                  ? t`${dumpOf}'s own dump, while it runs`
+                  : t`A copy of its files, which stops ${engine} a moment`}
+              </dd>
+            </div>
+          ) : null}
+          <div className="databases-fact">
+            <dt>{t`Restoring`}</dt>
+            <dd>{t`A plan, which keeps what it replaces for 7 days`}</dd>
+          </div>
+        </dl>
         <div className="databases-panel-actions">
           {takeOne}
           {policy ? null : (
@@ -101,7 +101,7 @@ function VolumeBackups({ db }: { db: Database }) {
       {query.isPending ? null : backups.length === 0 ? (
         <Panel>
           <EmptyState icon="archive" title={t`No backups of ${name} yet`}>
-            <Trans>Back it up before you change what's in it, or upgrade it.</Trans>
+            <Trans>A backup before a change or an upgrade lets you put it back.</Trans>
           </EmptyState>
         </Panel>
       ) : (

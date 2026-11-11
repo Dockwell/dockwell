@@ -871,6 +871,131 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/sources:
+        get:
+            tags:
+                - CatalogService
+            description: |-
+                ListCatalogSources returns the catalogs Dockwell reads beside its own, with
+                 how many of each one's entries it shows, and why it leaves out the rest.
+            operationId: CatalogService_ListCatalogSources
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCatalogSourcesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/sources/{name}:remove:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                RemoveCatalogSource plans no longer reading a catalog, ready to apply or
+                 discard. What's installed from it stays as it runs, and can't upgrade from it.
+                 An admin's, as setting one is.
+            operationId: CatalogService_RemoveCatalogSource
+            parameters:
+                - name: name
+                  in: path
+                  description: The source's name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RemoveCatalogSourceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RemoveCatalogSourceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/sources/{name}:set:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SetCatalogSource plans adding a catalog from a public Git repository, or moving
+                 one to another commit, ready to apply or discard. Dockwell reads the commit over
+                 Git's own protocol, checking what it reads against its names, and checks each
+                 entry as it checks its own. The plan's notes say what the commit holds, and what
+                 Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
+                 has. A source decides what anyone can install, so setting one is an
+                 admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+            operationId: CatalogService_SetCatalogSource
+            parameters:
+                - name: name
+                  in: path
+                  description: What to call it, such as "community", which its entries show beside them.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetCatalogSourceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetCatalogSourceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/catalog/sources:refs:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                ListCatalogSourceRefs lists the branches and tags of a public Git repository,
+                 each with the commit it's at now, so a form can check a repository as it's
+                 typed and offer its branches to pin a source to. It reads the repository as
+                 SetCatalogSource does, at public addresses alone, and changes nothing. An
+                 admin's, as it reads the network for whoever asks.
+            operationId: CatalogService_ListCatalogSourceRefs
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ListCatalogSourceRefsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCatalogSourceRefsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes:
         get:
             tags:
@@ -1159,6 +1284,10 @@ paths:
             description: |-
                 CheckClaim checks a claim link without spending it, and describes the
                  server it claims.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
             operationId: AuthService_CheckClaim
             requestBody:
                 content:
@@ -2004,6 +2133,156 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListImageTagsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:begin:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginAcceptInvite starts creating the passkey of the person an invite
+                 names. It refuses while someone is signed in in the browser: accepting
+                 only ever makes a new person.
+            operationId: AuthService_BeginAcceptInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginAcceptInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginAcceptInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:check:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                CheckInvite reads an invite's link without spending it: who invited
+                 them, as what, and where. It works only at the panel's domain, where the
+                 passkey is made.
+
+                 It only reads, and is still not marked NO_SIDE_EFFECTS: the panel sends
+                 calls so marked as GETs, with the request in the address, and this one's
+                 request is a secret (a test in internal/control holds it to that).
+            operationId: AuthService_CheckInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invite:finish:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                FinishAcceptInvite spends the invite, makes the person with the role it
+                 names and the new passkey, and signs them in.
+            operationId: AuthService_FinishAcceptInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishAcceptInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/FinishAcceptInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invites:
+        post:
+            tags:
+                - MemberService
+            description: |-
+                CreateInvite invites someone by email to sign in with a role in a place,
+                 and returns the link to send them, once: Dockwell sends no mail. It takes a
+                 passkey step-up bound to the email, the role and the place
+                 (STEP_UP_ACTION_INVITE), and the panel's domain, which the link always
+                 uses. Nobody is invited as owner, an admin's place is the install, and an
+                 admin invites no one above admin. An invite to someone who signs in here
+                 already is refused; a newer one to the same email replaces an open one.
+            operationId: MemberService_CreateInvite
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CreateInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CreateInviteResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/invites/{id}:revoke:
+        post:
+            tags:
+                - MemberService
+            description: RevokeInvite stops an open invite working.
+            operationId: MemberService_RevokeInvite
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeInviteRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeInviteResponse'
                 default:
                     description: Default error response
                     content:
@@ -5950,6 +6229,24 @@ components:
                     type: string
                     description: How much those take, in bytes.
             description: BackupPolicyInfo is a schedule of backups, as it stands.
+        BeginAcceptInviteRequest:
+            type: object
+            properties:
+                secret:
+                    type: string
+                name:
+                    type: string
+                    description: Their name, such as "Ada Lovelace".
+            description: BeginAcceptInviteRequest names the person accepting.
+        BeginAcceptInviteResponse:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                optionsJson:
+                    type: string
+                    description: PublicKeyCredentialCreationOptionsJSON, for navigator.credentials.create.
+            description: BeginAcceptInviteResponse carries the passkey ceremony to finish.
         BeginAddPasskeyRequest:
             type: object
             properties:
@@ -6031,6 +6328,7 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_INVITE
                         - STEP_UP_ACTION_ADD_SERVER
                     type: string
                     description: The action.
@@ -6257,10 +6555,12 @@ components:
                     format: uint32
                 repository:
                     type: string
-                    description: The repository the entry came from.
+                    description: |-
+                        The repository the entry came from, as the control plane knows it: Dockwell's
+                         own for its built-in catalog, or a catalog source's. Never what the entry says.
                 commit:
                     type: string
-                    description: The commit it came from.
+                    description: 'The commit it came from: the build''s, or the source''s when it was installed.'
                 values:
                     type: object
                     additionalProperties:
@@ -6276,9 +6576,85 @@ components:
                          needs to tell that from what a person changed since. Empty for an install from
                          before Dockwell kept it, which can't be upgraded.
                     format: bytes
+                catalog:
+                    type: string
+                    description: |-
+                        The catalog source it came from, by name, or empty for Dockwell's own. An
+                         upgrade comes only from the same catalog, at the same repository and folder,
+                         whatever else has an entry of its ID (ADR 0055).
+                path:
+                    type: string
+                    description: The folder in the repository its source reads, for an entry from a source.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
+        CatalogSource:
+            type: object
+            properties:
+                repository:
+                    type: string
+                    description: |-
+                        The repository's URL, over HTTPS, such as
+                         "https://github.com/example/catalog".
+                path:
+                    type: string
+                    description: |-
+                        The folder of entries in it, one <id>.yaml each, such as "entries". Empty is
+                         its top.
+                commit:
+                    type: string
+                    description: The commit it's read at, in full, as 40 hex digits.
+            description: |-
+                CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
+                 entries in its format in a public Git repository, at one commit. Moving it to
+                 another commit is a change, so what anyone can install from it moves only with a
+                 plan. See docs/adr/0055-catalogs-from-a-git-url.md.
+        CatalogSourceInfo:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name.
+                source:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogSource'
+                    description: What it reads, as the resource says.
+                entries:
+                    type: array
+                    items:
+                        type: string
+                    description: The IDs of the entries the catalog shows from it, sorted.
+                refused:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceRefusal'
+                    description: What it leaves out, by file.
+                unread:
+                    type: string
+                    description: |-
+                        Why its entries can't be read now, such as a host that doesn't answer. Empty
+                         when they can.
+            description: CatalogSourceInfo is a source, and what Dockwell made of it.
+        CatalogSourceRef:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its full name, such as "refs/heads/main" or "refs/tags/v1".
+                commit:
+                    type: string
+                    description: The commit it's at, in full. A tag's is the commit it names.
+            description: CatalogSourceRef is a branch or a tag, and the commit it's at.
+        CatalogSourceRefusal:
+            type: object
+            properties:
+                file:
+                    type: string
+                    description: The file's name in the source's folder, such as "notes.yaml".
+                reason:
+                    type: string
+                    description: Why, such as what the catalog's check says of it.
+            description: CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
         CatalogUpgrade:
             type: object
             properties:
@@ -6650,6 +7026,44 @@ components:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says, as the control plane reads it.
             description: CheckDomainResponse says what DNS says of it.
+        CheckInviteRequest:
+            type: object
+            properties:
+                secret:
+                    type: string
+            description: 'CheckInviteRequest carries an invite''s secret, from after the # in its link.'
+        CheckInviteResponse:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Who it names.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectName:
+                    type: string
+                    description: |-
+                        The project's name, for a developer or a viewer of one. Empty for the
+                         whole install.
+                invitedBy:
+                    type: string
+                    description: Who made it, by name.
+                expireTime:
+                    type: string
+                    format: date-time
+                projectId:
+                    type: string
+                    description: |-
+                        The project's ID, for a developer or a viewer of one. Empty for the whole
+                         install: what says "every project" is this, never an empty name.
+            description: CheckInviteResponse says what an invite offers.
         CheckServerPortsResponse:
             type: object
             properties:
@@ -7113,6 +7527,47 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: CreateDatabaseUserResponse carries the planned change.
+        CreateInviteRequest:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: |-
+                        Who the invite names, such as "ada@example.com". Unverified: it names the
+                         invite in Members and on the page that accepts it.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    description: ROLE_ADMIN, ROLE_DEVELOPER or ROLE_VIEWER.
+                    format: enum
+                project:
+                    type: string
+                    description: |-
+                        The project's ID or name, for a developer or a viewer of one project.
+                         Empty is the whole install, which an admin's invite always is.
+                proof:
+                    type: string
+                    description: |-
+                        From FinishStepUp, for STEP_UP_ACTION_INVITE with the target the email,
+                         lowercased, the role's name and the place, apart by spaces, as "ada@example.com
+                         developer prj_…", or "install" for the whole install.
+            description: CreateInviteRequest says whom to invite, as what, and where.
+        CreateInviteResponse:
+            type: object
+            properties:
+                invite:
+                    $ref: '#/components/schemas/Invite'
+                link:
+                    type: string
+                    description: |-
+                        The link to send, as "https://panel.example.com/invite#…". Its secret
+                         isn't kept: it can't be shown again.
+            description: CreateInviteResponse carries the invite and its link, shown once.
         CreateJoinTicketRequest:
             type: object
             properties:
@@ -8297,6 +8752,12 @@ components:
                         What became of a scheduled task's run, for a task event. Its subject is the
                          task. Numbered in the block scheduled tasks hold, as open work adds to this
                          message.
+                member:
+                    allOf:
+                        - $ref: '#/components/schemas/EventMember'
+                    description: |-
+                        For a member's event, such as member.invite or member.join: who, with
+                         what role, where. Numbered in the block members hold.
                 desiredSent:
                     allOf:
                         - $ref: '#/components/schemas/EventDesiredSent'
@@ -8523,6 +8984,33 @@ components:
                  told then. A service that went between good and bad 3 times in 5 minutes keeps
                  changing, and is one event, whose time, flips and output change as it goes on,
                  until it has stayed one way for 5 minutes.
+        EventMember:
+            type: object
+            properties:
+                email:
+                    type: string
+                    description: Who, by email, as an invite names them.
+                name:
+                    type: string
+                    description: Their name, once they sign in.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectId:
+                    type: string
+                    description: The project, for a role in one. Empty for the whole install.
+                projectName:
+                    type: string
+                address:
+                    type: string
+                    description: The address someone joined from, on member.join. Empty otherwise.
+            description: EventMember is who a member's event is about, with what role, where.
         EventProcess:
             type: object
             properties:
@@ -8870,6 +9358,30 @@ components:
                     type: integer
                     format: uint32
             description: FileEntry is one file or directory on a server.
+        FinishAcceptInviteRequest:
+            type: object
+            properties:
+                ceremonyId:
+                    type: string
+                    description: From BeginAcceptInvite.
+                secret:
+                    type: string
+                    description: 'The invite''s secret, again: it is spent only here.'
+                credentialJson:
+                    type: string
+                    description: RegistrationResponseJSON from navigator.credentials.create.
+                passkeyName:
+                    type: string
+                    description: What to call the passkey, such as "Chrome on macOS". Optional.
+            description: FinishAcceptInviteRequest finishes the passkey and spends the invite.
+        FinishAcceptInviteResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+            description: |-
+                FinishAcceptInviteResponse carries the new person. The response sets the
+                 session cookie.
         FinishAddPasskeyRequest:
             type: object
             properties:
@@ -9202,6 +9714,7 @@ components:
                         - SIGN_IN_METHOD_AUTHENTICATOR_CODE
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
+                        - SIGN_IN_METHOD_INVITE
                     type: string
                     description: How this session began. Unset when not signed in.
                     format: enum
@@ -10238,6 +10751,43 @@ components:
                  to resources, which for a deploy or a new port is that a container is made
                  again: this says what that comes to. It isn't in the fingerprint, as it says
                  nothing about what the plan does.
+        Invite:
+            type: object
+            properties:
+                id:
+                    type: string
+                email:
+                    type: string
+                    description: Who it names, unverified.
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+                projectId:
+                    type: string
+                    description: The project, for a developer or a viewer of one. Empty for the install.
+                projectName:
+                    type: string
+                    description: The project's name. Empty for the install.
+                invitedBy:
+                    type: string
+                    description: Who made it, by name.
+                createTime:
+                    type: string
+                    format: date-time
+                expireTime:
+                    type: string
+                    description: |-
+                        When it stops working: 7 days after it's made for a developer or a
+                         viewer, 24 hours for an admin, whose link is a bearer credential to the
+                         install.
+                    format: date-time
+            description: Invite is an open invitation to sign in.
         JoinAddress:
             type: object
             properties:
@@ -10402,6 +10952,41 @@ components:
                         $ref: '#/components/schemas/CatalogInstall'
                     description: The installs, sorted by project.
             description: ListCatalogInstallsResponse lists what's installed from the catalog.
+        ListCatalogSourceRefsRequest:
+            type: object
+            properties:
+                repository:
+                    type: string
+                    description: The repository's URL, over HTTPS.
+            description: ListCatalogSourceRefsRequest names a repository.
+        ListCatalogSourceRefsResponse:
+            type: object
+            properties:
+                refs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceRef'
+                    description: |-
+                        The default branch, then each other branch, then each tag, by name. At most
+                         500: more are left out.
+                more:
+                    type: boolean
+                    description: Whether some were left out.
+                head:
+                    type: string
+                    description: |-
+                        The branch the repository's HEAD names, its default, such as
+                         "refs/heads/main", which leads refs. Empty when it names none.
+            description: ListCatalogSourceRefsResponse is the repository's branches and tags.
+        ListCatalogSourcesResponse:
+            type: object
+            properties:
+                sources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceInfo'
+                    description: Each source, by name.
+            description: ListCatalogSourcesResponse is every source.
         ListChangesResponse:
             type: object
             properties:
@@ -10575,6 +11160,11 @@ components:
                     items:
                         $ref: '#/components/schemas/Member'
                     description: Everyone who can sign in, oldest first.
+                invites:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Invite'
+                    description: The invites that still work, newest first.
             description: ListMembersResponse lists who can sign in.
         ListPasskeysResponse:
             type: object
@@ -11050,10 +11640,34 @@ components:
                     description: |-
                         True when code sign-in is locked after too many wrong codes, until the
                          owner lifts it. Only for the person asking.
+                grants:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MemberGrant'
+                    description: |-
+                        The roles they hold in projects, by project name. Their role on the
+                         whole install, which covers every project, is user.role.
             description: |-
                 Member is a person who can sign in, and how. The details of how are the
                  person asking's alone: for anyone else, only the kinds of sign-in they have
                  and when they were last active are set.
+        MemberGrant:
+            type: object
+            properties:
+                projectId:
+                    type: string
+                projectName:
+                    type: string
+                role:
+                    enum:
+                        - ROLE_UNSPECIFIED
+                        - ROLE_OWNER
+                        - ROLE_ADMIN
+                        - ROLE_DEVELOPER
+                        - ROLE_VIEWER
+                    type: string
+                    format: enum
+            description: MemberGrant is a role someone holds in one project.
         Mount:
             type: object
             properties:
@@ -12448,6 +13062,21 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now.
             description: RegenerateRecoveryCodesResponse carries the new codes.
+        RemoveCatalogSourceRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The source's name.
+            description: RemoveCatalogSourceRequest names the source to stop reading.
+        RemoveCatalogSourceResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: RemoveCatalogSourceResponse is the change that removes it.
         RemovePasskeyRequest:
             type: object
             properties:
@@ -12702,6 +13331,16 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: A new change, planned, that puts the resource back.
             description: RevertDriftResponse carries the planned revert.
+        RevokeInviteRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+            description: RevokeInviteRequest names an open invite.
+        RevokeInviteResponse:
+            type: object
+            properties: {}
+            description: RevokeInviteResponse is empty.
         RevokeOtherSessionsRequest:
             type: object
             properties: {}
@@ -13276,7 +13915,7 @@ components:
                         Recent stats, oldest first, for sparklines: at most 60 samples, from
                          the 5 minutes before the newest by the samples' own times, so a server
                          that reports again after a longer outage starts over. Samples come every
-                         5 s while anyone watches the fleet, and every 15 s while nobody does, so
+                         5 s while anyone watches the fleet, and every 10 s while nobody does, so
                          each says its own interval. Empty in lists.
                 agentBuild:
                     allOf:
@@ -13843,8 +14482,20 @@ components:
                     type: string
                     description: |-
                         How long until the agent's next sample, at the pace it was sampling when
-                         it took this one: 5 s while anyone watches the fleet, 15 s while nobody
+                         it took this one: 5 s while anyone watches the fleet, 10 s while nobody
                          does. Unset from an agent from before this, which samples every 5 s.
+                diskReadBytes:
+                    type: string
+                    description: |-
+                        Bytes read from the server's whole disks since it booted: each disk once,
+                         never its partitions, nor the device-mapper, md, loop, ram or zram
+                         devices on top of it, which would count its bytes again. Unset from an
+                         agent from before this (ADR 0065).
+                diskWrittenBytes:
+                    type: string
+                    description: |-
+                        Bytes written to the server's whole disks since it booted, counted as
+                         disk_read_bytes is.
             description: ServerStats is one sample of a server's resource use.
         ServerUpdates:
             type: object
@@ -14220,6 +14871,7 @@ components:
                         - SIGN_IN_METHOD_AUTHENTICATOR_CODE
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
+                        - SIGN_IN_METHOD_INVITE
                     type: string
                     description: How it signed in.
                     format: enum
@@ -14227,6 +14879,30 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetCatalogSourceRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: What to call it, such as "community", which its entries show beside them.
+                repository:
+                    type: string
+                    description: The repository's URL, over HTTPS.
+                path:
+                    type: string
+                    description: The folder of entries in it. Empty is its top.
+                commit:
+                    type: string
+                    description: The commit to read it at, in full, as 40 hex digits.
+            description: SetCatalogSourceRequest names a source, and what it reads.
+        SetCatalogSourceResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: SetCatalogSourceResponse is the change that sets it.
         SetInstallNameRequest:
             type: object
             properties:
@@ -14466,6 +15142,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/AlertCheck'
                     description: An address checked for whether it answers, kind "alert.check" (ADR 0066).
+                catalogSource:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogSource'
+                    description: |-
+                        A catalog read from a Git repository, kind "catalog.source". Numbered
+                         apart, as open work adds to this message.
                 task:
                     allOf:
                         - $ref: '#/components/schemas/Task'
@@ -15826,10 +16508,12 @@ tags:
          same credentials.
     - name: MemberService
       description: |-
-        MemberService says who can sign in to the install, with their role and how
-         they sign in. Today that is one person, the owner, who claimed the install:
-         inviting others, and roles beyond the owner, come later. See
-         docs/adr/0048-members-as-far-as-one-owner-goes.md.
+        MemberService says who can sign in to the install, with their roles and how
+         they sign in, and invites others: the owner and admins invite someone with
+         a role in a place, the install or a project, and the person accepts with a
+         passkey (AuthService.FinishAcceptInvite). See
+         docs/adr/0048-members-as-far-as-one-owner-goes.md and
+         docs/adr/0049-roles-and-invites-by-project.md.
 
          It names people and their emails, so only a person signed in reads it, never
          an API token. How each person signs in is theirs: everyone sees the kinds of

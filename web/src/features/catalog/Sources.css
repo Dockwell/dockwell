@@ -1,0 +1,183 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.sources-page .sources-panel + .sources-panel {
+  margin-top: var(--space-4);
+}
+
+.sources-note {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.sources-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.sources-facts dt {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sources-facts dd {
+  margin: 2px 0 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sources-commit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sources-heading {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sources-apps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources-app {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  color: var(--ink);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.sources-app:hover {
+  border-color: var(--cobalt);
+  color: var(--cobalt);
+}
+
+.sources-app:focus-visible,
+.sources-left summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.sources-left {
+  margin-top: var(--space-4);
+}
+
+.sources-left summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.sources-left ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources-left li {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sources-left li span {
+  color: var(--ink-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sources-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sources-phone-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+/* Keep the explanation apart from the actions, including when its translation wraps. */
+.sources-sheet .dw-sheet-foot {
+  flex-wrap: wrap;
+}
+
+.sources-sheet .dw-sheet-note {
+  flex: 1 0 100%;
+}
+
+.sources-sheet.is-phone {
+  --control-sm: 44px;
+  --control-md: 44px;
+  --control-lg: 44px;
+}
+
+@media (max-width: 639.98px) {
+  .sources-page {
+    --control-sm: 44px;
+    --control-md: 44px;
+    --control-lg: 44px;
+  }
+
+  .sources-app {
+    height: 44px;
+  }
+
+  .sources-left summary {
+    min-height: 44px;
+    align-content: center;
+  }
+}
+
+/* With no source yet: what one is, in a line, and the way to add one. */
+.sources-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-5);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.sources-empty h2 {
+  margin: var(--space-2) 0 0;
+  color: var(--ink);
+  font: var(--text-heading);
+  letter-spacing: var(--text-heading-tracking);
+}
+
+.sources-empty p {
+  margin: 0 0 var(--space-3);
+}
+
+/* What the form decided itself, in a line, with the way to change it. */
+.sources-defaults {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.sources-defaults-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
