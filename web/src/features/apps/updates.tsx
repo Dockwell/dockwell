@@ -5,7 +5,6 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   type AvailableUpdate,
-  CatalogService,
   type ServiceInfo,
   ServiceService,
   type ServiceUpdate,
@@ -24,11 +23,10 @@ import { type ReactNode, useState } from "react";
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
-import { installIn, useInstalls } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { environmentOf } from "./app";
-import { DeploySheet } from "./DeploySheet";
+import { useUpgrade } from "./upgrade";
 import { readServicesAgain } from "./useServices";
 import "./Updates.css";
 
@@ -305,7 +303,6 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
       </details>
       {checkedWords ? <p className="update-when">{checkedWords}</p> : null}
       {failedLine}
-      {act.sheet}
     </Panel>
   );
 }
@@ -370,39 +367,45 @@ function ProblemWords({ problem }: { problem: UpdateProblem }): ReactNode {
 }
 
 /**
- * What Update does for an app: a catalog install's upgrade plan, a build of an
- * app's newest commit, or another image in the deploy sheet, filled in.
+ * What Update does for an app: the update's own plan, safe by default, to the
+ * version picked (ADR 0080), as a catalog install's upgrades its install; a
+ * build of the newest commit for an app from Git; and the newest build of its
+ * language's version for an app from a folder.
  */
 function useUpdateAction(service: ServiceInfo) {
   const { t } = useLingui();
   const transport = useTransport();
   const sheet = useChangeSheet();
   const may = useMay();
+  const upgrading = useUpgrade(service);
   const environment = environmentOf(service);
-  const install = installIn(useInstalls().data?.installs ?? [], environment);
-  const [deploying, setDeploying] = useState("");
   const source = service.update?.source;
   const offer =
-    source === UpdateSource.CATALOG && install
-      ? may(CatalogService.method.upgradeCatalogInstall, { project: install.projectId })
-      : may(ServiceService.method.deployService, { environment });
+    source === UpdateSource.GIT
+      ? may(ServiceService.method.deployService, { environment })
+      : source === UpdateSource.RUNTIME
+        ? may(ServiceService.method.changeServiceRuntime, { environment })
+        : upgrading.may;
   const run = (a: AvailableUpdate) => {
-    if (source === UpdateSource.CATALOG) {
-      if (!install) return;
-      sheet.open({
-        kind: "plan",
-        make: () => createClient(CatalogService, transport).upgradeCatalogInstall({ id: install.projectId }),
-      });
-      return;
+    switch (source) {
+      case UpdateSource.GIT:
+        sheet.open({
+          kind: "plan",
+          make: () => createClient(ServiceService, transport).deployService({ id: service.id }),
+        });
+        return;
+      case UpdateSource.RUNTIME:
+        sheet.open({
+          kind: "plan",
+          make: () => createClient(ServiceService, transport).changeServiceRuntime({ id: service.id }),
+        });
+        return;
+      case UpdateSource.CATALOG:
+        upgrading.open();
+        return;
+      default:
+        upgrading.open(a.toImage || undefined);
     }
-    if (a.kind === UpdateKind.COMMIT) {
-      sheet.open({
-        kind: "plan",
-        make: () => createClient(ServiceService, transport).deployService({ id: service.id }),
-      });
-      return;
-    }
-    setDeploying(a.toImage);
   };
   const label = (a: AvailableUpdate) => {
     if (a.kind === UpdateKind.RELEASE) return t`Review the change`;
@@ -410,7 +413,5 @@ function useUpdateAction(service: ServiceInfo) {
     if (a.kind === UpdateKind.COMMIT) return t`Deploy the new commits`;
     return t`Update to ${a.toVersion}`;
   };
-  const shown =
-    deploying !== "" ? <DeploySheet service={service} image={deploying} onClose={() => setDeploying("")} /> : null;
-  return { run, label, offer, sheet: shown };
+  return { run, label, offer };
 }

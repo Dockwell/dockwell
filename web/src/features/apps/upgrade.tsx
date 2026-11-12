@@ -85,8 +85,18 @@ const SAID_FOR_MS = 15 * 60_000;
  * while it applies, then that it's updated, with Undo, for a while after (ADR
  * 0080). A failure is the page's notice of a rollback, as any deploy's is. Where
  * the app's latest change isn't an update, or isn't read yet, it's fallback.
+ * Elsewhere says another UpgradeProgress on the page shows the update, in the
+ * place of what's newer (ADR 0079): this one then says nothing while it would.
  */
-export function UpgradeProgress({ service, fallback = null }: { service: ServiceInfo; fallback?: ReactNode }) {
+export function UpgradeProgress({
+  service,
+  fallback = null,
+  elsewhere = false,
+}: {
+  service: ServiceInfo;
+  fallback?: ReactNode;
+  elsewhere?: boolean;
+}) {
   const { t } = useLingui();
   const transport = useTransport();
   const sheet = useChangeSheet();
@@ -107,6 +117,7 @@ export function UpgradeProgress({ service, fallback = null }: { service: Service
   if (!change || !intent) return fallback;
   const to = upgradeTo(intent);
   if (change.state === ChangeState.APPLYING) {
+    if (elsewhere) return null;
     return (
       <Panel title={t`Updating to ${to}`} className="upgrade-card">
         <UpgradeLine intent={intent} />
@@ -120,6 +131,7 @@ export function UpgradeProgress({ service, fallback = null }: { service: Service
     ...change.steps.map((s) => (s.finishTime ? timestampMs(s.finishTime) : 0)),
   );
   if (change.state !== ChangeState.APPLIED || change.undoneBy || Date.now() - ended > SAID_FOR_MS) return fallback;
+  if (elsewhere) return null;
   return (
     <Panel
       title={t`Updated to ${to}`}

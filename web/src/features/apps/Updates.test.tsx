@@ -3,19 +3,24 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
+  ChangeSchema,
+  ChangeState,
+  IntentKind,
   ServiceUpdateSchema,
   UpdateCheck,
   UpdateKind,
   UpdateProblem,
   UpdateSource,
+  type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { anApp, places, SERVER } from "../../test/apps";
+import { watched } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -143,11 +148,42 @@ describe("the update card on an app's page", () => {
     await waitFor(() => expect(skipped).toEqual(["16.4"]));
   });
 
-  it("opens the deploy sheet with the new image filled in", async () => {
+  it("plans the update through the update flow, to the version picked", async () => {
     const user = userEvent.setup();
-    renderAt("/apps/svc_db", api([postgres()]));
-    await user.click(await screen.findByRole("button", { name: "Update to 16.4" }));
-    expect(await screen.findByDisplayValue("postgres:16.4")).toBeVisible();
+    const asked: { image: string; skipBackup: boolean }[] = [];
+    renderAt(
+      "/apps/svc_db",
+      api([postgres()], {
+        services: {
+          listServices: () => ({ services: [postgres()] }),
+          upgradeService: (req) => {
+            asked.push({ image: req.image, skipBackup: req.skipBackup });
+            return {};
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Update to 17.2" }));
+    await waitFor(() => expect(asked).toEqual([{ image: "postgres:17.2", skipBackup: false }]));
+  });
+
+  it("gives its place to the update while it applies, said once", async () => {
+    const watch = feed<WatchChangeResponse>();
+    const applying = create(ChangeSchema, {
+      id: "chg_up",
+      state: ChangeState.APPLYING,
+      plan: {
+        intent: { kind: IntentKind.UPGRADE, resourceId: "svc_db", image: "postgres:16.4", fromImage: "postgres:16.3" },
+      },
+    });
+    const app = postgres();
+    app.changeId = "chg_up";
+    app.changeState = ChangeState.APPLYING;
+    renderAt("/apps/svc_db", api([app], { changes: { watchChange: watch.stream } }));
+    act(() => watch.push(watched(applying)));
+    expect(await screen.findByRole("region", { name: /^Updating to/ })).toBeVisible();
+    expect(screen.getAllByRole("region", { name: /^Updating to/ })).toHaveLength(1);
+    expect(screen.queryByRole("heading", { name: "Update available" })).toBeNull();
   });
 
   it("says an app is up to date in a line, with Check now", async () => {

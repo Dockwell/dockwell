@@ -20,23 +20,14 @@ import { ImageField } from "./ImageField";
  * bad image at the field, and an image it runs already, before there is a
  * plan to review. Git sources come with phase 2.
  */
-export function DeploySheet({
-  service,
-  image: start,
-  onClose,
-}: {
-  service: ServiceInfo;
-  /** The image to start from, such as an update's: what it runs unless set. */
-  image?: string;
-  onClose: () => void;
-}) {
+export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
   const { t } = useLingui();
   const transport = useTransport();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(ServiceService, transport), [transport]);
   const name = nameOf(service);
   const current = imageOf(service);
-  const [image, setImage] = useState(start || current);
+  const [image, setImage] = useState(current);
   const [busy, setBusy] = useState(false);
   const [fieldError, setFieldError] = useState<string>();
   const [failure, setFailure] = useState<string>();
