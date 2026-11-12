@@ -89,13 +89,24 @@ export function DatabaseLayout({ serviceId, children }: { serviceId: string; chi
   );
 }
 
-function Crumbs({ name }: { name?: string }) {
+/** The breadcrumb: Databases, its project once there are two, as a link (ADR 0074), and its name. */
+function Crumbs({ name, project }: { name?: string; project?: { id: string; label: string } | undefined }) {
   const { t } = useLingui();
   return (
     <nav className="app-crumbs" aria-label={t`Breadcrumb`}>
       <Link to="/databases">
         <Trans>Databases</Trans>
       </Link>
+      {project ? (
+        <>
+          <span aria-hidden="true" className="database-crumb-slash">
+            /
+          </span>
+          <Link to="/projects/$projectId" params={{ projectId: project.id }}>
+            {project.label}
+          </Link>
+        </>
+      ) : null}
       {name ? (
         <>
           <span aria-hidden="true" className="database-crumb-slash">
@@ -171,7 +182,9 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
     <Page
       title={name}
       machineTitle
-      breadcrumb={<Crumbs name={name} />}
+      breadcrumb={
+        <Crumbs name={name} project={place && !place.isDefault ? { id: place.scope, label: placeName } : undefined} />
+      }
       badge={<HealthBadge health={health} title={healthTitle} />}
       lead={lead}
       phoneSub={[engineAndVersion(db, read), healthWords.word(health)].join(" · ")}

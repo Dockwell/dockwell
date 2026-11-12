@@ -40,6 +40,8 @@ import { Route as ShellCatalogSourcesRouteImport } from './routes/_shell/catalog
 import { Route as ShellChangesChangeIdRouteImport } from './routes/_shell/changes.$changeId'
 import { Route as ShellDatabasesIndexRouteImport } from './routes/_shell/databases.index'
 import { Route as ShellDatabasesServiceIdRouteImport } from './routes/_shell/databases.$serviceId'
+import { Route as ShellProjectsIndexRouteImport } from './routes/_shell/projects.index'
+import { Route as ShellProjectsProjectIdRouteImport } from './routes/_shell/projects.$projectId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
 import { Route as ShellWebsitesIndexRouteImport } from './routes/_shell/websites.index'
 import { Route as ShellWebsitesWebsiteIdRouteImport } from './routes/_shell/websites.$websiteId'
@@ -226,6 +228,16 @@ const ShellDatabasesIndexRoute = ShellDatabasesIndexRouteImport.update({
 const ShellDatabasesServiceIdRoute = ShellDatabasesServiceIdRouteImport.update({
   id: '/databases/$serviceId',
   path: '/databases/$serviceId',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellProjectsIndexRoute = ShellProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellProjectsProjectIdRoute = ShellProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
@@ -453,12 +465,14 @@ export interface FileRoutesByFullPath {
   '/catalog/sources': typeof ShellCatalogSourcesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
+  '/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts/': typeof ShellAlertsIndexRoute
   '/apps/': typeof ShellAppsIndexRoute
   '/catalog/': typeof ShellCatalogIndexRoute
   '/databases/': typeof ShellDatabasesIndexRoute
+  '/projects/': typeof ShellProjectsIndexRoute
   '/servers/': typeof ShellServersIndexRoute
   '/websites/': typeof ShellWebsitesIndexRoute
   '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
@@ -516,11 +530,13 @@ export interface FileRoutesByTo {
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/catalog/sources': typeof ShellCatalogSourcesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
+  '/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts': typeof ShellAlertsIndexRoute
   '/apps': typeof ShellAppsIndexRoute
   '/catalog': typeof ShellCatalogIndexRoute
   '/databases': typeof ShellDatabasesIndexRoute
+  '/projects': typeof ShellProjectsIndexRoute
   '/servers': typeof ShellServersIndexRoute
   '/websites': typeof ShellWebsitesIndexRoute
   '/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
@@ -583,12 +599,14 @@ export interface FileRoutesById {
   '/_shell/catalog/sources': typeof ShellCatalogSourcesRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
+  '/_shell/projects/$projectId': typeof ShellProjectsProjectIdRoute
   '/_shell/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
   '/_shell/websites/new': typeof ShellWebsitesNewRoute
   '/_shell/alerts/': typeof ShellAlertsIndexRoute
   '/_shell/apps/': typeof ShellAppsIndexRoute
   '/_shell/catalog/': typeof ShellCatalogIndexRoute
   '/_shell/databases/': typeof ShellDatabasesIndexRoute
+  '/_shell/projects/': typeof ShellProjectsIndexRoute
   '/_shell/servers/': typeof ShellServersIndexRoute
   '/_shell/websites/': typeof ShellWebsitesIndexRoute
   '/_shell/_settings/settings/api-tokens': typeof ShellSettingsSettingsApiTokensRoute
@@ -650,12 +668,14 @@ export interface FileRouteTypes {
     | '/catalog/sources'
     | '/changes/$changeId'
     | '/databases/$serviceId'
+    | '/projects/$projectId'
     | '/websites/$websiteId'
     | '/websites/new'
     | '/alerts/'
     | '/apps/'
     | '/catalog/'
     | '/databases/'
+    | '/projects/'
     | '/servers/'
     | '/websites/'
     | '/settings/api-tokens'
@@ -713,11 +733,13 @@ export interface FileRouteTypes {
     | '/catalog/$entryId'
     | '/catalog/sources'
     | '/changes/$changeId'
+    | '/projects/$projectId'
     | '/websites/new'
     | '/alerts'
     | '/apps'
     | '/catalog'
     | '/databases'
+    | '/projects'
     | '/servers'
     | '/websites'
     | '/settings/api-tokens'
@@ -779,12 +801,14 @@ export interface FileRouteTypes {
     | '/_shell/catalog/sources'
     | '/_shell/changes/$changeId'
     | '/_shell/databases/$serviceId'
+    | '/_shell/projects/$projectId'
     | '/_shell/websites/$websiteId'
     | '/_shell/websites/new'
     | '/_shell/alerts/'
     | '/_shell/apps/'
     | '/_shell/catalog/'
     | '/_shell/databases/'
+    | '/_shell/projects/'
     | '/_shell/servers/'
     | '/_shell/websites/'
     | '/_shell/_settings/settings/api-tokens'
@@ -1045,6 +1069,20 @@ declare module '@tanstack/react-router' {
       path: '/databases/$serviceId'
       fullPath: '/databases/$serviceId'
       preLoaderRoute: typeof ShellDatabasesServiceIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/projects/': {
+      id: '/_shell/projects/'
+      path: '/projects'
+      fullPath: '/projects/'
+      preLoaderRoute: typeof ShellProjectsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/projects/$projectId': {
+      id: '/_shell/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof ShellProjectsProjectIdRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/servers/': {
@@ -1409,12 +1447,14 @@ interface ShellRouteChildren {
   ShellCatalogSourcesRoute: typeof ShellCatalogSourcesRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellDatabasesServiceIdRoute: typeof ShellDatabasesServiceIdRouteWithChildren
+  ShellProjectsProjectIdRoute: typeof ShellProjectsProjectIdRoute
   ShellWebsitesWebsiteIdRoute: typeof ShellWebsitesWebsiteIdRouteWithChildren
   ShellWebsitesNewRoute: typeof ShellWebsitesNewRoute
   ShellAlertsIndexRoute: typeof ShellAlertsIndexRoute
   ShellAppsIndexRoute: typeof ShellAppsIndexRoute
   ShellCatalogIndexRoute: typeof ShellCatalogIndexRoute
   ShellDatabasesIndexRoute: typeof ShellDatabasesIndexRoute
+  ShellProjectsIndexRoute: typeof ShellProjectsIndexRoute
   ShellServersIndexRoute: typeof ShellServersIndexRoute
   ShellWebsitesIndexRoute: typeof ShellWebsitesIndexRoute
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
@@ -1449,12 +1489,14 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellCatalogSourcesRoute: ShellCatalogSourcesRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellDatabasesServiceIdRoute: ShellDatabasesServiceIdRouteWithChildren,
+  ShellProjectsProjectIdRoute: ShellProjectsProjectIdRoute,
   ShellWebsitesWebsiteIdRoute: ShellWebsitesWebsiteIdRouteWithChildren,
   ShellWebsitesNewRoute: ShellWebsitesNewRoute,
   ShellAlertsIndexRoute: ShellAlertsIndexRoute,
   ShellAppsIndexRoute: ShellAppsIndexRoute,
   ShellCatalogIndexRoute: ShellCatalogIndexRoute,
   ShellDatabasesIndexRoute: ShellDatabasesIndexRoute,
+  ShellProjectsIndexRoute: ShellProjectsIndexRoute,
   ShellServersIndexRoute: ShellServersIndexRoute,
   ShellWebsitesIndexRoute: ShellWebsitesIndexRoute,
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,

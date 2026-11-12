@@ -9,7 +9,7 @@ import { useDocumentTitle } from "../../lib/useDocumentTitle";
 import { useOpenCommandBar } from "./CommandMenu";
 import "./Page.css";
 
-type Back = "/" | "/more" | "/servers" | "/apps" | "/settings" | "/catalog";
+type Back = "/" | "/more" | "/servers" | "/apps" | "/settings" | "/catalog" | "/projects";
 
 /**
  * How wide a page grows, by its kind, as Layout in design/system/README.md sets out. Each is centred right of the

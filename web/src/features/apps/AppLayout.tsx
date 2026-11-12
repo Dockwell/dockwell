@@ -114,7 +114,13 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
   );
 }
 
-function Crumbs({ name, project }: { name?: string; project?: string | undefined }) {
+/** Its project, as the breadcrumb links to it, once there are two (ADR 0074). */
+interface CrumbProject {
+  id: string;
+  label: string;
+}
+
+function Crumbs({ name, project }: { name?: string; project?: CrumbProject | undefined }) {
   const { t } = useLingui();
   return (
     <nav className="app-crumbs" aria-label={t`Breadcrumb`}>
@@ -124,7 +130,9 @@ function Crumbs({ name, project }: { name?: string; project?: string | undefined
       {project ? (
         <>
           <span aria-hidden="true">/</span>
-          <span>{project}</span>
+          <Link to="/projects/$projectId" params={{ projectId: project.id }}>
+            {project.label}
+          </Link>
         </>
       ) : null}
       {name ? (
@@ -263,7 +271,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       // A log view gains from every column it can have, under a head and tabs that stay where every tab has them.
       fullBody={onLogs}
       back="/apps"
-      breadcrumb={<Crumbs name={name} project={place && !place.isDefault ? place.label : undefined} />}
+      breadcrumb={
+        <Crumbs name={name} project={place && !place.isDefault ? { id: place.scope, label: place.label } : undefined} />
+      }
       badge={
         <>
           <HealthBadge health={health} title={healthTitle} />

@@ -211,7 +211,7 @@ export interface Places {
 }
 
 /** The name of the project an install starts with (ADR 0014). */
-const DEFAULT_PROJECT = "default";
+export const DEFAULT_PROJECT = "default";
 
 /** The environments and projects, read once and shared with the command bar. */
 export function usePlaces(): Places {
