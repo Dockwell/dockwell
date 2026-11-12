@@ -117,9 +117,11 @@ func (*UserDriver) Pin(spec proto.Message, revisions map[string]int) {
 	}
 }
 
-// References names its service, which has to run where it's made.
+// References names its service, which has to run where it's made, and which the
+// user lives in: deleting both deletes the service first, and the user's step then
+// only forgets it, so its database stays in the service's volume.
 func (*UserDriver) References(spec proto.Message) []resource.Reference {
-	return []resource.Reference{{Kind: "service", Name: spec.(*resourcev1.DatabaseUser).GetService(), Verb: "make it in", Apart: true}}
+	return []resource.Reference{{Kind: "service", Name: spec.(*resourcev1.DatabaseUser).GetService(), Verb: "make it in", Apart: true, Inside: true}}
 }
 
 // ReferenceKinds is services.

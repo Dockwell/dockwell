@@ -2273,7 +2273,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "access %s|%s|%v\n", server, ref(it.ref), gained)
 			}
 		}
-		steps = order(steps)
+		steps = e.insideGoesAfter(order(steps), its)
 		for i := range steps {
 			s := &steps[i]
 			// The fingerprint covers what an install installs, so a person never
@@ -2759,6 +2759,45 @@ func (e *Engine) serverNames(ctx context.Context, servers []string) (map[string]
 		return nil
 	})
 	return names, err
+}
+
+// insideGoesAfter moves the deletion of what lives inside another resource, as a
+// database user lives in its database server, after that resource's own deletion,
+// when the steps delete both: the server is gone by then, so deleting the user
+// takes nothing with it, and its database stays in the server's volume, kept as
+// that volume is. Deleted the other way round, the user's step would drop its
+// database first, and the data would go before anything kept it (ADR 0074).
+func (e *Engine) insideGoesAfter(steps []resource.Step, its []*item) []resource.Step {
+	current := make(map[resource.Ref]proto.Message, len(its))
+	for i := range its {
+		current[its[i].ref] = its[i].current
+	}
+	at := func(ref resource.Ref) int {
+		return slices.IndexFunc(steps, func(s resource.Step) bool { return s.Ref == ref && s.Action == resource.ActionDelete })
+	}
+	for i := 0; i < len(steps); i++ {
+		s := steps[i]
+		if s.Action != resource.ActionDelete {
+			continue
+		}
+		for _, use := range e.kinds.References(s.Ref.Kind, current[s.Ref]) {
+			if !use.Inside {
+				continue
+			}
+			t := at(resource.Ref{Kind: use.Kind, Scope: s.Ref.Scope, Name: use.Name})
+			if t < 0 {
+				continue
+			}
+			s.Destroys = false
+			steps[i] = s
+			if t > i {
+				steps = slices.Insert(slices.Delete(steps, i, i+1), t, s)
+				i--
+			}
+			break
+		}
+	}
+	return steps
 }
 
 // order runs creates, updates and replaces in proposal order, then deletes

@@ -1778,6 +1778,11 @@ type Reference struct {
 	// Apart says the spec gains nothing of what the resource reaches, as a
 	// route sends traffic to a service and has no part in what it mounts.
 	Apart bool
+	// Inside says the spec's resource lives inside the one it names, as a
+	// database user lives in its database server. When one change deletes
+	// both on a server, the one it names goes first, so deleting this one
+	// takes nothing with it: its data stays where the other kept it.
+	Inside bool
 }
 
 // Claim is something only one resource may hold across an install, whatever

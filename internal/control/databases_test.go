@@ -492,6 +492,61 @@ func scramFits(t *testing.T, verifier, password string) bool {
 // A database's first user gets a new generated password through a plan: the secret
 // its service starts with changes, the agent gives it to the user in the database as
 // the service restarts, and undoing the change puts the old one back.
+// Deleting a database's service with a user Dockwell made in it deletes the service
+// first, so the user's step drops nothing: its database stays in the service's
+// volume, which the deletion keeps, and undo brings back (ADR 0074). The other way
+// round the user's database would go before anything kept it.
+func TestDeletingADatabaseWithItsUserDropsNothingInIt(t *testing.T) {
+	storetest.Each(t, testDeletingADatabaseWithItsUserDropsNothingInIt)
+}
+
+func testDeletingADatabaseWithItsUserDropsNothingInIt(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	var redis []string
+	e.Registry["redis:7"] = readableRedis(&redis)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	ch := changeClient(b, b.origin)
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "first-password"}, false))
+	dc := databaseClient(b, b.origin)
+	made, err := dc.CreateDatabaseUser(t.Context(), connect.NewRequest(&dockwellv1.CreateDatabaseUserRequest{Id: "db", User: "shop"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := apply(t, ch, made.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("making shop ended %v: %v", got.GetState(), got.GetError())
+	}
+
+	planned := propose(t, ch, "Delete db",
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "database.user", Name: "shop"}, Delete: true},
+		&dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "db"}, Delete: true},
+	)
+	var order []string
+	for _, s := range planned.GetPlan().GetServers()[0].GetSteps() {
+		order = append(order, s.GetResource().GetKind()+" "+s.GetResource().GetName())
+		if s.GetResource().GetKind() == "database.user" && s.GetDestroysData() {
+			t.Error("the user's step says it destroys data, though its server goes first")
+		}
+	}
+	if !slices.Equal(order, []string{"service db", "database.user shop"}) {
+		t.Fatalf("the steps run in the order %v, not the service first", order)
+	}
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("deleting db ended %v: %v", got.GetState(), got.GetError())
+	}
+	pg.mu.Lock()
+	_, role := pg.roles["shop"]
+	owner := pg.databases["shop"]
+	said := strings.Join(pg.said, "\n")
+	pg.mu.Unlock()
+	if !role || owner != "shop" || strings.Contains(said, "DROP") {
+		t.Errorf("PostgreSQL has the role shop %t and its database owned by %q, and was told:\n%s", role, owner, said)
+	}
+}
+
 func TestADatabasesFirstPasswordChangesThroughAPlan(t *testing.T) {
 	storetest.Each(t, testADatabasesFirstPasswordChangesThroughAPlan)
 }

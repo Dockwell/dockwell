@@ -51,13 +51,16 @@ When the app is the last thing in its project, the plan to delete it offers the 
 - **A volume going needs the typed confirmation, and is kept 7 days,** as ADR 0036 has it, so Undo brings back the app, its project and its data together.
 - **Deleting a project is an admin's** (ADR 0049). Below an admin the switch is off, with why ([ADR 0059](0059-what-the-panel-knows-of-what-you-may-do.md)), and the plan deletes the app alone.
 - **One service of several keeps the project,** as a stack's other services still use it. Its Settings say so, and offer to delete the whole project instead, which opens that plan.
-- **Websites already go with their project** (`DeleteWebsite`, ADR 0039). A database deletes from its project's page.
+- **Websites already go with their project** (`DeleteWebsite`, ADR 0039).
+- **A database deletes from its own page too,** with the same switch. The users Dockwell made in it go with it, as nothing else can hold them, and its volume stays, with every database and user in it.
 
 ### One plan deletes a project with everything in it
 
 The panel's plan to delete a project takes everything left in it, not only volumes and networks: it lists each environment's resources (`ListResources` with the environment as scope) and deletes each, with the project, in one change. The engine orders them by what uses what, so routes go before services, and services before what they mount. This replaces ADR 0036's "the panel offers what the panel can't otherwise delete": a person asked to delete the project, and every item is on the plan to review.
 
-- **The engine is unchanged.** It still refuses a project that would keep anything, and names what, so the API and the CLI behave as ADR 0036 says. Something made between the panel's read and its plan is refused the same way, by name.
+- **The engine still refuses a project that would keep anything,** and names what, so the API and the CLI behave as ADR 0036 says. Something made between the panel's read and its plan is refused the same way, by name.
+- **What lives inside another resource goes after it.** A database user lives in its database server, and deleting it drops its database. When one change deletes both on a server, the engine now deletes the server first, so the user's step finds nothing to drop, destroys nothing, and only forgets the user: its database stays in the server's volume, kept as that volume is. A kind says so of a reference (`resource.Reference.Inside`), so the rule isn't the database's alone.
+- **A plan says what's true of a deleted volume's data:** its server keeps it for 7 days, and undoing the change brings it back. Only data nothing keeps, such as a database dropped with its user, reads as not coming back.
 - **The CLI deletes what's in a project first,** as its refusal says, for now. A `--with-contents` flag on `dockwell projects delete` is the next step for it.
 - **Undo brings it all back,** as for any change, with volumes within their 7 days.
 
