@@ -44,6 +44,7 @@ import {
   SheetSwap,
   SheetView,
   StatusBadge,
+  Switch,
   TextField,
   useMediaQuery,
   useSheetViewAway,
@@ -138,6 +139,22 @@ interface Then {
    * leaves the server's own.
    */
   fix?: (reason: string) => string | undefined;
+  /**
+   * A choice of what the plan takes, as a switch above it, such as deleting an app's project with the
+   * app (ADR 0074). Flipping it plans the other opening in this one's place, and lets go of this plan.
+   */
+  choice?: PlanChoice;
+}
+
+/** A switch above a plan, between it and another plan, which `flip` opens. */
+export interface PlanChoice {
+  label: string;
+  on: boolean;
+  /** What it does, in a line, for the state it's in. */
+  description?: string;
+  /** Why it can't be flipped, for someone whose role doesn't cover the other plan (ADR 0059). It says so in place of the description. */
+  off?: string;
+  flip: () => Opening;
 }
 
 /**
@@ -863,6 +880,9 @@ function ChangeSheet({
       <span className="dw-sr" role="status">
         {phase === "applying" || phase === "arrived" ? title : ""}
       </span>
+      {opening.choice && (phase === "planning" || phase === "review" || phase === "unplanned") ? (
+        <PlanChoiceSwitch choice={opening.choice} onFlip={() => open(opening.choice?.flip() ?? opening)} />
+      ) : null}
       <PlanBody
         key={phase === "planning" ? phase : "plan"}
         phase={phase}
@@ -878,6 +898,21 @@ function ChangeSheet({
         onLeave={leave}
       />
     </SheetView>
+  );
+}
+
+/** The switch a choice is, above the plan, which stays where it is while the other plan is made. */
+function PlanChoiceSwitch({ choice, onFlip }: { choice: PlanChoice; onFlip: () => void }) {
+  return (
+    <div className="plan-choice">
+      <Switch
+        checked={choice.on}
+        onChange={onFlip}
+        label={choice.label}
+        description={choice.off ?? choice.description}
+        disabled={choice.off !== undefined}
+      />
+    </div>
   );
 }
 

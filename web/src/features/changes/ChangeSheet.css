@@ -8,6 +8,14 @@
   animation: dw-fade var(--motion-fast) var(--ease-out);
 }
 
+/* A choice of what the plan takes, above it: a switch in a bordered row, which keeps its place while the other plan is made. */
+.plan-choice {
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .plan-body {
     animation: none;

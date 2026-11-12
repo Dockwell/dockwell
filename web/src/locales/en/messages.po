@@ -2555,9 +2555,6 @@ msgstr "Copy the image"
 msgid "Couldn't read this app's domains"
 msgstr "Couldn't read this app's domains"
 
-msgid "Delete {name}"
-msgstr "Delete {name}"
-
 msgid "Deploy what should run, or fix it on the server."
 msgstr "Deploy what should run, or fix it on the server."
 
@@ -2922,6 +2919,16 @@ msgstr "Command"
 msgid "Danger zone"
 msgstr "Danger zone"
 
+msgid "Delete the project"
+msgstr "Delete the project"
+
+#. placeholder {0}: project.label
+msgid "Delete the project {0}"
+msgstr "Delete the project {0}"
+
+msgid "Delete {name}"
+msgstr "Delete {name}"
+
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker changes a limit on the running container, except to lift one, which replaces it."
 
@@ -3089,11 +3096,24 @@ msgstr "Settings sections"
 msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
 msgstr "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
 
+#. placeholder {0}: project.label
+#. placeholder {1}: project.left
+msgid "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
+msgstr "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
+
+#. placeholder {0}: project.label
+msgid "Stops it and removes its container. Its project {0} goes too. You review a plan first."
+msgstr "Stops it and removes its container. Its project {0} goes too. You review a plan first."
+
 msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
 msgstr "Stops it and removes its container. Its volumes stay, and you review a plan first."
 
 msgid "TCP"
 msgstr "TCP"
+
+#. placeholder {0}: project.holds
+msgid "Takes {0} in one plan, to review first."
+msgstr "Takes {0} in one plan, to review first."
 
 msgid "The image has none, so Running only means it started"
 msgstr "The image has none, so Running only means it started"
@@ -4328,6 +4348,24 @@ msgstr "{0}, the one it runs"
 
 msgid "{word} version"
 msgstr "{word} version"
+
+msgid "Also delete the project {label}"
+msgstr "Also delete the project {label}"
+
+msgid "Delete the project {label}"
+msgstr "Delete the project {label}"
+
+msgid "Delete {name} and the project {label}"
+msgstr "Delete {name} and the project {label}"
+
+msgid "Leaves {leftWords} in it"
+msgstr "Leaves {leftWords} in it"
+
+msgid "Nothing else is in it"
+msgstr "Nothing else is in it"
+
+msgid "Takes {leftWords} with it"
+msgstr "Takes {leftWords} with it"
 
 msgid "Add a Dockerfile, or set both a build command and a start command under Change."
 msgstr "Add a Dockerfile, or set both a build command and a start command under Change."
@@ -10120,6 +10158,36 @@ msgstr "Skip to the overview"
 
 msgid "What do you want to run?"
 msgstr "What do you want to run?"
+
+msgid "{n, plural, one {# app} other {# apps}}"
+msgstr "{n, plural, one {# app} other {# apps}}"
+
+msgid "{n, plural, one {# backup schedule} other {# backup schedules}}"
+msgstr "{n, plural, one {# backup schedule} other {# backup schedules}}"
+
+msgid "{n, plural, one {# database user} other {# database users}}"
+msgstr "{n, plural, one {# database user} other {# database users}}"
+
+msgid "{n, plural, one {# domain} other {# domains}}"
+msgstr "{n, plural, one {# domain} other {# domains}}"
+
+msgid "{n, plural, one {# network} other {# networks}}"
+msgstr "{n, plural, one {# network} other {# networks}}"
+
+msgid "{n, plural, one {# scheduled task} other {# scheduled tasks}}"
+msgstr "{n, plural, one {# scheduled task} other {# scheduled tasks}}"
+
+msgid "{n, plural, one {# secret} other {# secrets}}"
+msgstr "{n, plural, one {# secret} other {# secrets}}"
+
+msgid "{n, plural, one {# variable} other {# variables}}"
+msgstr "{n, plural, one {# variable} other {# variables}}"
+
+msgid "{n, plural, one {# volume} other {# volumes}}"
+msgstr "{n, plural, one {# volume} other {# volumes}}"
+
+msgid "{others, plural, one {# other resource} other {# other resources}}"
+msgstr "{others, plural, one {# other resource} other {# other resources}}"
 
 msgid "Add a server"
 msgstr "Add a server"
