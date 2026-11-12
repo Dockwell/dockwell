@@ -21,6 +21,9 @@ type shared[T any] struct {
 type sharedRun[T any] struct {
 	done chan struct{}
 	out  T
+	// joined is how many have asked for this run, the one who started it
+	// included, under shared's lock: a test waits on it to know who shares it.
+	joined int
 }
 
 // read joins the read under way, or starts one, and waits for what it says.
@@ -43,6 +46,7 @@ func (s *shared[T]) read(ctx context.Context, bound time.Duration, read func(con
 			close(r.done)
 		}()
 	}
+	r.joined++
 	s.mu.Unlock()
 	select {
 	case <-r.done:

@@ -45,8 +45,30 @@ func TestASharedReadForgottenLetsTheNextStartAgain(t *testing.T) {
 		}
 	}
 
+	// Both share the first run before it's forgotten: a goroutine that starts
+	// late would otherwise ask after forget, and start a run of its own.
+	joined := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			s.mu.Lock()
+			got := 0
+			if s.reading != nil {
+				got = s.reading.joined
+			}
+			s.mu.Unlock()
+			if got >= n {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("%d asked to share the first run, want %d", got, n)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
 	first, beside := ask(), ask()
 	waitRuns(1)
+	joined(2)
 	s.forget()
 	second := ask()
 	waitRuns(2)
