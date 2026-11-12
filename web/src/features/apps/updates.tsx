@@ -109,7 +109,7 @@ export function StackUpdates({ services, now }: { services: readonly ServiceInfo
   const count = withUpdates(services, now).length;
   if (count === 0) return null;
   return (
-    <span className="update-mark">
+    <span className="update-mark is-count">
       <Icon name="arrow-up" size={12} />
       {plural(count, { one: "# update", other: "# updates" })}
     </span>

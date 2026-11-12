@@ -12,6 +12,11 @@
   white-space: nowrap;
 }
 
+/* A count is words, not a version. */
+.update-mark.is-count {
+  font-family: inherit;
+}
+
 .update-mark .dw-icon {
   flex: none;
 }

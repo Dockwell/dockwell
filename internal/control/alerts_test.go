@@ -122,7 +122,7 @@ func testAnAlert(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := listed.Msg.GetChannels(); len(got) != 1 || got[0].GetType() != "webhook" || got[0].GetRules() != int32(len(alert.Defaults())) || strings.Contains(got[0].GetTarget(), "t0ken") || !strings.HasPrefix(got[0].GetTarget(), "127.0.0.1:") {
+	if got := listed.Msg.GetChannels(); len(got) != 1 || got[0].GetType() != "webhook" || got[0].GetRules() != enabledDefaults() || strings.Contains(got[0].GetTarget(), "t0ken") || !strings.HasPrefix(got[0].GetTarget(), "127.0.0.1:") {
 		t.Errorf("ListAlertChannels = %v", got)
 	}
 	tested, err := sites.TestAlertChannel(t.Context(), connect.NewRequest(&dockwellv1.TestAlertChannelRequest{Name: "ops"}))
@@ -451,4 +451,16 @@ func TestEveryChannelKeepsWhatSignsInSealed(t *testing.T) {
 			t.Errorf("%s left the control plane", mark)
 		}
 	}
+}
+
+// enabledDefaults is how many of an install's first rules are on: a channel counts
+// those alone.
+func enabledDefaults() int32 {
+	n := int32(0)
+	for _, d := range alert.Defaults() {
+		if !d.Rule.GetDisabled() {
+			n++
+		}
+	}
+	return n
 }
