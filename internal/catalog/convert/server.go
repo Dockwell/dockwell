@@ -200,16 +200,18 @@ func entryName(name string) bool {
 // LicenseFiles are where a repository's licence is read from, at its top.
 var LicenseFiles = []string{"LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"}
 
-// LicenseOf is the SPDX licence a repository's licence's text is, for the three
-// licences the stores publish under, or "" when it isn't plainly one of them.
+// LicenseOf is the SPDX licence a repository's licence's text is, for the licences
+// the stores publish under, or "" when it isn't plainly one of them. It reads a
+// licence's title, at its top, as the GPL's own text names the AGPL further down.
 func LicenseOf(text []byte) string {
 	t := strings.Join(strings.Fields(strings.ToLower(string(text))), " ")
+	head := t[:min(len(t), 200)]
 	switch {
-	case strings.Contains(t, "gnu affero general public license") && strings.Contains(t, "version 3"):
+	case strings.HasPrefix(head, "gnu affero general public license version 3"):
 		return "AGPL-3.0-only"
-	case strings.Contains(t, "gnu general public license") && strings.Contains(t, "version 3"):
+	case strings.HasPrefix(head, "gnu general public license version 3"):
 		return "GPL-3.0-only"
-	case strings.Contains(t, "apache license") && strings.Contains(t, "version 2.0"):
+	case strings.Contains(head, "apache license version 2.0"):
 		return "Apache-2.0"
 	case strings.Contains(t, "permission is hereby granted, free of charge"):
 		return "MIT"

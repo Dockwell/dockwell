@@ -214,6 +214,7 @@ func TestLicenseOf(t *testing.T) {
 	for text, want := range map[string]string{
 		"                    GNU GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007\n": "GPL-3.0-only",
 		"GNU AFFERO GENERAL PUBLIC LICENSE\nVersion 3, 19 November 2007":                                   "AGPL-3.0-only",
+		"GNU GENERAL PUBLIC LICENSE\nVersion 3\n\n13. Use with the GNU Affero General Public License.":     "GPL-3.0-only",
 		"Apache License\n  Version 2.0, January 2004":                                                      "Apache-2.0",
 		"MIT License\n\nCopyright (c) 2024 Someone\n\nPermission is hereby granted, free of charge, to":    "MIT",
 		"All rights reserved.": "",
