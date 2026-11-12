@@ -3,7 +3,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type Client, createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
+import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
   AlertService,
@@ -14,6 +14,7 @@ import {
   ChangeService,
   ChangeState,
   Connection,
+  DatabaseService,
   type Domain,
   type DomainRoute,
   DomainService,
@@ -79,6 +80,7 @@ import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useWebsiteOfEnvironment } from "../websites/website";
 import { ConfirmAccess } from "./ConfirmAccess";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
@@ -928,6 +930,26 @@ function PlanChoiceSwitch({ choice, onFlip }: { choice: PlanChoice; onFlip: () =
   );
 }
 
+/** A website as the plan sheet needs it: the environment's website, if it is one. */
+type WebsiteOf = ((environmentId: string) => { id: string; domain: string; name: string } | undefined) | undefined;
+
+/**
+ * The website every one of these services is its own of, by its domain, when they're all one
+ * website's (ADR 0039), or undefined. A website's services are the website's, never apps.
+ */
+function websiteOfAll(services: readonly PlannedResource[], websiteOf: WebsiteOf): string | undefined {
+  if (!websiteOf || services.length === 0) return undefined;
+  const sites = services.map((s) => websiteOf(s.resource?.scope ?? ""));
+  const first = sites[0];
+  if (!first || sites.some((w) => w?.id !== first.id)) return undefined;
+  return first.domain || first.name;
+}
+
+/** The services that are apps: those that aren't a website's own. */
+function notWebsites(services: readonly PlannedResource[], websiteOf: WebsiteOf): PlannedResource[] {
+  return websiteOf ? services.filter((s) => !websiteOf(s.resource?.scope ?? "")) : [...services];
+}
+
 /**
  * Where it stands, as a shape and a colour beside the word the title says,
  * while it runs and once something is live. A plan to review has nothing to
@@ -962,6 +984,8 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   const words = useChangeWords();
   const intent = intentOf(plan);
   const health = useHealth();
+  // Only what runs can be a website's; a plan that runs nothing, such as a reboot, reads no websites.
+  const websiteOf = useWebsiteOfEnvironment(goesLive(plan).length > 0);
   // A reboot says what it does, and that the server came back.
   if (reboots(plan)) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
@@ -1032,7 +1056,10 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     return t`${subject} is taken on`;
   }
   const live = goesLive(plan);
-  const name = live[0]?.resource?.name ?? "";
+  // A website's own services deploy as the website, by its domain, never as apps (ADR 0039).
+  const site = websiteOfAll(live, websiteOf);
+  if (live.length > 1 && site) return t`${site} is deployed`;
+  const name = site ?? live[0]?.resource?.name ?? "";
   if (live.length === 1 && live[0]) {
     const runs = health.of({ id: live[0].id }, landedAt(change));
     if (runs.read === "read") {
@@ -1058,7 +1085,10 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   }
   const made = madeProject(plan);
   if (live.length > 1 && made) return t`${made} is deployed`;
-  if (live.length > 1) return plural(live.length, { one: "# app is deployed", other: "# apps are deployed" });
+  if (live.length > 1) {
+    const apps = notWebsites(live, websiteOf);
+    return plural(apps.length || live.length, { one: "# app is deployed", other: "# apps are deployed" });
+  }
   const all = changing(plan);
   const only = all[0];
   const subject = shownName(only);
@@ -1530,8 +1560,12 @@ function Places({ plan }: { plan: Plan | undefined }) {
 /** The plan's reach in one line: which servers, and what it does to what they run. */
 function Impact({ plan }: { plan: Plan | undefined }) {
   const time = useTimeWords();
-  const { i18n } = useLingui();
+  const { i18n, t } = useLingui();
   const now = useControlPlaneNow(30_000);
+  // What stops reads as the Projects list reads it: a website by its domain, a database as one, the rest as apps.
+  const stopsAny = goesAway(plan).length > 0;
+  const websiteOf = useWebsiteOfEnvironment(stopsAny);
+  const databases = useQuery(DatabaseService.method.listDatabases, {}, { enabled: stopsAny }).data?.databases;
   const servers = (plan?.servers ?? []).filter((s) => !s.removed);
   if (servers.length === 0) return <Trans>No server · nothing goes down</Trans>;
   const where =
@@ -1548,8 +1582,17 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       </span>
     );
   const away = goesAway(plan);
+  // A website's own services stop as the website, by its domain, and only apps count as apps (ADR 0039).
+  const site = websiteOfAll(away, websiteOf);
+  const notSites = notWebsites(away, websiteOf);
+  const databaseIds = new Set((databases ?? []).map((d) => d.id));
+  const databasesAway = notSites.filter((r) => databaseIds.has(r.id)).length;
+  const count = {
+    apps: notSites.length > 0 ? notSites.length - databasesAway : away.length,
+    databases: databasesAway,
+  };
   const names = away.map((r) => r.resource?.name ?? r.id);
-  const name = names[0] ?? "";
+  const name = site ?? names[0] ?? "";
   const down = longestDowntime(servers);
   const span = time.span(down);
   const healthy = longestUntilHealthy(servers);
@@ -1603,8 +1646,32 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       ),
     ),
   ].join(", ");
+  /** How many apps and databases stop, and until when it can be undone, if it can. */
+  const stopWords = (n: { apps: number; databases: number }, deadline: string): string => {
+    if (n.databases === 0) {
+      return deadline
+        ? plural(n.apps, {
+            one: `# app stops, and you can undo this until ${deadline}.`,
+            other: `# apps stop, and you can undo this until ${deadline}.`,
+          })
+        : plural(n.apps, { one: "# app stops.", other: "# apps stop." });
+    }
+    if (n.apps === 0) {
+      return deadline
+        ? plural(n.databases, {
+            one: `# database stops, and you can undo this until ${deadline}.`,
+            other: `# databases stop, and you can undo this until ${deadline}.`,
+          })
+        : plural(n.databases, { one: "# database stops.", other: "# databases stop." });
+    }
+    const apps = plural(n.apps, { one: "# app", other: "# apps" });
+    const dbs = plural(n.databases, { one: "# database", other: "# databases" });
+    return deadline
+      ? t`${apps} and ${dbs} stop, and you can undo this until ${deadline}.`
+      : t`${apps} and ${dbs} stop.`;
+  };
   const stops =
-    away.length === 1 ? (
+    away.length === 1 || (away.length > 1 && site) ? (
       !undoable ? (
         <Trans>
           <code>{name}</code> stops.
@@ -1619,14 +1686,7 @@ function Impact({ plan }: { plan: Plan | undefined }) {
         </Trans>
       )
     ) : away.length > 1 ? (
-      undoable ? (
-        plural(away.length, {
-          one: `# app stops, and you can undo this until ${deadline}.`,
-          other: `# apps stop, and you can undo this until ${deadline}.`,
-        })
-      ) : (
-        plural(away.length, { one: "# app stops.", other: "# apps stop." })
-      )
+      stopWords(count, undoable ? deadline : "")
     ) : null;
   const others = changing(plan).length > away.length;
   return (

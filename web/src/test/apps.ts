@@ -209,3 +209,29 @@ export function projectPlaces(...projects: string[]) {
     }),
   };
 }
+
+/** The environment of the website aWebsite makes. */
+export const SITE_ENV = "env_site";
+
+/**
+ * A website that sends to a URL, as one runs: its own web service, in its project's environment
+ * (ADR 0039), live on hz-1, and the ListWebsites that says it is the website's, not an app.
+ */
+export function aWebsite(domain = "example.com") {
+  const web = anApp(
+    "web",
+    "caddy:2",
+    {},
+    { id: "svc_site_web", resource: { kind: "service", scope: SITE_ENV, name: "web" } },
+  );
+  const site = {
+    id: "prj_site",
+    name: domain.replaceAll(".", "-"),
+    domain,
+    environmentId: SITE_ENV,
+    serviceId: web.id,
+    serverId: SERVER,
+    serverName: "hz-1",
+  };
+  return { web, site, websites: { listWebsites: () => ({ websites: [site] }) } };
+}

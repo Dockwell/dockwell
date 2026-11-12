@@ -14,7 +14,7 @@ import { EventTimeline } from "../activity/ActivityPage";
 import { type EventFilter, useEvents } from "../activity/useEvents";
 import { HealthBadge } from "../apps/Health";
 import { useHealth } from "../apps/health";
-import { useServices } from "../apps/useServices";
+import { useApps } from "../apps/useServices";
 import { shortVersion } from "../shell/version";
 import { CopyButton } from "../system/CopyCommand";
 import { serviceCommands } from "./commands";
@@ -213,7 +213,8 @@ function Numbers({ server }: { server: Server }) {
 /** The apps with a deployment on this server, each with how it runs, opening its page. */
 function RunsHere({ server }: { server: Server }) {
   const { t } = useLingui();
-  const services = useServices();
+  // Apps as Apps lists them: a website's own services are on Websites (ADR 0039).
+  const services = useApps();
   const health = useHealth();
   const here = useMemo(
     () =>

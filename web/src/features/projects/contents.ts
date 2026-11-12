@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createClient, type Transport } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
-import { ChangeService, type Resource, ResourceService } from "@dockwell/api";
+import { useQuery as useConnectQuery, useTransport } from "@connectrpc/connect-query";
+import { ChangeService, DatabaseService, type Resource, ResourceService } from "@dockwell/api";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
+
+import { useWebsites } from "../websites/website";
 
 /** The most ListResources returns at once. */
 const PAGE_SIZE = 1000;
@@ -77,37 +79,64 @@ export function countKinds(resources: readonly Resource[]): Map<string, number> 
   return counts;
 }
 
-/** The kinds a person names in what a project holds, in that order. */
-const KINDS = ["service", "route", "variable", "secret", "volume", "task", "network", "backup.policy", "database.user"];
+/** The kinds a person names in what a project holds, after its website, apps and databases, in that order. */
+const KINDS = ["route", "variable", "secret", "volume", "task", "backup.policy", "database.user"];
 
 /**
- * Says what a list of resources is, by kind and count, such as "2 secrets and 1 volume", for
- * what goes with a project or stays in it. Anything else is "1 other resource".
+ * What goes with what uses it and nobody makes: a network, which a website or a Compose file
+ * brings. The Projects list doesn't name it, so neither does what goes with a project.
+ */
+const UNNAMED: ReadonlySet<string> = new Set(["service", "network"]);
+
+/**
+ * Says what a list of resources is, by kind and count, such as "1 app, 1 database and 2 secrets",
+ * for what goes with a project or stays in it, in the words the Projects list uses (useContentsWords):
+ * a website's own services are its website (ADR 0039), a service that runs a database is a
+ * database, and every other service is an app. A network goes unnamed, and anything else is
+ * "1 other resource".
  */
 export function useResourceWords(): (resources: readonly Resource[]) => string {
-  const { i18n } = useLingui();
+  const { i18n, t } = useLingui();
+  // Read once, not every few seconds as the Databases list does: it only names what a project holds.
+  const databases = useConnectQuery(DatabaseService.method.listDatabases, {}).data?.databases;
+  const websites = useWebsites().data;
   return useCallback(
     (resources) => {
-      const counts = countKinds(resources);
+      const dbIds = new Set((databases ?? []).map((d) => d.id));
+      const siteOf = new Map((websites ?? []).map((w) => [w.environmentId, w.id]));
+      const sites = new Set<string>();
+      const count = { apps: 0, databases: 0 };
+      for (const r of resources) {
+        if (r.resource?.kind !== "service") continue;
+        const site = siteOf.get(r.resource.scope);
+        if (dbIds.has(r.id)) count.databases++;
+        else if (site) sites.add(site);
+        else count.apps++;
+      }
       const words: string[] = [];
+      if (sites.size === 1) words.push(t`a website`);
+      else if (sites.size > 1) words.push(plural(sites.size, { one: "# website", other: "# websites" }));
+      if (count.apps > 0) words.push(plural(count.apps, { one: "# app", other: "# apps" }));
+      if (count.databases > 0) words.push(plural(count.databases, { one: "# database", other: "# databases" }));
+      const counts = countKinds(resources);
       for (const kind of KINDS) {
         const n = counts.get(kind) ?? 0;
         if (n === 0) continue;
         words.push(kindCount(kind, n));
       }
-      const others = [...counts].filter(([kind]) => !KINDS.includes(kind)).reduce((sum, [, n]) => sum + n, 0);
+      const others = [...counts]
+        .filter(([kind]) => !UNNAMED.has(kind) && !KINDS.includes(kind))
+        .reduce((sum, [, n]) => sum + n, 0);
       if (others > 0) words.push(plural(others, { one: "# other resource", other: "# other resources" }));
       const locale = i18n.locale.startsWith("en") ? "en-GB" : i18n.locale;
       return new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(words);
     },
-    [i18n],
+    [i18n, t, databases, websites],
   );
 }
 
 function kindCount(kind: string, n: number): string {
   switch (kind) {
-    case "service":
-      return plural(n, { one: "# app", other: "# apps" });
     case "route":
       return plural(n, { one: "# domain", other: "# domains" });
     case "variable":
@@ -118,8 +147,6 @@ function kindCount(kind: string, n: number): string {
       return plural(n, { one: "# volume", other: "# volumes" });
     case "task":
       return plural(n, { one: "# scheduled task", other: "# scheduled tasks" });
-    case "network":
-      return plural(n, { one: "# network", other: "# networks" });
     case "backup.policy":
       return plural(n, { one: "# backup schedule", other: "# backup schedules" });
     default:

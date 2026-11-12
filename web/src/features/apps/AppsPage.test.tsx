@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, aProject, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
+import { anApp, aProject, aWebsite, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
 import { applied, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -141,6 +141,19 @@ describe("the apps list", () => {
     renderAt("/apps", api([anApp("web", "nginx")]));
     await screen.findByRole("link", { name: "web" });
     await waitFor(() => expect(localStorage.getItem("dockwell.apps.count")).toBe("1"));
+  });
+
+  it("leaves out a website's own web service, as the rail and Overview do, so a server with only a website has no apps", async () => {
+    const { web, websites } = aWebsite();
+    const { unmount } = renderAt("/apps", { ...api([web]), websites });
+    expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeVisible();
+    expect(screen.queryByRole("row", { name: /web/ })).toBeNull();
+    unmount();
+
+    renderAt("/apps", { ...api([web, anApp("api", "ghcr.io/acme/api:2")]), websites });
+    expect(await screen.findByRole("row", { name: /api/ })).toBeVisible();
+    expect(screen.getByText("1 app")).toBeVisible();
+    expect(screen.queryByRole("row", { name: /caddy/ })).toBeNull();
   });
 
   it("shows one app with what the API has, and no server column with one server", async () => {

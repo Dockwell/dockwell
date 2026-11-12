@@ -16,6 +16,7 @@ import { type QueryClient, type QueryKey, useQuery, useQueryClient } from "@tans
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { useEventsHub } from "../activity/EventsHub";
+import { useWebsites } from "../websites/website";
 import { readHealthSoon } from "./health";
 
 /** The most ListServices returns at once. */
@@ -53,6 +54,45 @@ export function useServices() {
 
 function selectServices(res: { services: ServiceInfo[] }): ServiceInfo[] {
   return res.services;
+}
+
+/** What useApps gives: the apps, and how reading them goes. */
+export interface Apps {
+  /** The apps, or undefined until both the services and the websites are read. */
+  data: ServiceInfo[] | undefined;
+  isPending: boolean;
+  error: Error | null;
+  isFetching: boolean;
+  refetch: () => unknown;
+}
+
+/**
+ * The apps: every service but a website's own, which Websites shows and manages (ADR 0039).
+ * The one definition the rail, Apps, the overview, a server's page, the command bar and the
+ * plan sheet count and list by, so no two of them disagree on how many apps there are. It
+ * gives nothing until both the services and the websites are read, so no count includes a
+ * website's service for a moment, and a websites read that fails is a failure of the apps
+ * too, as without it a website's own web server would read as an app.
+ */
+export function useApps(): Apps {
+  const services = useServices();
+  const sites = useWebsites();
+  const data = useMemo(() => {
+    if (!services.data || !sites.data) return undefined;
+    const served = new Set(sites.data.map((w) => w.environmentId));
+    return services.data.filter((s) => !served.has(s.resource?.scope ?? ""));
+  }, [services.data, sites.data]);
+  const error = services.error ?? sites.error;
+  return {
+    data,
+    isPending: data === undefined && !error,
+    error,
+    isFetching: services.isFetching || sites.isFetching,
+    refetch: () => {
+      if (services.error || !services.data) void services.refetch();
+      if (sites.error || !sites.data) void sites.refetch();
+    },
+  };
 }
 
 /** The service a query of ServiceService asks after, such as its revisions, or "" for one that isn't a service's own. */

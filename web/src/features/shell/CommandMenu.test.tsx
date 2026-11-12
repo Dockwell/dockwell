@@ -15,7 +15,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { anApp } from "../../test/apps";
+import { anApp, aWebsite } from "../../test/apps";
 import { applied, changeEvent, moved, shopPlanned, watched } from "../../test/changes";
 import { type Api, type CacheOptions, feed, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
@@ -328,6 +328,23 @@ describe("the command bar", () => {
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.summary).toBe("Create the environment staging in shop");
     expect(proposals[0]?.edits[0]?.resource).toMatchObject({ kind: "environment", name: "staging", scope: "prj_shop" });
+  });
+
+  it("offers no app for a website's own web service, which Websites opens", async () => {
+    const user = userEvent.setup();
+    const site = aWebsite();
+    renderAt("/", {
+      services: {
+        listServices: () => ({ services: [site.web, anApp("storefront", "ghcr.io/acme/storefront:1")] }),
+        listServiceRevisions: () => ({}),
+      },
+      websites: site.websites,
+    });
+    await screen.findByRole("heading", { level: 1 });
+    await user.keyboard("{Control>}k{/Control}");
+    const bar = await screen.findByRole("dialog", { name: "Command bar" });
+    expect(await within(bar).findByRole("option", { name: /Open storefront/ })).toBeVisible();
+    expect(within(bar).queryByRole("option", { name: /Open web\b/ })).toBeNull();
   });
 
   it("reaches every app, and New app", async () => {

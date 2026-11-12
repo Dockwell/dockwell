@@ -16,7 +16,7 @@ import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
 import { WhatRuns } from "../apps/ImageName";
 import { runtimeOf, runtimeWords } from "../apps/runtime";
-import { usePlaces, useServices } from "../apps/useServices";
+import { useApps, usePlaces } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useRuntimes } from "../websites/website";
 import "../apps/Apps.css";
@@ -49,7 +49,8 @@ function rowName(row: Row): string {
 export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const services = useServices();
+  // Apps as Apps lists them: a website's own services are on Websites (ADR 0039).
+  const services = useApps();
   const places = usePlaces();
   const health = useHealth();
   const { servers } = useFleetView();

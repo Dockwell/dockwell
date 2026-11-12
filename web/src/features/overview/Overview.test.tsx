@@ -28,7 +28,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp, ENV, places, running } from "../../test/apps";
+import { aHealth, anApp, aWebsite, ENV, places, running } from "../../test/apps";
 import { applied, changeEvent, since, snapshot, webPlanned } from "../../test/changes";
 import { expectMetric, metric } from "../../test/metrics";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -562,6 +562,19 @@ describe("what the overview shows below the numbers", () => {
     expect(screen.getByText("2 apps · 1 needs a look")).toBeVisible();
     expect(screen.getByRole("link", { name: "View all" })).toHaveAttribute("href", "/apps");
     expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/servers/srv_1/files");
+  });
+
+  it("leaves out a website's own web service, which Websites shows, from the apps and their count", async () => {
+    const site = aWebsite();
+    renderAt("/", {
+      ...overviewApi(),
+      services: { listServices: () => ({ services: [site.web, web, api] }) },
+      websites: site.websites,
+    });
+    const table = await screen.findByRole("table", { name: "Apps on this server" });
+    await waitFor(() => expect(screen.getByText("2 apps · 1 needs a look")).toBeVisible());
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).queryByText("caddy:2")).toBeNull();
   });
 
   it("shows the newest changes, and how backups stand", async () => {

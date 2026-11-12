@@ -11,7 +11,7 @@ import { sentence } from "../../lib/errors";
 import { nameOf } from "../apps/app";
 import { useAllDomains } from "../apps/domains";
 import { type HealthKind, type HealthView, useHealth } from "../apps/health";
-import { useServices } from "../apps/useServices";
+import { useApps } from "../apps/useServices";
 import { useFleetView } from "./useFleet";
 import "./RunsHere.css";
 
@@ -78,7 +78,8 @@ type AppNote = { kind: "fine"; health: HealthKind } | { kind: "look"; words: str
 
 function AppsCard({ server }: { server: Server }) {
   const { t } = useLingui();
-  const services = useServices();
+  // Apps as Apps lists them: a website's own services are on Websites (ADR 0039).
+  const services = useApps();
   const health = useHealth();
   const { servers } = useFleetView();
   const fleet = (servers?.length ?? 0) > 1;

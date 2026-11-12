@@ -6762,17 +6762,37 @@ msgstr "visitors lose {0} addresses"
 msgid "visitors lose {lost}"
 msgstr "visitors lose {lost}"
 
-#. placeholder {0}: live.length
+#. placeholder {0}: apps.length || live.length
 msgid "{0, plural, one {# app is deployed} other {# apps are deployed}}"
 msgstr "{0, plural, one {# app is deployed} other {# apps are deployed}}"
 
-#. placeholder {0}: away.length
+#. placeholder {0}: n.apps
 msgid "{0, plural, one {# app stops, and you can undo this until {deadline}.} other {# apps stop, and you can undo this until {deadline}.}}"
 msgstr "{0, plural, one {# app stops, and you can undo this until {deadline}.} other {# apps stop, and you can undo this until {deadline}.}}"
 
-#. placeholder {0}: away.length
+#. placeholder {0}: n.apps
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, one {# app stops.} other {# apps stop.}}"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: count.apps
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
+#. placeholder {0}: n.databases
+msgid "{0, plural, one {# database stops, and you can undo this until {deadline}.} other {# databases stop, and you can undo this until {deadline}.}}"
+msgstr "{0, plural, one {# database stops, and you can undo this until {deadline}.} other {# databases stop, and you can undo this until {deadline}.}}"
+
+#. placeholder {0}: n.databases
+msgid "{0, plural, one {# database stops.} other {# databases stop.}}"
+msgstr "{0, plural, one {# database stops.} other {# databases stop.}}"
+
+#. placeholder {0}: count.databases
+#. placeholder {0}: n.databases
+#. placeholder {0}: view.databases.length
+msgid "{0, plural, one {# database} other {# databases}}"
+msgstr "{0, plural, one {# database} other {# databases}}"
 
 #. placeholder {0}: all.length
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
@@ -6795,6 +6815,12 @@ msgstr "{0} can't take its steps until its agent reconnects, so the plan can't a
 #. placeholder {0}: offline.join(", ")
 msgid "{0} has to reconnect first"
 msgstr "{0} has to reconnect first"
+
+msgid "{apps} and {dbs} stop, and you can undo this until {deadline}."
+msgstr "{apps} and {dbs} stop, and you can undo this until {deadline}."
+
+msgid "{apps} and {dbs} stop."
+msgstr "{apps} and {dbs} stop."
 
 msgid "{made} is deployed"
 msgstr "{made} is deployed"
@@ -6828,6 +6854,9 @@ msgstr "{server} went offline during this deploy"
 
 msgid "{server} went offline during this rollback"
 msgstr "{server} went offline during this rollback"
+
+msgid "{site} is deployed"
+msgstr "{site} is deployed"
 
 #. placeholder {0}: steps.length
 msgid "{stepsDone} of {0} done"
@@ -10618,8 +10647,13 @@ msgstr "{0, plural, one {# with nothing running} other {# with nothing running}}
 msgid "{count, plural, one {# project} other {# projects}}"
 msgstr "{count, plural, one {# project} other {# projects}}"
 
-msgid "{n, plural, one {# app} other {# apps}}"
-msgstr "{n, plural, one {# app} other {# apps}}"
+msgid "a website"
+msgstr "a website"
+
+#. placeholder {0}: sites.length
+#. placeholder {0}: sites.size
+msgid "{0, plural, one {# website} other {# websites}}"
+msgstr "{0, plural, one {# website} other {# websites}}"
 
 msgid "{n, plural, one {# backup schedule} other {# backup schedules}}"
 msgstr "{n, plural, one {# backup schedule} other {# backup schedules}}"
@@ -10629,9 +10663,6 @@ msgstr "{n, plural, one {# database user} other {# database users}}"
 
 msgid "{n, plural, one {# domain} other {# domains}}"
 msgstr "{n, plural, one {# domain} other {# domains}}"
-
-msgid "{n, plural, one {# network} other {# networks}}"
-msgstr "{n, plural, one {# network} other {# networks}}"
 
 msgid "{n, plural, one {# scheduled task} other {# scheduled tasks}}"
 msgstr "{n, plural, one {# scheduled task} other {# scheduled tasks}}"
@@ -10650,19 +10681,6 @@ msgstr "{others, plural, one {# other resource} other {# other resources}}"
 
 msgid "Apps with no project go here, so it stays."
 msgstr "Apps with no project go here, so it stays."
-
-msgid "a website"
-msgstr "a website"
-
-#. placeholder {0}: apps.length
-#. placeholder {0}: here.length
-#. placeholder {0}: view.apps.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, one {# app} other {# apps}}"
-
-#. placeholder {0}: view.databases.length
-msgid "{0, plural, one {# database} other {# databases}}"
-msgstr "{0, plural, one {# database} other {# databases}}"
 
 #. placeholder {0}: here.length
 #. placeholder {0}: view.domains.length
@@ -14884,10 +14902,6 @@ msgstr "Update {name} to {language} {release}"
 #. placeholder {0}: runtime.release
 msgid "Update {name}'s PHP to {0}"
 msgstr "Update {name}'s PHP to {0}"
-
-#. placeholder {0}: sites.length
-msgid "{0, plural, one {# website} other {# websites}}"
-msgstr "{0, plural, one {# website} other {# websites}}"
 
 msgid "{extra, plural, one {and # more} other {and # more}}"
 msgstr "{extra, plural, one {and # more} other {and # more}}"
