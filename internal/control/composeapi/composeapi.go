@@ -240,6 +240,8 @@ type planning struct {
 	backUp []resource.Ref
 	// skipBackup leaves out the backup a database's move takes first.
 	skipBackup bool
+	// intent is what the plan is for, when the method proposing it knows.
+	intent *revision.Intent
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -349,7 +351,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, BackUp: also.backUp, SkipBackup: also.skipBackup, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Edits: place.made, BackUp: also.backUp, SkipBackup: also.skipBackup, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // AdoptCompose plans taking on a Compose project made elsewhere: each container as a

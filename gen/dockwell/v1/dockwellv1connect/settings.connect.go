@@ -56,6 +56,9 @@ const (
 	// SettingsServiceSetStepUpFloorProcedure is the fully-qualified name of the SettingsService's
 	// SetStepUpFloor RPC.
 	SettingsServiceSetStepUpFloorProcedure = "/dockwell.v1.SettingsService/SetStepUpFloor"
+	// SettingsServiceSetAutoUpdateDefaultProcedure is the fully-qualified name of the SettingsService's
+	// SetAutoUpdateDefault RPC.
+	SettingsServiceSetAutoUpdateDefaultProcedure = "/dockwell.v1.SettingsService/SetAutoUpdateDefault"
 	// SettingsServiceGetControlPlaneProcedure is the fully-qualified name of the SettingsService's
 	// GetControlPlane RPC.
 	SettingsServiceGetControlPlaneProcedure = "/dockwell.v1.SettingsService/GetControlPlane"
@@ -115,6 +118,11 @@ type SettingsServiceClient interface {
 	// FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_FLOOR. It's on the activity
 	// log with the floor it replaced.
 	SetStepUpFloor(context.Context, *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error)
+	// SetAutoUpdateDefault sets what a new app's automatic updates start as, when
+	// the change that makes it sets none (ADR 0080): off unless set. An app made
+	// already keeps its own. Unset level sets it back to off. It's on the
+	// activity log with what it replaced.
+	SetAutoUpdateDefault(context.Context, *connect.Request[v1.SetAutoUpdateDefaultRequest]) (*connect.Response[v1.SetAutoUpdateDefaultResponse], error)
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
@@ -180,6 +188,12 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(settingsServiceMethods.ByName("SetStepUpFloor")),
 			connect.WithClientOptions(opts...),
 		),
+		setAutoUpdateDefault: connect.NewClient[v1.SetAutoUpdateDefaultRequest, v1.SetAutoUpdateDefaultResponse](
+			httpClient,
+			baseURL+SettingsServiceSetAutoUpdateDefaultProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("SetAutoUpdateDefault")),
+			connect.WithClientOptions(opts...),
+		),
 		getControlPlane: connect.NewClient[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse](
 			httpClient,
 			baseURL+SettingsServiceGetControlPlaneProcedure,
@@ -199,6 +213,7 @@ type settingsServiceClient struct {
 	setPanelDomain        *connect.Client[v1.SetPanelDomainRequest, v1.SetPanelDomainResponse]
 	createPanelSignInLink *connect.Client[v1.CreatePanelSignInLinkRequest, v1.CreatePanelSignInLinkResponse]
 	setStepUpFloor        *connect.Client[v1.SetStepUpFloorRequest, v1.SetStepUpFloorResponse]
+	setAutoUpdateDefault  *connect.Client[v1.SetAutoUpdateDefaultRequest, v1.SetAutoUpdateDefaultResponse]
 	getControlPlane       *connect.Client[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse]
 }
 
@@ -235,6 +250,11 @@ func (c *settingsServiceClient) CreatePanelSignInLink(ctx context.Context, req *
 // SetStepUpFloor calls dockwell.v1.SettingsService.SetStepUpFloor.
 func (c *settingsServiceClient) SetStepUpFloor(ctx context.Context, req *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error) {
 	return c.setStepUpFloor.CallUnary(ctx, req)
+}
+
+// SetAutoUpdateDefault calls dockwell.v1.SettingsService.SetAutoUpdateDefault.
+func (c *settingsServiceClient) SetAutoUpdateDefault(ctx context.Context, req *connect.Request[v1.SetAutoUpdateDefaultRequest]) (*connect.Response[v1.SetAutoUpdateDefaultResponse], error) {
+	return c.setAutoUpdateDefault.CallUnary(ctx, req)
 }
 
 // GetControlPlane calls dockwell.v1.SettingsService.GetControlPlane.
@@ -296,6 +316,11 @@ type SettingsServiceHandler interface {
 	// FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_FLOOR. It's on the activity
 	// log with the floor it replaced.
 	SetStepUpFloor(context.Context, *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error)
+	// SetAutoUpdateDefault sets what a new app's automatic updates start as, when
+	// the change that makes it sets none (ADR 0080): off unless set. An app made
+	// already keeps its own. Unset level sets it back to off. It's on the
+	// activity log with what it replaced.
+	SetAutoUpdateDefault(context.Context, *connect.Request[v1.SetAutoUpdateDefaultRequest]) (*connect.Response[v1.SetAutoUpdateDefaultResponse], error)
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
@@ -357,6 +382,12 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(settingsServiceMethods.ByName("SetStepUpFloor")),
 		connect.WithHandlerOptions(opts...),
 	)
+	settingsServiceSetAutoUpdateDefaultHandler := connect.NewUnaryHandler(
+		SettingsServiceSetAutoUpdateDefaultProcedure,
+		svc.SetAutoUpdateDefault,
+		connect.WithSchema(settingsServiceMethods.ByName("SetAutoUpdateDefault")),
+		connect.WithHandlerOptions(opts...),
+	)
 	settingsServiceGetControlPlaneHandler := connect.NewUnaryHandler(
 		SettingsServiceGetControlPlaneProcedure,
 		svc.GetControlPlane,
@@ -380,6 +411,8 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 			settingsServiceCreatePanelSignInLinkHandler.ServeHTTP(w, r)
 		case SettingsServiceSetStepUpFloorProcedure:
 			settingsServiceSetStepUpFloorHandler.ServeHTTP(w, r)
+		case SettingsServiceSetAutoUpdateDefaultProcedure:
+			settingsServiceSetAutoUpdateDefaultHandler.ServeHTTP(w, r)
 		case SettingsServiceGetControlPlaneProcedure:
 			settingsServiceGetControlPlaneHandler.ServeHTTP(w, r)
 		default:
@@ -417,6 +450,10 @@ func (UnimplementedSettingsServiceHandler) CreatePanelSignInLink(context.Context
 
 func (UnimplementedSettingsServiceHandler) SetStepUpFloor(context.Context, *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetStepUpFloor is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) SetAutoUpdateDefault(context.Context, *connect.Request[v1.SetAutoUpdateDefaultRequest]) (*connect.Response[v1.SetAutoUpdateDefaultResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetAutoUpdateDefault is not implemented"))
 }
 
 func (UnimplementedSettingsServiceHandler) GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error) {

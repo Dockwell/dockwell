@@ -699,7 +699,7 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 				cfg.Volumes[v] = struct{}{}
 			}
 		}
-		out := docker.Image{ID: img.id, Config: &cfg, Created: img.created}
+		out := docker.Image{ID: img.id, Config: &cfg, Created: img.created, Size: img.Size}
 		// An image built here has none.
 		if img.digest != "" {
 			out.RepoDigests = []string{img.repo + "@" + img.digest}

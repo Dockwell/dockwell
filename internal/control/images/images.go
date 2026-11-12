@@ -97,6 +97,22 @@ func (s *Service) GetImage(ctx context.Context, req *connect.Request[dockwellv1.
 	return connect.NewResponse(got.GetImage()), nil
 }
 
+// Config is what an image declares, as the server's pull would find it, for the
+// control plane's own reads, such as the version an automatic update moves a
+// moving tag to (ADR 0080). Nil where it can't be read, as for an image its
+// registry no longer has, or one a read past Docker Hub's allowance didn't.
+func (s *Service) Config(ctx context.Context, server, reference string) (*dockwellv1.ImageConfig, error) {
+	ref, err := registry.Parse(reference)
+	if err != nil {
+		return nil, err
+	}
+	got, err := s.read(ctx, server, &agentv1.ImageCall{Ask: &agentv1.ImageCall_Image{Image: &dockwellv1.GetImageRequest{Reference: ref.String()}}})
+	if err != nil {
+		return nil, err
+	}
+	return got.GetImage().GetConfig(), nil
+}
+
 // read sends a read to the agent on the server named, or the only one.
 func (s *Service) read(ctx context.Context, named string, call *agentv1.ImageCall) (*agentv1.ImageResult, error) {
 	srv, err := s.server(named)

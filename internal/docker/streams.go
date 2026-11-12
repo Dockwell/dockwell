@@ -324,6 +324,16 @@ func (c *Client) RemoveImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// UntagImage takes a tag away, and with it the image where it was its last name
+// and nothing uses it. An image a container uses keeps it, and says so.
+func (c *Client) UntagImage(ctx context.Context, ref string) error {
+	err := c.do(ctx, http.MethodDelete, "/images/"+escRef(ref), nil, nil, nil)
+	if IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 // ImageTags lists the tags of images whose references match pattern, such as
 // dockwell-volume-tool.
 func (c *Client) ImageTags(ctx context.Context, pattern string) ([]string, error) {

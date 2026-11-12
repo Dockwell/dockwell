@@ -3,7 +3,15 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
-import { PanelDomainFrom, PanelServedBy, Role, SettingsSchema, type WatchServersResponse } from "@dockwell/api";
+import {
+  AutoUpdate_Level,
+  PanelDomainFrom,
+  PanelServedBy,
+  Role,
+  type SetAutoUpdateDefaultRequest,
+  SettingsSchema,
+  type WatchServersResponse,
+} from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -65,6 +73,26 @@ describe("Settings", () => {
     expect(setInstallName.mock.calls[0]?.[0]).toMatchObject({ name: "Acme servers" });
     expect(setTimeZone.mock.calls[0]?.[0]).toMatchObject({ timeZone: "Europe/Amsterdam" });
     expect(await within(install).findByText("Saved. It's on Activity.")).toBeVisible();
+  });
+
+  it("sets what new apps' automatic updates start as, and says apps made already keep their own", async () => {
+    const user = userEvent.setup();
+    const setAutoUpdateDefault = vi.fn((req: SetAutoUpdateDefaultRequest) => ({
+      settings: settings({
+        autoUpdate: req.autoUpdate ? { level: req.autoUpdate.level, at: "03:00", minutes: 120 } : undefined,
+      }),
+    }));
+    renderSettings("/settings/general", { settings: { setAutoUpdateDefault } });
+    const panel = await screen.findByRole("region", { name: "New apps" });
+    expect(panel).toHaveTextContent("Apps made already keep their own.");
+    const pick = within(panel).getByRole("combobox", { name: "Automatic updates" });
+    await waitFor(() => expect(pick).toBeEnabled());
+    expect(pick).toHaveValue(String(AutoUpdate_Level.UNSPECIFIED));
+    await user.selectOptions(pick, "Patch updates, daily from 03:00");
+    await user.click(within(panel).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(setAutoUpdateDefault).toHaveBeenCalledTimes(1));
+    expect(setAutoUpdateDefault.mock.calls[0]?.[0].autoUpdate?.level).toBe(AutoUpdate_Level.PATCH);
+    expect(await within(panel).findByText("Saved. It's on Activity.")).toBeVisible();
   });
 
   it("says at the field why a name was refused", async () => {

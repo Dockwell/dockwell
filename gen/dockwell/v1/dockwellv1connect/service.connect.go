@@ -47,6 +47,9 @@ const (
 	// ServiceServiceRollBackServiceProcedure is the fully-qualified name of the ServiceService's
 	// RollBackService RPC.
 	ServiceServiceRollBackServiceProcedure = "/dockwell.v1.ServiceService/RollBackService"
+	// ServiceServiceUpgradeServiceProcedure is the fully-qualified name of the ServiceService's
+	// UpgradeService RPC.
+	ServiceServiceUpgradeServiceProcedure = "/dockwell.v1.ServiceService/UpgradeService"
 	// ServiceServiceAddServicePortProcedure is the fully-qualified name of the ServiceService's
 	// AddServicePort RPC.
 	ServiceServiceAddServicePortProcedure = "/dockwell.v1.ServiceService/AddServicePort"
@@ -83,6 +86,15 @@ type ServiceServiceClient interface {
 	// the record (matches_latest) still plans what puts it back, when a rollback
 	// failed or a container was removed by hand.
 	RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error)
+	// UpgradeService plans updating a service to a newer version of what it runs,
+	// safe by default: a backup of each volume it mounts first, the image pulled
+	// before anything stops, room for it on the server checked first, a database's
+	// major release refused as a plain swap, and the health-gated rollout that
+	// rolls back on its own. A service of a catalog install upgrades its install to
+	// the newer release, as UpgradeCatalogInstall plans it. Like DeployService, it
+	// needs no one to read the service's environment back. See
+	// docs/adr/0080-updating-an-app-safely-and-automatically.md.
+	UpgradeService(context.Context, *connect.Request[v1.UpgradeServiceRequest]) (*connect.Response[v1.UpgradeServiceResponse], error)
 	// AddServicePort plans publishing one more port, with the rest of the
 	// service as it is: like DeployService, it needs no one to read the service's
 	// environment back.
@@ -143,6 +155,12 @@ func NewServiceServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(serviceServiceMethods.ByName("RollBackService")),
 			connect.WithClientOptions(opts...),
 		),
+		upgradeService: connect.NewClient[v1.UpgradeServiceRequest, v1.UpgradeServiceResponse](
+			httpClient,
+			baseURL+ServiceServiceUpgradeServiceProcedure,
+			connect.WithSchema(serviceServiceMethods.ByName("UpgradeService")),
+			connect.WithClientOptions(opts...),
+		),
 		addServicePort: connect.NewClient[v1.AddServicePortRequest, v1.AddServicePortResponse](
 			httpClient,
 			baseURL+ServiceServiceAddServicePortProcedure,
@@ -170,6 +188,7 @@ type serviceServiceClient struct {
 	listServiceRevisions *connect.Client[v1.ListServiceRevisionsRequest, v1.ListServiceRevisionsResponse]
 	deployService        *connect.Client[v1.DeployServiceRequest, v1.DeployServiceResponse]
 	rollBackService      *connect.Client[v1.RollBackServiceRequest, v1.RollBackServiceResponse]
+	upgradeService       *connect.Client[v1.UpgradeServiceRequest, v1.UpgradeServiceResponse]
 	addServicePort       *connect.Client[v1.AddServicePortRequest, v1.AddServicePortResponse]
 	changeServiceRuntime *connect.Client[v1.ChangeServiceRuntimeRequest, v1.ChangeServiceRuntimeResponse]
 	openService          *connect.Client[v1.OpenServiceRequest, v1.OpenServiceResponse]
@@ -193,6 +212,11 @@ func (c *serviceServiceClient) DeployService(ctx context.Context, req *connect.R
 // RollBackService calls dockwell.v1.ServiceService.RollBackService.
 func (c *serviceServiceClient) RollBackService(ctx context.Context, req *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error) {
 	return c.rollBackService.CallUnary(ctx, req)
+}
+
+// UpgradeService calls dockwell.v1.ServiceService.UpgradeService.
+func (c *serviceServiceClient) UpgradeService(ctx context.Context, req *connect.Request[v1.UpgradeServiceRequest]) (*connect.Response[v1.UpgradeServiceResponse], error) {
+	return c.upgradeService.CallUnary(ctx, req)
 }
 
 // AddServicePort calls dockwell.v1.ServiceService.AddServicePort.
@@ -235,6 +259,15 @@ type ServiceServiceHandler interface {
 	// the record (matches_latest) still plans what puts it back, when a rollback
 	// failed or a container was removed by hand.
 	RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error)
+	// UpgradeService plans updating a service to a newer version of what it runs,
+	// safe by default: a backup of each volume it mounts first, the image pulled
+	// before anything stops, room for it on the server checked first, a database's
+	// major release refused as a plain swap, and the health-gated rollout that
+	// rolls back on its own. A service of a catalog install upgrades its install to
+	// the newer release, as UpgradeCatalogInstall plans it. Like DeployService, it
+	// needs no one to read the service's environment back. See
+	// docs/adr/0080-updating-an-app-safely-and-automatically.md.
+	UpgradeService(context.Context, *connect.Request[v1.UpgradeServiceRequest]) (*connect.Response[v1.UpgradeServiceResponse], error)
 	// AddServicePort plans publishing one more port, with the rest of the
 	// service as it is: like DeployService, it needs no one to read the service's
 	// environment back.
@@ -291,6 +324,12 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 		connect.WithSchema(serviceServiceMethods.ByName("RollBackService")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceServiceUpgradeServiceHandler := connect.NewUnaryHandler(
+		ServiceServiceUpgradeServiceProcedure,
+		svc.UpgradeService,
+		connect.WithSchema(serviceServiceMethods.ByName("UpgradeService")),
+		connect.WithHandlerOptions(opts...),
+	)
 	serviceServiceAddServicePortHandler := connect.NewUnaryHandler(
 		ServiceServiceAddServicePortProcedure,
 		svc.AddServicePort,
@@ -319,6 +358,8 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 			serviceServiceDeployServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceRollBackServiceProcedure:
 			serviceServiceRollBackServiceHandler.ServeHTTP(w, r)
+		case ServiceServiceUpgradeServiceProcedure:
+			serviceServiceUpgradeServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceAddServicePortProcedure:
 			serviceServiceAddServicePortHandler.ServeHTTP(w, r)
 		case ServiceServiceChangeServiceRuntimeProcedure:
@@ -348,6 +389,10 @@ func (UnimplementedServiceServiceHandler) DeployService(context.Context, *connec
 
 func (UnimplementedServiceServiceHandler) RollBackService(context.Context, *connect.Request[v1.RollBackServiceRequest]) (*connect.Response[v1.RollBackServiceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.RollBackService is not implemented"))
+}
+
+func (UnimplementedServiceServiceHandler) UpgradeService(context.Context, *connect.Request[v1.UpgradeServiceRequest]) (*connect.Response[v1.UpgradeServiceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.UpgradeService is not implemented"))
 }
 
 func (UnimplementedServiceServiceHandler) AddServicePort(context.Context, *connect.Request[v1.AddServicePortRequest]) (*connect.Response[v1.AddServicePortResponse], error) {

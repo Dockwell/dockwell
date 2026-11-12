@@ -42,7 +42,7 @@ const (
 )
 
 // Actions are every action this package puts on the activity log.
-var Actions = []string{ActionName, ActionTimeZone, ActionPanelDomain, ActionStepUpFloor}
+var Actions = []string{ActionName, ActionTimeZone, ActionPanelDomain, ActionStepUpFloor, ActionAutoUpdate}
 
 // MaxName is the most characters a name holds.
 const MaxName = 64
@@ -110,6 +110,8 @@ func ReadEvent(action, detail string) (*dockwellv1.EventSetting, bool) {
 		setting = "panel_domain"
 	case ActionStepUpFloor:
 		setting = "step_up_floor"
+	case ActionAutoUpdate:
+		setting = "auto_update"
 	default:
 		return nil, false
 	}
@@ -244,7 +246,11 @@ func (h *Handler) read(ctx context.Context, tx *store.Tx) (*dockwellv1.Settings,
 	if err != nil {
 		return nil, err
 	}
-	out := &dockwellv1.Settings{Name: name, TimeZone: zone, Panel: h.panel(), StepUpFloor: authapi.StepUpPolicyProto(floor)}
+	auto, err := NewAppsAutoUpdate(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	out := &dockwellv1.Settings{Name: name, TimeZone: zone, Panel: h.panel(), StepUpFloor: authapi.StepUpPolicyProto(floor), AutoUpdate: auto}
 	out.Panel.SetDomain = set
 	switch org, err := tx.Organization(ctx); {
 	case err == nil:

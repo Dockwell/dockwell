@@ -951,6 +951,18 @@ msgstr "Set everyone to be asked for their passkey at least once an hour"
 msgid "Set everyone to be asked for their passkey each time"
 msgstr "Set everyone to be asked for their passkey each time"
 
+msgid "Set new apps to take any update on their own"
+msgstr "Set new apps to take any update on their own"
+
+msgid "Set new apps to take minor and patch updates on their own"
+msgstr "Set new apps to take minor and patch updates on their own"
+
+msgid "Set new apps to take patch updates on their own"
+msgstr "Set new apps to take patch updates on their own"
+
+msgid "Set new apps to wait for a person for each update"
+msgstr "Set new apps to wait for a person for each update"
+
 msgid "Set the panel's domain to {value}"
 msgstr "Set the panel's domain to {value}"
 
@@ -2882,6 +2894,9 @@ msgstr "<0>{source}</0> gives this app control of Docker on the server, the same
 msgid "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
 msgstr "<0>{source}</0> on the server is as good as root there, so applying this asks for your passkey. API tokens can't."
 
+msgid "A failed update rolls back on its own, and alerts through the rule for failed changes."
+msgstr "A failed update rolls back on its own, and alerts through the rule for failed changes."
+
 msgid "A limit never asks for your passkey, whatever {name} reaches."
 msgstr "A limit never asks for your passkey, whatever {name} reaches."
 
@@ -2896,6 +2911,18 @@ msgstr "Add a volume or mount"
 
 msgid "Any status from 200 to 399 passes."
 msgstr "Any status from 200 to 399 passes."
+
+msgid "Any update"
+msgstr "Any update"
+
+msgid "Automatic updates"
+msgstr "Automatic updates"
+
+msgid "Back up first"
+msgstr "Back up first"
+
+msgid "Backup first"
+msgstr "Backup first"
 
 msgid "CPU limit"
 msgstr "CPU limit"
@@ -2928,14 +2955,23 @@ msgstr "Command"
 msgid "Danger zone"
 msgstr "Danger zone"
 
+msgid "Day"
+msgstr "Day"
+
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker changes a limit on the running container, except to lift one, which replaces it."
 
 msgid "Docker's default"
 msgstr "Docker's default"
 
+msgid "Each update backs up its volumes first"
+msgstr "Each update backs up its volumes first"
+
 msgid "Edit"
 msgstr "Edit"
+
+msgid "Edit Automatic updates"
+msgstr "Edit Automatic updates"
 
 msgid "Edit General"
 msgstr "Edit General"
@@ -2961,6 +2997,9 @@ msgstr "Empty runs the image's own."
 msgid "Every"
 msgstr "Every"
 
+msgid "Every day"
+msgstr "Every day"
+
 msgid "Every {everyNow}, {limitNow} to answer, unhealthy after {failures} failures"
 msgstr "Every {everyNow}, {limitNow} to answer, unhealthy after {failures} failures"
 
@@ -2978,6 +3017,10 @@ msgstr "HTTP"
 
 msgid "How it's checked"
 msgstr "How it's checked"
+
+#. placeholder {0}: a.timeZone
+msgid "In {0}"
+msgstr "In {0}"
 
 msgid "It mounts nothing. Add a volume to keep what it writes across deploys."
 msgstr "It mounts nothing. Add a volume to keep what it writes across deploys."
@@ -3018,6 +3061,12 @@ msgstr "Memory limit"
 msgid "Memory limit, typed"
 msgstr "Memory limit, typed"
 
+msgid "Minor and patch updates"
+msgstr "Minor and patch updates"
+
+msgid "Monday to Friday"
+msgstr "Monday to Friday"
+
 msgid "Mount {n}: path in the app"
 msgstr "Mount {n}: path in the app"
 
@@ -3026,6 +3075,12 @@ msgstr "Mount {n}: volume or server path"
 
 msgid "Name a volume, such as data, or a path on the server, such as /srv/app."
 msgstr "Name a volume, such as data, or a path on the server, such as /srv/app."
+
+msgid "Never a database's major release."
+msgstr "Never a database's major release."
+
+msgid "No"
+msgstr "No"
 
 msgid "No limit"
 msgstr "No limit"
@@ -3049,12 +3104,28 @@ msgstr "None. What it writes goes when its container is replaced."
 msgid "Nothing has changed yet."
 msgstr "Nothing has changed yet."
 
+msgid "Nothing on its own: each update waits for you"
+msgstr "Nothing on its own: each update waits for you"
+
 msgid "Nothing set aside"
 msgstr "Nothing set aside"
+
+msgid "Off: each update waits for you"
+msgstr "Off: each update waits for you"
+
+msgctxt "days of the week"
+msgid "On"
+msgstr "On"
+
+msgid "One day"
+msgstr "One day"
 
 msgctxt "a limit typed in"
 msgid "Other"
 msgstr "Other"
+
+msgid "Patch updates"
+msgstr "Patch updates"
 
 msgid "Path in the app"
 msgstr "Path in the app"
@@ -3086,14 +3157,23 @@ msgstr "Run no entrypoint, not even the image's"
 msgid "Running only means it started."
 msgstr "Running only means it started."
 
+msgid "Saturday and Sunday"
+msgstr "Saturday and Sunday"
+
 msgid "Say what to run, such as curl -f http://localhost/."
 msgstr "Say what to run, such as curl -f http://localhost/."
 
 msgid "Settings sections"
 msgstr "Settings sections"
 
+msgid "Stop updating {name} on its own"
+msgstr "Stop updating {name} on its own"
+
 msgid "TCP"
 msgstr "TCP"
+
+msgid "Takes"
+msgstr "Takes"
 
 msgid "The image has none, so Running only means it started"
 msgstr "The image has none, so Running only means it started"
@@ -3116,8 +3196,20 @@ msgstr "Timing"
 msgid "Turned off, so Running only means it started"
 msgstr "Turned off, so Running only means it started"
 
+msgid "Undo won't bring back what an update changes in its data"
+msgstr "Undo won't bring back what an update changes in its data"
+
 msgid "Unhealthy after"
 msgstr "Unhealthy after"
+
+msgid "Update {name} on its own"
+msgstr "Update {name} on its own"
+
+msgid "Updates it takes on its own"
+msgstr "Updates it takes on its own"
+
+msgid "Use 24-hour HH:MM, such as 03:00."
+msgstr "Use 24-hour HH:MM, such as 03:00."
 
 msgid "Use a duration, such as 10s or 1m."
 msgstr "Use a duration, such as 10s or 1m."
@@ -3146,8 +3238,17 @@ msgstr "Volume or server path"
 msgid "Volumes and mounts"
 msgstr "Volumes and mounts"
 
+msgid "Weekdays"
+msgstr "Weekdays"
+
+msgid "Weekends"
+msgstr "Weekends"
+
 msgid "What Docker leaves it when the server runs short."
 msgstr "What Docker leaves it when the server runs short."
+
+msgid "Yes"
+msgstr "Yes"
 
 msgid "failures"
 msgstr "failures"
@@ -3159,6 +3260,14 @@ msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "the image's"
 
+#. placeholder {0}: m / 60
+msgid "{0} h"
+msgstr "{0} h"
+
+#. placeholder {0}: a.minutes
+msgid "{0} min"
+msgstr "{0} min"
+
 #. placeholder {0}: cpus[part.service]
 #. placeholder {0}: inv.cpuCount
 #. placeholder {0}: r.cpus
@@ -3168,6 +3277,9 @@ msgstr "{0} vCPU"
 msgid "{c} vCPU"
 msgstr "{c} vCPU"
 
+msgid "{hours} h"
+msgstr "{hours} h"
+
 msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
 msgstr "{name} changed after you started, so the form shows it as it is now. Make your change again."
 
@@ -3176,6 +3288,13 @@ msgstr "{name} changed after you started, so this would undo that change. Close 
 
 msgid "{name} is as good as root on its server, so applying this asks for your passkey."
 msgstr "{name} is as good as root on its server, so applying this asks for your passkey."
+
+msgid "{name} runs {tag}: patch and minor take its new images only when they say their version."
+msgstr "{name} runs {tag}: patch and minor take its new images only when they say their version."
+
+#. placeholder {0}: a.at
+msgid "{on} from {0} for {length}, {zone}"
+msgstr "{on} from {0} for {length}, {zone}"
 
 msgid "{retries} failed checks in a row"
 msgstr "{retries} failed checks in a row"
@@ -4581,6 +4700,18 @@ msgstr "{revision} deployed {when} by {name}"
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} deployed {when} from the CLI on {local}"
 
+msgid "Backs up {names} before anything changes"
+msgstr "Backs up {names} before anything changes"
+
+msgid "Undo won't bring back what it changes in {names}"
+msgstr "Undo won't bring back what it changes in {names}"
+
+msgid "Updated to {to}"
+msgstr "Updated to {to}"
+
+msgid "Updating to {to}"
+msgstr "Updating to {to}"
+
 msgid "Always"
 msgstr "Always"
 
@@ -5902,9 +6033,6 @@ msgstr "The oldest goes once a new one is whole. A failed run takes nothing away
 
 msgid "This may not fit"
 msgstr "This may not fit"
-
-msgid "Use 24-hour HH:MM, such as 03:00."
-msgstr "Use 24-hour HH:MM, such as 03:00."
 
 msgid "Use a number from 1 to 1000."
 msgstr "Use a number from 1 to 1000."
@@ -7331,6 +7459,40 @@ msgstr "This stopped before it reached that, and Dockwell put back the rest."
 msgid "What ran before runs again"
 msgstr "What ran before runs again"
 
+msgid "From <0>{from}</0> to <1>{to}</1>"
+msgstr "From <0>{from}</0> to <1>{to}</1>"
+
+msgid "How the update is going"
+msgstr "How the update is going"
+
+msgid "Pull the image"
+msgstr "Pull the image"
+
+msgid "Pulled of the image"
+msgstr "Pulled of the image"
+
+msgid "Start"
+msgstr "Start"
+
+msgid "To come"
+msgstr "To come"
+
+msgid "Under way"
+msgstr "Under way"
+
+msgid "its newest image"
+msgstr "its newest image"
+
+msgctxt "update"
+msgid "to"
+msgstr "to"
+
+#. placeholder {0}: bytes[0]
+#. placeholder {1}: bytes[1]
+msgctxt "bytes pulled"
+msgid "{0} of {1}"
+msgstr "{0} of {1}"
+
 msgid "<0>{source}</0> at <1>{target}</1>"
 msgstr "<0>{source}</0> at <1>{target}</1>"
 
@@ -8302,6 +8464,9 @@ msgstr "Couldn't take on"
 msgid "Couldn't update"
 msgstr "Couldn't update"
 
+msgid "Couldn't update to {to}"
+msgstr "Couldn't update to {to}"
+
 msgid "Creating"
 msgstr "Creating"
 
@@ -8565,6 +8730,9 @@ msgstr "Two containers mustn't write to the volume {volumes} at once, so the old
 
 msgid "Update"
 msgstr "Update"
+
+msgid "Update to {to}"
+msgstr "Update to {to}"
 
 msgid "Updating"
 msgstr "Updating"
@@ -10870,9 +11038,6 @@ msgstr "Your passkey didn't confirm it, so there's no command yet. Try again."
 msgid "{host} may not lead back to {controlName}"
 msgstr "{host} may not lead back to {controlName}"
 
-msgid "{hours} h"
-msgstr "{hours} h"
-
 msgid "{joinedName} joined"
 msgstr "{joinedName} joined"
 
@@ -11177,9 +11342,6 @@ msgstr "Name how many failed sign-ins ban an address, from 1 to 100, such as 5."
 msgid "Never banned"
 msgstr "Never banned"
 
-msgid "No"
-msgstr "No"
-
 msgid "Not installed"
 msgstr "Not installed"
 
@@ -11252,9 +11414,6 @@ msgstr "This can ban {takenOutList} as it applies"
 
 msgid "Until it reloads, it may still accept what this says is off."
 msgstr "Until it reloads, it may still accept what this says is off."
-
-msgid "Yes"
-msgstr "Yes"
 
 msgid "fail2ban counts the failures from just before."
 msgstr "fail2ban counts the failures from just before."
@@ -12762,17 +12921,32 @@ msgstr "A change goes on Activity, with what it replaced."
 msgid "Always on, through an SSH tunnel to the server"
 msgstr "Always on, through an SSH tunnel to the server"
 
+msgid "Any update, daily from 03:00"
+msgstr "Any update, daily from 03:00"
+
+msgid "Apps made already keep their own."
+msgstr "Apps made already keep their own."
+
 msgid "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
 msgstr "Caddy, the server's ingress, which holds ports 80 and 443 while the server has routes"
 
 msgid "Dockwell itself, with a certificate from {ca} that it renews"
 msgstr "Dockwell itself, with a certificate from {ca} that it renews"
 
+msgid "Each app can change it in its own Settings."
+msgstr "Each app can change it in its own Settings."
+
 msgid "Loopback"
 msgstr "Loopback"
 
 msgid "Loopback only"
 msgstr "Loopback only"
+
+msgid "Minor and patch updates, daily from 03:00"
+msgstr "Minor and patch updates, daily from 03:00"
+
+msgid "New apps"
+msgstr "New apps"
 
 msgid "New schedules start in it; each keeps the zone it was made with."
 msgstr "New schedules start in it; each keeps the zone it was made with."
@@ -12785,6 +12959,9 @@ msgstr "Nothing yet: the panel has no domain"
 
 msgid "Only this browser changes. Your other browsers, and the command line, keep their own."
 msgstr "Only this browser changes. Your other browsers, and the command line, keep their own."
+
+msgid "Patch updates, daily from 03:00"
+msgstr "Patch updates, daily from 03:00"
 
 msgid "Same as this browser ({browser})"
 msgstr "Same as this browser ({browser})"
@@ -13753,9 +13930,6 @@ msgstr "Cron"
 msgid "Custom, in cron"
 msgstr "Custom, in cron"
 
-msgid "Every day"
-msgstr "Every day"
-
 msgid "Every few minutes"
 msgstr "Every few minutes"
 
@@ -14494,9 +14668,6 @@ msgstr "An install is running on {name}. This one can start once it ends."
 #. placeholder {0}: server.name
 msgid "Asking {0} which updates wait…"
 msgstr "Asking {0} which updates wait…"
-
-msgid "Automatic updates"
-msgstr "Automatic updates"
 
 msgid "By itself"
 msgstr "By itself"

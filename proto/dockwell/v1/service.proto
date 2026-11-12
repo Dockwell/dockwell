@@ -84,6 +84,26 @@ service ServiceService {
     };
   }
 
+  // UpgradeService plans updating a service to a newer version of what it runs,
+  // safe by default: a backup of each volume it mounts first, the image pulled
+  // before anything stops, room for it on the server checked first, a database's
+  // major release refused as a plain swap, and the health-gated rollout that
+  // rolls back on its own. A service of a catalog install upgrades its install to
+  // the newer release, as UpgradeCatalogInstall plans it. Like DeployService, it
+  // needs no one to read the service's environment back. See
+  // docs/adr/0080-updating-an-app-safely-and-automatically.md.
+  rpc UpgradeService(UpgradeServiceRequest) returns (UpgradeServiceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "upgrade"};
+    option (google.api.http) = {
+      post: "/v1/services/{id}:upgrade"
+      body: "*"
+    };
+  }
+
   // AddServicePort plans publishing one more port, with the rest of the
   // service as it is: like DeployService, it needs no one to read the service's
   // environment back.
@@ -354,6 +374,33 @@ message DeployServiceRequest {
 // DeployServiceResponse carries the planned deploy.
 message DeployServiceResponse {
   // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// UpgradeServiceRequest names a service, and what to update it to.
+message UpgradeServiceRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The image to update to, such as "postgres:16.4". Empty takes the newer
+  // version Dockwell found for it. A service of a catalog install takes its
+  // install's newer release, and refuses an image.
+  string image = 2;
+  // Leaves out the backup of its volumes that comes first, and the plan says so.
+  bool skip_backup = 3;
+  // What the change is for, for the timeline. Empty says what it updates.
+  string summary = 4;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 5;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 6;
+}
+
+// UpgradeServiceResponse carries the planned update.
+message UpgradeServiceResponse {
+  // The change, planned, with its plan, whose intent says what it updates from
+  // and to.
   Change change = 1;
 }
 

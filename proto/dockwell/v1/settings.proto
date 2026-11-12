@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/auth.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/system.proto";
@@ -176,6 +177,25 @@ service SettingsService {
     };
   }
 
+  // SetAutoUpdateDefault sets what a new app's automatic updates start as, when
+  // the change that makes it sets none (ADR 0080): off unless set. An app made
+  // already keeps its own. Unset level sets it back to off. It's on the
+  // activity log with what it replaced.
+  rpc SetAutoUpdateDefault(SetAutoUpdateDefaultRequest) returns (SetAutoUpdateDefaultResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "settings"
+      verb: "set-auto-update"
+    };
+    option (google.api.http) = {
+      post: "/v1/settings:setAutoUpdate"
+      body: "*"
+    };
+  }
+
   // GetControlPlane returns what serves the panel and API: its build, where it
   // keeps its state, the addresses it answers on, and how it's doing. Most of
   // it comes from how dockwell run was started, and changes there.
@@ -223,6 +243,10 @@ message Settings {
   // passkey again. STEP_UP_POLICY_AT_SIGN_IN, which allows all three, until
   // the owner sets it.
   StepUpPolicy step_up_floor = 5;
+  // What a new app's automatic updates start as, when the change that makes it
+  // sets none. Unset is off. Numbered apart, as open work adds to this message
+  // (ADR 0080).
+  dockwell.resource.v1alpha1.AutoUpdate auto_update = 260;
 }
 
 // PanelServing is how the panel is served, as dockwell run was started.
@@ -387,6 +411,18 @@ message SetStepUpFloorRequest {
 
 // SetStepUpFloorResponse carries the settings as they now are.
 message SetStepUpFloorResponse {
+  Settings settings = 1;
+}
+
+// SetAutoUpdateDefaultRequest says what new apps' automatic updates start as.
+message SetAutoUpdateDefaultRequest {
+  // The level and window. Unset level is off. Left without a time zone, it
+  // takes the install's.
+  dockwell.resource.v1alpha1.AutoUpdate auto_update = 1;
+}
+
+// SetAutoUpdateDefaultResponse carries the settings as they now are.
+message SetAutoUpdateDefaultResponse {
   Settings settings = 1;
 }
 

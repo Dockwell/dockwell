@@ -233,6 +233,7 @@ func (r *Runner) ApplyBackup(ctx context.Context, step resource.Step) error {
 	first := step.BackupFirst
 	m, err := readManifest(filepath.Join(r.dir(step.Ref), first.ID+".json"))
 	if err != nil {
+		resource.Stage(ctx, resource.PhaseBackingUp, "Backing up "+step.Ref.Name)
 		if m, err = r.Take(ctx, Take{ID: first.ID, Ref: step.Ref, Stop: true}); err != nil {
 			return err
 		}

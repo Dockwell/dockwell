@@ -60,6 +60,9 @@ func MoveOf(name string, current, desired *resourcev1.Service) (*Move, error) {
 		return nil, nil
 	}
 	now, ok := FromSpec(desired)
+	if ok && now.Engine == was.Engine && was.Engine.MovesBySeries() {
+		return nil, seriesMove(name, was.Engine, current, desired)
+	}
 	if !ok || now.Engine != was.Engine || was.Engine.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		return nil, nil
 	}
@@ -136,8 +139,14 @@ const raiseWait = 2 * time.Minute
 // it runs; setting it to what it is changes nothing. Moving down, it refuses data
 // that uses newer features than where it goes. One that isn't running can't be
 // asked: the release it moves to says, as it starts, whether it reads the data.
+//
+// PostgreSQL, MySQL and MariaDB are held to the release series they run, as their
+// images say it (sameSeries).
 func (r Reader) BeforeReplace(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error {
 	e := Recognise(old.Config.Image)
+	if e != nil && e.MovesBySeries() && Recognise(spec.GetImage()) == e {
+		return r.sameSeries(ctx, e, old, spec)
+	}
 	if e == nil || e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB || Recognise(spec.GetImage()) != e || !old.State.Running {
 		return nil
 	}

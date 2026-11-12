@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  AutoUpdate_Level,
   ChangeState,
   type Container,
   HealthcheckSchema,
@@ -232,6 +233,56 @@ describe("an app's settings", () => {
     await waitFor(() => expect(proposals).toHaveLength(1));
     expect(proposals[0]?.summary).toBe("Change the limits of web");
     expect(appOf(proposals[0])?.resources).toEqual(expect.objectContaining({ memory: "256M", cpus: "" }));
+  });
+
+  it("updates it on its own in a window, from Off, with its backup first, as a plan", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(anEditedApp(), proposals));
+    await ready();
+    expect(section("Automatic updates")).toHaveTextContent("Nothing on its own: each update waits for you");
+    await user.click(screen.getByRole("button", { name: "Edit Automatic updates" }));
+    const form = screen.getByRole("form", { name: "Edit Automatic updates" });
+    expect(within(form).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await user.selectOptions(
+      within(form).getByRole("combobox", { name: "Updates it takes on its own" }),
+      "Patch updates",
+    );
+    expect(within(form).getByRole("switch", { name: /Back up first/ })).toBeChecked();
+    // nginx:1.5 names less than a release whole, so its new images go by what they say.
+    expect(
+      within(form).getByText("web runs 1.5: patch and minor take its new images only when they say their version."),
+    ).toBeVisible();
+    await user.click(within(form).getByRole("radio", { name: "Weekends" }));
+    await user.selectOptions(within(form).getByRole("combobox", { name: "For" }), "4 h");
+    await expectAccessible(document.body);
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(proposals[0]?.summary).toBe("Update web on its own");
+    const edit = proposals[0]?.edits.find((e) => e.resource?.kind === "service");
+    const spec = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    expect(spec?.autoUpdate).toEqual(
+      expect.objectContaining({
+        level: AutoUpdate_Level.PATCH,
+        weekdays: [0, 6],
+        at: "03:00",
+        minutes: 240,
+        skipBackup: false,
+      }),
+    );
+  });
+
+  it("says nothing of a moving tag for one that names a release whole", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/svc_web/settings", api(anApp("web", "nginx:1.27.3")));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Automatic updates" }));
+    const form = screen.getByRole("form", { name: "Edit Automatic updates" });
+    await user.selectOptions(
+      within(form).getByRole("combobox", { name: "Updates it takes on its own" }),
+      "Patch updates",
+    );
+    expect(within(form).queryByText(/patch and minor take its new images/)).toBeNull();
   });
 
   it("adds a port and takes one away", async () => {

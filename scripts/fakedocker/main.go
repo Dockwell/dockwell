@@ -20,7 +20,10 @@
 //   - postgres keeps its data as one file, and dumps and loads it as its tools do,
 //     for a backup to go through a database's own dump, and answers a reading of
 //     itself as psql would, for the Databases section;
-//   - /info says Docker keeps its data at FAKEDOCKER_ROOT, when that's set.
+//   - /info says Docker keeps its data at FAKEDOCKER_ROOT, when that's set;
+//   - a pull takes FAKEDOCKER_PULL_TIME, such as 30s, when that's set, for a stand
+//     that shows an update in flight: of the images whose names hold one of
+//     FAKEDOCKER_SLOW, a comma-separated list, or of every image without it.
 //
 // It is never part of a release. CI's Panel end to end on Docker job runs the
 // same flows on real Docker.
@@ -234,6 +237,10 @@ func main() {
 	// Where /info says Docker keeps its data, for a run that wants the agent to add up
 	// a disk this machine has: /var/lib/docker unless set.
 	e.DockerRoot = os.Getenv("FAKEDOCKER_ROOT")
+	pullTime, err := time.ParseDuration(cmpOr(os.Getenv("FAKEDOCKER_PULL_TIME"), "0s"))
+	if err != nil {
+		log.Fatalf("can't read FAKEDOCKER_PULL_TIME, such as 30s: %v", err)
+	}
 	e.Find = func(ref string) (dockertest.Image, bool) {
 		name, _, _ := strings.Cut(ref, ":")
 		if strings.HasSuffix(name, "doesnotexist") {
@@ -249,6 +256,9 @@ func main() {
 		}
 		if strings.HasPrefix(ref, "postgres:") {
 			img.Exec = postgres
+		}
+		if slow := os.Getenv("FAKEDOCKER_SLOW"); slow == "" || slices.ContainsFunc(strings.Split(slow, ","), func(s string) bool { return s != "" && strings.Contains(ref, s) }) {
+			img.PullTime = pullTime
 		}
 		// A shell, run as this machine's /bin/sh, unless it's made to run one program.
 		if !strings.HasSuffix(ref, ":distroless") {
@@ -296,4 +306,12 @@ func main() {
 	for _, f := range t.cleanup {
 		f()
 	}
+}
+
+// cmpOr is v, or or where v is empty.
+func cmpOr(v, or string) string {
+	if v == "" {
+		return or
+	}
+	return v
 }

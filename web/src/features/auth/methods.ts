@@ -191,6 +191,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceService.listServices": "read",
   "ServiceService.openService": "may",
   "ServiceService.rollBackService": "may",
+  // Asked by name before Update is offered, from the app's page and the catalog's (ADR 0080).
+  "ServiceService.upgradeService": "may",
 
   "ServiceUpdateService.checkServiceUpdates": "unused",
   "ServiceUpdateService.listServiceUpdates": "unused",
@@ -201,6 +203,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "SettingsService.createPanelSignInLink": "may",
   "SettingsService.getControlPlane": "may",
   "SettingsService.getSettings": "read",
+  // Asked by name before the New apps panel offers Save (ADR 0080).
+  "SettingsService.setAutoUpdateDefault": "may",
   "SettingsService.setInstallName": "may",
   "SettingsService.setPanelDomain": "may",
   "SettingsService.setStepUpFloor": "may",

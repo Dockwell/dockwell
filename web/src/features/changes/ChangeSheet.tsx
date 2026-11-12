@@ -120,6 +120,8 @@ import {
   withoutIds,
 } from "./plan";
 import { RollbackLine, rollbackSubject } from "./RollbackLine";
+import { UpgradeLine, UpgradePhases } from "./UpgradeLead";
+import { upgradeOf, upgradePhases } from "./upgrade";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
 import { placesOfChange, useMay } from "../auth/may";
@@ -1213,10 +1215,13 @@ function PlanBody({
   // An install's packages are its plan (ADR 0064): its step lists them as it's reviewed. So is what a
   // reboot takes offline.
   const installs = plan?.servers.some((s) => s.steps.some((st) => st.install || st.reboot)) ?? false;
+  // An update on one server says how it goes as its phases, which say what its steps would (ADR 0080).
+  const upgrade = upgradeOf(plan);
+  const phased = upgrade !== undefined && !fleet;
   const showSteps =
-    phase === "applying" ||
+    (phase === "applying" && !phased) ||
     ((fleet || installs) && (ran || phase === "review")) ||
-    (phase === "failed" && (steps.length > 1 || fleet));
+    (phase === "failed" && (steps.length > 1 || fleet) && !phased);
   const failed = failedStep(change);
   // Discarded, it did nothing. Failed, it may have done some of this, for a while.
   const setOut = phase === "failed" ? t`What it set out to do` : t`What it would have done`;
@@ -1245,6 +1250,11 @@ function PlanBody({
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
+      {/* An update says what it goes from and to, and how it goes, before anything else of its plan. */}
+      {upgrade && phase !== "discarded" ? <UpgradeLine intent={upgrade} /> : null}
+      {phased && (phase === "applying" || phase === "failed") ? (
+        <UpgradePhases phases={upgradePhases(plan, change)} />
+      ) : null}
       {/* A plan that waits for an admin says why, in the server's words, which name what it reaches. */}
       {phase === "review" && change?.waits ? (
         <Callout tone="info" title={t`Waits for an admin or the owner`}>

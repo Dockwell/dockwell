@@ -38,6 +38,9 @@ const (
 	SettingInstallName = "install.name"
 	// SettingTimeZone is the zone new schedules start in.
 	SettingTimeZone = "install.time_zone"
+	// SettingAutoUpdate is what new apps' automatic updates start as (ADR 0080),
+	// as JSON.
+	SettingAutoUpdate = "install.auto_update"
 	// SettingStepUpFloor is the least anyone may choose for how often they're
 	// asked for their passkey again (ADR 0075). Unset allows all three.
 	SettingStepUpFloor = "auth.step_up_floor"

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -243,6 +244,28 @@ func serverFiles(stdio IO, logger *slog.Logger, dir datadir.Dir) *files.Server {
 	})
 }
 
+// dockerRoom reads how much is free, and how large it is in all, on the disk
+// where Docker keeps images, as its own /info names it, for the room a pull needs
+// (ADR 0080). A Docker on another machine, or in a container whose disk this one
+// can't see, reads as an error, and the pull goes ahead unchecked.
+func dockerRoom(client *docker.Client) func(ctx context.Context) (free, size uint64, err error) {
+	return func(ctx context.Context) (uint64, uint64, error) {
+		info, err := client.Info(ctx)
+		if err != nil {
+			return 0, 0, err
+		}
+		if info.DockerRootDir == "" {
+			return 0, 0, errors.New("docker didn't say where it keeps images")
+		}
+		var st syscall.Statfs_t
+		if err := syscall.Statfs(info.DockerRootDir, &st); err != nil {
+			return 0, 0, err
+		}
+		bsize := uint64(st.Bsize) //nolint:gosec // block sizes are positive
+		return st.Bavail * bsize, st.Blocks * bsize, nil
+	}
+}
+
 // serverUpdates reads which package updates wait on this server (ADR 0043). A
 // test reads nothing of the machine it runs on: with DOCKWELL_TEST set, only the
 // stand-ins under DOCKWELL_TEST_PACKAGES, and none without it.
@@ -327,9 +350,11 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		},
 	}
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
+	keptImages := &container.KeptImages{Path: filepath.Join(dir.Agent(), "kept-images.json"), Client: client}
+	go keptImages.KeepPruned(ctx, logger)
 	containers := container.Driver{Runtime: &container.Docker{
 		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive,
-		BeforeReplace: database.Reader{Client: client}.BeforeReplace,
+		BeforeReplace: database.Reader{Client: client}.BeforeReplace, Room: dockerRoom(client), Kept: keptImages,
 	}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)

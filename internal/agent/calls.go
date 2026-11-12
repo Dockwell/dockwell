@@ -593,7 +593,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		progress := c.progress(call.GetId())
 		defer progress.stop()
-		ctx = resource.WithProgress(ctx, progress.say)
+		ctx = resource.WithActivities(ctx, progress.say)
 		ctx = resource.WithOutcome(ctx, func(o resource.Outcome) {
 			_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{
 				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did), Backup: backupTaken(o.Backup), Waits: accessWait(o.Waits)},
@@ -960,7 +960,7 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 	case call.GetBackup() != nil:
 		progress := c.progress(call.GetId())
 		defer progress.stop()
-		out, err := c.cfg.Backups.Take(resource.WithProgress(ctx, progress.say), call.GetBackup())
+		out, err := c.cfg.Backups.Take(resource.WithActivities(ctx, progress.say), call.GetBackup())
 		if err != nil {
 			return nil, err
 		}
@@ -968,7 +968,7 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 	case call.GetDrillBackup() != nil:
 		progress := c.progress(call.GetId())
 		defer progress.stop()
-		out, err := c.cfg.Backups.Drill(resource.WithProgress(ctx, progress.say), call.GetDrillBackup())
+		out, err := c.cfg.Backups.Drill(resource.WithActivities(ctx, progress.say), call.GetDrillBackup())
 		if err != nil {
 			return nil, err
 		}
@@ -982,7 +982,7 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		defer clear(destination)
 		progress := c.progress(call.GetId())
 		defer progress.stop()
-		out, err := c.cfg.Backups.Send(resource.WithProgress(ctx, progress.say), send, destination)
+		out, err := c.cfg.Backups.Send(resource.WithActivities(ctx, progress.say), send, destination)
 		if err != nil {
 			return nil, err
 		}
@@ -996,7 +996,7 @@ func (c *calls) runBackup(ctx context.Context, call *agentv1.Call) (*agentv1.Cal
 		defer clear(destination)
 		progress := c.progress(call.GetId())
 		defer progress.stop()
-		out, err := c.cfg.Backups.Fetch(resource.WithProgress(ctx, progress.say), f, destination)
+		out, err := c.cfg.Backups.Fetch(resource.WithActivities(ctx, progress.say), f, destination)
 		if err != nil {
 			return nil, err
 		}
@@ -1042,44 +1042,63 @@ const progressEvery = time.Second
 // to the control plane at most once every progressEvery. Stop it once
 // the call ends.
 func (c *calls) progress(id uint64) *throttle {
-	return newThrottle(progressEvery, func(message string) {
-		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{Id: id, Message: message}}})
+	return newThrottle(progressEvery, func(r resource.Activity) {
+		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{
+			Id: id, Message: r.Message, Phase: dockwellv1.StepPhase(r.Phase), DoneBytes: r.Done, TotalBytes: r.Total,
+		}}})
 	})
 }
 
 // throttle passes messages on at most once every interval. One that comes
-// sooner isn't lost: the latest waits, and goes when the interval ends, so
-// a change of phase, such as from pulling to starting, always shows.
+// sooner isn't lost: the latest waits, and goes when the interval ends. A new
+// phase, such as from pulling to starting, goes at once, after what waited, so
+// each phase a step reaches shows, however soon the step ends (ADR 0080).
 type throttle struct {
 	every time.Duration
-	send  func(string)
+	send  func(resource.Activity)
 
 	mu      sync.Mutex
-	last    time.Time   // when the last message went
-	waiting string      // the latest message to go next
-	timer   *time.Timer // set while one waits
+	last    time.Time         // when the last message went
+	phase   resource.Phase    // the last phase that went
+	waiting resource.Activity // the latest message to go next
+	timer   *time.Timer       // set while one waits
 	stopped bool
 }
 
-func newThrottle(every time.Duration, send func(string)) *throttle {
+func newThrottle(every time.Duration, send func(resource.Activity)) *throttle {
 	return &throttle{every: every, send: send}
 }
 
 // say passes a message on now, or once the interval ends.
-func (t *throttle) say(message string) {
+func (t *throttle) say(message resource.Activity) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	switch wait := t.every - time.Since(t.last); {
 	case t.stopped:
+	case message.Phase != resource.PhaseNone && message.Phase != t.phase:
+		if t.timer != nil {
+			t.timer.Stop()
+			t.timer = nil
+			t.pass(t.waiting)
+		}
+		t.pass(message)
 	case t.timer != nil:
 		t.waiting = message
 	case wait > 0:
 		t.waiting = message
 		t.timer = time.AfterFunc(wait, t.flush)
 	default:
-		t.last = time.Now()
-		t.send(message)
+		t.pass(message)
 	}
+}
+
+// pass sends a message now. Hold mu.
+func (t *throttle) pass(message resource.Activity) {
+	t.last = time.Now()
+	if message.Phase != resource.PhaseNone {
+		t.phase = message.Phase
+	}
+	t.send(message)
 }
 
 func (t *throttle) flush() {
@@ -1089,8 +1108,7 @@ func (t *throttle) flush() {
 	if t.stopped {
 		return
 	}
-	t.last = time.Now()
-	t.send(t.waiting)
+	t.pass(t.waiting)
 }
 
 // stop drops what waits: the call's result says the last word, and must

@@ -43,7 +43,6 @@ func TestMongoMovesOneReleaseAtATime(t *testing.T) {
 		{"mongo:8.0", "mongo:6.0", false, false, "Change its image to mongo:7.0 first"},
 		{"mongo:7.0", "mongo:7.0.14", false, false, ""},
 		{"mongo:7.0", "mongo:latest", false, false, ""},
-		{"postgres:16", "postgres:17", false, false, ""},
 		{"mongo:7.0", "postgres:17", false, false, ""},
 	} {
 		m, err := MoveOf("docs", service(c.from), service(c.to))

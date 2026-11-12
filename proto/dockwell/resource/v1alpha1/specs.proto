@@ -568,6 +568,46 @@ message Service {
   // environment, ports and networks, is the app's own, as an image app's is. See
   // docs/adr/0058-runtimes-an-app-from-a-folder.md.
   Runtime runtime = 150;
+  // The updates Dockwell applies to it on its own, and when. Unset applies none:
+  // each waits for a person. Numbered apart, as open work adds to this message.
+  // See docs/adr/0080-updating-an-app-safely-and-automatically.md.
+  AutoUpdate auto_update = 170;
+}
+
+// AutoUpdate is how Dockwell updates a service on its own: which updates it
+// takes, and in what window. Each is Dockwell's own change, on Activity and
+// undoable, with a backup of its volumes first, and the rollout's rollback if
+// its health check fails, which alerts as any failed change does. A database's
+// major release, a version someone skipped, and an update whose plan needs a
+// person, such as one with two writers on a volume, are never taken on their own.
+message AutoUpdate {
+  // Which updates it takes.
+  enum Level {
+    // None: each waits for a person. The default.
+    LEVEL_UNSPECIFIED = 0;
+    // A patch release, or a new image of the tag it runs.
+    LEVEL_PATCH = 1;
+    // A minor release too.
+    LEVEL_MINOR = 2;
+    // A major release too, but never a database's.
+    LEVEL_ANY = 3;
+  }
+  // Which updates it takes.
+  Level level = 1;
+  // The days its window opens, as 0 for Sunday to 6 for Saturday. Empty is
+  // every day.
+  repeated int32 weekdays = 2;
+  // When its window opens, as 24-hour HH:MM: "03:00" unless set.
+  string at = 3;
+  // How long its window stays open, in minutes: 120 unless set, from 15 to
+  // 1440. An update starts only while it's open, and runs to its end after.
+  uint32 minutes = 4;
+  // The time zone at is in, such as "Europe/Amsterdam". Left out, a change that
+  // sets it takes the install's time zone, from Settings, and UTC where the
+  // install has none.
+  string time_zone = 5;
+  // Leaves out the backup of its volumes that comes first.
+  bool skip_backup = 6;
 }
 
 // ImageBuild says how Dockwell builds a service's image from source, with

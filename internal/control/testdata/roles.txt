@@ -144,6 +144,7 @@ ServiceService.ListServiceRevisions            read         viewer     viewer   
 ServiceService.ListServices                    read         viewer     viewer     project
 ServiceService.OpenService                     read         developer  admin      project  session
 ServiceService.RollBackService                 plan         developer  developer  project
+ServiceService.UpgradeService                  plan         developer  developer  project
 ServiceUpdateService.CheckServiceUpdates       read         developer  developer  project
 ServiceUpdateService.ListServiceUpdates        read         viewer     viewer     project
 ServiceUpdateService.SkipServiceUpdate         apply        developer  developer  project
@@ -152,6 +153,7 @@ SettingsService.CheckPanelDomain               read         admin      admin    
 SettingsService.CreatePanelSignInLink          apply        admin      admin      install  session
 SettingsService.GetControlPlane                read         admin      admin      install
 SettingsService.GetSettings                    read         viewer     viewer     shared
+SettingsService.SetAutoUpdateDefault           apply        admin      admin      install
 SettingsService.SetInstallName                 apply        admin      admin      install  session
 SettingsService.SetPanelDomain                 apply        admin      admin      install  session
 SettingsService.SetStepUpFloor                 apply        admin      admin      install  session

@@ -96,6 +96,7 @@
   "service.update_unskip",
   "service.update_unsnooze",
   "session.revoke",
+  "settings.auto_update",
   "settings.name",
   "settings.panel_domain",
   "settings.step_up_floor",

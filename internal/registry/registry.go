@@ -540,6 +540,25 @@ type Config struct {
 	WorkingDir  string
 	Healthcheck []string
 	Platform    Platform
+	// Version is what version it says it is, in its
+	// org.opencontainers.image.version label, as a tag that moves can't say.
+	Version string
+}
+
+// VersionLabel is the label an image says its version in (ADR 0080).
+const VersionLabel = "org.opencontainers.image.version"
+
+// maxVersion is the most of a version label kept, as one is a few characters.
+const maxVersion = 64
+
+// VersionOf is what an image's labels say its version is, cut to what a version
+// takes, or empty where they say none.
+func VersionOf(labels map[string]string) string {
+	v := strings.TrimSpace(labels[VersionLabel])
+	if len(v) > maxVersion || strings.ContainsFunc(v, func(r rune) bool { return r < ' ' || r == 0x7f }) {
+		return ""
+	}
+	return v
 }
 
 type descriptor struct {
@@ -610,6 +629,7 @@ func (c *Client) Config(ctx context.Context, r Ref, want Platform) (*Config, str
 			Healthcheck  *struct {
 				Test []string `json:"Test"`
 			} `json:"Healthcheck"`
+			Labels map[string]string `json:"Labels"`
 		} `json:"config"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -624,6 +644,7 @@ func (c *Client) Config(ctx context.Context, r Ref, want Platform) (*Config, str
 		User:       raw.Config.User,
 		WorkingDir: raw.Config.WorkingDir,
 		Platform:   Platform{OS: raw.OS, Architecture: raw.Architecture, Variant: raw.Variant},
+		Version:    VersionOf(raw.Config.Labels),
 	}
 	if raw.Config.Healthcheck != nil {
 		out.Healthcheck = raw.Config.Healthcheck.Test

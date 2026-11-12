@@ -243,8 +243,11 @@ describe("what the panel offers, by what you hold", () => {
     const rail = screen.getByRole("navigation", { name: "Main" });
     expect(within(rail).queryByRole("link", { name: "Alerts" })).not.toBeInTheDocument();
     expect(within(rail).getByRole("link", { name: "Apps" })).toBeVisible();
-    // The install's name and time zone are there to read, and an admin's to save.
-    expectOff(await screen.findByRole("button", { name: /Save/ }), ADMINS);
+    // The install's name and time zone, and what new apps' automatic updates start as, are there
+    // to read, and an admin's to save.
+    const saves = await screen.findAllByRole("button", { name: /Save/ });
+    expect(saves).toHaveLength(2);
+    for (const save of saves) expectOff(save, ADMINS);
   });
 
   it("shows an admin Settings and the rail whole", async () => {

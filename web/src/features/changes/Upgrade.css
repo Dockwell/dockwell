@@ -1,0 +1,118 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* An update's from and to, and its phases (ADR 0080). */
+
+.upgrade-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.upgrade-line > .dw-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ink-muted);
+}
+
+.upgrade-images {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.upgrade-images code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.upgrade-digest,
+.upgrade-newest {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.upgrade-phases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.upgrade-phase {
+  display: grid;
+  grid-template-columns: 16px auto 1fr;
+  align-items: center;
+  column-gap: var(--space-2);
+  row-gap: 4px;
+  min-height: 24px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.upgrade-phase-mark {
+  display: inline-flex;
+  justify-content: center;
+  color: var(--ink-muted);
+}
+
+.upgrade-phase.is-done .upgrade-phase-mark {
+  color: var(--healthy);
+}
+
+.upgrade-phase.is-failed .upgrade-phase-mark {
+  color: var(--critical);
+}
+
+.upgrade-phase.is-queued .upgrade-phase-label {
+  color: var(--ink-muted);
+}
+
+.upgrade-phase-bytes,
+.upgrade-phase-activity {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.upgrade-progress {
+  grid-column: 2 / -1;
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  appearance: none;
+}
+
+.upgrade-progress::-webkit-progress-bar {
+  background: var(--surface-sunken);
+}
+
+.upgrade-progress::-webkit-progress-value {
+  border-radius: var(--radius-full);
+  background: var(--cobalt);
+}
+
+.upgrade-progress::-moz-progress-bar {
+  border-radius: var(--radius-full);
+  background: var(--cobalt);
+}
+
+/* The app's page: its line, then its phases, apart as the plan sheet keeps them. */
+.upgrade-card > .dw-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

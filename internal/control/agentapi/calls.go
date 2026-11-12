@@ -475,7 +475,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
 		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(),
-		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	if d := hello.GetDesired(); d != nil {
@@ -611,7 +611,7 @@ type Session struct {
 	pending map[uint64]chan *agentv1.CallResult
 	// progress hears how each pending call is going, where its caller
 	// follows it.
-	progress map[uint64]func(string)
+	progress map[uint64]func(resource.Activity)
 	// outcomes hears what each pending call found out.
 	outcomes map[uint64]func(resource.Outcome)
 	done     chan struct{}
@@ -651,7 +651,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 		return
 	}
 	if fn != nil {
-		fn(p.GetMessage())
+		fn(resource.Activity{Message: p.GetMessage(), Phase: resource.Phase(p.GetPhase()), Done: p.GetDoneBytes(), Total: p.GetTotalBytes()})
 	}
 }
 
@@ -996,7 +996,7 @@ func (s *Session) callOnce(ctx context.Context, c *agentv1.Call) (*agentv1.CallR
 	c.Id = s.next
 	ch := make(chan *agentv1.CallResult, 1)
 	s.pending[c.Id] = ch
-	if fn := resource.ProgressFunc(ctx); fn != nil {
+	if fn := resource.ActivityFunc(ctx); fn != nil {
 		s.progress[c.Id] = fn
 	}
 	if fn := resource.OutcomeFunc(ctx); fn != nil {

@@ -181,6 +181,10 @@ message ImageConfig {
   repeated string healthcheck = 8;
   // The platform these are for, such as "linux/arm64".
   string platform = 9;
+  // The version it says it is, in its org.opencontainers.image.version label,
+  // such as "5.3.1". Empty where it says none. Numbered apart, as open work adds
+  // to this message (ADR 0080).
+  string version = 260;
 }
 
 // ImagePort is a port an image exposes.

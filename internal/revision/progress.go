@@ -55,6 +55,12 @@ type StepProgress struct {
 	// Activity is what the step's driver last said it is doing, while it
 	// runs.
 	Activity string `json:"activity,omitempty"`
+	// Phase is the phase of an update the step last reached while it runs, as
+	// its driver said, and Done and Total how much of a pull is done, in bytes,
+	// while that's pulling (ADR 0080).
+	Phase resource.Phase `json:"phase,omitempty"`
+	Done  int64          `json:"done_bytes,omitempty"`
+	Total int64          `json:"total_bytes,omitempty"`
 	// Detail is what a server said when the step failed, when Message puts
 	// that in plain words.
 	Detail string `json:"detail,omitempty"`
@@ -390,6 +396,7 @@ func (e *Engine) step(changeID string, i int, state StepState, message string) (
 		s.Finished = now
 	}
 	s.State, s.Message, s.Activity, s.Detail = state, message, "", ""
+	s.Phase, s.Done, s.Total = resource.PhaseNone, 0, 0
 	// What a step waited for is over once it runs again or ends.
 	s.Confirm = nil
 	step := *s
@@ -436,14 +443,27 @@ func (e *Engine) failed(changeID string, i int, err error) (*Progress, *Update) 
 // how it is going, such as how much of an image it has pulled, and tells
 // the change's watchers. It isn't recorded: the step's end is. A word that
 // comes once the step is no longer running is dropped.
-func (e *Engine) progressed(changeID string, i int, message string) {
+//
+// A phase stays until the next one, as a step says more than its phases do, such
+// as that it drains the old container once the new one is healthy: the phase it
+// reached is still the last a person follows.
+func (e *Engine) progressed(changeID string, i int, r resource.Activity) {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	p, ok := e.live[changeID]
 	if !ok || i < 0 || i >= len(p.Steps) || p.Steps[i].State != StepRunning {
 		return
 	}
-	p.Steps[i].Message, p.Steps[i].Activity = message, message
+	s := &p.Steps[i]
+	s.Message, s.Activity = r.Message, r.Message
+	if r.Phase != resource.PhaseNone {
+		s.Phase = r.Phase
+	}
+	if r.Phase == resource.PhasePulling {
+		s.Done, s.Total = r.Done, r.Total
+	} else if r.Phase != resource.PhaseNone {
+		s.Done, s.Total = 0, 0
+	}
 	step := p.Steps[i]
 	e.publishLocked(changeID, Update{Index: i, Step: &step})
 }

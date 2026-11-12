@@ -6,16 +6,45 @@ import "context"
 
 type progressKey struct{}
 
+// Phase is what a step is doing, of what a person follows an update by, as
+// the API's StepPhase numbers it (ADR 0080). PhaseNone is anything else.
+type Phase int32
+
+// The phases, as dockwell.v1.StepPhase numbers them.
+const (
+	PhaseNone      Phase = 0
+	PhaseBackingUp Phase = 1
+	PhasePulling   Phase = 2
+	PhaseStarting  Phase = 3
+	PhaseChecking  Phase = 4
+)
+
+// Activity is one word of how a step is going: what it says, for people, and
+// the phase it is in, with how much of a pull is done, where it says.
+type Activity struct {
+	Message string
+	Phase   Phase
+	// Done and Total are bytes of a pull, while Phase is PhasePulling and
+	// Docker has said. 0 otherwise.
+	Done, Total int64
+}
+
 // WithProgress returns a context whose step reports how it is going to
 // fn, such as the engine updating the step's message, or the agent sending
-// it over its stream.
+// it over its stream. fn hears the words alone.
 func WithProgress(ctx context.Context, fn func(message string)) context.Context {
+	return WithActivities(ctx, func(a Activity) { fn(a.Message) })
+}
+
+// WithActivities is WithProgress for whoever hears each word whole, with its
+// phase.
+func WithActivities(ctx context.Context, fn func(Activity)) context.Context {
 	return context.WithValue(ctx, progressKey{}, fn)
 }
 
-// ProgressFunc returns what ctx reports progress to, or nil.
-func ProgressFunc(ctx context.Context) func(string) {
-	fn, _ := ctx.Value(progressKey{}).(func(string))
+// ActivityFunc returns what ctx reports progress to, or nil.
+func ActivityFunc(ctx context.Context) func(Activity) {
+	fn, _ := ctx.Value(progressKey{}).(func(Activity))
 	return fn
 }
 
@@ -23,8 +52,18 @@ func ProgressFunc(ctx context.Context) func(string) {
 // as "Pulling nginx:1.27: 12 of 48 MB". Nothing hears it when nobody
 // follows. A driver's message must never hold a secret.
 func Progress(ctx context.Context, message string) {
-	if fn := ProgressFunc(ctx); fn != nil {
-		fn(message)
+	Tell(ctx, Activity{Message: message})
+}
+
+// Stage is Progress for a step that has reached phase.
+func Stage(ctx context.Context, phase Phase, message string) {
+	Tell(ctx, Activity{Message: message, Phase: phase})
+}
+
+// Tell passes on a word of progress whole.
+func Tell(ctx context.Context, a Activity) {
+	if fn := ActivityFunc(ctx); fn != nil {
+		fn(a)
 	}
 }
 

@@ -3,6 +3,8 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  AutoUpdate_Level,
+  AutoUpdateSchema,
   type Change,
   ChangeService,
   ChangeState,
@@ -65,7 +67,7 @@ import {
 } from "./specEdit";
 import { useAppWords } from "./words";
 
-type SectionId = "general" | "health" | "resources" | "ports" | "mounts";
+type SectionId = "general" | "health" | "resources" | "ports" | "mounts" | "updates";
 
 type Edits = MessageInitShape<typeof EditSchema>[];
 
@@ -93,7 +95,10 @@ export function AppSettings() {
   const app = appOf(service);
   const name = nameOf(service);
   const moving = isMoving(state);
-  const active = useCurrentSection(SECTIONS);
+  // An app that runs an image of its own takes updates; one that builds or runs from a folder moves on otherwise.
+  const updatable = service.spec?.build === undefined && service.spec?.runtime === undefined;
+  const sections = useMemo(() => (updatable ? [...SECTIONS, "updates" as const] : SECTIONS), [updatable]);
+  const active = useCurrentSection(sections);
   const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: environmentOf(service) });
   // What the image declares, so a setting the app leaves to its image says what that is.
   const image = useImageConfig(service, app?.image ?? "");
@@ -165,6 +170,7 @@ export function AppSettings() {
     resources: t`Resources`,
     ports: t`Ports`,
     mounts: t`Volumes and mounts`,
+    updates: t`Automatic updates`,
     danger: t`Danger zone`,
   };
   const section = (id: SectionId, facts: (app: Container) => ReactNode, form: (props: FormProps) => ReactNode) => {
@@ -209,7 +215,7 @@ export function AppSettings() {
     <div className="app-settings">
       {phone ? null : (
         <nav aria-label={t`Settings sections`} className="app-settings-nav">
-          {[...SECTIONS, "danger" as const].map((id) => (
+          {[...sections, "danger" as const].map((id) => (
             <a
               key={id}
               href={`#${id}`}
@@ -269,6 +275,13 @@ export function AppSettings() {
               <MountsForm {...props} />
             ),
           )}
+          {updatable
+            ? section(
+                "updates",
+                () => <UpdatesFacts service={service} />,
+                (props) => <UpdatesForm {...props} />,
+              )
+            : null}
           <div id="danger" className="app-settings-anchor is-wide">
             <DangerZone service={service} title={label.danger} />
           </div>
@@ -1582,5 +1595,239 @@ function MountEditRow({
         </p>
       ) : null}
     </li>
+  );
+}
+
+// Automatic updates: which updates Dockwell takes for it on its own, and when (ADR 0080).
+
+type UpdateDays = "every" | "weekdays" | "weekends" | "day";
+
+const WEEKDAYS = [1, 2, 3, 4, 5];
+const WEEKENDS = [0, 6];
+const WINDOW_PICKS = [60, 120, 240, 480];
+
+function daysOf(weekdays: readonly number[]): { days: UpdateDays; day: number } {
+  const same = (a: readonly number[]) => a.length === weekdays.length && a.every((d) => weekdays.includes(d));
+  if (weekdays.length === 0) return { days: "every", day: 0 };
+  if (same(WEEKDAYS)) return { days: "weekdays", day: 1 };
+  if (same(WEEKENDS)) return { days: "weekends", day: 0 };
+  return { days: "day", day: weekdays[0] ?? 0 };
+}
+
+/** What a level takes, in a few words. */
+function useLevelWords(): (level: AutoUpdate_Level) => string {
+  const { t } = useLingui();
+  return (level) =>
+    ({
+      [AutoUpdate_Level.UNSPECIFIED]: t`Off`,
+      [AutoUpdate_Level.PATCH]: t`Patch updates`,
+      [AutoUpdate_Level.MINOR]: t`Minor and patch updates`,
+      [AutoUpdate_Level.ANY]: t`Any update`,
+    })[level];
+}
+
+/**
+ * The tag an app runs where it names less than one release whole, as latest, 16 or 1.27 do, whose new
+ * image may be another release: the server classes its move by the versions its images say (ADR 0080).
+ */
+function movingTagOf(image: string): string | undefined {
+  const bare = image.split("@")[0] ?? image;
+  const colon = bare.lastIndexOf(":");
+  const tag = colon > bare.lastIndexOf("/") ? bare.slice(colon + 1) : "latest";
+  const parts = (tag.split("-")[0] ?? "").replace(/^v/, "").split(".");
+  return parts.length >= 3 && parts.every((p) => /^\d+$/.test(p)) ? undefined : tag;
+}
+
+/** What patch and minor do with a moving tag's new images, in a line, where the app runs one. */
+function useMovingTagWords(): (name: string, image: string, level: AutoUpdate_Level) => string | undefined {
+  const { t } = useLingui();
+  return (name, image, level) => {
+    const tag = movingTagOf(image);
+    if (!tag || (level !== AutoUpdate_Level.PATCH && level !== AutoUpdate_Level.MINOR)) return undefined;
+    return t`${name} runs ${tag}: patch and minor take its new images only when they say their version.`;
+  };
+}
+
+function UpdatesFacts({ service }: { service: ServiceInfo }) {
+  const { t, i18n } = useLingui();
+  const level = useLevelWords();
+  const movingWords = useMovingTagWords();
+  const weekdays = useWeekdayNames();
+  const a = service.spec?.autoUpdate;
+  if (!a || a.level === AutoUpdate_Level.UNSPECIFIED) {
+    return (
+      <Facts>
+        <Fact term={t`Takes`}>
+          <Muted>{t`Nothing on its own: each update waits for you`}</Muted>
+        </Fact>
+      </Facts>
+    );
+  }
+  const { days, day } = daysOf(a.weekdays);
+  const on = {
+    every: t`Every day`,
+    weekdays: t`Monday to Friday`,
+    weekends: t`Saturday and Sunday`,
+    day:
+      new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(a.weekdays.map((d) => weekdays[d] ?? "")) ||
+      (weekdays[day] ?? ""),
+  }[days];
+  const hours = a.minutes / 60;
+  const length = Number.isInteger(hours) ? t`${hours} h` : t`${a.minutes} min`;
+  const zone = a.timeZone;
+  const app = service.spec?.runs.case === "app" ? service.spec.runs.value : undefined;
+  const moves = movingWords(service.resource?.name ?? "", app?.image ?? "", a.level);
+  return (
+    <Facts>
+      <Fact term={t`Takes`}>
+        {level(a.level)}
+        {moves ? (
+          <>
+            <br />
+            <Muted>{moves}</Muted>
+          </>
+        ) : null}
+      </Fact>
+      <Fact term={t`When`}>{t`${on} from ${a.at} for ${length}, ${zone}`}</Fact>
+      <Fact term={t`Backup first`}>{a.skipBackup ? <Muted>{t`No`}</Muted> : t`Yes`}</Fact>
+    </Facts>
+  );
+}
+
+/** The days of the week, Sunday first, as the locale names them. */
+function useWeekdayNames(): string[] {
+  const { i18n } = useLingui();
+  const format = new Intl.DateTimeFormat(i18n.locale, { weekday: "long", timeZone: "UTC" });
+  // 4 Jan 1970 was a Sunday.
+  return Array.from({ length: 7 }, (_, d) => format.format(new Date(Date.UTC(1970, 0, 4 + d))));
+}
+
+function UpdatesForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
+  const { t } = useLingui();
+  const level = useLevelWords();
+  const movingWords = useMovingTagWords();
+  const weekdays = useWeekdayNames();
+  const a = service.spec?.autoUpdate;
+  const was = daysOf(a?.weekdays ?? []);
+  const [takes, setTakes] = useState<AutoUpdate_Level>(a?.level ?? AutoUpdate_Level.UNSPECIFIED);
+  const [days, setDays] = useState<UpdateDays>(was.days);
+  const [day, setDay] = useState(String(was.day));
+  const [at, setAt] = useState(a?.at || "03:00");
+  const [minutes, setMinutes] = useState(String(a?.minutes || 120));
+  const [backup, setBackup] = useState(!a?.skipBackup);
+  const [error, setError] = useState<string>();
+  const weekdaysOf = (): number[] => ({ every: [], weekdays: WEEKDAYS, weekends: WEEKENDS, day: [Number(day)] })[days];
+  const off = takes === AutoUpdate_Level.UNSPECIFIED;
+  const next = off
+    ? undefined
+    : create(AutoUpdateSchema, {
+        level: takes,
+        weekdays: weekdaysOf(),
+        at,
+        minutes: Number(minutes),
+        timeZone: a?.timeZone ?? "",
+        skipBackup: !backup,
+      });
+  const unchanged =
+    (off && (a === undefined || a.level === AutoUpdate_Level.UNSPECIFIED)) ||
+    (!off &&
+      a !== undefined &&
+      a.level === takes &&
+      a.at === at &&
+      a.minutes === Number(minutes) &&
+      a.skipBackup === !backup &&
+      daysOf(a.weekdays).days === days &&
+      (days !== "day" || String(daysOf(a.weekdays).day) === day));
+  const minutePicks = WINDOW_PICKS.includes(Number(minutes)) ? WINDOW_PICKS : [...WINDOW_PICKS, Number(minutes)];
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!off && !/^([01]\d|2[0-3]):[0-5]\d$/.test(at)) {
+      setError(t`Use 24-hour HH:MM, such as 03:00.`);
+      return;
+    }
+    setError(undefined);
+    if (unchanged) return;
+    plan(off ? t`Stop updating ${name} on its own` : t`Update ${name} on its own`, [
+      serviceEdit(service, (_, spec) => {
+        spec.autoUpdate = next;
+      }),
+    ]);
+  };
+  return (
+    <form className="app-settings-form" aria-label={t`Edit Automatic updates`} onSubmit={submit} noValidate>
+      <SelectField
+        label={t`Updates it takes on its own`}
+        value={String(takes)}
+        hint={
+          takes === AutoUpdate_Level.ANY ? t`Never a database's major release.` : movingWords(name, app.image, takes)
+        }
+        onChange={(event) => setTakes(Number(event.target.value) as AutoUpdate_Level)}
+        options={[
+          AutoUpdate_Level.UNSPECIFIED,
+          AutoUpdate_Level.PATCH,
+          AutoUpdate_Level.MINOR,
+          AutoUpdate_Level.ANY,
+        ].map((l) => ({
+          value: String(l),
+          label: l === AutoUpdate_Level.UNSPECIFIED ? t`Off: each update waits for you` : level(l),
+        }))}
+      />
+      {off ? null : (
+        <>
+          <SegmentedControl<UpdateDays>
+            label={t({ message: "On", context: "days of the week" })}
+            value={days}
+            onChange={setDays}
+            options={[
+              { value: "every", label: t`Every day` },
+              { value: "weekdays", label: t`Weekdays` },
+              { value: "weekends", label: t`Weekends` },
+              { value: "day", label: t`One day` },
+            ]}
+          />
+          <div className="app-settings-grid">
+            {days === "day" ? (
+              <SelectField
+                label={t`Day`}
+                value={day}
+                options={weekdays.map((label, i) => ({ value: String(i), label }))}
+                onChange={(event) => setDay(event.target.value)}
+              />
+            ) : null}
+            <TextField
+              label={t`From`}
+              mono
+              value={at}
+              hint={a?.timeZone ? t`In ${a.timeZone}` : undefined}
+              error={error}
+              onChange={(event) => setAt(event.target.value)}
+            />
+            <SelectField
+              label={t`For`}
+              value={minutes}
+              options={minutePicks.map((m) => ({
+                value: String(m),
+                label: m % 60 === 0 ? t`${m / 60} h` : t`${m} min`,
+              }))}
+              onChange={(event) => setMinutes(event.target.value)}
+            />
+          </div>
+          <Switch
+            checked={backup}
+            onChange={() => setBackup(!backup)}
+            label={t`Back up first`}
+            description={
+              backup
+                ? t`Each update backs up its volumes first`
+                : t`Undo won't bring back what an update changes in its data`
+            }
+          />
+          <p className="app-settings-help">
+            <Trans>A failed update rolls back on its own, and alerts through the rule for failed changes.</Trans>
+          </p>
+        </>
+      )}
+      <Foot name={name} root={root} moving={moving} unchanged={unchanged} onCancel={onCancel} />
+    </form>
   );
 }
