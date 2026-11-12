@@ -4979,6 +4979,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/settings:setAutoUpdate:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                SetAutoUpdateDefault sets what a new app's automatic updates start as, when
+                 the change that makes it sets none (ADR 0080): off unless set. An app made
+                 already keeps its own. Unset level sets it back to off. It's on the
+                 activity log with what it replaced.
+            operationId: SettingsService_SetAutoUpdateDefault
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetAutoUpdateDefaultRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetAutoUpdateDefaultResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/settings:setName:
         post:
             tags:
@@ -6809,6 +6838,51 @@ components:
                          backup's volume, a health check's state, a setting's value, or a change
                          with its plan, as it is now, for saying the event in words.
             description: AuditEvent is one event of the audit log, as it was recorded.
+        AutoUpdate:
+            type: object
+            properties:
+                level:
+                    enum:
+                        - LEVEL_UNSPECIFIED
+                        - LEVEL_PATCH
+                        - LEVEL_MINOR
+                        - LEVEL_ANY
+                    type: string
+                    description: Which updates it takes.
+                    format: enum
+                weekdays:
+                    type: array
+                    items:
+                        type: integer
+                        format: int32
+                    description: |-
+                        The days its window opens, as 0 for Sunday to 6 for Saturday. Empty is
+                         every day.
+                at:
+                    type: string
+                    description: 'When its window opens, as 24-hour HH:MM: "03:00" unless set.'
+                minutes:
+                    type: integer
+                    description: |-
+                        How long its window stays open, in minutes: 120 unless set, from 15 to
+                         1440. An update starts only while it's open, and runs to its end after.
+                    format: uint32
+                timeZone:
+                    type: string
+                    description: |-
+                        The time zone at is in, such as "Europe/Amsterdam". Left out, a change that
+                         sets it takes the install's time zone, from Settings, and UTC where the
+                         install has none.
+                skipBackup:
+                    type: boolean
+                    description: Leaves out the backup of its volumes that comes first.
+            description: |-
+                AutoUpdate is how Dockwell updates a service on its own: which updates it
+                 takes, and in what window. Each is Dockwell's own change, on Activity and
+                 undoable, with a backup of its volumes first, and the rollout's rollback if
+                 its health check fails, which alerts as any failed change does. A database's
+                 major release, a version someone skipped, and an update whose plan needs a
+                 person, such as one with two writers on a volume, are never taken on their own.
         AutomaticUpdates:
             type: object
             properties:
@@ -12215,6 +12289,12 @@ components:
                 platform:
                     type: string
                     description: The platform these are for, such as "linux/arm64".
+                version:
+                    type: string
+                    description: |-
+                        The version it says it is, in its org.opencontainers.image.version label,
+                         such as "5.3.1". Empty where it says none. Numbered apart, as open work adds
+                         to this message (ADR 0080).
             description: ImageConfig is what an image declares, as its Dockerfile set it.
         ImageMatch:
             type: object
@@ -17387,6 +17467,13 @@ components:
                          the check and the capabilities dropped. The rest of app, such as its
                          environment, ports and networks, is the app's own, as an image app's is. See
                          docs/adr/0058-runtimes-an-app-from-a-folder.md.
+                autoUpdate:
+                    allOf:
+                        - $ref: '#/components/schemas/AutoUpdate'
+                    description: |-
+                        The updates Dockwell applies to it on its own, and when. Unset applies none:
+                         each waits for a person. Numbered apart, as open work adds to this message.
+                         See docs/adr/0080-updating-an-app-safely-and-automatically.md.
             description: |-
                 Service is anything that runs in an environment, placed on servers: for
                  now an app from an image, run as one container on each server it is
@@ -17753,6 +17840,22 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetAutoUpdateDefaultRequest:
+            type: object
+            properties:
+                autoUpdate:
+                    allOf:
+                        - $ref: '#/components/schemas/AutoUpdate'
+                    description: |-
+                        The level and window. Unset level is off. Left without a time zone, it
+                         takes the install's.
+            description: SetAutoUpdateDefaultRequest says what new apps' automatic updates start as.
+        SetAutoUpdateDefaultResponse:
+            type: object
+            properties:
+                settings:
+                    $ref: '#/components/schemas/Settings'
+            description: SetAutoUpdateDefaultResponse carries the settings as they now are.
         SetCatalogCompanionRequest:
             type: object
             properties:
@@ -17972,6 +18075,13 @@ components:
                          passkey again. STEP_UP_POLICY_AT_SIGN_IN, which allows all three, until
                          the owner sets it.
                     format: enum
+                autoUpdate:
+                    allOf:
+                        - $ref: '#/components/schemas/AutoUpdate'
+                    description: |-
+                        What a new app's automatic updates start as, when the change that makes it
+                         sets none. Unset is off. Numbered apart, as open work adds to this message
+                         (ADR 0080).
             description: Settings are the install's own settings.
         SharedName:
             type: object

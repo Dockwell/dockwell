@@ -531,6 +531,7 @@ func (im *images) image(ctx context.Context, client *registry.Client, platform r
 				Ports: registry.Ports(c.ExposedPorts), Env: registry.Vars(c.Env), Volumes: registry.Volumes(c.Volumes),
 				Cmd: c.Cmd, Entrypoint: c.Entrypoint, User: c.User, WorkingDir: c.WorkingDir,
 				Healthcheck: healthTest(c.Healthcheck), Platform: registry.Platform{OS: "linux", Architecture: local.Architecture},
+				Version: registry.VersionOf(c.Labels),
 			}
 			if configSize(cfg) <= registry.MaxConfig {
 				im.mu.Lock()
@@ -596,7 +597,7 @@ func healthTest(h *docker.Healthcheck) []string {
 func configProto(c *registry.Config) *dockwellv1.ImageConfig {
 	out := &dockwellv1.ImageConfig{
 		Volumes: c.Volumes, Command: c.Cmd, Entrypoint: c.Entrypoint, User: c.User, WorkingDir: c.WorkingDir,
-		Healthcheck: c.Healthcheck, Platform: c.Platform.String(),
+		Healthcheck: c.Healthcheck, Platform: c.Platform.String(), Version: c.Version,
 	}
 	for _, p := range c.Ports {
 		out.Ports = append(out.Ports, &dockwellv1.ImagePort{Port: p.Number, Udp: p.UDP})
@@ -694,7 +695,7 @@ func strs(words []string) int {
 const configStruct = 256
 
 func configSize(c *registry.Config) int {
-	n := configStruct + strs(c.Volumes) + strs(c.Cmd) + strs(c.Entrypoint) + strs(c.Healthcheck) + len(c.User) + len(c.WorkingDir) + 8*len(c.Ports)
+	n := configStruct + strs(c.Volumes) + strs(c.Cmd) + strs(c.Entrypoint) + strs(c.Healthcheck) + len(c.User) + len(c.WorkingDir) + len(c.Version) + 8*len(c.Ports)
 	for _, v := range c.Env {
 		n += len(v.Name) + len(v.Value) + 32
 	}

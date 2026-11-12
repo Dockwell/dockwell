@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -77,6 +78,9 @@ func New(engine *revision.Engine, people *auth.Service, db *store.DB, logger *sl
 // session is the panel, and an API token the API, or the CLI when its
 // User-Agent says so. A change's audit events record the same.
 func by(ctx context.Context) (revision.By, auth.Principal, error) {
+	if dockwell, _ := ctx.Value(asDockwell{}).(bool); dockwell {
+		return revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}, auth.Principal{}, nil
+	}
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
 		// The interceptor lets no call here through without one.
@@ -84,6 +88,16 @@ func by(ctx context.Context) (revision.By, auth.Principal, error) {
 	}
 	client, _ := authapi.ClientFrom(ctx)
 	return revision.By{Actor: p.Actor(), Via: client.Surface(p)}, p, nil
+}
+
+type asDockwell struct{}
+
+// AsDockwell is ctx for a change Dockwell proposes on its own, such as an
+// automatic update (ADR 0080): a method that plans through this handler records
+// Dockwell as who proposed it, from nowhere a person was. Only the control
+// plane's own loops make one; no request carries it.
+func AsDockwell(ctx context.Context) context.Context {
+	return context.WithValue(ctx, asDockwell{}, true)
 }
 
 // ownMethods are the kinds that change only through methods of their own, which do
@@ -903,6 +917,9 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				}
 				return err
 			}
+			if spec, err = withNewAppDefaults(ctx, tx, ref, spec); err != nil {
+				return err
+			}
 			if spec, err = withInstallZone(ctx, tx, spec); err != nil {
 				return err
 			}
@@ -931,6 +948,30 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 	return out, err
 }
 
+// withNewAppDefaults gives a service a change makes, with no automatic updates of
+// its own, what the install's settings say new apps' start as (ADR 0080). One
+// that's there already keeps its own, as does an app that builds or runs from a
+// folder. A copy is changed, never the request.
+func withNewAppDefaults(ctx context.Context, tx *store.Tx, ref resource.Ref, spec proto.Message) (proto.Message, error) {
+	svc, ok := spec.(*resourcev1.Service)
+	if !ok || svc.GetAutoUpdate() != nil || svc.GetBuild() != nil || svc.GetRuntime() != nil {
+		return spec, nil
+	}
+	switch r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name); {
+	case err == nil && r.Spec != nil:
+		return spec, nil
+	case err != nil && !errors.Is(err, store.ErrNotFound):
+		return nil, err
+	}
+	a, err := settings.NewAppsAutoUpdate(ctx, tx)
+	if err != nil || a == nil {
+		return spec, err
+	}
+	svc = proto.CloneOf(svc)
+	svc.AutoUpdate = a
+	return svc, nil
+}
+
 // withInstallZone gives a backup schedule that comes without a time zone the
 // install's, from Settings, before it's planned, as Settings says new schedules
 // start in it (ADR 0042). The kind's own default, UTC, is for an install that
@@ -948,6 +989,19 @@ func withInstallZone(ctx context.Context, tx *store.Tx, spec proto.Message) (pro
 		t = proto.CloneOf(t)
 		t.TimeZone = string(zone)
 		return t, nil
+	}
+	if svc, ok := spec.(*resourcev1.Service); ok && svc.GetAutoUpdate() != nil && svc.GetAutoUpdate().GetTimeZone() == "" {
+		// An automatic update's window too (ADR 0080).
+		zone, err := tx.GetSetting(ctx, store.SettingTimeZone)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			return spec, nil
+		case err != nil:
+			return nil, fmt.Errorf("can't read the install's time zone for automatic updates: %w", err)
+		}
+		svc = proto.CloneOf(svc)
+		svc.AutoUpdate.TimeZone = string(zone)
+		return svc, nil
 	}
 	p, ok := spec.(*resourcev1.BackupPolicy)
 	if !ok || p.GetTimeZone() != "" {

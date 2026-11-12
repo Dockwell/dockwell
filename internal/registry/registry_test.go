@@ -163,7 +163,8 @@ func newFakeRegistry(t *testing.T) *fakeRegistry {
 			"Env":["PATH=/usr/sbin:/usr/bin","NGINX_VERSION=1.27.3","EMPTY="],
 			"Volumes":{"/var/cache/nginx":{},"/data":{}},
 			"Cmd":["nginx","-g","daemon off;"],"Entrypoint":["/docker-entrypoint.sh"],
-			"Healthcheck":{"Test":["CMD","curl","-f","http://localhost"]}}}`))
+			"Healthcheck":{"Test":["CMD","curl","-f","http://localhost"]},
+			"Labels":{"org.opencontainers.image.version":"1.27.3","maintainer":"NGINX"}}}`))
 	})
 	mux.HandleFunc("/v2/{ns}/{name}/tags/list", func(w http.ResponseWriter, r *http.Request) {
 		if !auth(w, r, r.PathValue("ns")+"/"+r.PathValue("name")) {
@@ -248,6 +249,10 @@ func TestConfig(t *testing.T) {
 	}
 	if got.Platform.String() != "linux/arm64/v8" || !slices.Equal(got.Healthcheck, []string{"CMD", "curl", "-f", "http://localhost"}) {
 		t.Errorf("platform %s, healthcheck %v", got.Platform, got.Healthcheck)
+	}
+	// What version it says it is, for how far a moving tag moves (ADR 0080).
+	if got.Version != "1.27.3" {
+		t.Errorf("version = %q, want its label's", got.Version)
 	}
 	// The index, then the platform's manifest: two counted GETs, and nothing more.
 	if f.gets.Load() != 2 {
@@ -358,5 +363,21 @@ func TestADigestIsOnlyASha256One(t *testing.T) {
 		if want := map[string]string{"1.2": good}[tag.Name]; tag.Digest != want {
 			t.Errorf("tag %s's digest = %q, want %q", tag.Name, tag.Digest, want)
 		}
+	}
+}
+
+// A version label is kept only as a version: short, on one line.
+func TestAVersionLabelIsKeptAsAVersion(t *testing.T) {
+	if got := VersionOf(map[string]string{VersionLabel: " 5.3.1 "}); got != "5.3.1" {
+		t.Errorf("VersionOf = %q", got)
+	}
+	if got := VersionOf(map[string]string{VersionLabel: "5.3\n1"}); got != "" {
+		t.Errorf("a version over two lines = %q", got)
+	}
+	if got := VersionOf(map[string]string{VersionLabel: strings.Repeat("9", 65)}); got != "" {
+		t.Errorf("a version too long = %q", got)
+	}
+	if got := VersionOf(nil); got != "" {
+		t.Errorf("no labels = %q", got)
 	}
 }

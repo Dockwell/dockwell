@@ -47,6 +47,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/apidoc"
 	"github.com/dockwell/dockwell/internal/control/audit"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/autoupdate"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/builds"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
@@ -107,6 +108,10 @@ type Config struct {
 	// Sources reads what a build's branch names (ADR 0046). Nil asks each
 	// repository over Git's smart HTTP protocol (package gitref).
 	Sources revision.Sources
+	// Updates says what newer image each service has, for an update that names
+	// none and for automatic updates (ADR 0080), in place of ADR 0079's keeper,
+	// which reads them otherwise. Nil takes the keeper's.
+	Updates serviceapi.Updates
 	// Build is reported by SystemService.GetVersion.
 	Build buildinfo.Info
 	// Panel is the panel build to serve. Nil means the one embedded in the binary.
@@ -208,6 +213,9 @@ type Server struct {
 	// alerts evaluates the alert rules, and sends what's due (ADR 0044), unless
 	// manualAlerts leaves that to a test.
 	alerts *alerts.Evaluator
+	// autoupdates applies the updates each service takes on its own, in its window
+	// (ADR 0080).
+	autoupdates *autoupdate.Runner
 	// history keeps each server's samples a minute at a time, and by the hour
 	// (ADR 0065).
 	history      *history.Recorder
@@ -252,7 +260,8 @@ func New(cfg Config) (*Server, error) {
 	ports := &PublicPorts{ready: make(chan struct{})}
 	var evaluator *alerts.Evaluator
 	var updateKeeper *serviceupdates.Keeper
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper)
+	var autoupdates *autoupdate.Runner
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +270,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -302,7 +311,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -425,6 +434,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		serviceHandler.Installs = catalogHandler
 		serviceHandler.Sources = sources
+		*autoupdates = &autoupdate.Runner{
+			DB: cfg.Store, Keeper: cfg.Secrets, Planner: serviceHandler, Engine: cfg.Changes, Logger: cfg.Logger,
+		}
+		if cfg.Fleet != nil {
+			(*autoupdates).Images = images.New(cfg.Fleet, cfg.Agents)
+		}
 		if cfg.Agents != nil {
 			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
 			buildHandler.SetSources(sources)
@@ -477,6 +492,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			handle(dockwellv1connect.NewServiceUpdateServiceHandler(serviceupdates.NewHandler(keeper, serviceHandler, serverID(cfg.Fleet), cfg.Logger), opts...))
 			*updatesOut = keeper
 		}
+		// A test's own record of what's newer stands in for the keeper's.
+		if cfg.Updates != nil {
+			serviceHandler.Updates = cfg.Updates
+		}
+		// Automatic updates take what an update with no image would (ADR 0080).
+		(*autoupdates).Updates = serviceHandler.Updates
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
 		*logsOut = logs
@@ -799,6 +820,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.history != nil {
 		api.Go(func() { s.history.Run(apiCtx) })
+	}
+	if s.autoupdates != nil && !s.manualAlerts {
+		api.Go(func() { s.autoupdates.Run(apiCtx) })
 	}
 	if s.tasks != nil {
 		s.tasks.Start(apiCtx)

@@ -133,6 +133,9 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if _, ok := app.GetLabels()[binding.BuildLabelKey]; ok {
 		return fmt.Errorf("the label %s is Dockwell's own, which records how a service's image was built. Use another", binding.BuildLabelKey)
 	}
+	if err := checkAutoUpdate(svc); err != nil {
+		return err
+	}
 	if svc.GetBuild() != nil {
 		if err := checkBuild(svc); err != nil {
 			return err
@@ -589,14 +592,14 @@ func (*Driver) WriterOf(spec proto.Message) string {
 
 // OnServer is a service as its server has it: without its runtime, which only
 // the control plane keeps, as the container it decides is written already (ADR
-// 0058).
+// 0058), or its automatic updates, which the control plane applies (ADR 0080).
 func (*Driver) OnServer(spec proto.Message) proto.Message {
 	svc := spec.(*resourcev1.Service)
-	if svc.GetRuntime() == nil {
+	if svc.GetRuntime() == nil && svc.GetAutoUpdate() == nil {
 		return spec
 	}
 	out := proto.CloneOf(svc)
-	out.Runtime = nil
+	out.Runtime, out.AutoUpdate = nil, nil
 	return out
 }
 
@@ -605,7 +608,21 @@ func (*Driver) OnServer(spec proto.Message) proto.Message {
 // from a folder. Drift in what the runtime decides, such as its image, leaves it
 // an app that runs an image, as what the server has is no longer what the
 // runtime writes.
+//
+// Its automatic updates are the control plane's alone, so they stay whatever the
+// server has.
 func (d *Driver) Readopted(current, observed proto.Message) proto.Message {
+	out := d.readoptedRuntime(current, observed)
+	a := current.(*resourcev1.Service).GetAutoUpdate()
+	if a == nil || out == nil {
+		return out
+	}
+	kept := proto.CloneOf(out.(*resourcev1.Service))
+	kept.AutoUpdate = proto.CloneOf(a)
+	return kept
+}
+
+func (d *Driver) readoptedRuntime(current, observed proto.Message) proto.Message {
 	rt := current.(*resourcev1.Service).GetRuntime()
 	if rt == nil {
 		return observed

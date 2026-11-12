@@ -658,7 +658,11 @@ type ImageConfig struct {
 	// Its health check's command, as Docker takes one. Empty for none.
 	Healthcheck []string `protobuf:"bytes,8,rep,name=healthcheck,proto3" json:"healthcheck,omitempty"`
 	// The platform these are for, such as "linux/arm64".
-	Platform      string `protobuf:"bytes,9,opt,name=platform,proto3" json:"platform,omitempty"`
+	Platform string `protobuf:"bytes,9,opt,name=platform,proto3" json:"platform,omitempty"`
+	// The version it says it is, in its org.opencontainers.image.version label,
+	// such as "5.3.1". Empty where it says none. Numbered apart, as open work adds
+	// to this message (ADR 0080).
+	Version       string `protobuf:"bytes,260,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -752,6 +756,13 @@ func (x *ImageConfig) GetHealthcheck() []string {
 func (x *ImageConfig) GetPlatform() string {
 	if x != nil {
 		return x.Platform
+	}
+	return ""
+}
+
+func (x *ImageConfig) GetVersion() string {
+	if x != nil {
+		return x.Version
 	}
 	return ""
 }
@@ -906,7 +917,7 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\x06answer\x18\x01 \x01(\x0e2\x18.dockwell.v1.ImageAnswerR\x06answer\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\x120\n" +
 	"\x06config\x18\x03 \x01(\v2\x18.dockwell.v1.ImageConfigR\x06config\x120\n" +
-	"\x06unread\x18\x04 \x01(\x0e2\x18.dockwell.v1.ImageAnswerR\x06unread\"\xb0\x02\n" +
+	"\x06unread\x18\x04 \x01(\x0e2\x18.dockwell.v1.ImageAnswerR\x06unread\"\xcb\x02\n" +
 	"\vImageConfig\x12,\n" +
 	"\x05ports\x18\x01 \x03(\v2\x16.dockwell.v1.ImagePortR\x05ports\x12,\n" +
 	"\x03env\x18\x02 \x03(\v2\x1a.dockwell.v1.ImageVariableR\x03env\x12\x18\n" +
@@ -919,7 +930,8 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\vworking_dir\x18\a \x01(\tR\n" +
 	"workingDir\x12 \n" +
 	"\vhealthcheck\x18\b \x03(\tR\vhealthcheck\x12\x1a\n" +
-	"\bplatform\x18\t \x01(\tR\bplatform\"1\n" +
+	"\bplatform\x18\t \x01(\tR\bplatform\x12\x19\n" +
+	"\aversion\x18\x84\x02 \x01(\tR\aversion\"1\n" +
 	"\tImagePort\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x10\n" +
 	"\x03udp\x18\x02 \x01(\bR\x03udp\"9\n" +

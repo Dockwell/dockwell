@@ -345,6 +345,18 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             ? { title: t`Set the time zone for new schedules to ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Set the time zone for new schedules to ${value}`, icon: "settings" };
         }
+        // What new apps' automatic updates start as (ADR 0080).
+        case "settings.auto_update":
+          switch (event.setting?.value) {
+            case "patch":
+              return { title: t`Set new apps to take patch updates on their own`, icon: "settings" };
+            case "minor":
+              return { title: t`Set new apps to take minor and patch updates on their own`, icon: "settings" };
+            case "any":
+              return { title: t`Set new apps to take any update on their own`, icon: "settings" };
+            default:
+              return { title: t`Set new apps to wait for a person for each update`, icon: "settings" };
+          }
         // The least anyone may choose for how often a passkey is asked for (ADR 0075).
         case "settings.step_up_floor":
           switch (event.setting?.value) {

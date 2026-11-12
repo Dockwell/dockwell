@@ -86,6 +86,9 @@ type Docker struct {
 	// one there, as a database's move to another release asks (ADR 0038): an
 	// error stops the change there, with the old one as it was. Nil runs nothing.
 	BeforeReplace func(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error
+	// Kept keeps the image a pull of a moving tag leaves, for the rollback that
+	// would run it again (ADR 0080). Nil keeps none.
+	Kept *KeptImages
 	// Room says how much is free, and how large it is in all, in bytes, on the disk
 	// where Docker keeps images, for the room a pull needs (room.go). Nil checks
 	// nothing, and leaves a full disk to Docker's own error.
@@ -1415,7 +1418,14 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 		resource.Report(ctx, resource.Outcome{Digest: digest})
 		return true, nil
 	}
-	resource.Report(ctx, resource.Outcome{Digest: digest, Previous: previous, Replacing: moving && old.Image != img.ID})
+	replacing := moving && old.Image != img.ID
+	if replacing {
+		// Docker leaves what the tag named with no name, which a prune removes.
+		if err := d.Kept.Keep(ctx, ref, old.Image); err != nil {
+			d.logger().Warn("can't keep the image a moved tag left, so a rollback pulls it again if its registry still has it", "error", err)
+		}
+	}
+	resource.Report(ctx, resource.Outcome{Digest: digest, Previous: previous, Replacing: replacing})
 	return false, nil
 }
 

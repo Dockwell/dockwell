@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { AuthService, PanelServedBy, type Settings, SettingsService } from "@dockwell/api";
+import { AuthService, AutoUpdate_Level, PanelServedBy, type Settings, SettingsService } from "@dockwell/api";
 import { Button, Callout, Panel, SelectField, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,7 +44,10 @@ export function GeneralPage() {
     >
       {settings.error ? <Callout tone="critical">{sentence(settings.error)}</Callout> : null}
       <div className="general-panels">
-        <InstallPanel settings={s} />
+        <div className="general-column">
+          <InstallPanel settings={s} />
+          <NewAppsPanel settings={s} />
+        </div>
         <div className="general-column">
           <PanelServed settings={s} />
           <LanguagePanel />
@@ -251,6 +254,87 @@ function LanguagePanel() {
           void chooseLocale(next === "" ? undefined : next);
         }}
       />
+    </Panel>
+  );
+}
+
+/**
+ * What a new app's automatic updates start as, which its own Settings change after (ADR 0080):
+ * off unless an admin picks a level here, with the window's defaults.
+ */
+function NewAppsPanel({ settings }: { settings: Settings | undefined }) {
+  const { t } = useLingui();
+  const may = useMay()(SettingsService.method.setAutoUpdateDefault);
+  const transport = useTransport();
+  const queryClient = useQueryClient();
+  const [level, setLevel] = useState<AutoUpdate_Level>();
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [failure, setFailure] = useState<string>();
+  const current = settings?.autoUpdate?.level ?? AutoUpdate_Level.UNSPECIFIED;
+  const shown = level ?? current;
+  const changed = settings !== undefined && level !== undefined && level !== current;
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy || !changed) return;
+    setBusy(true);
+    setFailure(undefined);
+    setSaved(false);
+    try {
+      await createClient(SettingsService, transport).setAutoUpdateDefault({
+        autoUpdate:
+          shown === AutoUpdate_Level.UNSPECIFIED
+            ? undefined
+            : {
+                // The window it had stays, as only the level is picked here.
+                level: shown,
+                at: settings?.autoUpdate?.at ?? "",
+                minutes: settings?.autoUpdate?.minutes ?? 0,
+                weekdays: [...(settings?.autoUpdate?.weekdays ?? [])],
+                timeZone: settings?.autoUpdate?.timeZone ?? "",
+                skipBackup: settings?.autoUpdate?.skipBackup ?? false,
+              },
+      });
+      setLevel(undefined);
+      setSaved(true);
+    } catch (err) {
+      setFailure(sentence(err));
+    } finally {
+      await queryClient.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: SettingsService.method.getSettings, cardinality: undefined }),
+      });
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel title={t`New apps`} className="general-new-apps">
+      <form className="general-form" onSubmit={(event) => void save(event)} aria-busy={settings === undefined}>
+        {failure ? <Callout tone="critical">{failure}</Callout> : null}
+        <SelectField
+          label={t`Automatic updates`}
+          value={String(shown)}
+          disabled={settings === undefined}
+          hint={t`Each app can change it in its own Settings.`}
+          options={[
+            { value: String(AutoUpdate_Level.UNSPECIFIED), label: t`Off: each update waits for you` },
+            { value: String(AutoUpdate_Level.PATCH), label: t`Patch updates, daily from 03:00` },
+            { value: String(AutoUpdate_Level.MINOR), label: t`Minor and patch updates, daily from 03:00` },
+            { value: String(AutoUpdate_Level.ANY), label: t`Any update, daily from 03:00` },
+          ]}
+          onChange={(event) => {
+            setLevel(Number(event.target.value) as AutoUpdate_Level);
+            setSaved(false);
+          }}
+        />
+        <div className="general-foot">
+          <span className="general-note" role="status">
+            {saved && !changed ? t`Saved. It's on Activity.` : t`Apps made already keep their own.`}
+          </span>
+          <Button type="submit" size="sm" icon="check" loading={busy} disabled={!changed} {...may.off}>
+            <Trans>Save</Trans>
+          </Button>
+        </div>
+      </form>
     </Panel>
   );
 }

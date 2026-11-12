@@ -203,6 +203,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "SettingsService.createPanelSignInLink": "may",
   "SettingsService.getControlPlane": "may",
   "SettingsService.getSettings": "read",
+  // Asked by name before the New apps panel offers Save (ADR 0080).
+  "SettingsService.setAutoUpdateDefault": "may",
   "SettingsService.setInstallName": "may",
   "SettingsService.setPanelDomain": "may",
   "SettingsService.setStepUpFloor": "may",
