@@ -5033,6 +5033,57 @@ msgstr "Version <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "You're not signed in"
 
+msgid "Confirm with your passkey"
+msgstr "Confirm with your passkey"
+
+msgid "A passkey covers this session for the next hour."
+msgstr "A passkey covers this session for the next hour."
+
+msgid "Ask for my passkey"
+msgstr "Ask for my passkey"
+
+msgid "Changing how you sign in, this choice, and approving someone else's change always ask."
+msgstr "Changing how you sign in, this choice, and approving someone else's change always ask."
+
+msgid "Confirmed at {since} · asks again at {until}"
+msgstr "Confirmed at {since} · asks again at {until}"
+
+msgid "Confirmed when you signed in at {since}, for as long as this session lasts"
+msgstr "Confirmed when you signed in at {since}, for as long as this session lasts"
+
+msgid "Each time"
+msgstr "Each time"
+
+msgid "Every sensitive action asks."
+msgstr "Every sensitive action asks."
+
+msgid "Once an hour"
+msgstr "Once an hour"
+
+msgid "Only when I sign in"
+msgstr "Only when I sign in"
+
+msgid "Signing in covers the whole session."
+msgstr "Signing in covers the whole session."
+
+msgid "The owner asks at least once an hour."
+msgstr "The owner asks at least once an hour."
+
+msgid "The owner asks each time."
+msgstr "The owner asks each time."
+
+msgid "The passkey prompt closed, so your choice didn't change."
+msgstr "The passkey prompt closed, so your choice didn't change."
+
+msgid "Your choice reads as each time, the least the owner allows."
+msgstr "Your choice reads as each time, the least the owner allows."
+
+msgid "Your choice reads as once an hour, the least the owner allows."
+msgstr "Your choice reads as once an hour, the least the owner allows."
+
+msgid "Your next passkey covers this session for an hour."
+msgstr "Your next passkey covers this session for an hour."
+
 msgid "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
 msgstr "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
 
@@ -5217,6 +5268,9 @@ msgstr "The control plane doesn't answer at this address. Open the panel through
 
 msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
 msgstr "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
+
+msgid "The owner asks everyone for their passkey at least as often as that, so it isn't open to you. Pick one above it."
+msgstr "The owner asks everyone for their passkey at least as often as that, so it isn't open to you. Pick one above it."
 
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
 msgstr "The passkey prompt closed before it finished. Try again when you're ready."
@@ -12580,6 +12634,39 @@ msgstr "{domain} isn't served"
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 
+msgid "Ask for a passkey"
+msgstr "Ask for a passkey"
+
+msgid "At least once an hour"
+msgstr "At least once an hour"
+
+msgid "Each person chooses theirs in <0>Profile and security</0>."
+msgstr "Each person chooses theirs in <0>Profile and security</0>."
+
+msgid "Each time, once an hour, or only when they sign in."
+msgstr "Each time, once an hour, or only when they sign in."
+
+msgid "Everyone confirms every sensitive action."
+msgstr "Everyone confirms every sensitive action."
+
+msgid "How often everyone in this install is asked for their passkey again"
+msgstr "How often everyone in this install is asked for their passkey again"
+
+msgid "Let each person choose"
+msgstr "Let each person choose"
+
+msgid "Nobody can choose only when they sign in."
+msgstr "Nobody can choose only when they sign in."
+
+msgid "Only the owner sets this."
+msgstr "Only the owner sets this."
+
+msgid "The least anyone may choose"
+msgstr "The least anyone may choose"
+
+msgid "The passkey prompt closed, so the floor didn't change."
+msgstr "The passkey prompt closed, so the floor didn't change."
+
 msgid "Account"
 msgstr "Account"
 
@@ -13562,9 +13649,6 @@ msgstr "Close terminal"
 
 msgid "Close this tab"
 msgstr "Close this tab"
-
-msgid "Confirm with your passkey"
-msgstr "Confirm with your passkey"
 
 msgid "Connected through the agent"
 msgstr "Connected through the agent"

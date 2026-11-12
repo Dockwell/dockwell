@@ -18,6 +18,7 @@ import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { SessionsPanel } from "./SessionsPanel";
+import { StepUpPanel } from "./StepUpPanel";
 import { TotpPanel } from "./TotpPanel";
 import { useSignedIn } from "./useAuthState";
 import { useSignOut } from "./useSignOut";
@@ -62,6 +63,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
       <div className="profile-grid">
         <PreferencesPanel />
         <PasskeysPanel rpId={auth?.rpId ?? ""} />
+        <StepUpPanel />
         <TotpPanel />
         <SessionsPanel />
         <TokensPointer />
