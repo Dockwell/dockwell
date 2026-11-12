@@ -35,8 +35,9 @@ describe("Icon", () => {
   // arrows read as one set wherever they stand.
   it("draws its arrows as one drawing turned", () => {
     const points = (name: "arrow-right" | "arrow-left" | "arrow-up") => {
-      const [part] = icons[name];
-      const d = (part?.[1] as { d: string }).d;
+      const attrs = icons[name][0]?.[1] as { d?: string } | undefined;
+      const d = attrs?.d ?? "";
+      expect(d, name).not.toBe("");
       const out: string[] = [];
       let x = 0;
       let y = 0;
