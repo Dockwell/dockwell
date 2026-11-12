@@ -70,12 +70,16 @@ func (h *Handler) ListCatalogEntries(ctx context.Context, _ *connect.Request[doc
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: s.catalog.All()}), nil
+	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: s.catalog.All(), Also: s.alternatives()}), nil
 }
 
 // GetCatalogEntry returns one entry, with what installing it would use.
 func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dockwellv1.GetCatalogEntryRequest]) (*connect.Response[dockwellv1.GetCatalogEntryResponse], error) {
-	entry, _, err := h.entry(ctx, req.Msg.GetId())
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entry, _, err := s.entryIn(req.Msg.GetId(), req.Msg.GetCatalog())
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +94,7 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 		h.logger.WarnContext(ctx, "couldn't say what a catalog entry installs", slog.String("entry", entry.GetId()), slog.String("error", err.Error()))
 		parts = nil
 	}
-	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{Entry: entry, Project: free.project, Values: free.values, Parts: parts}), nil
+	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{Entry: entry, Project: free.project, Values: free.values, Parts: parts, Catalogs: s.catalogsOf(entry.GetId())}), nil
 }
 
 // partsOf reads what an entry's Compose file runs, from the values an install starts
@@ -193,7 +197,11 @@ func isDatabase(image string) bool {
 // InstallCatalogEntry plans an entry as a project of its own.
 func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[dockwellv1.InstallCatalogEntryRequest]) (*connect.Response[dockwellv1.InstallCatalogEntryResponse], error) {
 	m := req.Msg
-	entry, from, err := h.entry(ctx, m.GetId())
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entry, from, err := s.entryIn(m.GetId(), m.GetCatalog())
 	if err != nil {
 		return nil, err
 	}
@@ -711,19 +719,6 @@ func (h *Handler) catalog(ctx context.Context) (sourced, error) {
 		return sourced{}, h.internal(ctx, err)
 	}
 	return s, nil
-}
-
-// entry is the catalog's entry of an ID, and where it comes from.
-func (h *Handler) entry(ctx context.Context, id string) (*catalogv1.Entry, origin, error) {
-	s, err := h.catalog(ctx)
-	if err != nil {
-		return nil, origin{}, err
-	}
-	e, ok := s.catalog.Entry(id)
-	if !ok {
-		return nil, origin{}, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("the catalog has no app %s. Run dockwell catalog list to see what it has", id), "not_found")
-	}
-	return e, s.origins[id], nil
 }
 
 func (h *Handler) internal(ctx context.Context, err error) error {

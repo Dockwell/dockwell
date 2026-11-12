@@ -1008,3 +1008,68 @@ describe("Installing from the catalog", () => {
     expect(within(sheet).queryByText("Can't make a plan")).not.toBeInTheDocument();
   });
 });
+
+describe("The same app in several catalogs", () => {
+  const own = create(EntrySchema, {
+    id: "ghost",
+    name: "Ghost",
+    summary: "Publishing for blogs and newsletters",
+    category: "cms",
+    version: "6.4.0",
+    appLicense: "MIT",
+    web: { service: "ghost" },
+  });
+  const theirs = create(EntrySchema, {
+    id: "ghost",
+    name: "Ghost",
+    summary: "Ghost is a content management system.",
+    category: "cms",
+    version: "6.0.0",
+    license: "Apache-2.0",
+    notes: ["From Coolify's templates, under Apache-2.0"],
+    web: { service: "ghost" },
+  });
+  let asked: InstallCatalogEntryRequest | undefined;
+  const several = (): Api => ({
+    ...api({
+      listCatalogEntries: () => ({ entries: [own], also: [{ id: "ghost", catalog: "coolify", entry: theirs }] }),
+      listCatalogSources: () => ({
+        sources: [{ name: "coolify", source: { repository: "https://github.com/coollabsio/coolify" }, also: ["ghost"] }],
+      }),
+      getCatalogEntry: (req) => ({
+        entry: req.catalog === "coolify" ? theirs : own,
+        project: "ghost",
+        catalogs: ["", "coolify"],
+      }),
+      installCatalogEntry: (req) => {
+        asked = req;
+        return { change: create(ChangeSchema, { id: "chg_ghost", state: ChangeState.PLANNED, plan: {} }) };
+      },
+    }),
+    changes: { watchChange: feed<WatchChangeResponse>().stream },
+  });
+
+  it("is one card, naming its catalogs, Dockwell's own first", async () => {
+    renderAt("/catalog", several());
+    const cards = await screen.findAllByRole("link", { name: /^Ghost/ });
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toHaveTextContent("Dockwell's own · also in coolify");
+  });
+
+  it("picks the catalog on the app's page, and installs from the one picked", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt("/catalog/ghost", several());
+    const choice = await screen.findByRole("radiogroup", { name: "Catalog to install from" });
+    expect(within(choice).getByRole("radio", { name: "Dockwell's own" })).toBeChecked();
+    expect(screen.getByText("6.4.0")).toBeVisible();
+    await user.click(within(choice).getByRole("radio", { name: "coolify" }));
+    expect(await screen.findByText("6.0.0")).toBeVisible();
+    await expectAccessible(container);
+    await user.click(screen.getAllByRole("link", { name: /Install Ghost/ })[0] as HTMLElement);
+    const sheet = await screen.findByRole("dialog", { name: "Install Ghost" });
+    await user.click(await within(sheet).findByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.id).toBe("ghost");
+    expect(asked?.catalog).toBe("coolify");
+  });
+});

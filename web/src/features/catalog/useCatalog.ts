@@ -23,32 +23,46 @@ export function useSources() {
 export function useOrigins() {
   const query = useSources();
   const sources = query.data?.sources;
-  const origins = useMemo(() => {
-    const out = new Map<string, CatalogSourceInfo>();
-    for (const source of sources ?? []) for (const id of source.entries) out.set(id, source);
-    return out;
+  const { origins, also } = useMemo(() => {
+    const origins = new Map<string, CatalogSourceInfo>();
+    // The sources that have an app a catalog before them lists, as another choice of it (ADR 0078).
+    const also = new Map<string, CatalogSourceInfo[]>();
+    for (const source of sources ?? []) {
+      for (const id of source.entries) origins.set(id, source);
+      for (const id of source.also) also.set(id, [...(also.get(id) ?? []), source]);
+    }
+    return { origins, also };
   }, [sources]);
-  return { ...query, origins };
+  return { ...query, origins, also };
 }
 
 /**
- * Whether an install is of an entry: of its ID, and from the catalog it comes from,
- * as an install upgrades only from there. Another catalog's app of the same ID is
- * another app.
+ * Whether an install is of an entry: of its ID, and from a catalog that has the app,
+ * the one it's listed from or another that has the same app, as an install upgrades
+ * only from where it came from. Another catalog's app of the same ID is another app.
  */
 export function installOf(
   install: CatalogInstall,
   id: string,
   origins: ReadonlyMap<string, CatalogSourceInfo>,
+  also?: ReadonlyMap<string, readonly CatalogSourceInfo[]>,
 ): boolean {
-  const source = origins.get(id);
   const pin = install.pin;
-  return (
-    pin?.entry === id &&
-    (source
-      ? pin.catalog === source.name && pin.repository === source.source?.repository && pin.path === source.source?.path
-      : pin.catalog === "")
-  );
+  if (pin?.entry !== id) return false;
+  const from = (source: CatalogSourceInfo) =>
+    pin.catalog === source.name && pin.repository === source.source?.repository && pin.path === source.source?.path;
+  const source = origins.get(id);
+  return (source ? from(source) : pin.catalog === "") || (also?.get(id) ?? []).some(from);
+}
+
+/** The other catalogs that have each app, by its ID, as the catalog lists them. */
+export function useAlso(): ReadonlyMap<string, readonly string[]> {
+  const also = useCatalog().data?.also;
+  return useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const a of also ?? []) out.set(a.id, [...(out.get(a.id) ?? []), a.catalog]);
+    return out;
+  }, [also]);
 }
 
 /** What's installed from the catalog. A change applied in the plan sheet reads it again. */

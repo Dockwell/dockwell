@@ -5952,6 +5952,9 @@ msgstr "Back to catalog"
 msgid "Catalog"
 msgstr "Catalog"
 
+msgid "Catalog to install from"
+msgstr "Catalog to install from"
+
 msgid "Category"
 msgstr "Category"
 
@@ -6100,6 +6103,10 @@ msgstr "Upgrade to {latest}"
 
 msgid "View app"
 msgstr "View app"
+
+#. placeholder {0}: list(also)
+msgid "also in {0}"
+msgstr "also in {0}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"

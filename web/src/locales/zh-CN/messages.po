@@ -5952,6 +5952,9 @@ msgstr "返回应用目录"
 msgid "Catalog"
 msgstr "应用目录"
 
+msgid "Catalog to install from"
+msgstr "安装来源目录"
+
 msgid "Category"
 msgstr "分类"
 
@@ -6100,6 +6103,10 @@ msgstr "升级到 {latest}"
 
 msgid "View app"
 msgstr "查看应用"
+
+#. placeholder {0}: list(also)
+msgid "also in {0}"
+msgstr "另见于 {0}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"

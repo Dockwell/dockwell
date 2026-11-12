@@ -109,10 +109,13 @@ const entryRestart = (part: CatalogPart) =>
  */
 export function InstallSheet({
   id,
+  catalog = "",
   onClose,
   engines,
 }: {
   id: string;
+  /** The catalog to install it from, by its source's name, where several have it; empty is the one it's listed from. */
+  catalog?: string;
   onClose: () => void;
   /** The databases to pick from, for New database on the Databases page. */
   engines?: { entries: readonly Entry[]; onPick: (id: string) => void };
@@ -126,7 +129,7 @@ export function InstallSheet({
   const navigate = useNavigate();
   const { fleet, servers, only } = useFleetView();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
-  const got = useQuery(CatalogService.method.getCatalogEntry, { id });
+  const got = useQuery(CatalogService.method.getCatalogEntry, { id, catalog });
   const entry = got.data?.entry;
   const email = useSignedInUser()?.email ?? "";
   // The services it may leave out, such as a database's admin tool (ADR 0076): each a
@@ -276,7 +279,7 @@ export function InstallSheet({
   }, [name]);
   const nameValid = name !== "" && SERVICE_NAME.test(name);
   const nameAsked = nameValid && !nameIsDefault && settled === name;
-  const nameRead = useQuery(CatalogService.method.getCatalogEntry, { id, project: settled }, { enabled: nameAsked });
+  const nameRead = useQuery(CatalogService.method.getCatalogEntry, { id, catalog, project: settled }, { enabled: nameAsked });
   const nameAnswer = nameAsked ? nameRead.data?.project : undefined;
   const nameHere = places.projects.includes(name);
   const nameState: NameState | undefined =
@@ -425,6 +428,7 @@ export function InstallSheet({
     try {
       const res = await client.installCatalogEntry({
         id,
+        catalog,
         project: name,
         values,
         servers: [...chosenServers],

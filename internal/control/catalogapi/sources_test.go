@@ -109,7 +109,7 @@ func TestASourcesEntryShowsNoBundledArtwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
-	got := checkSource(t.Context(), "community", &resourcev1.CatalogSource{}, map[string][]byte{"memos-src.yaml": []byte(file)}, map[string]string{})
+	got := checkSource(t.Context(), "community", &resourcev1.CatalogSource{}, map[string][]byte{"memos-src.yaml": []byte(file)}, claims{})
 	if len(got.entries) != 1 {
 		t.Fatalf("entries = %d, refused = %v", len(got.entries), got.refused)
 	}
@@ -217,7 +217,7 @@ func TestAnUnreadSourceIsTriedAgainLater(t *testing.T) {
 	s := &Sources{Fetch: fetch, Now: func() time.Time { return now }}
 	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("a", 40)}
 	for range 3 {
-		if _, err := s.readSource(t.Context(), "community", spec, map[string]string{}); err == nil {
+		if _, err := s.readSource(t.Context(), "community", spec, claims{}); err == nil {
 			t.Fatal("an unreadable source was read")
 		}
 	}
@@ -225,7 +225,7 @@ func TestAnUnreadSourceIsTriedAgainLater(t *testing.T) {
 		t.Errorf("an unreadable source was fetched %d times in a minute", asked)
 	}
 	now = now.Add(unreadWait + time.Second)
-	if _, err := s.readSource(t.Context(), "community", spec, map[string]string{}); err == nil || asked != 2 {
+	if _, err := s.readSource(t.Context(), "community", spec, claims{}); err == nil || asked != 2 {
 		t.Errorf("it wasn't tried again later: %v, %d", err, asked)
 	}
 }

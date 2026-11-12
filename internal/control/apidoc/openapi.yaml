@@ -947,6 +947,13 @@ paths:
                      out, or not a name a project can have, it's the entry's ID.
                   schema:
                     type: string
+                - name: catalog
+                  in: query
+                  description: |-
+                    The catalog to read it from, by its source's name, where more than one has
+                     the app. Left out, the one it's listed from.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -7574,6 +7581,22 @@ components:
             type: object
             properties: {}
             description: 'CancelUploadResponse is empty: the upload and what it had are gone.'
+        CatalogAlternative:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The app's ID, as its entry in ListCatalogEntriesResponse.entries has it.
+                catalog:
+                    type: string
+                    description: The catalog, by its source's name.
+                entry:
+                    allOf:
+                        - $ref: '#/components/schemas/Entry'
+                    description: Its entry in that catalog.
+            description: |-
+                CatalogAlternative is an app's entry in another catalog than the one it's listed
+                 from.
         CatalogInstall:
             type: object
             properties:
@@ -7823,6 +7846,13 @@ components:
                     description: |-
                         Why its entries can't be read now, such as a host that doesn't answer. Empty
                          when they can.
+                also:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The IDs of the apps it has that the catalog lists from a catalog before it,
+                         whose entries in it are another choice of the same app, sorted.
             description: CatalogSourceInfo is a source, and what Dockwell made of it.
         CatalogSourceRef:
             type: object
@@ -11388,6 +11418,13 @@ components:
                         What installing it runs, one part for each service its Compose file names: what
                          a person reads before the plan, which says the rest. The one a person opens
                          comes first.
+                catalogs:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The catalogs that have the app, the one it's listed from first, by their
+                         sources' names, empty for Dockwell's own. One alone has nothing to choose.
             description: GetCatalogEntryResponse is an entry, with what installing it would use.
         GetChangeResponse:
             type: object
@@ -12443,6 +12480,12 @@ components:
                         Which of the entry's companions to install, by service, such as adminer:
                          true. One left out is as its entry says. An input only a companion left out
                          uses is refused.
+                catalog:
+                    type: string
+                    description: |-
+                        The catalog to install it from, by its source's name, where more than one has
+                         the app. Left out, the one it's listed from. It upgrades from that catalog
+                         alone.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object
@@ -12854,7 +12897,17 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/Entry'
-                    description: Every entry, sorted by name.
+                    description: |-
+                        Every entry, sorted by name: one for each app, from the first catalog that has
+                         it, Dockwell's own first, then each source by its name.
+                also:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogAlternative'
+                    description: |-
+                        The same apps from the other catalogs that have them, each beside the entry of
+                         its ID in entries: an entry of the same ID, name and image is the same app, and
+                         anything less certain is another app, which a source leaves out (ADR 0078).
             description: ListCatalogEntriesResponse is the catalog.
         ListCatalogInstallsResponse:
             type: object
