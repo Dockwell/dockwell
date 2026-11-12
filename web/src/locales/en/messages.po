@@ -6690,11 +6690,14 @@ msgctxt "what stops while Docker restarts"
 msgid "Database"
 msgstr "Database"
 
+msgid "It starts again only if it exits with an error as Docker stops it"
+msgstr "It starts again only if it exits with an error as Docker stops it"
+
 msgid "Its restart policy never starts it again"
 msgstr "Its restart policy never starts it again"
 
-msgid "Its restart policy starts it again only after it fails"
-msgstr "Its restart policy starts it again only after it fails"
+msgid "May stay stopped"
+msgstr "May stay stopped"
 
 msgid "Nothing Dockwell runs is on {server}."
 msgstr "Nothing Dockwell runs is on {server}."
@@ -6718,14 +6721,20 @@ msgstr "Website"
 msgid "What stops on {server}"
 msgstr "What stops on {server}"
 
-msgid "What stops on {server} until Docker is back · all of it starts again"
-msgstr "What stops on {server} until Docker is back · all of it starts again"
+msgid "What stops on {server} until Docker is back"
+msgstr "What stops on {server} until Docker is back"
+
+msgid "all of it starts again"
+msgstr "all of it starts again"
 
 msgid "{others, plural, one {# container Dockwell didn't make stops too, and its own restart policy decides.} other {# containers Dockwell didn't make stop too, and their own restart policies decide.}}"
 msgstr "{others, plural, one {# container Dockwell didn't make stops too, and its own restart policy decides.} other {# containers Dockwell didn't make stop too, and their own restart policies decide.}}"
 
-msgid "{staying, plural, one {What stops on {server} until Docker is back · # stays stopped after} other {What stops on {server} until Docker is back · # stay stopped after}}"
-msgstr "{staying, plural, one {What stops on {server} until Docker is back · # stays stopped after} other {What stops on {server} until Docker is back · # stay stopped after}}"
+msgid "{staying, plural, one {# stays stopped after} other {# stay stopped after}}"
+msgstr "{staying, plural, one {# stays stopped after} other {# stay stopped after}}"
+
+msgid "{unsure, plural, one {# may stay stopped} other {# may stay stopped}}"
+msgstr "{unsure, plural, one {# may stay stopped} other {# may stay stopped}}"
 
 msgid "Details"
 msgstr "Details"

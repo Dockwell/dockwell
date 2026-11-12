@@ -21,15 +21,34 @@ export interface Stopping {
   /** The service's ID, or the website's. */
   id: string;
   /** Whether Docker starts it again once it's back, by its restart policy. */
-  back: boolean;
-  /** For one that stays stopped, the restart policy that keeps it so. */
-  policy: RestartPolicy;
+  back: Back;
 }
 
-/** Whether Docker starts a container with this policy again as its daemon comes back, as Docker's own rules have it. */
-export function startsAgain(policy: RestartPolicy): boolean {
-  // on-failure restarts only a container that exited with an error, never one the daemon stopped.
-  return policy !== RestartPolicy.NO && policy !== RestartPolicy.ON_FAILURE;
+/**
+ * Whether Docker starts a container again as its daemon comes back: "yes" for
+ * unless-stopped, always and the default; "maybe" for on-failure, which starts it
+ * again only if it exited with an error as Docker stopped it, as one stopped by the
+ * daemon's shutdown often does (143 or 137); "no" for no.
+ */
+export type Back = "yes" | "maybe" | "no";
+
+/** How a restart policy brings a container back as Docker's daemon does, by Docker's own rules. */
+export function startsAgain(policy: RestartPolicy): Back {
+  switch (policy) {
+    case RestartPolicy.NO:
+      return "no";
+    case RestartPolicy.ON_FAILURE:
+      return "maybe";
+  }
+  return "yes";
+}
+
+/** The order what stops is listed in: what stays stopped, then what may, then what starts again. */
+const ORDER: Readonly<Record<Back, number>> = { no: 0, maybe: 1, yes: 2 };
+
+/** The less certain of two, for a website that comes back only once each of its services does. */
+function lesser(a: Back, b: Back): Back {
+  return ORDER[a] <= ORDER[b] ? a : b;
 }
 
 function policyOf(s: ServiceInfo): RestartPolicy {
@@ -48,7 +67,7 @@ function runsOn(s: ServiceInfo, serverId: string): boolean {
  * What runs on a server, of what Dockwell manages: each app and database, and each
  * website as one, with whether Docker starts it again by its restart policy. A
  * website comes back once Caddy, which Dockwell starts unless-stopped, and each of
- * its own services do. Those that stay stopped come first.
+ * its own services do. What stays stopped comes first, then what may.
  */
 export function stoppingOn(
   serverId: string,
@@ -58,15 +77,14 @@ export function stoppingOn(
 ): Stopping[] {
   const sites = websites.filter((w) => w.serverId === serverId);
   const siteOf = new Map(sites.map((w) => [w.environmentId, w]));
-  const siteBack = new Map(sites.map((w) => [w.id, { back: true, policy: RestartPolicy.UNSPECIFIED }]));
+  const siteBack = new Map<string, Back>(sites.map((w) => [w.id, "yes"]));
   const out: Stopping[] = [];
   for (const s of services) {
     if (!runsOn(s, serverId)) continue;
-    const policy = policyOf(s);
-    const back = startsAgain(policy);
+    const back = startsAgain(policyOf(s));
     const site = siteOf.get(s.resource?.scope ?? "");
     if (site) {
-      if (!back) siteBack.set(site.id, { back, policy });
+      siteBack.set(site.id, lesser(back, siteBack.get(site.id) ?? "yes"));
       continue;
     }
     out.push({
@@ -75,14 +93,18 @@ export function stoppingOn(
       kind: databases.has(s.id) ? "database" : "app",
       id: s.id,
       back,
-      policy,
     });
   }
   for (const w of sites) {
-    const b = siteBack.get(w.id) ?? { back: true, policy: RestartPolicy.UNSPECIFIED };
-    out.push({ key: `website:${w.id}`, name: w.domain || w.name, kind: "website", id: w.id, ...b });
+    out.push({
+      key: `website:${w.id}`,
+      name: w.domain || w.name,
+      kind: "website",
+      id: w.id,
+      back: siteBack.get(w.id) ?? "yes",
+    });
   }
-  return out.sort((a, b) => Number(a.back) - Number(b.back) || a.name.localeCompare(b.name));
+  return out.sort((a, b) => ORDER[a.back] - ORDER[b.back] || a.name.localeCompare(b.name));
 }
 
 /**
@@ -110,7 +132,8 @@ export function DockerStops({ serverId, server }: { serverId: string; server: st
   const others = (containers.data?.containers ?? []).filter(
     (c) => c.state === ContainerState.RUNNING && !c.oneOff,
   ).length;
-  const staying = stopping.filter((s) => !s.back).length;
+  const staying = stopping.filter((s) => s.back === "no").length;
+  const unsure = stopping.filter((s) => s.back === "maybe").length;
   if (stopping.length === 0 && others === 0) {
     return <span className="plan-stops-reading">{t`Nothing Dockwell runs is on ${server}.`}</span>;
   }
@@ -119,10 +142,6 @@ export function DockerStops({ serverId, server }: { serverId: string; server: st
     database: t({ message: "Database", context: "what stops while Docker restarts" }),
     website: t({ message: "Website", context: "what stops while Docker restarts" }),
   };
-  const why = (p: RestartPolicy) =>
-    p === RestartPolicy.ON_FAILURE
-      ? t`Its restart policy starts it again only after it fails`
-      : t`Its restart policy never starts it again`;
   const link = (s: Stopping): ReactNode => {
     const name = <code>{s.name}</code>;
     switch (s.kind) {
@@ -139,8 +158,8 @@ export function DockerStops({ serverId, server }: { serverId: string; server: st
           </Link>
         );
     }
-    // One that stays stopped is linked to where its restart policy is set.
-    return s.back ? (
+    // One that may stay stopped is linked to where its restart policy is set.
+    return s.back === "yes" ? (
       <Link to="/apps/$serviceId" params={{ serviceId: s.id }}>
         {name}
       </Link>
@@ -153,22 +172,29 @@ export function DockerStops({ serverId, server }: { serverId: string; server: st
   return (
     <div className="plan-stops">
       <span className="plan-stops-head">
-        {staying > 0
-          ? plural(staying, {
-              one: `What stops on ${server} until Docker is back · # stays stopped after`,
-              other: `What stops on ${server} until Docker is back · # stay stopped after`,
-            })
-          : t`What stops on ${server} until Docker is back · all of it starts again`}
+        {[
+          t`What stops on ${server} until Docker is back`,
+          ...(staying > 0 ? [plural(staying, { one: "# stays stopped after", other: "# stay stopped after" })] : []),
+          ...(unsure > 0 ? [plural(unsure, { one: "# may stay stopped", other: "# may stay stopped" })] : []),
+          ...(staying + unsure === 0 ? [t`all of it starts again`] : []),
+        ].join(" · ")}
       </span>
       {stopping.length > 0 ? (
         <ul className="plan-stops-list" aria-label={t`What stops on ${server}`}>
           {stopping.map((s) => (
             <li key={s.key}>
               {link(s)} <Tag words>{kinds[s.kind]}</Tag>{" "}
-              {s.back ? (
+              {s.back === "yes" ? (
                 <span className="plan-stops-back">{t`Starts again`}</span>
+              ) : s.back === "maybe" ? (
+                <span
+                  className="plan-stops-maybe"
+                  title={t`It starts again only if it exits with an error as Docker stops it`}
+                >
+                  {t`May stay stopped`}
+                </span>
               ) : (
-                <span className="plan-stops-stays" title={why(s.policy)}>
+                <span className="plan-stops-stays" title={t`Its restart policy never starts it again`}>
                   {t`Stays stopped`}
                 </span>
               )}

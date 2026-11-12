@@ -58,23 +58,31 @@ const websites = [
 
 describe("what stops while Docker restarts", () => {
   it("starts again what Docker's own rules start again as its daemon comes back", () => {
-    expect(startsAgain(RestartPolicy.UNSPECIFIED)).toBe(true);
-    expect(startsAgain(RestartPolicy.UNLESS_STOPPED)).toBe(true);
-    expect(startsAgain(RestartPolicy.ALWAYS)).toBe(true);
-    // on-failure restarts only what exited with an error, never what the daemon stopped.
-    expect(startsAgain(RestartPolicy.ON_FAILURE)).toBe(false);
-    expect(startsAgain(RestartPolicy.NO)).toBe(false);
+    expect(startsAgain(RestartPolicy.UNSPECIFIED)).toBe("yes");
+    expect(startsAgain(RestartPolicy.UNLESS_STOPPED)).toBe("yes");
+    expect(startsAgain(RestartPolicy.ALWAYS)).toBe("yes");
+    // on-failure starts it again only if it exits with an error as the daemon stops it, as it often does.
+    expect(startsAgain(RestartPolicy.ON_FAILURE)).toBe("maybe");
+    expect(startsAgain(RestartPolicy.NO)).toBe("no");
   });
 
-  it("lists each app, database and website on the server, what stays stopped first", () => {
+  it("lists each app, database and website on the server, what stays stopped first, then what may", () => {
     const got = stoppingOn("srv_1", services, websites, new Set(["svc_db"]));
     expect(got.map((s) => [s.name, s.kind, s.back])).toEqual([
-      ["cron", "app", false],
-      ["worker", "app", false],
-      ["api", "app", true],
-      ["blog.example.com", "website", true],
-      ["shop-db", "database", true],
+      ["cron", "app", "no"],
+      ["worker", "app", "maybe"],
+      ["api", "app", "yes"],
+      ["blog.example.com", "website", "yes"],
+      ["shop-db", "database", "yes"],
     ]);
+    // A website is as sure to come back as the least sure of its services.
+    const site = stoppingOn(
+      "srv_1",
+      [...services, service("svc_php", "php", "env_blog", RestartPolicy.ON_FAILURE)],
+      websites,
+      new Set(),
+    ).find((s) => s.kind === "website");
+    expect(site?.back).toBe("maybe");
   });
 
   it("names them in the plan for an install that restarts Docker, linked, with whether each comes back", async () => {
@@ -125,11 +133,13 @@ describe("what stops while Docker restarts", () => {
     await user.click(await screen.findByRole("button", { name: "Install security updates" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     const list = await within(sheet).findByRole("list", { name: "What stops on web-1" });
-    expect(within(sheet).getByText("What stops on web-1 until Docker is back · 2 stay stopped after")).toBeVisible();
+    expect(
+      within(sheet).getByText("What stops on web-1 until Docker is back · 1 stays stopped after · 1 may stay stopped"),
+    ).toBeVisible();
     const rows = within(list).getAllByRole("listitem");
     expect(rows.map((r) => r.textContent)).toEqual([
       "cron App Stays stopped",
-      "worker App Stays stopped",
+      "worker App May stay stopped",
       "api App Starts again",
       "blog.example.com Website Starts again",
       "shop-db Database Starts again",
@@ -139,9 +149,13 @@ describe("what stops while Docker restarts", () => {
       "href",
       "/apps/svc_worker/settings",
     );
-    expect(within(rows[1] as HTMLElement).getByText("Stays stopped")).toHaveAttribute(
+    expect(within(rows[1] as HTMLElement).getByText("May stay stopped")).toHaveAttribute(
       "title",
-      "Its restart policy starts it again only after it fails",
+      "It starts again only if it exits with an error as Docker stops it",
+    );
+    expect(within(rows[0] as HTMLElement).getByText("Stays stopped")).toHaveAttribute(
+      "title",
+      "Its restart policy never starts it again",
     );
     expect(within(rows[3] as HTMLElement).getByRole("link", { name: "blog.example.com" })).toHaveAttribute(
       "href",

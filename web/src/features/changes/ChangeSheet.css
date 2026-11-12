@@ -828,6 +828,10 @@ a.plan-reach-at:focus-visible {
   font-weight: 550;
 }
 
+.plan-stops-maybe {
+  color: var(--warning);
+}
+
 .plan-stops-others {
   color: var(--ink-muted);
 }
