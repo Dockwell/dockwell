@@ -357,3 +357,8 @@
   gap: var(--space-1);
   margin-top: var(--space-1);
 }
+
+/* A rule set's name is a machine value, so it stays whole and its column takes its width. */
+.firewall-tool td:first-child code {
+  white-space: nowrap;
+}

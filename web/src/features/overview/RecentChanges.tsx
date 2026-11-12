@@ -9,6 +9,7 @@ import { useMemo } from "react";
 import { EventTimeline } from "../activity/ActivityPage";
 import { type EventFilter, useEvents } from "../activity/useEvents";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import "../apps/Apps.css";
 import "./Overview.css";
 
@@ -64,9 +65,11 @@ export function RecentChanges({
         ))}
       </div>
     ) : shown.length === 0 ? (
-      <p className="overview-quiet">
-        <Trans>Nothing has changed yet. Each change you make shows here.</Trans>
-      </p>
+      <EmptyState icon="activity" title={<Trans>Nothing has changed yet</Trans>}>
+        <p>
+          <Trans>Each change you make shows here.</Trans>
+        </p>
+      </EmptyState>
     ) : (
       <EventTimeline events={shown} summaries={summaries} now={now} framed={false} />
     );

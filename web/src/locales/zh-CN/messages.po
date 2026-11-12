@@ -5678,8 +5678,8 @@ msgstr "{0, plural, other {已登录 · # 个存储桶}}"
 msgid "{bucket} is in {movedTo}"
 msgstr "{bucket} 在 {movedTo}"
 
-msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
-msgstr "在添加其他存放位置之前，备份只保存在各服务器的磁盘上。任何兼容 S3 的存储都可以，例如 Cloudflare R2、Backblaze B2 或 Amazon S3。"
+msgid "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
+msgstr "添加兼容 S3 的存储（例如 Cloudflare R2），在服务器之外保留一份副本。"
 
 msgid "Destinations"
 msgstr "目的地"
@@ -5690,6 +5690,9 @@ msgstr "上传前在各服务器上加密"
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "上次上传 {0}"
+
+msgid "Only on each server's disk"
+msgstr "只保存在各服务器的磁盘上"
 
 msgid "Remove this destination"
 msgstr "移除此目的地"
@@ -5702,6 +5705,9 @@ msgstr "停止将备份发送到 {0}"
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
 msgid "{0} backups, {1}"
 msgstr "{0} 份备份，{1}"
+
+msgid "A backup you take by hand stays until you delete it."
+msgstr "手动备份会一直保留，直到你删除它。"
 
 msgid "Checks a restore monthly"
 msgstr "每月检查恢复"
@@ -5730,8 +5736,8 @@ msgstr "上次运行失败"
 msgid "Next run {next}"
 msgstr "下次运行 {next}"
 
-msgid "No schedules yet. A backup you take by hand stays until you delete it."
-msgstr "还没有备份计划。手动备份会一直保留，直到你删除它。"
+msgid "No schedules yet"
+msgstr "还没有备份计划"
 
 msgid "On schedule"
 msgstr "按计划运行"
@@ -10174,14 +10180,14 @@ msgstr "正在加载备份"
 msgid "Next run"
 msgstr "下次运行"
 
+msgid "No app keeps data."
+msgstr "没有应用保存数据。"
+
 msgid "No schedule"
 msgstr "没有计划"
 
 msgid "None scheduled"
 msgstr "没有计划"
-
-msgid "Nothing to back up yet: no app keeps data."
-msgstr "还没有需要备份的内容：没有应用保存数据。"
 
 msgid "On the server's own disk only"
 msgstr "仅在服务器自己的磁盘上"
@@ -10194,11 +10200,14 @@ msgstr "在服务器上，以及 {kept}"
 msgid "{0}, {zone} · {1}"
 msgstr "{0}，{zone} · {1}"
 
+msgid "Each change you make shows here."
+msgstr "你做的每项变更都会显示在这里。"
+
 msgid "Loading changes"
 msgstr "正在加载变更"
 
-msgid "Nothing has changed yet. Each change you make shows here."
-msgstr "还没有任何变更。你做的每项变更都会显示在这里。"
+msgid "Nothing has changed yet"
+msgstr "还没有任何变更"
 
 msgid "Recent changes"
 msgstr "最近的变更"
@@ -10426,9 +10435,6 @@ msgstr "非 Dockwell 创建的容器"
 msgid "Docker isn't answering on {0}, so what runs there can't be read now."
 msgstr "{0} 上的 Docker 没有响应，因此现在无法读取那里运行的内容。"
 
-msgid "Docker runs nothing here that Dockwell didn't make."
-msgstr "这里没有非 Dockwell 创建的 Docker 容器。"
-
 msgid "Dockwell only reads these. Open one to take it on as an app."
 msgstr "Dockwell 只读取这些。打开其中一个即可将其接管为应用。"
 
@@ -10440,6 +10446,9 @@ msgstr "筛选容器"
 
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
+
+msgid "Nothing here that Dockwell didn't make"
+msgstr "这里没有非 Dockwell 创建的容器"
 
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
@@ -13467,14 +13476,14 @@ msgstr "重试三次"
 msgid "two retries"
 msgstr "重试两次"
 
-msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
-msgstr "任务按服务器自己的时钟运行，控制平面不在时也会照常运行。每次运行都会保留输出，失败的运行会出现在动态中。"
-
 msgid "All tasks"
 msgstr "全部任务"
 
 msgid "Dockwell can't read its scheduled tasks"
 msgstr "Dockwell 无法读取计划任务"
+
+msgid "Each runs on its server's own clock, even while the control plane is away."
+msgstr "每个任务都按其服务器自己的时钟运行，控制平面不在时也照常运行。"
 
 msgid "Next 24 hours"
 msgstr "接下来 24 小时"

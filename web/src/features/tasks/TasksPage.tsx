@@ -166,7 +166,14 @@ export function TasksPage() {
     </Button>
   );
   return (
-    <Page title={t`Scheduled tasks`} lead={lead} phoneSub={lead} back="/more" actions={action}>
+    <Page
+      title={t`Scheduled tasks`}
+      lead={lead}
+      phoneSub={lead}
+      back="/more"
+      // With none yet the empty state offers it, and a view has one primary button.
+      actions={query.isPending || count === 0 ? null : action}
+    >
       {query.error ? (
         <Callout tone="critical" title={t`Dockwell can't read its scheduled tasks`}>
           {sentence(query.error)}
@@ -182,11 +189,16 @@ export function TasksPage() {
       ) : null}
       {query.isPending ? null : count === 0 ? (
         // It draws its own card, so it stands alone, as on every other page.
-        <EmptyState icon="calendar" title={t`No scheduled tasks yet`} action={action}>
-          <Trans>
-            A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it
-            printed, and one that fails is on Activity.
-          </Trans>
+        <EmptyState
+          icon="calendar"
+          title={t`No scheduled tasks yet`}
+          action={
+            <Button variant="primary" size="lg" icon="plus" onClick={() => setMaking(true)} {...mayPlan.off}>
+              <Trans>New task</Trans>
+            </Button>
+          }
+        >
+          <Trans>Each runs on its server's own clock, even while the control plane is away.</Trans>
         </EmptyState>
       ) : (
         <div className="tasks-columns">

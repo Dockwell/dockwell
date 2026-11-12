@@ -249,12 +249,6 @@
   border-top: 1px solid var(--line);
 }
 
-.backup-policy-empty {
-  margin: 0;
-  padding: var(--space-4);
-  color: var(--ink-muted);
-}
-
 /* Beside the list, a destination stacks as it does on a phone. */
 .backups-side .backup-policy {
   grid-template-columns: minmax(0, 1fr) auto;

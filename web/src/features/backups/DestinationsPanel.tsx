@@ -12,6 +12,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { DestinationSheet } from "./DestinationSheet";
 import "./Backups.css";
 import { useMay } from "../auth/may";
+import { EmptyState } from "../shell/EmptyState";
 
 /** The storage backups can go to. */
 export function useDestinations() {
@@ -41,12 +42,11 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
       }
     >
       {destinations.length === 0 ? (
-        <p className="backup-policy-empty">
-          <Trans>
-            Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage
-            works, such as Cloudflare R2, Backblaze B2 or Amazon S3.
-          </Trans>
-        </p>
+        <EmptyState icon="archive" title={<Trans>Only on each server's disk</Trans>}>
+          <p>
+            <Trans>Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server.</Trans>
+          </p>
+        </EmptyState>
       ) : (
         <ul className="backup-policies">
           {destinations.map((d) => (

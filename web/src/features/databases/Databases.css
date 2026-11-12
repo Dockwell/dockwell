@@ -406,6 +406,26 @@
   min-width: 0;
 }
 
+/*
+ * It stands as tall as Connect beside it, so its facts sit at the top and its actions at its foot over a rule, as
+ * Database-Detail draws its panel, rather than leaving the space under them empty.
+ */
+.database-backups > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.database-backups .databases-panel-actions {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.database-backups .databases-facts {
+  margin-bottom: var(--space-4);
+}
+
 .database-connection {
   display: flex;
   flex: 1 1 320px;
