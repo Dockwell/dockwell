@@ -4,6 +4,7 @@ import type { AuditEvent } from "@dockwell/api";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { formatDateTime } from "../../lib/format";
 import { type Described, useDescribe } from "../activity/describe";
 
 const NO_SUMMARIES: ReadonlyMap<string, string> = new Map();
@@ -21,7 +22,7 @@ export interface Said {
  * the JSON export and the opened row.
  */
 export function useAuditWords(): (event: AuditEvent) => Said {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const describe = useDescribe();
   return useMemo(
     () => (e: AuditEvent) => {
@@ -91,6 +92,24 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           const path = event?.subject?.path || e.subject;
           return { title: name ? t`Saving ${path} on ${name}` : t`Saving ${path}` };
         }
+        // What a person set aside of an app's updates, as its event recorded it (ADR 0079).
+        case "service.update_skip": {
+          const { app, version } = updateFacts(e.detail, name || e.subject);
+          return { title: version ? t`Skipped ${version} of ${app}` : t`Skipped an update of ${app}` };
+        }
+        case "service.update_unskip": {
+          const { app, version } = updateFacts(e.detail, name || e.subject);
+          return { title: version ? t`Showed ${version} of ${app} again` : t`Showed an update of ${app} again` };
+        }
+        case "service.update_snooze": {
+          const { app, until } = updateFacts(e.detail, name || e.subject);
+          const at = until ? formatDateTime(until, i18n.locale) : "";
+          return { title: at ? t`Snoozed the updates of ${app} until ${at}` : t`Snoozed the updates of ${app}` };
+        }
+        case "service.update_unsnooze": {
+          const { app } = updateFacts(e.detail, name || e.subject);
+          return { title: t`Ended the snooze of the updates of ${app}` };
+        }
       }
       if (event) {
         const said = describe(event, NO_SUMMARIES);
@@ -100,6 +119,28 @@ export function useAuditWords(): (event: AuditEvent) => Said {
       }
       return { title: e.action };
     },
-    [t, describe],
+    [t, i18n, describe],
   );
+}
+
+/**
+ * What a skip or a snooze of an app's updates recorded: the app, the version and
+ * when a snooze ends, from its JSON, as internal/control/serviceupdates writes it.
+ * The app's name falls back to what the event names, then to its ID.
+ */
+function updateFacts(detail: string, named: string): { app: string; version: string; until: Date | undefined } {
+  let facts: { service?: unknown; version?: unknown; until?: unknown } = {};
+  try {
+    const read: unknown = JSON.parse(detail || "{}");
+    if (read && typeof read === "object") facts = read as typeof facts;
+  } catch {
+    // Not JSON: the sentence goes on with what the event names.
+  }
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  const until = text(facts.until) ? new Date(text(facts.until)) : undefined;
+  return {
+    app: text(facts.service) || named,
+    version: text(facts.version),
+    until: until && !Number.isNaN(until.getTime()) ? until : undefined,
+  };
 }

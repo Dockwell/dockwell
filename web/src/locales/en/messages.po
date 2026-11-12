@@ -13355,6 +13355,9 @@ msgstr "Discarded a change"
 msgid "Discarded {summary}"
 msgstr "Discarded {summary}"
 
+msgid "Ended the snooze of the updates of {app}"
+msgstr "Ended the snooze of the updates of {app}"
+
 msgid "Made {name} the owner"
 msgstr "Made {name} the owner"
 
@@ -13400,11 +13403,29 @@ msgstr "Saving {path} on {name}"
 msgid "Set up this install"
 msgstr "Set up this install"
 
+msgid "Showed an update of {app} again"
+msgstr "Showed an update of {app} again"
+
+msgid "Showed {version} of {app} again"
+msgstr "Showed {version} of {app} again"
+
 msgid "Signed in with a recovery code"
 msgstr "Signed in with a recovery code"
 
 msgid "Signed out"
 msgstr "Signed out"
+
+msgid "Skipped an update of {app}"
+msgstr "Skipped an update of {app}"
+
+msgid "Skipped {version} of {app}"
+msgstr "Skipped {version} of {app}"
+
+msgid "Snoozed the updates of {app}"
+msgstr "Snoozed the updates of {app}"
+
+msgid "Snoozed the updates of {app} until {at}"
+msgstr "Snoozed the updates of {app} until {at}"
 
 msgid "Started opening a terminal"
 msgstr "Started opening a terminal"
