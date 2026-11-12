@@ -3375,6 +3375,15 @@ msgstr "没有匹配项"
 msgid "Runs on"
 msgstr "运行于"
 
+msgid "Select every update shown"
+msgstr "选择显示的所有更新"
+
+msgid "Select the updates in {name}"
+msgstr "选择 {name} 中的更新"
+
+msgid "Select {name}'s update"
+msgstr "选择 {name} 的更新"
+
 msgid "Show all environments"
 msgstr "显示所有环境"
 
@@ -4517,6 +4526,93 @@ msgstr "{0}，当前运行的版本"
 msgid "{word} version"
 msgstr "{word} 版本"
 
+msgid "About {span} down"
+msgstr "约 {span} 不可用"
+
+msgid "Applying"
+msgstr "正在应用"
+
+msgid "Backs up first"
+msgstr "先备份"
+
+msgid "Can't update:"
+msgstr "无法更新："
+
+msgid "Clear"
+msgstr "清除"
+
+msgid "Closing leaves them to go on, each on its app's page and on Activity."
+msgstr "关闭后它们会继续进行，可在各应用页面和动态中查看。"
+
+msgid "Each app updates as its own change, and one that fails rolls back alone."
+msgstr "每个应用作为各自的变更更新，失败的会单独回滚。"
+
+msgid "Failed, and rolled back:"
+msgstr "失败并已回滚："
+
+msgid "Failed:"
+msgstr "失败："
+
+msgid "It destroys data, which you confirm in its own plan"
+msgstr "它会销毁数据，需要在它自己的计划中确认"
+
+msgid "It planned nothing"
+msgstr "它没有计划任何内容"
+
+msgid "Its plan changed as the others applied"
+msgstr "其他更新应用后，它的计划已改变"
+
+msgid "Its server is offline"
+msgstr "它的服务器离线"
+
+msgid "Left for its own review:"
+msgstr "留待单独审阅："
+
+msgid "Nothing stops"
+msgstr "无需停止"
+
+msgid "Nothing to change"
+msgstr "没有需要更改的内容"
+
+msgid "Planning"
+msgstr "正在计划"
+
+msgid "Selected updates"
+msgstr "已选更新"
+
+msgctxt "an app's update landed"
+msgid "Updated"
+msgstr "已更新"
+
+msgid "Updates"
+msgstr "更新"
+
+msgid "Updates finished"
+msgstr "更新已完成"
+
+#. placeholder {0}: ready.length
+msgid "{0, plural, one {Apply # update} other {Apply # updates}}"
+msgstr "{0, plural, other {应用 # 个更新}}"
+
+#. placeholder {0}: following.length
+msgid "{0, plural, one {Updating # app} other {Updating # apps}}"
+msgstr "{0, plural, other {正在更新 # 个应用}}"
+
+msgid "{n, plural, one {# selected} other {# selected}}"
+msgstr "{n, plural, other {已选 # 个}}"
+
+msgid "{n, plural, one {Select # patch update} other {Select # patch updates}}"
+msgstr "{n, plural, other {选择 # 个补丁更新}}"
+
+msgid "{n, plural, one {Update # app} other {Update # apps}}"
+msgstr "{n, plural, other {更新 # 个应用}}"
+
+msgid "{n, plural, one {Update # selected} other {Update # selected}}"
+msgstr "{n, plural, other {更新所选的 # 个}}"
+
+msgid "{name} stays planned, on Activity"
+msgstr "{name} 保持已计划状态，可在动态中查看"
+
 msgid "Also delete the project {label}"
 msgstr "同时删除项目 {label}"
 
@@ -4806,9 +4902,6 @@ msgstr "有可用更新"
 #. placeholder {0}: stepOf(a)
 msgid "Update available: {0}, {kind}"
 msgstr "有可用更新：{0}，{kind}"
-
-msgid "Updates"
-msgstr "更新"
 
 msgid "Updates snoozed"
 msgstr "更新已推迟"
@@ -6926,9 +7019,6 @@ msgstr "应用计划"
 msgid "Apply this only if you trust what it runs."
 msgstr "只有信任它运行的内容时才应用。"
 
-msgid "Applying"
-msgstr "正在应用"
-
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"
 msgstr "应用此计划即批准用 API 令牌 {0} 计划的变更，需要验证你的通行密钥"
@@ -7029,12 +7119,6 @@ msgstr "服务器之外还无法访问这些应用。"
 
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "{server} 之外还无法访问 {name}。"
-
-msgid "Nothing to change"
-msgstr "没有需要更改的内容"
-
-msgid "Planning"
-msgstr "正在计划"
 
 msgid "Planning: asking each server what this would take"
 msgstr "正在计划：询问每台服务器需要做什么"
@@ -7361,9 +7445,6 @@ msgstr "详细信息"
 
 msgid "Dockwell made this change because of what failed"
 msgstr "Dockwell 因为失败的内容做了这次变更"
-
-msgid "About {span} down"
-msgstr "约 {span} 不可用"
 
 msgid "About {span} down, and up to {bound} until healthy"
 msgstr "约 {span} 不可用，最多 {bound} 后恢复健康"
@@ -10859,6 +10940,12 @@ msgstr "在服务器上，以及 {kept}"
 msgid "{0}, {zone} · {1}"
 msgstr "{0}，{zone} · {1}"
 
+msgid "Apps with an update"
+msgstr "有更新的应用"
+
+msgid "{more, plural, one {# more on Apps} other {# more on Apps}}"
+msgstr "{more, plural, other {应用页还有 # 个}}"
+
 msgid "Each change you make shows here."
 msgstr "你做的每项变更都会显示在这里。"
 
@@ -12487,9 +12574,6 @@ msgstr "未知系统"
 
 msgid "Up"
 msgstr "运行时间"
-
-msgid "Clear"
-msgstr "清除"
 
 msgid "Name the address, such as 203.0.113.7."
 msgstr "请填写地址，例如 203.0.113.7。"
@@ -14973,9 +15057,6 @@ msgstr "选择{caption}中的全部软件包"
 msgid "Select {name}"
 msgstr "选择 {name}"
 
-msgid "Selected updates"
-msgstr "已选更新"
-
 msgid "Show all"
 msgstr "显示全部"
 
@@ -15068,17 +15149,11 @@ msgstr "{n, plural, other {另有 # 个被暂缓：{names}。升级暂不安装�
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, other {# 个安全更新可以安装}}"
 
-msgid "{n, plural, one {# selected} other {# selected}}"
-msgstr "{n, plural, other {已选 # 个}}"
-
 msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 msgstr "{n, plural, other {# 个更新可以安装}}"
 
 msgid "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
 msgstr "{n, plural, other {正在 {name} 上安装 # 个软件包}}"
-
-msgid "{n, plural, one {Update # selected} other {Update # selected}}"
-msgstr "{n, plural, other {更新所选的 # 个}}"
 
 msgid "{name} needs a reboot"
 msgstr "{name} 需要重启"

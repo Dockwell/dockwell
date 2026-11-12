@@ -56,6 +56,7 @@ import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { WhatRuns } from "./ImageName";
 import { runtimeOf, runtimeWords } from "./runtime";
+import { PickBox, SelectPatches, type UpdatePicks, UpdatePicksBar, useUpdatePicks } from "./UpdateSeveral";
 import { counts, StackUpdates, UpdateMark, withUpdates } from "./updates";
 import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
@@ -199,8 +200,15 @@ export function AppsPage({
   const environment = choosing ? (search.environment ?? "") : "";
   // Whether an update counts moves only with a snooze's end, so the minute is enough.
   const updatesNow = useNow(UPDATES_TICK_MS);
-  const updating = search.show === "updates";
   const updates = useMemo(() => withUpdates(all ?? [], updatesNow).length, [all, updatesNow]);
+  // The filter to updates holds only while it has one to show: once the last is
+  // applied, skipped or snoozed, it drops on its own and the whole list is back.
+  const updating = search.show === "updates" && updates > 0;
+  useEffect(() => {
+    if (all !== undefined && search.show === "updates" && updates === 0) onSearch?.({ ...search, show: undefined });
+  }, [all, search, updates, onSearch]);
+  // Rows picked to update together, of those that can be (ADR 0080).
+  const picks = useUpdatePicks(all, updatesNow);
   const shown = useMemo(
     () =>
       (all ?? []).filter(
@@ -351,7 +359,7 @@ export function AppsPage({
   } else if (rows.length === 0) {
     body = <NothingHere query={filtering ? query.trim() : ""} search={search} onClear={clearFilters} />;
   } else if (phone) {
-    body = <PhoneList rows={rows} collapsed={collapsed} onToggle={toggle} health={health} />;
+    body = <PhoneList rows={rows} collapsed={collapsed} onToggle={toggle} health={health} picks={picks} />;
   } else {
     body = (
       <AppsTable
@@ -362,6 +370,7 @@ export function AppsPage({
         onToggle={toggle}
         onOpen={open}
         health={health}
+        picks={picks}
       />
     );
   }
@@ -396,7 +405,7 @@ export function AppsPage({
       }
     >
       <section className={cx("apps-section", filters && "has-filters")} aria-label={t`Apps`}>
-        {choosing || fleet || filters || updates > 0 || updating ? (
+        {choosing || fleet || filters || updates > 0 ? (
           <div className="apps-filters">
             {filters ? (
               <TextField
@@ -432,7 +441,7 @@ export function AppsPage({
                 onChange={(event) => onSearch?.({ ...search, environment: event.target.value || undefined })}
               />
             ) : null}
-            {updates > 0 || updating ? (
+            {updates > 0 ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -444,6 +453,7 @@ export function AppsPage({
                 {plural(updates, { one: "# update available", other: "# updates available" })}
               </Button>
             ) : null}
+            {updates > 0 && picks.selected.length === 0 ? <SelectPatches picks={picks} /> : null}
             {fleet ? (
               <SelectField
                 aria-label={t`Server`}
@@ -483,6 +493,7 @@ export function AppsPage({
           <UnreadNote why={health.unread.why} heard={health.unread.heard} />
         ) : null}
         {body}
+        <UpdatePicksBar picks={picks} className="apps-picks-bar" />
         {elsewhere > 0 && all ? (
           <p className="apps-note">
             {plural(elsewhere, {
@@ -645,6 +656,39 @@ interface TableProps {
   onToggle: (key: string) => void;
   onOpen: (id: string) => void;
   health: HealthView;
+  picks: UpdatePicks;
+}
+
+/** What a row picks to update: its app, or its project's apps, of those that can be picked. */
+function picksOf(row: Row, picks: UpdatePicks): string[] {
+  const services = row.kind === "stack" ? row.group.services : row.service ? [row.service] : [];
+  return services.filter((s) => picks.can(s.id)).map((s) => s.id);
+}
+
+/** A row's box for picking what it updates, where it has something to pick (ADR 0080). */
+function RowPick({ row, picks, order }: { row: Row; picks: UpdatePicks; order: readonly string[] }) {
+  const { t } = useLingui();
+  const ids = picksOf(row, picks);
+  if (ids.length === 0) return null;
+  const on = ids.filter((id) => picks.has(id)).length;
+  const name = row.kind === "stack" ? row.group.name : row.service ? nameOf(row.service) : "";
+  if (row.kind === "stack") {
+    return (
+      <PickBox
+        checked={on === ids.length}
+        partly={on > 0}
+        label={t`Select the updates in ${name}`}
+        onPick={(yes) => picks.setAll(ids, yes)}
+      />
+    );
+  }
+  return (
+    <PickBox
+      checked={on > 0}
+      label={t`Select ${name}'s update`}
+      onPick={(yes, range) => picks.toggle(order, ids[0] as string, yes, range)}
+    />
+  );
 }
 
 /** How a row runs: an app's, or the worst of a project's. */
@@ -662,7 +706,7 @@ function useRowTitle() {
   };
 }
 
-function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }: TableProps) {
+function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, picks }: TableProps) {
   const { t, i18n } = useLingui();
   const { servers } = useFleetView();
   const words = useAppWords();
@@ -784,11 +828,34 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
       render: render[head.key] as (row: Row) => ReactNode,
     }));
   }, [t, i18n, words, servers, time, now, collapsed, onToggle, heads, health, titleOf, domainNames]);
+  // A column to pick rows by, while any row has an update to pick (ADR 0080).
+  const order = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
+  const shownPicks = [...new Set(rows.flatMap((r) => picksOf(r, picks)))];
+  const picked = shownPicks.filter((id) => picks.has(id)).length;
+  const withPicks: TableColumn<Row>[] =
+    shownPicks.length === 0
+      ? columns
+      : [
+          {
+            key: "pick",
+            width: 40,
+            header: (
+              <PickBox
+                checked={picked === shownPicks.length}
+                partly={picked > 0}
+                label={t`Select every update shown`}
+                onPick={(on) => picks.setAll(shownPicks, on)}
+              />
+            ),
+            render: (row) => <RowPick row={row} picks={picks} order={order} />,
+          },
+          ...columns,
+        ];
 
   return (
     <Table<Row>
-      className="apps-table"
-      columns={columns}
+      className={cx("apps-table", shownPicks.length > 0 && "has-picks")}
+      columns={withPicks}
       rows={rows}
       caption={caption}
       rowClassName={(row) =>
@@ -829,17 +896,20 @@ function PhoneList({
   collapsed,
   onToggle,
   health,
+  picks,
 }: {
   rows: readonly Row[];
   collapsed: ReadonlySet<string>;
   onToggle: (key: string) => void;
   health: HealthView;
+  picks: UpdatePicks;
 }) {
   const { servers, fleet } = useFleetView();
   const words = useAppWords();
   const healthWords = useHealthWords();
   const runtimes = useRuntimes().data;
   const now = useNow(UPDATES_TICK_MS);
+  const phoneOrder = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
   return (
     <Panel flush className="apps-phone">
       {rows.map((row) => {
@@ -884,7 +954,7 @@ function PhoneList({
         const runtime = runtimeOf(service);
         const image = runtime ? `${runtimeWords(runtime, runtimes)} · ${runtime.folder}` : imageOf(service);
         const where = service.deployments.map((d) => d.serverName).join(", ");
-        return (
+        const link = (
           <Link
             key={row.id}
             to="/apps/$serviceId"
@@ -917,6 +987,14 @@ function PhoneList({
             </span>
             <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
           </Link>
+        );
+        // A box to pick its update by sits beside the row, as a link holds nothing else that acts.
+        if (!picks.can(service.id)) return link;
+        return (
+          <div key={row.id} className="apps-phone-pickrow">
+            <RowPick row={row} picks={picks} order={phoneOrder} />
+            {link}
+          </div>
         );
       })}
     </Panel>
