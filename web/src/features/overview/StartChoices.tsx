@@ -62,6 +62,9 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
   const places = ROW * (phone ? 2 : Math.max(beside - 1, 1));
   const shown = ordered.slice(0, ordered.length > places ? places - 1 : places);
   const more = catalog.length - shown.length;
+  // Fewer than a row of tiles stand centred, each as wide as in a full row, rather than to one side.
+  const tiles = shown.length + (more > 0 ? 1 : 0);
+  const row = tiles < ROW ? ({ "--start-cols": tiles } as CSSProperties) : undefined;
 
   const all: Choice[] = [
     {
@@ -72,7 +75,7 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
       to: "/catalog",
       extra:
         shown.length > 0 && !compact ? (
-          <span className="start-apps">
+          <span className="start-apps" style={row}>
             {/* Each straight into its install sheet, which starts from its defaults. */}
             {shown.map((e) => {
               const app = e.name;
