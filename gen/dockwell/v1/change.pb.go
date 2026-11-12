@@ -1280,7 +1280,14 @@ type Edit struct {
 	// change since the read would be undone. A value kept goes nowhere it hasn't
 	// been, so the edit can't place the service on another server: set the value
 	// again in the edit to run it there.
-	KeepEnv       []string `protobuf:"bytes,7,rep,name=keep_env,json=keepEnv,proto3" json:"keep_env,omitempty"`
+	KeepEnv []string `protobuf:"bytes,7,rep,name=keep_env,json=keepEnv,proto3" json:"keep_env,omitempty"`
+	// With delete, for a project or an environment: deletes everything that
+	// lives in it too, in the same change, so its plan lists each item and
+	// undoing it brings them all back. A volume going takes a person's
+	// confirmation, as any data loss does, and its server keeps it for 7 days.
+	// Refused on any other kind, and without delete. See
+	// docs/adr/0074-projects-you-can-see-and-that-go-with-their-last-app.md.
+	WithContents  bool `protobuf:"varint,8,opt,name=with_contents,json=withContents,proto3" json:"with_contents,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1362,6 +1369,13 @@ func (x *Edit) GetKeepEnv() []string {
 		return x.KeepEnv
 	}
 	return nil
+}
+
+func (x *Edit) GetWithContents() bool {
+	if x != nil {
+		return x.WithContents
+	}
+	return false
 }
 
 // ResourceRef names a resource.
@@ -7278,7 +7292,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12'\n" +
 	"\x05edits\x18\x02 \x03(\v2\x11.dockwell.v1.EditR\x05edits\x12\x1f\n" +
 	"\vskip_backup\x18\x03 \x01(\bR\n" +
-	"skipBackup\"\xfe\x01\n" +
+	"skipBackup\"\xa3\x02\n" +
 	"\x04Edit\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x124\n" +
 	"\x04spec\x18\x02 \x01(\v2 .dockwell.resource.v1alpha1.SpecR\x04spec\x12\x16\n" +
@@ -7286,7 +7300,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aservers\x18\x04 \x03(\tR\aservers\x12\x18\n" +
 	"\aproject\x18\x05 \x01(\tR\aproject\x12#\n" +
 	"\rbase_revision\x18\x06 \x01(\x03R\fbaseRevision\x12\x19\n" +
-	"\bkeep_env\x18\a \x03(\tR\akeepEnv\"K\n" +
+	"\bkeep_env\x18\a \x03(\tR\akeepEnv\x12#\n" +
+	"\rwith_contents\x18\b \x01(\bR\fwithContents\"K\n" +
 	"\vResourceRef\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05scope\x18\x02 \x01(\tR\x05scope\x12\x12\n" +

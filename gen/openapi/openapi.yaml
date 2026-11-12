@@ -9754,6 +9754,15 @@ components:
                          change since the read would be undone. A value kept goes nowhere it hasn't
                          been, so the edit can't place the service on another server: set the value
                          again in the edit to run it there.
+                withContents:
+                    type: boolean
+                    description: |-
+                        With delete, for a project or an environment: deletes everything that
+                         lives in it too, in the same change, so its plan lists each item and
+                         undoing it brings them all back. A volume going takes a person's
+                         confirmation, as any data loss does, and its server keeps it for 7 days.
+                         Refused on any other kind, and without delete. See
+                         docs/adr/0074-projects-you-can-see-and-that-go-with-their-last-app.md.
             description: Edit sets one resource's desired spec, or deletes it.
         EndProcessRequest:
             type: object

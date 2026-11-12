@@ -56,12 +56,11 @@ When the app is the last thing in its project, the plan to delete it offers the 
 
 ### One plan deletes a project with everything in it
 
-The panel's plan to delete a project takes everything left in it, not only volumes and networks: it lists each environment's resources (`ListResources` with the environment as scope) and deletes each, with the project, in one change. The engine orders them by what uses what, so routes go before services, and services before what they mount. This replaces ADR 0036's "the panel offers what the panel can't otherwise delete": a person asked to delete the project, and every item is on the plan to review.
+A plan to delete a project takes everything left in it, not only volumes and networks, in one change. One edit asks for it: a project's or an environment's deletion with `Edit.with_contents`, which the panel sends and the CLI's `dockwell projects delete <name> --with-contents` (and `environments delete`) sends too. The engine lists what lives in its environments as it plans, adds each as a deletion, checks each as any edit, and orders them by what uses what, so routes go before services, and services before what they mount. This replaces ADR 0036's "the panel offers what the panel can't otherwise delete": a person asked to delete the project, and every item is on the plan to review. Listing them as it plans, rather than from what a client read, leaves nothing made in between behind.
 
-- **The engine still refuses a project that would keep anything,** and names what, so the API and the CLI behave as ADR 0036 says. Something made between the panel's read and its plan is refused the same way, by name.
+- **Without `with_contents` the engine still refuses a project that would keep anything,** and names what, as ADR 0036 says, and its refusal now ends with the command that takes them all. `with_contents` on any other kind, or without a deletion, is refused.
 - **What lives inside another resource goes after it.** A database user lives in its database server, and deleting it drops its database. When one change deletes both on a server, the engine now deletes the server first, so the user's step finds nothing to drop, destroys nothing, and only forgets the user: its database stays in the server's volume, kept as that volume is. A kind says so of a reference (`resource.Reference.Inside`), so the rule isn't the database's alone.
 - **A plan says what's true of a deleted volume's data:** its server keeps it for 7 days, and undoing the change brings it back. Only data nothing keeps, such as a database dropped with its user, reads as not coming back.
-- **The CLI deletes what's in a project first,** as its refusal says, for now. A `--with-contents` flag on `dockwell projects delete` is the next step for it.
 - **Undo brings it all back,** as for any change, with volumes within their 7 days.
 
 ### Variables and secrets, by project
@@ -87,4 +86,4 @@ The Variables page joins the rail, as "Variables". Variables and secrets live in
 - Deleting an app usually deletes more than it did, which the plan lists, and Undo reverses for 7 days.
 - The command bar's "Delete a project" works for a catalog install's project, which it didn't.
 - Three pieces of work follow, in order: this record with the delete; the Projects list and page, where renaming a project's display name is a plain edit of the project, as the engine keeps what it was installed from and what it serves (`ProjectType.Keep`); and the Variables page.
-- The CLI keeps ADR 0036's refusal until it gains `--with-contents`.
+- The CLI deletes a project or an environment with what's in it in one command, `--with-contents`, and the panel sends the same edit, so both get the same plan.

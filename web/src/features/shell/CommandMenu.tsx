@@ -24,7 +24,7 @@ import { useAppWords } from "../apps/words";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
-import { environmentsOf, planDeletingProject } from "../projects/contents";
+import { planDeletingProject } from "../projects/contents";
 import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { useWebsiteOfEnvironment } from "../websites/website";
@@ -152,8 +152,7 @@ function Commands({ onClose }: { onClose: () => void }) {
           onClose();
           sheet.open(opening);
         },
-        (project, summary) =>
-          planDeletingProject(transport, project, environmentsOf(project.id, environments ?? []), summary),
+        (project, summary) => planDeletingProject(transport, project, summary),
       );
     const pages = t`Pages`;
     list.push({

@@ -1324,11 +1324,9 @@ describe("deleting a database", () => {
     await user.click(within(danger).getByRole("button", { name: "Delete db" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(within(sheet).getByRole("switch", { name: "Also delete the project pg" })).toBeChecked();
-    expect(edits(proposals[0])).toEqual([
-      ["service", "db", true],
-      ["database.user", "shop", true],
-      ["volume", "data", true],
-      ["project", "pg", true],
+    // One edit, which the engine fills with what's in the project as it plans (ADR 0074).
+    expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete, e.withContents])).toEqual([
+      ["project", "pg", true, true],
     ]);
   });
 });

@@ -457,8 +457,31 @@ func TestDeletingAProjectTakesItsEnvironments(t *testing.T) {
 		}
 		apply(t, e, propose(t, e, "Run web and api", named("web", prod.ID, "nginx:1.27"), named("api", prod.ID, "nginx:1.27"), named("db", staging.ID, "nginx:1.27")))
 		refuseProposal(t, e, "deleting a project that runs something", ErrInvalid,
-			"project shop still holds service api and service web in production and service db in staging, so it stays. Delete them first, with dockwell services delete api --project shop --environment production, dockwell services delete web --project shop --environment production and dockwell services delete db --project shop --environment staging, or in the same change",
+			"project shop still holds service api and service web in production and service db in staging, so it stays. Delete them first, with dockwell services delete api --project shop --environment production, dockwell services delete web --project shop --environment production and dockwell services delete db --project shop --environment staging, or in the same change, or take them with it: dockwell projects delete shop --with-contents",
 			del(scope.ProjectKind, org, "shop"))
+		// Or in one edit that takes what's in it: the plan lists each (ADR 0074).
+		withAll := del(scope.ProjectKind, org, "shop")
+		withAll.WithContents = true
+		all := propose(t, e, "Retire shop with what's in it", withAll)
+		if got, want := deleted(all), []string{"environment production", "environment staging", "project shop", "service api", "service db", "service web"}; !slices.Equal(got, want) {
+			t.Errorf("deleting shop with what's in it plans %v, want %v", got, want)
+		}
+		if err := e.Discard(t.Context(), all.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+		// An environment the same way, while its project keeps another.
+		stagingAll := del(scope.EnvironmentKind, shop.ID, "staging")
+		stagingAll.WithContents = true
+		env := propose(t, e, "Retire staging with what's in it", stagingAll)
+		if got, want := deleted(env), []string{"environment staging", "service db"}; !slices.Equal(got, want) {
+			t.Errorf("deleting staging with what's in it plans %v, want %v", got, want)
+		}
+		if err := e.Discard(t.Context(), env.Change, By{Actor: "usr_test"}); err != nil {
+			t.Fatal(err)
+		}
+		notAScope := del(service.Kind, prod.ID, "web")
+		notAScope.WithContents = true
+		refuseProposal(t, e, "taking what's in a service", ErrInvalid, "asks to take what lives in it, which only deleting a project or an environment can", notAScope)
 		// Deleting them in the same change is enough.
 		apply(t, e, propose(t, e, "Stop web and api", del(service.Kind, prod.ID, "web"), del(service.Kind, prod.ID, "api")))
 		apply(t, e, propose(t, e, "Retire shop with what's left", del(service.Kind, staging.ID, "db"), del(scope.ProjectKind, org, "shop")))

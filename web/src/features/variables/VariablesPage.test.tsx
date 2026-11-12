@@ -560,10 +560,9 @@ describe("the variables page, once there are several projects", () => {
     expect(await screen.findByText("Nothing running in old-shop")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Delete the project" }));
     await screen.findByRole("dialog", { name: "Review plan" });
-    expect(base.proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete])).toEqual([
-      ["secret", "STRIPE_KEY", true],
-      ["project", "old-shop", true],
-    ]);
+    expect(base.proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete, e.withContents])).toEqual(
+      [["project", "old-shop", true, true]],
+    );
   });
 
   it("names the environment by its project in the form", async () => {

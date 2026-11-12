@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { MessageInitShape } from "@bufbuild/protobuf";
 import { createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeService, type EditSchema, type Resource, ResourceService } from "@dockwell/api";
+import { ChangeService, type Resource, ResourceService } from "@dockwell/api";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
@@ -38,33 +37,19 @@ export async function resourcesIn(
   return lists.flat();
 }
 
-/** A project's environments, by ID, from the environments read. */
-export function environmentsOf(project: string, environments: readonly Resource[]): string[] {
-  return environments.filter((e) => e.resource?.scope === project).map((e) => e.id);
-}
-
 /**
- * The edits that delete a project with everything in it, in one change: each resource its
- * environments hold, then the project, which takes the environments with it (ADR 0036). The
- * engine orders them by what uses what, so a route goes before its service and a service before
- * what it mounts, and refuses, by name, anything made since these were read (ADR 0074).
+ * Plans deleting a project with everything in it, in one change: one edit that asks the engine to
+ * take what lives in its environments too (Edit.with_contents), so it lists each item from what's
+ * there as it plans, orders them by what uses what, and checks each as any edit (ADR 0074). The
+ * CLI's `dockwell projects delete --with-contents` sends the same edit.
  */
-export function deletingProject(project: Resource, inside: readonly Resource[]): MessageInitShape<typeof EditSchema>[] {
-  return [
-    ...inside.flatMap((r) => (r.resource ? [{ resource: r.resource, delete: true }] : [])),
-    { resource: { kind: "project", name: project.resource?.name ?? project.id }, delete: true },
-  ];
-}
-
-/** Plans deleting a project with everything in it, read just now, so the plan has what's there. */
-export async function planDeletingProject(
-  transport: Transport,
-  project: Resource,
-  environments: readonly string[],
-  summary: string,
-) {
-  const inside = await resourcesIn(transport, environments);
-  return createClient(ChangeService, transport).proposeChange({ summary, edits: deletingProject(project, inside) });
+export async function planDeletingProject(transport: Transport, project: Resource, summary: string) {
+  return createClient(ChangeService, transport).proposeChange({
+    summary,
+    edits: [
+      { resource: { kind: "project", name: project.resource?.name ?? project.id }, delete: true, withContents: true },
+    ],
+  });
 }
 
 /**
