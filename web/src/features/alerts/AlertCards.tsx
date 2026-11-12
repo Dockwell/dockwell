@@ -41,6 +41,7 @@ const MARK: Partial<Record<Condition, IconName>> = {
   [Condition.CHANGE_FAILED]: "activity",
   [Condition.RESTORE_DRILL_FAILED]: "archive",
   [Condition.RESTORE_DRILL_LATE]: "archive",
+  [Condition.UPDATE_AVAILABLE]: "arrow-up",
 };
 
 const ms = (a: { seconds: bigint } | undefined) => (a ? Number(a.seconds) * 1000 : undefined);
@@ -279,6 +280,7 @@ function Inspect({ alert, title }: { alert: Alert; title: string }) {
   const small = { size: "sm" as const, "aria-label": label };
   switch (alert.condition) {
     case Condition.SERVICE_DOWN:
+    case Condition.UPDATE_AVAILABLE:
       if (!alert.subjectId) break;
       return (
         <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: alert.subjectId }} {...small}>

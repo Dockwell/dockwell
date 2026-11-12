@@ -80,6 +80,7 @@ import { ImageName, WholeImage } from "./ImageName";
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
+import { offered, UpdateCard } from "./updates";
 import { UpgradeProgress } from "./upgrade";
 import { usePlaces } from "./useServices";
 import { useAppWords } from "./words";
@@ -100,12 +101,15 @@ export function AppOverview() {
         <WaitingNotice />
         <AppNotice />
         <RunningPanel />
+        {/* What's newer takes room in the main column when there's something to take (ADR 0079). */}
+        {offered(service.update) ? <UpdateCard service={service} /> : null}
         <InstalledPanel service={service} />
         <RecentHealth />
         <RecentDeployments />
       </div>
       <div className="app-aside">
         <ConfigurationPanel />
+        {offered(service.update) ? null : <UpdateCard service={service} />}
         <HealthCheckPanel />
         <VolumesPanel app={appOf(service)} />
         <AppBackups service={service} app={appOf(service)} />

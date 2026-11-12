@@ -226,6 +226,7 @@ export const icons = {
   ],
   menu: [["path", { d: "M4 7h16M4 12h16M4 17h16" }]],
   "arrow-left": [["path", { d: "M19 12H5M11 6l-6 6 6 6" }]],
+  "arrow-up": [["path", { d: "M12 19V5M6 11l6-6 6 6" }]],
   upload: [
     ["path", { d: "M12 15V4.5M7.5 9L12 4.5 16.5 9" }],
     ["path", { d: "M4.5 15.5v2a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2" }],

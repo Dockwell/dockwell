@@ -16,8 +16,10 @@ import { useChannels } from "./useAlerts";
 
 /** What a condition takes, as internal/resource/alert checks a rule. */
 const PERCENT = new Set([Condition.DISK_FULL, Condition.MEMORY_HIGH]);
-const NO_DURATION = new Set([Condition.CHANGE_FAILED, Condition.BACKUP_FAILED]);
+const NO_DURATION = new Set([Condition.CHANGE_FAILED, Condition.BACKUP_FAILED, Condition.UPDATE_AVAILABLE]);
 const NO_REPEAT = new Set([Condition.CHANGE_FAILED]);
+/** An update rule's threshold for majors alone, as internal/resource/alert has it (MajorsOnly). */
+const MAJORS_ONLY = 3;
 
 /** Durations a person picks from, as a rule writes them: the control plane's own spelling, so an unchanged one compares equal. */
 const HOLDS = ["1m", "2m", "5m", "10m", "15m", "30m", "1h", "2h"];
@@ -173,6 +175,17 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
                     label: t`${d} days`,
                   }))}
                   onChange={(event) => setThreshold(Number(event.target.value))}
+                />
+              ) : null}
+              {condition === Condition.UPDATE_AVAILABLE ? (
+                <SegmentedControl<"any" | "major">
+                  label={t`Which updates`}
+                  value={threshold === MAJORS_ONLY ? "major" : "any"}
+                  onChange={(next) => setThreshold(next === "major" ? MAJORS_ONLY : 0)}
+                  options={[
+                    { value: "any", label: t`Any update` },
+                    { value: "major", label: t`Majors only` },
+                  ]}
                 />
               ) : null}
               {condition === Condition.BACKUP_LATE ? (

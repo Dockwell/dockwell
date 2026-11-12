@@ -7,7 +7,7 @@ import { AppsPage, type AppsSearch } from "../../features/apps/AppsPage";
 /** Reads the list's filters from its URL, leaving out what isn't one. */
 function readSearch(search: Record<string, unknown>): AppsSearch {
   const out: AppsSearch = {};
-  for (const key of ["q", "environment", "server"] as const) {
+  for (const key of ["q", "environment", "server", "show"] as const) {
     const value = search[key];
     if (typeof value === "string" && value !== "") out[key] = value;
   }

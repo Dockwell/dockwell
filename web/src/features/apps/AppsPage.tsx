@@ -24,7 +24,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
-import { useTimeWords } from "../../lib/time";
+import { useNow, useTimeWords } from "../../lib/time";
 import { StartChoices } from "../overview/StartChoices";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
@@ -56,6 +56,7 @@ import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { WhatRuns } from "./ImageName";
 import { runtimeOf, runtimeWords } from "./runtime";
+import { counts, StackUpdates, UpdateMark, withUpdates } from "./updates";
 import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
@@ -67,6 +68,8 @@ export interface AppsSearch {
   q?: string;
   environment?: string;
   server?: string;
+  /** "updates" shows only the apps with an update that counts (ADR 0079). */
+  show?: string;
 }
 
 /** A filter earns its place once there are more apps than fit on a screen at a glance. */
@@ -80,6 +83,9 @@ const HELD_ROWS = 12;
 
 /** Room for a revision, such as r12, and for what a record most often says beside it, Rolled back or Deploying, on one line. */
 const REVISION_WIDTH = 152;
+
+/** How often whether an update counts is looked at again: it moves only as a snooze ends. */
+const UPDATES_TICK_MS = 60_000;
 
 /** A SegmentedControl holds up to five; past that, a select. */
 const SEGMENTS = 5;
@@ -191,14 +197,19 @@ export function AppsPage({
   // Environments stay out of sight until a project has a choice of them (ADR 0014).
   const choosing = places.showsEnvironment;
   const environment = choosing ? (search.environment ?? "") : "";
+  // Whether an update counts moves only with a snooze's end, so the minute is enough.
+  const updatesNow = useNow(UPDATES_TICK_MS);
+  const updating = search.show === "updates";
+  const updates = useMemo(() => withUpdates(all ?? [], updatesNow).length, [all, updatesNow]);
   const shown = useMemo(
     () =>
       (all ?? []).filter(
         (s) =>
           (environment === "" || environmentOf(s) === environment) &&
-          (!search.server || s.deployments.some((d) => d.serverId === search.server)),
+          (!search.server || s.deployments.some((d) => d.serverId === search.server)) &&
+          (!updating || counts(s.update, updatesNow)),
       ),
-    [all, environment, search.server],
+    [all, environment, search.server, updating, updatesNow],
   );
   const sorted = useMemo(
     () => sortGroups(groupApps(shown, places.place), servers, (s) => health.of(s)),
@@ -273,7 +284,7 @@ export function AppsPage({
     if (what === "q") {
       setTyped("");
       onSearch?.({ ...search, q: undefined });
-    } else onSearch?.({ ...search, environment: undefined, server: undefined });
+    } else onSearch?.({ ...search, environment: undefined, server: undefined, show: undefined });
   };
 
   const pending = apps.isPending || places.isPending || (!ordered && (all?.length ?? 0) > 0);
@@ -385,7 +396,7 @@ export function AppsPage({
       }
     >
       <section className={cx("apps-section", filters && "has-filters")} aria-label={t`Apps`}>
-        {choosing || fleet || filters ? (
+        {choosing || fleet || filters || updates > 0 || updating ? (
           <div className="apps-filters">
             {filters ? (
               <TextField
@@ -420,6 +431,18 @@ export function AppsPage({
                 ]}
                 onChange={(event) => onSearch?.({ ...search, environment: event.target.value || undefined })}
               />
+            ) : null}
+            {updates > 0 || updating ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="arrow-up"
+                className="apps-updates-filter"
+                aria-pressed={updating}
+                onClick={() => onSearch?.({ ...search, show: updating ? undefined : "updates" })}
+              >
+                {plural(updates, { one: "# update available", other: "# updates available" })}
+              </Button>
             ) : null}
             {fleet ? (
               <SelectField
@@ -682,6 +705,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
                 <span className="apps-stack-sub">
                   <Icon name="layers" size={12} />
                   {plural(count, { one: "# app", other: "# apps" })}
+                  <StackUpdates services={row.group.services} now={now} />
                 </span>
               </span>
             </div>
@@ -701,7 +725,14 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health }
             >
               {name}
             </Link>
-            <WhatRuns service={service} className="dw-cell-sub" />
+            {counts(service.update, now) ? (
+              <span className="dw-cell-sub update-runs">
+                <WhatRuns service={service} />
+                <UpdateMark service={service} now={now} />
+              </span>
+            ) : (
+              <WhatRuns service={service} className="dw-cell-sub" />
+            )}
           </span>
         );
       },
@@ -808,6 +839,7 @@ function PhoneList({
   const words = useAppWords();
   const healthWords = useHealthWords();
   const runtimes = useRuntimes().data;
+  const now = useNow(UPDATES_TICK_MS);
   return (
     <Panel flush className="apps-phone">
       {rows.map((row) => {
@@ -839,6 +871,7 @@ function PhoneList({
                   ) : null}
                   <span aria-hidden="true">·</span>
                   <span>{plural(count, { one: "# app", other: "# apps" })}</span>
+                  <StackUpdates services={row.group.services} now={now} />
                 </span>
               </span>
               <Icon name={expanded ? "chevron-down" : "chevron-right"} size={16} className="apps-phone-chevron" />
@@ -879,6 +912,7 @@ function PhoneList({
                 <span className="apps-phone-image" title={fleet ? where : image}>
                   {fleet ? where : runtime ? image : shortImage(image)}
                 </span>
+                <UpdateMark service={service} now={now} />
               </span>
             </span>
             <Icon name="chevron-right" size={16} className="apps-phone-chevron" />

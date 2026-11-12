@@ -106,7 +106,7 @@ What a check found is the control plane's record, as an alert is, and not manage
 - **The app's page:** a card, "16.3 → 16.4 · patch · out 3 days · Notes · Update", whose Update opens ADR 0080's plan. Skip and snooze are one step away, under its menu. A catalog install has the same card, no longer only on the catalog page.
 - **Overview:** "3 updates" with Review, which opens Apps filtered.
 - **The rail:** a count beside Apps, only while there's one to show.
-- **Alerts:** a rule, An update is available, for any update or majors only, through the existing channels, one alert per app that resolves when it's updated, skipped or snoozed.
+- **Alerts:** a rule, `update-available` (`CONDITION_UPDATE_AVAILABLE`, 40), for any update or majors only (threshold 3), through the existing channels, one alert per app that resolves when it's updated, skipped or snoozed. Every install gets it once, off, as an update is news rather than trouble: turning it on is one switch in Alerts.
 
 ### What we turned down
 

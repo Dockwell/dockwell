@@ -57,7 +57,8 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
         </p>
         <Facts facts={facts} />
         {entry ? <CompanionLines entry={entry} install={install} /> : null}
-        {install.upgrade ? (
+        {/* Its update is the app's update card, once the control plane says it on the app (ADR 0079). */}
+        {install.upgrade && !service.update ? (
           <div className="catalog-upgrade">
             <p className="catalog-upgrade-line">
               {next === version ? (
