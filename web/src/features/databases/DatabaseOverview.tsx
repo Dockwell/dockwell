@@ -11,6 +11,7 @@ import {
   type DatabaseReading,
   DatabaseService,
   ResourceService,
+  UpdateSource,
   VariableService,
 } from "@dockwell/api";
 import {
@@ -36,6 +37,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { appOf } from "../apps/app";
 import { DangerZone } from "../apps/DangerZone";
+import { offered, UpdateCard } from "../apps/updates";
 import { usePlaces, useServices } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
@@ -77,6 +79,7 @@ export function DatabaseOverview() {
       {read?.checksNoOne ? <ChecksNoOne db={db} read={read} /> : null}
       <FromServer db={db} reading={reading} />
       <UpgradeNote db={db} />
+      <DatabaseUpdate db={db} />
       {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
       <Numbers db={db} read={read} />
       <div className="database-panels">
@@ -197,6 +200,16 @@ function FromServer({ db, reading }: { db: Database; reading: DatabaseReading | 
 }
 
 /** A newer release of the catalog entry it came from, and what upgrading does first. */
+/**
+ * What's newer than the image a database runs, as an app's page has it (ADR 0079). A
+ * catalog install's says it in UpgradeNote, with what its plan backs up.
+ */
+function DatabaseUpdate({ db }: { db: Database }) {
+  const service = useServices().data?.find((s) => s.id === db.id);
+  if (!service || service.update?.source === UpdateSource.CATALOG || !offered(service.update)) return null;
+  return <UpdateCard service={service} />;
+}
+
 function UpgradeNote({ db }: { db: Database }) {
   const { t } = useLingui();
   const install = useOwnInstall(db);

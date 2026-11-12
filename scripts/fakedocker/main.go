@@ -260,6 +260,8 @@ func main() {
 		if slow := os.Getenv("FAKEDOCKER_SLOW"); slow == "" || slices.ContainsFunc(strings.Split(slow, ","), func(s string) bool { return s != "" && strings.Contains(ref, s) }) {
 			img.PullTime = pullTime
 		}
+		// What the stand-in registry has, the engine pulls as the registry names it.
+		img.Digest = registryDigest(ref)
 		// A shell, run as this machine's /bin/sh, unless it's made to run one program.
 		if !strings.HasSuffix(ref, ":distroless") {
 			img.Shell = "/bin/sh"
