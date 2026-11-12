@@ -338,6 +338,29 @@
   gap: var(--space-3);
 }
 
+/* Agents stands as tall as State store beside it: its facts at the top, adding a server at its foot over a rule. */
+.cp-agents-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.cp-agents-panel > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.cp-foot {
+  display: flex;
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+.cp-agents-panel .cp-body {
+  margin-bottom: var(--space-3);
+}
+
 .cp-text {
   margin: 0;
   font-size: 13px;

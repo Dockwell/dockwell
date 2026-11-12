@@ -7,6 +7,7 @@ import {
   Connection,
   type ControlPlane,
   type Server,
+  ServerService,
   ServiceManager,
   SettingsService,
   StateStoreEngine,
@@ -14,10 +15,13 @@ import {
 import { Button, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { formatBytes, formatDay, formatFixed } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
+import { AddServerSheet } from "../servers/AddServerSheet";
 import { serverStatus } from "../servers/server";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
 import { Page } from "../shell/Page";
@@ -339,9 +343,16 @@ function UpdatesPanel({ cp }: { cp: ControlPlane | undefined }) {
   );
 }
 
-/** Its servers' agents: how many, which versions, and which aren't connected. */
+/**
+ * Its servers' agents: how many, which versions, and which aren't connected, with the way to add one at its foot, as
+ * Settings-ControlPlane draws an action there, so the panel's height beside State store holds it rather than space.
+ */
 function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: Server[] | undefined }) {
   const { t } = useLingui();
+  const mayAdd = useMay()(ServerService.method.createJoinTicket);
+  const [adding, setAdding] = useState(false);
+  const controlServer = servers?.find((s) => s.controlServer);
+  const control = controlServer ? { id: controlServer.id, name: controlServer.name } : undefined;
   const words = useTimeWords();
   const now = useControlPlaneNow(60_000);
   const version = cp?.build?.version ?? "";
@@ -361,6 +372,7 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
   return (
     <Panel
       title={t`Agents`}
+      className="cp-agents-panel"
       actions={
         <Link to="/servers" className="cp-head-link">
           <Trans>Servers</Trans>
@@ -420,6 +432,12 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
           </ul>
         ) : null}
       </div>
+      <div className="cp-foot">
+        <Button size="sm" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
+          <Trans>Add server</Trans>
+        </Button>
+      </div>
+      {adding ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
     </Panel>
   );
 }

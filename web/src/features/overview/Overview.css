@@ -85,13 +85,6 @@
   font-size: 12px;
 }
 
-.overview-quiet {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: 13px;
-  line-height: 20px;
-}
-
 .overview-empty {
   display: flex;
   flex-wrap: wrap;

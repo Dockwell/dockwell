@@ -18,6 +18,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useScheduleWords } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
+import { EmptyState } from "../shell/EmptyState";
 
 /** How often a list of schedules is read again, for each's next run and last. */
 const REFRESH = 30_000;
@@ -43,9 +44,11 @@ export function PoliciesPanel({ policies, onAdd }: { policies: readonly BackupPo
       }
     >
       {policies.length === 0 ? (
-        <p className="backup-policy-empty">
-          <Trans>No schedules yet. A backup you take by hand stays until you delete it.</Trans>
-        </p>
+        <EmptyState icon="calendar" title={<Trans>No schedules yet</Trans>}>
+          <p>
+            <Trans>A backup you take by hand stays until you delete it.</Trans>
+          </p>
+        </EmptyState>
       ) : (
         <ul className="backup-policies">
           {policies.map((policy) => (

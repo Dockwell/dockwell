@@ -5741,8 +5741,8 @@ msgstr "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
 msgid "{bucket} is in {movedTo}"
 msgstr "{bucket} is in {movedTo}"
 
-msgid "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
-msgstr "Backups stay on each server's disk until you add somewhere else to keep them. Any S3-compatible storage works, such as Cloudflare R2, Backblaze B2 or Amazon S3."
+msgid "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
+msgstr "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
 
 msgid "Destinations"
 msgstr "Destinations"
@@ -5753,6 +5753,9 @@ msgstr "Encrypted on each server before upload"
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "Last upload {0}"
+
+msgid "Only on each server's disk"
+msgstr "Only on each server's disk"
 
 msgid "Remove this destination"
 msgstr "Remove this destination"
@@ -5765,6 +5768,9 @@ msgstr "Stop sending backups to {0}"
 #. placeholder {1}: formatBytes(d.usedBytes, i18n.locale)
 msgid "{0} backups, {1}"
 msgstr "{0} backups, {1}"
+
+msgid "A backup you take by hand stays until you delete it."
+msgstr "A backup you take by hand stays until you delete it."
 
 msgid "Checks a restore monthly"
 msgstr "Checks a restore monthly"
@@ -5793,8 +5799,8 @@ msgstr "Last run failed"
 msgid "Next run {next}"
 msgstr "Next run {next}"
 
-msgid "No schedules yet. A backup you take by hand stays until you delete it."
-msgstr "No schedules yet. A backup you take by hand stays until you delete it."
+msgid "No schedules yet"
+msgstr "No schedules yet"
 
 msgid "On schedule"
 msgstr "On schedule"
@@ -10291,14 +10297,14 @@ msgstr "Loading backups"
 msgid "Next run"
 msgstr "Next run"
 
+msgid "No app keeps data."
+msgstr "No app keeps data."
+
 msgid "No schedule"
 msgstr "No schedule"
 
 msgid "None scheduled"
 msgstr "None scheduled"
-
-msgid "Nothing to back up yet: no app keeps data."
-msgstr "Nothing to back up yet: no app keeps data."
 
 msgid "On the server's own disk only"
 msgstr "On the server's own disk only"
@@ -10311,11 +10317,14 @@ msgstr "On the server, and on {kept}"
 msgid "{0}, {zone} · {1}"
 msgstr "{0}, {zone} · {1}"
 
+msgid "Each change you make shows here."
+msgstr "Each change you make shows here."
+
 msgid "Loading changes"
 msgstr "Loading changes"
 
-msgid "Nothing has changed yet. Each change you make shows here."
-msgstr "Nothing has changed yet. Each change you make shows here."
+msgid "Nothing has changed yet"
+msgstr "Nothing has changed yet"
 
 msgid "Recent changes"
 msgstr "Recent changes"
@@ -10543,9 +10552,6 @@ msgstr "Containers Dockwell didn't make"
 msgid "Docker isn't answering on {0}, so what runs there can't be read now."
 msgstr "Docker isn't answering on {0}, so what runs there can't be read now."
 
-msgid "Docker runs nothing here that Dockwell didn't make."
-msgstr "Docker runs nothing here that Dockwell didn't make."
-
 msgid "Dockwell only reads these. Open one to take it on as an app."
 msgstr "Dockwell only reads these. Open one to take it on as an app."
 
@@ -10557,6 +10563,9 @@ msgstr "Filter containers"
 
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
+
+msgid "Nothing here that Dockwell didn't make"
+msgstr "Nothing here that Dockwell didn't make"
 
 msgid "Reading what Docker runs here"
 msgstr "Reading what Docker runs here"
@@ -13626,14 +13635,14 @@ msgstr "three retries"
 msgid "two retries"
 msgstr "two retries"
 
-msgid "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
-msgstr "A task runs on its server's own clock, so it runs while the control plane is away. Each run keeps what it printed, and one that fails is on Activity."
-
 msgid "All tasks"
 msgstr "All tasks"
 
 msgid "Dockwell can't read its scheduled tasks"
 msgstr "Dockwell can't read its scheduled tasks"
+
+msgid "Each runs on its server's own clock, even while the control plane is away."
+msgstr "Each runs on its server's own clock, even while the control plane is away."
 
 msgid "Next 24 hours"
 msgstr "Next 24 hours"

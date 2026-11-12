@@ -120,7 +120,7 @@ describe("the containers Dockwell didn't make", () => {
   it("says so when there are none, and keeps its place", async () => {
     await renderList(() => answer({ ownContainers: 1 }));
     const panel = await screen.findByRole("region", { name: "Containers Dockwell didn't make" });
-    expect(await within(panel).findByText("Docker runs nothing here that Dockwell didn't make.")).toBeVisible();
+    expect(await within(panel).findByRole("heading", { name: "Nothing here that Dockwell didn't make" })).toBeVisible();
     expect(within(panel).getByText(/Dockwell runs 1 more container here, which isn't listed/)).toBeVisible();
     expect(within(panel).queryByRole("table")).toBeNull();
   });

@@ -195,6 +195,14 @@ describe("Control plane", () => {
     expect(within(agents).getByRole("link", { name: "Servers" })).toHaveAttribute("href", "/servers");
   });
 
+  it("adds a server from the foot of Agents, as another agent joins", async () => {
+    const user = userEvent.setup();
+    renderPlane({}, {}, [control]);
+    const agents = await panel("Agents");
+    await user.click(within(agents).getByRole("button", { name: "Add server" }));
+    expect(await screen.findByRole("dialog", { name: "Add a server" })).toBeVisible();
+  });
+
   it("says when it can't say how the control plane is, and tries again", async () => {
     const user = userEvent.setup();
     let fail = true;

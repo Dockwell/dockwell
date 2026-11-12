@@ -16,6 +16,7 @@ import { useBackups, useVolumesRead } from "../backups/useBackups";
 import { useControlPlaneNow } from "../servers/useFleet";
 import "../apps/Apps.css";
 import "./Overview.css";
+import { EmptyState } from "../shell/EmptyState";
 import { ReadFailed } from "../shell/ReadFailed";
 
 /** How the schedules stand, worst first: one that failed outweighs one that's fine. */
@@ -115,9 +116,11 @@ export function OverviewBackups() {
   if (volumes.length === 0 && (backups?.length ?? 0) === 0) {
     return (
       <Panel title={t`Backups`}>
-        <p className="overview-quiet">
-          <Trans>Nothing to back up yet: no app keeps data.</Trans>
-        </p>
+        <EmptyState icon="archive" title={<Trans>Nothing to back up yet</Trans>}>
+          <p>
+            <Trans>No app keeps data.</Trans>
+          </p>
+        </EmptyState>
       </Panel>
     );
   }

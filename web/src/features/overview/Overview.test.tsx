@@ -571,7 +571,8 @@ describe("what the overview shows below the numbers", () => {
     expect(await within(changes).findByText("Update web")).toBeVisible();
     expect(within(changes).getByRole("link", { name: "Activity" })).toHaveAttribute("href", "/activity");
     const backups = screen.getByRole("region", { name: "Backups" });
-    expect(await within(backups).findByText("Nothing to back up yet: no app keeps data.")).toBeVisible();
+    expect(await within(backups).findByRole("heading", { name: "Nothing to back up yet" })).toBeVisible();
+    expect(within(backups).getByText("No app keeps data.")).toBeVisible();
     await expectAccessible(container);
   });
 
