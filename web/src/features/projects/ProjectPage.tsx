@@ -15,7 +15,7 @@ import { useMay } from "../auth/may";
 import { useRoleNames } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { Page } from "../shell/Page";
-import { countKinds } from "./contents";
+import { countKinds, useResourceWords } from "./contents";
 import { useProjectDelete } from "./deleteProject";
 import { type ProjectView, useProjects } from "./useProjects";
 import { useContentsWords } from "./words";
@@ -335,20 +335,17 @@ function Access({ view }: { view: ProjectView }) {
 
 /** Its display name, as a plan, and Delete, with everything in it. */
 function Settings({ view, count }: { view: ProjectView; count: number }) {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const sheet = useChangeSheet();
   const may = useMay();
-  const words = useContentsWords();
+  const words = useResourceWords();
   const remove = useProjectDelete(count);
   const offer = remove.offer(view);
   const [name, setName] = useState(view.project.displayName);
   const shown = name.trim();
   const changed = shown !== view.project.displayName;
-  // As a list: "1 app, 1 secret and 1 volume". British English leaves out the serial comma, as the plan's words do.
-  const holds = new Intl.ListFormat(i18n.locale.startsWith("en") ? "en-GB" : i18n.locale, {
-    style: "long",
-    type: "conjunction",
-  }).format(words(view));
+  // What the plan takes, in the words an app's danger zone uses: "1 app, 1 secret and 1 volume".
+  const holds = view.inside.length > 0 ? words(view.inside) : "";
   const rename = (event: FormEvent) => {
     event.preventDefault();
     if (!changed) return;
