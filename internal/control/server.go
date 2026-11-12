@@ -376,7 +376,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
-		handle(dockwellv1connect.NewCatalogServiceHandler(catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger), opts...))
+		catalogs := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
+		if cfg.Fleet != nil {
+			// Another store's entry pins its images through the agent it goes on.
+			catalogs.PinWith(images.New(cfg.Fleet, cfg.Agents))
+		}
+		handle(dockwellv1connect.NewCatalogServiceHandler(catalogs, opts...))
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))

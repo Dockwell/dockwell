@@ -729,8 +729,9 @@ func TestCheckRefuses(t *testing.T) {
 		"a secret inside one word of a command": {func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"--key=${POSTGRES_PASSWORD}\"]", 1)
 		}, "inside a longer value"},
-		"short secret":              {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
-		"a database it doesn't run": {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
+		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
+		"a secret longer than Dockwell generates": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 1 << 30 }, "more than the 256 Dockwell generates"},
+		"a database it doesn't run":               {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
 		"a sign-in with a password that isn't a secret": {func(e *catalogv1.Entry) {
 			e.SignIn.PasswordInput = "ADMIN_PORT"
 		}, "isn't one of its secret inputs"},

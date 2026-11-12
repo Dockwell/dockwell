@@ -44,6 +44,10 @@ func Coolify(root string) ([]App, error) {
 		return nil, fmt.Errorf("reading Coolify's templates: %w. Name the folder of a checkout of github.com/coollabsio/coolify", err)
 	}
 	defer t.Close()
+	return coolifyApps(t, root)
+}
+
+func coolifyApps(t *tree, root string) ([]App, error) {
 	dir := path.Join("templates", "compose")
 	ents, err := t.readDir(dir)
 	if err != nil {
@@ -73,6 +77,7 @@ func coolifyRead(t *tree, dir, name string) App {
 	}
 	head := coolifyHeader(file)
 	app.Homepage = head["documentation"]
+	app.Summary = firstSentence(head["slogan"])
 	for _, c := range strings.Split(head["category"], ",") {
 		if c := coolifyCategories[strings.TrimSpace(strings.ToLower(c))]; c != "" {
 			app.Category = c

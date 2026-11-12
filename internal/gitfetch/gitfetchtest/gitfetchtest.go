@@ -120,6 +120,26 @@ func (r *Repo) Tag(name string) {
 	r.git("tag", "-a", name, "-m", name)
 }
 
+// Filter has the host leave out what a fetch filters, as GitHub's does, where Git's
+// own http-backend doesn't by default.
+func (r *Repo) Filter() {
+	r.t.Helper()
+	r.git("config", "uploadpack.allowFilter", "true")
+}
+
+// Link writes a symbolic link at name, by its path in the repository, to target,
+// for a commit to hold.
+func (r *Repo) Link(name, target string) {
+	r.t.Helper()
+	file := filepath.Join(r.work, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil {
+		r.t.Fatal(err)
+	}
+	if err := os.Symlink(target, file); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
 func (r *Repo) git(args ...string) string {
 	r.t.Helper()
 	cmd := exec.CommandContext(r.t.Context(), "git", append([]string{"-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "init.defaultBranch=main", "-C", r.work}, args...)...) //nolint:gosec // a test's repository

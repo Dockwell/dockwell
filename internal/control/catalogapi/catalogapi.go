@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -46,6 +47,9 @@ type Handler struct {
 	sources *Sources
 	commit  string
 	logger  *slog.Logger
+	// digests pins the images of an entry converted on the control plane when a
+	// plan installs it. Nil can't plan installing one.
+	digests Digests
 }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)
@@ -194,6 +198,16 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
+	// An entry another store's commit was converted into names its images by tag,
+	// which the plan pins, through the agent of the server it goes on.
+	var onServer string
+	if len(m.GetServers()) > 0 {
+		onServer = m.GetServers()[0]
+	}
+	entry, pinNotes, err := h.pinImages(ctx, entry, onServer, nil, resource.Ref{})
+	if err != nil {
+		return nil, err
+	}
 	free, err := h.whatsFree(ctx, entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -230,6 +244,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		FirstSteps: catalog.FirstWords(entry, choice),
 		Pin:        pinTo(entry, from, filled, choice),
 		Limits:     limitsOf(m),
+		Notes:      pinNotes,
 	})
 	if err != nil {
 		return nil, err
@@ -348,6 +363,12 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	case len(pin.GetFile()) == 0:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so an upgrade can't tell that from what you changed, and it stays on %s. To move on, install the new version under another name and bring its data across", install.GetProject(), pin.GetVersion()), "no_record")
 	}
+	// An image whose tag the release keeps stays at the build the install runs, and
+	// one it moves is pinned to the build its new tag points at now.
+	entry, pinNotes, err := h.pinImages(ctx, entry, h.serverOf(ctx, install.GetEnvironmentId()), catalog.PinnedDigests(string(pin.GetFile())), resource.Ref{})
+	if err != nil {
+		return nil, err
+	}
 	free, err := h.whatsFree(ctx, entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -385,6 +406,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		Old:          old.GetFile(),
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
+		Notes:        pinNotes,
 	})
 	if err != nil {
 		return nil, err
@@ -491,6 +513,27 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.SetCatalogCompanionResponse{Change: change}), nil
+}
+
+// serverOf is the server an environment's services run on, by ID: the first service's
+// first, or "" for the only server when it can't tell.
+func (h *Handler) serverOf(ctx context.Context, env string) string {
+	var out string
+	_ = h.db.View(ctx, func(tx *store.Tx) error {
+		list, err := tx.ListResources(ctx, env, string(service.Kind))
+		if err != nil {
+			return err
+		}
+		for i := range list {
+			servers, err := tx.Placement(ctx, list[i].ID, list[i].Revision)
+			if err == nil && len(servers) > 0 {
+				out = servers[0]
+				return nil
+			}
+		}
+		return nil
+	})
+	return out
 }
 
 // ranFile is the pin as what runs now read it: its file without the companions it

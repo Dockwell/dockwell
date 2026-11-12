@@ -336,7 +336,14 @@ func fetchPackTo(ctx context.Context, client doer, u *url.URL, commit string, mo
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%s answered %s when asked for %s", u.Host, status(resp), commit)
 	}
-	r := bufio.NewReader(resp.Body)
+	return receivePack(resp.Body, f, u, commit, most)
+}
+
+// receivePack keeps the pack a fetch's answer carries in f, most bytes at most, and
+// says how many it kept. what names what was asked for, in its errors.
+func receivePack(body io.Reader, f *os.File, u *url.URL, what string, most int64) (int64, error) {
+	commit := what
+	r := bufio.NewReader(body)
 	w := bufio.NewWriter(f)
 	var size int64
 	inPack := false

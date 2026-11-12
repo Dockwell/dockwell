@@ -106,12 +106,15 @@ type CatalogServiceClient interface {
 	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
 	// SetCatalogSource plans adding a catalog from a public Git repository, or moving
-	// one to another commit, ready to apply or discard. Dockwell reads the commit over
-	// Git's own protocol, checking what it reads against its names, and checks each
-	// entry as it checks its own. The plan's notes say what the commit holds, and what
-	// Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
-	// has. A source decides what anyone can install, so setting one is an
-	// admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+	// one to another commit, ready to apply or discard: a folder of Dockwell's entries,
+	// or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
+	// from the commit and converts as it reads it, running nothing. Dockwell reads the
+	// commit over Git's own protocol, checking what it reads against its names, and
+	// checks each entry as it checks its own. The plan's notes say what the commit
+	// holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
+	// whose ID another has. A source decides what anyone can install, so setting one
+	// is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+	// docs/adr/0078-other-stores-read-on-the-server.md.
 	SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error)
 	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
 	// how many of each one's entries it shows, and why it leaves out the rest.
@@ -309,12 +312,15 @@ type CatalogServiceHandler interface {
 	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
 	// SetCatalogSource plans adding a catalog from a public Git repository, or moving
-	// one to another commit, ready to apply or discard. Dockwell reads the commit over
-	// Git's own protocol, checking what it reads against its names, and checks each
-	// entry as it checks its own. The plan's notes say what the commit holds, and what
-	// Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
-	// has. A source decides what anyone can install, so setting one is an
-	// admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+	// one to another commit, ready to apply or discard: a folder of Dockwell's entries,
+	// or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
+	// from the commit and converts as it reads it, running nothing. Dockwell reads the
+	// commit over Git's own protocol, checking what it reads against its names, and
+	// checks each entry as it checks its own. The plan's notes say what the commit
+	// holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
+	// whose ID another has. A source decides what anyone can install, so setting one
+	// is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+	// docs/adr/0078-other-stores-read-on-the-server.md.
 	SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error)
 	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
 	// how many of each one's entries it shows, and why it leaves out the rest.

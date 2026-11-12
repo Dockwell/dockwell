@@ -61,5 +61,8 @@ func (Type) Validate(spec proto.Message) error {
 		return errors.New("a catalog source's folder is in its repository. Name it from the repository's top, such as entries")
 	}
 	s.Path = strings.Trim(path.Clean("/"+s.GetPath()), "/")
+	if _, ok := resourcev1.CatalogFormat_name[int32(s.GetFormat())]; !ok {
+		return fmt.Errorf("a catalog source's format is one Dockwell reads, and %d isn't one. Leave it out for Dockwell to tell", s.GetFormat())
+	}
 	return nil
 }
