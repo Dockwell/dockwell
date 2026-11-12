@@ -26,9 +26,11 @@ import {
   ImageBuildSchema,
   IntentKind,
   NetworkShape,
+  type ProposeChangeRequest,
   Protocol,
   PublicAddressSource,
   Reachable,
+  type Resource,
   Role,
   type RollBackServiceRequest,
   RollbackState,
@@ -47,7 +49,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp, aProject, aRevision, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
+import {
+  aHealth,
+  anApp,
+  aProject,
+  aRevision,
+  ENV,
+  places,
+  projectPlaces,
+  resource,
+  running,
+  SERVER,
+} from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { applied, moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -3473,6 +3486,148 @@ describe("an app's overview", () => {
     await user.click(await screen.findByRole("button", { name: "Delete web" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.edits[0]).toMatchObject({ delete: true, resource: { name: "web" } });
+  });
+
+  describe("with its project", () => {
+    const shopWeb = anApp("web", "nginx:1.5", {}, { resource: { kind: "service", scope: "env_shop", name: "web" } });
+    const adminer = resource("svc_adminer", "service", "env_shop", "adminer");
+    const left = [
+      resource("svc_web", "service", "env_shop", "web"),
+      resource("sec_db", "secret", "env_shop", "DB_PASSWORD"),
+      resource("vol_data", "volume", "env_shop", "data"),
+    ];
+
+    function inShop(inside: Resource[], proposals: ProposeChangeRequest[], more: Api = {}): Api {
+      const projects = projectPlaces("shop");
+      return api([shopWeb], {
+        resources: {
+          listResources: (req) =>
+            req.scope === "env_shop" ? { resources: inside } : projects.listResources(req as { kind: string }),
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposals.push(req);
+            return { change: webPlanned() };
+          },
+          watchChange: feed<WatchChangeResponse>().stream,
+          discardChange: () => ({}),
+        },
+        ...more,
+      });
+    }
+    const edits = (req: ProposeChangeRequest | undefined) =>
+      req?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete]) ?? [];
+
+    it("takes the project when the app is the last thing in it, behind a switch that's on", async () => {
+      const user = userEvent.setup();
+      const proposals: ProposeChangeRequest[] = [];
+      renderAt("/apps/svc_web/settings", inShop(left, proposals));
+      expect(
+        await screen.findByText(
+          "Stops it and removes its container. Its project shop goes too, with 1 secret and 1 volume. You review a plan first.",
+        ),
+      ).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Delete web" }));
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(proposals[0]?.summary).toBe("Delete web and the project shop");
+      expect(edits(proposals[0])).toEqual([
+        ["service", "web", true],
+        ["secret", "DB_PASSWORD", true],
+        ["volume", "data", true],
+        ["project", "shop", true],
+      ]);
+      const toggle = within(sheet).getByRole("switch", { name: "Also delete the project shop" });
+      expect(toggle).toBeChecked();
+      expect(sheet).toHaveTextContent("Takes 1 secret and 1 volume with it");
+      await expectAccessible(sheet);
+
+      // Off plans the app alone, in the first plan's place.
+      await user.click(toggle);
+      await waitFor(() => expect(proposals).toHaveLength(2));
+      expect(proposals[1]?.summary).toBe("Delete web");
+      expect(edits(proposals[1])).toEqual([["service", "web", true]]);
+      const again = await screen.findByRole("switch", { name: "Also delete the project shop" });
+      expect(again).not.toBeChecked();
+      expect(screen.getByRole("dialog", { name: "Review plan" })).toHaveTextContent(
+        "Leaves 1 secret and 1 volume in it",
+      );
+    });
+
+    it("keeps the project while something else is in it, and offers the whole project instead", async () => {
+      const user = userEvent.setup();
+      const proposals: ProposeChangeRequest[] = [];
+      renderAt("/apps/svc_web/settings", inShop([...left, adminer], proposals));
+      const danger = await screen.findByRole("region", { name: "Danger zone" });
+      expect(await within(danger).findByText("Delete the project shop")).toBeVisible();
+      expect(danger).toHaveTextContent("Takes 2 apps, 1 secret and 1 volume in one plan, to review first.");
+      expect(danger).toHaveTextContent("Its volumes stay");
+
+      await user.click(within(danger).getByRole("button", { name: "Delete web" }));
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(within(sheet).queryByRole("switch")).toBeNull();
+      expect(edits(proposals[0])).toEqual([["service", "web", true]]);
+      await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
+
+      await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
+      await waitFor(() => expect(proposals).toHaveLength(2));
+      expect(proposals[1]?.summary).toBe("Delete the project shop");
+      expect(edits(proposals[1])).toEqual([
+        ["service", "web", true],
+        ["secret", "DB_PASSWORD", true],
+        ["volume", "data", true],
+        ["service", "adminer", true],
+        ["project", "shop", true],
+      ]);
+    });
+
+    it("leaves the switch off, with why, for someone who can't delete a project", async () => {
+      const user = userEvent.setup();
+      const proposals: ProposeChangeRequest[] = [];
+      renderAt(
+        "/apps/svc_web/settings",
+        inShop(left, proposals, {
+          auth: {
+            getAuthState: () =>
+              authState({
+                user: { ...mira, role: Role.UNSPECIFIED },
+                grants: [{ projectId: "prj_shop", role: Role.DEVELOPER }],
+              }),
+          },
+        }),
+      );
+      expect(await screen.findByText(/Its volumes stay/)).toBeVisible();
+      await user.click(screen.getByRole("button", { name: "Delete web" }));
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      const toggle = within(sheet).getByRole("switch", { name: "Also delete the project shop" });
+      expect(toggle).not.toBeChecked();
+      expect(toggle).toBeDisabled();
+      expect(sheet).toHaveTextContent("Only an admin or the owner can do this. Ask one of them.");
+      expect(edits(proposals[0])).toEqual([["service", "web", true]]);
+    });
+
+    it("never offers the default project, where the next app goes", async () => {
+      const user = userEvent.setup();
+      const proposals: ProposeChangeRequest[] = [];
+      renderAt(
+        "/apps/svc_web/settings",
+        api([web], {
+          resources: projectPlaces("shop"),
+          changes: {
+            proposeChange: (req) => {
+              proposals.push(req);
+              return { change: webPlanned() };
+            },
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+          },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Delete web" }));
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(within(sheet).queryByRole("switch")).toBeNull();
+      expect(screen.queryByText(/Delete the project/)).toBeNull();
+      expect(edits(proposals[0])).toEqual([["service", "web", true]]);
+    });
   });
 
   it("exports the app or its project as a file with no secrets, and says what it left out", async () => {

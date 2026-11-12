@@ -1,6 +1,6 @@
 # 0036. Deleting a project takes its environments
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0074](0074-projects-you-can-see-and-that-go-with-their-last-app.md): the panel's plan to delete a project takes everything left in it, and deleting the last app in a project offers the project too.
 - Date: 2026-11-06
 
 ## Context

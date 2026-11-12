@@ -232,7 +232,7 @@ Every screen is designed for many servers and then collapses for one, so going f
 | Dimension | With one | With two or more |
 | --- | --- | --- |
 | Servers | *Server* in nav; no placement field; no server column | *Servers (n)*; *Runs on: Auto*; server column and filter |
-| Projects | Hidden default project | Project in the scope bar |
+| Projects | Hidden default project | *Projects* in the nav, a list and a page each; what's in a project links to it ([ADR 0074](../adr/0074-projects-you-can-see-and-that-go-with-their-last-app.md)) |
 | Environments | Hidden production | Environment switcher; promote staging to production |
 | People | No roles or approvals UI | Access, approvals, actors in the timeline |
 | Regions and pools | Hidden | Grouping in the fleet view and in plans |

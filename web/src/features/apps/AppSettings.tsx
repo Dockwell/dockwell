@@ -45,8 +45,8 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleet } from "../servers/useFleet";
 import { useApp } from "./AppContext";
-import { useDeleteApp } from "./AppOverview";
 import { appOf, environmentOf, isMoving, nameOf } from "./app";
+import { useDeleteApp } from "./deleteApp";
 import { isServerPath, pathReach, validPort } from "./form";
 import { useImageConfig } from "./imageConfig";
 import {
@@ -369,19 +369,33 @@ function Section({
   );
 }
 
-/** Deleting the app, as the mock's danger zone has it: what goes, and a red button to go on. */
+/**
+ * Deleting the app, as the mock's danger zone has it: what goes, and a red button to go on. The last
+ * app in a project takes the project with it; one of several offers the whole project instead (ADR 0074).
+ */
 function DangerZone({ title }: { title: string }) {
   const { t } = useLingui();
   const { service } = useApp();
   const remove = useDeleteApp(service);
   const name = nameOf(service);
+  const project = remove.project;
+  const withProject = project?.last && !project.refused;
   return (
     <Panel title={title} className="app-danger">
       <div className="app-danger-row">
         <div className="app-danger-text">
           <span className="app-danger-title">{t`Delete ${name}`}</span>
           <span className="app-danger-what">
-            {remove.routes > 0 ? (
+            {withProject && project.left ? (
+              <Trans>
+                Stops it and removes its container. Its project {project.label} goes too, with {project.left}. You
+                review a plan first.
+              </Trans>
+            ) : withProject ? (
+              <Trans>
+                Stops it and removes its container. Its project {project.label} goes too. You review a plan first.
+              </Trans>
+            ) : remove.routes > 0 ? (
               <Trans>
                 Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan
                 first.
@@ -395,6 +409,19 @@ function DangerZone({ title }: { title: string }) {
           {t`Delete ${name}`}
         </Button>
       </div>
+      {project && !project.last ? (
+        <div className="app-danger-row">
+          <div className="app-danger-text">
+            <span className="app-danger-title">{t`Delete the project ${project.label}`}</span>
+            <span className="app-danger-what">
+              <Trans>Takes {project.holds} in one plan, to review first.</Trans>
+            </span>
+          </div>
+          <Button variant="danger" icon="trash" onClick={project.open} off={project.refused}>
+            {t`Delete the project`}
+          </Button>
+        </div>
+      ) : null}
     </Panel>
   );
 }

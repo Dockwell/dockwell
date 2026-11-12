@@ -2555,9 +2555,6 @@ msgstr "复制镜像名称"
 msgid "Couldn't read this app's domains"
 msgstr "无法读取此应用的域名"
 
-msgid "Delete {name}"
-msgstr "删除 {name}"
-
 msgid "Deploy what should run, or fix it on the server."
 msgstr "请部署应当运行的版本，或在服务器上修复。"
 
@@ -2922,6 +2919,16 @@ msgstr "命令"
 msgid "Danger zone"
 msgstr "危险操作"
 
+msgid "Delete the project"
+msgstr "删除项目"
+
+#. placeholder {0}: project.label
+msgid "Delete the project {0}"
+msgstr "删除项目 {0}"
+
+msgid "Delete {name}"
+msgstr "删除 {name}"
+
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker 会在运行中的容器上直接修改限制；取消限制则会替换容器。"
 
@@ -3089,11 +3096,24 @@ msgstr "设置分区"
 msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
 msgstr "会停止它并移除它的容器，它的域名也会一并移除。它的卷会保留，并且你会先审查一个计划。"
 
+#. placeholder {0}: project.label
+#. placeholder {1}: project.left
+msgid "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
+msgstr "会停止它并移除它的容器。它的项目 {0} 也会一并删除，连同 {1}。你会先审查一个计划。"
+
+#. placeholder {0}: project.label
+msgid "Stops it and removes its container. Its project {0} goes too. You review a plan first."
+msgstr "会停止它并移除它的容器。它的项目 {0} 也会一并删除。你会先审查一个计划。"
+
 msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
 msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先审查一个计划。"
 
 msgid "TCP"
 msgstr "TCP"
+
+#. placeholder {0}: project.holds
+msgid "Takes {0} in one plan, to review first."
+msgstr "在一个计划中删除 {0}，你会先审查它。"
 
 msgid "The image has none, so Running only means it started"
 msgstr "镜像没有健康检查，因此“运行中”只表示它已启动"
@@ -4328,6 +4348,24 @@ msgstr "{0}，当前运行的版本"
 
 msgid "{word} version"
 msgstr "{word} 版本"
+
+msgid "Also delete the project {label}"
+msgstr "同时删除项目 {label}"
+
+msgid "Delete the project {label}"
+msgstr "删除项目 {label}"
+
+msgid "Delete {name} and the project {label}"
+msgstr "删除 {name} 和项目 {label}"
+
+msgid "Leaves {leftWords} in it"
+msgstr "{leftWords} 会留在其中"
+
+msgid "Nothing else is in it"
+msgstr "其中没有别的内容"
+
+msgid "Takes {leftWords} with it"
+msgstr "连同 {leftWords} 一并删除"
 
 msgid "Add a Dockerfile, or set both a build command and a start command under Change."
 msgstr "添加 Dockerfile，或在“更改”中同时设置构建命令和启动命令。"
@@ -10120,6 +10158,36 @@ msgstr "跳到概览"
 
 msgid "What do you want to run?"
 msgstr "你想运行什么？"
+
+msgid "{n, plural, one {# app} other {# apps}}"
+msgstr "{n, plural, other {# 个应用}}"
+
+msgid "{n, plural, one {# backup schedule} other {# backup schedules}}"
+msgstr "{n, plural, other {# 个备份计划}}"
+
+msgid "{n, plural, one {# database user} other {# database users}}"
+msgstr "{n, plural, other {# 个数据库用户}}"
+
+msgid "{n, plural, one {# domain} other {# domains}}"
+msgstr "{n, plural, other {# 个域名}}"
+
+msgid "{n, plural, one {# network} other {# networks}}"
+msgstr "{n, plural, other {# 个网络}}"
+
+msgid "{n, plural, one {# scheduled task} other {# scheduled tasks}}"
+msgstr "{n, plural, other {# 个计划任务}}"
+
+msgid "{n, plural, one {# secret} other {# secrets}}"
+msgstr "{n, plural, other {# 个密钥}}"
+
+msgid "{n, plural, one {# variable} other {# variables}}"
+msgstr "{n, plural, other {# 个变量}}"
+
+msgid "{n, plural, one {# volume} other {# volumes}}"
+msgstr "{n, plural, other {# 个卷}}"
+
+msgid "{others, plural, one {# other resource} other {# other resources}}"
+msgstr "{others, plural, other {# 个其他资源}}"
 
 msgid "Add a server"
 msgstr "添加服务器"
