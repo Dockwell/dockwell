@@ -47,12 +47,14 @@ var fakeRepos = map[string]fakeRepo{
 		volumes: []string{"/var/lib/postgresql/data"}, cmd: []string{"postgres"},
 	},
 	"library/redis": {
-		tags: []string{"7.4", "7.2"}, ports: []string{"6379/tcp"}, volumes: []string{"/data"},
+		// Three numbers and the two-number tags that follow them, as Docker Hub has
+		// Redis's, so 7.2 to 7.4 reads as the minor it is (ADR 0079).
+		tags: []string{"7.4.1", "7.4", "7.2.6", "7.2.5", "7.2", "7"}, ports: []string{"6379/tcp"}, volumes: []string{"/data"},
 		env: []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "REDIS_VERSION=7.4.1"},
 		cmd: []string{"redis-server"},
 	},
 	"library/ghost": {
-		tags: []string{"5.96", "5.95"}, ports: []string{"2368/tcp"}, volumes: []string{"/var/lib/ghost/content"},
+		tags: []string{"5.96.0", "5.96", "5.95.0", "5.95"}, ports: []string{"2368/tcp"}, volumes: []string{"/var/lib/ghost/content"},
 		env: []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "url=http://localhost:2368"},
 		cmd: []string{"node", "current/index.js"},
 	},
