@@ -47,6 +47,22 @@
   min-width: 0;
 }
 
+/* A name in a row reads as the row, as Apps' do: no underline until hovered, a ring when focused. */
+.projects-name {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.projects-name:hover {
+  text-decoration: underline;
+}
+
+.projects-name:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+
 /* Under a project's name: its name as URLs have it, in mono, and where it came from, in words. */
 .projects-sub {
   display: flex;
@@ -157,20 +173,43 @@
   font-size: 13px;
 }
 
-/* Two columns of panels from the width that holds them, each panel as tall as its rows. */
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
-  align-items: start;
+/* Two stacks of panels, each as tall as its own, so a long list on one side leaves no gap on the
+   other: what's in a project on the wide side, what it's set with on the narrow one. */
+.project-columns {
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-5);
 }
 
-.project-grid > .project-contents {
-  grid-row: span 2;
+.project-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
 }
 
-.project-grid > .project-danger {
-  grid-column: 1 / -1;
+.project-column.is-main {
+  flex: 3 1 0;
+}
+
+.project-column.is-side {
+  flex: 2 1 0;
+}
+
+/* Too narrow for two: one stack, in reading order, with Delete last. */
+@media (max-width: 959px) {
+  .project-columns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-column {
+    display: contents;
+  }
+
+  .project-danger {
+    order: 1;
+  }
 }
 
 .project-rows {

@@ -221,7 +221,12 @@ function ProjectsTable({ rows, count }: { rows: readonly ProjectView[]; count: n
               <Icon name={iconOf(view)} size={16} />
             </span>
             <span className="dw-cell">
-              <Link to="/projects/$projectId" params={{ projectId: view.id }} className="dw-cell-title" tabIndex={-1}>
+              <Link
+                to="/projects/$projectId"
+                params={{ projectId: view.id }}
+                className="dw-cell-title projects-name"
+                tabIndex={-1}
+              >
                 {view.label}
               </Link>
               <Sub view={view} />

@@ -88,13 +88,20 @@ export function ProjectPage({ projectId }: { projectId: string }) {
       }
       className="project-page"
     >
-      <div className="project-grid">
-        <Contents view={view} />
-        <Domains view={view} />
-        <Values view={view} />
-        <Environments view={view} />
-        <Access view={view} />
-        <Settings view={view} count={projects.length} />
+      {/* Two stacks, each as tall as its own panels, so neither waits on the other's rows: what's in it on the
+          wide side, what it's set with on the narrow one. On a narrow screen they fold into one, Delete last. */}
+      <div className="project-columns">
+        <div className="project-column is-main">
+          <Contents view={view} />
+          <Domains view={view} />
+          <Environments view={view} />
+          <Danger view={view} count={projects.length} />
+        </div>
+        <div className="project-column is-side">
+          <Values view={view} />
+          <Access view={view} />
+          <Settings view={view} />
+        </div>
       </div>
     </Page>
   );
@@ -333,19 +340,14 @@ function Access({ view }: { view: ProjectView }) {
   );
 }
 
-/** Its display name, as a plan, and Delete, with everything in it. */
-function Settings({ view, count }: { view: ProjectView; count: number }) {
+/** Its display name, as a plan. */
+function Settings({ view }: { view: ProjectView }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const may = useMay();
-  const words = useResourceWords();
-  const remove = useProjectDelete(count);
-  const offer = remove.offer(view);
   const [name, setName] = useState(view.project.displayName);
   const shown = name.trim();
   const changed = shown !== view.project.displayName;
-  // What the plan takes, in the words an app's danger zone uses: "1 app, 1 secret and 1 volume".
-  const holds = view.inside.length > 0 ? words(view.inside) : "";
   const rename = (event: FormEvent) => {
     event.preventDefault();
     if (!changed) return;
@@ -362,44 +364,54 @@ function Settings({ view, count }: { view: ProjectView; count: number }) {
     });
   };
   return (
-    <>
-      <Panel title={t`Settings`} className="project-settings">
-        {/* A project is an admin's to change (ADR 0049); for anyone else the form is there to read, with why. */}
-        <MayEdit offer={may(ChangeService.method.proposeChange, { install: true })}>
-          <form className="project-rename" onSubmit={rename} aria-describedby="project-rename-hint">
-            <TextField
-              label={t`Display name`}
-              placeholder={view.name}
-              value={name}
-              maxLength={63}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <Button type="submit" disabled={!changed}>
-              <Trans>Review plan</Trans>
-            </Button>
-          </form>
-          <p className="project-rename-hint" id="project-rename-hint">
-            <Trans>URLs and the CLI keep its name, {view.name}.</Trans>
-          </p>
-        </MayEdit>
-      </Panel>
-      <Panel title={t`Danger zone`} className="app-danger project-danger">
-        <div className="app-danger-row">
-          <div className="app-danger-text">
-            <span className="app-danger-title">{t`Delete the project ${view.label}`}</span>
-            <span className="app-danger-what">
-              {holds ? (
-                <Trans>Takes {holds} in one plan, to review first.</Trans>
-              ) : (
-                <Trans>It holds nothing. You review a plan first.</Trans>
-              )}
-            </span>
-          </div>
-          <Button variant="danger" icon="trash" onClick={() => remove.open(view)} off={offer.reason || undefined}>
-            {t`Delete the project`}
+    <Panel title={t`Settings`} className="project-settings">
+      {/* A project is an admin's to change (ADR 0049); for anyone else the form is there to read, with why. */}
+      <MayEdit offer={may(ChangeService.method.proposeChange, { install: true })}>
+        <form className="project-rename" onSubmit={rename} aria-describedby="project-rename-hint">
+          <TextField
+            label={t`Display name`}
+            placeholder={view.name}
+            value={name}
+            maxLength={63}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <Button type="submit" disabled={!changed}>
+            <Trans>Review plan</Trans>
           </Button>
+        </form>
+        <p className="project-rename-hint" id="project-rename-hint">
+          <Trans>URLs and the CLI keep its name, {view.name}.</Trans>
+        </p>
+      </MayEdit>
+    </Panel>
+  );
+}
+
+/** Delete, with everything in it, in one plan. */
+function Danger({ view, count }: { view: ProjectView; count: number }) {
+  const { t } = useLingui();
+  const words = useResourceWords();
+  const remove = useProjectDelete(count);
+  const offer = remove.offer(view);
+  // What the plan takes, in the words an app's danger zone uses: "1 app, 1 secret and 1 volume".
+  const holds = view.inside.length > 0 ? words(view.inside) : "";
+  return (
+    <Panel title={t`Danger zone`} className="app-danger project-danger">
+      <div className="app-danger-row">
+        <div className="app-danger-text">
+          <span className="app-danger-title">{t`Delete the project ${view.label}`}</span>
+          <span className="app-danger-what">
+            {holds ? (
+              <Trans>Takes {holds} in one plan, to review first.</Trans>
+            ) : (
+              <Trans>It holds nothing. You review a plan first.</Trans>
+            )}
+          </span>
         </div>
-      </Panel>
-    </>
+        <Button variant="danger" icon="trash" onClick={() => remove.open(view)} off={offer.reason || undefined}>
+          {t`Delete the project`}
+        </Button>
+      </div>
+    </Panel>
   );
 }
