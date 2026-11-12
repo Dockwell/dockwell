@@ -8,6 +8,7 @@ import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/build.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
+import "dockwell/v1/service_update.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -233,6 +234,11 @@ message ServiceInfo {
   // it plans; one that takes it away asks for none. Empty when it reaches
   // nothing, or its spec can't be read.
   repeated HostAccess host_access = 11;
+  // What Dockwell last found newer than what it runs, and how its check stands.
+  // Unset before its first check. See
+  // docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,
+  // as open work adds to this message.
+  ServiceUpdate update = 20;
 }
 
 // ServiceDeployment is one revision of a service placed on one server.
