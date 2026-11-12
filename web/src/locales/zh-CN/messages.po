@@ -14428,6 +14428,26 @@ msgstr "{name} 的代理还不读取更新"
 msgid "{name}'s agent isn't connected"
 msgstr "{name} 的代理未连接"
 
+msgid "Choose a project"
+msgstr "选择项目"
+
+msgid "Find a project, or a variable by name"
+msgstr "查找项目，或按名称查找变量"
+
+msgid "Found by name"
+msgstr "按名称找到"
+
+msgid "No project or variable by that name."
+msgstr "没有这个名称的项目或变量。"
+
+#. placeholder {0}: chosen.label
+#. placeholder {1}: counts(chosen)
+msgid "Project {0}, {1}"
+msgstr "项目 {0}，{1}"
+
+msgid "Project, or a variable's name"
+msgstr "项目，或变量名称"
+
 msgid ", secret"
 msgstr "，密钥"
 
@@ -14481,6 +14501,13 @@ msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，�
 
 msgid "Not used yet"
 msgstr "尚未使用"
+
+msgid "Nothing in {envName} is named like that."
+msgstr "{envName} 中没有这样命名的内容。"
+
+#. placeholder {0}: view.label
+msgid "Nothing running in {0}"
+msgstr "{0} 中没有在运行"
 
 msgid "Remove the secret {name}"
 msgstr "移除密钥 {name}"

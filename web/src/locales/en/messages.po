@@ -14428,6 +14428,26 @@ msgstr "{name}'s agent doesn't read updates yet"
 msgid "{name}'s agent isn't connected"
 msgstr "{name}'s agent isn't connected"
 
+msgid "Choose a project"
+msgstr "Choose a project"
+
+msgid "Find a project, or a variable by name"
+msgstr "Find a project, or a variable by name"
+
+msgid "Found by name"
+msgstr "Found by name"
+
+msgid "No project or variable by that name."
+msgstr "No project or variable by that name."
+
+#. placeholder {0}: chosen.label
+#. placeholder {1}: counts(chosen)
+msgid "Project {0}, {1}"
+msgstr "Project {0}, {1}"
+
+msgid "Project, or a variable's name"
+msgstr "Project, or a variable's name"
+
 msgid ", secret"
 msgstr ", secret"
 
@@ -14481,6 +14501,13 @@ msgstr "No variables or secrets in {envName} yet. Add the first above; a service
 
 msgid "Not used yet"
 msgstr "Not used yet"
+
+msgid "Nothing in {envName} is named like that."
+msgstr "Nothing in {envName} is named like that."
+
+#. placeholder {0}: view.label
+msgid "Nothing running in {0}"
+msgstr "Nothing running in {0}"
 
 msgid "Remove the secret {name}"
 msgstr "Remove the secret {name}"

@@ -100,6 +100,9 @@ export function Rail({ view }: { view: FleetView }) {
           <ItemBody icon="folder" label={t`Projects`} count={String(projects)} />
         </Link>
       ) : null}
+      <Link to="/variables" {...current(segment === "variables")}>
+        <ItemBody icon="key" label={t`Variables`} />
+      </Link>
       <Link to="/catalog" {...current(segment === "catalog")}>
         <ItemBody icon="grid" label={t`Catalog`} count={upgrades > 0 ? String(upgrades) : undefined} />
       </Link>
