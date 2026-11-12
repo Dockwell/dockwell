@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* An empty state: centred on a resting panel, space-12 padding, a 20px icon and at most one large button. */
+/*
+ * An empty state: an icon, the fact, a line at most and the action, centred on a resting panel with space-12 padding,
+ * a 20px icon and at most one large button. Always one layer of card: see the rules after this one.
+ */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -11,6 +14,28 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   text-align: center;
+}
+
+/*
+ * Inside a panel, a table or a sheet it is that container's body, so it draws no second card around itself, and it
+ * keeps to the container's scale.
+ */
+:is(.dw-panel, .dw-table-wrap, .dw-sheet) .empty-state {
+  padding: var(--space-8) var(--space-4);
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+/*
+ * With choices, the choices are the cards, so it draws none around them: its head stays centred above them, and they
+ * take the width a row of cards reads well at.
+ */
+.empty-state.has-choices {
+  padding: var(--space-6) 0 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .empty-state-icon {
@@ -24,10 +49,18 @@
   color: var(--ink-muted);
 }
 
+.empty-state-title {
+  margin: 0;
+}
+
 .empty-state-text {
   max-width: 440px;
   color: var(--ink-muted);
   text-wrap: pretty;
+}
+
+.empty-state-text p {
+  margin: 0;
 }
 
 .empty-state-text code {
@@ -36,13 +69,35 @@
   overflow-wrap: anywhere;
 }
 
-.empty-state > .dw-btn {
+.empty-state-action {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
   margin-top: var(--space-4);
+}
+
+.empty-state-action > .dw-btn {
   text-decoration: none;
+}
+
+.empty-state-choices {
+  width: 100%;
+  max-width: 920px;
+  margin-top: var(--space-6);
+  text-align: left;
 }
 
 @media (max-width: 639.98px) {
   .empty-state {
     padding: var(--space-8) var(--space-4);
+  }
+
+  .empty-state.has-choices {
+    padding: var(--space-4) 0 0;
+  }
+
+  .empty-state-choices {
+    margin-top: var(--space-4);
   }
 }

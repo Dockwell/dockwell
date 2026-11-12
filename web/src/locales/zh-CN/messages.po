@@ -5914,6 +5914,9 @@ msgstr "{0, plural, other {# 个已安装实例}}"
 msgid "Categories"
 msgstr "分类"
 
+msgid "Clear the search"
+msgstr "清除搜索"
+
 msgid "Couldn't read the catalog"
 msgstr "无法读取应用目录"
 
@@ -5926,8 +5929,11 @@ msgstr "为你的服务器寻找应用。安装前，先了解它的功能。"
 msgid "From the catalog {source}"
 msgstr "来自目录 {source}"
 
-msgid "No app matches that. Try another word, or all categories."
-msgstr "没有匹配的应用。试试其他关键词，或查看全部分类。"
+msgid "No app here has <0>{typed}</0> in its name or what it does."
+msgstr "没有应用的名称或用途中包含 <0>{typed}</0>。"
+
+msgid "No app matches"
+msgstr "没有匹配的应用"
 
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。<0>新建应用</0>"
@@ -5940,6 +5946,9 @@ msgstr "正在读取应用目录"
 
 msgid "Search apps"
 msgstr "搜索应用"
+
+msgid "Search every category"
+msgstr "在全部分类中搜索"
 
 msgid "Sources"
 msgstr "来源"
@@ -8480,8 +8489,8 @@ msgstr "其计划会先用 {dumpOf} 的转储备份数据；撤销时数据保�
 msgid "Its server didn't say"
 msgstr "它的服务器没有说明"
 
-msgid "Kept in the secret {secret}"
-msgstr "保存在密钥 {secret} 中"
+msgid "Kept in the secret <0>{secret}</0>"
+msgstr "保存在密钥 <0>{secret}</0> 中"
 
 msgid "Kept on"
 msgstr "存放于"
@@ -9656,9 +9665,6 @@ msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。
 msgid "Clear filters"
 msgstr "清除筛选"
 
-msgid "Clear the search"
-msgstr "清除搜索"
-
 msgid "Close the search"
 msgstr "关闭搜索"
 
@@ -10111,6 +10117,10 @@ msgstr "静态文件或 PHP，带 HTTPS"
 
 msgid "Ways to run your first app"
 msgstr "运行第一个应用的方式"
+
+msgctxt "apps in the catalog past those shown"
+msgid "more"
+msgstr "更多"
 
 msgid "{server} is ready. Pick what your first app comes from."
 msgstr "{server} 已就绪。选择你的第一个应用从何而来。"
@@ -11841,11 +11851,8 @@ msgstr "正在加载变更"
 msgid "Not signed in"
 msgstr "未登录"
 
-msgid "Nothing happened in this range. Pick a longer one to see more."
-msgstr "这个时间范围内没有发生任何事。选择更长的范围以查看更多。"
-
-msgid "Nothing matches. Pick a longer range, or clear the filters."
-msgstr "没有匹配的事件。请选择更长的范围，或清除筛选条件。"
+msgid "Nothing happened in this range"
+msgstr "这个时间范围内没有发生任何事"
 
 msgid "Open in Activity"
 msgstr "在动态中打开"
@@ -11856,8 +11863,14 @@ msgstr "面板"
 msgid "People"
 msgstr "人员"
 
+msgid "Pick a longer one to see more."
+msgstr "选择更长的范围以查看更多。"
+
 msgid "Pick a longer range to see more."
 msgstr "选择更长的范围以查看更多。"
+
+msgid "Pick a longer range, or clear the filters."
+msgstr "请选择更长的范围，或清除筛选条件。"
 
 msgid "Recorded"
 msgstr "记录内容"
@@ -12625,6 +12638,9 @@ msgstr "上次使用"
 msgid "Loading tokens"
 msgstr "正在加载令牌"
 
+msgid "Make one for each script or integration, so you can revoke one without stopping the rest."
+msgstr "为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"
+
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
 
@@ -12635,8 +12651,8 @@ msgstr "从不"
 msgid "New"
 msgstr "新"
 
-msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
-msgstr "还没有令牌。请在下方为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"
+msgid "No tokens yet"
+msgstr "还没有令牌"
 
 msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
 msgstr "规划并应用可撤销的变更。绝不会删除数据或切断访问。"

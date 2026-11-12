@@ -467,6 +467,47 @@ button.files-tree-toggle:hover {
   color: var(--ink-muted);
 }
 
+/*
+ * With the folders beside the list, the panes fill the window under the page's head and tabs, as a file manager does,
+ * however tall it is: the page grows to the window from the shell down, and the panes take what is left of it. The
+ * tree, the list and an open file each scroll in their own pane, so moving between folders moves nothing, and a short
+ * window keeps a floor and scrolls the page. Narrower, the panes stack and the page scrolls as any does.
+ */
+@media (min-width: 860px) {
+  .shell-main:has(.files-panes) {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .shell-main:has(.files-panes) > .page {
+    flex: 1 1 auto;
+  }
+
+  .page > .files:has(> .files-panes) {
+    flex: 1 1 auto;
+  }
+
+  .files-panes {
+    flex: 1 1 0;
+    min-height: 26rem;
+  }
+
+  .files-list {
+    min-height: 0;
+  }
+
+  .files-list > .dw-table-wrap {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .files-code .dw-code-input {
+    flex-basis: 0;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
 /* Where the list wouldn't fit beside them, places go across, above it. */
 @media (max-width: 859.98px) {
   .files-places {

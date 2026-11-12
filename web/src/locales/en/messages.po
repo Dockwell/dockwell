@@ -5914,6 +5914,9 @@ msgstr "{0, plural, one {# installation} other {# installations}}"
 msgid "Categories"
 msgstr "Categories"
 
+msgid "Clear the search"
+msgstr "Clear the search"
+
 msgid "Couldn't read the catalog"
 msgstr "Couldn't read the catalog"
 
@@ -5926,8 +5929,11 @@ msgstr "Find an app for your server. Explore what it does before you install."
 msgid "From the catalog {source}"
 msgstr "From the catalog {source}"
 
-msgid "No app matches that. Try another word, or all categories."
-msgstr "No app matches that. Try another word, or all categories."
+msgid "No app here has <0>{typed}</0> in its name or what it does."
+msgstr "No app here has <0>{typed}</0> in its name or what it does."
+
+msgid "No app matches"
+msgstr "No app matches"
 
 msgid "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
@@ -5940,6 +5946,9 @@ msgstr "Reading the catalog"
 
 msgid "Search apps"
 msgstr "Search apps"
+
+msgid "Search every category"
+msgstr "Search every category"
 
 msgid "Sources"
 msgstr "Sources"
@@ -8480,8 +8489,8 @@ msgstr "Its plan backs up the data with {dumpOf}'s dump first; undoing it keeps 
 msgid "Its server didn't say"
 msgstr "Its server didn't say"
 
-msgid "Kept in the secret {secret}"
-msgstr "Kept in the secret {secret}"
+msgid "Kept in the secret <0>{secret}</0>"
+msgstr "Kept in the secret <0>{secret}</0>"
 
 msgid "Kept on"
 msgstr "Kept on"
@@ -9656,9 +9665,6 @@ msgstr "Choose a longer range, or follow what it writes next."
 msgid "Clear filters"
 msgstr "Clear filters"
 
-msgid "Clear the search"
-msgstr "Clear the search"
-
 msgid "Close the search"
 msgstr "Close the search"
 
@@ -10111,6 +10117,10 @@ msgstr "Static files or PHP, with HTTPS"
 
 msgid "Ways to run your first app"
 msgstr "Ways to run your first app"
+
+msgctxt "apps in the catalog past those shown"
+msgid "more"
+msgstr "more"
 
 msgid "{server} is ready. Pick what your first app comes from."
 msgstr "{server} is ready. Pick what your first app comes from."
@@ -11841,11 +11851,8 @@ msgstr "Loading the change"
 msgid "Not signed in"
 msgstr "Not signed in"
 
-msgid "Nothing happened in this range. Pick a longer one to see more."
-msgstr "Nothing happened in this range. Pick a longer one to see more."
-
-msgid "Nothing matches. Pick a longer range, or clear the filters."
-msgstr "Nothing matches. Pick a longer range, or clear the filters."
+msgid "Nothing happened in this range"
+msgstr "Nothing happened in this range"
 
 msgid "Open in Activity"
 msgstr "Open in Activity"
@@ -11856,8 +11863,14 @@ msgstr "Panel"
 msgid "People"
 msgstr "People"
 
+msgid "Pick a longer one to see more."
+msgstr "Pick a longer one to see more."
+
 msgid "Pick a longer range to see more."
 msgstr "Pick a longer range to see more."
+
+msgid "Pick a longer range, or clear the filters."
+msgstr "Pick a longer range, or clear the filters."
 
 msgid "Recorded"
 msgstr "Recorded"
@@ -12625,6 +12638,9 @@ msgstr "Last used"
 msgid "Loading tokens"
 msgstr "Loading tokens"
 
+msgid "Make one for each script or integration, so you can revoke one without stopping the rest."
+msgstr "Make one for each script or integration, so you can revoke one without stopping the rest."
+
 msgid "Name the token after what will use it, such as GitHub Actions deploy."
 msgstr "Name the token after what will use it, such as GitHub Actions deploy."
 
@@ -12635,8 +12651,8 @@ msgstr "Never"
 msgid "New"
 msgstr "New"
 
-msgid "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
-msgstr "No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the rest."
+msgid "No tokens yet"
+msgstr "No tokens yet"
 
 msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
 msgstr "Plan and apply changes that can be undone. Never removes data or cuts off access."

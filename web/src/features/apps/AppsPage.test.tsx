@@ -89,6 +89,19 @@ describe("the apps list", () => {
     await expectAccessible(container);
   });
 
+  it("leads with the catalog, its apps by name in two rows of four, the last saying how many more", async () => {
+    const ids = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "a", "b", "c"];
+    const entries = ids.map((id) => ({ id, name: id, icon: "" }));
+    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: () => ({ entries }) } });
+    const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
+    const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
+    expect(lead).toHaveClass("is-lead");
+    await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(7));
+    expect(within(lead).getByRole("link", { name: "Install ghost" })).toHaveAttribute("href", "/catalog/ghost/install");
+    expect(within(lead).queryByRole("link", { name: "Install a" })).toBeNull();
+    expect(within(lead).getByText("and 3 more")).toBeInTheDocument();
+  });
+
   it("lists an app it can't read beside the rest, and says so", async () => {
     const unreadable = anApp("web", "", {}, { spec: undefined, specUnreadable: "service svc_web: can't open it" });
     renderAt("/apps", api([unreadable, anApp("api", "ghcr.io/acme/api:1.0")]));

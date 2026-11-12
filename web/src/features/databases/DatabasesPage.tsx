@@ -122,11 +122,9 @@ export function DatabasesPage({
       {query.isPending ? (
         <DatabasesSkeleton fleet={view.fleet} />
       ) : count === 0 && !query.error ? (
-        <Panel>
-          <EmptyState icon="database" title={t`No databases yet`} action={newDatabase}>
-            <Trans>PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server.</Trans>
-          </EmptyState>
-        </Panel>
+        <EmptyState icon="database" title={t`No databases yet`} action={newDatabase}>
+          <Trans>PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server.</Trans>
+        </EmptyState>
       ) : phone ? (
         <PhoneList databases={databases} fleet={view.fleet} />
       ) : count > 0 ? (

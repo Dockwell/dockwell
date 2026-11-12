@@ -35,7 +35,11 @@ export interface ConnectionSecret {
   revealOff?: string | undefined;
   /** Hides it again. */
   onHide: () => void;
-  /** Beside the reveal, such as a button that changes the secret. */
+  /**
+   * What changes the secret, such as a button that sets a new one. It is rarer than a
+   * reveal or a copy, so it sits on the line under the value, after the hint, rather
+   * than crowding the reveal off the value's line.
+   */
   action?: ReactNode;
   /** One short line under it, such as which secret holds it. */
   hint?: ReactNode;
@@ -166,14 +170,20 @@ export function ConnectionCard({
                     {strings.revealShort}
                   </Button>
                 )}
-                {hasContent(secret.action) ? <span className="dw-conn-action">{secret.action}</span> : null}
               </div>
+              {/* Under the value, where every row's secondary line is: why a reveal failed, or the hint, then the action. */}
               {hasContent(secret.problem) ? (
                 <div className="dw-conn-hint is-problem" role="alert">
                   {secret.problem}
                 </div>
-              ) : hasContent(secret.hint) ? (
-                <div className="dw-conn-hint">{secret.hint}</div>
+              ) : null}
+              {(hasContent(secret.hint) && !hasContent(secret.problem)) || hasContent(secret.action) ? (
+                <div className="dw-conn-more">
+                  {hasContent(secret.hint) && !hasContent(secret.problem) ? (
+                    <span className="dw-conn-hint">{secret.hint}</span>
+                  ) : null}
+                  {hasContent(secret.action) ? <span className="dw-conn-action">{secret.action}</span> : null}
+                </div>
               ) : null}
             </dd>
           </div>

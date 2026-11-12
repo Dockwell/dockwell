@@ -2875,14 +2875,6 @@
   text-underline-offset: 2px;
 }
 
-/* An empty list's ways in: the start page's cards, under its title. */
-.apps-section .empty-state > .start-choices {
-  width: 100%;
-  max-width: 880px;
-  margin-top: var(--space-4);
-  text-align: left;
-}
-
 /* What a domain sets beside its route, as a line: a catalog app's links follow it. */
 .app-domain-follows {
   display: flex;

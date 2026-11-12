@@ -20,7 +20,6 @@ import {
   Button,
   Callout,
   cx,
-  Panel,
   PHONE_QUERY,
   SelectField,
   Sheet,
@@ -97,17 +96,15 @@ export function BackupsPage() {
           <UncheckedSchedules policies={policies} />
           {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
           {query.isPending ? null : backups.length === 0 ? (
-            <Panel>
-              {volumes.length > 0 ? (
-                <EmptyState icon="archive" title={t`No backups yet`} action={action}>
-                  <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
-                </EmptyState>
-              ) : (
-                <EmptyState icon="archive" title={t`Nothing to back up yet`}>
-                  <Trans>A backup is of a volume. Add one to an app, or install a database from the catalog.</Trans>
-                </EmptyState>
-              )}
-            </Panel>
+            volumes.length > 0 ? (
+              <EmptyState icon="archive" title={t`No backups yet`} action={action}>
+                <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
+              </EmptyState>
+            ) : (
+              <EmptyState icon="archive" title={t`Nothing to back up yet`}>
+                <Trans>A backup is of a volume. Add one to an app, or install a database from the catalog.</Trans>
+              </EmptyState>
+            )
           ) : (
             <section className="backups-runs" aria-labelledby="backups-runs">
               <div className="backups-runs-head">

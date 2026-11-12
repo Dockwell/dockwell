@@ -39,6 +39,7 @@ import { useFieldRows } from "../changes/fields";
 import { changing } from "../changes/plan";
 import { useChangeWords } from "../changes/words";
 import { useControlPlaneClock, useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { useAuditWords } from "./auditWords";
 import "./Settings.css";
@@ -195,18 +196,18 @@ export function AuditLogPage() {
             <span className="dw-sr">{t`Loading the audit log`}</span>
           </div>
         ) : events.length === 0 ? (
-          <div className="dw-panel tokens-empty">
-            <span className="tokens-empty-icon">
-              <Icon name="file" size={20} />
-            </span>
+          <EmptyState
+            icon={narrowed ? "search" : "file"}
+            title={narrowed ? <Trans>Nothing matches</Trans> : <Trans>Nothing happened in this range</Trans>}
+          >
             <p>
               {narrowed ? (
-                <Trans>Nothing matches. Pick a longer range, or clear the filters.</Trans>
+                <Trans>Pick a longer range, or clear the filters.</Trans>
               ) : (
-                <Trans>Nothing happened in this range. Pick a longer one to see more.</Trans>
+                <Trans>Pick a longer one to see more.</Trans>
               )}
             </p>
-          </div>
+          </EmptyState>
         ) : phone ? (
           <PhoneLog events={events} />
         ) : (

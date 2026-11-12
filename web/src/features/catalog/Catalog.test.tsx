@@ -116,8 +116,16 @@ describe("The catalog", () => {
     expect(screen.getByRole("link", { name: /^Cloudflare Tunnel/ })).toBeVisible();
     await user.click(within(chips).getByRole("button", { name: "All" }));
     await user.type(screen.getByRole("textbox", { name: "Search apps" }), "zzz");
-    expect(await screen.findByText(/No app matches that/)).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "No app matches" })).toBeVisible();
     await expectAccessible(container);
+    // Nothing anywhere has the words, so the way on is to start again.
+    await user.click(screen.getByRole("button", { name: "Clear the search" }));
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
+    // Words another category has, in a category without them: the way on is to look there.
+    await user.click(within(chips).getByRole("button", { name: "Networking" }));
+    await user.type(screen.getByRole("textbox", { name: "Search apps" }), "postgres");
+    await user.click(await screen.findByRole("button", { name: "Search every category" }));
+    expect(await screen.findByRole("link", { name: /^PostgreSQL/ })).toBeVisible();
   });
 
   it("scrolls the chosen category into view, as its row scrolls sideways on a phone", async () => {
