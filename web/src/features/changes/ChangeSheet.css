@@ -783,3 +783,55 @@ a.plan-reach-at:focus-visible {
   background: var(--diff-add-soft);
   color: var(--diff-add);
 }
+
+/* What stops while Docker restarts for an install, and whether each starts again (ADR 0064). */
+.plan-stops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.plan-stops-head {
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.plan-stops-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan-stops-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.plan-stops-list a,
+.plan-stops-others a {
+  color: var(--link);
+}
+
+.plan-stops-back,
+.plan-stops-reading {
+  color: var(--ink-muted);
+}
+
+.plan-stops-stays {
+  color: var(--warning);
+  font-weight: 550;
+}
+
+.plan-stops-maybe {
+  color: var(--warning);
+}
+
+.plan-stops-others {
+  color: var(--ink-muted);
+}

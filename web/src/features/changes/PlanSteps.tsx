@@ -21,6 +21,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useTimeWords } from "../../lib/time";
 import { splitVersion } from "../../lib/versions";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { intentOf, isFleet, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
 import { type ChangeWords, type Tense, useChangeWords } from "./words";
@@ -124,6 +125,7 @@ function ServerSteps({
               key={step.resourceId}
               step={step}
               server={server.serverName}
+              serverId={server.serverId}
               live={progressOf(progress, server.serverId, step.resourceId)}
               words={words}
               fleet={fleet}
@@ -139,6 +141,7 @@ function ServerSteps({
 function StepRow({
   step,
   server,
+  serverId,
   live,
   words,
   fleet,
@@ -146,6 +149,7 @@ function StepRow({
 }: {
   step: PlanStep;
   server: string;
+  serverId: string;
   live: StepProgress | undefined;
   words: ChangeWords;
   fleet: boolean;
@@ -241,7 +245,7 @@ function StepRow({
         </span>
       ) : null}
       {said ? <span className="plan-step-meta">{said}</span> : null}
-      {planning && step.install ? <InstallList install={step.install} server={server} /> : null}
+      {planning && step.install ? <InstallList install={step.install} server={server} serverId={serverId} /> : null}
     </li>
   );
 }
@@ -288,7 +292,7 @@ function InstallLine({ install, server }: { install: PackageInstall; server: str
  * name, every one not picked; otherwise each new to the server. Then what follows: a
  * reboot, Docker restarting, and that it can't be undone.
  */
-function InstallList({ install, server }: { install: PackageInstall; server: string }) {
+function InstallList({ install, server, serverId }: { install: PackageInstall; server: string; serverId: string }) {
   const { t } = useLingui();
   const asked = new Set(install.asked);
   // What was picked comes first, then what it needs.
@@ -326,6 +330,7 @@ function InstallList({ install, server }: { install: PackageInstall; server: str
             </span>
           )
         ) : null}
+        {install.dockerRestarts && !install.keepsRunning ? <DockerStops serverId={serverId} server={server} /> : null}
         {install.reboot ? (
           <span className="plan-step-warn">{t`${server} needs a reboot for this to take effect, which is a change of its own`}</span>
         ) : null}
