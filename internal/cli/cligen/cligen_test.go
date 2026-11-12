@@ -304,8 +304,15 @@ func TestGenerateRefusesANounWithoutItsOwnHelp(t *testing.T) {
 		}
 	}
 	err := Generate(plugin(t, req))
-	if err == nil || !strings.Contains(err.Error(), "have the nouns changes, services, updates and drift") || !strings.Contains(err.Error(), "(dockwell.v1.nouns)") {
-		t.Errorf("a service with two nouns and no help for them = %v", err)
+	// The nouns are named, but not as a fixed list: each method a service gains can
+	// add one.
+	if err == nil {
+		t.Fatal("a service with several nouns and no help for them was generated")
+	}
+	for _, want := range []string{"have the nouns", "changes", "servers", "(dockwell.v1.nouns)"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("a service with several nouns and no help for them = %v, want it to say %q", err, want)
+		}
 	}
 }
 

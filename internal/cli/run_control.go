@@ -331,6 +331,31 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		}
 	}
 	agents.OnConnect(func(string) { resume() })
+	// A reboot of this server stops the panel and the API with it, and its plan says
+	// so; one whose server hasn't come back fails at RebootLimit, as nothing else
+	// would end it (ADR 0064).
+	engine.SetControlServer(own.ServerID)
+	// Taken now: ctx is rebound below, for the control plane's own stop.
+	stopped := ctx.Done()
+	go func() {
+		tick := time.NewTicker(revision.RebootCheckEvery)
+		defer tick.Stop()
+		for {
+			if err := engine.FailLostReboots(resumeCtx); err != nil {
+				logger.Warn("can't check for servers that haven't come back after a reboot; Dockwell checks again shortly", slog.String("error", err.Error()))
+			}
+			// A server still connected on the boot its reboot left may say its reboot
+			// command failed: resuming asks it, so that's said at once.
+			if waiting, err := engine.RebootsWaiting(resumeCtx); err == nil && waiting {
+				resume()
+			}
+			select {
+			case <-stopped:
+				return
+			case <-tick.C:
+			}
+		}
+	}()
 	// A server's agent keeps what the server runs, so it can put it back while the
 	// control plane is away. One that lacks some of it, as an agent from before it
 	// kept any does, is sent it as it connects (ADR 0054).

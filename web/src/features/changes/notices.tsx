@@ -28,6 +28,7 @@ import {
   factAndRest,
   installs,
   onlyIfNewer,
+  reboots,
   reloadsProxy,
   shownName,
   startsStopped,
@@ -77,7 +78,7 @@ export function needsConfirming(plan: Plan | undefined): boolean {
 /** Whether applying a plan asks for a passkey, as the control plane decides it: anything as good as root does. */
 export function needsPasskey(plan: Plan | undefined): boolean {
   // An install's maintainer scripts run as root, which its plan says by what it installs.
-  return plan !== undefined && (accessOf(plan).some(asGoodAsRoot) || installs(plan));
+  return plan !== undefined && (accessOf(plan).some(asGoodAsRoot) || installs(plan) || reboots(plan));
 }
 
 /** How much worse one reach is than another, so the worst leads. */

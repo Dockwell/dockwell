@@ -24,6 +24,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { intentOf, isFleet, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
+import { RebootPlan } from "./RebootPlan";
 import { type ChangeWords, type Tense, useChangeWords } from "./words";
 
 /** How a step's verb reads, from how it is going. */
@@ -188,6 +189,10 @@ function StepRow({
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
           ) : step.backupFirst ? (
             <BackupFirstLine first={step.backupFirst} name={name} />
+          ) : step.reboot ? (
+            <Trans>
+              Reboot <code>{server}</code>
+            </Trans>
           ) : step.install ? (
             <InstallLine install={step.install} server={server} />
           ) : (
@@ -201,7 +206,8 @@ function StepRow({
             </>
           )}
         </span>
-        {live ? <StepTime live={live} /> : null}
+        {/* A reboot's step counts while it waits for its server, as that's the reboot. */}
+        {live ? <StepTime live={live} waits={Boolean(step.reboot)} /> : null}
       </span>
       {planning && fleet ? (
         <span className="plan-step-meta">
@@ -246,6 +252,7 @@ function StepRow({
       ) : null}
       {said ? <span className="plan-step-meta">{said}</span> : null}
       {planning && step.install ? <InstallList install={step.install} server={server} serverId={serverId} /> : null}
+      {planning && step.reboot ? <RebootPlan reboot={step.reboot} server={server} serverId={serverId} /> : null}
     </li>
   );
 }
@@ -342,11 +349,13 @@ function InstallList({ install, server, serverId }: { install: PackageInstall; s
   );
 }
 
-function StepTime({ live }: { live: StepProgress }) {
+function StepTime({ live, waits = false }: { live: StepProgress; waits?: boolean }) {
   if (!live.startTime) return null;
   const start = timestampMs(live.startTime);
   if (live.finishTime) return <Took ms={timestampMs(live.finishTime) - start} />;
-  return live.state === StepState.RUNNING ? <Counting start={start} /> : null;
+  return live.state === StepState.RUNNING || (waits && live.state === StepState.WAITING) ? (
+    <Counting start={start} />
+  ) : null;
 }
 
 function Counting({ start }: { start: number }) {

@@ -3800,6 +3800,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers:planReboot:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                PlanReboot plans rebooting servers: an edit of each server's host that makes
+                 no revision. The plan says that everything on each server goes offline
+                 until it's back, and on the control server that the panel and the API stop
+                 with it and come back on their own. Applying it takes a person's passkey,
+                 as it acts as root on the server. A reboot's step passes once the server's
+                 agent connects from another boot, and fails if none has after 15 minutes.
+                 See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
+            operationId: ChangeService_PlanReboot
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanRebootRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanRebootResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -11554,6 +11586,23 @@ components:
                          "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
                          socket on "::" alone takes IPv4 too, as Linux has it by default.
             description: HostListener is a port something on the server listens on, beyond loopback.
+        HostReboot:
+            type: object
+            properties:
+                controlServer:
+                    type: boolean
+                    description: |-
+                        True for the control server: the panel and the API stop with it and come
+                         back on their own, and the other servers keep serving meanwhile.
+                lastTook:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long the server's last reboot took, from its step's start until its
+                         agent connected from the new boot. Unset until Dockwell has seen one.
+            description: |-
+                HostReboot is what rebooting a server does (ADR 0064): everything on it goes
+                 offline until it's back, and Docker starts again what its restart policies say.
         HttpCheck:
             type: object
             properties:
@@ -14253,6 +14302,26 @@ components:
                     type: string
                     description: The environment's name. Empty while its project has only one.
             description: PlanPlace is where a plan's resources land, naming only what offers a choice.
+        PlanRebootRequest:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers, by ID. One server is a set of one.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it reboots.
+            description: PlanRebootRequest names the servers to reboot.
+        PlanRebootResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanRebootResponse carries the planned reboot.
         PlanStep:
             type: object
             properties:
@@ -14492,6 +14561,10 @@ components:
                     description: |-
                         What installing updates will do, for a step that installs them on a
                          server's host: the agent's simulation of the exact command.
+                reboot:
+                    allOf:
+                        - $ref: '#/components/schemas/HostReboot'
+                    description: What rebooting does, for a step that reboots its server.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object
@@ -14573,6 +14646,10 @@ components:
                     description: |-
                         What installing updates on its server will do, for a server's host the
                          change installs on.
+                reboot:
+                    allOf:
+                        - $ref: '#/components/schemas/HostReboot'
+                    description: What rebooting its server does, for a server's host the change reboots.
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object

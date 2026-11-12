@@ -48,6 +48,11 @@ export function installs(plan: Plan | undefined): boolean {
   return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.install !== undefined));
 }
 
+/** A plan that reboots a server, for its host (ADR 0064). */
+export function reboots(plan: Plan | undefined): boolean {
+  return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.reboot !== undefined));
+}
+
 /** A step that starts what's there and isn't running, so nothing serves while it does. */
 export function startsStopped(step: PlanStep): boolean {
   return step.changes.some((c) => c.path === "state" && c.to === "running");

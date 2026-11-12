@@ -458,6 +458,10 @@ message Hello {
   // match (ListFilesCall's match and page). The control plane sends neither to one
   // that doesn't. The servers area takes 230 to 239 in agent messages.
   bool pages_listings = 230;
+  // This boot of the server, as /proc/sys/kernel/random/boot_id names it, so a
+  // reboot's step passes once the agent connects from another (ADR 0064). Empty
+  // from an agent that doesn't reboot, which the control plane sends none.
+  string boot_id = 231;
   // True when the agent changes a database's first user's password in the
   // database as its service restarts with a new one (ADR 0038), so the control
   // plane plans a new one only through an agent that does. Catalog and
@@ -1808,6 +1812,10 @@ message DesiredResource {
   // Installs updates on the server, for its host (ADR 0064). Numbered in the
   // servers area's block, 230 to 239.
   InstallUpdates install_updates = 232;
+  // Names a reboot of the server, for its host: the change's ID (ADR 0064). The
+  // agent reboots at most once for that change, as a mark it keeps says, and
+  // plans nothing once it runs on another boot.
+  string reboot = 233;
 }
 
 // InstallUpdates asks a server's host to install its updates.

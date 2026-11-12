@@ -529,6 +529,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if id := d.GetBackupId(); id != "" {
 				want.Backup = &resource.BackupAsked{ID: id}
 			}
+			if change := d.GetReboot(); change != "" {
+				want.Reboot = &resource.RebootAsked{Change: change}
+			}
 			if in := d.GetInstallUpdates(); in != nil {
 				want.Install = &resource.InstallAsked{Change: in.GetChangeId(), All: in.GetAll(), Names: in.GetNames(), Packages: resourcepb.PackagesFrom(in.GetPackages())}
 			}

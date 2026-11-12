@@ -36,6 +36,10 @@ service ChangeService {
     help: "A service is anything that runs in an environment, placed on servers. RestartService plans a restart, which is a change with a plan: it records no revision, as a restart changes no spec, and nothing to undo.\n\nSee docs/adr/0027-health-checks-rollouts-and-rollback.md."
   };
   option (dockwell.v1.nouns) = {
+    name: "servers"
+    help: "The servers Dockwell manages, with their live state as each server's agent reports it. WatchServers has no REST path: REST has no way to stream messages, so a REST client polls ListServers or GetServer instead, and anything that wants the stream opens it with Connect, gRPC or gRPC-Web. PlanReboot plans rebooting servers, a change with a plan that makes no revision and takes a person's passkey to apply. See docs/adr/0015-rest-and-openapi-from-the-schema.md and docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md."
+  };
+  option (dockwell.v1.nouns) = {
     name: "drift"
     help: "Drift is a difference between what a server has and the latest revision of a resource it should have, as when someone changed it by hand. ListDrift asks each connected server's agent, and changes nothing. RevertDrift plans putting the revision back, and AdoptDrift plans keeping what the server has as a new revision: each is a change, with a plan to apply."
   };
@@ -209,6 +213,29 @@ service ChangeService {
     };
     option (google.api.http) = {
       post: "/v1/updates:planInstall"
+      body: "*"
+    };
+  }
+
+  // PlanReboot plans rebooting servers: an edit of each server's host that makes
+  // no revision. The plan says that everything on each server goes offline
+  // until it's back, and on the control server that the panel and the API stop
+  // with it and come back on their own. Applying it takes a person's passkey,
+  // as it acts as root on the server. A reboot's step passes once the server's
+  // agent connects from another boot, and fails if none has after 15 minutes.
+  // See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
+  rpc PlanReboot(PlanRebootRequest) returns (PlanRebootResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "reboot"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers:planReboot"
       body: "*"
     };
   }
@@ -526,6 +553,31 @@ message PlanInstallUpdatesRequest {
 message PlanInstallUpdatesResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// PlanRebootRequest names the servers to reboot.
+message PlanRebootRequest {
+  // The servers, by ID. One server is a set of one.
+  repeated string server_ids = 1;
+  // What the change is for, for the timeline. Empty says what it reboots.
+  string summary = 2;
+}
+
+// PlanRebootResponse carries the planned reboot.
+message PlanRebootResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// HostReboot is what rebooting a server does (ADR 0064): everything on it goes
+// offline until it's back, and Docker starts again what its restart policies say.
+message HostReboot {
+  // True for the control server: the panel and the API stop with it and come
+  // back on their own, and the other servers keep serving meanwhile.
+  bool control_server = 1;
+  // How long the server's last reboot took, from its step's start until its
+  // agent connected from the new boot. Unset until Dockwell has seen one.
+  google.protobuf.Duration last_took = 2;
 }
 
 // PackageInstall is what installing a server's updates will do, as its package
@@ -1010,6 +1062,8 @@ message PlannedResource {
   // What installing updates on its server will do, for a server's host the
   // change installs on.
   PackageInstall install = 9;
+  // What rebooting its server does, for a server's host the change reboots.
+  HostReboot reboot = 10;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what
@@ -1290,6 +1344,8 @@ message PlanStep {
   // What installing updates will do, for a step that installs them on a
   // server's host: the agent's simulation of the exact command.
   PackageInstall install = 45;
+  // What rebooting does, for a step that reboots its server.
+  HostReboot reboot = 46;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
