@@ -18,7 +18,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
-import { useServices } from "../apps/useServices";
+import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -324,7 +324,8 @@ function percent(value: number | null | undefined) {
  * share, in two projects, once with how many, as "db ×2".
  */
 function useRunsByServer(): Map<string, string> {
-  const services = useServices();
+  // Apps as Apps lists them: a website's own services are on Websites (ADR 0039).
+  const services = useApps();
   return useMemo(() => {
     const names = new Map<string, Map<string, number>>();
     for (const s of services.data ?? []) {

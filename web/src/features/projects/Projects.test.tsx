@@ -14,7 +14,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { anApp } from "../../test/apps";
+import { anApp, aWebsite, SITE_ENV } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { shopPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -206,6 +206,85 @@ describe("a project's page", () => {
     await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(edits(proposals[0])).toEqual([["project", "blog", true, true]]);
+  });
+
+  it("says what a website and a database with its admin tool hold in the same words in the list and the delete", async () => {
+    const site = aWebsite();
+    const pg = anApp(
+      "postgres",
+      "postgres:17",
+      {},
+      { id: "svc_pg", resource: { kind: "service", scope: "env_pg", name: "postgres" } },
+    );
+    const adminer = anApp(
+      "adminer",
+      "adminer:5",
+      {},
+      { id: "svc_adminer", resource: { kind: "service", scope: "env_pg", name: "adminer" } },
+    );
+    const more = {
+      projects: [
+        resource("prj_site", "project", "org_1", site.site.name),
+        resource("prj_pg", "project", "org_1", "pg"),
+      ],
+      environments: [
+        resource(SITE_ENV, "environment", "prj_site", "production"),
+        resource("env_pg", "environment", "prj_pg", "production"),
+      ],
+      inside: [
+        resource(site.web.id, "service", SITE_ENV, "web"),
+        resource("rt_site", "route", SITE_ENV, "example-com"),
+        // A website brings its network, which nobody makes, so neither the list nor the delete names it.
+        resource("net_site", "network", SITE_ENV, "site"),
+        resource(pg.id, "service", "env_pg", "postgres"),
+        resource(adminer.id, "service", "env_pg", "adminer"),
+        resource("vol_pg", "volume", "env_pg", "pg-data"),
+      ],
+    };
+    const all = {
+      projects: [...projects, ...more.projects],
+      environments: [...environments, ...more.environments],
+      inside: [...inside, ...more.inside],
+    };
+    const endpoints = api({
+      resources: {
+        listResources: (req) => ({
+          resources:
+            req.kind === "project"
+              ? all.projects
+              : req.kind === "environment"
+                ? all.environments
+                : req.scope
+                  ? all.inside.filter((r) => r.resource?.scope === req.scope)
+                  : req.kind === ""
+                    ? [...all.projects, ...all.environments, ...all.inside]
+                    : [],
+        }),
+      },
+      services: { listServices: () => ({ services: [web, ghost, site.web, pg, adminer] }) },
+      websites: site.websites,
+      databases: { listDatabases: () => ({ databases: [{ id: pg.id, name: "postgres", environmentId: "env_pg" }] }) },
+      domains: {
+        listDomains: () => ({
+          domains: [{ name: "example.com", environmentId: SITE_ENV, routes: [{ service: "web" }] }],
+        }),
+      },
+    });
+    const { unmount } = renderAt("/projects", endpoints);
+    const table = await screen.findByRole("table", { name: "Projects" });
+    const row = (name: string) => within(table).getByRole("row", { name: new RegExp(name) });
+    await waitFor(() => expect(row("example-com")).toHaveTextContent("a website · 1 domain"));
+    await waitFor(() => expect(row("^pg")).toHaveTextContent("1 app · 1 database · 1 volume"));
+    unmount();
+
+    const first = renderAt("/projects/prj_site", endpoints);
+    const siteDanger = await screen.findByRole("region", { name: "Danger zone" });
+    await waitFor(() => expect(siteDanger).toHaveTextContent("Takes a website and 1 domain in one plan"));
+    first.unmount();
+
+    renderAt("/projects/prj_pg", endpoints);
+    const pgDanger = await screen.findByRole("region", { name: "Danger zone" });
+    await waitFor(() => expect(pgDanger).toHaveTextContent("Takes 1 app, 1 database and 1 volume in one plan"));
   });
 
   it("keeps the default project, where apps with no project go", async () => {

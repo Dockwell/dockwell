@@ -28,7 +28,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp } from "../../test/apps";
+import { aHealth, anApp, aWebsite } from "../../test/apps";
 import { authError } from "../../test/auth";
 import { expectMetric } from "../../test/metrics";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
@@ -432,6 +432,20 @@ describe("ServerOverview", () => {
     const app = await within(runs).findByRole("link", { name: /^1 app/ });
     await waitFor(() => expect(app).toHaveTextContent("1 appweb, running"));
     expect(app).toHaveAttribute("href", "/apps/svc_web");
+  });
+
+  it("counts a website's own web service as no app, as Apps lists none", async () => {
+    const site = aWebsite();
+    const api: Api = {
+      services: { listServices: () => ({ services: [site.web, anApp("api", "ghcr.io/acme/api:2")] }) },
+      health: { listHealth: () => ({ services: [aHealth("svc_api", { state: HealthState.NO_CHECK })] }) },
+      websites: site.websites,
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const app = await within(runs).findByRole("link", { name: /^1 app/ });
+    await waitFor(() => expect(app).toHaveTextContent("1 appapi, running"));
+    expect(app).toHaveAttribute("href", "/apps/svc_api");
   });
 
   it("says what the server is", async () => {

@@ -12,7 +12,7 @@ import { environmentOf, nameOf } from "../apps/app";
 import { useHealthWords } from "../apps/Health";
 import { type HealthView, worstHealth } from "../apps/health";
 import { APP_LANGUAGES, LANGUAGE_MARKS, newerBuild, runtimeOf, versionsOf } from "../apps/runtime";
-import { useServices } from "../apps/useServices";
+import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import type { Row } from "./Standing";
@@ -30,7 +30,7 @@ const NAMED = 5;
  */
 export function Runtimes({ rows, health }: { rows: readonly Row[]; health: HealthView }) {
   const runtimes = useRuntimes();
-  const services = useServices().data;
+  const services = useApps().data;
   const fromFolders = (services ?? []).filter((s) => runtimeOf(s) !== undefined);
   // An older control plane lists PHP alone, with no ID.
   const php = (runtimes.data ?? []).filter((r) => r.id === "php" || r.id === "");

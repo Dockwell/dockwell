@@ -20,7 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { aHealth, anApp } from "../../test/apps";
+import { aHealth, anApp, aWebsite } from "../../test/apps";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
@@ -327,6 +327,13 @@ describe("a server on a phone", () => {
     await waitFor(() => expect(within(runs).getByRole("link", { name: /^web/ })).toHaveTextContent("Failed"));
     expect(within(runs).getByRole("link", { name: /^api/ })).toHaveTextContent("Healthy");
     expect(within(runs).getByRole("link", { name: /^worker/ })).toHaveTextContent("Deploying");
+  });
+
+  it("invites an app on a server whose only thing is a website, which isn't an app", async () => {
+    const site = aWebsite();
+    await renderPhone(hz1, { services: { listServices: () => ({ services: [site.web] }) }, websites: site.websites });
+    const runs = screen.getByRole("region", { name: "Runs here" });
+    expect(await within(runs).findByRole("link", { name: /No apps here yet/ })).toHaveAttribute("href", "/apps/new");
   });
 
   it("invites an app on a server with none", async () => {

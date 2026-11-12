@@ -14,7 +14,7 @@ import { useDescribe } from "../activity/describe";
 import { useEvents } from "../activity/useEvents";
 import { nameOf, revisionName } from "../apps/app";
 import { useHealth } from "../apps/health";
-import { useServices } from "../apps/useServices";
+import { useApps } from "../apps/useServices";
 import { CopyButton } from "../system/CopyCommand";
 import { useCopy } from "./CopyButton";
 import { serviceCommands } from "./commands";
@@ -217,7 +217,8 @@ function CopyCell({ label, address, none }: { label: string; address: string | u
 /** The apps on the server, each with how many copies run here, its revision and how it is. */
 function PhoneRunsHere({ server }: { server: Server }) {
   const { t } = useLingui();
-  const services = useServices();
+  // Apps as Apps lists them: a website's own services are on Websites (ADR 0039).
+  const services = useApps();
   const health = useHealth();
   const here = useMemo(
     () => (services.data ?? []).filter((s) => s.deployments.some((d) => d.serverId === server.id)),

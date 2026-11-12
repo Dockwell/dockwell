@@ -26,17 +26,19 @@ export function targetOf(spec: Website | undefined): string {
  * Every website, as the API lists them. The plan sheet reads them again once a change
  * applies, as it does every list of what a change can make.
  */
-export function useWebsites() {
-  return useQuery(WebsiteService.method.listWebsites, {}, { select: (res) => res.websites });
+export function useWebsites(enabled = true) {
+  return useQuery(WebsiteService.method.listWebsites, {}, { select: (res) => res.websites, enabled });
 }
 
 /**
  * Which website an environment is, by its ID, so what lists services can leave a
  * website's own out, or lead to the website (ADR 0039). Undefined until the websites
- * are read.
+ * are read, and while enabled is false, when it reads nothing.
  */
-export function useWebsiteOfEnvironment(): ((environmentId: string) => WebsiteInfo | undefined) | undefined {
-  const query = useWebsites();
+export function useWebsiteOfEnvironment(
+  enabled = true,
+): ((environmentId: string) => WebsiteInfo | undefined) | undefined {
+  const query = useWebsites(enabled);
   const data = query.data;
   return useMemo(() => {
     if (!data) return undefined;

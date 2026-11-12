@@ -6,7 +6,7 @@ import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link, useLocation } from "@tanstack/react-router";
-import { useServices } from "../apps/useServices";
+import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
@@ -37,7 +37,8 @@ export function Rail({ view }: { view: FleetView }) {
   const segment = firstSegment(useLocation({ select: (location) => location.pathname }));
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   // How many apps there are, beside Apps, as the rail has it in the mocks.
-  const apps = useServices().data?.length;
+  // A website's own services are its, on Websites, as Apps lists them (ADR 0039).
+  const apps = useApps().data?.length;
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources.length ?? 0;
 
   const may = useMay();

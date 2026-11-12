@@ -43,9 +43,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { aWebsite, SITE_ENV } from "../../test/apps";
 import { authError, authState, requestOptions, mira as signedIn, stubPasskeys } from "../../test/auth";
 import { applied, mira, moved, openHowItWorks, watched, webPlanned } from "../../test/changes";
-import { feed, renderWithApi } from "../../test/render";
+import { type Api, feed, renderWithApi } from "../../test/render";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 import { shortFingerprint } from "./plan";
 
@@ -62,7 +63,7 @@ vi.mock("../logs/DeployLogLinks", () => ({
   FailedDeployLogs: () => <a href="#logs">Read this deploy's logs</a>,
 }));
 
-function show(change: Change, more: Partial<Opening> = {}, watch = feed<WatchChangeResponse>()) {
+function show(change: Change, more: Partial<Opening> = {}, watch = feed<WatchChangeResponse>(), api: Api = {}) {
   const applies: ApplyChangeRequest[] = [];
   const opening = { kind: "plan", make: () => Promise.resolve({ change }), ...more } as Opening;
   const { unmount } = renderWithApi(
@@ -70,6 +71,7 @@ function show(change: Change, more: Partial<Opening> = {}, watch = feed<WatchCha
       <Opener opening={opening} />
     </ChangeSheetProvider>,
     {
+      ...api,
       changes: {
         watchChange: watch.stream,
         applyChange: (req) => {
@@ -651,6 +653,78 @@ describe("a plan from a Compose file", () => {
       "default network",
       "Also creates project blog and a volume",
     ]);
+  });
+});
+
+describe("a website's own services", () => {
+  /** A change to a website's web server and its PHP, in the website's environment (ADR 0039). */
+  function aSiteChange(action: PlanAction, state = ChangeState.PLANNED): Change {
+    const names = ["web", "php"];
+    return create(ChangeSchema, {
+      id: "chg_site",
+      summary: "Change example.com",
+      state,
+      proposedBy: mira,
+      plan: {
+        fingerprint: "5173517351735173517351735173517a",
+        summary: action === PlanAction.DELETE ? { destroy: 2 } : { create: 2 },
+        undoWindow: { seconds: 7n * 86_400n },
+        resources: names.map((name) => ({
+          id: `res_${name}`,
+          resource: { kind: "service", scope: SITE_ENV, name },
+          action,
+          servers: ["srv_1"],
+        })),
+        servers: [
+          {
+            serverId: "srv_1",
+            serverName: "hz-1",
+            steps: names.map((name) => ({
+              resourceId: `res_${name}`,
+              resource: { kind: "service", scope: SITE_ENV, name },
+              action,
+            })),
+          },
+        ],
+      },
+    });
+  }
+
+  it("deploy as the website, by its domain, never as apps", async () => {
+    show(aSiteChange(PlanAction.CREATE, ChangeState.APPLIED), {}, undefined, { websites: aWebsite().websites });
+    const done = await screen.findByRole("dialog", { name: "example.com is deployed" });
+    expect(done).not.toHaveTextContent("2 apps are deployed");
+  });
+
+  it("stop as the website, by its domain, never as apps", async () => {
+    show(aSiteChange(PlanAction.DELETE), {}, undefined, { websites: aWebsite().websites });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("to delete");
+    await waitFor(() => expect(sheet).toHaveTextContent(/example\.com stops, and you can undo this until \d+ \w+\./));
+    expect(sheet).not.toHaveTextContent("2 apps stop");
+  });
+
+  it("count as apps when they aren't a website's", async () => {
+    show(aSiteChange(PlanAction.DELETE));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("to delete");
+    expect(sheet).toHaveTextContent(/2 apps stop, and you can undo this until \d+ \w+\./);
+  });
+
+  it("count a database as a database, as the Projects list and the delete that opened it do", async () => {
+    const databases = { listDatabases: () => ({ databases: [{ id: "res_php", name: "php" }] }) };
+    const { unmount } = show(aSiteChange(PlanAction.DELETE), {}, undefined, { databases });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("to delete");
+    await waitFor(() =>
+      expect(sheet).toHaveTextContent(/1 app and 1 database stop, and you can undo this until \d+ \w+\./),
+    );
+    unmount();
+
+    const both = { listDatabases: () => ({ databases: [{ id: "res_php" }, { id: "res_web" }] }) };
+    show(aSiteChange(PlanAction.DELETE), {}, undefined, { databases: both });
+    const again = await screen.findByRole("dialog", { name: "Review plan" });
+    await waitFor(() => expect(again).toHaveTextContent(/2 databases stop, and you can undo this until \d+ \w+\./));
   });
 });
 

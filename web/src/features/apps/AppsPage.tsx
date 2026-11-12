@@ -30,7 +30,7 @@ import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { useRuntimes, useWebsites } from "../websites/website";
+import { useRuntimes } from "../websites/website";
 import {
   type AppGroup,
   appState,
@@ -56,7 +56,7 @@ import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { WhatRuns } from "./ImageName";
 import { runtimeOf, runtimeWords } from "./runtime";
-import { usePlaces, useServices } from "./useServices";
+import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
 import { ReadFailed } from "../shell/ReadFailed";
@@ -162,8 +162,7 @@ export function AppsPage({
 }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const services = useServices();
-  const sites = useWebsites();
+  const apps = useApps();
   const { reconnecting } = useServicesWatch();
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
@@ -182,11 +181,8 @@ export function AppsPage({
     return () => clearTimeout(timer);
   }, [query, search, onSearch]);
 
-  // A website's own services are its to show, on Websites (ADR 0039).
-  const all = useMemo(() => {
-    const served = new Set((sites.data ?? []).map((w) => w.environmentId));
-    return services.data?.filter((s) => !served.has(environmentOf(s)));
-  }, [services.data, sites.data]);
+  // A website's own services are its to show, on Websites (ADR 0039), as everywhere apps are counted.
+  const all = apps.data;
   const environments = useMemo(() => {
     const counts = new Map<string, number>();
     for (const s of all ?? []) counts.set(environmentOf(s), (counts.get(environmentOf(s)) ?? 0) + 1);
@@ -280,7 +276,7 @@ export function AppsPage({
     } else onSearch?.({ ...search, environment: undefined, server: undefined });
   };
 
-  const pending = services.isPending || places.isPending || sites.isPending || (!ordered && (all?.length ?? 0) > 0);
+  const pending = apps.isPending || places.isPending || (!ordered && (all?.length ?? 0) > 0);
   const count = all?.length ?? 0;
   // The filter's row is there or not by how many apps there are: remembering
   // last time's count keeps the list from moving when they land.
@@ -313,21 +309,14 @@ export function AppsPage({
     body = (
       <AppsSkeleton label={t`Loading apps`} fleet={fleet} rows={Math.min(Math.max(all?.length ?? 3, 1), HELD_ROWS)} />
     );
-  } else if (services.error || sites.error) {
+  } else if (apps.error) {
     // Without the websites, a website's own web server would list as an app.
-    const error = services.error ?? sites.error;
     body = (
       <ReadFailed
-        error={error}
+        error={apps.error}
         title={t`Can't load the apps`}
         actions={
-          <Button
-            onClick={() => {
-              if (services.error) void services.refetch();
-              if (sites.error) void sites.refetch();
-            }}
-            loading={services.isFetching || sites.isFetching}
-          >
+          <Button onClick={() => void apps.refetch()} loading={apps.isFetching}>
             <Trans>Try again</Trans>
           </Button>
         }

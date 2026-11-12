@@ -18,8 +18,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { onApple } from "../../lib/platform";
-import { appState, environmentOf, imageOf, nameOf } from "../apps/app";
-import { useServices } from "../apps/useServices";
+import { appState, imageOf, nameOf } from "../apps/app";
+import { useApps } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
@@ -27,7 +27,6 @@ import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { planDeletingProject } from "../projects/contents";
 import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
-import { useWebsiteOfEnvironment } from "../websites/website";
 import { shortVersion } from "./version";
 
 const OpenContext = createContext<() => void>(() => {});
@@ -127,13 +126,8 @@ function Commands({ onClose }: { onClose: () => void }) {
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources;
   const environments = useQuery(ResourceService.method.listResources, { kind: "environment" }).data?.resources;
   const recent = useQuery(EventService.method.listEvents, { kinds: [EventKind.CHANGE], pageSize: 8 }).data?.events;
-  const services = useServices().data;
   // A website's own services are its to show, on Websites (ADR 0039).
-  const websiteOf = useWebsiteOfEnvironment();
-  const apps = useMemo(
-    () => (services && websiteOf ? services.filter((s) => !websiteOf(environmentOf(s))) : undefined),
-    [services, websiteOf],
-  );
+  const apps = useApps().data;
   const appWords = useAppWords();
   const [prompt, setPrompt] = useState<Prompt>();
   const [query, setQuery] = useState("");

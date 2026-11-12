@@ -22,7 +22,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp } from "../../test/apps";
+import { anApp, aWebsite } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
@@ -117,6 +117,35 @@ describe("the shell on wide screens", () => {
     // A glance at what Apps says in full, so screen readers hear the label alone.
     const apps = within(rail()).getByRole("link", { name: "Apps" });
     await waitFor(() => expect(apps).toHaveTextContent(/^Apps\s*2/));
+  });
+
+  it("counts no app beside Apps for a website's own web service, as the Apps page lists none", async () => {
+    const { web, websites } = aWebsite();
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    const { unmount } = renderAt("/apps", {
+      servers: { watchServers: watch.stream },
+      services: { listServices: () => ({ services: [web] }) },
+      websites,
+    });
+    // Once the page has read both, the rail says what it says.
+    expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeVisible();
+    const apps = within(rail()).getByRole("link", { name: "Apps" });
+    expect(apps.querySelector(".rail-count")).toBeNull();
+    expect(shown(apps).trim()).toBe("Apps");
+    unmount();
+
+    const again = feed<WatchServersResponse>();
+    again.push(changed(hz1), snapshotComplete);
+    renderAt("/", {
+      servers: { watchServers: again.stream },
+      services: { listServices: () => ({ services: [web, anApp("api", "ghcr.io/example/api:2")] }) },
+      websites,
+    });
+    await screen.findByRole("heading", { level: 1 });
+    await waitFor(() =>
+      expect(within(rail()).getByRole("link", { name: "Apps" })).toHaveTextContent(/^Apps\s*1(?!\d)/),
+    );
   });
 
   it("brings in fleet concepts once a second server joins", async () => {

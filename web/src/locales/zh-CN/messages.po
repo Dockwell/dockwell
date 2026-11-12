@@ -6762,17 +6762,37 @@ msgstr "访问者将失去 {0} 个地址"
 msgid "visitors lose {lost}"
 msgstr "访问者将失去 {lost}"
 
-#. placeholder {0}: live.length
+#. placeholder {0}: apps.length || live.length
 msgid "{0, plural, one {# app is deployed} other {# apps are deployed}}"
 msgstr "{0, plural, other {# 个应用已部署}}"
 
-#. placeholder {0}: away.length
+#. placeholder {0}: n.apps
 msgid "{0, plural, one {# app stops, and you can undo this until {deadline}.} other {# apps stop, and you can undo this until {deadline}.}}"
 msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前撤销。}}"
 
-#. placeholder {0}: away.length
+#. placeholder {0}: n.apps
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: count.apps
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
+#. placeholder {0}: n.databases
+msgid "{0, plural, one {# database stops, and you can undo this until {deadline}.} other {# databases stop, and you can undo this until {deadline}.}}"
+msgstr "{0, plural, other {# 个数据库将停止，你可以在 {deadline} 之前撤销。}}"
+
+#. placeholder {0}: n.databases
+msgid "{0, plural, one {# database stops.} other {# databases stop.}}"
+msgstr "{0, plural, other {# 个数据库将停止。}}"
+
+#. placeholder {0}: count.databases
+#. placeholder {0}: n.databases
+#. placeholder {0}: view.databases.length
+msgid "{0, plural, one {# database} other {# databases}}"
+msgstr "{0, plural, other {# 个数据库}}"
 
 #. placeholder {0}: all.length
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
@@ -6795,6 +6815,12 @@ msgstr "{0} 的代理重新连接之前无法执行其步骤，所以在此之�
 #. placeholder {0}: offline.join(", ")
 msgid "{0} has to reconnect first"
 msgstr "{0} 需要先重新连接"
+
+msgid "{apps} and {dbs} stop, and you can undo this until {deadline}."
+msgstr "{apps} 和 {dbs} 将停止，你可以在 {deadline} 之前撤销。"
+
+msgid "{apps} and {dbs} stop."
+msgstr "{apps} 和 {dbs} 将停止。"
 
 msgid "{made} is deployed"
 msgstr "{made} 已部署"
@@ -6828,6 +6854,9 @@ msgstr "{server} 在此次部署期间离线"
 
 msgid "{server} went offline during this rollback"
 msgstr "{server} 在此次回滚期间离线"
+
+msgid "{site} is deployed"
+msgstr "{site} 已部署"
 
 #. placeholder {0}: steps.length
 msgid "{stepsDone} of {0} done"
@@ -10618,8 +10647,13 @@ msgstr "{0, plural, other {# 个没有在运行}}"
 msgid "{count, plural, one {# project} other {# projects}}"
 msgstr "{count, plural, other {# 个项目}}"
 
-msgid "{n, plural, one {# app} other {# apps}}"
-msgstr "{n, plural, other {# 个应用}}"
+msgid "a website"
+msgstr "一个网站"
+
+#. placeholder {0}: sites.length
+#. placeholder {0}: sites.size
+msgid "{0, plural, one {# website} other {# websites}}"
+msgstr "{0, plural, other {# 个网站}}"
 
 msgid "{n, plural, one {# backup schedule} other {# backup schedules}}"
 msgstr "{n, plural, other {# 个备份计划}}"
@@ -10629,9 +10663,6 @@ msgstr "{n, plural, other {# 个数据库用户}}"
 
 msgid "{n, plural, one {# domain} other {# domains}}"
 msgstr "{n, plural, other {# 个域名}}"
-
-msgid "{n, plural, one {# network} other {# networks}}"
-msgstr "{n, plural, other {# 个网络}}"
 
 msgid "{n, plural, one {# scheduled task} other {# scheduled tasks}}"
 msgstr "{n, plural, other {# 个计划任务}}"
@@ -10650,19 +10681,6 @@ msgstr "{others, plural, other {# 个其他资源}}"
 
 msgid "Apps with no project go here, so it stays."
 msgstr "未指定项目的应用都放在这里，所以它会保留。"
-
-msgid "a website"
-msgstr "一个网站"
-
-#. placeholder {0}: apps.length
-#. placeholder {0}: here.length
-#. placeholder {0}: view.apps.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, other {# 个应用}}"
-
-#. placeholder {0}: view.databases.length
-msgid "{0, plural, one {# database} other {# databases}}"
-msgstr "{0, plural, other {# 个数据库}}"
 
 #. placeholder {0}: here.length
 #. placeholder {0}: view.domains.length
@@ -14884,10 +14902,6 @@ msgstr "把 {name} 更新到 {language} {release}"
 #. placeholder {0}: runtime.release
 msgid "Update {name}'s PHP to {0}"
 msgstr "将 {name} 的 PHP 更新到 {0}"
-
-#. placeholder {0}: sites.length
-msgid "{0, plural, one {# website} other {# websites}}"
-msgstr "{0, plural, other {# 个网站}}"
 
 msgid "{extra, plural, one {and # more} other {and # more}}"
 msgstr "{extra, plural, other {以及另外 # 个}}"
