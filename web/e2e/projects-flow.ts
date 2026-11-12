@@ -53,7 +53,7 @@ export const flow: Flow = {
       .getByRole("dialog", { name: "Review plan" })
       .getByRole("button", { name: /^Apply plan/ })
       .click();
-    await page.getByRole("dialog", { name: "Applied" }).getByRole("button", { name: "Done" }).click();
+    await page.getByRole("dialog", { name: "leftover is changed" }).getByRole("button", { name: "Done" }).click();
     await page.getByRole("heading", { level: 1, name: "Leftover shop" }).waitFor({ timeout: 30_000 });
     await shoot(page, "project-page");
 

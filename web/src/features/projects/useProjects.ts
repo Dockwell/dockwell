@@ -49,6 +49,8 @@ export interface ProjectView {
   idle: boolean;
 }
 
+const NONE: ServiceInfo[] = [];
+
 /** The most ListResources returns at once. */
 const PAGE_SIZE = 1000;
 
@@ -91,7 +93,9 @@ export function useProjects(): {
   isFetching: boolean;
 } {
   const all = useAllResources();
-  const services = useServices().data;
+  const servicesQuery = useServices();
+  // Projects still list, by what's in them, when the services can't be read; apps then show none.
+  const services = servicesQuery.data ?? (servicesQuery.isError ? NONE : undefined);
   const databases = useDatabases().data?.databases;
   const websites = useWebsites().data;
   const installs = useInstalls().data?.installs;
