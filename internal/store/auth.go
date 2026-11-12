@@ -34,7 +34,17 @@ type User struct {
 	// have no audit event of their own.
 	CodesRefused           int
 	CodesRefusedReportedAt *time.Time
+	// StepUpPolicy is how often they're asked for their passkey again, as
+	// they chose it: StepUpEachTime until they do (ADR 0075).
+	StepUpPolicy string
 }
+
+// How often a person is asked for their passkey again (ADR 0075).
+const (
+	StepUpEachTime = "each_time"
+	StepUpHourly   = "hourly"
+	StepUpAtSignIn = "sign_in"
+)
 
 // RoleOwner is the install's owner's role, held by one person.
 const RoleOwner = "owner"
@@ -43,7 +53,8 @@ const RoleOwner = "owner"
 const userColumns = `id, email, name,
 	COALESCE((SELECT g.role FROM grants g WHERE g.user_id = users.id AND g.project_id = ''), ''),
 	webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
-	codes_refused, codes_refused_reported_at, totp_pending_session, totp_pending_expires_at, totp_pending_failures`
+	codes_refused, codes_refused_reported_at, totp_pending_session, totp_pending_expires_at, totp_pending_failures,
+	step_up_policy`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
@@ -51,7 +62,7 @@ func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var reported, pendingExpires sql.NullInt64
 	var pendingSession sql.NullString
 	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.WebAuthnHandle, &created, &u.TOTPSecret, &u.TOTPPending,
-		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures); err != nil {
+		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures, &u.StepUpPolicy); err != nil {
 		return User{}, err
 	}
 	u.CreatedAt, u.CodesRefusedReportedAt, u.TOTPPendingSession = fromMillis(created), timePtr(reported), pendingSession.String
@@ -154,6 +165,11 @@ func (t *Tx) updateUser(ctx context.Context, id, query string, args ...any) erro
 		return fmt.Errorf("user %s: %w", id, ErrNotFound)
 	}
 	return nil
+}
+
+// SetStepUpPolicy records how often a user is asked for their passkey again.
+func (t *Tx) SetStepUpPolicy(ctx context.Context, userID, policy string) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET step_up_policy = ? WHERE id = ?`, policy, userID)
 }
 
 // SetTOTPPending stores a sealed secret awaiting confirmation, by session
@@ -441,29 +457,32 @@ type Session struct {
 	// AddedPasskeyAt is when the sign-in that made it confirmed adding a
 	// passkey, with no step-up, which it does once.
 	AddedPasskeyAt *time.Time
+	// PasskeyAt is when a passkey last confirmed it: signing in with one, or
+	// a step-up (ADR 0075). Nil when none has.
+	PasskeyAt *time.Time
 }
 
 const sessionColumns = `id, token_hash, user_id, rp_id, method, user_agent, created_ip, last_ip, created_at, last_seen_at, expires_at, revoked_at,
-	added_passkey_at`
+	added_passkey_at, passkey_at`
 
 func scanSession(row interface{ Scan(...any) error }) (Session, error) {
 	var s Session
 	var created, seen, expires int64
-	var revoked, added sql.NullInt64
+	var revoked, added, passkey sql.NullInt64
 	if err := row.Scan(&s.ID, &s.TokenHash, &s.UserID, &s.RPID, &s.Method, &s.UserAgent, &s.CreatedIP, &s.LastIP,
-		&created, &seen, &expires, &revoked, &added); err != nil {
+		&created, &seen, &expires, &revoked, &added, &passkey); err != nil {
 		return Session{}, err
 	}
 	s.CreatedAt, s.LastSeenAt, s.ExpiresAt, s.RevokedAt = fromMillis(created), fromMillis(seen), fromMillis(expires), timePtr(revoked)
-	s.AddedPasskeyAt = timePtr(added)
+	s.AddedPasskeyAt, s.PasskeyAt = timePtr(added), timePtr(passkey)
 	return s, nil
 }
 
 // CreateSession records a new session.
 func (t *Tx) CreateSession(ctx context.Context, s Session) error {
-	_, err := t.exec(ctx, `INSERT INTO sessions (`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	_, err := t.exec(ctx, `INSERT INTO sessions (`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		s.ID, s.TokenHash, s.UserID, s.RPID, s.Method, s.UserAgent, s.CreatedIP, s.LastIP,
-		millis(s.CreatedAt), millis(s.LastSeenAt), millis(s.ExpiresAt), nullMillis(s.RevokedAt), nullMillis(s.AddedPasskeyAt))
+		millis(s.CreatedAt), millis(s.LastSeenAt), millis(s.ExpiresAt), nullMillis(s.RevokedAt), nullMillis(s.AddedPasskeyAt), nullMillis(s.PasskeyAt))
 	if err != nil {
 		return fmt.Errorf("can't record session: %w", err)
 	}
@@ -479,6 +498,16 @@ func (t *Tx) AddPasskeyOnce(ctx context.Context, sessionID string, at time.Time)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("session %s added a passkey already: %w", sessionID, ErrConflict)
+	}
+	return nil
+}
+
+// ConfirmSession records that a passkey confirmed a session at at, as a
+// step-up does. A session that ended keeps what it had.
+func (t *Tx) ConfirmSession(ctx context.Context, id string, at time.Time) error {
+	_, err := t.exec(ctx, `UPDATE sessions SET passkey_at = ? WHERE id = ? AND revoked_at IS NULL`, millis(at), id)
+	if err != nil {
+		return fmt.Errorf("can't record that a passkey confirmed session %s: %w", id, err)
 	}
 	return nil
 }

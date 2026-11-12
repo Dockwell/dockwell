@@ -46,6 +46,13 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: t`Confirmed with a passkey` };
         case "auth.step_up_failed":
           return { title: t`Couldn't confirm with a passkey`, tone: "warning" };
+        // The session stood in for a passkey, as its person chose (ADR 0075).
+        case "auth.step_up_hour":
+          return { title: t`Confirmed within an hour of a passkey` };
+        case "auth.step_up_sign_in":
+          return { title: t`Confirmed by signing in` };
+        case "auth.step_up_policy":
+          return { title: t`Changed how often their passkey is asked for` };
         case "token.refuse":
           return { title: t`Refused a call this token can't make`, tone: "warning" };
         case "role.refuse":

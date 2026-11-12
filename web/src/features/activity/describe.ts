@@ -345,6 +345,16 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             ? { title: t`Set the time zone for new schedules to ${value}, which was ${previous}`, icon: "settings" }
             : { title: t`Set the time zone for new schedules to ${value}`, icon: "settings" };
         }
+        // The least anyone may choose for how often a passkey is asked for (ADR 0075).
+        case "settings.step_up_floor":
+          switch (event.setting?.value) {
+            case "each_time":
+              return { title: t`Set everyone to be asked for their passkey each time`, icon: "settings" };
+            case "hourly":
+              return { title: t`Set everyone to be asked for their passkey at least once an hour`, icon: "settings" };
+            default:
+              return { title: t`Let everyone choose how often their passkey is asked for`, icon: "settings" };
+          }
         case "process.end": {
           const what = event.process?.name ?? "";
           const pid = event.process?.pid ?? 0;

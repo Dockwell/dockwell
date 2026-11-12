@@ -90,6 +90,9 @@ func (h *Handler) BeginUpload(ctx context.Context, req *connect.Request[dockwell
 		confirmed = path
 	}
 	out, err := w.session.BeginUpload(ctx, path, size, unpack, "", confirmed, uploader(w.p))
+	if err == nil && w.covered(ctx, proof, path, out.GetRefusal()) {
+		out, err = w.session.BeginUpload(ctx, path, size, unpack, "", path, uploader(w.p))
+	}
 	if err != nil {
 		return nil, w.called(ctx, path, err)
 	}

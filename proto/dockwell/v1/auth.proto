@@ -57,6 +57,10 @@ service AuthService {
     help: "A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, or a one-time link from dockwell recover, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel."
   };
   option (dockwell.v1.nouns) = {
+    name: "step-up-policy"
+    help: "How often you're asked for your passkey again: each time, once an hour, or only when you sign in, but never below the least the install's owner allows. Changing how you sign in, this choice, and approving someone else's protected change ask each time. Choosing takes a signed-in session, which no API token gives, and your passkey, so you do it in the panel, under Profile and security."
+  };
+  option (dockwell.v1.nouns) = {
     name: "totp"
     help: "Code sign-in lets you sign in with a code from an authenticator app, or with a one-time recovery code, beside your passkeys. Wrong codes slow it down, and too many lock it until UnlockCodeSignIn turns it back on. Setting it up needs a signed-in session, which no API token gives, and your passkey to confirm it, so you do it in the panel, under Profile and security."
   };
@@ -267,7 +271,9 @@ service AuthService {
   // Call the action without a proof first. It checks everything else, such
   // as the last way in or a token's name, and only then refuses with the
   // reason needs_step_up. Step up, and call it again with the proof, which
-  // the action spends only once nothing else refuses it.
+  // the action spends only once nothing else refuses it. For someone who
+  // chose to be asked less often (StepUpPolicy), the first call may need no
+  // proof at all: their session confirms it.
   rpc BeginStepUp(BeginStepUpRequest) returns (BeginStepUpResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (dockwell.v1.min_role) = NEEDS_VIEWER;
@@ -281,7 +287,8 @@ service AuthService {
 
   // FinishStepUp checks the passkey's answer and returns a proof for the
   // action it began with. The proof works once, within a minute, in this
-  // session alone, for that action on that target.
+  // session alone, for that action on that target. It also opens this
+  // session's hour for someone who chose STEP_UP_POLICY_HOURLY.
   rpc FinishStepUp(FinishStepUpRequest) returns (FinishStepUpResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_VIEWER;
@@ -289,6 +296,34 @@ service AuthService {
     option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/sessions:finishStepUp"
+      body: "*"
+    };
+  }
+
+  // GetStepUpPolicy says how often you're asked for your passkey again: what
+  // you chose, the least the install allows, what applies, and whether this
+  // session needs no passkey now, until when
+  // (docs/adr/0075-how-often-a-passkey-is-asked-for-again.md).
+  rpc GetStepUpPolicy(GetStepUpPolicyRequest) returns (GetStepUpPolicyResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {get: "/v1/stepUpPolicy"};
+  }
+
+  // SetStepUpPolicy chooses how often you're asked for your passkey again. It
+  // needs a proof from FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_POLICY,
+  // whichever way it goes, and refuses a choice below the install's floor
+  // with the reason below_floor.
+  rpc SetStepUpPolicy(SetStepUpPolicyRequest) returns (SetStepUpPolicyResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {
+      post: "/v1/stepUpPolicy:set"
       body: "*"
     };
   }
@@ -865,6 +900,72 @@ enum StepUpAction {
   // A one-time sign-in link to the panel on its domain, for the person asking.
   // The target is the domain.
   STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN = 231;
+  // Choosing how often your passkey is asked for again, with SetStepUpPolicy.
+  // It has no target. It asks each time, whatever the choice.
+  STEP_UP_ACTION_SET_STEP_UP_POLICY = 240;
+  // Setting the least anyone may choose, with SettingsService.SetStepUpFloor.
+  // It has no target. It asks each time, whatever the choice.
+  STEP_UP_ACTION_SET_STEP_UP_FLOOR = 241;
+}
+
+// StepUpPolicy is how often someone is asked for their passkey again, for
+// the actions a step-up confirms. Whatever it is, adding or removing a
+// passkey, setting up or turning off codes, making recovery codes, changing
+// this choice or the floor, and approving someone else's change in a
+// protected environment ask each time. Only a signed-in session is ever
+// covered; an API token never is.
+enum StepUpPolicy {
+  STEP_UP_POLICY_UNSPECIFIED = 0;
+  // A passkey for each action, once, within a minute. The default.
+  STEP_UP_POLICY_EACH_TIME = 1;
+  // A passkey in this session within the last hour confirms each action:
+  // signing in with one, or any step-up. The hour doesn't grow with use.
+  STEP_UP_POLICY_HOURLY = 2;
+  // Signing in with a passkey or an authenticator code confirms each action
+  // for the session's life. A session begun with a recovery code or a link
+  // from dockwell recover is as for STEP_UP_POLICY_HOURLY.
+  STEP_UP_POLICY_AT_SIGN_IN = 3;
+}
+
+// StepUpChoice is how often someone is asked for their passkey again, and
+// what that comes to in this session.
+message StepUpChoice {
+  // What they chose. STEP_UP_POLICY_EACH_TIME until they choose.
+  StepUpPolicy policy = 1;
+  // The least the install lets anyone choose, which the owner sets.
+  StepUpPolicy floor = 2;
+  // What applies: the stricter of policy and floor.
+  StepUpPolicy effective = 3;
+  // When this session's cover began: the passkey that opened the hour, or
+  // signing in. Unset when it has none now, as for each time.
+  google.protobuf.Timestamp cover_time = 4;
+  // When it ends: an hour after that passkey, or when the session does.
+  // Unset with cover_time.
+  google.protobuf.Timestamp cover_expire_time = 5;
+  // True when signing in is what covers this session, for its life, rather
+  // than a passkey's hour.
+  bool cover_at_sign_in = 6;
+}
+
+// GetStepUpPolicyRequest takes no parameters.
+message GetStepUpPolicyRequest {}
+
+// GetStepUpPolicyResponse carries the choice.
+message GetStepUpPolicyResponse {
+  StepUpChoice choice = 1;
+}
+
+// SetStepUpPolicyRequest carries the new choice.
+message SetStepUpPolicyRequest {
+  // The choice. Not below the install's floor.
+  StepUpPolicy policy = 1;
+  // The proof from FinishStepUp, for STEP_UP_ACTION_SET_STEP_UP_POLICY.
+  string proof = 2;
+}
+
+// SetStepUpPolicyResponse carries the choice as it now is.
+message SetStepUpPolicyResponse {
+  StepUpChoice choice = 1;
 }
 
 // StepUpNeeded is the detail of an error whose reason is "needs_step_up",

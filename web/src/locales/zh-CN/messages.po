@@ -812,6 +812,9 @@ msgstr "邀请 {0} 成为 {1}"
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 秒内没有停止"
 
+msgid "Let everyone choose how often their passkey is asked for"
+msgstr "允许每个人自行选择多久验证一次通行密钥"
+
 msgid "Made a join ticket for a new server"
 msgstr "为新服务器生成了加入票据"
 
@@ -941,6 +944,12 @@ msgstr "向 {name}（{kind}，{host}）发送了测试，已送达"
 
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "向 {name}（{kind}，{host}）发送了测试，未送达"
+
+msgid "Set everyone to be asked for their passkey at least once an hour"
+msgstr "将所有人设为至少每小时验证一次通行密钥"
+
+msgid "Set everyone to be asked for their passkey each time"
+msgstr "将所有人设为每次都验证通行密钥"
 
 msgid "Set the panel's domain to {value}"
 msgstr "将面板的域名设置为 {value}"
@@ -12742,8 +12751,17 @@ msgstr "请求取消构建"
 msgid "Asked to cancel a build on {name}"
 msgstr "请求取消 {name} 上的构建"
 
+msgid "Changed how often their passkey is asked for"
+msgstr "更改了通行密钥的验证频率"
+
+msgid "Confirmed by signing in"
+msgstr "已通过登录确认"
+
 msgid "Confirmed with a passkey"
 msgstr "已用通行密钥确认"
+
+msgid "Confirmed within an hour of a passkey"
+msgstr "已在通行密钥验证后一小时内确认"
 
 msgid "Couldn't apply {summary}"
 msgstr "无法应用 {summary}"

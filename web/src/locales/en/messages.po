@@ -812,6 +812,9 @@ msgstr "Invited {0} as {1}"
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 
+msgid "Let everyone choose how often their passkey is asked for"
+msgstr "Let everyone choose how often their passkey is asked for"
+
 msgid "Made a join ticket for a new server"
 msgstr "Made a join ticket for a new server"
 
@@ -941,6 +944,12 @@ msgstr "Sent a test to {name} ({kind}, {host}), which arrived"
 
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "Sent a test to {name} ({kind}, {host}), which didn't arrive"
+
+msgid "Set everyone to be asked for their passkey at least once an hour"
+msgstr "Set everyone to be asked for their passkey at least once an hour"
+
+msgid "Set everyone to be asked for their passkey each time"
+msgstr "Set everyone to be asked for their passkey each time"
 
 msgid "Set the panel's domain to {value}"
 msgstr "Set the panel's domain to {value}"
@@ -12742,8 +12751,17 @@ msgstr "Asked to cancel a build"
 msgid "Asked to cancel a build on {name}"
 msgstr "Asked to cancel a build on {name}"
 
+msgid "Changed how often their passkey is asked for"
+msgstr "Changed how often their passkey is asked for"
+
+msgid "Confirmed by signing in"
+msgstr "Confirmed by signing in"
+
 msgid "Confirmed with a passkey"
 msgstr "Confirmed with a passkey"
+
+msgid "Confirmed within an hour of a passkey"
+msgstr "Confirmed within an hour of a passkey"
 
 msgid "Couldn't apply {summary}"
 msgstr "Couldn't apply {summary}"

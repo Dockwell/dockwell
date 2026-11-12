@@ -172,8 +172,10 @@ func (h *Handler) RevealSecret(ctx context.Context, req *connect.Request[dockwel
 	client, _ := authapi.ClientFrom(ctx)
 	// The proof is asked for, and spent, once nothing else refuses.
 	proof := req.Msg.GetProof()
-	got, err := h.keeper.Reveal(ctx, req.Msg.GetId(), p.Actor(), client.Surface(p), func() error {
-		return h.auth.UseStepUp(p, proof, auth.StepUpRevealSecret, req.Msg.GetId())
+	// What confirms it, a proof or the session's cover (ADR 0075), goes on record
+	// with the reveal, in its transaction.
+	got, err := h.keeper.Reveal(ctx, req.Msg.GetId(), p.Actor(), client.Surface(p), func(tx *store.Tx) error {
+		return h.auth.UseStepUpIn(ctx, tx, client, p, proof, auth.StepUpRevealSecret, req.Msg.GetId())
 	})
 	if errors.Is(err, auth.ErrNeedsStepUp) && proof != "" {
 		h.logger.InfoContext(ctx, "refused to reveal a secret with a confirmation that is used, expired or for something else",

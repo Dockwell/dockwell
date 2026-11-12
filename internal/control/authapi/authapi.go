@@ -380,6 +380,81 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_OPEN_SERVICE:              auth.StepUpOpenService,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_PANEL_DOMAIN:          auth.StepUpSetPanelDomain,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN:   auth.StepUpSignInOnPanelDomain,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_POLICY:        auth.StepUpSetPolicy,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_FLOOR:         auth.StepUpSetFloor,
+}
+
+// GetStepUpPolicy says how often you're asked for your passkey again.
+func (h *Handler) GetStepUpPolicy(ctx context.Context, _ *connect.Request[dockwellv1.GetStepUpPolicyRequest]) (*connect.Response[dockwellv1.GetStepUpPolicyResponse], error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c, err := h.auth.GetStepUpPolicy(ctx, p)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.GetStepUpPolicyResponse{Choice: stepUpChoiceProto(c)}), nil
+}
+
+// SetStepUpPolicy chooses how often you're asked for your passkey again.
+func (h *Handler) SetStepUpPolicy(ctx context.Context, req *connect.Request[dockwellv1.SetStepUpPolicyRequest]) (*connect.Response[dockwellv1.SetStepUpPolicyResponse], error) {
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	c, err := h.auth.SetStepUpPolicy(ctx, client, p, StepUpPolicyOf(req.Msg.GetPolicy()), req.Msg.GetProof())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.SetStepUpPolicyResponse{Choice: stepUpChoiceProto(c)}), nil
+}
+
+// StepUpPolicyProto is a choice of how often a passkey is asked for, as the API
+// names it.
+func StepUpPolicyProto(p auth.StepUpPolicy) dockwellv1.StepUpPolicy {
+	switch p {
+	case auth.AskEachTime:
+		return dockwellv1.StepUpPolicy_STEP_UP_POLICY_EACH_TIME
+	case auth.AskHourly:
+		return dockwellv1.StepUpPolicy_STEP_UP_POLICY_HOURLY
+	case auth.AskAtSignIn:
+		return dockwellv1.StepUpPolicy_STEP_UP_POLICY_AT_SIGN_IN
+	}
+	return dockwellv1.StepUpPolicy_STEP_UP_POLICY_UNSPECIFIED
+}
+
+// StepUpPolicyOf is the choice the API names, or none Dockwell knows, which
+// the auth package refuses.
+func StepUpPolicyOf(p dockwellv1.StepUpPolicy) auth.StepUpPolicy {
+	switch p {
+	case dockwellv1.StepUpPolicy_STEP_UP_POLICY_EACH_TIME:
+		return auth.AskEachTime
+	case dockwellv1.StepUpPolicy_STEP_UP_POLICY_HOURLY:
+		return auth.AskHourly
+	case dockwellv1.StepUpPolicy_STEP_UP_POLICY_AT_SIGN_IN:
+		return auth.AskAtSignIn
+	case dockwellv1.StepUpPolicy_STEP_UP_POLICY_UNSPECIFIED:
+		return ""
+	}
+	return ""
+}
+
+func stepUpChoiceProto(c auth.StepUpChoice) *dockwellv1.StepUpChoice {
+	out := &dockwellv1.StepUpChoice{
+		Policy:    StepUpPolicyProto(c.Policy),
+		Floor:     StepUpPolicyProto(c.Floor),
+		Effective: StepUpPolicyProto(c.Effective),
+	}
+	if c.Cover != nil {
+		out.CoverTime, out.CoverExpireTime = timestamppb.New(c.Cover.Since), timestamppb.New(c.Cover.Until)
+		out.CoverAtSignIn = c.Cover.AtSignIn
+	}
+	return out
 }
 
 // FinishStepUp checks the passkey's answer and returns a proof.
@@ -597,6 +672,24 @@ func ReasonError(code connect.Code, err error, reason string) *connect.Error {
 	return cerr
 }
 
+// StepUpRefused is how the API answers an action that neither a step-up's proof
+// nor the session's cover confirmed (ADR 0075): needs_step_up, or needs_session
+// for a call with an API token. Anything else, such as a store that can't be
+// read, refuses it for now, with no detail.
+func StepUpRefused(err error) *connect.Error {
+	switch {
+	case errors.Is(err, auth.ErrNeedsSession):
+		return ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, ReasonNeedsSession)
+	case errors.Is(err, auth.ErrNeedsStepUp):
+		return ReasonError(connect.CodePermissionDenied, auth.ErrNeedsStepUp, ReasonNeedsStepUp)
+	}
+	var cerr *connect.Error
+	if errors.As(err, &cerr) {
+		return cerr
+	}
+	return connect.NewError(connect.CodeUnavailable, errors.New("can't check what confirms this just now, so nothing happened. Try again"))
+}
+
 // Invalid is an invalid argument, for the caller to fix: the reason
 // "invalid", with a message that says how.
 func Invalid(err error) *connect.Error {
@@ -636,6 +729,7 @@ var codes = []struct {
 	{auth.ErrNeedsStepUp, connect.CodePermissionDenied, ReasonNeedsStepUp},
 	{auth.ErrNoPasskeyHere, connect.CodeFailedPrecondition, "no_passkey_here"},
 	{auth.ErrNeedsFreshSignIn, connect.CodeFailedPrecondition, ReasonNeedsFreshSignIn},
+	{auth.ErrBelowFloor, connect.CodeFailedPrecondition, "below_floor"},
 }
 
 func (h *Handler) rpcError(ctx context.Context, err error) error {

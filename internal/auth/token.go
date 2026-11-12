@@ -148,13 +148,14 @@ func liveToken(tok *store.APIToken, now time.Time) bool {
 // token, so a stolen session can't make one to keep. Unset expires makes
 // one that doesn't expire. A request it refuses for anything else, such as
 // an invalid name or the most tokens, leaves the proof unspent, and is
-// refused before the proof is asked for.
-func (s *Service) CreateToken(ctx context.Context, p Principal, name, scope string, grants []string, expires *time.Time, proof string) (NewToken, error) {
+// refused before the proof is asked for. Where the session's cover stands in
+// for the proof (ADR 0075), that's recorded with the token, from client.
+func (s *Service) CreateToken(ctx context.Context, client Client, p Principal, name, scope string, grants []string, expires *time.Time, proof string) (NewToken, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return NewToken{}, ErrNeedsSession
 	}
 	return s.createToken(ctx, func(*store.Tx) (store.User, error) { return p.User, nil }, p.Actor(), "", name, scope, grants, expires,
-		func() error { return s.confirmed(p, proof, StepUpCreateToken) })
+		func(tx *store.Tx) error { return s.confirmedIn(ctx, tx, client, p, proof, StepUpCreateToken) })
 }
 
 // LocalTokenTTL is how long a token for local access lasts.
@@ -220,7 +221,7 @@ func (s *Service) RevokeLocalToken(ctx context.Context, actor, tokenID string) (
 // local is the shell account a token for the CLI's local access is for, or
 // empty for any other token.
 func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.User, error), actor, local, name, scope string, grants []string, expires *time.Time,
-	confirm func() error,
+	confirm func(*store.Tx) error,
 ) (NewToken, error) {
 	name = strings.Join(strings.Fields(cleanText(name)), " ")
 	if name == "" || len([]rune(name)) > maxTokenName {
@@ -274,7 +275,7 @@ func (s *Service) createToken(ctx context.Context, who func(*store.Tx) (store.Us
 				ErrInvalid, maxTokens)
 		}
 		if confirm != nil {
-			if err := confirm(); err != nil {
+			if err := confirm(tx); err != nil {
 				return err
 			}
 		}

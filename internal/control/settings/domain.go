@@ -43,7 +43,8 @@ const restartAfter = 300 * time.Millisecond
 
 // Domain is what setting the panel's domain needs beyond the store.
 type Domain struct {
-	// Auth checks the passkey a save and a sign-in link take, and makes the link.
+	// Auth checks the passkey a save, a sign-in link and the step-up floor take,
+	// and makes the link.
 	Auth *auth.Service
 	// Resolve looks a name's addresses up, as the control plane resolves names.
 	// Nil looks nothing up.
@@ -189,6 +190,11 @@ func dnsWords(err error) string {
 // owner refuses anyone but the owner, signed in: the panel's domain decides
 // where everyone signs in.
 func owner(ctx context.Context, doing string) (auth.Principal, error) {
+	return ownerOf(ctx, fmt.Sprintf("only the owner can %s, as the panel's domain decides where everyone signs in, so it didn't happen. Ask the owner", doing))
+}
+
+// ownerOf is the owner in a session, or refuses anyone else, saying refused.
+func ownerOf(ctx context.Context, refused string) (auth.Principal, error) {
 	p, ok := authapi.PrincipalFrom(ctx)
 	if !ok {
 		return auth.Principal{}, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
@@ -197,8 +203,7 @@ func owner(ctx context.Context, doing string) (auth.Principal, error) {
 		return auth.Principal{}, authapi.ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, authapi.ReasonNeedsSession)
 	}
 	if p.User.Role != store.RoleOwner {
-		return auth.Principal{}, authapi.ReasonError(connect.CodePermissionDenied, fmt.Errorf(
-			"only the owner can %s, as the panel's domain decides where everyone signs in, so it didn't happen. Ask the owner", doing), authapi.ReasonNeedsRole)
+		return auth.Principal{}, authapi.ReasonError(connect.CodePermissionDenied, errors.New(refused), authapi.ReasonNeedsRole)
 	}
 	return p, nil
 }
@@ -258,8 +263,9 @@ func (h *Handler) SetPanelDomain(ctx context.Context, req *connect.Request[dockw
 	if target == "" {
 		target = previous
 	}
-	if err := h.domain.Auth.UseStepUp(p, req.Msg.GetProof(), auth.StepUpSetPanelDomain, target); err != nil {
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	client, _ := authapi.ClientFrom(ctx)
+	if err := h.domain.Auth.UseStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpSetPanelDomain, target); err != nil {
+		return nil, authapi.StepUpRefused(err)
 	}
 	s, err := h.set(ctx, KeyPanelDomain, ActionPanelDomain, d)
 	if err != nil {
@@ -309,8 +315,9 @@ func (h *Handler) CreatePanelSignInLink(ctx context.Context, req *connect.Reques
 	case h.domain.Auth == nil:
 		return nil, connect.NewError(connect.CodeUnavailable, errors.New("this control plane can't make sign-in links"))
 	}
-	if err := h.domain.Auth.UseStepUp(p, req.Msg.GetProof(), auth.StepUpSignInOnPanelDomain, d); err != nil {
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+	client, _ := authapi.ClientFrom(ctx)
+	if err := h.domain.Auth.UseStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpSignInOnPanelDomain, d); err != nil {
+		return nil, authapi.StepUpRefused(err)
 	}
 	link, _, err := h.domain.Auth.CreateSignInLink(ctx, p.User.Email, "user:"+p.User.ID)
 	if err != nil {

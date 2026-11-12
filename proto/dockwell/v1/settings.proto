@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/auth.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/system.proto";
 import "google/api/annotations.proto";
@@ -11,7 +12,8 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // SettingsService reads and changes the install's own settings: what it's
-// called, the time zone its schedules start in, and how its panel is served.
+// called, the time zone its schedules start in, how its panel is served, and
+// the least anyone may choose for how often their passkey is asked for again.
 // It also says what the control plane is, and how it's doing.
 //
 // None of these is managed state: they change what Dockwell says and suggests,
@@ -155,6 +157,25 @@ service SettingsService {
     };
   }
 
+  // SetStepUpFloor sets the least anyone may choose for how often they're
+  // asked for their passkey again (AuthService.SetStepUpPolicy, ADR 0075).
+  // What applies to each person is the stricter of their choice and this.
+  // Only the owner sets it, in a session, and it takes a passkey just now:
+  // call it without a proof first, then again with the proof from
+  // FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_FLOOR. It's on the activity
+  // log with the floor it replaced.
+  rpc SetStepUpFloor(SetStepUpFloorRequest) returns (SetStepUpFloorResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/settings:setStepUpFloor"
+      body: "*"
+    };
+  }
+
   // GetControlPlane returns what serves the panel and API: its build, where it
   // keeps its state, the addresses it answers on, and how it's doing. Most of
   // it comes from how dockwell run was started, and changes there.
@@ -198,6 +219,10 @@ message Settings {
   PanelServing panel = 3;
   // When the install was set up.
   google.protobuf.Timestamp create_time = 4;
+  // The least anyone may choose for how often they're asked for their
+  // passkey again. STEP_UP_POLICY_AT_SIGN_IN, which allows all three, until
+  // the owner sets it.
+  StepUpPolicy step_up_floor = 5;
 }
 
 // PanelServing is how the panel is served, as dockwell run was started.
@@ -349,6 +374,19 @@ message SetTimeZoneRequest {
 // SetTimeZoneResponse carries the settings as they now are.
 message SetTimeZoneResponse {
   // The settings.
+  Settings settings = 1;
+}
+
+// SetStepUpFloorRequest carries the floor.
+message SetStepUpFloorRequest {
+  // The least anyone may choose.
+  StepUpPolicy floor = 1;
+  // The proof from FinishStepUp, for STEP_UP_ACTION_SET_STEP_UP_FLOOR.
+  string proof = 2;
+}
+
+// SetStepUpFloorResponse carries the settings as they now are.
+message SetStepUpFloorResponse {
   Settings settings = 1;
 }
 

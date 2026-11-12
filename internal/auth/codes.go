@@ -312,7 +312,7 @@ func (s *Service) BeginTOTP(ctx context.Context, p Principal, proof string) (TOT
 	}
 	secret := newTOTPSecret()
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
-		if err := s.confirmed(p, proof, StepUpSetUpCodes); err != nil {
+		if err := s.confirmedIn(ctx, tx, Client{}, p, proof, StepUpSetUpCodes); err != nil {
 			return err
 		}
 		return tx.SetTOTPPending(ctx, p.User.ID, s.key.Seal(purposeTOTP(p.User.ID), secret), p.Session.ID, s.now().Add(totpSetupTTL))
@@ -427,7 +427,7 @@ func (s *Service) DisableTOTP(ctx context.Context, p Principal, proof string) er
 		if s.usablePasskeys(all, "") == 0 {
 			return ErrLastWayIn
 		}
-		if err := s.confirmed(p, proof, StepUpDisableCodes); err != nil {
+		if err := s.confirmedIn(ctx, tx, Client{}, p, proof, StepUpDisableCodes); err != nil {
 			return err
 		}
 		if err := tx.DisableTOTP(ctx, u.ID); err != nil {
@@ -456,7 +456,7 @@ func (s *Service) RegenerateRecoveryCodes(ctx context.Context, p Principal, proo
 		if u.TOTPSecret == nil {
 			return ErrNoTOTP
 		}
-		if err := s.confirmed(p, proof, StepUpRecoveryCodes); err != nil {
+		if err := s.confirmedIn(ctx, tx, Client{}, p, proof, StepUpRecoveryCodes); err != nil {
 			return err
 		}
 		var hashes [][]byte

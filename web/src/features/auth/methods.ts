@@ -52,6 +52,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AuthService.finishPasskeySignIn": "open",
   "AuthService.finishStepUp": "open",
   "AuthService.getAuthState": "open",
+  "AuthService.getStepUpPolicy": "unused",
   "AuthService.getTotp": "open",
   "AuthService.listPasskeys": "open",
   "AuthService.listSessions": "open",
@@ -59,6 +60,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AuthService.removePasskey": "open",
   "AuthService.revokeOtherSessions": "open",
   "AuthService.revokeSession": "open",
+  "AuthService.setStepUpPolicy": "unused",
   "AuthService.signInWithCode": "open",
   "AuthService.signInWithLink": "open",
   "AuthService.signOut": "open",
@@ -194,6 +196,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "SettingsService.getSettings": "read",
   "SettingsService.setInstallName": "may",
   "SettingsService.setPanelDomain": "may",
+  "SettingsService.setStepUpFloor": "unused",
   "SettingsService.setTimeZone": "may",
 
   "SystemService.getVersion": "open",

@@ -249,9 +249,9 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 	giveBack := func() {}
 	switch {
 	case proof != "":
-		back, err := h.auth.HoldStepUp(p, proof, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed)
+		back, err := h.auth.HoldStepUp(ctx, rec.client, p, proof, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed)
 		if err != nil {
-			return nil, failed(authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp))
+			return nil, failed(authapi.StepUpRefused(err))
 		}
 		giveBack = back
 	case confirmed != "" && !h.auth.StepUpStands(p, auth.StepUpSaveWayBackIn, srv.GetId()+":"+confirmed):
@@ -269,6 +269,15 @@ func (h *Handler) SaveFile(ctx context.Context, req *connect.Request[dockwellv1.
 		return err
 	}
 	out, err := session.SaveFile(ctx, path, content, version, saving, confirmed)
+	if r := out.GetRefusal(); err == nil && proof == "" && r.GetKind() == agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+		// With no proof, the session's cover may stand in for the passkey the agent
+		// asked for (ADR 0075), and the save goes again, once, confirmed for where
+		// the agent's walk ended, as a proof would have it.
+		where := cmp.Or(r.GetPath(), path)
+		if _, cerr := h.auth.HoldStepUp(ctx, rec.client, p, "", auth.StepUpSaveWayBackIn, srv.GetId()+":"+where); cerr == nil {
+			out, err = session.SaveFile(ctx, path, content, version, saving, where)
+		}
+	}
 	if err != nil {
 		if errors.Is(err, resource.ErrLost) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, unknown(path, h.rpcError(ctx, err))

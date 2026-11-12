@@ -280,22 +280,23 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 			authapi.ReasonNeedsStepUp)
 	}
 	// A proof opens one terminal, and is held until the shell starts, as opening it
-	// can still be refused.
+	// can still be refused. With none, the session's cover may stand in (ADR 0075):
+	// for a server's terminal now, and for a container's once the agent asks.
 	proof := req.Msg.GetProof()
-	if proof == "" && container == "" {
-		return nil, asked("", "")
-	}
-	giveBack := func() {}
-	if proof != "" {
-		back, err := h.auth.HoldStepUp(p, proof, auth.StepUpOpenTerminal, target)
+	client, _ := authapi.ClientFrom(ctx)
+	giveBack, confirmed := func() {}, false
+	if proof != "" || container == "" {
+		back, err := h.auth.HoldStepUp(ctx, client, p, proof, auth.StepUpOpenTerminal, target)
 		if err != nil {
-			return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+			if proof == "" && errors.Is(err, auth.ErrNeedsStepUp) {
+				return nil, asked("", "")
+			}
+			return nil, authapi.StepUpRefused(err)
 		}
-		giveBack = back
+		giveBack, confirmed = back, true
 	}
 	ctx = context.WithoutCancel(ctx)
 	termID := id.New(id.Terminal)
-	client, _ := authapi.ClientFrom(ctx)
 	e := &entry{
 		id: termID, server: srv.GetId(), user: p.User.ID, session: p.Session.ID, actor: p.Actor(), surface: client.Surface(p),
 		opened: h.now(), cols: cols, rows: rows, container: container,
@@ -316,9 +317,18 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		giveBack()
 		return nil, h.rpcError(ctx, err)
 	}
-	opened, err := session.OpenTerminal(ctx, &agentv1.OpenTerminalCall{
-		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: container, Confirmed: proof != "",
-	})
+	call := &agentv1.OpenTerminalCall{
+		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: container, Confirmed: confirmed,
+	}
+	opened, err := session.OpenTerminal(ctx, call)
+	if err == nil && opened.GetNeedsStepUp() && !confirmed {
+		// The agent found the container as good as root: the session's cover may
+		// stand in for the passkey, and then it opens confirmed, once.
+		if _, cerr := h.auth.HoldStepUp(ctx, client, p, "", auth.StepUpOpenTerminal, target); cerr == nil {
+			call.Confirmed = true
+			opened, err = session.OpenTerminal(ctx, call)
+		}
+	}
 	if err == nil && opened.GetNeedsStepUp() {
 		// Being asked isn't a failure: what matters is whether a passkey follows.
 		h.forget(termID)

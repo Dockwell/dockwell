@@ -148,7 +148,7 @@ func TestAnInviteNeverMakesAMemberAgain(t *testing.T) {
 		if _, err := f.svc.CreateInvite(t.Context(), onDomain, f.owner, "ada@example.com", store.RoleViewer, store.Install, proof); !errors.Is(err, ErrMemberExists) {
 			t.Errorf("inviting someone who signs in already: %v", err)
 		}
-		if err := f.svc.UseStepUp(f.owner, proof, StepUpInvite, target); err != nil {
+		if err := f.svc.UseStepUp(t.Context(), Client{}, f.owner, proof, StepUpInvite, target); err != nil {
 			t.Errorf("the proof was spent on an invite that was refused: %v", err)
 		}
 	})

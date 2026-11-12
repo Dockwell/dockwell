@@ -346,18 +346,23 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	// engine takes the change, as it can still refuse: busy, offline or out of date.
 	giveBack := func() {}
 	access := r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan)
+	client, _ := authapi.ClientFrom(ctx)
 	switch {
 	case approve.Protected && approve.Theirs:
 		// One passkey approves the plan, root's included: it's bound to its fingerprint.
 		target := r.ID + ":" + r.Fingerprint
-		back, err := h.auth.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpApproveChange, target)
+		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApproveChange, target)
 		if err != nil {
 			h.auth.AskedForStepUp(p, auth.StepUpApproveChange, target, func() { h.noteUnconfirmed(r.ID, who) })
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
 		}
 		giveBack = back
 	case r.State == store.ChangePlanned && (r.Plan.AsGoodAsRoot() || access):
-		back, err := h.auth.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
+		// With no proof, the session's cover may stand in (ADR 0075).
+		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApplyRootChange, r.ID)
+		if err != nil && !errors.Is(err, auth.ErrNeedsStepUp) && !errors.Is(err, auth.ErrNeedsSession) {
+			return nil, authapi.StepUpRefused(err)
+		}
 		if err != nil {
 			h.auth.AskedForStepUp(p, auth.StepUpApplyRootChange, r.ID, func() { h.noteUnconfirmed(r.ID, who) })
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, r.ID)
