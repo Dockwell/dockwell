@@ -132,7 +132,17 @@ func TestALongInstallSaysItStillRunsAndWhereItGoesOn(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(in.Dir, "chg_1.log")); err != nil {
 		t.Errorf("the install's output went while it runs: %v", err)
 	}
+	// Let go, the unit goes on writing into the stand's folder: it ends before the
+	// test does, or the test's folders go from under it and their removal fails.
 	_ = os.Remove(filepath.Join(s.root, "hold"))
+	for deadline := time.Now().Add(30 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		if active, _ := u.Active(t.Context(), "dockwell-install-chg_1"); !active {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the install's unit didn't end once it was let go")
+		}
+	}
 }
 
 // The agent installs only what reads as a package's name and version, whatever
