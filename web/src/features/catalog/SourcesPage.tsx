@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
+import { CatalogFormat, CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -27,7 +27,8 @@ import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
-import { useCatalog, useSources } from "./useCatalog";
+import { converted, FormatLine, LeftOut, PRESETS, SourcePresets, useFormatWords } from "./SourceFormats";
+import { useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
 /** What the source form starts from: nothing for a new source, or the one it moves. */
@@ -35,6 +36,10 @@ interface Editing {
   name?: string;
   repository?: string;
   path?: string;
+  /** How its folder is laid out, as a preset knows it; left out, Dockwell tells (ADR 0078). */
+  format?: CatalogFormat;
+  /** The name a new source starts from, as a preset gives it. */
+  suggested?: string;
 }
 
 /**
@@ -79,6 +84,13 @@ export function SourcesPage() {
           </Button>
         </div>
       ) : null}
+      {list?.length ? (
+        <SourcePresets
+          sources={list}
+          off={set.off}
+          onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
+        />
+      ) : null}
       {sources.error ? (
         <Callout
           tone="critical"
@@ -100,9 +112,16 @@ export function SourcesPage() {
           icon="branch"
           title={<Trans>Dockwell's own catalog is all it reads</Trans>}
           action={
-            <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
-              <Trans>Add a source</Trans>
-            </Button>
+            <>
+              <SourcePresets
+                sources={[]}
+                off={set.off}
+                onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
+              />
+              <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
+                <Trans>Add a source</Trans>
+              </Button>
+            </>
           }
         >
           <p>
@@ -158,13 +177,14 @@ function SourcePanel({
   const transport = useTransport();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const name = source.name;
+  const said = useSourceNames()(name);
   const commit = source.source?.commit ?? "";
   const path = source.source?.path ?? "";
   const count = source.entries.length;
-  const left = source.refused.length;
+  const formatWords = useFormatWords();
   return (
     <Panel
-      title={name}
+      title={<span title={t`From the catalog ${name}`}>{said}</span>}
       className="sources-panel"
       actions={
         <>
@@ -175,7 +195,7 @@ function SourcePanel({
             size="sm"
             variant="ghost"
             icon="trash"
-            aria-label={t`Remove ${name}`}
+            aria-label={t`Remove ${said}`}
             {...removeOff}
             onClick={() => sheet.open({ kind: "plan", make: () => client.removeCatalogSource({ name }) })}
           />
@@ -191,6 +211,14 @@ function SourcePanel({
             <code>{source.source?.repository}</code>
           </dd>
         </div>
+        {converted(source) ? (
+          <div>
+            <dt>
+              <Trans context="catalog source">Store</Trans>
+            </dt>
+            <dd>{formatWords(source.source?.format ?? CatalogFormat.UNSPECIFIED)}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>
             <Trans>Folder</Trans>
@@ -241,19 +269,7 @@ function SourcePanel({
               ))}
             </ul>
           ) : null}
-          {left > 0 ? (
-            <details className="sources-left">
-              <summary>{plural(left, { one: "# file left out, and why", other: "# files left out, and why" })}</summary>
-              <ul>
-                {source.refused.map((r) => (
-                  <li key={r.file}>
-                    <code>{r.file}</code>
-                    <span>{r.reason}</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
+          <LeftOut refused={source.refused} />
         </>
       )}
     </Panel>
@@ -330,9 +346,12 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
   const transport = useTransport();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const moving = editing.name !== undefined;
+  // The source it moves, as a person says it; its ID is in the form's Name.
+  const movingWords = useSourceNames()(editing.name ?? "");
   const [named, setNamed] = useState(editing.name);
   const [repository, setRepository] = useState(editing.repository ?? "");
   const [path, setPath] = useState(editing.path ?? "");
+  const [format, setFormat] = useState(editing.format);
   const [picked, setPicked] = useState<string>();
   const [commit, setCommit] = useState("");
   const [more, setMore] = useState(false);
@@ -354,7 +373,13 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
     { enabled: askable, retry: false, staleTime: 60_000 },
   );
   const found = askable ? (refs.data?.refs ?? []) : [];
-  const name = named ?? nameFor(url, taken);
+  // How its default branch reads, as Dockwell tells from its folders: a fact, or a choice where it can't tell.
+  const guesses = askable ? (refs.data?.formats ?? []) : [];
+  const guess = guesses.find((g) => g.format === format) ?? (guesses.length === 1 ? guesses[0] : undefined);
+  // A preset's name, or the one a store's own link would get from its preset, before one made from the link.
+  const presetName = editing.suggested ?? PRESETS.find((p) => p.repository === url.replace(/\/+$/, ""))?.id;
+  const suggested = presetName && !taken.includes(presetName) ? presetName : undefined;
+  const name = named ?? suggested ?? nameFor(url, taken);
   // The repository's default branch, unless another is chosen; main or master where it names none.
   const head = askable ? (refs.data?.head ?? "") : "";
   const lead =
@@ -403,7 +428,9 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
       setWaiting(true);
       return;
     }
-    const request = { name, repository: url, path: path.trim(), commit: pin };
+    // A folder Dockwell found the catalog in, such as entries, where nobody named one.
+    const folder = path.trim() === "" && guess ? guess.path : path.trim();
+    const request = { name, repository: url, path: folder, commit: pin, format: format ?? guess?.format };
     const opening: Opening = {
       kind: "plan",
       // PlanView owns the request from its start, so leaving mid-fetch discards a late plan too.
@@ -458,7 +485,7 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={first}
-      title={moving ? t`Move ${name} to another commit` : t`Add a catalog source`}
+      title={moving ? t`Move ${movingWords} to another commit` : t`Add a catalog source`}
       subtitle={t`Apps from a public Git repository, pinned at one commit`}
       onClose={close}
       className={cx("sources-sheet", phone && "is-phone")}
@@ -503,11 +530,14 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
           onChange={(event) => {
             setRepository(event.target.value);
             setPicked(undefined);
+            // What a preset knew of one repository says nothing of another.
+            setFormat(undefined);
             // A press for another repository doesn't carry over to this one.
             setWaiting(false);
             setErrors({ ...errors, repository: undefined });
           }}
         />
+        <FormatLine guesses={guesses} chosen={format} onChoose={(g) => setFormat(g.format)} />
         {count > 0 ? (
           <SelectField
             label={t`Pin to`}

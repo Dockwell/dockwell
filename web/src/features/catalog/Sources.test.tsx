@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  CatalogFormat,
   CatalogInstallSchema,
   CatalogSourceInfoSchema,
   ChangeSchema,
@@ -97,7 +98,7 @@ describe("Catalog sources", () => {
   it("says what each source reads, which apps it gives, and what it leaves out", async () => {
     const user = userEvent.setup();
     const { container } = renderAt("/catalog/sources", api());
-    const panel = (await screen.findByRole("heading", { name: "community" })).closest("section") as HTMLElement;
+    const panel = (await screen.findByRole("heading", { name: "example/catalog" })).closest("section") as HTMLElement;
     expect(within(panel).getByText(REPO)).toBeVisible();
     expect(within(panel).getByText("entries")).toBeVisible();
     expect(within(panel).getByText(COMMIT.slice(0, 12))).toBeVisible();
@@ -120,7 +121,7 @@ describe("Catalog sources", () => {
     expect(await screen.findByText("Can't be read now, so its apps are out of the catalog")).toBeVisible();
     expect(screen.getByText("The host didn't answer.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Move to another commit" }));
-    expect(await screen.findByRole("dialog", { name: "Move community to another commit" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Move example/catalog to another commit" })).toBeVisible();
   });
 
   it("offers Try again when the sources can't be listed", async () => {
@@ -138,7 +139,7 @@ describe("Catalog sources", () => {
     expect(await screen.findByText("Couldn't read the sources")).toBeVisible();
     fail = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("heading", { name: "community" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "example/catalog" })).toBeVisible();
   });
 
   it("says Dockwell's own catalog is all it reads, with none, in a line and a button", async () => {
@@ -425,7 +426,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     expect(within(sheet).getByLabelText("Repository")).toHaveValue(REPO);
     expect(within(sheet).getByText("Entries at entries")).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Change" }));
@@ -433,7 +434,7 @@ describe("Catalog sources", () => {
     expect(within(sheet).queryByLabelText("Name")).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
 
-    await user.click(screen.getByRole("button", { name: "Remove community" }));
+    await user.click(screen.getByRole("button", { name: "Remove example/catalog" }));
     await waitFor(() => expect(removed).toBe("community"));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
     // A warning reads as its fact, then what it means.
@@ -458,7 +459,7 @@ describe("Catalog sources", () => {
     fixture.changes = { ...fixture.changes, discardChange: discard };
     const { router } = renderAt("/catalog/sources", fixture);
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const form = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const form = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(form).findByLabelText("Commit"), COMMIT);
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(requested).toHaveBeenCalledTimes(1));
@@ -495,7 +496,7 @@ describe("Catalog sources", () => {
     ];
     renderAt("/catalog/sources", api({ setCatalogSource: () => ({ change: old }) }));
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const form = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const form = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(form).findByLabelText("Commit"), COMMIT);
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -512,7 +513,7 @@ describe("Catalog sources", () => {
       api({ setCatalogSource: () => ({ change: planned(["catalog_source_refuses", ["broken.yaml"]]) }) }),
     );
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -537,7 +538,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -563,12 +564,12 @@ describe("Catalog sources, for whoever may not change them", () => {
         }),
     };
     renderAt("/catalog/sources", fixture);
-    await screen.findByRole("heading", { name: "community" });
+    await screen.findByRole("heading", { name: "example/catalog" });
     const why = "Only an admin or the owner can do this. Ask one of them.";
     for (const control of [
       screen.getByRole("button", { name: "Add a source" }),
       screen.getByRole("button", { name: "Move" }),
-      screen.getByRole("button", { name: "Remove community" }),
+      screen.getByRole("button", { name: "Remove example/catalog" }),
     ]) {
       expect(control).toHaveAttribute("aria-disabled", "true");
       expect(control).toHaveAccessibleDescription(why);
@@ -582,7 +583,7 @@ describe("Catalog sources on a phone", () => {
   it("leads the page with Add a source, as the header has no room for it", async () => {
     onPhone();
     renderAt("/catalog/sources", api());
-    await screen.findByRole("heading", { name: "community" });
+    await screen.findByRole("heading", { name: "example/catalog" });
     expect(screen.getByRole("button", { name: "Add a source" })).toBeVisible();
   });
 
@@ -617,7 +618,7 @@ describe("The catalog, with sources", () => {
     const sheet = await screen.findByRole("dialog", { name: "Install Notes" });
     expect(await within(sheet).findByText(/Not tested by Dockwell/)).toBeVisible();
     expect(within(sheet).getByRole("group", { name: "Catalog" })).toHaveTextContent(
-      "community · Not tested by Dockwell",
+      "example/catalog · Not tested by Dockwell",
     );
     // What it installs is under Advanced, one step away.
     await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
@@ -667,9 +668,9 @@ describe("The catalog, with sources", () => {
     });
     renderAt("/catalog", api({ listCatalogInstalls: () => ({ installs: [fromOwn] }) }));
     const card = await card$("notes-src");
-    expect(within(card).getByTitle("From the catalog community")).toHaveTextContent("community");
+    expect(within(card).getByTitle("From the catalog community")).toHaveTextContent("example/catalog");
     expect(card).not.toHaveTextContent("Installed");
-    expect(await card$("postgres")).not.toHaveTextContent("community");
+    expect(await card$("postgres")).not.toHaveTextContent("example/catalog");
   });
 
   it.each([
@@ -735,7 +736,7 @@ describe("The catalog, with sources", () => {
     const { container } = renderAt("/catalog/notes-src", api({ getCatalogEntry: () => ({ entry: notes }) }));
     const origin = await screen.findByRole("region", { name: "Where it comes from" });
     expect(within(origin).getByText("Not tested by Dockwell")).toBeVisible();
-    expect(within(origin).getByRole("link", { name: "community" })).toHaveAttribute("href", "/catalog/sources");
+    expect(within(origin).getByRole("link", { name: "example/catalog" })).toHaveAttribute("href", "/catalog/sources");
     expect(within(origin).getByText(REPO)).toBeVisible();
     expect(within(origin).getByText(COMMIT.slice(0, 12))).toHaveAttribute("title", COMMIT);
     // A state and its facts: no paragraph of advice.
@@ -820,5 +821,112 @@ describe("The catalog, with sources", () => {
     });
     await waitFor(() => expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeEnabled());
     expect(within(sheet).getByText(/Not tested by Dockwell/)).toBeVisible();
+  });
+});
+
+describe("Other stores' catalogs", () => {
+  const ONEPANEL = "https://github.com/1Panel-dev/appstore";
+  const store = create(CatalogSourceInfoSchema, {
+    name: "1panel",
+    source: { repository: ONEPANEL, commit: COMMIT, format: CatalogFormat.ONEPANEL },
+    entries: ["notes-src"],
+    refused: [
+      { file: "apps/2fauth/5.0.0", id: "2fauth", kind: "scripts", reason: "it runs scripts on the server" },
+      { file: "apps/alist/3.0.0", id: "alist", kind: "scripts", reason: "it runs scripts on the server" },
+      { file: "apps/artalk", id: "artalk", kind: "arch", reason: "1Panel says it runs on amd64 alone" },
+    ],
+  });
+
+  it("adds 1Panel's app store, Dokploy's or Coolify's in one click, read as that store, with nothing to type", async () => {
+    const user = userEvent.setup();
+    let asked: SetCatalogSourceRequest | undefined;
+    const { container } = renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSources: () => ({ sources: [] }),
+        listCatalogSourceRefs: () => ({
+          refs: [{ name: "refs/heads/main", commit: COMMIT }],
+          head: "refs/heads/main",
+          formats: [{ format: CatalogFormat.ONEPANEL, path: "", apps: 269 }],
+        }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_reads", ["notes-src"]]) };
+        },
+      }),
+    );
+    const presets = await screen.findByRole("group", { name: "Add another store's apps" });
+    expect(
+      within(presets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["1Panel's app store", "Dokploy's templates", "Coolify's templates"]);
+    await expectAccessible(container);
+    await user.click(within(presets).getByRole("button", { name: "1Panel's app store" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    expect(within(sheet).getByLabelText("Repository")).toHaveValue(ONEPANEL);
+    expect(await within(sheet).findByText("269 apps")).toBeVisible();
+    expect(within(sheet).getByText(/Named onepanel/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked).toMatchObject({
+      name: "onepanel",
+      repository: ONEPANEL,
+      commit: COMMIT,
+      format: CatalogFormat.ONEPANEL,
+    });
+  });
+
+  it("offers a store no source reads yet above the list, and none it reads", async () => {
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [community, store] }) }));
+    const presets = await screen.findByRole("group", { name: "Add another store's apps" });
+    expect(
+      within(presets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Dokploy's templates", "Coolify's templates"]);
+  });
+
+  it("asks which store a repository is only where it could be more than one", async () => {
+    const user = userEvent.setup();
+    let asked: SetCatalogSourceRequest | undefined;
+    renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSourceRefs: () => ({
+          refs: [{ name: "refs/heads/main", commit: COMMIT }],
+          head: "refs/heads/main",
+          formats: [
+            { format: CatalogFormat.DOKPLOY, path: "", apps: 2 },
+            { format: CatalogFormat.ONEPANEL, path: "", apps: 1 },
+          ],
+        }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_reads", ["notes-src"]]) };
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a source" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/example/stores");
+    const choice = await within(sheet).findByRole("radiogroup", { name: "Read it as" });
+    expect(within(choice).getByRole("radio", { name: "Dokploy's templates" })).toBeChecked();
+    await user.click(within(choice).getByRole("radio", { name: "1Panel's app store" }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.format).toBe(CatalogFormat.ONEPANEL);
+  });
+
+  it("says which store a source is, and what it leaves out by why, the most first", async () => {
+    const user = userEvent.setup();
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [store] }) }));
+    const panel = (await screen.findByRole("heading", { name: "1Panel" })).closest("section") as HTMLElement;
+    expect(within(panel).getByText("1Panel's app store")).toBeVisible();
+    await user.click(within(panel).getByText("3 apps left out, and why"));
+    const kinds = [...panel.querySelectorAll(".sources-left-kind > summary")].map((k) => k.textContent);
+    expect(kinds).toEqual(["Run scripts on the server2", "Run on amd64 alone1"]);
+    await user.click(within(panel).getByText("Run scripts on the server"));
+    expect(within(panel).getByText("2fauth")).toBeVisible();
   });
 });

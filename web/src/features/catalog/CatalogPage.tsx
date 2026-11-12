@@ -13,7 +13,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, installOf, useCatalog, useInstalls, useOrigins } from "./useCatalog";
+import { categoryLabel, installOf, useAlso, useCatalog, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
 import "./Catalog.css";
 
 export interface CatalogPageProps {
@@ -32,6 +32,8 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   const { t, i18n } = useLingui();
   const catalog = useCatalog();
   const origins = useOrigins();
+  const also = useAlso();
+  const named = useSourceNames();
   // Both reads again, whichever failed.
   const retry = () => {
     void catalog.refetch();
@@ -195,7 +197,9 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
                 category={words(entry.category)}
                 search={search}
                 source={origins.origins.get(entry.id)?.name}
-                installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins))}
+                also={also.get(entry.id)}
+                named={named}
+                installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins, origins.also))}
               />
             ))}
           </div>
@@ -238,6 +242,8 @@ function Card({
   entry,
   category,
   source,
+  also,
+  named,
   installs,
   search,
 }: {
@@ -245,11 +251,16 @@ function Card({
   /** Its category, in words, under its name as Catalog has it. */
   category: string;
   /** The catalog source it comes from, if it isn't Dockwell's own. */
-  source?: string;
+  source?: string | undefined;
+  /** The other catalogs that have it, by their sources' names. */
+  also?: readonly string[] | undefined;
+  /** How a person says a catalog, by its source's name. */
+  named: (name: string) => string;
   installs: readonly CatalogInstall[];
   search: CatalogSearch;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
+  const list = (names: readonly string[]) => new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(names);
   const [first] = installs;
   const count = installs.length;
   const behind = installs.some((install) => install.upgrade);
@@ -276,10 +287,20 @@ function Card({
       <span className="catalog-card-foot">
         <span className="catalog-card-about">
           <code>{entry.version}</code>
-          {source ? (
+          {also?.length ? (
+            <span
+              className="catalog-card-from"
+              title={t`From the catalogs ${list([source ?? "", ...also].filter(Boolean))}`}
+            >
+              <Icon name="branch" size={12} />
+              <span>
+                {named(source ?? "")} · {t`also in ${list(also.map(named))}`}
+              </span>
+            </span>
+          ) : source ? (
             <span className="catalog-card-from" title={t`From the catalog ${source}`}>
               <Icon name="branch" size={12} />
-              <span>{source}</span>
+              <span>{named(source)}</span>
             </span>
           ) : null}
         </span>

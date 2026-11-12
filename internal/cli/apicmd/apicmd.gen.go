@@ -515,6 +515,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The entry's ID, such as \"postgres\".", Arg: true},
 				{Path: "project", Help: "A name for its project to start from, such as one a person typed. Left out, or not a name a project can have, it's the entry's ID."},
+				{Path: "catalog", Help: "The catalog to read it from, by its source's name, where more than one has the app. Left out, the one it's listed from."},
 			},
 			Call: apicli.Unary[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse](dockwellv1connect.CatalogServiceGetCatalogEntryProcedure),
 		},
@@ -536,6 +537,7 @@ func Methods() []*apicli.Method {
 				{Path: "cpus", Help: "The most CPUs a service may use, by its name, such as \"0.5\" for db, as resources.cpus takes it."},
 				{Path: "restart", Help: "When Docker restarts a service's container, by its name, such as always for db."},
 				{Path: "companions", Help: "Which of the entry's companions to install, by service, such as adminer: true. One left out is as its entry says. An input only a companion left out uses is refused."},
+				{Path: "catalog", Help: "The catalog to install it from, by its source's name, where more than one has the app. Left out, the one it's listed from. It upgrades from that catalog alone."},
 			},
 			Call: apicli.Unary[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure),
 		},

@@ -117,6 +117,9 @@ func (s *Sources) folders(spec *resourcev1.CatalogSource) (kept, plan string) {
 // what it leaves out.
 type sourceRead struct {
 	entries []*catalogv1.Entry
+	// also are its entries of apps a catalog before it has, as another choice of
+	// each (ADR 0078).
+	also    []*catalogv1.Entry
 	refused []*dockwellv1.CatalogSourceRefusal
 	// apps and license are how many apps another store's commit holds, and the
 	// licence its repository says, for a source converted as it's read.
@@ -442,11 +445,11 @@ func readKept(dir string) (map[string][]byte, error) {
 
 // readSource reads a source and checks its entries, once for each commit and each
 // set of IDs before it.
-func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, taken map[string]string) (sourceRead, error) {
+func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, taken claims) (sourceRead, error) {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s%s", name, spec.GetRepository(), spec.GetPath(), spec.GetCommit(), formatKey(spec))
 	for _, id := range slices.Sorted(maps.Keys(taken)) {
-		fmt.Fprintf(h, "\x00%s=%s", id, taken[id])
+		fmt.Fprintf(h, "\x00%s=%s=%s", id, taken[id].by, appKey(taken[id].entry))
 	}
 	key := hex.EncodeToString(h.Sum(nil))
 	s.mu.Lock()
@@ -491,7 +494,7 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 // Another store's commit was converted as it was read, so its entries name their
 // images by tag, for an install to pin, and what the converter left out comes first,
 // each app with its reason.
-func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, files map[string][]byte, taken map[string]string) sourceRead {
+func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, files map[string][]byte, taken claims) sourceRead {
 	var out sourceRead
 	byTag := converted(spec)
 	refuse := func(file, why string) {
@@ -524,8 +527,18 @@ func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSourc
 		case e.GetId() != id:
 			refuse(file, fmt.Sprintf("it's the entry %s, in a file named for %s. Name the file %s.yaml", e.GetId(), id, e.GetId()))
 			continue
-		case taken[e.GetId()] != "":
-			refuse(file, fmt.Sprintf("%s has an entry of the ID %s, which comes first. Give it another ID", taken[e.GetId()], e.GetId()))
+		case taken[e.GetId()].by != "" && sameApp(taken[e.GetId()].entry, e):
+			// The same app, which the catalog lists from the one before: another
+			// choice of it, once it reads as an install would.
+			if err := readsAsInstall(ctx, e, byTag); err != nil {
+				refuse(file, err.Error())
+				continue
+			}
+			e.Icon, e.Screenshots = "", nil
+			out.also = append(out.also, e)
+			continue
+		case taken[e.GetId()].by != "":
+			refuse(file, fmt.Sprintf("%s has an entry of the ID %s, which comes first. Give it another ID", taken[e.GetId()].by, e.GetId()))
 			if byTag {
 				out.refused[len(out.refused)-1].Kind = "taken"
 			}
@@ -540,7 +553,7 @@ func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSourc
 		// the logo and screens of one Dockwell tests.
 		e.Icon, e.Screenshots = "", nil
 		out.entries = append(out.entries, e)
-		taken[e.GetId()] = "the catalog " + name
+		taken[e.GetId()] = claim{by: "the catalog " + name, entry: e}
 	}
 	return out
 }
@@ -652,15 +665,31 @@ func (o origin) same(pin *resourcev1.CatalogPin) bool {
 type sourced struct {
 	catalog *catalog.Catalog
 	origins map[string]origin
-	reads   map[string]sourceRead
-	unread  map[string]error
+	// also are the same apps from catalogs after the one each is listed from, by ID.
+	also   map[string][]alternative
+	reads  map[string]sourceRead
+	unread map[string]error
 }
 
 // entryFor is the catalog's entry for an install: its ID's, where it comes from the
 // catalog the install came from.
 func (s sourced) entryFor(pin *resourcev1.CatalogPin) (*catalogv1.Entry, bool) {
 	e, ok := s.catalog.Entry(pin.GetEntry())
-	return e, ok && s.origins[pin.GetEntry()].same(pin)
+	if ok && s.origins[pin.GetEntry()].same(pin) {
+		return e, true
+	}
+	for _, a := range s.also[pin.GetEntry()] {
+		if a.from.same(pin) {
+			return a.entry, true
+		}
+	}
+	return nil, false
+}
+
+// alternative is an app's entry in a catalog after the one it's listed from.
+type alternative struct {
+	from  origin
+	entry *catalogv1.Entry
 }
 
 // withSources adds each source's entries to the catalog, in their names' order. With
@@ -684,10 +713,10 @@ func (h *Handler) withSources(ctx context.Context, c *catalog.Catalog, instead m
 	if instead == nil {
 		h.sources.tidy(list)
 	}
-	out := sourced{catalog: c, origins: map[string]origin{}, reads: map[string]sourceRead{}, unread: map[string]error{}}
-	taken := map[string]string{}
+	out := sourced{catalog: c, origins: map[string]origin{}, also: map[string][]alternative{}, reads: map[string]sourceRead{}, unread: map[string]error{}}
+	taken := claims{}
 	for _, e := range c.All() {
-		taken[e.GetId()] = "Dockwell's own catalog"
+		taken[e.GetId()] = claim{by: "Dockwell's own catalog", entry: e}
 		out.origins[e.GetId()] = origin{repository: e.GetSource().GetRepository(), commit: e.GetSource().GetCommit()}
 	}
 	for _, s := range list {
@@ -701,9 +730,13 @@ func (h *Handler) withSources(ctx context.Context, c *catalog.Catalog, instead m
 		out.catalog = out.catalog.With(got.entries)
 		// Taken whether the read was kept or made, so a later source's clash is the
 		// same either way (its M4).
+		from := origin{catalog: s.name, repository: s.spec.GetRepository(), path: s.spec.GetPath(), commit: s.spec.GetCommit()}
 		for _, e := range got.entries {
-			taken[e.GetId()] = "the catalog " + s.name
-			out.origins[e.GetId()] = origin{catalog: s.name, repository: s.spec.GetRepository(), path: s.spec.GetPath(), commit: s.spec.GetCommit()}
+			taken[e.GetId()] = claim{by: "the catalog " + s.name, entry: e}
+			out.origins[e.GetId()] = from
+		}
+		for _, e := range got.also {
+			out.also[e.GetId()] = append(out.also[e.GetId()], alternative{from: from, entry: e})
 		}
 	}
 	return out, nil
@@ -809,9 +842,9 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	taken := map[string]string{}
+	taken := claims{}
 	for _, e := range own.All() {
-		taken[e.GetId()] = "Dockwell's own catalog"
+		taken[e.GetId()] = claim{by: "Dockwell's own catalog", entry: e}
 	}
 	var was *resourcev1.CatalogSource
 	for _, o := range others {
@@ -821,7 +854,7 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 		case o.name < name:
 			if got, err := h.sources.readSource(ctx, o.name, o.spec, maps.Clone(taken)); err == nil {
 				for _, e := range got.entries {
-					taken[e.GetId()] = "the catalog " + o.name
+					taken[e.GetId()] = claim{by: "the catalog " + o.name, entry: e}
 				}
 			}
 		}
@@ -839,6 +872,12 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 		Ref:     ref,
 		Names:   ids(got.entries),
 	}, h.sources.commitNote(ctx, ref, spec)}
+	if len(got.also) > 0 {
+		notes = append(notes, revision.Note{
+			Reason: "catalog_source_also", Ref: ref, Names: ids(got.also),
+			Message: fmt.Sprintf("It offers %d %s the catalog has from a catalog before it, as another choice at install: %s.", len(got.also), plural(len(got.also), "app", "apps"), strings.Join(ids(got.also), ", ")),
+		})
+	}
 	if converted(spec) {
 		// One note, counted by kind: a store leaves out hundreds of apps, and each
 		// one's reason is a step away on the source's page.
@@ -954,7 +993,7 @@ func (h *Handler) ListCatalogSources(ctx context.Context, _ *connect.Request[doc
 			info.Unread = err.Error()
 		}
 		if got, ok := reads[s.name]; ok {
-			info.Entries, info.Refused = ids(got.entries), got.refused
+			info.Entries, info.Refused, info.Also = ids(got.entries), got.refused, ids(got.also)
 		}
 		out.Sources = append(out.Sources, info)
 	}

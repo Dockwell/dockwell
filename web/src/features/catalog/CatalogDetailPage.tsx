@@ -2,10 +2,10 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { CatalogService } from "@dockwell/api";
-import { Button, Callout, Icon } from "@dockwell/ui";
+import { Button, Callout, Icon, SegmentedControl } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -14,7 +14,7 @@ import { Page } from "../shell/Page";
 import { Facts, useEntryFacts } from "./access";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, installOf, useInstalls, useOrigins } from "./useCatalog";
+import { categoryLabel, installOf, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
 import "./Catalog.css";
 
 /** Browsing an app is read-only. Its installation form opens only from the Install action. */
@@ -28,11 +28,20 @@ export function CatalogDetailPage({
   children?: ReactNode;
 }) {
   const { t, i18n } = useLingui();
-  const got = useQuery(CatalogService.method.getCatalogEntry, { id });
+  const navigate = useNavigate();
+  // Where several catalogs have the app, the one it's read and installed from: the first, unless a person picked another.
+  const got = useQuery(CatalogService.method.getCatalogEntry, { id, catalog: search.catalog ?? "" });
+  const catalogs = got.data?.catalogs ?? [];
+  const chosen = search.catalog ?? catalogs[0] ?? "";
   // Where the entry comes from decides which installs are its own, as another catalog's app of this ID is another app.
   const origins = useOrigins();
-  const from = origins.origins.get(id);
-  const installs = (useInstalls().data?.installs ?? []).filter((install) => installOf(install, id, origins.origins));
+  const named = useSourceNames();
+  const from = search.catalog
+    ? (origins.data?.sources.find((source) => source.name === search.catalog) ?? origins.origins.get(id))
+    : origins.origins.get(id);
+  const installs = (useInstalls().data?.installs ?? []).filter((install) =>
+    installOf(install, id, origins.origins, origins.also),
+  );
   const entry = got.data?.entry;
   const facts = useEntryFacts(entry);
   const app = entry?.name ?? id;
@@ -125,16 +134,40 @@ export function CatalogDetailPage({
                 <dd>{entry.appLicense}</dd>
               </div>
             ) : null}
-            {origins.data ? (
+            {origins.data && catalogs.length > 1 ? (
+              <div className="catalog-fact-choice">
+                <dt>
+                  <Trans>Catalog</Trans>
+                </dt>
+                <dd>
+                  <SegmentedControl
+                    label={t`Catalog to install from`}
+                    value={chosen}
+                    options={catalogs.map((name) => ({
+                      value: name,
+                      label: name ? <span title={t`From the catalog ${name}`}>{named(name)}</span> : named(name),
+                    }))}
+                    onChange={(name) =>
+                      void navigate({
+                        to: "/catalog/$entryId",
+                        params: { entryId: id },
+                        search: { ...search, catalog: name === catalogs[0] ? undefined : name },
+                        replace: true,
+                      })
+                    }
+                  />
+                </dd>
+              </div>
+            ) : origins.data ? (
               <div>
                 <dt>
                   <Trans>Catalog</Trans>
                 </dt>
                 <dd>
                   {from ? (
-                    <span className="catalog-fact-from">
+                    <span className="catalog-fact-from" title={t`From the catalog ${from.name}`}>
                       <Icon name="branch" size={14} />
-                      {from.name}
+                      {named(from.name)}
                     </span>
                   ) : (
                     <Trans>Dockwell's own</Trans>
@@ -240,8 +273,8 @@ export function CatalogDetailPage({
                         <Trans>Catalog</Trans>
                       </dt>
                       <dd>
-                        <Link to="/catalog/sources" className="catalog-link">
-                          {from.name}
+                        <Link to="/catalog/sources" className="catalog-link" title={t`From the catalog ${from.name}`}>
+                          {named(from.name)}
                         </Link>
                       </dd>
                     </div>

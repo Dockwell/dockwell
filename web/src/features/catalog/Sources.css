@@ -161,3 +161,55 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Another store's apps in one click: those no source reads yet, in a row that wraps. */
+.sources-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+/* In the empty state, its own row above Add a source, as wide as the panel lets it be. */
+.empty-state .sources-presets {
+  flex-basis: 100%;
+  justify-content: center;
+  margin: 0 0 var(--space-2);
+}
+
+/* How a pasted repository reads, as a line of fact under it. */
+.sources-format {
+  display: flex;
+  flex-wrap: wrap;
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.sources-format-count::before {
+  content: "\00a0·\00a0";
+}
+
+/* What a store leaves out, by why, the most first, each opening to its apps. */
+.sources-left-kind {
+  margin-top: var(--space-2);
+}
+
+.sources-left-kind summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--ink);
+}
+
+.sources-left-count {
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sources-left-kind ul {
+  padding-left: var(--space-3);
+}

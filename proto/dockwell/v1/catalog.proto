@@ -177,8 +177,24 @@ message ListCatalogEntriesRequest {}
 
 // ListCatalogEntriesResponse is the catalog.
 message ListCatalogEntriesResponse {
-  // Every entry, sorted by name.
+  // Every entry, sorted by name: one for each app, from the first catalog that has
+  // it, Dockwell's own first, then each source by its name.
   repeated dockwell.catalog.v1alpha1.Entry entries = 1;
+  // The same apps from the other catalogs that have them, each beside the entry of
+  // its ID in entries: an entry of the same ID, name and image is the same app, and
+  // anything less certain is another app, which a source leaves out (ADR 0078).
+  repeated CatalogAlternative also = 20;
+}
+
+// CatalogAlternative is an app's entry in another catalog than the one it's listed
+// from.
+message CatalogAlternative {
+  // The app's ID, as its entry in ListCatalogEntriesResponse.entries has it.
+  string id = 1;
+  // The catalog, by its source's name.
+  string catalog = 2;
+  // Its entry in that catalog.
+  dockwell.catalog.v1alpha1.Entry entry = 3;
 }
 
 // GetCatalogEntryRequest names an entry.
@@ -188,6 +204,9 @@ message GetCatalogEntryRequest {
   // A name for its project to start from, such as one a person typed. Left
   // out, or not a name a project can have, it's the entry's ID.
   string project = 2;
+  // The catalog to read it from, by its source's name, where more than one has
+  // the app. Left out, the one it's listed from.
+  string catalog = 20;
 }
 
 // GetCatalogEntryResponse is an entry, with what installing it would use.
@@ -205,6 +224,9 @@ message GetCatalogEntryResponse {
   // a person reads before the plan, which says the rest. The one a person opens
   // comes first.
   repeated CatalogPart parts = 4;
+  // The catalogs that have the app, the one it's listed from first, by their
+  // sources' names, empty for Dockwell's own. One alone has nothing to choose.
+  repeated string catalogs = 20;
 }
 
 // CatalogPart is one service an entry installs.
@@ -314,6 +336,10 @@ message InstallCatalogEntryRequest {
   // true. One left out is as its entry says. An input only a companion left out
   // uses is refused.
   map<string, bool> companions = 8;
+  // The catalog to install it from, by its source's name, where more than one has
+  // the app. Left out, the one it's listed from. It upgrades from that catalog
+  // alone.
+  string catalog = 20;
 }
 
 // InstallCatalogEntryResponse carries the planned change.
@@ -402,6 +428,9 @@ message CatalogSourceInfo {
   // Why its entries can't be read now, such as a host that doesn't answer. Empty
   // when they can.
   string unread = 5;
+  // The IDs of the apps it has that the catalog lists from a catalog before it,
+  // whose entries in it are another choice of the same app, sorted.
+  repeated string also = 20;
 }
 
 // CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
