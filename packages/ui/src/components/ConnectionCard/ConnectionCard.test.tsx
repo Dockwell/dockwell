@@ -119,6 +119,24 @@ describe("ConnectionCard", () => {
     expect(screen.getByRole("button", { name: "Reveal password" })).toHaveAttribute("aria-busy", "true");
   });
 
+  it("breaks a connection string at its seams, never two letters from its end, and copies it whole", async () => {
+    const user = userEvent.setup();
+    watch();
+    render(
+      <ConnectionCard
+        items={[{ label: "Host", value: "db" }]}
+        connectionString={{ label: "Connection string", build: () => "postgres://app:pw@db:5432/app?sslmode=disable" }}
+      />,
+    );
+    const code = screen.getByText(
+      (_, el) => el?.textContent === "postgres://app:pw@db:5432/app?sslmode=disable" && el.tagName === "CODE",
+    );
+    // A soft break after ://, @, / and ?, and none inside a part.
+    expect(code.innerHTML).toBe("postgres://<wbr>app:pw@<wbr>db:5432/<wbr>app?<wbr>sslmode=disable");
+    await user.click(screen.getByRole("button", { name: "Copy connection string" }));
+    expect(written).toEqual(["postgres://app:pw@db:5432/app?sslmode=disable"]);
+  });
+
   it("copies the string whole when there's no secret", async () => {
     const user = userEvent.setup();
     watch();

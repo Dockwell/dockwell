@@ -915,6 +915,36 @@
   color: var(--healthy);
 }
 
+/* On a phone, Show, Copy and Generate under the field, a third of the row each, so the field keeps its whole width. */
+.catalog-own-tools {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.catalog-own-tools > .dw-btn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Show, while the value shows, as a selected chip is. */
+.catalog-own-tools > .dw-btn[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--selection);
+  color: var(--cobalt);
+}
+
+/* A value shown that's wider than its field, whole, as it wraps under the field. */
+.catalog-own-whole {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
 /* A companion the install may leave out (ADR 0076): a switch on a line of its own, as
    the defaults above are, and its port and notes indented under its label while it's on. */
 .catalog-companions {
@@ -928,6 +958,19 @@
   padding: var(--space-1) 0 var(--space-3);
   border-bottom: 1px solid var(--line);
   min-width: 0;
+}
+
+/*
+ * One rule between two parts of the sheet, never two: a list whose lines each close with a rule leaves its last one off
+ * where what follows opens with a rule of its own, as Advanced, Limits and restarts, and What it installs do; and a
+ * companion's last line leaves its rule to the companion's own.
+ */
+.catalog-chosen-list:has(+ :is(.dw-advanced, .catalog-limits, .catalog-parts)) > :last-child,
+.catalog-companions:has(~ .dw-advanced) > .catalog-companion:last-child,
+.catalog-companion-more > .catalog-chosen-list:last-child > :last-child,
+.catalog-limits:has(+ .catalog-parts) > .catalog-chosen-list:last-child > :last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .catalog-companion-more {

@@ -908,6 +908,32 @@ describe("Installing from the catalog", () => {
     expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(/1 secret generated/);
   });
 
+  it("puts Show, Copy and Generate under your own secret on a phone, so the field keeps its width", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt("/catalog/postgres/install", api());
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await user.click(await within(sheet).findByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: "Set my own database password" }));
+    const field = within(sheet).getByLabelText("Database password");
+    // Nothing sits inside the field beside its value.
+    expect(field.closest(".dw-input")?.querySelector("button")).toBeNull();
+    await user.click(within(sheet).getByRole("button", { name: "Generate" }));
+    const made = (field as HTMLInputElement).value;
+    expect(field).toHaveAttribute("type", "text");
+    const show = within(sheet).getByRole("button", { name: "Show database password" });
+    expect(show).toHaveAttribute("aria-pressed", "true");
+    expect(show).toHaveTextContent("Show");
+    const copy = within(sheet).getByRole("button", { name: "Copy database password" });
+    expect(copy).toHaveTextContent("Copy");
+    await user.click(copy);
+    expect(writeText).toHaveBeenCalledWith(made);
+    expect(await within(sheet).findByRole("button", { name: "database password copied" })).toHaveTextContent("Copied");
+    await user.click(show);
+    expect(field).toHaveAttribute("type", "password");
+  });
+
   it("checks a name as it's typed, and offers the next free one and what has it", async () => {
     const user = userEvent.setup();
     // postgres is here, old was here before, and the control plane says what's free from each.

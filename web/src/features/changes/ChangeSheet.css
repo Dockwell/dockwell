@@ -554,10 +554,19 @@ a.plan-reach-at:focus-visible {
   font-size: 12px;
 }
 
+/*
+ * What applying it means, a note each, in a row that wraps, so two notes never run into each other. They wrap in the
+ * room the buttons under them take rather than widen it, so the field beside them keeps its width.
+ */
 .plan-gate-note {
   grid-area: note;
-  justify-self: end;
   align-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+  contain: inline-size;
 }
 
 .plan-gate-note .dw-sheet-note {
@@ -641,7 +650,7 @@ a.plan-reach-at:focus-visible {
 }
 
 .plan-view.is-phone .plan-gate-note {
-  justify-self: start;
+  justify-content: flex-start;
 }
 
 /* Big enough that a phone doesn't zoom in on it as it takes focus, and for a thumb. */
