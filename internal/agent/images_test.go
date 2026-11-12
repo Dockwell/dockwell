@@ -27,9 +27,10 @@ import (
 // acme/web, and counts the manifest GETs Docker Hub would count as pulls. Down,
 // nothing reaches it; a tag called broken answers 500.
 type imageRegistry struct {
-	srv  *httptest.Server
-	gets atomic.Int32
-	down atomic.Bool
+	srv   *httptest.Server
+	gets  atomic.Int32
+	heads atomic.Int32
+	down  atomic.Bool
 	// hold, when set, holds every request until it's closed.
 	hold atomic.Pointer[chan struct{}]
 }
@@ -55,6 +56,9 @@ func newImageRegistry(t *testing.T) *imageRegistry {
 			}
 			// Each tag is an image of its own, so each config is read once.
 			w.Header().Set("Docker-Content-Digest", fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(path))))
+			if r.Method == http.MethodHead {
+				f.heads.Add(1)
+			}
 			if r.Method == http.MethodGet {
 				f.gets.Add(1)
 				_, _ = fmt.Fprintf(w, `{"config":{"digest":"sha256:%064d","size":%d}}`, 1, len(config))
@@ -496,5 +500,95 @@ func TestImagesSearchNoOtherRegistry(t *testing.T) {
 		if !errors.Is(err, errHostTerm) {
 			t.Errorf("a search for %s = %v", term, err)
 		}
+	}
+}
+
+// A plan pins an entry's images with one call for all of them: a HEAD each, which no
+// registry counts as a pull, into the same short-lived digests a form's reads keep,
+// so a form's read after it asks no registry again (ADR 0078).
+func TestImagesPinDigestsWithHeadsAlone(t *testing.T) {
+	f := newImageRegistry(t)
+	im, _ := newTestImages(t, f, nil)
+	ctx := context.Background()
+	refs := []string{"nginx:1.27", "ghcr.io/acme/web:nope", "ghcr.io/acme/web:broken", "Not An Image"}
+	got, err := im.read(ctx, &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: refs}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ds := got.GetDigests().GetDigests()
+	if len(ds) != len(refs) {
+		t.Fatalf("digests = %v", ds)
+	}
+	want := []dockwellv1.ImageAnswer{dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND, dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND, dockwellv1.ImageAnswer_IMAGE_ANSWER_UNREACHABLE, dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND}
+	for i, d := range ds {
+		if d.GetReference() != refs[i] || d.GetAnswer() != want[i] || (i == 0) != (d.GetDigest() != "") {
+			t.Errorf("%s: %v %q, want %v", refs[i], d.GetAnswer(), d.GetDigest(), want[i])
+		}
+	}
+	if f.gets.Load() != 0 {
+		t.Errorf("pinning made %d manifest GETs, which Docker Hub counts as pulls", f.gets.Load())
+	}
+	heads := f.heads.Load()
+	read, err := im.read(ctx, imageCall("nginx:1.27"))
+	if err != nil || read.GetImage().GetDigest() != ds[0].GetDigest() || f.heads.Load() != heads {
+		t.Errorf("a form's read after pinning asked again: %d HEADs, then %d, digest %q, %v", heads, f.heads.Load(), read.GetImage().GetDigest(), err)
+	}
+	many := make([]string, mostDigests+1)
+	for i := range many {
+		many[i] = "nginx:1.27"
+	}
+	if _, err := im.read(ctx, &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: many}}}); err == nil {
+		t.Error("a call for more digests than an agent reads at once went ahead")
+	}
+}
+
+// A plan's digests come from a store's file, so a registry the server's Docker
+// doesn't name is read at public addresses alone, wherever its name leads: an image
+// on this server's own registry is never asked about, unless the server's Docker
+// names that registry, as a pull would reach it then (the review of #548, its M2).
+func TestImagesPinOnlyWhatDockerNamesOffThePublicInternet(t *testing.T) {
+	var asked atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked.Add(1)
+		w.Header().Set("Docker-Content-Digest", "sha256:"+strings.Repeat("a", 64))
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+	read := func(e *dockertest.Engine) *agentv1.ImageDigest {
+		t.Helper()
+		im := newImages(e.Client(), ImageReads{}, nil)
+		got, err := im.read(context.Background(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: []string{host + "/x:1.0"}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.GetDigests().GetDigests()[0]
+	}
+	if d := read(dockertest.New(t)); d.GetAnswer() == dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND || asked.Load() != 0 {
+		t.Errorf("a registry on this server that Docker doesn't name: %v %q, asked %d times", d.GetAnswer(), d.GetDigest(), asked.Load())
+	}
+	named := dockertest.New(t)
+	named.Registries = []string{host}
+	if d := read(named); d.GetAnswer() != dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND || asked.Load() == 0 {
+		t.Errorf("a registry Docker's daemon.json names: %v, asked %d times", d.GetAnswer(), asked.Load())
+	}
+}
+
+// A registry that names a digest that isn't one answers nothing a plan could pin
+// (the review of #548, its L1).
+func TestImagesRefuseADigestThatIsntOne(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Docker-Content-Digest", "sha256:../../not-a-digest")
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+	e := dockertest.New(t)
+	e.Registries = []string{host}
+	im := newImages(e.Client(), ImageReads{}, nil)
+	got, err := im.read(context.Background(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: []string{host + "/x:1.0"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := got.GetDigests().GetDigests()[0]; d.GetAnswer() == dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND || d.GetDigest() != "" {
+		t.Errorf("a digest that isn't one: %v %q", d.GetAnswer(), d.GetDigest())
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+	"github.com/dockwell/dockwell/internal/compose"
 )
 
 // rewritten is a source's Compose file as an entry may say it, with its inputs.
@@ -439,16 +440,30 @@ func literalSecret(value string) bool {
 // can stand for more than any Compose file says.
 const maxNodes = 100000
 
+// nodeBytes is what each node written out counts against maxExpanded beyond its
+// value, for the structure that holds it.
+const nodeBytes = 8
+
+// maxExpanded bounds what expanding a file's aliases writes out, in bytes: the most a
+// Compose file may be once it's read (compose.MaxFile). An anchor of 100 KiB named
+// through two levels of ten aliases stands for 10 MB in a file of 100 KiB, and every
+// later step writes it out again, so it's counted as it's copied, not once it's built.
+const maxExpanded = compose.MaxFile
+
 // expandAliases writes out each YAML alias as what it stands for, and each merge key
 // into the mapping it's in, as Compose reads them, so nothing the rest of this reads
-// hides behind one.
+// hides behind one. It stops past maxNodes nodes or maxExpanded bytes of what it
+// writes out.
 func expandAliases(doc *yaml.Node) error {
-	count := 0
+	count, size := 0, 0
 	var expand func(n *yaml.Node) (*yaml.Node, error)
 	expand = func(n *yaml.Node) (*yaml.Node, error) {
 		count++
 		if count > maxNodes {
 			return nil, leave(ClassFile, "its Compose file's aliases stand for over %d nodes, more than any Compose file says", maxNodes)
+		}
+		if size += nodeBytes + len(n.Value) + len(n.Tag); size > maxExpanded {
+			return nil, leave(ClassFile, "its Compose file's aliases write out over %d KiB, more than a Compose file may be", maxExpanded>>10)
 		}
 		if n.Kind == yaml.AliasNode {
 			return expand(n.Alias)

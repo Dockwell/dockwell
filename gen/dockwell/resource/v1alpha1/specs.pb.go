@@ -360,6 +360,67 @@ func (Protection) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{5}
 }
 
+// CatalogFormat is how a catalog's folder is laid out (ADR 0078).
+type CatalogFormat int32
+
+const (
+	// Dockwell's own, for a source made before formats.
+	CatalogFormat_CATALOG_FORMAT_UNSPECIFIED CatalogFormat = 0
+	// Dockwell's own entries, one <id>.yaml each.
+	CatalogFormat_CATALOG_FORMAT_DOCKWELL CatalogFormat = 1
+	// 1Panel's app store: apps/<key>/data.yml, and a folder for each version.
+	CatalogFormat_CATALOG_FORMAT_ONEPANEL CatalogFormat = 2
+	// Dokploy's templates: blueprints/<id>/, each with template.toml.
+	CatalogFormat_CATALOG_FORMAT_DOKPLOY CatalogFormat = 3
+	// Coolify's templates: templates/compose/<id>.yaml.
+	CatalogFormat_CATALOG_FORMAT_COOLIFY CatalogFormat = 4
+)
+
+// Enum value maps for CatalogFormat.
+var (
+	CatalogFormat_name = map[int32]string{
+		0: "CATALOG_FORMAT_UNSPECIFIED",
+		1: "CATALOG_FORMAT_DOCKWELL",
+		2: "CATALOG_FORMAT_ONEPANEL",
+		3: "CATALOG_FORMAT_DOKPLOY",
+		4: "CATALOG_FORMAT_COOLIFY",
+	}
+	CatalogFormat_value = map[string]int32{
+		"CATALOG_FORMAT_UNSPECIFIED": 0,
+		"CATALOG_FORMAT_DOCKWELL":    1,
+		"CATALOG_FORMAT_ONEPANEL":    2,
+		"CATALOG_FORMAT_DOKPLOY":     3,
+		"CATALOG_FORMAT_COOLIFY":     4,
+	}
+)
+
+func (x CatalogFormat) Enum() *CatalogFormat {
+	p := new(CatalogFormat)
+	*p = x
+	return p
+}
+
+func (x CatalogFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (CatalogFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[6].Descriptor()
+}
+
+func (CatalogFormat) Type() protoreflect.EnumType {
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[6]
+}
+
+func (x CatalogFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use CatalogFormat.Descriptor instead.
+func (CatalogFormat) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{6}
+}
+
 // Builder is what turns the source into an image.
 type ImageBuild_Builder int32
 
@@ -400,11 +461,11 @@ func (x ImageBuild_Builder) String() string {
 }
 
 func (ImageBuild_Builder) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[6].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[7].Descriptor()
 }
 
 func (ImageBuild_Builder) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[6]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[7]
 }
 
 func (x ImageBuild_Builder) Number() protoreflect.EnumNumber {
@@ -456,11 +517,11 @@ func (x BackupPolicy_Every) String() string {
 }
 
 func (BackupPolicy_Every) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[7].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[8].Descriptor()
 }
 
 func (BackupPolicy_Every) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[7]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[8]
 }
 
 func (x BackupPolicy_Every) Number() protoreflect.EnumNumber {
@@ -514,11 +575,11 @@ func (x BackupPolicy_Drill) String() string {
 }
 
 func (BackupPolicy_Drill) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[8].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[9].Descriptor()
 }
 
 func (BackupPolicy_Drill) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[8]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[9]
 }
 
 func (x BackupPolicy_Drill) Number() protoreflect.EnumNumber {
@@ -609,11 +670,11 @@ func (x AlertRule_Condition) String() string {
 }
 
 func (AlertRule_Condition) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[9].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10].Descriptor()
 }
 
 func (AlertRule_Condition) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[9]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10]
 }
 
 func (x AlertRule_Condition) Number() protoreflect.EnumNumber {
@@ -661,11 +722,11 @@ func (x AlertRule_Severity) String() string {
 }
 
 func (AlertRule_Severity) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11].Descriptor()
 }
 
 func (AlertRule_Severity) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11]
 }
 
 func (x AlertRule_Severity) Number() protoreflect.EnumNumber {
@@ -718,11 +779,11 @@ func (x AlertEmail_Security) String() string {
 }
 
 func (AlertEmail_Security) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[12].Descriptor()
 }
 
 func (AlertEmail_Security) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[12]
 }
 
 func (x AlertEmail_Security) Number() protoreflect.EnumNumber {
@@ -3789,19 +3850,25 @@ func (x *Route) GetPlainForAnyone() bool {
 }
 
 // CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
-// entries in its format in a public Git repository, at one commit. Moving it to
-// another commit is a change, so what anyone can install from it moves only with a
-// plan. See docs/adr/0055-catalogs-from-a-git-url.md.
+// entries in its format in a public Git repository, or another store's, at one
+// commit. Moving it to another commit is a change, so what anyone can install from it
+// moves only with a plan. See docs/adr/0055-catalogs-from-a-git-url.md and
+// docs/adr/0078-other-stores-read-on-the-server.md.
 type CatalogSource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The repository's URL, over HTTPS, such as
 	// "https://github.com/example/catalog".
 	Repository string `protobuf:"bytes,1,opt,name=repository,proto3" json:"repository,omitempty"`
-	// The folder of entries in it, one <id>.yaml each, such as "entries". Empty is
-	// its top.
+	// The folder of entries in it, one <id>.yaml each, such as "entries", or the
+	// folder that holds another store's, such as its top for 1Panel's app store.
+	// Empty is its top.
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	// The commit it's read at, in full, as 40 hex digits.
-	Commit        string `protobuf:"bytes,3,opt,name=commit,proto3" json:"commit,omitempty"`
+	Commit string `protobuf:"bytes,3,opt,name=commit,proto3" json:"commit,omitempty"`
+	// How its folder is laid out: Dockwell's own entries, or another store's, which
+	// Dockwell converts as it reads them. Unspecified is Dockwell's own, as a source
+	// made before formats has it.
+	Format        CatalogFormat `protobuf:"varint,10,opt,name=format,proto3,enum=dockwell.resource.v1alpha1.CatalogFormat" json:"format,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3855,6 +3922,13 @@ func (x *CatalogSource) GetCommit() string {
 		return x.Commit
 	}
 	return ""
+}
+
+func (x *CatalogSource) GetFormat() CatalogFormat {
+	if x != nil {
+		return x.Format
+	}
+	return CatalogFormat_CATALOG_FORMAT_UNSPECIFIED
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is
@@ -5769,13 +5843,15 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x03tls\x18\x05 \x01(\tR\x03tls\x12'\n" +
 	"\x0ftrusted_proxies\x18\x06 \x03(\tR\x0etrustedProxies\x12\x1b\n" +
 	"\thost_port\x18\a \x01(\rR\bhostPort\x12(\n" +
-	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"[\n" +
+	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\x9e\x01\n" +
 	"\rCatalogSource\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\x8f\f\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\x12A\n" +
+	"\x06format\x18\n" +
+	" \x01(\x0e2).dockwell.resource.v1alpha1.CatalogFormatR\x06format\"\x8f\f\n" +
 	"\x04Spec\x12?\n" +
 	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
 	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +
@@ -5933,7 +6009,13 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"Protection\x12\x1a\n" +
 	"\x16PROTECTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PROTECTION_PROTECTED\x10\x01\x12\x13\n" +
-	"\x0fPROTECTION_OPEN\x10\x02:=\n" +
+	"\x0fPROTECTION_OPEN\x10\x02*\xa1\x01\n" +
+	"\rCatalogFormat\x12\x1e\n" +
+	"\x1aCATALOG_FORMAT_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17CATALOG_FORMAT_DOCKWELL\x10\x01\x12\x1b\n" +
+	"\x17CATALOG_FORMAT_ONEPANEL\x10\x02\x12\x1a\n" +
+	"\x16CATALOG_FORMAT_DOKPLOY\x10\x03\x12\x1a\n" +
+	"\x16CATALOG_FORMAT_COOLIFY\x10\x04:=\n" +
 	"\tsensitive\x12\x1d.google.protobuf.FieldOptions\x18\xb9\x8e\x03 \x01(\bR\tsensitiveB\x84\x02\n" +
 	"\x1ecom.dockwell.resource.v1alpha1B\n" +
 	"SpecsProtoP\x01ZLgithub.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1;resourcev1alpha1\xa2\x02\x03DRX\xaa\x02\x1aDockwell.Resource.V1alpha1\xca\x02\x1aDockwell\\Resource\\V1alpha1\xe2\x02&Dockwell\\Resource\\V1alpha1\\GPBMetadata\xea\x02\x1cDockwell::Resource::V1alpha1b\x06proto3"
@@ -5950,7 +6032,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescData
 }
 
-var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
+var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 13)
 var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(RolloutOrder)(0),                 // 0: dockwell.resource.v1alpha1.RolloutOrder
@@ -5959,158 +6041,160 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(Protocol)(0),                     // 3: dockwell.resource.v1alpha1.Protocol
 	(FirewallAction)(0),               // 4: dockwell.resource.v1alpha1.FirewallAction
 	(Protection)(0),                   // 5: dockwell.resource.v1alpha1.Protection
-	(ImageBuild_Builder)(0),           // 6: dockwell.resource.v1alpha1.ImageBuild.Builder
-	(BackupPolicy_Every)(0),           // 7: dockwell.resource.v1alpha1.BackupPolicy.Every
-	(BackupPolicy_Drill)(0),           // 8: dockwell.resource.v1alpha1.BackupPolicy.Drill
-	(AlertRule_Condition)(0),          // 9: dockwell.resource.v1alpha1.AlertRule.Condition
-	(AlertRule_Severity)(0),           // 10: dockwell.resource.v1alpha1.AlertRule.Severity
-	(AlertEmail_Security)(0),          // 11: dockwell.resource.v1alpha1.AlertEmail.Security
-	(*Container)(nil),                 // 12: dockwell.resource.v1alpha1.Container
-	(*Tmpfs)(nil),                     // 13: dockwell.resource.v1alpha1.Tmpfs
-	(*Resources)(nil),                 // 14: dockwell.resource.v1alpha1.Resources
-	(*Rollout)(nil),                   // 15: dockwell.resource.v1alpha1.Rollout
-	(*Mount)(nil),                     // 16: dockwell.resource.v1alpha1.Mount
-	(*Healthcheck)(nil),               // 17: dockwell.resource.v1alpha1.Healthcheck
-	(*HttpCheck)(nil),                 // 18: dockwell.resource.v1alpha1.HttpCheck
-	(*TcpCheck)(nil),                  // 19: dockwell.resource.v1alpha1.TcpCheck
-	(*PortMapping)(nil),               // 20: dockwell.resource.v1alpha1.PortMapping
-	(*FirewallRule)(nil),              // 21: dockwell.resource.v1alpha1.FirewallRule
-	(*FirewallPolicy)(nil),            // 22: dockwell.resource.v1alpha1.FirewallPolicy
-	(*Jail)(nil),                      // 23: dockwell.resource.v1alpha1.Jail
-	(*Project)(nil),                   // 24: dockwell.resource.v1alpha1.Project
-	(*Website)(nil),                   // 25: dockwell.resource.v1alpha1.Website
-	(*WebsitePhp)(nil),                // 26: dockwell.resource.v1alpha1.WebsitePhp
-	(*WebsiteFolder)(nil),             // 27: dockwell.resource.v1alpha1.WebsiteFolder
-	(*WebsiteProxy)(nil),              // 28: dockwell.resource.v1alpha1.WebsiteProxy
-	(*CatalogPin)(nil),                // 29: dockwell.resource.v1alpha1.CatalogPin
-	(*Environment)(nil),               // 30: dockwell.resource.v1alpha1.Environment
-	(*Service)(nil),                   // 31: dockwell.resource.v1alpha1.Service
-	(*ImageBuild)(nil),                // 32: dockwell.resource.v1alpha1.ImageBuild
-	(*GitSource)(nil),                 // 33: dockwell.resource.v1alpha1.GitSource
-	(*Runtime)(nil),                   // 34: dockwell.resource.v1alpha1.Runtime
-	(*Variable)(nil),                  // 35: dockwell.resource.v1alpha1.Variable
-	(*Secret)(nil),                    // 36: dockwell.resource.v1alpha1.Secret
-	(*Volume)(nil),                    // 37: dockwell.resource.v1alpha1.Volume
-	(*DatabaseUser)(nil),              // 38: dockwell.resource.v1alpha1.DatabaseUser
-	(*BackupPolicy)(nil),              // 39: dockwell.resource.v1alpha1.BackupPolicy
-	(*BackupDestination)(nil),         // 40: dockwell.resource.v1alpha1.BackupDestination
-	(*Network)(nil),                   // 41: dockwell.resource.v1alpha1.Network
-	(*Route)(nil),                     // 42: dockwell.resource.v1alpha1.Route
-	(*CatalogSource)(nil),             // 43: dockwell.resource.v1alpha1.CatalogSource
-	(*Spec)(nil),                      // 44: dockwell.resource.v1alpha1.Spec
-	(*Task)(nil),                      // 45: dockwell.resource.v1alpha1.Task
-	(*TaskShell)(nil),                 // 46: dockwell.resource.v1alpha1.TaskShell
-	(*TaskApp)(nil),                   // 47: dockwell.resource.v1alpha1.TaskApp
-	(*TaskRequest)(nil),               // 48: dockwell.resource.v1alpha1.TaskRequest
-	(*AlertRule)(nil),                 // 49: dockwell.resource.v1alpha1.AlertRule
-	(*AlertCheck)(nil),                // 50: dockwell.resource.v1alpha1.AlertCheck
-	(*AlertChannel)(nil),              // 51: dockwell.resource.v1alpha1.AlertChannel
-	(*AlertWebhook)(nil),              // 52: dockwell.resource.v1alpha1.AlertWebhook
-	(*AlertEmail)(nil),                // 53: dockwell.resource.v1alpha1.AlertEmail
-	(*AlertNtfy)(nil),                 // 54: dockwell.resource.v1alpha1.AlertNtfy
-	(*AlertSlack)(nil),                // 55: dockwell.resource.v1alpha1.AlertSlack
-	(*AlertDiscord)(nil),              // 56: dockwell.resource.v1alpha1.AlertDiscord
-	(*AlertTelegram)(nil),             // 57: dockwell.resource.v1alpha1.AlertTelegram
-	(*ServerHost)(nil),                // 58: dockwell.resource.v1alpha1.ServerHost
-	nil,                               // 59: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 60: dockwell.resource.v1alpha1.Container.LabelsEntry
-	nil,                               // 61: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	nil,                               // 62: dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
-	nil,                               // 63: dockwell.resource.v1alpha1.Service.VariablesEntry
-	nil,                               // 64: dockwell.resource.v1alpha1.Service.SecretsEntry
-	nil,                               // 65: dockwell.resource.v1alpha1.Service.RevisionsEntry
-	nil,                               // 66: dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
-	nil,                               // 67: dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
-	nil,                               // 68: dockwell.resource.v1alpha1.Runtime.WroteEntry
-	nil,                               // 69: dockwell.resource.v1alpha1.Volume.OptionsEntry
-	nil,                               // 70: dockwell.resource.v1alpha1.Volume.LabelsEntry
-	nil,                               // 71: dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
-	nil,                               // 72: dockwell.resource.v1alpha1.Network.OptionsEntry
-	nil,                               // 73: dockwell.resource.v1alpha1.Network.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 74: google.protobuf.FieldOptions
+	(CatalogFormat)(0),                // 6: dockwell.resource.v1alpha1.CatalogFormat
+	(ImageBuild_Builder)(0),           // 7: dockwell.resource.v1alpha1.ImageBuild.Builder
+	(BackupPolicy_Every)(0),           // 8: dockwell.resource.v1alpha1.BackupPolicy.Every
+	(BackupPolicy_Drill)(0),           // 9: dockwell.resource.v1alpha1.BackupPolicy.Drill
+	(AlertRule_Condition)(0),          // 10: dockwell.resource.v1alpha1.AlertRule.Condition
+	(AlertRule_Severity)(0),           // 11: dockwell.resource.v1alpha1.AlertRule.Severity
+	(AlertEmail_Security)(0),          // 12: dockwell.resource.v1alpha1.AlertEmail.Security
+	(*Container)(nil),                 // 13: dockwell.resource.v1alpha1.Container
+	(*Tmpfs)(nil),                     // 14: dockwell.resource.v1alpha1.Tmpfs
+	(*Resources)(nil),                 // 15: dockwell.resource.v1alpha1.Resources
+	(*Rollout)(nil),                   // 16: dockwell.resource.v1alpha1.Rollout
+	(*Mount)(nil),                     // 17: dockwell.resource.v1alpha1.Mount
+	(*Healthcheck)(nil),               // 18: dockwell.resource.v1alpha1.Healthcheck
+	(*HttpCheck)(nil),                 // 19: dockwell.resource.v1alpha1.HttpCheck
+	(*TcpCheck)(nil),                  // 20: dockwell.resource.v1alpha1.TcpCheck
+	(*PortMapping)(nil),               // 21: dockwell.resource.v1alpha1.PortMapping
+	(*FirewallRule)(nil),              // 22: dockwell.resource.v1alpha1.FirewallRule
+	(*FirewallPolicy)(nil),            // 23: dockwell.resource.v1alpha1.FirewallPolicy
+	(*Jail)(nil),                      // 24: dockwell.resource.v1alpha1.Jail
+	(*Project)(nil),                   // 25: dockwell.resource.v1alpha1.Project
+	(*Website)(nil),                   // 26: dockwell.resource.v1alpha1.Website
+	(*WebsitePhp)(nil),                // 27: dockwell.resource.v1alpha1.WebsitePhp
+	(*WebsiteFolder)(nil),             // 28: dockwell.resource.v1alpha1.WebsiteFolder
+	(*WebsiteProxy)(nil),              // 29: dockwell.resource.v1alpha1.WebsiteProxy
+	(*CatalogPin)(nil),                // 30: dockwell.resource.v1alpha1.CatalogPin
+	(*Environment)(nil),               // 31: dockwell.resource.v1alpha1.Environment
+	(*Service)(nil),                   // 32: dockwell.resource.v1alpha1.Service
+	(*ImageBuild)(nil),                // 33: dockwell.resource.v1alpha1.ImageBuild
+	(*GitSource)(nil),                 // 34: dockwell.resource.v1alpha1.GitSource
+	(*Runtime)(nil),                   // 35: dockwell.resource.v1alpha1.Runtime
+	(*Variable)(nil),                  // 36: dockwell.resource.v1alpha1.Variable
+	(*Secret)(nil),                    // 37: dockwell.resource.v1alpha1.Secret
+	(*Volume)(nil),                    // 38: dockwell.resource.v1alpha1.Volume
+	(*DatabaseUser)(nil),              // 39: dockwell.resource.v1alpha1.DatabaseUser
+	(*BackupPolicy)(nil),              // 40: dockwell.resource.v1alpha1.BackupPolicy
+	(*BackupDestination)(nil),         // 41: dockwell.resource.v1alpha1.BackupDestination
+	(*Network)(nil),                   // 42: dockwell.resource.v1alpha1.Network
+	(*Route)(nil),                     // 43: dockwell.resource.v1alpha1.Route
+	(*CatalogSource)(nil),             // 44: dockwell.resource.v1alpha1.CatalogSource
+	(*Spec)(nil),                      // 45: dockwell.resource.v1alpha1.Spec
+	(*Task)(nil),                      // 46: dockwell.resource.v1alpha1.Task
+	(*TaskShell)(nil),                 // 47: dockwell.resource.v1alpha1.TaskShell
+	(*TaskApp)(nil),                   // 48: dockwell.resource.v1alpha1.TaskApp
+	(*TaskRequest)(nil),               // 49: dockwell.resource.v1alpha1.TaskRequest
+	(*AlertRule)(nil),                 // 50: dockwell.resource.v1alpha1.AlertRule
+	(*AlertCheck)(nil),                // 51: dockwell.resource.v1alpha1.AlertCheck
+	(*AlertChannel)(nil),              // 52: dockwell.resource.v1alpha1.AlertChannel
+	(*AlertWebhook)(nil),              // 53: dockwell.resource.v1alpha1.AlertWebhook
+	(*AlertEmail)(nil),                // 54: dockwell.resource.v1alpha1.AlertEmail
+	(*AlertNtfy)(nil),                 // 55: dockwell.resource.v1alpha1.AlertNtfy
+	(*AlertSlack)(nil),                // 56: dockwell.resource.v1alpha1.AlertSlack
+	(*AlertDiscord)(nil),              // 57: dockwell.resource.v1alpha1.AlertDiscord
+	(*AlertTelegram)(nil),             // 58: dockwell.resource.v1alpha1.AlertTelegram
+	(*ServerHost)(nil),                // 59: dockwell.resource.v1alpha1.ServerHost
+	nil,                               // 60: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 61: dockwell.resource.v1alpha1.Container.LabelsEntry
+	nil,                               // 62: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	nil,                               // 63: dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
+	nil,                               // 64: dockwell.resource.v1alpha1.Service.VariablesEntry
+	nil,                               // 65: dockwell.resource.v1alpha1.Service.SecretsEntry
+	nil,                               // 66: dockwell.resource.v1alpha1.Service.RevisionsEntry
+	nil,                               // 67: dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
+	nil,                               // 68: dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
+	nil,                               // 69: dockwell.resource.v1alpha1.Runtime.WroteEntry
+	nil,                               // 70: dockwell.resource.v1alpha1.Volume.OptionsEntry
+	nil,                               // 71: dockwell.resource.v1alpha1.Volume.LabelsEntry
+	nil,                               // 72: dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
+	nil,                               // 73: dockwell.resource.v1alpha1.Network.OptionsEntry
+	nil,                               // 74: dockwell.resource.v1alpha1.Network.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 75: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	59, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
-	20, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
+	60, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	21, // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
 	2,  // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	60, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
-	16, // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
-	17, // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
-	15, // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
-	14, // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
-	13, // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
+	61, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	17, // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
+	18, // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
+	16, // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
+	15, // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
+	14, // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
 	0,  // 9: dockwell.resource.v1alpha1.Rollout.order:type_name -> dockwell.resource.v1alpha1.RolloutOrder
 	1,  // 10: dockwell.resource.v1alpha1.Mount.relabel:type_name -> dockwell.resource.v1alpha1.Relabel
-	18, // 11: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
-	19, // 12: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
+	19, // 11: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
+	20, // 12: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
 	3,  // 13: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
 	4,  // 14: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
 	3,  // 15: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	29, // 16: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
-	25, // 17: dockwell.resource.v1alpha1.Project.website:type_name -> dockwell.resource.v1alpha1.Website
-	28, // 18: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
-	27, // 19: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
-	26, // 20: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
-	61, // 21: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	62, // 22: dockwell.resource.v1alpha1.CatalogPin.companions:type_name -> dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
+	30, // 16: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	26, // 17: dockwell.resource.v1alpha1.Project.website:type_name -> dockwell.resource.v1alpha1.Website
+	29, // 18: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
+	28, // 19: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
+	27, // 20: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
+	62, // 21: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	63, // 22: dockwell.resource.v1alpha1.CatalogPin.companions:type_name -> dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
 	5,  // 23: dockwell.resource.v1alpha1.Environment.protection:type_name -> dockwell.resource.v1alpha1.Protection
-	12, // 24: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	63, // 25: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
-	64, // 26: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
-	65, // 27: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
-	32, // 28: dockwell.resource.v1alpha1.Service.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
-	34, // 29: dockwell.resource.v1alpha1.Service.runtime:type_name -> dockwell.resource.v1alpha1.Runtime
-	33, // 30: dockwell.resource.v1alpha1.ImageBuild.git:type_name -> dockwell.resource.v1alpha1.GitSource
-	66, // 31: dockwell.resource.v1alpha1.ImageBuild.args:type_name -> dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
-	67, // 32: dockwell.resource.v1alpha1.ImageBuild.secrets:type_name -> dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
-	6,  // 33: dockwell.resource.v1alpha1.ImageBuild.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
-	68, // 34: dockwell.resource.v1alpha1.Runtime.wrote:type_name -> dockwell.resource.v1alpha1.Runtime.WroteEntry
-	69, // 35: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
-	70, // 36: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
-	71, // 37: dockwell.resource.v1alpha1.DatabaseUser.revisions:type_name -> dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
-	7,  // 38: dockwell.resource.v1alpha1.BackupPolicy.every:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Every
-	8,  // 39: dockwell.resource.v1alpha1.BackupPolicy.drill:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Drill
-	72, // 40: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
-	73, // 41: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
-	24, // 42: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
-	30, // 43: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
-	31, // 44: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
-	12, // 45: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
-	21, // 46: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
-	22, // 47: dockwell.resource.v1alpha1.Spec.firewall_policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
-	23, // 48: dockwell.resource.v1alpha1.Spec.fail2ban_jail:type_name -> dockwell.resource.v1alpha1.Jail
-	37, // 49: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
-	41, // 50: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
-	35, // 51: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
-	36, // 52: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
-	42, // 53: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
-	39, // 54: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
-	40, // 55: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
-	38, // 56: dockwell.resource.v1alpha1.Spec.database_user:type_name -> dockwell.resource.v1alpha1.DatabaseUser
-	49, // 57: dockwell.resource.v1alpha1.Spec.alert_rule:type_name -> dockwell.resource.v1alpha1.AlertRule
-	51, // 58: dockwell.resource.v1alpha1.Spec.alert_channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
-	50, // 59: dockwell.resource.v1alpha1.Spec.alert_check:type_name -> dockwell.resource.v1alpha1.AlertCheck
-	43, // 60: dockwell.resource.v1alpha1.Spec.catalog_source:type_name -> dockwell.resource.v1alpha1.CatalogSource
-	58, // 61: dockwell.resource.v1alpha1.Spec.server_host:type_name -> dockwell.resource.v1alpha1.ServerHost
-	45, // 62: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
-	46, // 63: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
-	47, // 64: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
-	48, // 65: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
-	9,  // 66: dockwell.resource.v1alpha1.AlertRule.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
-	10, // 67: dockwell.resource.v1alpha1.AlertRule.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
-	52, // 68: dockwell.resource.v1alpha1.AlertChannel.webhook:type_name -> dockwell.resource.v1alpha1.AlertWebhook
-	53, // 69: dockwell.resource.v1alpha1.AlertChannel.email:type_name -> dockwell.resource.v1alpha1.AlertEmail
-	54, // 70: dockwell.resource.v1alpha1.AlertChannel.ntfy:type_name -> dockwell.resource.v1alpha1.AlertNtfy
-	55, // 71: dockwell.resource.v1alpha1.AlertChannel.slack:type_name -> dockwell.resource.v1alpha1.AlertSlack
-	56, // 72: dockwell.resource.v1alpha1.AlertChannel.discord:type_name -> dockwell.resource.v1alpha1.AlertDiscord
-	57, // 73: dockwell.resource.v1alpha1.AlertChannel.telegram:type_name -> dockwell.resource.v1alpha1.AlertTelegram
-	11, // 74: dockwell.resource.v1alpha1.AlertEmail.security:type_name -> dockwell.resource.v1alpha1.AlertEmail.Security
-	74, // 75: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	76, // [76:76] is the sub-list for method output_type
-	76, // [76:76] is the sub-list for method input_type
-	76, // [76:76] is the sub-list for extension type_name
-	75, // [75:76] is the sub-list for extension extendee
-	0,  // [0:75] is the sub-list for field type_name
+	13, // 24: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
+	64, // 25: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
+	65, // 26: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
+	66, // 27: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
+	33, // 28: dockwell.resource.v1alpha1.Service.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
+	35, // 29: dockwell.resource.v1alpha1.Service.runtime:type_name -> dockwell.resource.v1alpha1.Runtime
+	34, // 30: dockwell.resource.v1alpha1.ImageBuild.git:type_name -> dockwell.resource.v1alpha1.GitSource
+	67, // 31: dockwell.resource.v1alpha1.ImageBuild.args:type_name -> dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
+	68, // 32: dockwell.resource.v1alpha1.ImageBuild.secrets:type_name -> dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
+	7,  // 33: dockwell.resource.v1alpha1.ImageBuild.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
+	69, // 34: dockwell.resource.v1alpha1.Runtime.wrote:type_name -> dockwell.resource.v1alpha1.Runtime.WroteEntry
+	70, // 35: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
+	71, // 36: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
+	72, // 37: dockwell.resource.v1alpha1.DatabaseUser.revisions:type_name -> dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
+	8,  // 38: dockwell.resource.v1alpha1.BackupPolicy.every:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Every
+	9,  // 39: dockwell.resource.v1alpha1.BackupPolicy.drill:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Drill
+	73, // 40: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
+	74, // 41: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
+	6,  // 42: dockwell.resource.v1alpha1.CatalogSource.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
+	25, // 43: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
+	31, // 44: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
+	32, // 45: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
+	13, // 46: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
+	22, // 47: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	23, // 48: dockwell.resource.v1alpha1.Spec.firewall_policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
+	24, // 49: dockwell.resource.v1alpha1.Spec.fail2ban_jail:type_name -> dockwell.resource.v1alpha1.Jail
+	38, // 50: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
+	42, // 51: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
+	36, // 52: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
+	37, // 53: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
+	43, // 54: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
+	40, // 55: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
+	41, // 56: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
+	39, // 57: dockwell.resource.v1alpha1.Spec.database_user:type_name -> dockwell.resource.v1alpha1.DatabaseUser
+	50, // 58: dockwell.resource.v1alpha1.Spec.alert_rule:type_name -> dockwell.resource.v1alpha1.AlertRule
+	52, // 59: dockwell.resource.v1alpha1.Spec.alert_channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
+	51, // 60: dockwell.resource.v1alpha1.Spec.alert_check:type_name -> dockwell.resource.v1alpha1.AlertCheck
+	44, // 61: dockwell.resource.v1alpha1.Spec.catalog_source:type_name -> dockwell.resource.v1alpha1.CatalogSource
+	59, // 62: dockwell.resource.v1alpha1.Spec.server_host:type_name -> dockwell.resource.v1alpha1.ServerHost
+	46, // 63: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
+	47, // 64: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
+	48, // 65: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
+	49, // 66: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
+	10, // 67: dockwell.resource.v1alpha1.AlertRule.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
+	11, // 68: dockwell.resource.v1alpha1.AlertRule.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
+	53, // 69: dockwell.resource.v1alpha1.AlertChannel.webhook:type_name -> dockwell.resource.v1alpha1.AlertWebhook
+	54, // 70: dockwell.resource.v1alpha1.AlertChannel.email:type_name -> dockwell.resource.v1alpha1.AlertEmail
+	55, // 71: dockwell.resource.v1alpha1.AlertChannel.ntfy:type_name -> dockwell.resource.v1alpha1.AlertNtfy
+	56, // 72: dockwell.resource.v1alpha1.AlertChannel.slack:type_name -> dockwell.resource.v1alpha1.AlertSlack
+	57, // 73: dockwell.resource.v1alpha1.AlertChannel.discord:type_name -> dockwell.resource.v1alpha1.AlertDiscord
+	58, // 74: dockwell.resource.v1alpha1.AlertChannel.telegram:type_name -> dockwell.resource.v1alpha1.AlertTelegram
+	12, // 75: dockwell.resource.v1alpha1.AlertEmail.security:type_name -> dockwell.resource.v1alpha1.AlertEmail.Security
+	75, // 76: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	77, // [77:77] is the sub-list for method output_type
+	77, // [77:77] is the sub-list for method input_type
+	77, // [77:77] is the sub-list for extension type_name
+	76, // [76:77] is the sub-list for extension extendee
+	0,  // [0:76] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -6174,7 +6258,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
-			NumEnums:      12,
+			NumEnums:      13,
 			NumMessages:   62,
 			NumExtensions: 1,
 			NumServices:   0,

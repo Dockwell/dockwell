@@ -1163,12 +1163,15 @@ paths:
                 - CatalogService
             description: |-
                 SetCatalogSource plans adding a catalog from a public Git repository, or moving
-                 one to another commit, ready to apply or discard. Dockwell reads the commit over
-                 Git's own protocol, checking what it reads against its names, and checks each
-                 entry as it checks its own. The plan's notes say what the commit holds, and what
-                 Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
-                 has. A source decides what anyone can install, so setting one is an
-                 admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+                 one to another commit, ready to apply or discard: a folder of Dockwell's entries,
+                 or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
+                 from the commit and converts as it reads it, running nothing. Dockwell reads the
+                 commit over Git's own protocol, checking what it reads against its names, and
+                 checks each entry as it checks its own. The plan's notes say what the commit
+                 holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
+                 whose ID another has. A source decides what anyone can install, so setting one
+                 is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+                 docs/adr/0078-other-stores-read-on-the-server.md.
             operationId: CatalogService_SetCatalogSource
             parameters:
                 - name: name
@@ -7747,16 +7750,54 @@ components:
                 path:
                     type: string
                     description: |-
-                        The folder of entries in it, one <id>.yaml each, such as "entries". Empty is
-                         its top.
+                        The folder of entries in it, one <id>.yaml each, such as "entries", or the
+                         folder that holds another store's, such as its top for 1Panel's app store.
+                         Empty is its top.
                 commit:
                     type: string
                     description: The commit it's read at, in full, as 40 hex digits.
+                format:
+                    enum:
+                        - CATALOG_FORMAT_UNSPECIFIED
+                        - CATALOG_FORMAT_DOCKWELL
+                        - CATALOG_FORMAT_ONEPANEL
+                        - CATALOG_FORMAT_DOKPLOY
+                        - CATALOG_FORMAT_COOLIFY
+                    type: string
+                    description: |-
+                        How its folder is laid out: Dockwell's own entries, or another store's, which
+                         Dockwell converts as it reads them. Unspecified is Dockwell's own, as a source
+                         made before formats has it.
+                    format: enum
             description: |-
                 CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
-                 entries in its format in a public Git repository, at one commit. Moving it to
-                 another commit is a change, so what anyone can install from it moves only with a
-                 plan. See docs/adr/0055-catalogs-from-a-git-url.md.
+                 entries in its format in a public Git repository, or another store's, at one
+                 commit. Moving it to another commit is a change, so what anyone can install from it
+                 moves only with a plan. See docs/adr/0055-catalogs-from-a-git-url.md and
+                 docs/adr/0078-other-stores-read-on-the-server.md.
+        CatalogSourceGuess:
+            type: object
+            properties:
+                format:
+                    enum:
+                        - CATALOG_FORMAT_UNSPECIFIED
+                        - CATALOG_FORMAT_DOCKWELL
+                        - CATALOG_FORMAT_ONEPANEL
+                        - CATALOG_FORMAT_DOKPLOY
+                        - CATALOG_FORMAT_COOLIFY
+                    type: string
+                    description: The format.
+                    format: enum
+                path:
+                    type: string
+                    description: |-
+                        The folder that holds it, as a source names it, such as "entries". Empty is
+                         the repository's top.
+                apps:
+                    type: integer
+                    description: How many apps or entries it looks to hold, by their files' names.
+                    format: uint32
+            description: CatalogSourceGuess is a layout a repository's folders look like.
         CatalogSourceInfo:
             type: object
             properties:
@@ -7798,10 +7839,21 @@ components:
             properties:
                 file:
                     type: string
-                    description: The file's name in the source's folder, such as "notes.yaml".
+                    description: |-
+                        The file's name in the source's folder, such as "notes.yaml", or for another
+                         store's app, its folder or file there, such as "apps/memos".
                 reason:
                     type: string
                     description: Why, such as what the catalog's check says of it.
+                kind:
+                    type: string
+                    description: |-
+                        For another store's app, what kind of reason it is, to count them by, such as
+                         "scripts" for an app that runs scripts on the server. Empty for an entry of
+                         Dockwell's own format.
+                id:
+                    type: string
+                    description: For another store's app, its ID as an entry would have it, such as "memos".
             description: CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
         CatalogUpgrade:
             type: object
@@ -12838,6 +12890,15 @@ components:
                     description: |-
                         The branch the repository's HEAD names, its default, such as
                          "refs/heads/main", which leads refs. Empty when it names none.
+                formats:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogSourceGuess'
+                    description: |-
+                        How the default branch's commit is laid out, as Dockwell tells from its
+                         folders: the likeliest first. One is what a source of it reads as; more than one
+                         is for a person to pick from; none means it holds no catalog Dockwell reads, or
+                         it couldn't be read.
             description: ListCatalogSourceRefsResponse is the repository's branches and tags.
         ListCatalogSourcesResponse:
             type: object
@@ -17419,6 +17480,19 @@ components:
                 commit:
                     type: string
                     description: The commit to read it at, in full, as 40 hex digits.
+                format:
+                    enum:
+                        - CATALOG_FORMAT_UNSPECIFIED
+                        - CATALOG_FORMAT_DOCKWELL
+                        - CATALOG_FORMAT_ONEPANEL
+                        - CATALOG_FORMAT_DOKPLOY
+                        - CATALOG_FORMAT_COOLIFY
+                    type: string
+                    description: |-
+                        How its folder is laid out. Left out, Dockwell tells from the commit, and the
+                         plan says which it read it as; a folder that could be more than one is refused,
+                         naming each, for you to pick.
+                    format: enum
             description: SetCatalogSourceRequest names a source, and what it reads.
         SetCatalogSourceResponse:
             type: object

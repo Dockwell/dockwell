@@ -1137,7 +1137,33 @@ message ImageCall {
     dockwell.v1.SearchImagesRequest search = 1;
     dockwell.v1.ListImageTagsRequest tags = 2;
     dockwell.v1.GetImageRequest image = 3;
+    // The digests of images, as a plan pins them. Numbered in the block the catalog
+    // formats work holds (ADR 0078).
+    ImageDigestsCall digests = 270;
   }
+}
+
+// ImageDigestsCall asks for the digests images' tags point at now, each with a HEAD
+// of its manifest, which no registry counts as a pull, through the same reader and
+// the same short-lived digests as a form's reads (ADR 0062).
+message ImageDigestsCall {
+  // The images, such as "nginx:1.27", 20 at most.
+  repeated string references = 1;
+}
+
+// ImageDigests is what an ImageDigestsCall found, in the order it asked.
+message ImageDigests {
+  repeated ImageDigest digests = 1;
+}
+
+// ImageDigest is one image's digest, or why it has none.
+message ImageDigest {
+  // The image, as asked.
+  string reference = 1;
+  // How its registry answered.
+  dockwell.v1.ImageAnswer answer = 2;
+  // What its registry calls it, such as "sha256:ab12…". Empty unless found.
+  string digest = 3;
 }
 
 // ImageResult is what an ImageCall read.
@@ -1146,6 +1172,7 @@ message ImageResult {
     dockwell.v1.SearchImagesResponse search = 1;
     dockwell.v1.ListImageTagsResponse tags = 2;
     dockwell.v1.GetImageResponse image = 3;
+    ImageDigests digests = 270;
   }
 }
 

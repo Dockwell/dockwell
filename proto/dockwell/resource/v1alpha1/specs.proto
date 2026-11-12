@@ -877,18 +877,38 @@ message Route {
 }
 
 // CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
-// entries in its format in a public Git repository, at one commit. Moving it to
-// another commit is a change, so what anyone can install from it moves only with a
-// plan. See docs/adr/0055-catalogs-from-a-git-url.md.
+// entries in its format in a public Git repository, or another store's, at one
+// commit. Moving it to another commit is a change, so what anyone can install from it
+// moves only with a plan. See docs/adr/0055-catalogs-from-a-git-url.md and
+// docs/adr/0078-other-stores-read-on-the-server.md.
 message CatalogSource {
   // The repository's URL, over HTTPS, such as
   // "https://github.com/example/catalog".
   string repository = 1;
-  // The folder of entries in it, one <id>.yaml each, such as "entries". Empty is
-  // its top.
+  // The folder of entries in it, one <id>.yaml each, such as "entries", or the
+  // folder that holds another store's, such as its top for 1Panel's app store.
+  // Empty is its top.
   string path = 2;
   // The commit it's read at, in full, as 40 hex digits.
   string commit = 3;
+  // How its folder is laid out: Dockwell's own entries, or another store's, which
+  // Dockwell converts as it reads them. Unspecified is Dockwell's own, as a source
+  // made before formats has it.
+  CatalogFormat format = 10;
+}
+
+// CatalogFormat is how a catalog's folder is laid out (ADR 0078).
+enum CatalogFormat {
+  // Dockwell's own, for a source made before formats.
+  CATALOG_FORMAT_UNSPECIFIED = 0;
+  // Dockwell's own entries, one <id>.yaml each.
+  CATALOG_FORMAT_DOCKWELL = 1;
+  // 1Panel's app store: apps/<key>/data.yml, and a folder for each version.
+  CATALOG_FORMAT_ONEPANEL = 2;
+  // Dokploy's templates: blueprints/<id>/, each with template.toml.
+  CATALOG_FORMAT_DOKPLOY = 3;
+  // Coolify's templates: templates/compose/<id>.yaml.
+  CATALOG_FORMAT_COOLIFY = 4;
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is

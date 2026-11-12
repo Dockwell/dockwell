@@ -46,6 +46,10 @@ const (
 	// plansKept is how many commits read for plans are kept, the newest, so a plan
 	// that's applied finds its commit read.
 	plansKept = 4
+	// mostReads is how many reads of sources are kept in memory, and mostGuesses how
+	// many layouts of commits.
+	mostReads   = 64
+	mostGuesses = 64
 )
 
 // Sources reads the catalogs Dockwell reads beside its own, each at its commit
@@ -68,6 +72,11 @@ type Sources struct {
 	read     map[string]sourceRead
 	unread   map[string]unread
 	fetching map[string]*fetching
+	// guessed are the layouts read of commits, by repository, folder and commit, as a
+	// form asks again and again of the one a person is typing, and detecting is the
+	// one read of a commit's folders that's made at a time for it.
+	guessed   map[string]guessed
+	detecting chan struct{}
 	// slot holds the one fetch the control plane makes at a time, as a pack's index
 	// and what's made of it take memory while it's read, and reads at once add up.
 	slot chan struct{}
@@ -99,7 +108,7 @@ func (s *Sources) folders(spec *resourcev1.CatalogSource) (kept, plan string) {
 	if s.Dir == "" {
 		return "", ""
 	}
-	sum := sha256.Sum256([]byte(spec.GetRepository() + "\x00" + spec.GetPath()))
+	sum := sha256.Sum256([]byte(spec.GetRepository() + "\x00" + spec.GetPath() + formatKey(spec)))
 	key := hex.EncodeToString(sum[:8])
 	return filepath.Join(s.Dir, "kept", key, spec.GetCommit()), filepath.Join(s.Dir, "plans", key, spec.GetCommit())
 }
@@ -109,6 +118,10 @@ func (s *Sources) folders(spec *resourcev1.CatalogSource) (kept, plan string) {
 type sourceRead struct {
 	entries []*catalogv1.Entry
 	refused []*dockwellv1.CatalogSourceRefusal
+	// apps and license are how many apps another store's commit holds, and the
+	// licence its repository says, for a source converted as it's read.
+	apps    int
+	license string
 }
 
 // files returns a commit's files in a source's folder: as kept, or fetched and kept
@@ -146,24 +159,48 @@ func (s *Sources) files(ctx context.Context, spec *resourcev1.CatalogSource) (ma
 	return f.files, f.err
 }
 
-// kept is a commit's files as kept, if they are.
+// kept is a commit's files as kept, if they are. What an older converter kept of
+// another store's commit isn't, as this one may convert more of it, or less: it's
+// converted again, and what was kept stays until that succeeds (staleKept).
 func (s *Sources) kept(spec *resourcev1.CatalogSource) (map[string][]byte, bool) {
 	kept, plan := s.folders(spec)
 	if kept == "" {
 		return nil, false
 	}
 	for _, dir := range []string{kept, plan} {
-		if files, err := readKept(dir); err == nil {
-			return files, true
+		files, err := readKept(dir)
+		if err != nil || stale(spec, files) {
+			continue
 		}
+		return files, true
 	}
 	return nil, false
 }
 
+// stale says what's kept of another store's commit was converted by an older
+// converter, or for another format.
+func stale(spec *resourcev1.CatalogSource, files map[string][]byte) bool {
+	_, ok := readLeftOut(files, formatOf(spec))
+	return converted(spec) && !ok
+}
+
+// staleKept is what an older converter kept of the commit a source applied names, to
+// read while the commit can't be converted again, as when its repository is gone, so
+// what's installed from it keeps its upgrades.
+func (s *Sources) staleKept(spec *resourcev1.CatalogSource) (map[string][]byte, bool) {
+	kept, _ := s.folders(spec)
+	if kept == "" {
+		return nil, false
+	}
+	files, err := readKept(kept)
+	return files, err == nil
+}
+
 // fetchOne fetches a commit's files once the slot is free, within fetchWait of
-// asking, and keeps them for a plan.
-func (s *Sources) fetchOne(ctx context.Context, slot chan struct{}, spec *resourcev1.CatalogSource) (map[string][]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, fetchWait)
+// asking, and keeps them for a plan. Another store's commit is fetched and converted
+// within budgets of their own (convertOne).
+func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *resourcev1.CatalogSource) (map[string][]byte, error) {
+	ctx, cancel := context.WithTimeout(parent, fetchWait)
 	defer cancel()
 	select {
 	case slot <- struct{}{}:
@@ -176,6 +213,21 @@ func (s *Sources) fetchOne(ctx context.Context, slot chan struct{}, spec *resour
 		return files, nil
 	}
 	_, plan := s.folders(spec)
+	if converted(spec) {
+		files, err := s.convertOne(parent, spec)
+		if err != nil {
+			// Converted by an older converter, it still reads, until this one can.
+			if old, ok := s.staleKept(spec); ok {
+				return old, nil
+			}
+			return nil, err
+		}
+		if plan != "" {
+			keep(plan, files)
+			s.prunePlans()
+		}
+		return files, nil
+	}
 	fetch := s.Fetch
 	if fetch == nil {
 		fetch = gitfetch.Fetch
@@ -210,6 +262,13 @@ func (s *Sources) tidy(sources []stored) {
 	for _, st := range sources {
 		kept, plan := s.folders(st.spec)
 		want[kept] = true
+		// What an older converter kept gives way to what this one converted, once it has.
+		if files, err := readKept(kept); err == nil && stale(st.spec, files) {
+			if fresh, err := readKept(plan); err == nil && !stale(st.spec, fresh) && os.RemoveAll(kept) == nil {
+				_ = os.Rename(plan, kept)
+			}
+			continue
+		}
 		if _, err := os.Stat(kept); err == nil {
 			continue
 		}
@@ -317,7 +376,17 @@ func (s *Sources) forget(spec *resourcev1.CatalogSource) {
 }
 
 func unreadKey(spec *resourcev1.CatalogSource) string {
-	return spec.GetRepository() + "\x00" + spec.GetPath() + "\x00" + spec.GetCommit()
+	return spec.GetRepository() + "\x00" + spec.GetPath() + "\x00" + spec.GetCommit() + formatKey(spec)
+}
+
+// formatKey sets apart what's kept of a commit read as another store's, which is
+// what was converted of it, from the same folder read as Dockwell's entries. It's
+// empty for Dockwell's own, so what a source kept before formats is still its.
+func formatKey(spec *resourcev1.CatalogSource) string {
+	if !converted(spec) {
+		return ""
+	}
+	return "\x00" + formatOf(spec)
 }
 
 // entryFile says a file's name is an entry's, <id>.yaml, and so one name in its folder.
@@ -345,7 +414,7 @@ func keep(dir string, files map[string][]byte) {
 	}
 	defer root.Close()
 	for name, data := range files {
-		if !entryFile(name) || root.WriteFile(name, data, 0o600) != nil {
+		if !entryFile(name) && name != leftOutFile || root.WriteFile(name, data, 0o600) != nil {
 			return
 		}
 	}
@@ -375,7 +444,7 @@ func readKept(dir string) (map[string][]byte, error) {
 // set of IDs before it.
 func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, taken map[string]string) (sourceRead, error) {
 	h := sha256.New()
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s", name, spec.GetRepository(), spec.GetPath(), spec.GetCommit())
+	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s%s", name, spec.GetRepository(), spec.GetPath(), spec.GetCommit(), formatKey(spec))
 	for _, id := range slices.Sorted(maps.Keys(taken)) {
 		fmt.Fprintf(h, "\x00%s=%s", id, taken[id])
 	}
@@ -401,9 +470,11 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 		return sourceRead{}, err
 	}
 	s.forget(spec)
-	got = checkSource(ctx, name, files, taken)
+	got = checkSource(ctx, name, spec, files, taken)
 	s.mu.Lock()
-	if s.read == nil {
+	// What's read is kept for each commit and the IDs before it, which moves as
+	// sources do, so it's let go of whole once it holds mostReads.
+	if s.read == nil || len(s.read) >= mostReads {
 		s.read = map[string]sourceRead{}
 	}
 	s.read[key] = got
@@ -416,17 +487,36 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 // would read it. One whose ID taken has is left out, saying whose it is. A file
 // that isn't an entry, such as a README, is no entry to leave out. An entry it
 // keeps loses its icon and screenshots, which are the panel's own files.
-func checkSource(ctx context.Context, name string, files map[string][]byte, taken map[string]string) sourceRead {
+//
+// Another store's commit was converted as it was read, so its entries name their
+// images by tag, for an install to pin, and what the converter left out comes first,
+// each app with its reason.
+func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, files map[string][]byte, taken map[string]string) sourceRead {
 	var out sourceRead
+	byTag := converted(spec)
 	refuse := func(file, why string) {
-		out.refused = append(out.refused, &dockwellv1.CatalogSourceRefusal{File: file, Reason: why})
+		r := &dockwellv1.CatalogSourceRefusal{File: file, Reason: why}
+		if byTag {
+			r.Id, r.Kind = strings.TrimSuffix(file, ".yaml"), "check"
+		}
+		out.refused = append(out.refused, r)
+	}
+	parse := catalog.Parse
+	if byTag {
+		parse = catalog.ParseTagged
+		rec, _ := readLeftOut(files, formatOf(spec))
+		out.apps = rec.Apps
+		out.license = rec.License
+		for _, a := range rec.LeftOut {
+			out.refused = append(out.refused, &dockwellv1.CatalogSourceRefusal{File: a.Path, Reason: a.Reason, Kind: a.Kind, Id: a.ID})
+		}
 	}
 	for _, file := range slices.Sorted(maps.Keys(files)) {
 		id, ok := strings.CutSuffix(file, ".yaml")
 		if !ok {
 			continue
 		}
-		e, err := catalog.Parse(files[file])
+		e, err := parse(files[file])
 		switch {
 		case err != nil:
 			refuse(file, err.Error())
@@ -436,9 +526,12 @@ func checkSource(ctx context.Context, name string, files map[string][]byte, take
 			continue
 		case taken[e.GetId()] != "":
 			refuse(file, fmt.Sprintf("%s has an entry of the ID %s, which comes first. Give it another ID", taken[e.GetId()], e.GetId()))
+			if byTag {
+				out.refused[len(out.refused)-1].Kind = "taken"
+			}
 			continue
 		}
-		if err := readsAsInstall(ctx, e); err != nil {
+		if err := readsAsInstall(ctx, e, byTag); err != nil {
 			refuse(file, err.Error())
 			continue
 		}
@@ -453,8 +546,32 @@ func checkSource(ctx context.Context, name string, files map[string][]byte, take
 }
 
 // readsAsInstall reads an entry's Compose file as an install would, with stand-ins
-// for what a person types.
-func readsAsInstall(ctx context.Context, e *catalogv1.Entry) error {
+// for what a person types. byTag takes an image named by a tag its file writes
+// plainly, as an entry converted on the control plane names one until an install
+// pins it.
+func readsAsInstall(ctx context.Context, e *catalogv1.Entry, byTag bool) error {
+	stack, err := readStack(ctx, e)
+	if err != nil {
+		return err
+	}
+	// Each service's image as an install reads it, however the file writes it: a
+	// flow mapping or a quoted key gets past a check of lines (its M3).
+	tagged := catalog.TaggedImages(e.GetCompose())
+	for _, s := range stack.Services {
+		image := s.Spec.GetApp().GetImage()
+		if byTag && slices.Contains(tagged, image) {
+			continue
+		}
+		if !pinnedImage.MatchString(image) {
+			return fmt.Errorf("its service %s runs %s, which isn't pinned by its digest, as image@sha256:<digest>, so what it runs could change under it. Pin it", s.Name, image)
+		}
+	}
+	return nil
+}
+
+// readStack reads an entry's Compose file as an install would, with stand-ins for
+// what a person types.
+func readStack(ctx context.Context, e *catalogv1.Entry) (*compose.Stack, error) {
 	given := map[string]string{}
 	for _, in := range e.GetInputs() {
 		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
@@ -463,20 +580,13 @@ func readsAsInstall(ctx context.Context, e *catalogv1.Entry) error {
 	}
 	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
 	if err != nil {
-		return fmt.Errorf("its form can't be filled in: %w", err)
+		return nil, fmt.Errorf("its form can't be filled in: %w", err)
 	}
 	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
 	if err != nil {
-		return fmt.Errorf("its Compose file, as an install reads it: %w", err)
+		return nil, fmt.Errorf("its Compose file, as an install reads it: %w", err)
 	}
-	// Each service's image as an install reads it, however the file writes it: a
-	// flow mapping or a quoted key gets past a check of lines (its M3).
-	for _, s := range stack.Services {
-		if image := s.Spec.GetApp().GetImage(); !pinnedImage.MatchString(image) {
-			return fmt.Errorf("its service %s runs %s, which isn't pinned by its digest, as image@sha256:<digest>, so what it runs could change under it. Pin it", s.Name, image)
-		}
-	}
-	return nil
+	return stack, nil
 }
 
 // pinnedImage is an image named by its digest.
@@ -683,9 +793,12 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 	if err := (catalogsource.Type{}).CheckName(name); err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	spec := &resourcev1.CatalogSource{Repository: strings.TrimSpace(req.Msg.GetRepository()), Path: req.Msg.GetPath(), Commit: strings.ToLower(strings.TrimSpace(req.Msg.GetCommit()))}
+	spec := &resourcev1.CatalogSource{Repository: strings.TrimSpace(req.Msg.GetRepository()), Path: req.Msg.GetPath(), Commit: strings.ToLower(strings.TrimSpace(req.Msg.GetCommit())), Format: req.Msg.GetFormat()}
 	if err := (catalogsource.Type{}).Validate(spec); err != nil {
 		return nil, authapi.Invalid(err)
+	}
+	if err := h.sources.chooseFormat(ctx, spec, req.Msg.GetFormat()); err != nil {
+		return nil, err
 	}
 	own, err := catalog.Load(h.commit)
 	if err != nil {
@@ -718,23 +831,29 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("Dockwell can't read %s at %s: %w", spec.GetRepository(), spec.GetCommit(), err), "unreadable") //nolint:staticcheck // it starts with a name
 	}
 	h.sources.forget(spec)
-	got := checkSource(ctx, name, files, maps.Clone(taken))
+	got := checkSource(ctx, name, spec, files, maps.Clone(taken))
 	ref := resource.Ref{Kind: catalogsource.Kind, Name: name}
 	notes := []revision.Note{{
 		Reason:  "catalog_source_reads",
-		Message: readsWords(spec, got.entries),
+		Message: readsWords(spec, got),
 		Ref:     ref,
 		Names:   ids(got.entries),
 	}, h.sources.commitNote(ctx, ref, spec)}
-	for _, r := range got.refused {
-		notes = append(notes, revision.Note{Reason: "catalog_source_refuses", Message: "It leaves out " + r.GetFile() + ": " + r.GetReason(), Ref: ref, Names: []string{r.GetFile()}})
+	if converted(spec) {
+		// One note, counted by kind: a store leaves out hundreds of apps, and each
+		// one's reason is a step away on the source's page.
+		notes = append(notes, leftOutNote(ref, got)...)
+	} else {
+		for _, r := range got.refused {
+			notes = append(notes, revision.Note{Reason: "catalog_source_refuses", Message: "It leaves out " + r.GetFile() + ": " + r.GetReason(), Ref: ref, Names: []string{r.GetFile()}})
+		}
 	}
 	summary := "Add the catalog " + name + " from " + spec.GetRepository()
 	if was != nil {
 		// Said as a move from one commit to the other, so its undo reads right too.
 		summary = "Move the catalog " + name + " from " + was.GetCommit()[:12] + " to " + spec.GetCommit()[:12]
 		if before, err := h.sources.files(ctx, was); err == nil {
-			notes = append(notes, movesNote(ref, name, checkSource(ctx, name, before, maps.Clone(taken)).entries, got.entries)...)
+			notes = append(notes, movesNote(ref, name, checkSource(ctx, name, was, before, maps.Clone(taken)).entries, got.entries)...)
 		}
 	}
 	hands, err := h.handsNotes(ctx, ref, name, map[string]*resourcev1.CatalogSource{name: spec})
@@ -760,7 +879,11 @@ func ids(entries []*catalogv1.Entry) []string {
 	return out
 }
 
-func readsWords(spec *resourcev1.CatalogSource, entries []*catalogv1.Entry) string {
+func readsWords(spec *resourcev1.CatalogSource, got sourceRead) string {
+	entries := got.entries
+	if converted(spec) {
+		return convertedWords(spec, entries, got.license)
+	}
 	where := spec.GetRepository()
 	if spec.GetPath() != "" {
 		where = "the folder " + spec.GetPath() + " in " + where
@@ -878,6 +1001,11 @@ func (h *Handler) ListCatalogSourceRefs(ctx context.Context, req *connect.Reques
 			}
 			out.Refs = append(out.Refs, &dockwellv1.CatalogSourceRef{Name: name, Commit: refs[name]})
 		}
+	}
+	// How the default branch's commit is laid out, so a form that was pasted a link
+	// can say what it is, and offer a choice only where Dockwell can't tell.
+	if at, ok := refs[listing.Head]; ok {
+		out.Formats = h.sources.guessesOf(ctx, repo, at)
 	}
 	return connect.NewResponse(out), nil
 }

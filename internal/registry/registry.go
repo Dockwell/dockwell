@@ -45,7 +45,13 @@ var (
 	ErrRefused = fmt.Errorf("%w: it sends Dockwell where it doesn't go", ErrUnreachable)
 	// ErrTooLarge is an answer longer than Dockwell reads of it.
 	ErrTooLarge = fmt.Errorf("%w: its answer is longer than Dockwell reads", ErrUnreachable)
+	// ErrBadDigest is a digest a registry named that isn't one, which nothing may be
+	// pinned by.
+	ErrBadDigest = fmt.Errorf("%w: it named a digest that isn't one", ErrUnreachable)
 )
+
+// digestShape is a digest as Docker names an image by one.
+var digestShape = lazyRe(`^sha256:[0-9a-f]{64}$`)
 
 const (
 	// RequestTimeout bounds one request to a registry (ADR 0062).
@@ -479,6 +485,10 @@ func (c *Client) Head(ctx context.Context, r Ref) (string, error) {
 	digest := resp.Header.Get("Docker-Content-Digest")
 	if digest == "" && r.Digest != "" {
 		digest = r.Digest
+	}
+	// A digest is what a plan pins an image by, so one that isn't one is no answer.
+	if digest != "" && !digestShape().MatchString(digest) {
+		return "", ErrBadDigest
 	}
 	return digest, nil
 }

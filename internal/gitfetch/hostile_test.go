@@ -190,10 +190,13 @@ func serve(t *testing.T, pack []byte) string {
 
 // A tree names each entry, and a name that reaches past its folder, or that Git
 // refuses, refuses the whole commit, so no name read from a tree is a path elsewhere
-// (the first review of #332, its H1).
+// (the first review of #332, its H1). So does one with a control character or a line
+// or paragraph separator, which YAML reads as a line break where a name is written
+// into a comment of what's kept (the review of #548, its M1).
 func TestATreeNamesNothingOutsideIt(t *testing.T) {
 	for _, bad := range []string{
 		"../../../../tmp/planted.yaml", "/abs.yaml", "sub/x.yaml", `a\b.yaml`, "..", ".", "", ".git", ".GIT", "dup.yaml",
+		"x\nfirst_steps: injected\n#", "a\rb.yaml", "a\u0085b.yaml", "a\u2028b.yaml", "a\u2029b.yaml", "a\x7fb.yaml",
 	} {
 		p := &packBuilder{}
 		blob := p.add(objBlob, []byte("id: x\n"))
@@ -204,7 +207,7 @@ func TestATreeNamesNothingOutsideIt(t *testing.T) {
 		top := p.add(objTree, tree(entries...))
 		commit := p.add(objCommit, commitOf(top))
 		got, err := Fetch(t.Context(), gitfetchtest.Client(), serve(t, p.bytes()), commit, "", Default)
-		if err == nil || !strings.Contains(err.Error(), "which Git refuses") {
+		if err == nil || !strings.Contains(err.Error(), "refuses") {
 			t.Errorf("an entry named %q: %v, %v", bad, keys(got), err)
 		}
 	}

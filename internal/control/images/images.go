@@ -158,3 +158,34 @@ func (s *Service) server(named string) (*dockwellv1.Server, error) {
 func (s *Service) unexpected() error {
 	return authapi.ReasonError(connect.CodeUnavailable, errors.New("the agent answered with something else. Try again"), authapi.ReasonUnavailable)
 }
+
+// Digests says which build each image's tag points at now, as the agent on the
+// server named, or the only one, reads it with a HEAD of its manifest, which no
+// registry counts as a pull. A plan pins an entry converted on the control plane
+// with it (ADR 0078). An image its registry hasn't got, or didn't answer for, is an
+// error that names it.
+func (s *Service) Digests(ctx context.Context, server string, refs []string) (map[string]string, error) {
+	got, err := s.read(ctx, server, &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: refs}}})
+	if err != nil {
+		return nil, err
+	}
+	if got.GetDigests() == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("the agent can't pin images by digest: %w", agentapi.ErrOlderAgent))
+	}
+	out := map[string]string{}
+	for _, d := range got.GetDigests().GetDigests() {
+		switch d.GetAnswer() {
+		case dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND:
+			if d.GetDigest() != "" {
+				out[d.GetReference()] = d.GetDigest()
+			}
+		case dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND:
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the registry of %s hasn't got it, or keeps it private, so it can't be installed", d.GetReference()), "image_not_found")
+		case dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_ASKED:
+			return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("the registry of %s is limiting how often it's asked. Try again in a few minutes", d.GetReference()), authapi.ReasonUnavailable)
+		default:
+			return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("the registry of %s didn't answer, so its build can't be pinned. Try again in a moment", d.GetReference()), authapi.ReasonUnavailable)
+		}
+	}
+	return out, nil
+}

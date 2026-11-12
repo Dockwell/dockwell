@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"go.yaml.in/yaml/v4"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -46,12 +47,12 @@ func Encode(e *catalogv1.Entry, src Source, date string) ([]byte, error) {
 		c.Style = yaml.LiteralStyle
 	}
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "# SPDX-License-Identifier: %s\n", src.License)
+	fmt.Fprintf(&b, "# SPDX-License-Identifier: %s\n", CommentText(src.License))
 	if line := copyrightOf(src); line != "" {
-		fmt.Fprintf(&b, "# %s\n", line)
+		fmt.Fprintf(&b, "# %s\n", CommentText(line))
 	}
-	fmt.Fprintf(&b, "# Converted from %s, %s, %s,\n", src.Name, src.Repository, e.GetSource().GetPath())
-	fmt.Fprintf(&b, "# and modified by Dockwell's converter on %s.\n", date)
+	fmt.Fprintf(&b, "# Converted from %s, %s, %s,\n", CommentText(src.Name), CommentText(src.Repository), CommentText(e.GetSource().GetPath()))
+	fmt.Fprintf(&b, "# and modified by Dockwell's converter on %s.\n", CommentText(date))
 	enc := yaml.NewEncoder(&b)
 	enc.SetIndent(2)
 	if err := enc.Encode(&doc); err != nil {
@@ -61,6 +62,19 @@ func Encode(e *catalogv1.Entry, src Source, date string) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+// CommentText is text a YAML comment can hold: one line, as YAML reads a carriage
+// return, NEL (U+0085) and the line and paragraph separators (U+2028, U+2029) each as
+// a line break, so a store's text can't end the comment and start a field. Every
+// control or separator character becomes a space.
+func CommentText(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r) {
+			return ' '
+		}
+		return r
+	}, s)
 }
 
 // plain clears the styles JSON gave each node, so the file reads as YAML.

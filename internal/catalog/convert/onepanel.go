@@ -4,6 +4,7 @@ package convert
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"path"
 	"regexp"
@@ -35,6 +36,9 @@ type onePanelApp struct {
 		Type    string   `yaml:"type"`
 		Website string   `yaml:"website"`
 		Github  string   `yaml:"github"`
+		// ShortDescEn is its line in English, and Document where its documentation is.
+		ShortDescEn string `yaml:"shortDescEn"`
+		Document    string `yaml:"document"`
 		// Architectures are the platforms 1Panel says the app runs on.
 		Architectures []string `yaml:"architectures"`
 	} `yaml:"additionalProperties"`
@@ -91,12 +95,20 @@ func OnePanel(root string) ([]App, error) {
 		return nil, fmt.Errorf("reading 1Panel's app store: %w. Name the folder of a checkout of github.com/1Panel-dev/appstore", err)
 	}
 	defer t.Close()
+	return onePanelApps(context.Background(), t, root)
+}
+
+// onePanelApps reads each app, stopping once ctx is done.
+func onePanelApps(ctx context.Context, t *tree, root string) ([]App, error) {
 	dirs, err := t.readDir("apps")
 	if err != nil {
 		return nil, fmt.Errorf("reading 1Panel's app store: %w. Name the folder of a checkout of github.com/1Panel-dev/appstore", err)
 	}
 	var out []App
 	for _, d := range dirs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if d.IsDir() {
 			out = append(out, onePanelRead(t, d.Name()))
 		}
@@ -119,6 +131,7 @@ func onePanelRead(t *tree, dir string) App {
 	app.ID = strings.ReplaceAll(strings.ToLower(cmp.Or(meta.More.Key, dir)), "_", "-")
 	app.Name = cmp.Or(meta.Name, dir)
 	app.Homepage = cmp.Or(meta.More.Website, meta.More.Github)
+	app.Summary, app.Docs, app.Code = meta.More.ShortDescEn, meta.More.Document, meta.More.Github
 	app.Web = slices.Contains(onePanelWeb, strings.TrimSpace(meta.More.Type))
 	for _, tag := range meta.More.Tags {
 		if c := onePanelCategories[tag]; c != "" {

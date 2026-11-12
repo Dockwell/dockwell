@@ -51,6 +51,8 @@ type Upgrade struct {
 	Old          []byte
 	OldVariables map[string]string
 	OldStands    map[string]string
+	// Notes are what else the plan says, as Install's are.
+	Notes []revision.Note
 }
 
 // PlanUpgrade plans an install's newer release into the environment it runs in, with
@@ -85,6 +87,13 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "upgrade_clash")
 	}
 	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
+	for i := range in.Notes {
+		n := in.Notes[i]
+		if n.Ref == (resource.Ref{}) {
+			n.Ref = project
+		}
+		notes = append(notes, n)
+	}
 	place.made = []revision.Edit{{Ref: project, Spec: &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}}}
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Variables: in.Variables}
 	var backUp []resource.Ref

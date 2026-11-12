@@ -120,6 +120,9 @@ type Install struct {
 	// Limits are what a person set for a service, by its name in the file, in place
 	// of what the file gives it.
 	Limits map[string]Limits
+	// Notes are what else the plan says, such as the digest each image is pinned
+	// to. A note's ref names the project when it names nothing.
+	Notes []revision.Note
 }
 
 // Limits are what a service may use, and when Docker restarts it. An empty field
@@ -212,6 +215,13 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 			Message: in.FirstSteps,
 			Ref:     resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project},
 		}}
+	}
+	for i := range in.Notes {
+		n := in.Notes[i]
+		if n.Ref == (resource.Ref{}) {
+			n.Ref = resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
+		}
+		notes = append(notes, n)
 	}
 	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes})
 }

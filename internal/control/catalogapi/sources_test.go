@@ -20,6 +20,7 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog/convert"
 	"github.com/dockwell/dockwell/internal/gitfetch"
 )
 
@@ -94,7 +95,7 @@ func TestASourcesEntryCanAskForAServerPath(t *testing.T) {
 		Inputs:  []*catalogv1.Input{{Name: "MEDIA_DIR", Label: "Media folder", Type: catalogv1.InputType_INPUT_TYPE_TEXT}},
 		Compose: "services:\n  media:\n    image: media:1@sha256:" + strings.Repeat("a", 64) + "\n    volumes:\n      - ${MEDIA_DIR}:/media:ro\n",
 	}
-	if err := readsAsInstall(t.Context(), e); err != nil {
+	if err := readsAsInstall(t.Context(), e, false); err != nil {
 		t.Fatalf("an entry with a required server path was refused: %v", err)
 	}
 }
@@ -108,7 +109,7 @@ func TestASourcesEntryShowsNoBundledArtwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
-	got := checkSource(t.Context(), "community", map[string][]byte{"memos-src.yaml": []byte(file)}, map[string]string{})
+	got := checkSource(t.Context(), "community", &resourcev1.CatalogSource{}, map[string][]byte{"memos-src.yaml": []byte(file)}, map[string]string{})
 	if len(got.entries) != 1 {
 		t.Fatalf("entries = %d, refused = %v", len(got.entries), got.refused)
 	}
@@ -136,11 +137,11 @@ func TestASourcesEntryRunsPinnedImages(t *testing.T) {
 		"a flow mapping": "  web:\n    image: " + pinned + "\n  side: {image: \"ghcr.io/stranger/moving:latest\"}\n",
 		"a quoted key":   "  web:\n    \"image\": ghcr.io/stranger/moving:latest\n",
 	} {
-		if err := readsAsInstall(t.Context(), entry(services)); err == nil || !strings.Contains(err.Error(), "isn't pinned by its digest") {
+		if err := readsAsInstall(t.Context(), entry(services), false); err == nil || !strings.Contains(err.Error(), "isn't pinned by its digest") {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	if err := readsAsInstall(t.Context(), entry("  web:\n    image: "+pinned+"\n")); err != nil {
+	if err := readsAsInstall(t.Context(), entry("  web:\n    image: "+pinned+"\n"), false); err != nil {
 		t.Errorf("a pinned image: %v", err)
 	}
 }
@@ -283,5 +284,33 @@ func TestSourcesFetchOneAtATime(t *testing.T) {
 		if string(got["notes.yaml"]) != "id: notes\n" {
 			t.Errorf("read %d got %v", i, got)
 		}
+	}
+}
+
+// What an older converter kept of a store's commit isn't read as kept, so it's
+// converted again, and it stays where it is until that succeeds (ADR 0078, and the
+// review of #548, its L4).
+func TestAStoresCommitKeptByAnOlderConverterIsReadAgain(t *testing.T) {
+	dir := t.TempDir()
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/appstore", Commit: "0123456789abcdef0123456789abcdef01234567", Format: resourcev1.CatalogFormat_CATALOG_FORMAT_ONEPANEL}
+	s := &Sources{Dir: dir}
+	kept, _ := s.folders(spec)
+	keep(kept, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: []byte(`{"format":"1panel","version":0}`)})
+	if _, ok := s.kept(spec); ok {
+		t.Error("what an older converter kept reads as kept")
+	}
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("what an older converter kept went before anything took its place: %v", err)
+	}
+	other := &resourcev1.CatalogSource{Repository: spec.GetRepository(), Commit: "fedcba9876543210fedcba9876543210fedcba98", Format: spec.GetFormat()}
+	fresh, _ := s.folders(other)
+	keep(fresh, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)})
+	if files, ok := s.kept(other); !ok || files["memos.yaml"] == nil {
+		t.Errorf("what this converter kept doesn't read as kept: %v", files)
+	}
+	// The same folder read as Dockwell's entries is kept apart.
+	dockwell := &resourcev1.CatalogSource{Repository: spec.GetRepository(), Commit: spec.GetCommit()}
+	if other, _ := s.folders(dockwell); other == kept {
+		t.Error("a store's commit and the same folder read as entries share where they're kept")
 	}
 }

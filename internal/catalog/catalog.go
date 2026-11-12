@@ -165,6 +165,15 @@ func Parse(raw []byte) (*catalogv1.Entry, error) {
 	return e, Check(e)
 }
 
+// ParseTagged reads one entry as Parse does, and checks it as CheckTagged does.
+func ParseTagged(raw []byte) (*catalogv1.Entry, error) {
+	e, err := Decode(raw)
+	if err != nil {
+		return nil, err
+	}
+	return e, CheckTagged(e)
+}
+
 // Decode reads an entry from YAML as Parse does, and checks nothing beyond its
 // fields, for part of one, such as what a converter adds to an entry it makes.
 func Decode(raw []byte) (*catalogv1.Entry, error) {
@@ -199,6 +208,147 @@ func (c *Catalog) Entry(id string) (*catalogv1.Entry, bool) {
 // A digest is what pins an image, as the PRD requires.
 var pinned = regexp.MustCompile(`^\s*image:\s*\S+@sha256:[0-9a-f]{64}\s*$`)
 
+// taggedImage is an image line that names its image plainly, by a tag, with no
+// digest: what an entry converted on the control plane writes until an install pins
+// it (ADR 0078). Its groups are what comes before the image, and the image.
+var taggedImage = regexp.MustCompile(`^(\s*image:\s*)([^\s@#"']+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})\s*$`)
+
+// digestOf is the digest an image line pins, as @sha256:<hex>.
+var digestOf = regexp.MustCompile(`@sha256:[0-9a-f]{64}`)
+
+// digestShape is a digest as an image is pinned by one.
+var digestShape = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// Digest says a registry's answer is a digest an image can be pinned by: sha256 and
+// 64 hex digits, and nothing else.
+func Digest(d string) bool { return digestShape.MatchString(d) }
+
+// MovingTags are tags that name a branch rather than a version, which moves.
+var MovingTags = map[string]bool{"latest": true, "stable": true, "main": true, "master": true, "nightly": true, "dev": true, "develop": true, "edge": true, "beta": true, "server": true}
+
+// MaxGenerate is the most characters a secret an entry generates may have, as an
+// entry is a stranger's file once it comes from a source, and generating one costs
+// the control plane what it says.
+const MaxGenerate = 256
+
+// Tagged says an entry names an image by its tag alone: one converted on the control
+// plane, which an install pins by digest when it's planned (ADR 0078).
+func Tagged(e *catalogv1.Entry) bool {
+	for line := range strings.Lines(e.GetCompose()) {
+		if strings.HasPrefix(strings.TrimSpace(line), "image:") && !pinned.MatchString(line) {
+			return true
+		}
+	}
+	return false
+}
+
+// serviceImageLines are the lines of a Compose file, from 1, that hold a service's
+// own image, as a plain scalar on its key's line: what an install runs. An image:
+// line anywhere else, such as a variable in a service's environment, is none of them.
+func serviceImageLines(compose string) map[int]bool {
+	var doc yaml.Node
+	if yaml.Unmarshal([]byte(compose), &doc) != nil || len(doc.Content) != 1 {
+		return nil
+	}
+	out := map[int]bool{}
+	services := mappingValue(doc.Content[0], "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		if image := mappingValue(services.Content[i], "image"); image != nil && image.Kind == yaml.ScalarNode && image.Style == 0 {
+			out[image.Line] = true
+		}
+	}
+	return out
+}
+
+// mappingValue is a mapping's value of a key, or nil.
+func mappingValue(m *yaml.Node, key string) *yaml.Node {
+	if m == nil || m.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return m.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// TaggedImages are the images an entry's services run that its file names by tag
+// alone, in the order its file names them, once each.
+func TaggedImages(compose string) []string {
+	lines := serviceImageLines(compose)
+	var out []string
+	n := 0
+	for line := range strings.Lines(compose) {
+		n++
+		if !lines[n] {
+			continue
+		}
+		if m := taggedImage.FindStringSubmatch(strings.TrimRight(line, "\n")); len(m) == 3 && !slices.Contains(out, m[2]) {
+			out = append(out, m[2])
+		}
+	}
+	return out
+}
+
+// Pin writes each image an entry's services run by tag as the digest digests gives
+// it, by the image as the file names it, on the services' own image lines alone. An
+// image digests hasn't got is left as it is.
+func Pin(compose string, digests map[string]string) string {
+	lines := serviceImageLines(compose)
+	var b strings.Builder
+	n := 0
+	for line := range strings.Lines(compose) {
+		n++
+		body, nl := strings.CutSuffix(line, "\n")
+		if m := taggedImage.FindStringSubmatch(body); lines[n] && len(m) == 3 && digests[m[2]] != "" {
+			body = m[1] + m[2] + "@" + digests[m[2]]
+		}
+		b.WriteString(body)
+		if nl {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+// Unpin is a file as it read before an install pinned its images by digest.
+func Unpin(compose string) string {
+	var b strings.Builder
+	for line := range strings.Lines(compose) {
+		if strings.HasPrefix(strings.TrimSpace(line), "image:") {
+			line = digestOf.ReplaceAllString(line, "")
+		}
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
+// PinnedDigests are the digests a file pins, by the image as a tagged entry names
+// it, such as nginx:1.27, so an install that's pinned keeps what it runs for an
+// image whose tag didn't change.
+func PinnedDigests(compose string) map[string]string {
+	out := map[string]string{}
+	lines := serviceImageLines(compose)
+	n := 0
+	for line := range strings.Lines(compose) {
+		n++
+		if !lines[n] {
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		image, ok := strings.CutPrefix(trimmed, "image:")
+		if !ok {
+			continue
+		}
+		image = strings.TrimSpace(image)
+		if at := strings.Index(image, "@sha256:"); at > 0 && digestOf.MatchString(image[at:]) {
+			out[image[:at]] = image[at+1:]
+		}
+	}
+	return out
+}
+
 // inputName is the name a Compose file's ${NAME} takes.
 var inputName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 
@@ -206,6 +356,18 @@ var inputName = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
 // ID, what it says of where it came from, its inputs, and an image not pinned by
 // digest.
 func Check(e *catalogv1.Entry) error {
+	return check(e, false)
+}
+
+// CheckTagged checks an entry as Check does, but for its images, which it may name
+// by a tag that names a version, written plainly, rather than by digest: one the
+// control plane converted from another store, which an install pins when it's
+// planned (ADR 0078).
+func CheckTagged(e *catalogv1.Entry) error {
+	return check(e, true)
+}
+
+func check(e *catalogv1.Entry, byTag bool) error {
 	if err := resource.CheckLabel("catalog entry", e.GetId(), "postgres"); err != nil {
 		return err
 	}
@@ -227,8 +389,17 @@ func Check(e *catalogv1.Entry) error {
 	for line := range strings.Lines(e.GetCompose()) {
 		if strings.HasPrefix(strings.TrimSpace(line), "image:") {
 			images++
-			if !pinned.MatchString(line) {
+			if pinned.MatchString(line) {
+				continue
+			}
+			m := taggedImage.FindStringSubmatch(strings.TrimRight(line, "\r\n"))
+			switch {
+			case !byTag:
 				return fmt.Errorf("%s isn't pinned by digest. Add its @sha256 digest", strings.TrimSpace(line))
+			case m == nil:
+				return fmt.Errorf("%s doesn't name its image plainly, by a version", strings.TrimSpace(line))
+			case MovingTags[m[2][strings.LastIndex(m[2], ":")+1:]] || strings.Contains(m[2][strings.LastIndex(m[2], ":"):], "/"):
+				return fmt.Errorf("%s names no version", strings.TrimSpace(line))
 			}
 		}
 	}
@@ -257,6 +428,8 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the input %s sets generate, which only a secret takes", name)
 		case in.GetGenerate() > 0 && in.GetGenerate() < 16:
 			return fmt.Errorf("the secret %s generates %d, too few to guess at. Generate at least 16", name, in.GetGenerate())
+		case in.GetGenerate() > MaxGenerate:
+			return fmt.Errorf("the secret %s generates %d, more than the %d Dockwell generates", name, in.GetGenerate(), MaxGenerate)
 		case in.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED && in.GetGenerate() == 0:
 			return fmt.Errorf("the input %s says how to write what it generates, and generates nothing. Set generate, or take generate_as away", name)
 		case in.GetSetOnce() && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
@@ -487,8 +660,15 @@ type Filled struct {
 // Upgrades reports whether an entry would change what an install runs. A release goes
 // up with any change to an entry, and one that fixes a word in its summary leaves what
 // runs as it is, so it's no reason to offer anyone a plan, or to warn them of one.
+//
+// An entry that names its images by tag is compared with the install's file as it
+// read before the install pinned them, so a digest the install chose is no change.
 func Upgrades(e *catalogv1.Entry, pin *resourcev1.CatalogPin) bool {
-	return e.GetRelease() > pin.GetRelease() && string(pin.GetFile()) != e.GetCompose()
+	file, entry := string(pin.GetFile()), e.GetCompose()
+	if Tagged(e) {
+		file, entry = Unpin(file), Unpin(entry)
+	}
+	return e.GetRelease() > pin.GetRelease() && file != entry
 }
 
 // usedNames finds the ${NAME}s a Compose file uses.

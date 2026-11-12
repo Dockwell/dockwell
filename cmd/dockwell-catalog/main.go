@@ -2,8 +2,9 @@
 
 // Command dockwell-catalog builds a catalog from other catalogs, as ADR 0029 sets
 // out: it converts each source's apps into entries in Dockwell's format, once,
-// where the catalog is built. It's a separate program from dockwell, which never
-// reads another catalog's format.
+// where the catalog is built, with a person's overlays and images pinned as it
+// runs. The control plane converts a source that's another store's as it reads it,
+// with the same adapters (ADR 0078).
 //
 //	dockwell-catalog convert --from 1panel --source ./appstore --overlays ./overlays/1panel --out ./entries/1panel
 package main

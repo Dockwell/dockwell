@@ -4,6 +4,7 @@ package convert
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -17,6 +18,8 @@ import (
 	"go.yaml.in/yaml/v4"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/compose"
 )
 
 // DokploySource is Dokploy's templates, under the MIT licence its repository declares.
@@ -34,11 +37,13 @@ func DokploySource(commit string) Source {
 
 // dokployMeta is what a template's meta.json says of its app.
 type dokployMeta struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-	Links   struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Links       struct {
 		Github  string `json:"github"`
 		Website string `json:"website"`
+		Docs    string `json:"docs"`
 	} `json:"links"`
 	Tags []string `json:"tags"`
 }
@@ -74,12 +79,20 @@ func Dokploy(root string) ([]App, error) {
 		return nil, fmt.Errorf("reading Dokploy's templates: %w. Name the folder of a checkout of github.com/Dokploy/templates", err)
 	}
 	defer t.Close()
+	return dokployApps(context.Background(), t, root)
+}
+
+// dokployApps reads each template, stopping once ctx is done.
+func dokployApps(ctx context.Context, t *tree, root string) ([]App, error) {
 	ents, err := t.readDir("blueprints")
 	if err != nil {
 		return nil, fmt.Errorf("reading Dokploy's templates: %w. Name the folder of a checkout of github.com/Dokploy/templates", err)
 	}
 	var out []App
 	for _, d := range ents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if d.IsDir() {
 			out = append(out, dokployRead(t, d.Name()))
 		}
@@ -104,6 +117,7 @@ func dokployRead(t *tree, name string) App {
 	}
 	app.Name = cmp.Or(meta.Name, name)
 	app.Homepage = cmp.Or(meta.Links.Website, meta.Links.Github)
+	app.Summary, app.Docs, app.Code = firstSentence(meta.Description), meta.Links.Docs, meta.Links.Github
 	for _, tag := range meta.Tags {
 		if c := dokployCategories[strings.ToLower(tag)]; c != "" {
 			app.Category = c
@@ -395,7 +409,20 @@ type dokployEval struct {
 	hosts     map[string]string
 	firstHost string
 	inline    int
+	// calls and written are the work its values have taken so far: how many times a
+	// variable was worked out, and how many bytes that wrote, each bounded, as
+	// variables that each name another ten times stand for gigabytes in a template of
+	// a few hundred bytes.
+	calls, written int
 }
+
+// What working out one template's values may take: a value is a variable's text, a
+// few dozen bytes, and a template has a few dozen of them.
+const (
+	maxValue      = 4 << 10
+	maxValueCalls = 10_000
+	maxValueBytes = compose.MaxFile
+)
 
 var token = regexp.MustCompile(`\$\{([^{}]*)\}`)
 
@@ -409,6 +436,24 @@ func (ev *dokployEval) expand(expr, holder string, depth int) (string, *made, er
 	if depth > 8 {
 		return "", nil, leave(ClassCantSay, "uses variables that use each other")
 	}
+	ev.calls++
+	if ev.calls > maxValueCalls {
+		return "", nil, leave(ClassFile, "its template's variables take over %d steps to work out, more than any template does", maxValueCalls)
+	}
+	text, m, err := ev.expandOnce(expr, holder, depth)
+	switch {
+	case err != nil:
+		return "", nil, err
+	case len(text) > maxValue:
+		return "", nil, leave(ClassFile, "a value of its template comes to over %d KiB, more than any value a template sets", maxValue>>10)
+	}
+	if ev.written += len(text); ev.written > maxValueBytes {
+		return "", nil, leave(ClassFile, "its template's values come to over %d KiB, more than any template's do", maxValueBytes>>10)
+	}
+	return text, m, nil
+}
+
+func (ev *dokployEval) expandOnce(expr, holder string, depth int) (string, *made, error) {
 	if m := token.FindStringSubmatch(strings.TrimSpace(expr)); len(m) == 2 && m[0] == strings.TrimSpace(expr) {
 		// A variable named as a helper is, as username = "${username}" is, uses the helper.
 		if v, ok := ev.vars[m[1]]; ok && m[1] != holder {
@@ -472,6 +517,9 @@ func helper(call string) (Field, bool, error) {
 		if n, err = strconv.Atoi(arg); err != nil && (name == "password" || name == "hash" || name == "base64") {
 			return Field{}, true, leave(ClassCantSay, "asks for %s of %q, which isn't a length", name, arg)
 		}
+	}
+	if n > catalog.MaxGenerate && (name == "password" || name == "hash" || name == "base64") {
+		return Field{}, true, leave(ClassCantSay, "asks for a %s of %d characters, more than the %d Dockwell generates", name, n, catalog.MaxGenerate)
 	}
 	switch name {
 	case "password":

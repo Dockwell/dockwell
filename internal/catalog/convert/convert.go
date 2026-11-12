@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package convert turns another catalog's apps into entries in Dockwell's own
-// format, as ADR 0029 sets out: once, when the catalog is built, never in the
-// control plane. An adapter reads a source's apps; Convert rewrites each one's
-// Compose file to what an entry may say, pins its images, fills in what a person
-// wrote for it, and checks the result as an install would read it. An app it
-// can't convert is left out, with the reason, so a person can see what's missing.
+// format: where a catalog is built, as ADR 0029 sets out, and in the control plane,
+// as it reads a source that's another store's commit (ADR 0078). An adapter reads a
+// source's apps; Convert rewrites each one's Compose file to what an entry may say,
+// pins its images or, on the server, leaves them for an install to pin, fills in
+// what a person wrote for it, and checks the result as an install would read it. An
+// app it can't convert is left out, with the reason, so a person can see what's
+// missing. Nothing it reads is ever run.
 package convert
 
 import (
@@ -55,13 +57,21 @@ type Source struct {
 	CopyrightInLicense bool
 }
 
-// copyrightOf is the work's copyright line in a source's licence, if it has one.
+// maxCopyright is the most of a copyright line an entry repeats: a line names a year
+// and its holders, and one of a megabyte would ride in every entry of a source.
+const maxCopyright = 200
+
+// copyrightOf is the work's copyright line in a source's licence, if it has one: one
+// line, of maxCopyright characters at most, with nothing that could end a comment.
 func copyrightOf(src Source) string {
 	if !src.CopyrightInLicense {
 		return ""
 	}
 	for line := range strings.Lines(string(src.LicenseText)) {
-		if line = strings.TrimSpace(line); strings.HasPrefix(strings.ToLower(line), "copyright") {
+		if line = strings.TrimSpace(CommentText(line)); strings.HasPrefix(strings.ToLower(line), "copyright") {
+			if r := []rune(line); len(r) > maxCopyright {
+				line = string(r[:maxCopyright])
+			}
 			return line
 		}
 	}
@@ -74,6 +84,12 @@ type App struct {
 	Name     string
 	Version  string
 	Homepage string
+	// Summary is what the source says the app is, in a line, and Docs and Code where
+	// its documentation and its code are. The control plane shows them as the
+	// source's words (ADR 0078); a catalog that's published writes its own, in an
+	// overlay, as ADR 0029 asks.
+	Summary    string
+	Docs, Code string
 	// Category is the adapter's guess from the source's tags, which a person's
 	// overlay can change. Empty when it has none.
 	Category string
@@ -186,6 +202,11 @@ type Converter struct {
 	Own []*catalogv1.Entry
 	// Now is when the run is.
 	Now time.Time
+	// OnServer says the control plane converts on a server, from a commit it
+	// fetched (ADR 0078): no registry is asked, as images are pinned when an install
+	// is planned, there are no overlays, and Release is every entry's release.
+	OnServer bool
+	Release  uint32
 }
 
 // Convert converts one app, or says why it's left out. While its newest version is
@@ -252,6 +273,9 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		return fail(leave(ClassCantSay, "its ID %s", err), "")
 	}
 	for _, own := range c.Own {
+		if c.OnServer {
+			break // the catalog's reading of a source says which ID comes first
+		}
 		if own.GetId() == app.ID {
 			return fail(leave(ClassOwn, "Dockwell has its own entry of this ID, so this one stays out, as one would take over from the other. "+
 				"If they're different apps, the reviewed list gives this one an ID of its own"), "")
@@ -262,7 +286,13 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		return fail(err, ClassCantSay)
 	}
 	r.Notes = rw.notes
-	file, notes, err := c.pin(ctx, rw.file)
+	var file []byte
+	var notes []string
+	if c.OnServer {
+		file, err = tagged(rw.file)
+	} else {
+		file, notes, err = c.pin(ctx, rw.file)
+	}
 	if err != nil {
 		var young youngError
 		r.Young = errors.As(err, &young)
@@ -288,7 +318,10 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if svc := serviceOf(file, rw.web); svc != "" {
 		e.Web = &catalogv1.Web{Service: svc}
 	}
-	if own := c.ownImage(e); own != "" {
+	if c.OnServer {
+		e.Release = c.Release
+	}
+	if own := c.ownImage(e); own != "" && !c.OnServer {
 		return fail(leave(ClassOwn, "it runs %s, as Dockwell's own entry does, so it stays out until the reviewed list says whether they're one app", own), "")
 	}
 	overlay := c.Overlays[app.ID]
@@ -304,6 +337,11 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if len(overlay.Entry.GetNotes()) == 0 {
 		e.Notes = reachNotes(e)
 	}
+	if c.OnServer {
+		if err := c.serverWords(ctx, e, app, &overlay, rw); err != nil {
+			return fail(err, ClassCheck)
+		}
+	}
 	// What only a person writes is checked last, so an app waiting for it is one
 	// that converts once they have.
 	var needs []string
@@ -313,7 +351,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if e.GetCategory() == "" {
 		needs, e.Category = append(needs, "a category"), "stand-in"
 	}
-	if err := check(ctx, e, overlay, rw.reaches, rw.typed); err != nil {
+	if err := check(ctx, e, overlay, rw.reaches, rw.typed, c.OnServer); err != nil {
 		return fail(err, ClassCheck)
 	}
 	if len(needs) > 0 {
@@ -490,11 +528,56 @@ func repoOf(image string) string {
 // words, and lists exactly what the converter finds it reaches now. That's what its
 // services reach, what its volumes and networks reach, as the plan counts them, and
 // what a value a person types can reach.
-func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []string, typedResources map[string]bool) error {
-	if err := catalog.Check(e); err != nil {
+func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []string, typedResources map[string]bool, byTag bool) error {
+	checkEntry := catalog.Check
+	if byTag {
+		checkEntry = catalog.CheckTagged
+	}
+	if err := checkEntry(e); err != nil {
 		return err
 	}
 	unlooked := overlay.Entry.GetHostAccess() == "" || len(overlay.Reaches) == 0
+	reaches, err := reachesOf(ctx, e, typed, typedResources)
+	var unread unreadable
+	switch {
+	case errors.As(err, &unread) && len(typed) > 0 && unlooked:
+		// What a value a person types reaches needs no reading of the file to say, and
+		// a person looks at it first, whatever the file's stand-ins read as.
+		return leave(ClassReaches, "it reaches its server, so a person looks first. Once they have, write what it reaches in host_access in its overlay, and list under reaches what they looked at: %s", quoted(typed))
+	case err != nil:
+		return err
+	}
+	looked := slices.Sorted(slices.Values(overlay.Reaches))
+	switch {
+	case len(reaches) == 0 && len(looked) == 0:
+		return nil
+	case len(reaches) > 0 && unlooked:
+		return leave(ClassReaches, "it reaches its server, so a person looks first. Once they have, write what it reaches in host_access in its overlay, and list under reaches what they looked at: %s", quoted(reaches))
+	case !slices.Equal(reaches, looked):
+		added := slices.DeleteFunc(slices.Clone(reaches), func(r string) bool { return slices.Contains(looked, r) })
+		gone := slices.DeleteFunc(slices.Clone(looked), func(r string) bool { return slices.Contains(reaches, r) })
+		var diff []string
+		if len(added) > 0 {
+			diff = append(diff, "it now reaches "+quoted(added))
+		}
+		if len(gone) > 0 {
+			diff = append(diff, "it no longer reaches "+quoted(gone))
+		}
+		return leave(ClassReaches, "%s, where its overlay lists what a person looked at. Once they've looked again, write host_access and reaches as it is now", strings.Join(diff, ", and "))
+	}
+	return nil
+}
+
+// unreadable says Dockwell can't read an entry's Compose file as an install would.
+type unreadable struct{ error }
+
+func (u unreadable) Unwrap() error { return u.error }
+
+// reachesOf reads an entry's Compose file as an install would, with stand-ins for
+// what a person types, and says what it reaches on its server, sorted: what its
+// services reach, what its volumes and networks reach, as the plan counts them, and
+// typed, what a value a person types can reach.
+func reachesOf(ctx context.Context, e *catalogv1.Entry, typed []string, typedResources map[string]bool) ([]string, error) {
 	given := map[string]string{}
 	for _, in := range e.GetInputs() {
 		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
@@ -503,16 +586,11 @@ func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []str
 	}
 	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
 	if err != nil {
-		return fmt.Errorf("filling in its form: %w", err)
+		return nil, fmt.Errorf("filling in its form: %w", err)
 	}
 	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
-	switch {
-	case err != nil && len(typed) > 0 && unlooked:
-		// What a value a person types reaches needs no reading of the file to say, and
-		// a person looks at it first, whatever the file's stand-ins read as.
-		return leave(ClassReaches, "it reaches its server, so a person looks first. Once they have, write what it reaches in host_access in its overlay, and list under reaches what they looked at: %s", quoted(typed))
-	case err != nil:
-		return leave(ClassCantRun, "Dockwell can't run what its Compose file asks yet: %s", forCatalog(err.Error()))
+	if err != nil {
+		return nil, unreadable{leave(ClassCantRun, "Dockwell can't run what its Compose file asks yet: %s", forCatalog(err.Error()))}
 	}
 	reaches := slices.Clone(typed)
 	for i := range stack.Services {
@@ -523,7 +601,7 @@ func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []str
 		}
 		for _, p := range s.Spec.GetApp().GetPorts() {
 			if addr := p.GetHostIp(); addr != "127.0.0.1" {
-				return leave(ClassCantSay, "its service %s publishes port %d on %q, where every entry publishes on loopback until it has a domain", s.Name, p.GetContainerPort(), addr)
+				return nil, leave(ClassCantSay, "its service %s publishes port %d on %q, where every entry publishes on loopback until it has a domain", s.Name, p.GetContainerPort(), addr)
 			}
 		}
 	}
@@ -549,26 +627,7 @@ func check(ctx context.Context, e *catalogv1.Entry, overlay Overlay, typed []str
 		}
 	}
 	slices.Sort(reaches)
-	reaches = slices.Compact(reaches)
-	looked := slices.Sorted(slices.Values(overlay.Reaches))
-	switch {
-	case len(reaches) == 0 && len(looked) == 0:
-		return nil
-	case len(reaches) > 0 && unlooked:
-		return leave(ClassReaches, "it reaches its server, so a person looks first. Once they have, write what it reaches in host_access in its overlay, and list under reaches what they looked at: %s", quoted(reaches))
-	case !slices.Equal(reaches, looked):
-		added := slices.DeleteFunc(slices.Clone(reaches), func(r string) bool { return slices.Contains(looked, r) })
-		gone := slices.DeleteFunc(slices.Clone(looked), func(r string) bool { return slices.Contains(reaches, r) })
-		var diff []string
-		if len(added) > 0 {
-			diff = append(diff, "it now reaches "+quoted(added))
-		}
-		if len(gone) > 0 {
-			diff = append(diff, "it no longer reaches "+quoted(gone))
-		}
-		return leave(ClassReaches, "%s, where its overlay lists what a person looked at. Once they've looked again, write host_access and reaches as it is now", strings.Join(diff, ", and "))
-	}
-	return nil
+	return slices.Compact(reaches), nil
 }
 
 func quoted(list []string) string {
@@ -680,7 +739,7 @@ func Kept(results []Result, previous map[string]*catalogv1.Entry, all bool) (sta
 }
 
 // unversioned are tags that name a branch rather than a version, which moves.
-var unversioned = map[string]bool{"latest": true, "stable": true, "main": true, "master": true, "nightly": true, "dev": true, "develop": true, "edge": true, "beta": true, "server": true}
+var unversioned = catalog.MovingTags
 
 // days says an age in whole days, as people say one.
 func days(age time.Duration) string {

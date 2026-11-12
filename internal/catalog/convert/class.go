@@ -84,3 +84,21 @@ func forCatalog(msg string) string {
 	}
 	return msg
 }
+
+// classKeys are each class's word, as the API says it, for a panel to count and say
+// in its reader's language.
+var classKeys = map[Class]string{
+	ClassScripts: "scripts", ClassAnotherApp: "another-app", ClassShipped: "shipped", ClassReaches: "reaches",
+	ClassWords: "words", ClassOverlay: "overlay", ClassYoung: "young", ClassAgeUnknown: "age-unknown",
+	ClassNoVersion: "no-version", ClassArch: "arch", ClassOwn: "own", ClassPlatform: "platform", ClassPin: "pin",
+	ClassCantSay: "cant-say", ClassCantRun: "cant-run", ClassCheck: "check", ClassFile: "file", ClassMajor: "major",
+	ClassBack: "back", ClassInside: "inside", ClassMadeUp: "made-up", ClassSkipped: "skipped", ClassTerms: "terms",
+}
+
+// Key is a class's word, such as "scripts", as the API says it.
+func (c Class) Key() string {
+	if k, ok := classKeys[c]; ok {
+		return k
+	}
+	return "cant-say"
+}

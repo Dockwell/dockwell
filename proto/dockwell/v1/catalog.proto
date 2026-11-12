@@ -109,12 +109,15 @@ service CatalogService {
     };
   }
   // SetCatalogSource plans adding a catalog from a public Git repository, or moving
-  // one to another commit, ready to apply or discard. Dockwell reads the commit over
-  // Git's own protocol, checking what it reads against its names, and checks each
-  // entry as it checks its own. The plan's notes say what the commit holds, and what
-  // Dockwell leaves out of it and why: an entry it refuses, or one whose ID another
-  // has. A source decides what anyone can install, so setting one is an
-  // admin's. See docs/adr/0055-catalogs-from-a-git-url.md.
+  // one to another commit, ready to apply or discard: a folder of Dockwell's entries,
+  // or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
+  // from the commit and converts as it reads it, running nothing. Dockwell reads the
+  // commit over Git's own protocol, checking what it reads against its names, and
+  // checks each entry as it checks its own. The plan's notes say what the commit
+  // holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
+  // whose ID another has. A source decides what anyone can install, so setting one
+  // is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+  // docs/adr/0078-other-stores-read-on-the-server.md.
   rpc SetCatalogSource(SetCatalogSourceRequest) returns (SetCatalogSourceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -365,6 +368,10 @@ message SetCatalogSourceRequest {
   string path = 3;
   // The commit to read it at, in full, as 40 hex digits.
   string commit = 4;
+  // How its folder is laid out. Left out, Dockwell tells from the commit, and the
+  // plan says which it read it as; a folder that could be more than one is refused,
+  // naming each, for you to pick.
+  dockwell.resource.v1alpha1.CatalogFormat format = 20;
 }
 
 // SetCatalogSourceResponse is the change that sets it.
@@ -399,10 +406,17 @@ message CatalogSourceInfo {
 
 // CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
 message CatalogSourceRefusal {
-  // The file's name in the source's folder, such as "notes.yaml".
+  // The file's name in the source's folder, such as "notes.yaml", or for another
+  // store's app, its folder or file there, such as "apps/memos".
   string file = 1;
   // Why, such as what the catalog's check says of it.
   string reason = 2;
+  // For another store's app, what kind of reason it is, to count them by, such as
+  // "scripts" for an app that runs scripts on the server. Empty for an entry of
+  // Dockwell's own format.
+  string kind = 20;
+  // For another store's app, its ID as an entry would have it, such as "memos".
+  string id = 21;
 }
 
 // ListCatalogSourceRefsRequest names a repository.
@@ -421,6 +435,22 @@ message ListCatalogSourceRefsResponse {
   // The branch the repository's HEAD names, its default, such as
   // "refs/heads/main", which leads refs. Empty when it names none.
   string head = 3;
+  // How the default branch's commit is laid out, as Dockwell tells from its
+  // folders: the likeliest first. One is what a source of it reads as; more than one
+  // is for a person to pick from; none means it holds no catalog Dockwell reads, or
+  // it couldn't be read.
+  repeated CatalogSourceGuess formats = 20;
+}
+
+// CatalogSourceGuess is a layout a repository's folders look like.
+message CatalogSourceGuess {
+  // The format.
+  dockwell.resource.v1alpha1.CatalogFormat format = 1;
+  // The folder that holds it, as a source names it, such as "entries". Empty is
+  // the repository's top.
+  string path = 2;
+  // How many apps or entries it looks to hold, by their files' names.
+  uint32 apps = 3;
 }
 
 // CatalogSourceRef is a branch or a tag, and the commit it's at.
