@@ -42,7 +42,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
@@ -1092,6 +1092,9 @@ function NameField({
  * fills a strong one here to keep; what the app takes says itself under the field and
  * turns to what's wrong as it's typed (Check as they go). It's sealed as a generated one
  * is, and never in a plan.
+ *
+ * On a phone the three sit under the field, with their words, so the field keeps its whole
+ * width; a value shown that's still wider than the field reads whole under it.
  */
 function OwnSecretField({
   input,
@@ -1106,6 +1109,29 @@ function OwnSecretField({
 }) {
   const { t } = useLingui();
   const [shown, setShown] = useState(false);
+  const phone = useMediaQuery(PHONE_QUERY);
+  const field = useRef<HTMLInputElement>(null);
+  const [wider, setWider] = useState(false);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  // Whether the value shown runs past the field's edge, as a 64-character one does on a phone.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el || !shown || value === "") {
+      setWider(false);
+      return;
+    }
+    const measure = () => setWider(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [shown, value]);
   const rule = ownRule(input);
   const fault = value === "" ? undefined : ownFault(rule, value);
   const takes =
@@ -1124,9 +1150,14 @@ function OwnSecretField({
     url: t`Use letters, digits and - . _ ~ alone, as it goes in a URL.`,
   };
   const label = inSentence(input.label);
+  const generate = () => {
+    onChange(strongValue(rule, input.generate));
+    setShown(true);
+  };
   return (
     <div className="catalog-own">
       <TextField
+        ref={field}
         label={input.label}
         mono
         autoFocus
@@ -1142,39 +1173,74 @@ function OwnSecretField({
         }
         onChange={(event) => onChange(event.target.value)}
         action={
-          <span className="catalog-own-actions">
-            <button
-              type="button"
-              className="app-reveal"
-              aria-pressed={shown}
-              aria-label={t`Show ${label}`}
-              title={shown ? t`Hide ${label}` : t`Show ${label}`}
-              onClick={() => setShown((was) => !was)}
-            >
-              <Icon name="eye" size={16} />
-            </button>
-            {value !== "" ? (
-              <CopyButton
-                variant="ghost"
-                iconOnly
-                text={value}
-                label={t`Copy ${label}`}
-                copiedLabel={t`${label} copied`}
-              />
-            ) : null}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onChange(strongValue(rule, input.generate));
-                setShown(true);
-              }}
-            >
-              <Trans>Generate</Trans>
-            </Button>
-          </span>
+          phone ? undefined : (
+            <span className="catalog-own-actions">
+              <button
+                type="button"
+                className="app-reveal"
+                aria-pressed={shown}
+                aria-label={t`Show ${label}`}
+                title={shown ? t`Hide ${label}` : t`Show ${label}`}
+                onClick={() => setShown((was) => !was)}
+              >
+                <Icon name="eye" size={16} />
+              </button>
+              {value !== "" ? (
+                <CopyButton
+                  variant="ghost"
+                  iconOnly
+                  text={value}
+                  label={t`Copy ${label}`}
+                  copiedLabel={t`${label} copied`}
+                />
+              ) : null}
+              <Button variant="ghost" size="sm" onClick={generate}>
+                <Trans>Generate</Trans>
+              </Button>
+            </span>
+          )
         }
       />
+      {wider ? (
+        // The field holds it to edit; this reads it whole. Hidden from assistive technology, which reads the field.
+        <code className="catalog-own-whole" aria-hidden="true">
+          {value}
+        </code>
+      ) : null}
+      {phone ? (
+        // Short words a thumb can reach, each named in full for a screen reader.
+        <div className="catalog-own-tools">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="eye"
+            aria-pressed={shown}
+            aria-label={t`Show ${label}`}
+            onClick={() => setShown((was) => !was)}
+          >
+            <Trans>Show</Trans>
+          </Button>
+          {value !== "" ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={copied ? "check" : "copy"}
+              aria-label={copied ? t`${label} copied` : t`Copy ${label}`}
+              onClick={() => {
+                navigator.clipboard.writeText(value).then(
+                  () => setCopied(true),
+                  () => {},
+                );
+              }}
+            >
+              {copied ? <Trans>Copied</Trans> : <Trans>Copy</Trans>}
+            </Button>
+          ) : null}
+          <Button variant="secondary" size="sm" onClick={generate}>
+            <Trans>Generate</Trans>
+          </Button>
+        </div>
+      ) : null}
       <button
         type="button"
         className="catalog-change catalog-own-back"

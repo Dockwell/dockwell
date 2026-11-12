@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
@@ -80,6 +80,26 @@ const MASK = "••••••••••••";
  * the mask: letters and digits alone, so whatever the string escapes leaves it whole.
  */
 const STAND_IN = "dwHiddenSecret7f3a9c";
+
+/**
+ * A URL with a soft break after each of its seams, `://`, `@`, `/`, `?`, `&` and `#`, so a
+ * narrow card wraps it where a person reads a break, not two letters from its end. It
+ * breaks anywhere only where a part is wider than the line. The copy takes the string.
+ */
+export function breakable(url: string): ReactNode {
+  const parts = url.split(/(:\/\/|[/@?&#])/);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one string, in its order
+      <Fragment key={i}>
+        {part}
+        <wbr />
+      </Fragment>
+    ) : (
+      part
+    ),
+  );
+}
 
 /**
  * Everything a client needs to connect, each with a copy button, and the secret
@@ -194,7 +214,7 @@ export function ConnectionCard({
         <div className="dw-conn-string">
           <span className="dw-conn-label">{connectionString.label}</span>
           <div className="dw-conn-line is-well">
-            <code className="dw-conn-code">{shownString}</code>
+            <code className="dw-conn-code">{breakable(shownString)}</code>
             <CopyButton
               text={copiedString}
               label={
