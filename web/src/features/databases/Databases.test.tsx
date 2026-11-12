@@ -408,7 +408,9 @@ describe("a database's page", () => {
     expect(within(card).getByText("postgres", { selector: "code" })).toBeVisible();
     expect(within(card).getByText("5432")).toBeVisible();
     expect(within(card).getByText("postgres://postgres:••••••••••••@db:5432/shop")).toBeVisible();
-    expect(within(card).getByText("Kept in the secret POSTGRES_PASSWORD")).toBeVisible();
+    expect(within(card).getByText("POSTGRES_PASSWORD").closest(".dw-conn-hint")).toHaveTextContent(
+      "Kept in the secret POSTGRES_PASSWORD",
+    );
     expect(await screen.findByText(/PostgreSQL's own dump, while it runs: nothing stops/)).toBeVisible();
     await expectAccessible(container);
   });

@@ -336,12 +336,12 @@ export function AppsPage({
       </ReadFailed>
     );
   } else if ((all?.length ?? 0) === 0) {
-    // The ways in are the action: each opens its own create flow, as the start page has them.
+    // The ways in are the choices: each opens its own create flow, as the start page has them.
     body = (
       <EmptyState
         icon="service"
         title={<Trans>No apps yet</Trans>}
-        action={<StartChoices ways={["catalog", "git", "image", "compose"]} />}
+        choices={<StartChoices ways={["catalog", "git", "image", "compose"]} />}
       >
         <p>
           <Trans>You review a plan before anything starts.</Trans>

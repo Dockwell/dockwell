@@ -28,6 +28,7 @@ import { useTimeWords } from "../../lib/time";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import "./Settings.css";
@@ -93,17 +94,11 @@ export function TokensPage() {
     );
   } else if (list.length === 0) {
     body = (
-      <div className="dw-panel tokens-empty">
-        <span className="tokens-empty-icon">
-          <Icon name="key" size={20} />
-        </span>
+      <EmptyState icon="key" title={<Trans>No tokens yet</Trans>}>
         <p>
-          <Trans>
-            No tokens yet. Make one for each script or integration below, so you can revoke one without stopping the
-            rest.
-          </Trans>
+          <Trans>Make one for each script or integration, so you can revoke one without stopping the rest.</Trans>
         </p>
-      </div>
+      </EmptyState>
     );
   } else if (phone) {
     body = (

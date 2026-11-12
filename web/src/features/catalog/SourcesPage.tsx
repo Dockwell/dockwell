@@ -24,6 +24,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useMay } from "../auth/may";
 import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
+import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import { useCatalog, useSources } from "./useCatalog";
@@ -95,18 +96,19 @@ export function SourcesPage() {
           <Trans>Reading the sources</Trans>
         </p>
       ) : list.length === 0 ? (
-        <section className="dw-panel sources-empty" aria-labelledby="sources-empty-heading">
-          <Icon name="branch" size={24} />
-          <h2 id="sources-empty-heading">
-            <Trans>Dockwell's own catalog is all it reads</Trans>
-          </h2>
+        <EmptyState
+          icon="branch"
+          title={<Trans>Dockwell's own catalog is all it reads</Trans>}
+          action={
+            <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
+              <Trans>Add a source</Trans>
+            </Button>
+          }
+        >
           <p>
             <Trans>A source adds the apps in a public Git repository.</Trans>
           </p>
-          <Button variant="primary" icon="plus" {...set.off} onClick={() => setEditing({})}>
-            <Trans>Add a source</Trans>
-          </Button>
-        </section>
+        </EmptyState>
       ) : (
         list.map((source) => (
           <SourcePanel

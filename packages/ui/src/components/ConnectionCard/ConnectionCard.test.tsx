@@ -91,7 +91,7 @@ describe("ConnectionCard", () => {
     expect(screen.queryByText(/s3cret/)).toBeNull();
   });
 
-  it("keeps the action beside the secret, and says why a reveal failed in place of the hint", () => {
+  it("keeps the action under the secret, and says why a reveal failed in place of the hint", () => {
     render(
       <ConnectionCard
         title="Root"

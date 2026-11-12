@@ -38,8 +38,13 @@ describe("where a newcomer starts", () => {
     expect(link("A Docker image")).toHaveAttribute("href", "/apps/new");
     expect(link("A Compose file")).toHaveAttribute("href", "/apps/new?source=compose");
     expect(link("A website")).toHaveAttribute("href", "/websites/new");
-    // The catalog's choice names what's in it: those a newcomer may know first, each straight into its install sheet.
-    expect(await within(choices).findByText("and 1 more")).toBeVisible();
+    // The catalog's choice names what's in it: those a newcomer may know first, then the rest while there's room,
+    // each straight into its install sheet. Four ways beside it leave room for all five, so none is "more".
+    expect(await within(choices).findByRole("link", { name: "Install Adminer" })).toHaveAttribute(
+      "href",
+      "/catalog/adminer/install",
+    );
+    expect(within(choices).queryByText(/more$/)).toBeNull();
     expect(link("Install Postgres")).toHaveAttribute("href", "/catalog/postgres/install");
     expect(link("Install Wordpress")).toHaveAttribute("href", "/catalog/wordpress/install");
     expect(screen.getByRole("link", { name: "Skip to the overview" })).toHaveAttribute("href", "/");

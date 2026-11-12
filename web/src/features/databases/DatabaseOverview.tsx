@@ -491,7 +491,11 @@ function ConnectionPanel({ db, read }: { db: Database; read: DatabaseReading | u
               value: shown.value,
               busy: shown.busy ?? false,
               problem: shown.problem ?? (variables.error ? sentence(variables.error) : undefined),
-              hint: t`Kept in the secret ${secret}`,
+              hint: (
+                <Trans>
+                  Kept in the secret <code>{secret}</code>
+                </Trans>
+              ),
               revealOff,
               // MongoDB keeps its root user's password in its data, which a new secret doesn't change.
               action:

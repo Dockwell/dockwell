@@ -222,6 +222,24 @@ async function main() {
   const long = await pageHeight();
   if (long > short)
     fail(`a folder of 120 files makes the page ${long - short} px taller than a short one, past its pane`);
+
+  step("on a tall window the panes reach its foot, and the page still doesn't scroll");
+  await page.setViewportSize({ width: 1440, height: 1600 });
+  await page.waitForFunction(() => {
+    const list = document.querySelector(".files-list .dw-table-wrap")?.getBoundingClientRect();
+    return list !== undefined && innerHeight - list.bottom < 40;
+  });
+  const tall = await page.evaluate(() => {
+    const box = (s: string) => document.querySelector(s)?.getBoundingClientRect();
+    return {
+      list: innerHeight - (box(".files-list .dw-table-wrap")?.bottom ?? 0),
+      tree: innerHeight - (box(".files-places")?.bottom ?? 0),
+      scrolls: document.documentElement.scrollHeight > innerHeight,
+    };
+  });
+  if (tall.list > 32 || tall.tree > 32 || tall.scrolls)
+    fail(`on a 1600 px window the list ends ${tall.list} px and the tree ${tall.tree} px short of its foot`);
+  await page.setViewportSize({ width: 1440, height: 970 });
   await page.goto(at({ path: site }));
   await page.getByText("nginx.conf").waitFor();
 

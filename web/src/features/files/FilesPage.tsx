@@ -251,9 +251,13 @@ interface FilesProps {
   reading: boolean;
 }
 
+/** Where the folders sit beside the list, and the panes fill the window (FilesPage.css). */
+const BESIDE_FOLDERS = "(min-width: 860px)";
+
 function Files({ server, folder, file, reading }: FilesProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  const besideFolders = useMediaQuery(BESIDE_FOLDERS);
   const navigate = useNavigate();
   const now = useControlPlaneNow();
   const words = useTimeWords();
@@ -639,7 +643,8 @@ function Files({ server, folder, file, reading }: FilesProps) {
                   rows={rows}
                   rowKey="name"
                   density="compact"
-                  maxHeight={phone ? undefined : 640}
+                  // Beside the folders it fills its pane, which fills the window (FilesPage.css); stacked, it stops at 640.
+                  maxHeight={phone || besideFolders ? undefined : 640}
                   selectedKey={file ? nameOf(file) : null}
                   caption={t`Files in ${shown}`}
                   onRowClick={open}

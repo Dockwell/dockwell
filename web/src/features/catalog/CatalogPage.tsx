@@ -9,6 +9,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
+import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import type { CatalogSearch } from "./search";
@@ -69,13 +70,11 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   }, [measure]);
   const query = (search.q ?? "").trim().toLowerCase();
   const shown = (entries ?? []).filter(
-    (e) =>
-      (!search.category || e.category === search.category) &&
-      (query === "" ||
-        `${e.name} ${e.summary} ${e.category} ${words(e.category)} ${e.features.join(" ")}`
-          .toLowerCase()
-          .includes(query)),
+    (e) => (!search.category || e.category === search.category) && matches(e, query, words),
   );
+  const typed = (search.q ?? "").trim();
+  // Whether the words find an app in a category other than the chosen one.
+  const elsewhere = (entries ?? []).some((e) => e.category !== search.category && matches(e, query, words));
   const count = new Set((installs ?? []).map((install) => install.project)).size;
   return (
     <Page
@@ -97,39 +96,6 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
       }
       className="catalog-page"
     >
-      <div className="catalog-bar">
-        <div className="catalog-search">
-          <TextField
-            icon="search"
-            placeholder={t`Search apps`}
-            aria-label={t`Search apps`}
-            value={search.q ?? ""}
-            onChange={(event) => onSearch?.({ ...search, q: event.target.value })}
-          />
-        </div>
-        {categories.length > 1 ? (
-          <fieldset
-            ref={chips}
-            className={cx("catalog-chips", more && "has-more")}
-            aria-label={t`Categories`}
-            onScroll={measure}
-          >
-            <Chip on={!search.category} onClick={() => onSearch?.({ ...search, category: undefined })}>
-              {t`All`}
-            </Chip>
-            {categories.map((category) => (
-              <Chip
-                key={category}
-                on={search.category === category}
-                onClick={() => onSearch?.({ ...search, category })}
-              >
-                {words(category)}
-              </Chip>
-            ))}
-          </fieldset>
-        ) : null}
-      </div>
-
       {/* The sources say which apps come from another catalog. Without them the grid still shows,
           unmarked, and installing waits for them (InstallSheet). */}
       {origins.error && !catalog.error ? (
@@ -157,45 +123,103 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         >
           {sentence(catalog.error)}
         </Callout>
-      ) : !entries || (!origins.data && !origins.error) ? (
-        <p className="catalog-note" aria-busy="true">
-          <Trans>Reading the catalog</Trans>
-        </p>
-      ) : shown.length === 0 ? (
-        <p className="catalog-note">
-          <Trans>No app matches that. Try another word, or all categories.</Trans>
-        </p>
-      ) : (
-        <div className="catalog-grid">
-          {shown.map((entry) => (
-            <Card
-              key={entry.id}
-              entry={entry}
-              category={words(entry.category)}
-              search={search}
-              source={origins.origins.get(entry.id)?.name}
-              installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins))}
-            />
-          ))}
-        </div>
-      )}
+      ) : null}
 
-      <p className="catalog-note">
-        <Trans>
-          Not listed? Deploy any image or Compose file as an app.{" "}
-          <Link to="/apps/new" className="catalog-link">
-            New app
-          </Link>
-        </Trans>
-      </p>
-      <p className="catalog-note">
-        <Trans>
-          Read apps from a catalog in a Git repository too.{" "}
-          <Link to="/catalog/sources" className="catalog-link">
-            Sources
-          </Link>
-        </Trans>
-      </p>
+      {/* The search and the categories narrow the grid under them, so the three are one block, as Catalog draws it. */}
+      <section className="catalog-browse" aria-label={t`Apps`}>
+        <div className="catalog-bar">
+          <div className="catalog-search">
+            <TextField
+              icon="search"
+              placeholder={t`Search apps`}
+              aria-label={t`Search apps`}
+              value={search.q ?? ""}
+              onChange={(event) => onSearch?.({ ...search, q: event.target.value })}
+            />
+          </div>
+          {categories.length > 1 ? (
+            <fieldset
+              ref={chips}
+              className={cx("catalog-chips", more && "has-more")}
+              aria-label={t`Categories`}
+              onScroll={measure}
+            >
+              <Chip on={!search.category} onClick={() => onSearch?.({ ...search, category: undefined })}>
+                {t`All`}
+              </Chip>
+              {categories.map((category) => (
+                <Chip
+                  key={category}
+                  on={search.category === category}
+                  onClick={() => onSearch?.({ ...search, category })}
+                >
+                  {words(category)}
+                </Chip>
+              ))}
+            </fieldset>
+          ) : null}
+        </div>
+        {catalog.error ? null : !entries || (!origins.data && !origins.error) ? (
+          <p className="catalog-note" aria-busy="true">
+            <Trans>Reading the catalog</Trans>
+          </p>
+        ) : shown.length === 0 ? (
+          <EmptyState
+            icon="search"
+            title={<Trans>No app matches</Trans>}
+            action={
+              // Where other categories have it, the way on is to look there; otherwise to start the search again.
+              search.category && elsewhere ? (
+                <Button size="lg" onClick={() => onSearch?.({ ...search, category: undefined })}>
+                  <Trans>Search every category</Trans>
+                </Button>
+              ) : (
+                <Button size="lg" onClick={() => onSearch?.({ ...search, q: undefined, category: undefined })}>
+                  <Trans>Clear the search</Trans>
+                </Button>
+              )
+            }
+          >
+            <p>
+              <Trans>
+                No app here has <code>{typed}</code> in its name or what it does.
+              </Trans>
+            </p>
+          </EmptyState>
+        ) : (
+          <div className="catalog-grid">
+            {shown.map((entry) => (
+              <Card
+                key={entry.id}
+                entry={entry}
+                category={words(entry.category)}
+                search={search}
+                source={origins.origins.get(entry.id)?.name}
+                installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins))}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="catalog-foot">
+        <p className="catalog-note">
+          <Trans>
+            Not listed? Deploy any image or Compose file as an app.{" "}
+            <Link to="/apps/new" className="catalog-link">
+              New app
+            </Link>
+          </Trans>
+        </p>
+        <p className="catalog-note">
+          <Trans>
+            Read apps from a catalog in a Git repository too.{" "}
+            <Link to="/catalog/sources" className="catalog-link">
+              Sources
+            </Link>
+          </Trans>
+        </p>
+      </div>
       {children}
     </Page>
   );
@@ -270,5 +294,13 @@ function Card({
     <Link to="/catalog/$entryId" params={{ entryId: entry.id }} search={search} className="dw-panel catalog-card">
       {body}
     </Link>
+  );
+}
+
+/** Whether an entry has the words, lowercased, in its name, what it does, its category or its features. */
+function matches(e: Entry, query: string, words: (category: string) => string): boolean {
+  return (
+    query === "" ||
+    `${e.name} ${e.summary} ${e.category} ${words(e.category)} ${e.features.join(" ")}`.toLowerCase().includes(query)
   );
 }

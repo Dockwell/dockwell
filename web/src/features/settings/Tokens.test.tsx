@@ -105,7 +105,8 @@ describe("API tokens", () => {
 
   it("says when there are no tokens yet, and how to make one", async () => {
     renderAt("/settings/api-tokens", api({ listTokens: () => ({ tokens: [] }) }));
-    expect(await screen.findByText(/No tokens yet\. Make one for each script or integration below/)).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "No tokens yet" })).toBeVisible();
+    expect(screen.getByText(/Make one for each script or integration/)).toBeVisible();
     expect(screen.getByText("0 tokens")).toBeVisible();
   });
 

@@ -145,7 +145,7 @@ describe("Catalog sources", () => {
     const user = userEvent.setup();
     const { container } = renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [] }) }));
     const empty = (await screen.findByRole("heading", { name: "Dockwell's own catalog is all it reads" })).closest(
-      "section",
+      ".empty-state",
     ) as HTMLElement;
     expect(empty.querySelectorAll("p")).toHaveLength(1);
     // One way in: the empty state's own button, not a second one in the header.

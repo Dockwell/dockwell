@@ -419,7 +419,7 @@ describe("Audit log", () => {
     expect(await screen.findByText("Dockwell can't read the audit log")).toBeVisible();
     fail = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByText("Nothing happened in this range. Pick a longer one to see more.")).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Nothing happened in this range" })).toBeVisible();
   });
 
   it("stacks each event on a phone, each opening to its detail", async () => {

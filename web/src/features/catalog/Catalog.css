@@ -1,5 +1,13 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
+/* The search, the categories and the grid they narrow: one block, space-4 apart, as Catalog draws them. */
+.catalog-browse {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .catalog-bar {
   display: flex;
   flex-wrap: wrap;
@@ -49,7 +57,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: var(--space-4);
-  margin-top: var(--space-6);
 }
 
 .catalog-card {
@@ -197,9 +204,16 @@
 }
 
 .catalog-note {
-  margin: var(--space-4) 0 0;
+  margin: 0;
   color: var(--ink-muted);
   font-size: 13px;
+}
+
+/* The ways past the catalog, a line each, together under the grid. */
+.catalog-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
 }
 
 .catalog-link {
@@ -366,11 +380,12 @@
   display: none;
 }
 
+/* The page's own gap spaces it from what follows, as every block in a page is. */
 .catalog-facts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4) var(--space-8);
-  margin: 0 0 var(--space-8);
+  margin: 0;
   padding: var(--space-4) 0;
   border-block: 1px solid var(--line);
 }
@@ -708,7 +723,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-4);
-    margin-bottom: var(--space-5);
   }
 
   .catalog-detail-phone-intro p {
@@ -718,7 +732,6 @@
 
   .catalog-facts {
     gap: var(--space-4) var(--space-5);
-    margin-bottom: var(--space-6);
   }
   .catalog-search {
     flex: 1 1 100%;

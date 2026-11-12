@@ -146,26 +146,6 @@
 }
 
 /* With no source yet: what one is, in a line, and the way to add one. */
-.sources-empty {
-  display: grid;
-  justify-items: center;
-  gap: var(--space-2);
-  padding: var(--space-12) var(--space-5);
-  color: var(--ink-muted);
-  text-align: center;
-}
-
-.sources-empty h2 {
-  margin: var(--space-2) 0 0;
-  color: var(--ink);
-  font: var(--text-heading);
-  letter-spacing: var(--text-heading-tracking);
-}
-
-.sources-empty p {
-  margin: 0 0 var(--space-3);
-}
-
 /* What the form decided itself, in a line, with the way to change it. */
 .sources-defaults {
   display: flex;

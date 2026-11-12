@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* The ways in to a first app: cards on the start page, a row of choices on the overview. */
+/* The ways in to a first app: cards on the start page and in an empty list, a row of choices on the overview. */
 .start-choices {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -8,6 +8,19 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/*
+ * The catalog leads: one column of its own, as tall as the others stacked in the second, each of them as tall as the
+ * next. So no card is stretched past what it holds, and none is left alone on a row.
+ */
+.start-choices.has-lead {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+}
+
+.start-choices.has-lead > .is-lead {
+  grid-row: span var(--start-rest);
 }
 
 .start-choice {
@@ -45,6 +58,7 @@
   flex: 1;
   flex-direction: column;
   gap: 2px;
+  align-self: stretch;
   min-width: 0;
 }
 
@@ -109,16 +123,94 @@
   height: 24px;
 }
 
-.start-more {
-  margin-left: var(--space-1);
-  color: var(--ink-muted);
-  font-size: 12px;
+/*
+ * In the lead, apps by name in rows of four across the card, at its foot, so the height it shares with the cards
+ * beside it holds apps to install rather than empty space.
+ */
+.start-choice.is-lead {
+  flex-wrap: wrap;
+  align-content: space-between;
+  row-gap: var(--space-4);
 }
 
+.is-lead .start-apps {
+  display: grid;
+  flex: 1 1 100%;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: 0;
+}
+
+.is-lead .start-app {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-1) 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.is-lead .start-apps .catalog-icon,
+.is-lead .start-apps .catalog-icon img {
+  width: 32px;
+  height: 32px;
+}
+
+.start-app-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.start-app:hover .start-app-name {
+  color: var(--ink);
+}
+
+/* How many more, as a tile of its own, the size of an app's icon. */
+.start-more-count {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.start-app.is-more {
+  pointer-events: none;
+}
+
+/* At the top right of every card, level with its icon's centre, whatever the card holds below. */
 .start-go {
   flex: none;
-  align-self: center;
+  margin-top: 10px;
   color: var(--ink-muted);
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.start-choice:hover .start-go {
+  color: var(--ink);
+}
+
+/* One column on a phone, the catalog first. */
+@media (max-width: 639.98px) {
+  .start-choices.has-lead {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+
+  .start-choices.has-lead > .is-lead {
+    grid-row: auto;
+  }
 }
 
 /* Two by two beside the overview's other cards, one above the other on a phone. */
