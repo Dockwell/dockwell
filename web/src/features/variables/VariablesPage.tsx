@@ -30,7 +30,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useTanstackQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type Ref, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
@@ -39,6 +39,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useProjectDelete } from "../projects/deleteProject";
 import { useProjects } from "../projects/useProjects";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ProjectPicker } from "./ProjectPicker";
 import { RevealsProvider, useReveal, useReveals } from "./useReveal";
@@ -191,6 +192,7 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
   // Kept here, so a value revealed stays revealed when the layout changes, as when a phone turns.
   const reveals = useReveals(chosen?.id);
   const may = useMay();
+  const keyRef = useRef<HTMLInputElement>(null);
   const envName = chosen ? environmentLabel(chosen, projects, environments) : "";
   const all = list.data?.variables ?? [];
   const q = (query ?? "").trim().toLowerCase();
@@ -278,6 +280,7 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
             <MayEdit offer={may(ChangeService.method.proposeChange, { environment: chosen.id })}>
               <ValueForm
                 key={editing ? `${editing.id}:${editing.revision}` : "add"}
+                keyRef={keyRef}
                 scope={chosen.id}
                 envName={envName}
                 editing={editing}
@@ -294,16 +297,31 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
             <p className="variables-note" aria-busy="true">
               <Trans>Loading variables and secrets</Trans>
             </p>
-          ) : q && variables.length === 0 ? (
-            <p className="variables-note variables-empty">
-              <Trans>Nothing in {envName} is named like that.</Trans>
-            </p>
-          ) : variables.length === 0 ? (
-            <p className="variables-note variables-empty">
-              <Trans>
-                No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name.
-              </Trans>
-            </p>
+          ) : q && variables.length === 0 && chosen ? (
+            <EmptyState
+              icon="search"
+              title={t`Nothing in ${envName} is named like that`}
+              action={
+                <Button onClick={() => onEnvironment(chosen.id)}>
+                  <Trans>Clear the filter</Trans>
+                </Button>
+              }
+            />
+          ) : variables.length === 0 && chosen ? (
+            <EmptyState
+              icon="key"
+              title={t`No variables or secrets in ${envName} yet`}
+              action={
+                // The form above takes it; this puts you there, or says why you can't.
+                <Button
+                  icon="plus"
+                  onClick={() => keyRef.current?.focus()}
+                  off={may(ChangeService.method.proposeChange, { environment: chosen.id }).reason || undefined}
+                >
+                  <Trans>Add the first</Trans>
+                </Button>
+              }
+            />
           ) : phone ? (
             <ul className="variables-list" aria-label={t`Variables and secrets in ${envName}`}>
               {variables.map((v) => (
@@ -527,6 +545,8 @@ function RowActions({ variable, scope, onEdit }: RowActionsProps) {
 }
 
 interface ValueFormProps {
+  /** The key's field, which the empty list's action puts the cursor in. */
+  keyRef?: Ref<HTMLInputElement>;
   scope: string;
   envName: string;
   /** The variable or secret being changed; a new one when unset. */
@@ -543,7 +563,7 @@ interface ValueFormProps {
  * neither is a variable's once it is to become a secret: a value that was
  * a plain variable stays in its history, so the secret takes a new one.
  */
-function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
+function ValueForm({ keyRef, scope, envName, editing, onDone }: ValueFormProps) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const [name, setName] = useState(editing?.name ?? "");
@@ -602,6 +622,7 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
     >
       <div className="variables-form-key">
         <TextField
+          ref={keyRef}
           mono
           aria-label={t`Key`}
           placeholder="NEW_KEY"

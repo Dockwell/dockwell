@@ -14457,6 +14457,9 @@ msgstr "密钥需要一个值。"
 msgid "Add a variable or secret to {envName}"
 msgstr "向 {envName} 添加变量或密钥"
 
+msgid "Add the first"
+msgstr "添加第一个"
+
 msgid "Add the secret {trimmed}"
 msgstr "添加密钥 {trimmed}"
 
@@ -14496,14 +14499,14 @@ msgstr "将 {trimmed} 改为变量"
 msgid "Name it, such as DATABASE_URL."
 msgstr "请为它命名，例如 DATABASE_URL。"
 
-msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
-msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
+msgid "No variables or secrets in {envName} yet"
+msgstr "{envName} 中还没有变量或密钥"
 
 msgid "Not used yet"
 msgstr "尚未使用"
 
-msgid "Nothing in {envName} is named like that."
-msgstr "{envName} 中没有这样命名的内容。"
+msgid "Nothing in {envName} is named like that"
+msgstr "{envName} 中没有这样命名的内容"
 
 #. placeholder {0}: view.label
 msgid "Nothing running in {0}"

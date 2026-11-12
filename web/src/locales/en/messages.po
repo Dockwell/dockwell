@@ -14457,6 +14457,9 @@ msgstr "A secret needs a value."
 msgid "Add a variable or secret to {envName}"
 msgstr "Add a variable or secret to {envName}"
 
+msgid "Add the first"
+msgstr "Add the first"
+
 msgid "Add the secret {trimmed}"
 msgstr "Add the secret {trimmed}"
 
@@ -14496,14 +14499,14 @@ msgstr "Make {trimmed} a variable"
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
 
-msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
-msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
+msgid "No variables or secrets in {envName} yet"
+msgstr "No variables or secrets in {envName} yet"
 
 msgid "Not used yet"
 msgstr "Not used yet"
 
-msgid "Nothing in {envName} is named like that."
-msgstr "Nothing in {envName} is named like that."
+msgid "Nothing in {envName} is named like that"
+msgstr "Nothing in {envName} is named like that"
 
 #. placeholder {0}: view.label
 msgid "Nothing running in {0}"

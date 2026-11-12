@@ -201,6 +201,24 @@ describe("the variables and secrets page", () => {
     expect(await screen.findByText(/No variables or secrets in Staging yet/)).toBeVisible();
   });
 
+  it("says an environment has nothing yet, and puts you in the key's field to add the first", async () => {
+    const user = userEvent.setup();
+    renderAt("/variables?environment=env_staging", api([production, staging]));
+    const empty = await screen.findByRole("heading", { name: "No variables or secrets in Staging yet" });
+    expect(empty).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Add the first" }));
+    expect(screen.getByRole("textbox", { name: "Key" })).toHaveFocus();
+  });
+
+  it("clears a filter that matches nothing, from where it says so", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/variables?environment=env_prod&q=NOPE", api([production]));
+    expect(await screen.findByRole("heading", { name: "Nothing in production is named like that" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear the filter" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
+    expect(await screen.findByText("DB_PASSWORD")).toBeVisible();
+  });
+
   it("reveals a secret with a passkey, copies it, and hides it again after a minute", async () => {
     const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
     const passkeys = stubPasskeys();

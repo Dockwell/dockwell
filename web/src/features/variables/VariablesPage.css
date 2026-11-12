@@ -24,8 +24,7 @@
 
 /* Panels, as .dw-panel draws them; that stylesheet comes with Panel, which this page doesn't use. */
 .variables-form,
-.variables-list,
-.variables-empty {
+.variables-list {
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
