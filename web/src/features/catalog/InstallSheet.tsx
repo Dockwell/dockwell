@@ -45,16 +45,16 @@ import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useS
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { environmentOf, imageOf, portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
+import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
+import { useProjectPage } from "../apps/projectPage";
 import { validCpus, validMemory } from "../apps/specEdit";
-import { usePlaces, useServices } from "../apps/useServices";
+import { usePlaces } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
-import { engineOfImage } from "../databases/useDatabases";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -62,7 +62,7 @@ import { Facts, useEntryFacts } from "./access";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
-import { useInstalls, useOrigins } from "./useCatalog";
+import { useOrigins } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 // Its lines and the engine picker, wherever the sheet opens: on the Databases page too, which loads no catalog page.
@@ -959,20 +959,6 @@ function InputField({
       onChange={(event) => onChange(event.target.value)}
     />
   );
-}
-
-/** Where a project's install is used: its database's page, or the page of what it opens, or of one of its apps. */
-function useProjectPage(project: string) {
-  const places = usePlaces();
-  const services = useServices().data;
-  const installs = useInstalls().data?.installs;
-  if (project === "") return undefined;
-  const environments = new Set(places.environments.filter((e) => e.project === project).map((e) => e.id));
-  const inIt = (services ?? []).filter((s) => environments.has(environmentOf(s)));
-  const database = inIt.find((s) => engineOfImage(imageOf(s)) !== undefined);
-  if (database) return { to: "/databases/$serviceId", params: { serviceId: database.id } } as const;
-  const web = installs?.find((i) => i.project === project)?.webServiceId || inIt[0]?.id;
-  return web ? ({ to: "/apps/$serviceId", params: { serviceId: web } } as const) : undefined;
 }
 
 /**

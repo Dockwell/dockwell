@@ -3858,8 +3858,11 @@ msgstr "latest"
 msgid ".env file"
 msgstr ".env file"
 
-msgid "<0>{project}</0> is here already: the plan updates it."
-msgstr "<0>{project}</0> is here already: the plan updates it."
+msgid "<0>{projectMovedFrom}</0> is here already"
+msgstr "<0>{projectMovedFrom}</0> is here already"
+
+msgid "<0>{project}</0> is here already: the plan updates it"
+msgstr "<0>{project}</0> is here already: the plan updates it"
 
 msgid "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
 msgstr "<0>{source}</0> gives this app control of Docker on the server, the same as root. You approve this in the plan; API tokens can't."
@@ -3990,6 +3993,10 @@ msgstr "Fix the file to review the plan"
 msgid "For the variables the file uses. It isn't kept in this browser."
 msgstr "For the variables the file uses. It isn't kept in this browser."
 
+msgctxt "a project name"
+msgid "Free"
+msgstr "Free"
+
 msgid "Git"
 msgstr "Git"
 
@@ -4001,6 +4008,10 @@ msgstr "Give {first} a value to review the plan"
 
 msgid "Health check path"
 msgstr "Health check path"
+
+msgctxt "a project name"
+msgid "Here already"
+msgstr "Here already"
 
 msgid "Hide the value"
 msgstr "Hide the value"
@@ -4057,6 +4068,12 @@ msgstr "Offline"
 
 msgid "Open {label}"
 msgstr "Open {label}"
+
+msgid "Open {projectMovedFrom}"
+msgstr "Open {projectMovedFrom}"
+
+msgid "Open {project}"
+msgstr "Open {project}"
 
 msgid "Other apps are here, so give it a name, such as <0>shop</0>."
 msgstr "Other apps are here, so give it a name, such as <0>shop</0>."
@@ -4203,6 +4220,9 @@ msgstr "Up to {memory}"
 msgid "Up to {memory} and {cpus} CPUs"
 msgstr "Up to {memory} and {cpus} CPUs"
 
+msgid "Update {projectMovedFrom} instead"
+msgstr "Update {projectMovedFrom} instead"
+
 msgid "Use a volume instead"
 msgstr "Use a volume instead"
 
@@ -4214,6 +4234,9 @@ msgstr "Use lowercase letters, digits and dashes, starting with a letter, such a
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as web."
 msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as web."
+
+msgid "Use {projectNext}"
+msgstr "Use {projectNext}"
 
 msgid "Variables"
 msgstr "Variables"

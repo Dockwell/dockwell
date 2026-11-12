@@ -1659,18 +1659,62 @@ describe("New app, from a Compose file", () => {
     expect(sheet).not.toHaveTextContent("env_");
   });
 
-  it("says when a name is here already, so the plan updates it", async () => {
+  it("starts past a name that's here already, and updates it only when you say so", async () => {
     const user = userEvent.setup();
-    renderAt("/apps/new?source=compose", {
-      ...compose({ checkCompose: () => create(CheckComposeResponseSchema, { name: "shop", services: [web] }) }),
+    let asked = "";
+    const { container } = renderAt("/apps/new?source=compose", {
+      ...compose({
+        checkCompose: () => create(CheckComposeResponseSchema, { name: "shop", services: [web] }),
+        importCompose: (req) => {
+          asked = req.project;
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
       resources: projectPlaces("shop"),
+      services: {
+        listServices: () => ({
+          services: [
+            anApp("front", "nginx:1.27", {}, { resource: { kind: "service", scope: "env_shop", name: "front" } }),
+          ],
+        }),
+        listServiceRevisions: () => ({}),
+      },
     });
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.click(within(sheet).getByLabelText("Compose file"));
     await user.paste("name: shop\nservices:\n  web:\n    image: a\n");
-    await waitFor(() =>
-      expect(within(sheet).getByLabelText(/^Project name/)).toHaveAccessibleDescription(/shop is here already/),
+    // A file's name a project has already, which may be chance, starts at the next free one.
+    const field = within(sheet).getByRole("textbox", { name: /^Project name/ });
+    await waitFor(() => expect(field).toHaveValue("shop-2"));
+    expect(field).toHaveAccessibleDescription(/shop is here already · Update shop instead · Open shop.*Free/);
+    expect(within(sheet).getByRole("link", { name: "Open shop" })).toHaveAttribute("href", "/apps/svc_front");
+    await expectAccessible(container);
+    // Updating what's there is a click away, and says so.
+    await user.click(within(sheet).getByRole("button", { name: "Update shop instead" }));
+    expect(field).toHaveValue("shop");
+    expect(field).toHaveAccessibleDescription(
+      /shop is here already: the plan updates it · Use shop-2 · Open shop.*Here already/,
     );
+    await user.click(within(sheet).getByRole("button", { name: "Use shop-2" }));
+    expect(field).toHaveValue("shop-2");
+    await user.click(within(sheet).getByRole("button", { name: "Update shop instead" }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBe("shop"));
+  });
+
+  it("says a name that no project has is free, as it's typed", async () => {
+    const user = userEvent.setup();
+    renderAt("/apps/new?source=compose", {
+      ...compose({ checkCompose: () => create(CheckComposeResponseSchema, { name: "blog", services: [web] }) }),
+      resources: projectPlaces("shop"),
+    });
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.click(within(sheet).getByLabelText("Compose file"));
+    await user.paste("name: blog\nservices:\n  web:\n    image: a\n");
+    const field = within(sheet).getByRole("textbox", { name: /^Project name/ });
+    await waitFor(() => expect(field).toHaveValue("blog"));
+    expect(field).toHaveAccessibleDescription(/Free/);
+    expect(within(sheet).queryByRole("button", { name: /instead/ })).not.toBeInTheDocument();
   });
 
   it("says when a file writes a variable's value where anyone can read it, before there is a value", async () => {
