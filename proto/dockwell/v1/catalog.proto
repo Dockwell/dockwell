@@ -163,14 +163,18 @@ message ListCatalogEntriesResponse {
 message GetCatalogEntryRequest {
   // The entry's ID, such as "postgres".
   string id = 1;
+  // A name for its project to start from, such as one a person typed. Left
+  // out, or not a name a project can have, it's the entry's ID.
+  string project = 2;
 }
 
 // GetCatalogEntryResponse is an entry, with what installing it would use.
 message GetCatalogEntryResponse {
   // The entry.
   dockwell.catalog.v1alpha1.Entry entry = 1;
-  // A name for its project that's free, such as "postgres", or "postgres-2"
-  // once that's taken.
+  // A name for its project that's free: the one asked for, or the entry's ID,
+  // such as "mysql", or once that's taken or was used before, the next that
+  // isn't, such as "mysql-2", and "mysql-3" for "mysql-2".
   string project = 2;
   // What each input takes if you give it nothing, by name. A port is one that
   // nothing Dockwell runs has taken. A secret isn't here.

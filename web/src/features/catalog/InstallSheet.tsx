@@ -18,6 +18,7 @@ import {
   Advanced,
   Button,
   Callout,
+  CopyButton,
   cx,
   Glyph,
   Icon,
@@ -38,26 +39,30 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useId, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
+import { environmentOf, imageOf, portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
 import { RunsOnField } from "../apps/NewAppSheet";
 import { validCpus, validMemory } from "../apps/specEdit";
+import { usePlaces, useServices } from "../apps/useServices";
 import { useAppWords } from "../apps/words";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
+import { engineOfImage } from "../databases/useDatabases";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
+import { nextFree } from "./freeName";
 import { projectLink } from "./media";
-import { useOrigins } from "./useCatalog";
+import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
+import { useInstalls, useOrigins } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 // Its lines and the engine picker, wherever the sheet opens: on the Databases page too, which loads no catalog page.
@@ -66,6 +71,12 @@ import "./Catalog.css";
 /** A label as it reads inside a sentence: "Adminer port" is "adminer port", while "API key" keeps its capitals. */
 const inSentence = (label: string) =>
   /^[A-Z][a-z]*(\s|$)/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+
+/** How long a typed name rests before the control plane is asked whether it's free. */
+const NAME_SETTLES_MS = 300;
+
+/** Whether a name is free, as its field says beside it. Before: a project had it, whose data may come back. */
+type NameState = "checking" | "free" | "taken" | "before";
 
 /** Whether a person gives an input: Dockwell makes one that generates. */
 const asked = (input: Input) => input.generate === 0;
@@ -122,6 +133,8 @@ export function InstallSheet({
   // Kept apart from what the control plane suggests, so a value typed stays when it reads again.
   const [typed, setTyped] = useState<Readonly<Record<string, string>>>({});
   const [typedName, setTypedName] = useState<string>();
+  // A person's own value for a secret Dockwell would generate, by its name: there once they choose to set one.
+  const [own, setOwn] = useState<Readonly<Record<string, string>>>({});
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
   // The defaults someone pressed Change on, which show as their fields from then on.
   const [changing, setChanging] = useState<ReadonlySet<string>>(new Set());
@@ -143,6 +156,7 @@ export function InstallSheet({
     setShown(id);
     setTyped({});
     setTypedName(undefined);
+    setOwn({});
     setChanging(new Set());
     setFailure(undefined);
     setNameError(undefined);
@@ -238,6 +252,36 @@ export function InstallSheet({
   const restart: Record<string, RestartPolicy> = tuned(restartOf, entryRestart, () => true);
 
   const name = (typedName ?? got.data?.project ?? "").trim();
+  const nameIsDefault = name === (got.data?.project ?? "");
+  // A name typed is checked as it's typed: against the projects there are at once, and
+  // then by the control plane, which knows the names used before and the next that's free.
+  const places = usePlaces();
+  const [settled, setSettled] = useState(name);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(name), NAME_SETTLES_MS);
+    return () => clearTimeout(timer);
+  }, [name]);
+  const nameValid = name !== "" && SERVICE_NAME.test(name);
+  const nameAsked = nameValid && !nameIsDefault && settled === name;
+  const nameRead = useQuery(CatalogService.method.getCatalogEntry, { id, project: settled }, { enabled: nameAsked });
+  const nameAnswer = nameAsked ? nameRead.data?.project : undefined;
+  const nameHere = places.projects.includes(name);
+  const nameState: NameState | undefined =
+    !nameValid || got.data === undefined
+      ? undefined
+      : nameIsDefault
+        ? "free"
+        : nameHere
+          ? "taken"
+          : nameAnswer === undefined
+            ? "checking"
+            : nameAnswer === name
+              ? "free"
+              : "before";
+  // The next that's free: the control plane's, or until it answers, the next the projects here leave.
+  const nameNext =
+    nameState === "taken" || nameState === "before" ? (nameAnswer ?? nextFree(name, places.projects)) : undefined;
+  const nameTaken = nameState === "taken" || nameState === "before";
   // What it says of itself, as state, beside its defaults; how it signs in is under Advanced.
   // Before it's installed, the sheet says what it is, not what to do next: the sign-in is
   // its generated lines below, and its first steps wait for its page.
@@ -246,20 +290,44 @@ export function InstallSheet({
   // A default shows as its field once someone changes it, and from the start when there's no default to show.
   const open = (input: Input) => changing.has(input.name) || suggested(input) === "";
   const missing = inputs.find((input) => !input.optional && value(input).trim() === "");
-  const nameInvalid = name === "" || !SERVICE_NAME.test(name);
+  const nameInvalid = !nameValid;
+  // An own value chosen and left empty is one to give; one the app won't take is one to fix.
+  const ownEmpty = generated.find((input) => own[input.name] === "");
+  const ownWrong = generated.find(
+    (input) =>
+      own[input.name] !== undefined &&
+      own[input.name] !== "" &&
+      ownFault(ownRule(input), own[input.name] ?? "") !== undefined,
+  );
   // Where it comes from decides what the sheet says of it, so a plan waits until that's read.
   const origins = useOrigins();
   const source = origins.origins.get(id)?.name;
   const ready =
-    entry !== undefined && origins.data !== undefined && !origins.error && !nameInvalid && !missing && !limitsInvalid;
+    entry !== undefined &&
+    origins.data !== undefined &&
+    !origins.error &&
+    !nameInvalid &&
+    !nameTaken &&
+    !missing &&
+    !ownEmpty &&
+    !ownWrong &&
+    !limitsInvalid;
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
-  const missingLabel = missing?.label ?? "";
+  const missingLabel = (missing ?? ownEmpty)?.label ?? "";
+  const wrongLabel = ownWrong?.label ?? "";
   const license = entry?.appLicense ?? "";
-  const values = Object.fromEntries(inputs.map((input) => [input.name, value(input).trim()]));
+  const values = {
+    ...Object.fromEntries(inputs.map((input) => [input.name, value(input).trim()])),
+    ...Object.fromEntries(Object.entries(own).filter(([, v]) => v !== "")),
+  };
+  const ownCount = generated.filter((input) => own[input.name] !== undefined).length;
 
   // The same install from the CLI: what differs from what it would pick, with a typed secret from your environment.
-  const secrets = new Set(inputs.filter((input) => input.type === InputType.SECRET).map((input) => input.name));
+  const secrets = new Set([
+    ...inputs.filter((input) => input.type === InputType.SECRET).map((input) => input.name),
+    ...Object.keys(own),
+  ]);
   const command = entry
     ? methodCommand(
         CatalogService.method.installCatalogEntry,
@@ -279,9 +347,10 @@ export function InstallSheet({
     : "";
   const summary = [
     ...more.filter((input) => value(input).trim() !== "").map((input) => `${input.label} ${value(input).trim()}`),
-    ...(generated.length > 0
-      ? [plural(generated.length, { one: "# secret generated", other: "# secrets generated" })]
+    ...(generated.length > ownCount
+      ? [plural(generated.length - ownCount, { one: "# secret generated", other: "# secrets generated" })]
       : []),
+    ...(ownCount > 0 ? [plural(ownCount, { one: "# secret of your own", other: "# secrets of your own" })] : []),
     // The parts someone set a limit or a restart for, as what they set.
     ...parts.flatMap((part) => {
       const set = [
@@ -390,8 +459,10 @@ export function InstallSheet({
         <>
           <span className="dw-sheet-note">
             <Icon name={entry?.hostAccess ? "shield" : "commit"} size={14} />
-            {missing ? (
+            {missing || ownEmpty ? (
               <Trans>Give {missingLabel} a value to review the plan</Trans>
+            ) : ownWrong ? (
+              <Trans>Fix {wrongLabel} to review the plan</Trans>
             ) : limitsInvalid ? (
               <Trans>Fix the limits of {badService} to review the plan</Trans>
             ) : entry?.hostAccess ? (
@@ -457,19 +528,20 @@ export function InstallSheet({
                 <Chosen label={t`Version`} value={entry.version} />
               )}
               {nameOpen ? (
-                <TextField
-                  label={t`Name`}
-                  mono
-                  autoFocus={changing.has("name") && !nameError}
+                <NameField
                   value={typedName ?? got.data?.project ?? ""}
+                  name={name}
+                  state={nameState}
+                  next={nameNext}
+                  autoFocus={changing.has("name") && !nameError}
                   error={
                     nameError ??
                     (nameInvalid
                       ? t`Use lowercase letters, digits and dashes, starting with a letter, such as shop.`
                       : undefined)
                   }
-                  onChange={(event) => {
-                    setTypedName(event.target.value);
+                  onChange={(next) => {
+                    setTypedName(next);
                     setNameError(undefined);
                   }}
                 />
@@ -512,14 +584,29 @@ export function InstallSheet({
               {more.map(field)}
               {generated.length > 0 ? (
                 <div className="catalog-chosen-list">
-                  {generated.map((input) => (
-                    <Chosen
-                      key={input.name}
-                      label={input.label}
-                      value={input.logged ? t`Generated, in ${app}'s log` : t`Generated and sealed`}
-                      plain
-                    />
-                  ))}
+                  {generated.map((input) =>
+                    own[input.name] !== undefined ? (
+                      <OwnSecretField
+                        key={input.name}
+                        input={input}
+                        value={own[input.name] ?? ""}
+                        onChange={(next) => setOwn((was) => ({ ...was, [input.name]: next }))}
+                        onUseGenerated={() =>
+                          setOwn((was) => Object.fromEntries(Object.entries(was).filter(([k]) => k !== input.name)))
+                        }
+                      />
+                    ) : (
+                      <Chosen
+                        key={input.name}
+                        label={input.label}
+                        value={input.logged ? t`Generated, in ${app}'s log` : t`Generated and sealed`}
+                        plain
+                        changeLabel={t`Set my own`}
+                        changeName={t`Set my own ${inSentence(input.label)}`}
+                        onChange={() => setOwn((was) => ({ ...was, [input.name]: "" }))}
+                      />
+                    ),
+                  )}
                 </div>
               ) : null}
               <Limits
@@ -573,6 +660,8 @@ function Chosen({
   onChange,
   tone,
   plain,
+  changeLabel,
+  changeName,
 }: {
   label: string;
   value: string;
@@ -581,6 +670,9 @@ function Chosen({
   tone?: "warning";
   /** The value is words, not something to copy, such as "Generated and sealed". */
   plain?: boolean;
+  /** What the action says in place of Change, such as "Set my own", and its name for a screen reader. */
+  changeLabel?: string;
+  changeName?: string;
 }) {
   const { t } = useLingui();
   const id = useId();
@@ -595,8 +687,13 @@ function Chosen({
         {plain || tone ? <span>{value}</span> : <code>{value}</code>}
         {state}
         {onChange ? (
-          <button type="button" className="catalog-change" aria-label={t`Change ${what}`} onClick={onChange}>
-            <Trans>Change</Trans>
+          <button
+            type="button"
+            className="catalog-change"
+            aria-label={changeName ?? t`Change ${what}`}
+            onClick={onChange}
+          >
+            {changeLabel ?? <Trans>Change</Trans>}
           </button>
         ) : null}
       </span>
@@ -861,5 +958,202 @@ function InputField({
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />
+  );
+}
+
+/** Where a project's install is used: its database's page, or the page of what it opens, or of one of its apps. */
+function useProjectPage(project: string) {
+  const places = usePlaces();
+  const services = useServices().data;
+  const installs = useInstalls().data?.installs;
+  if (project === "") return undefined;
+  const environments = new Set(places.environments.filter((e) => e.project === project).map((e) => e.id));
+  const inIt = (services ?? []).filter((s) => environments.has(environmentOf(s)));
+  const database = inIt.find((s) => engineOfImage(imageOf(s)) !== undefined);
+  if (database) return { to: "/databases/$serviceId", params: { serviceId: database.id } } as const;
+  const web = installs?.find((i) => i.project === project)?.webServiceId || inIt[0]?.id;
+  return web ? ({ to: "/apps/$serviceId", params: { serviceId: web } } as const) : undefined;
+}
+
+/**
+ * The name of what an install makes, checked as it's typed (Check as they go): free,
+ * or taken with the next free one to use in a click and a way to what has it, so the
+ * sheet never lands on a name the plan would refuse.
+ */
+function NameField({
+  value,
+  name,
+  state,
+  next,
+  error,
+  autoFocus,
+  onChange,
+}: {
+  value: string;
+  /** The name as it's checked: what's typed, without spaces at its ends. */
+  name: string;
+  state: NameState | undefined;
+  next: string | undefined;
+  error: string | undefined;
+  autoFocus: boolean;
+  onChange: (next: string) => void;
+}) {
+  const { t } = useLingui();
+  const words = useUIStrings().portField;
+  const stateId = useId();
+  const page = useProjectPage(state === "taken" ? name : "");
+  const use = next ? (
+    <button type="button" className="catalog-inline-action" onClick={() => onChange(next)}>
+      <Trans>Use {next}</Trans>
+    </button>
+  ) : null;
+  const open = page ? (
+    <Link {...page} className="catalog-inline-action">
+      <Trans>Open {name}</Trans>
+    </Link>
+  ) : null;
+  const message =
+    error ??
+    (state === "taken" ? (
+      <>
+        <Trans>A project named {name} is here already</Trans>
+        {use ? <> · {use}</> : null}
+        {open ? <> · {open}</> : null}
+      </>
+    ) : state === "before" ? (
+      <>
+        <Trans>A project named {name} was here before, and its data may come back</Trans>
+        {use ? <> · {use}</> : null}
+      </>
+    ) : undefined);
+  const shown = error ? undefined : state === "before" ? "taken" : state;
+  return (
+    <TextField
+      label={t`Name`}
+      mono
+      autoFocus={autoFocus}
+      value={value}
+      error={message}
+      aria-describedby={shown ? stateId : undefined}
+      suffix={
+        shown ? (
+          <span id={stateId} className={cx("catalog-chosen-state", `is-${shown}`)} aria-live="polite">
+            <Glyph
+              shape={
+                shown === "checking"
+                  ? STATUS.deploying.shape
+                  : shown === "free"
+                    ? TONE.healthy.shape
+                    : TONE.critical.shape
+              }
+              size={9}
+            />
+            <span>{words[shown]}</span>
+          </span>
+        ) : undefined
+      }
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+/**
+ * A person's own value for a secret Dockwell would generate (Defaults first, power one
+ * step away): hidden as it's typed or pasted, with Show, Copy, and Generate, which
+ * fills a strong one here to keep; what the app takes says itself under the field and
+ * turns to what's wrong as it's typed (Check as they go). It's sealed as a generated one
+ * is, and never in a plan.
+ */
+function OwnSecretField({
+  input,
+  value,
+  onChange,
+  onUseGenerated,
+}: {
+  input: Input;
+  value: string;
+  onChange: (next: string) => void;
+  onUseGenerated: () => void;
+}) {
+  const { t } = useLingui();
+  const [shown, setShown] = useState(false);
+  const rule = ownRule(input);
+  const fault = value === "" ? undefined : ownFault(rule, value);
+  const takes =
+    rule.form === "hex"
+      ? t`${rule.size} hex digits`
+      : rule.form === "base64"
+        ? t`${rule.size} bytes in base64`
+        : rule.urlSafe
+          ? t`At least ${rule.min} characters: letters, digits and - . _ ~`
+          : t`At least ${rule.min} characters`;
+  const faults: Record<OwnFault, string> = {
+    ends: t`Take away the space at its start or end.`,
+    form: rule.form === "base64" ? t`Use ${input.generate} bytes in base64.` : t`Use ${input.generate} hex digits.`,
+    short: t`Use at least ${rule.form === "text" ? rule.min : 0} characters.`,
+    unprintable: t`Use printable characters alone.`,
+    url: t`Use letters, digits and - . _ ~ alone, as it goes in a URL.`,
+  };
+  const label = inSentence(input.label);
+  return (
+    <div className="catalog-own">
+      <TextField
+        label={input.label}
+        mono
+        autoFocus
+        type={shown ? "text" : "password"}
+        autoComplete="new-password"
+        value={value}
+        error={fault ? faults[fault] : undefined}
+        hint={
+          <span className={cx("catalog-own-takes", value !== "" && "is-met")}>
+            {value !== "" ? <Glyph shape={TONE.healthy.shape} size={9} /> : null}
+            {takes}
+          </span>
+        }
+        onChange={(event) => onChange(event.target.value)}
+        action={
+          <span className="catalog-own-actions">
+            <button
+              type="button"
+              className="app-reveal"
+              aria-pressed={shown}
+              aria-label={t`Show ${label}`}
+              title={shown ? t`Hide ${label}` : t`Show ${label}`}
+              onClick={() => setShown((was) => !was)}
+            >
+              <Icon name="eye" size={16} />
+            </button>
+            {value !== "" ? (
+              <CopyButton
+                variant="ghost"
+                iconOnly
+                text={value}
+                label={t`Copy ${label}`}
+                copiedLabel={t`${label} copied`}
+              />
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onChange(strongValue(rule, input.generate));
+                setShown(true);
+              }}
+            >
+              <Trans>Generate</Trans>
+            </Button>
+          </span>
+        }
+      />
+      <button
+        type="button"
+        className="catalog-change catalog-own-back"
+        aria-label={t`Use a generated ${label}`}
+        onClick={onUseGenerated}
+      >
+        <Trans>Use generated</Trans>
+      </button>
+    </div>
   );
 }

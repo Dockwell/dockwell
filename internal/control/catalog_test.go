@@ -219,9 +219,53 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if connect.CodeOf(err) != connect.CodeAlreadyExists || !strings.Contains(err.Error(), "a project named postgres is here already") {
 		t.Errorf("installing over a project = %v", err)
 	}
-	beside := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres"})
-	if got := apply(t, c, beside); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
-		t.Fatalf("the second install ended %v: %s", got.GetState(), got.GetError())
+	// A name asked for that's taken moves on to the next that's free.
+	for asked, want := range map[string]string{"postgres": "postgres-2", "postgres-2": "postgres-2", "mydb": "mydb", "Not A Name": "postgres-2"} {
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "postgres", Project: asked}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Msg.GetProject() != want {
+			t.Errorf("from %q it suggests %q, want %q", asked, got.Msg.GetProject(), want)
+		}
+	}
+	// It takes a password of a person's own in place of the one it would generate, and
+	// seals it as it would that one.
+	const own = "my own password 1"
+	beside := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"POSTGRES_PASSWORD": own}})
+	besideApplied := apply(t, c, beside)
+	if besideApplied.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the second install ended %v: %s", besideApplied.GetState(), besideApplied.GetError())
+	}
+	if strings.Contains(beside.String(), own) || strings.Contains(besideApplied.String(), own) {
+		t.Error("a plan holds a password a person gave")
+	}
+	var besideEnv string
+	for _, r := range beside.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" {
+			besideEnv = r.GetResource().GetScope()
+		}
+	}
+	if got := envOf(e.Container(docker.Project(besideEnv)+"-db-1"), "POSTGRES_PASSWORD"); got != own {
+		t.Errorf("the database got %q as its password, not the one given", got)
+	}
+	for table, rows := range storetest.Dump(t, f.db) {
+		for _, row := range rows {
+			for _, enc := range encodings(own) {
+				if strings.Contains(row, enc) {
+					t.Errorf("%s holds the password a person gave, as %q", table, enc)
+				}
+			}
+		}
+	}
+	for asked, want := range map[string]string{"postgres": "postgres-3", "postgres-2": "postgres-3"} {
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "postgres", Project: asked}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Msg.GetProject() != want {
+			t.Errorf("with two installed, from %q it suggests %q, want %q", asked, got.Msg.GetProject(), want)
+		}
 	}
 
 	// Undoing it takes the whole install away, data included, so it asks first.
@@ -256,6 +300,67 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	}
 }
 
+// envOf is what a container's environment gives a name.
+func envOf(c *docker.Container, name string) string {
+	if c == nil {
+		return ""
+	}
+	for _, kv := range c.Config.Env {
+		if v, ok := strings.CutPrefix(kv, name+"="); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// A value a person types for a secret is used by reference only where the file names
+// the secret, even when another service's value is the same text, which a generated
+// one never is.
+func TestAnOwnSecretTakesNothingElsesPlace(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	const same = "hello-there-1"
+	side := "    side:\n      image: thing:1@sha256:" + digest1 + "\n      environment:\n        GREETING: " + same + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(testEntry(1, "1.0", "thing:1@sha256:"+digest1, side)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "thing", Values: map[string]string{"PASSWORD": same}})
+	if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	project := docker.Project(env)
+	if got := envOf(e.Newest(project, "web"), "PASSWORD"); got != same {
+		t.Errorf("web's PASSWORD is %q", got)
+	}
+	if got := envOf(e.Newest(project, "side"), "GREETING"); got != same {
+		t.Errorf("side's GREETING is %q", got)
+	}
+	v := variablesClient(b, b.origin)
+	list, err := v.ListVariables(t.Context(), connect.NewRequest(&dockwellv1.ListVariablesRequest{Project: "thing"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, variable := range list.Msg.GetVariables() {
+		for _, use := range variable.GetUsedBy() {
+			if use.GetService() == "side" {
+				t.Errorf("side uses %s, which only web's file names", variable.GetName())
+			}
+		}
+	}
+}
+
 // What a person types is checked before anything is planned, and an app that needs a
 // token takes it as a secret, by reference, and asks a person to approve what it reaches.
 func TestInstallRefusalsAndHostAccess(t *testing.T) {
@@ -276,7 +381,8 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "nothing"}, connect.CodeNotFound, "the catalog has no app nothing"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "cloudflared"}, connect.CodeInvalidArgument, "Tunnel token needs a value"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"ADMIN_PORT": "99999"}}, connect.CodeInvalidArgument, "Adminer port takes a port"},
-		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"POSTGRES_PASSWORD": "mine"}}, connect.CodeInvalidArgument, "takes no value for POSTGRES_PASSWORD"},
+		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"POSTGRES_PASSWORD": "mine"}}, connect.CodeInvalidArgument, "Database password takes at least 8 characters"},
+		{&dockwellv1.InstallCatalogEntryRequest{Id: "umami", Values: map[string]string{"POSTGRES_PASSWORD": "p@ss/word#12"}}, connect.CodeInvalidArgument, "as the app writes it into a URL"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Project: "Not A Name"}, connect.CodeInvalidArgument, "project"},
 	} {
 		_, err := cat.InstallCatalogEntry(t.Context(), connect.NewRequest(tc.req))

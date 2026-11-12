@@ -107,9 +107,11 @@ type Install struct {
 	File    []byte
 	// Variables are values for what the file uses, secrets among them.
 	Variables map[string]string
-	// Secrets are those to keep as the environment's secrets, by name. A service
-	// whose environment takes one whole uses it by reference.
+	// Secrets are those to keep as the environment's secrets, by name.
 	Secrets map[string]string
+	// Stands is what stands for each secret among Variables, by its name, which a
+	// service whose environment takes one whole uses by reference in its place.
+	Stands  map[string]string
 	Pin     *resourcev1.CatalogPin
 	Servers []string
 	// FirstSteps is what a person needs to know, which the plan says before they
@@ -201,7 +203,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		return nil, err
 	}
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
-	useSecrets(stack, in.Secrets)
+	useSecrets(stack, in.Stands)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
 	var notes []revision.Note
 	if in.FirstSteps != "" {

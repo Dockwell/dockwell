@@ -235,6 +235,38 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
     .getByRole("link", { name: "Open app: postgres" })
     .waitFor();
   await page.getByRole("link", { name: "Install another" }).waitFor();
+
+  step("catalog: another install starts on a free name, says a taken one is taken, and takes a password of your own");
+  await page.getByRole("link", { name: "Install another" }).click();
+  const again = page.getByRole("dialog", { name: "Install PostgreSQL" });
+  const nameLine = again.getByRole("group", { name: "Name" });
+  await nameLine.getByText("postgres-2", { exact: true }).waitFor();
+  await nameLine.getByRole("button", { name: "Change name" }).click();
+  const nameField = again.getByRole("textbox", { name: "Name" });
+  await nameField.fill("postgres");
+  await again.getByText("A project named postgres is here already").waitFor();
+  await again.getByRole("link", { name: "Open postgres" }).waitFor();
+  if (!(await again.getByRole("button", { name: /Review plan/ }).isDisabled())) fail("it plans a name that's taken");
+  await shoot(page, "catalog-install-taken");
+  await again.getByRole("button", { name: "Use postgres-2" }).click();
+  if ((await nameField.inputValue()) !== "postgres-2")
+    fail(`Use postgres-2 left the name as ${await nameField.inputValue()}`);
+  await again.getByRole("button", { name: "Advanced" }).click();
+  await again.getByRole("button", { name: "Set my own database password" }).click();
+  const own = again.getByLabel("Database password", { exact: true });
+  await own.fill("short");
+  await again.getByText("Use at least 8 characters.").waitFor();
+  const mine = "e2e own password 1";
+  await own.fill(mine);
+  await again.getByText("At least 8 characters").waitFor();
+  await shoot(page, "catalog-install-own");
+  await chooseServer(again);
+  await again.getByRole("button", { name: /Review plan/ }).click();
+  await plan.waitFor({ timeout: 30_000 });
+  await plan.getByText("POSTGRES_PASSWORD", { exact: true }).filter({ visible: true }).first().waitFor();
+  if ((await page.getByText(mine).count()) !== 0) fail("the plan shows the password you set");
+  await plan.getByRole("button", { name: /Cancel/ }).click();
+  await again.getByRole("button", { name: /Cancel/ }).click();
   await page.getByRole("link", { name: "Back to catalog" }).click();
 
   step("catalog: what only a person has is asked for out of sight, and what an app reaches is said first");

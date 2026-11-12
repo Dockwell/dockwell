@@ -184,6 +184,17 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if !strings.Contains(r.err, "Not A Name") {
 			t.Errorf("an email didn't reach the control plane:\n%s", r.err)
 		}
+		// A secret Dockwell would generate takes a person's own value the same way, and
+		// the control plane checks it as the entry says, never repeating it.
+		r = run(t, env, "catalog", "install", "postgres", "--values", "POSTGRES_PASSWORD=hunter2!", "--plan-only")
+		if r.code == exitOK || !strings.Contains(r.err, "--values POSTGRES_PASSWORD gives a secret") {
+			t.Errorf("a generated secret on the command line = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		fromEnv["POSTGRES_PASSWORD"] = "short"
+		r = run(t, fromEnv, "catalog", "install", "postgres", "--values", "POSTGRES_PASSWORD", "--plan-only")
+		if !strings.Contains(r.err, "Database password takes at least 8 characters") || strings.Contains(r.out+r.err, "short") {
+			t.Errorf("an own password from the environment didn't reach the control plane's check:\n%s%s", r.out, r.err)
+		}
 	})
 
 	var created string
