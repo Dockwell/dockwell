@@ -25,6 +25,7 @@ export function tabOf(pathname: string): Tab {
     segment === "profile" ||
     segment === "settings" ||
     segment === "variables" ||
+    segment === "projects" ||
     segment === "catalog" ||
     segment === "domains" ||
     segment === "databases" ||

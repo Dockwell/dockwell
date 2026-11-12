@@ -201,6 +201,24 @@ describe("the variables and secrets page", () => {
     expect(await screen.findByText(/No variables or secrets in Staging yet/)).toBeVisible();
   });
 
+  it("says an environment has nothing yet, and puts you in the key's field to add the first", async () => {
+    const user = userEvent.setup();
+    renderAt("/variables?environment=env_staging", api([production, staging]));
+    const empty = await screen.findByRole("heading", { name: "No variables or secrets in Staging yet" });
+    expect(empty).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Add the first" }));
+    expect(screen.getByRole("textbox", { name: "Key" })).toHaveFocus();
+  });
+
+  it("clears a filter that matches nothing, from where it says so", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/variables?environment=env_prod&q=NOPE", api([production]));
+    expect(await screen.findByRole("heading", { name: "Nothing in production is named like that" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear the filter" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
+    expect(await screen.findByText("DB_PASSWORD")).toBeVisible();
+  });
+
   it("reveals a secret with a passkey, copies it, and hides it again after a minute", async () => {
     const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
     const passkeys = stubPasskeys();
@@ -422,5 +440,127 @@ describe("the variables and secrets page", () => {
     } finally {
       await activateLocale("en");
     }
+  });
+});
+
+describe("the variables page, once there are several projects", () => {
+  const projects = [
+    create(ResourceSchema, { id: "prj_default", resource: { kind: "project", scope: "org_1", name: "default" } }),
+    create(ResourceSchema, {
+      id: "prj_blog",
+      resource: { kind: "project", scope: "org_1", name: "blog" },
+      displayName: "Blog",
+    }),
+    create(ResourceSchema, { id: "prj_old", resource: { kind: "project", scope: "org_1", name: "old-shop" } }),
+  ];
+  const envs = [
+    production,
+    create(ResourceSchema, {
+      id: "env_blog",
+      resource: { kind: "environment", scope: "prj_blog", name: "production" },
+    }),
+    create(ResourceSchema, { id: "env_old", resource: { kind: "environment", scope: "prj_old", name: "production" } }),
+  ];
+  const inside = [
+    create(ResourceSchema, { id: "svc_api", resource: { kind: "service", scope: "env_prod", name: "api" } }),
+    create(ResourceSchema, { id: "sec_db", resource: { kind: "secret", scope: "env_prod", name: "DB_PASSWORD" } }),
+    create(ResourceSchema, { id: "var_log", resource: { kind: "variable", scope: "env_prod", name: "LOG_LEVEL" } }),
+    create(ResourceSchema, { id: "svc_ghost", resource: { kind: "service", scope: "env_blog", name: "ghost" } }),
+    create(ResourceSchema, { id: "sec_mail", resource: { kind: "secret", scope: "env_blog", name: "MAIL_PASSWORD" } }),
+    create(ResourceSchema, { id: "sec_stripe", resource: { kind: "secret", scope: "env_old", name: "STRIPE_KEY" } }),
+  ];
+  const mail = create(EnvironmentVariableSchema, { id: "sec_mail", name: "MAIL_PASSWORD", secret: true, revision: 1n });
+  const stripe = create(EnvironmentVariableSchema, {
+    id: "sec_stripe",
+    name: "STRIPE_KEY",
+    secret: true,
+    revision: 1n,
+  });
+
+  function several(): Api & { proposals: ProposeChangeRequest[] } {
+    const base = api(envs);
+    return {
+      ...base,
+      resources: {
+        listResources: (req) => ({
+          resources:
+            req.kind === "project"
+              ? projects
+              : req.kind === "environment"
+                ? envs
+                : req.scope
+                  ? inside.filter((r) => r.resource?.scope === req.scope)
+                  : req.kind === ""
+                    ? [...projects, ...envs, ...inside]
+                    : [],
+        }),
+      },
+      variables: {
+        listVariables: (req: ListVariablesRequest) =>
+          req.environment === "env_prod"
+            ? { environmentId: "env_prod", variables: [dbPassword, logLevel] }
+            : req.environment === "env_blog"
+              ? { environmentId: "env_blog", variables: [mail] }
+              : { environmentId: req.environment, variables: [stripe] },
+      },
+    };
+  }
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("chooses a project from a list with each one's counts, in place of a switch, and remembers it", async () => {
+    const user = userEvent.setup();
+    const { router, unmount } = renderAt("/variables", several());
+    const picker = await screen.findByRole("button", { name: /Project default/ });
+    expect(screen.queryByRole("radiogroup", { name: "Environment" })).toBeNull();
+    await user.click(picker);
+    const list = await screen.findByRole("dialog", { name: "Choose a project" });
+    expect(within(list).getByRole("button", { name: /Blog 0 variables · 1 secret/ })).toBeVisible();
+    // A project with nothing running stands apart, under its own heading.
+    expect(within(within(list).getByRole("region", { name: "Nothing running" })).getByRole("button")).toHaveTextContent(
+      "old-shop",
+    );
+    await expectAccessible(document.body);
+    await user.click(within(list).getByRole("button", { name: /Blog/ }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_blog" }));
+    expect(await screen.findByText("MAIL_PASSWORD")).toBeVisible();
+    expect(screen.queryByRole("dialog", { name: "Choose a project" })).toBeNull();
+    unmount();
+
+    // The next visit with none named opens on it.
+    renderAt("/variables", several());
+    expect(await screen.findByRole("button", { name: /Project Blog/ })).toBeVisible();
+  });
+
+  it("finds a name in every project from the same box, and opens it there, filtered", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/variables", several());
+    await user.click(await screen.findByRole("button", { name: /Project default/ }));
+    await user.type(screen.getByRole("searchbox", { name: "Find a project, or a variable by name" }), "stripe");
+    const found = screen.getByRole("region", { name: "Found by name" });
+    await user.click(within(found).getByRole("button", { name: /STRIPE_KEY old-shop/ }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_old", q: "STRIPE_KEY" }));
+    expect(await screen.findByText("STRIPE_KEY")).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Filter by name" })).toHaveValue("STRIPE_KEY");
+  });
+
+  it("offers a project with nothing running its Delete, with everything in it", async () => {
+    const user = userEvent.setup();
+    const base = several();
+    renderAt("/variables?environment=env_old", base);
+    expect(await screen.findByText("Nothing running in old-shop")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Delete the project" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(base.proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete])).toEqual([
+      ["secret", "STRIPE_KEY", true],
+      ["project", "old-shop", true],
+    ]);
+  });
+
+  it("names the environment by its project in the form", async () => {
+    renderAt("/variables?environment=env_blog", several());
+    expect(await screen.findByRole("form", { name: "Add a variable or secret to Blog" })).toBeVisible();
   });
 });

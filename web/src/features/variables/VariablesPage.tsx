@@ -19,6 +19,7 @@ import {
   Icon,
   PHONE_QUERY,
   SegmentedControl,
+  StatusBadge,
   Switch,
   Table,
   type TableColumn,
@@ -29,14 +30,18 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useTanstackQuery } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type Ref, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { passkeysAvailable } from "../../lib/webauthn";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { useProjectDelete } from "../projects/deleteProject";
+import { useProjects } from "../projects/useProjects";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { ProjectPicker } from "./ProjectPicker";
 import { RevealsProvider, useReveal, useReveals } from "./useReveal";
 import "./VariablesPage.css";
 import { MayEdit } from "../auth/MayEdit";
@@ -94,13 +99,46 @@ export function useAllVariables(environment: string | undefined) {
   });
 }
 
-/** An environment as the switch shows it: its name, with its project's once there are several. */
-function environmentLabel(env: Resource, projects: readonly Resource[]): string {
+/**
+ * An environment as the page names it: its project's name once there are several projects, and
+ * its own once its project has several environments, as there's a choice of each only then.
+ */
+function environmentLabel(env: Resource, projects: readonly Resource[], environments: readonly Resource[]): string {
   const name = env.displayName || env.resource?.name || env.id;
   if (projects.length < 2) return name;
   const project = projects.find((p) => p.id === env.resource?.scope);
-  return `${project?.displayName || project?.resource?.name || ""} / ${name}`;
+  const label = project?.displayName || project?.resource?.name || "";
+  const siblings = environments.filter((e) => e.resource?.scope === env.resource?.scope).length;
+  return siblings > 1 ? `${label} / ${name}` : label;
 }
+
+/** The environment a project opens on: its production, or its first. */
+function firstEnvironment(project: string, environments: readonly Resource[]): Resource | undefined {
+  const own = environments.filter((e) => e.resource?.scope === project);
+  return own.find((e) => e.resource?.name === "production") ?? own[0];
+}
+
+/** Where the page remembers the environment its viewer last chose, for the next visit with none named. */
+const REMEMBERED = "dockwell.variables.environment";
+
+function remembered(): string | undefined {
+  try {
+    return window.localStorage.getItem(REMEMBERED) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function remember(id: string): void {
+  try {
+    window.localStorage.setItem(REMEMBERED, id);
+  } catch {
+    // A private window or blocked storage: the next visit opens on the default, which is fine.
+  }
+}
+
+/** From how many variables and secrets the list has a box to filter them by name. */
+const FILTER_FROM = 8;
 
 /** The environment shown when none is chosen: production in the first project, or the first there is. */
 function defaultEnvironment(envs: readonly Resource[], projects: readonly Resource[]): Resource | undefined {
@@ -113,9 +151,11 @@ function defaultEnvironment(envs: readonly Resource[], projects: readonly Resour
 }
 
 export interface VariablesPageProps {
-  /** The environment shown, by ID; the default one when unset. */
+  /** The environment shown, by ID; the last one chosen here, or the default, when unset. */
   environment?: string | undefined;
-  onEnvironment: (id: string) => void;
+  /** What the list is filtered by, by name. */
+  query?: string | undefined;
+  onEnvironment: (id: string, query?: string) => void;
 }
 
 /**
@@ -126,23 +166,39 @@ export interface VariablesPageProps {
  * the new value. A secret shows hidden; revealing it takes a passkey, and
  * is in the audit log.
  */
-export function VariablesPage({ environment, onEnvironment }: VariablesPageProps) {
+export function VariablesPage({ environment, query, onEnvironment }: VariablesPageProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const envs = useQuery(ResourceService.method.listResources, { kind: "environment" });
   const projectList = useQuery(ResourceService.method.listResources, { kind: "project" });
   const projects = projectList.data?.resources ?? [];
   const environments = envs.data?.resources ?? [];
-  const chosen = environments.find((e) => e.id === environment) ?? defaultEnvironment(environments, projects);
+  const views = useProjects().projects;
+  const [last] = useState(remembered);
+  const chosen =
+    environments.find((e) => e.id === environment) ??
+    environments.find((e) => e.id === last) ??
+    defaultEnvironment(environments, projects);
+  const view = views?.find((v) => v.id === chosen?.resource?.scope);
+  const siblings = environments.filter((e) => e.resource?.scope === chosen?.resource?.scope);
+  // A choice made here is remembered; a link that names an environment isn't one.
+  const choose = (id: string, q?: string) => {
+    remember(id);
+    onEnvironment(id, q);
+  };
+  const remove = useProjectDelete(projects.length);
   const list = useAllVariables(chosen?.id);
   const [editing, setEditing] = useState<EnvironmentVariable>();
   // Kept here, so a value revealed stays revealed when the layout changes, as when a phone turns.
   const reveals = useReveals(chosen?.id);
   const may = useMay();
-  const envName = chosen ? environmentLabel(chosen, projects) : "";
-  const variables = list.data?.variables ?? [];
-  const secrets = variables.filter((v) => v.secret).length;
-  const plain = variables.length - secrets;
+  const keyRef = useRef<HTMLInputElement>(null);
+  const envName = chosen ? environmentLabel(chosen, projects, environments) : "";
+  const all = list.data?.variables ?? [];
+  const q = (query ?? "").trim().toLowerCase();
+  const variables = q ? all.filter((v) => v.name.toLowerCase().includes(q)) : all;
+  const secrets = all.filter((v) => v.secret).length;
+  const plain = all.length - secrets;
   const counts = [
     plural(plain, { one: "# variable", other: "# variables" }),
     plural(secrets, { one: "# secret", other: "# secrets" }),
@@ -168,23 +224,63 @@ export function VariablesPage({ environment, onEnvironment }: VariablesPageProps
       <RevealsProvider value={reveals}>
         <section className="variables-section" aria-label={t`Variables and secrets in ${envName}`}>
           <div className="variables-bar">
-            {environments.length > 1 && chosen ? (
+            {/* A project to choose, from the second, searchable, in place of a switch with every environment (ADR 0074). */}
+            {projects.length > 1 && views ? (
+              <ProjectPicker
+                views={views}
+                chosen={view}
+                onChoose={(next) => {
+                  const env = firstEnvironment(next.id, environments);
+                  if (env) choose(env.id);
+                }}
+                onFind={(found) => choose(found.environment, found.name)}
+              />
+            ) : null}
+            {siblings.length > 1 && chosen ? (
               <SegmentedControl
                 label={t`Environment`}
                 size="sm"
                 value={chosen.id}
-                options={environments.map((e) => ({ value: e.id, label: environmentLabel(e, projects) }))}
-                onChange={onEnvironment}
+                options={siblings.map((e) => ({ value: e.id, label: e.displayName || e.resource?.name || e.id }))}
+                onChange={(id) => choose(id)}
               />
             ) : null}
             {list.data ? <span className="variables-counts">{counts}</span> : null}
+            {chosen && (all.length >= FILTER_FROM || q) ? (
+              <TextField
+                className="variables-filter"
+                icon="search"
+                type="search"
+                size={phone ? "lg" : "sm"}
+                aria-label={t`Filter by name`}
+                placeholder={t`Filter by name`}
+                value={query ?? ""}
+                onChange={(event) => onEnvironment(chosen.id, event.target.value || undefined)}
+              />
+            ) : null}
           </div>
+          {view?.idle && !view.isDefault ? (
+            // What a deleted app left: said as a state, with Delete beside it, as on Projects.
+            <div className="variables-idle">
+              <StatusBadge status="stopped" label={<Trans>Nothing running in {view.label}</Trans>} labelIsState />
+              <Button
+                size="sm"
+                variant="ghost"
+                icon="trash"
+                onClick={() => remove.open(view, () => onEnvironment(""))}
+                off={remove.offer(view).reason || undefined}
+              >
+                <Trans>Delete the project</Trans>
+              </Button>
+            </div>
+          ) : null}
 
           {chosen ? (
             // For someone who may not plan here, the form is there to read, with why (ADR 0059).
             <MayEdit offer={may(ChangeService.method.proposeChange, { environment: chosen.id })}>
               <ValueForm
                 key={editing ? `${editing.id}:${editing.revision}` : "add"}
+                keyRef={keyRef}
                 scope={chosen.id}
                 envName={envName}
                 editing={editing}
@@ -201,12 +297,31 @@ export function VariablesPage({ environment, onEnvironment }: VariablesPageProps
             <p className="variables-note" aria-busy="true">
               <Trans>Loading variables and secrets</Trans>
             </p>
-          ) : variables.length === 0 ? (
-            <p className="variables-note variables-empty">
-              <Trans>
-                No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name.
-              </Trans>
-            </p>
+          ) : q && variables.length === 0 && chosen ? (
+            <EmptyState
+              icon="search"
+              title={t`Nothing in ${envName} is named like that`}
+              action={
+                <Button onClick={() => onEnvironment(chosen.id)}>
+                  <Trans>Clear the filter</Trans>
+                </Button>
+              }
+            />
+          ) : variables.length === 0 && chosen ? (
+            <EmptyState
+              icon="key"
+              title={t`No variables or secrets in ${envName} yet`}
+              action={
+                // The form above takes it; this puts you there, or says why you can't.
+                <Button
+                  icon="plus"
+                  onClick={() => keyRef.current?.focus()}
+                  off={may(ChangeService.method.proposeChange, { environment: chosen.id }).reason || undefined}
+                >
+                  <Trans>Add the first</Trans>
+                </Button>
+              }
+            />
           ) : phone ? (
             <ul className="variables-list" aria-label={t`Variables and secrets in ${envName}`}>
               {variables.map((v) => (
@@ -430,6 +545,8 @@ function RowActions({ variable, scope, onEdit }: RowActionsProps) {
 }
 
 interface ValueFormProps {
+  /** The key's field, which the empty list's action puts the cursor in. */
+  keyRef?: Ref<HTMLInputElement>;
   scope: string;
   envName: string;
   /** The variable or secret being changed; a new one when unset. */
@@ -446,7 +563,7 @@ interface ValueFormProps {
  * neither is a variable's once it is to become a secret: a value that was
  * a plain variable stays in its history, so the secret takes a new one.
  */
-function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
+function ValueForm({ keyRef, scope, envName, editing, onDone }: ValueFormProps) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const [name, setName] = useState(editing?.name ?? "");
@@ -505,6 +622,7 @@ function ValueForm({ scope, envName, editing, onDone }: ValueFormProps) {
     >
       <div className="variables-form-key">
         <TextField
+          ref={keyRef}
           mono
           aria-label={t`Key`}
           placeholder="NEW_KEY"

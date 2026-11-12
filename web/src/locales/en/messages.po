@@ -2932,6 +2932,7 @@ msgid "Delete the project"
 msgstr "Delete the project"
 
 #. placeholder {0}: project.label
+#. placeholder {0}: view.label
 msgid "Delete the project {0}"
 msgstr "Delete the project {0}"
 
@@ -10421,6 +10422,147 @@ msgstr "Skip to the overview"
 msgid "What do you want to run?"
 msgstr "What do you want to run?"
 
+msgid "Can't load this project"
+msgstr "Can't load this project"
+
+msgid "Display name"
+msgstr "Display name"
+
+msgid "Environments"
+msgstr "Environments"
+
+msgid "Go to the projects"
+msgstr "Go to the projects"
+
+msgid "It holds nothing. You review a plan first."
+msgstr "It holds nothing. You review a plan first."
+
+msgid "It may have been deleted, or the link may be wrong."
+msgstr "It may have been deleted, or the link may be wrong."
+
+msgid "Loading the project"
+msgstr "Loading the project"
+
+msgid "Members"
+msgstr "Members"
+
+msgid "No project with this ID"
+msgstr "No project with this ID"
+
+msgid "Not protected"
+msgstr "Not protected"
+
+msgid "Nothing running"
+msgstr "Nothing running"
+
+msgid "Nothing runs in it, and it keeps no data."
+msgstr "Nothing runs in it, and it keeps no data."
+
+msgid "Open in Variables"
+msgstr "Open in Variables"
+
+msgid "Projects"
+msgstr "Projects"
+
+msgid "Protected"
+msgstr "Protected"
+
+msgid "Scheduled task"
+msgstr "Scheduled task"
+
+#. placeholder {0}: view.name
+msgid "Show {0} as {shown}"
+msgstr "Show {0} as {shown}"
+
+#. placeholder {0}: view.name
+msgid "Show {0} by its name"
+msgstr "Show {0} by its name"
+
+msgid "Takes {holds} in one plan, to review first."
+msgstr "Takes {holds} in one plan, to review first."
+
+msgid "To a port on the server"
+msgstr "To a port on the server"
+
+msgid "To {to}"
+msgstr "To {to}"
+
+#. placeholder {0}: view.name
+msgid "URLs and the CLI keep its name, {0}."
+msgstr "URLs and the CLI keep its name, {0}."
+
+msgid "Variables and secrets"
+msgstr "Variables and secrets"
+
+msgid "What runs in it isn't affected."
+msgstr "What runs in it isn't affected."
+
+msgid "What's in it"
+msgstr "What's in it"
+
+msgid "Who has access"
+msgstr "Who has access"
+
+#. placeholder {0}: kinds.get("secret") ?? 0
+#. placeholder {0}: n("secret")
+msgid "{0, plural, one {# secret} other {# secrets}}"
+msgstr "{0, plural, one {# secret} other {# secrets}}"
+
+#. placeholder {0}: kinds.get("variable") ?? 0
+#. placeholder {0}: n("variable")
+msgid "{0, plural, one {# variable} other {# variables}}"
+msgstr "{0, plural, one {# variable} other {# variables}}"
+
+#. placeholder {0}: roleName(role)
+msgid "{0} of the whole install"
+msgstr "{0} of the whole install"
+
+#. placeholder {0}: roleName(role)
+msgid "{0} of this project"
+msgstr "{0} of this project"
+
+msgid "All {count}"
+msgstr "All {count}"
+
+msgid "Apps with no project"
+msgstr "Apps with no project"
+
+msgid "Can't load the projects"
+msgstr "Can't load the projects"
+
+msgid "Filter by name"
+msgstr "Filter by name"
+
+msgid "Filter projects"
+msgstr "Filter projects"
+
+#. placeholder {0}: view.install.name || view.install.pin?.entry || ""
+msgid "From the catalog · {0}"
+msgstr "From the catalog · {0}"
+
+msgid "Loading projects"
+msgstr "Loading projects"
+
+msgid "No project matches."
+msgstr "No project matches."
+
+msgid "Nothing in it"
+msgstr "Nothing in it"
+
+#. placeholder {0}: idle.length
+msgid "Nothing running {0}"
+msgstr "Nothing running {0}"
+
+msgid "What runs in them isn't affected."
+msgstr "What runs in them isn't affected."
+
+#. placeholder {0}: idle.length
+msgid "{0, plural, one {# with nothing running} other {# with nothing running}}"
+msgstr "{0, plural, one {# with nothing running} other {# with nothing running}}"
+
+msgid "{count, plural, one {# project} other {# projects}}"
+msgstr "{count, plural, one {# project} other {# projects}}"
+
 msgid "{n, plural, one {# app} other {# apps}}"
 msgstr "{n, plural, one {# app} other {# apps}}"
 
@@ -10450,6 +10592,36 @@ msgstr "{n, plural, one {# volume} other {# volumes}}"
 
 msgid "{others, plural, one {# other resource} other {# other resources}}"
 msgstr "{others, plural, one {# other resource} other {# other resources}}"
+
+msgid "Apps with no project go here, so it stays."
+msgstr "Apps with no project go here, so it stays."
+
+msgid "a website"
+msgstr "a website"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: here.length
+#. placeholder {0}: view.apps.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
+
+#. placeholder {0}: view.databases.length
+msgid "{0, plural, one {# database} other {# databases}}"
+msgstr "{0, plural, one {# database} other {# databases}}"
+
+#. placeholder {0}: here.length
+#. placeholder {0}: view.domains.length
+msgid "{0, plural, one {# domain} other {# domains}}"
+msgstr "{0, plural, one {# domain} other {# domains}}"
+
+#. placeholder {0}: n("task")
+msgid "{0, plural, one {# scheduled task} other {# scheduled tasks}}"
+msgstr "{0, plural, one {# scheduled task} other {# scheduled tasks}}"
+
+#. placeholder {0}: n("volume")
+#. placeholder {0}: use.volumes
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, one {# volume} other {# volumes}}"
 
 msgid "Add a server"
 msgstr "Add a server"
@@ -10689,10 +10861,6 @@ msgstr "What they wrote outside volumes"
 #. placeholder {0}: use.images
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, one {# image} other {# images}}"
-
-#. placeholder {0}: use.volumes
-msgid "{0, plural, one {# volume} other {# volumes}}"
-msgstr "{0, plural, one {# volume} other {# volumes}}"
 
 #. placeholder {0}: bytes(use.buildCacheBytes)
 msgid "{0} build cache"
@@ -11400,11 +11568,6 @@ msgstr "Up {uptime}"
 msgid "Waiting for its agent"
 msgstr "Waiting for its agent"
 
-#. placeholder {0}: apps.length
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, one {# app} other {# apps}}"
-
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, one {# replica} other {# replicas}}"
 
@@ -11474,9 +11637,6 @@ msgstr "Processes"
 #. placeholder {0}: server.name
 msgid "Processes on {0}"
 msgstr "Processes on {0}"
-
-msgid "Protected"
-msgstr "Protected"
 
 msgid "Reading what runs here"
 msgstr "Reading what runs here"
@@ -11579,10 +11739,6 @@ msgstr "No domains"
 
 msgid "What runs here"
 msgstr "What runs here"
-
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# domain} other {# domains}}"
-msgstr "{0, plural, one {# domain} other {# domains}}"
 
 #. placeholder {0}: looks.length
 msgid "{0, plural, one {# needs a look} other {# need a look}}"
@@ -12622,9 +12778,6 @@ msgstr "Dockwell can't say who signs in"
 msgid "Enter an email address, such as ada@example.com."
 msgstr "Enter an email address, such as ada@example.com."
 
-msgid "Environments"
-msgstr "Environments"
-
 msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
 msgstr "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
 
@@ -12694,9 +12847,6 @@ msgstr "Make projects, manage servers and settings"
 msgid "Member"
 msgstr "Member"
 
-msgid "Members"
-msgstr "Members"
-
 msgid "No way in that works now"
 msgstr "No way in that works now"
 
@@ -12705,9 +12855,6 @@ msgstr "Nobody was invited"
 
 msgid "Not accepted yet"
 msgstr "Not accepted yet"
-
-msgid "Not protected"
-msgstr "Not protected"
 
 msgid "Now"
 msgstr "Now"
@@ -12730,9 +12877,6 @@ msgstr "Permission"
 
 msgid "Plan and apply in open environments"
 msgstr "Plan and apply in open environments"
-
-msgid "Projects"
-msgstr "Projects"
 
 #. placeholder {0}: named(env)
 msgid "Protect {0}"
@@ -13261,6 +13405,12 @@ msgstr "Open the overview"
 msgid "Open the plan: {summary}"
 msgstr "Open the plan: {summary}"
 
+msgid "Open the project {name}"
+msgstr "Open the project {name}"
+
+msgid "Open the projects"
+msgstr "Open the projects"
+
 msgid "Open the server list"
 msgstr "Open the server list"
 
@@ -13311,9 +13461,6 @@ msgstr "Operate"
 
 msgid "Settings, status and account"
 msgstr "Settings, status and account"
-
-msgid "Variables and secrets"
-msgstr "Variables and secrets"
 
 msgid "It arrives in a later release."
 msgstr "It arrives in a later release."
@@ -14495,6 +14642,26 @@ msgstr "{name}'s agent doesn't read updates yet"
 msgid "{name}'s agent isn't connected"
 msgstr "{name}'s agent isn't connected"
 
+msgid "Choose a project"
+msgstr "Choose a project"
+
+msgid "Find a project, or a variable by name"
+msgstr "Find a project, or a variable by name"
+
+msgid "Found by name"
+msgstr "Found by name"
+
+msgid "No project or variable by that name."
+msgstr "No project or variable by that name."
+
+#. placeholder {0}: chosen.label
+#. placeholder {1}: counts(chosen)
+msgid "Project {0}, {1}"
+msgstr "Project {0}, {1}"
+
+msgid "Project, or a variable's name"
+msgstr "Project, or a variable's name"
+
 msgid ", secret"
 msgstr ", secret"
 
@@ -14503,6 +14670,9 @@ msgstr "A secret needs a value."
 
 msgid "Add a variable or secret to {envName}"
 msgstr "Add a variable or secret to {envName}"
+
+msgid "Add the first"
+msgstr "Add the first"
 
 msgid "Add the secret {trimmed}"
 msgstr "Add the secret {trimmed}"
@@ -14543,11 +14713,18 @@ msgstr "Make {trimmed} a variable"
 msgid "Name it, such as DATABASE_URL."
 msgstr "Name it, such as DATABASE_URL."
 
-msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
-msgstr "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
+msgid "No variables or secrets in {envName} yet"
+msgstr "No variables or secrets in {envName} yet"
 
 msgid "Not used yet"
 msgstr "Not used yet"
+
+msgid "Nothing in {envName} is named like that"
+msgstr "Nothing in {envName} is named like that"
+
+#. placeholder {0}: view.label
+msgid "Nothing running in {0}"
+msgstr "Nothing running in {0}"
 
 msgid "Remove the secret {name}"
 msgstr "Remove the secret {name}"

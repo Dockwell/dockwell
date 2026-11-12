@@ -208,6 +208,17 @@ function Commands({ onClose }: { onClose: () => void }) {
       label: t`Open the activity`,
       run: () => navigate({ to: "/activity" }),
     });
+    // Projects appear once there are two: the only one is the hidden default (ADR 0074).
+    if ((projects?.length ?? 0) > 1) {
+      list.push({
+        id: "projects",
+        group: pages,
+        icon: "folder",
+        label: t`Open the projects`,
+        hint: String(projects?.length ?? 0),
+        run: () => navigate({ to: "/projects" }),
+      });
+    }
     list.push({
       id: "variables",
       group: pages,
@@ -273,9 +284,17 @@ function Commands({ onClose }: { onClose: () => void }) {
     for (const project of shownProjects) {
       const name = project.resource?.name ?? project.id;
       list.push({
-        id: `project:${project.id}`,
+        id: `project-page:${project.id}`,
         group: t`Projects`,
         icon: "folder",
+        label: t`Open the project ${name}`,
+        hint: project.displayName || undefined,
+        run: () => navigate({ to: "/projects/$projectId", params: { projectId: project.id } }),
+      });
+      list.push({
+        id: `project:${project.id}`,
+        group: t`Projects`,
+        icon: "activity",
         label: t`Show the activity of ${name}`,
         hint: project.displayName || undefined,
         run: () => navigate({ to: "/activity", search: { resource: project.id } }),

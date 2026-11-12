@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { AlertService, Role, SettingsService, SystemService } from "@dockwell/api";
+import { AlertService, ResourceService, Role, SettingsService, SystemService } from "@dockwell/api";
 import { cx, Icon, type IconName, Logo } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
@@ -38,6 +38,7 @@ export function Rail({ view }: { view: FleetView }) {
   const version = useQuery(SystemService.method.getVersion, {}).data?.build?.version;
   // How many apps there are, beside Apps, as the rail has it in the mocks.
   const apps = useServices().data?.length;
+  const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources.length ?? 0;
 
   const may = useMay();
   const section = (id: UpcomingSection) => {
@@ -93,6 +94,15 @@ export function Rail({ view }: { view: FleetView }) {
         <ItemBody icon="link" label={t`Domains`} />
       </Link>
       {AFTER_DOMAINS.map(section)}
+      {/* Projects appear once there are two: the only one is the hidden default (ADR 0074). */}
+      {projects > 1 ? (
+        <Link to="/projects" {...current(segment === "projects")}>
+          <ItemBody icon="folder" label={t`Projects`} count={String(projects)} />
+        </Link>
+      ) : null}
+      <Link to="/variables" {...current(segment === "variables")}>
+        <ItemBody icon="key" label={t`Variables`} />
+      </Link>
       <Link to="/catalog" {...current(segment === "catalog")}>
         <ItemBody icon="grid" label={t`Catalog`} count={upgrades > 0 ? String(upgrades) : undefined} />
       </Link>

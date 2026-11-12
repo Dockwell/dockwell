@@ -24,8 +24,7 @@
 
 /* Panels, as .dw-panel draws them; that stylesheet comes with Panel, which this page doesn't use. */
 .variables-form,
-.variables-list,
-.variables-empty {
+.variables-list {
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -210,4 +209,155 @@
     flex: 1 1 auto;
     justify-content: flex-end;
   }
+}
+
+/* The project picker (ADR 0074): a button that says which project, and a list to search under it. */
+.variables-pick {
+  position: relative;
+  min-width: 0;
+}
+
+.variables-pick-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.variables-pick-trigger:hover {
+  background: var(--surface-sunken);
+}
+
+.variables-pick-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.variables-pick-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variables-pick-pop {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: calc(var(--z-sticky) + 1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(360px, calc(100vw - 2 * var(--space-4)));
+  max-height: min(480px, 70vh);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.variables-pick-lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.variables-pick-head {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.variables-pick-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variables-pick-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.variables-pick-item:hover,
+.variables-pick-item:focus-visible {
+  outline: none;
+  background: var(--surface-sunken);
+}
+
+.variables-pick-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variables-pick-name code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.variables-pick-sub {
+  grid-column: 1;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variables-pick-check {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--cobalt);
+}
+
+.variables-pick-none {
+  margin: 0;
+  padding: var(--space-3) var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+/* A project with nothing running says so, with Delete, as the Projects list does. */
+.variables-idle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.variables-filter {
+  flex: 0 1 240px;
+  min-width: 180px;
+  margin-left: auto;
 }

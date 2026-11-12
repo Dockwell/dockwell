@@ -2932,6 +2932,7 @@ msgid "Delete the project"
 msgstr "删除项目"
 
 #. placeholder {0}: project.label
+#. placeholder {0}: view.label
 msgid "Delete the project {0}"
 msgstr "删除项目 {0}"
 
@@ -10421,6 +10422,147 @@ msgstr "跳到概览"
 msgid "What do you want to run?"
 msgstr "你想运行什么？"
 
+msgid "Can't load this project"
+msgstr "无法加载这个项目"
+
+msgid "Display name"
+msgstr "显示名称"
+
+msgid "Environments"
+msgstr "环境"
+
+msgid "Go to the projects"
+msgstr "前往项目"
+
+msgid "It holds nothing. You review a plan first."
+msgstr "其中什么都没有。你会先审查一个计划。"
+
+msgid "It may have been deleted, or the link may be wrong."
+msgstr "它可能已被删除，或者链接有误。"
+
+msgid "Loading the project"
+msgstr "正在加载项目"
+
+msgid "Members"
+msgstr "成员"
+
+msgid "No project with this ID"
+msgstr "没有这个 ID 的项目"
+
+msgid "Not protected"
+msgstr "未受保护"
+
+msgid "Nothing running"
+msgstr "没有在运行"
+
+msgid "Nothing runs in it, and it keeps no data."
+msgstr "其中没有在运行的内容，也没有保留数据。"
+
+msgid "Open in Variables"
+msgstr "在变量中打开"
+
+msgid "Projects"
+msgstr "项目"
+
+msgid "Protected"
+msgstr "受保护"
+
+msgid "Scheduled task"
+msgstr "计划任务"
+
+#. placeholder {0}: view.name
+msgid "Show {0} as {shown}"
+msgstr "将 {0} 显示为 {shown}"
+
+#. placeholder {0}: view.name
+msgid "Show {0} by its name"
+msgstr "按名称显示 {0}"
+
+msgid "Takes {holds} in one plan, to review first."
+msgstr "在一个计划中删除 {holds}，你会先审查它。"
+
+msgid "To a port on the server"
+msgstr "到服务器上的端口"
+
+msgid "To {to}"
+msgstr "到 {to}"
+
+#. placeholder {0}: view.name
+msgid "URLs and the CLI keep its name, {0}."
+msgstr "URL 和 CLI 仍使用它的名称 {0}。"
+
+msgid "Variables and secrets"
+msgstr "变量和密钥"
+
+msgid "What runs in it isn't affected."
+msgstr "其中运行的内容不受影响。"
+
+msgid "What's in it"
+msgstr "其中的内容"
+
+msgid "Who has access"
+msgstr "谁有访问权限"
+
+#. placeholder {0}: kinds.get("secret") ?? 0
+#. placeholder {0}: n("secret")
+msgid "{0, plural, one {# secret} other {# secrets}}"
+msgstr "{0, plural, other {# 个密钥}}"
+
+#. placeholder {0}: kinds.get("variable") ?? 0
+#. placeholder {0}: n("variable")
+msgid "{0, plural, one {# variable} other {# variables}}"
+msgstr "{0, plural, other {# 个变量}}"
+
+#. placeholder {0}: roleName(role)
+msgid "{0} of the whole install"
+msgstr "整个安装的{0}"
+
+#. placeholder {0}: roleName(role)
+msgid "{0} of this project"
+msgstr "这个项目的{0}"
+
+msgid "All {count}"
+msgstr "全部 {count}"
+
+msgid "Apps with no project"
+msgstr "未指定项目的应用"
+
+msgid "Can't load the projects"
+msgstr "无法加载项目"
+
+msgid "Filter by name"
+msgstr "按名称筛选"
+
+msgid "Filter projects"
+msgstr "筛选项目"
+
+#. placeholder {0}: view.install.name || view.install.pin?.entry || ""
+msgid "From the catalog · {0}"
+msgstr "来自应用目录 · {0}"
+
+msgid "Loading projects"
+msgstr "正在加载项目"
+
+msgid "No project matches."
+msgstr "没有匹配的项目。"
+
+msgid "Nothing in it"
+msgstr "其中什么都没有"
+
+#. placeholder {0}: idle.length
+msgid "Nothing running {0}"
+msgstr "没有在运行 {0}"
+
+msgid "What runs in them isn't affected."
+msgstr "其中运行的内容不受影响。"
+
+#. placeholder {0}: idle.length
+msgid "{0, plural, one {# with nothing running} other {# with nothing running}}"
+msgstr "{0, plural, other {# 个没有在运行}}"
+
+msgid "{count, plural, one {# project} other {# projects}}"
+msgstr "{count, plural, other {# 个项目}}"
+
 msgid "{n, plural, one {# app} other {# apps}}"
 msgstr "{n, plural, other {# 个应用}}"
 
@@ -10450,6 +10592,36 @@ msgstr "{n, plural, other {# 个卷}}"
 
 msgid "{others, plural, one {# other resource} other {# other resources}}"
 msgstr "{others, plural, other {# 个其他资源}}"
+
+msgid "Apps with no project go here, so it stays."
+msgstr "未指定项目的应用都放在这里，所以它会保留。"
+
+msgid "a website"
+msgstr "一个网站"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: here.length
+#. placeholder {0}: view.apps.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
+#. placeholder {0}: view.databases.length
+msgid "{0, plural, one {# database} other {# databases}}"
+msgstr "{0, plural, other {# 个数据库}}"
+
+#. placeholder {0}: here.length
+#. placeholder {0}: view.domains.length
+msgid "{0, plural, one {# domain} other {# domains}}"
+msgstr "{0, plural, other {# 个域名}}"
+
+#. placeholder {0}: n("task")
+msgid "{0, plural, one {# scheduled task} other {# scheduled tasks}}"
+msgstr "{0, plural, other {# 个计划任务}}"
+
+#. placeholder {0}: n("volume")
+#. placeholder {0}: use.volumes
+msgid "{0, plural, one {# volume} other {# volumes}}"
+msgstr "{0, plural, other {# 个卷}}"
 
 msgid "Add a server"
 msgstr "添加服务器"
@@ -10689,10 +10861,6 @@ msgstr "容器在卷之外写入的内容"
 #. placeholder {0}: use.images
 msgid "{0, plural, one {# image} other {# images}}"
 msgstr "{0, plural, other {# 个镜像}}"
-
-#. placeholder {0}: use.volumes
-msgid "{0, plural, one {# volume} other {# volumes}}"
-msgstr "{0, plural, other {# 个卷}}"
 
 #. placeholder {0}: bytes(use.buildCacheBytes)
 msgid "{0} build cache"
@@ -11400,11 +11568,6 @@ msgstr "已运行 {uptime}"
 msgid "Waiting for its agent"
 msgstr "等待代理连接"
 
-#. placeholder {0}: apps.length
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, other {# 个应用}}"
-
 msgid "{replicas, plural, one {# replica} other {# replicas}}"
 msgstr "{replicas, plural, other {# 个副本}}"
 
@@ -11474,9 +11637,6 @@ msgstr "进程"
 #. placeholder {0}: server.name
 msgid "Processes on {0}"
 msgstr "{0} 上的进程"
-
-msgid "Protected"
-msgstr "受保护"
 
 msgid "Reading what runs here"
 msgstr "正在读取这里运行的内容"
@@ -11579,10 +11739,6 @@ msgstr "没有域名"
 
 msgid "What runs here"
 msgstr "在此运行"
-
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# domain} other {# domains}}"
-msgstr "{0, plural, other {# 个域名}}"
 
 #. placeholder {0}: looks.length
 msgid "{0, plural, one {# needs a look} other {# need a look}}"
@@ -12622,9 +12778,6 @@ msgstr "Dockwell 无法得知谁可以登录"
 msgid "Enter an email address, such as ada@example.com."
 msgstr "请输入电子邮件地址，例如 ada@example.com。"
 
-msgid "Environments"
-msgstr "环境"
-
 msgid "Everyone with a role reads apps, logs and activity in their projects. A developer's plan in a protected environment waits for an admin or the owner."
 msgstr "有角色的人都能在自己的项目中查看应用、日志和活动。开发者在受保护环境中的计划需要等待管理员或所有者。"
 
@@ -12694,9 +12847,6 @@ msgstr "创建项目、管理服务器和设置"
 msgid "Member"
 msgstr "成员"
 
-msgid "Members"
-msgstr "成员"
-
 msgid "No way in that works now"
 msgstr "当前没有可用的登录方式"
 
@@ -12705,9 +12855,6 @@ msgstr "未邀请任何人"
 
 msgid "Not accepted yet"
 msgstr "尚未接受"
-
-msgid "Not protected"
-msgstr "未受保护"
 
 msgid "Now"
 msgstr "现在"
@@ -12730,9 +12877,6 @@ msgstr "权限"
 
 msgid "Plan and apply in open environments"
 msgstr "在开放的环境中计划并应用"
-
-msgid "Projects"
-msgstr "项目"
 
 #. placeholder {0}: named(env)
 msgid "Protect {0}"
@@ -13261,6 +13405,12 @@ msgstr "打开概览"
 msgid "Open the plan: {summary}"
 msgstr "打开计划：{summary}"
 
+msgid "Open the project {name}"
+msgstr "打开项目 {name}"
+
+msgid "Open the projects"
+msgstr "打开项目列表"
+
 msgid "Open the server list"
 msgstr "打开服务器列表"
 
@@ -13311,9 +13461,6 @@ msgstr "运维"
 
 msgid "Settings, status and account"
 msgstr "设置、状态和账户"
-
-msgid "Variables and secrets"
-msgstr "变量和密钥"
 
 msgid "It arrives in a later release."
 msgstr "它将在之后的版本中推出。"
@@ -14495,6 +14642,26 @@ msgstr "{name} 的代理还不读取更新"
 msgid "{name}'s agent isn't connected"
 msgstr "{name} 的代理未连接"
 
+msgid "Choose a project"
+msgstr "选择项目"
+
+msgid "Find a project, or a variable by name"
+msgstr "查找项目，或按名称查找变量"
+
+msgid "Found by name"
+msgstr "按名称找到"
+
+msgid "No project or variable by that name."
+msgstr "没有这个名称的项目或变量。"
+
+#. placeholder {0}: chosen.label
+#. placeholder {1}: counts(chosen)
+msgid "Project {0}, {1}"
+msgstr "项目 {0}，{1}"
+
+msgid "Project, or a variable's name"
+msgstr "项目，或变量名称"
+
 msgid ", secret"
 msgstr "，密钥"
 
@@ -14503,6 +14670,9 @@ msgstr "密钥需要一个值。"
 
 msgid "Add a variable or secret to {envName}"
 msgstr "向 {envName} 添加变量或密钥"
+
+msgid "Add the first"
+msgstr "添加第一个"
 
 msgid "Add the secret {trimmed}"
 msgstr "添加密钥 {trimmed}"
@@ -14543,11 +14713,18 @@ msgstr "将 {trimmed} 改为变量"
 msgid "Name it, such as DATABASE_URL."
 msgstr "请为它命名，例如 DATABASE_URL。"
 
-msgid "No variables or secrets in {envName} yet. Add the first above; a service then uses it by its name."
-msgstr "{envName} 中还没有变量或密钥。请在上方添加第一个，服务随后按名称使用它。"
+msgid "No variables or secrets in {envName} yet"
+msgstr "{envName} 中还没有变量或密钥"
 
 msgid "Not used yet"
 msgstr "尚未使用"
+
+msgid "Nothing in {envName} is named like that"
+msgstr "{envName} 中没有这样命名的内容"
+
+#. placeholder {0}: view.label
+msgid "Nothing running in {0}"
+msgstr "{0} 中没有在运行"
 
 msgid "Remove the secret {name}"
 msgstr "移除密钥 {name}"

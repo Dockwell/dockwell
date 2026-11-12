@@ -763,8 +763,8 @@ async function main() {
   step("secrets: add one in the panel, reveal it with the passkey, and check an API token can't");
   await page.goto(`${origin}/variables`);
   await expectPage(page, "Variables and secrets");
-  // By now there are two projects, so the environment goes by default / production.
-  const valueForm = page.getByRole("form", { name: /^Add a variable or secret to (default \/ )?production$/ });
+  // By now there are several projects, so the environment goes by its project's name.
+  const valueForm = page.getByRole("form", { name: /^Add a variable or secret to (default|production)$/ });
   await valueForm.getByRole("textbox", { name: "Key" }).fill("DB_PASSWORD");
   await valueForm.getByRole("switch", { name: "Secret" }).click();
   const secretValue = "e2e-s3cret-correct-horse";

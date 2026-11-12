@@ -6,25 +6,35 @@ import { VariablesPage } from "../../features/variables/VariablesPage";
 
 interface VariablesSearch {
   environment?: string;
+  q?: string;
 }
 
 /**
- * An environment's variables and secrets. The command bar, More on phones
- * and Activity reach it; the app screens (#31) will show an app's share of
- * the same list.
+ * An environment's variables and secrets, from the rail (ADR 0074). An
+ * app's Environment tab shows its own share, and links here.
  */
 export const Route = createFileRoute("/_shell/variables")({
-  validateSearch: (search: Record<string, unknown>): VariablesSearch =>
-    typeof search["environment"] === "string" && search["environment"] !== ""
-      ? { environment: search["environment"] }
-      : {},
+  validateSearch: (search: Record<string, unknown>): VariablesSearch => {
+    const out: VariablesSearch = {};
+    if (typeof search["environment"] === "string" && search["environment"] !== "")
+      out.environment = search["environment"];
+    if (typeof search["q"] === "string" && search["q"] !== "") out.q = search["q"];
+    return out;
+  },
   component: function Variables() {
-    const { environment } = Route.useSearch();
+    const { environment, q } = Route.useSearch();
     const navigate = useNavigate();
     return (
       <VariablesPage
         environment={environment}
-        onEnvironment={(id) => void navigate({ to: "/variables", search: { environment: id }, replace: true })}
+        query={q}
+        onEnvironment={(id, query) =>
+          void navigate({
+            to: "/variables",
+            search: { ...(id ? { environment: id } : {}), ...(query ? { q: query } : {}) },
+            replace: true,
+          })
+        }
       />
     );
   },

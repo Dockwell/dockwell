@@ -154,6 +154,7 @@ describe("the shell on wide screens", () => {
       "Connections",
       "Domains",
       "Backups",
+      "Variables",
       "Catalog",
       "Server hz-1",
       "Activity",

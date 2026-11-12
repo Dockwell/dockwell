@@ -69,7 +69,12 @@ describe("the command bar", () => {
       within(projects)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Show the activity of default", "Show the activity of shop Shop"]);
+    ).toEqual([
+      "Open the project default",
+      "Show the activity of default",
+      "Open the project shop Shop",
+      "Show the activity of shop Shop",
+    ]);
     const environments = within(bar).getByRole("group", { name: "Environments" });
     expect(
       within(environments)

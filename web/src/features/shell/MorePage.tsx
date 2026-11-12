@@ -2,7 +2,14 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { AlertService, BackupState, DomainService, SettingsService, SystemService } from "@dockwell/api";
+import {
+  AlertService,
+  BackupState,
+  DomainService,
+  ResourceService,
+  SettingsService,
+  SystemService,
+} from "@dockwell/api";
 import { Icon, type IconName, type ThemePreference, useThemePreference } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -44,6 +51,8 @@ export function MorePage() {
   // What M-More says beside a section: how many domains, and when the last backup was. Read once.
   const domains =
     useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains.length ?? 0;
+  // Projects appear once there are two: the only one is the hidden default (ADR 0074).
+  const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources.length ?? 0;
   const lastBackup = useBackups().data?.backups.find((b) => b.state === BackupState.DONE)?.startedAt;
   const values: Partial<Record<UpcomingSection, string>> = {
     backups: lastBackup ? time.ago(timestampDate(lastBackup), now) : undefined,
@@ -67,6 +76,11 @@ export function MorePage() {
   return (
     <Page title={t`More`}>
       <nav className="dw-panel more-group" aria-label={t`Resources`}>
+        {projects > 1 ? (
+          <Link to="/projects" className="more-row">
+            <RowBody icon="folder" label={t`Projects`} value={String(projects)} />
+          </Link>
+        ) : null}
         <Link to="/variables" className="more-row">
           <RowBody icon="key" label={t`Variables and secrets`} />
         </Link>
