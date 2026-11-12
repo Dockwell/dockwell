@@ -30,6 +30,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useRef, useState } from "react";
 
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
+import { useReadAgainOnceOver } from "../changes/follow";
 
 type Edit = MessageInitShape<typeof EditSchema>;
 
@@ -104,8 +105,9 @@ export function DockwellRules({
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const changes = useChangeSheet();
-  // What the sheet changed shows here at once, not at the next read.
-  const sheet = { open: (opening: Opening) => changes.open({ ...opening, onClose: () => onChanged?.() }) };
+  // What the sheet changed shows here once it's on the server, not at the next read.
+  const readAgain = useReadAgainOnceOver(() => onChanged?.());
+  const sheet = { open: (opening: Opening) => changes.open({ ...opening, onClose: readAgain }) };
   const [adding, setAdding] = useState(false);
   const usedBy = useUsedBy(fw);
   const table = fw?.dockwell;

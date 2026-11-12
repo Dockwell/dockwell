@@ -27,6 +27,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { type Offer, useMay } from "../auth/may";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
+import { useReadAgainOnceOver } from "../changes/follow";
 import { CopyButton } from "./CopyButton";
 import { useControlPlaneNow } from "./useFleet";
 
@@ -396,6 +397,9 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
     { enabled: connected, refetchInterval: SSH_EVERY_MS, retry: false },
   );
   const changes = useChangeSheet();
+  // What a jail's change wrote shows here once it's written, not at the next read.
+  const readAgain = useReadAgainOnceOver(() => void read.refetch());
+  const plan = (opening: Opening) => changes.open({ ...opening, onClose: readAgain });
   const [editing, setEditing] = useState<Editing>();
   const name = server.name;
   const badge = (() => {
@@ -449,7 +453,7 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
   } else if (f2b.state === Fail2banState.UNREADABLE) {
     body = <Callout tone="warning">{f2b.why}</Callout>;
   } else {
-    body = <Jails server={server} jails={f2b.jails} onEdit={setEditing} mayPlan={mayPlan} />;
+    body = <Jails server={server} jails={f2b.jails} onEdit={setEditing} open={plan} mayPlan={mayPlan} />;
   }
   const running = f2b?.state === Fail2banState.RUNNING;
   const sshJail = f2b?.jails.find((j) => j.name === "sshd");
@@ -477,7 +481,7 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
           signedInFrom={f2b?.signedInFrom ?? []}
           yourAddress={read.data?.yourAddress ?? ""}
           onClose={() => setEditing(undefined)}
-          open={(opening) => changes.open({ ...opening, onClose: () => void read.refetch() })}
+          open={plan}
         />
       ) : null}
     </Panel>
@@ -753,19 +757,21 @@ function Jails({
   server,
   jails,
   onEdit,
+  open,
   mayPlan,
 }: {
   server: Server;
   jails: readonly Fail2banJail[];
   onEdit: (editing: Editing) => void;
+  /** Opens the plan sheet, reading fail2ban again once the change is over. */
+  open: (opening: Opening) => void;
   /** Whether this reader may plan a change to a jail, and why not. */
   mayPlan: Offer;
 }) {
   const { t } = useLingui();
-  const changes = useChangeSheet();
   const name = server.name;
   const remove = (jail: string) =>
-    changes.open({
+    open({
       kind: "propose",
       summary: t`Stop writing the ${jail} jail on ${name}`,
       edits: [{ resource: { kind: "fail2ban.jail", scope: server.id, name: jail }, delete: true }],
