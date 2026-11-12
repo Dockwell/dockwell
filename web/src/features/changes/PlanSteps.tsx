@@ -19,6 +19,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { useTimeWords } from "../../lib/time";
+import { splitVersion } from "../../lib/versions";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { MachineWords } from "./FailureNotice";
 import { intentOf, isFleet, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
@@ -282,25 +283,38 @@ function InstallLine({ install, server }: { install: PackageInstall; server: str
 }
 
 /**
- * Each package the install installs, from the version there to the one it gets, those
- * the others pull in too, and what follows: a reboot, Docker restarting, and that it
- * can't be undone.
+ * Each package the install installs, from the version there to the one it gets, the
+ * part that changes marked, with those the others pull in too: for packages picked by
+ * name, every one not picked; otherwise each new to the server. Then what follows: a
+ * reboot, Docker restarting, and that it can't be undone.
  */
 function InstallList({ install, server }: { install: PackageInstall; server: string }) {
   const { t } = useLingui();
+  const asked = new Set(install.asked);
+  // What was picked comes first, then what it needs.
+  const packages =
+    asked.size > 0
+      ? [...install.packages].sort((a, b) => Number(!asked.has(a.name)) - Number(!asked.has(b.name)))
+      : install.packages;
   return (
     <div className="plan-install">
       <ul className="plan-install-packages" aria-label={t`Packages it installs on ${server}`}>
-        {install.packages.map((p) => (
-          <li key={p.name}>
-            <code>{p.name}</code>{" "}
-            <span className="plan-install-versions">
-              {p.installed ? `${p.installed} → ${p.available}` : p.available}
-            </span>
-            {p.installed ? null : <Tag words>{t`Pulled in`}</Tag>}
-            {p.security ? <Tag words>{t({ message: "Security fix", context: "a package update" })}</Tag> : null}
-          </li>
-        ))}
+        {packages.map((p) => {
+          const [same, changed] = splitVersion(p.installed, p.available);
+          const pulled = asked.size > 0 ? !asked.has(p.name) : !p.installed;
+          return (
+            <li key={p.name}>
+              <code>{p.name}</code>{" "}
+              <span className="plan-install-versions">
+                {p.installed ? `${p.installed} → ` : null}
+                {same}
+                <mark className="plan-install-changed">{changed}</mark>
+              </span>
+              {pulled ? <Tag words>{t`Pulled in`}</Tag> : null}
+              {p.security ? <Tag words>{t({ message: "Security fix", context: "a package update" })}</Tag> : null}
+            </li>
+          );
+        })}
       </ul>
       <span className="plan-step-meta">
         {install.dockerRestarts ? (

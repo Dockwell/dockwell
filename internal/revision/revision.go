@@ -727,7 +727,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			items[i].restore = &restore
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Install != nil && ed.Ref == items[i].ref }); j >= 0 {
-			items[i].install = &resource.InstallAsked{Change: changeID, All: p.Edits[j].Install.All}
+			items[i].install = &resource.InstallAsked{Change: changeID, All: p.Edits[j].Install.All, Names: p.Edits[j].Install.Names}
 		}
 	}
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {

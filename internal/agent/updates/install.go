@@ -55,6 +55,13 @@ var ErrChanged = errors.New("the updates waiting changed since this plan")
 // ErrNotYet is a package manager Dockwell doesn't install with yet.
 var ErrNotYet = errors.New("installing updates takes apt for now")
 
+// ErrNotListed is a package asked for by name that isn't among the updates the
+// server's own read lists: the agent installs nothing it didn't list.
+var ErrNotListed = errors.New("not among the updates waiting")
+
+// maxNames is the most packages one install names.
+const maxNames = 1000
+
 // Units runs a program as a unit of the init system's own, outside the agent's,
 // so it outlives the agent and whatever called it: systemd's transient units.
 type Units interface {
@@ -80,11 +87,16 @@ type InstallPlan struct {
 	// DockerRestarts says Docker's engine restarts, and KeepsRunning that it keeps
 	// containers running meanwhile (live-restore).
 	DockerRestarts, KeepsRunning bool
+	// Asked are the packages asked for by name, sorted, for an install of a
+	// selection: every other package is one they need.
+	Asked []string
 }
 
-// PlanInstall simulates installing the updates waiting, the security fixes or all
-// of them, as the exact command would: with versions pinned, and what they pull in.
-func (r *Reader) PlanInstall(ctx context.Context, all bool) (*InstallPlan, error) {
+// PlanInstall simulates installing the updates waiting, as the exact command
+// would, with versions pinned and what they pull in: the packages named and what
+// they need, or with none named the security fixes, or all of them. A name the
+// read doesn't list is refused.
+func (r *Reader) PlanInstall(ctx context.Context, all bool, names ...string) (*InstallPlan, error) {
 	got, err := r.Read(ctx, false, false)
 	if err != nil {
 		return nil, err
@@ -98,6 +110,9 @@ func (r *Reader) PlanInstall(ctx context.Context, all bool) (*InstallPlan, error
 	if !r.exists("run/systemd/system") {
 		return nil, resource.Plainly("This server doesn't run systemd, which Dockwell installs updates under so nothing stops them halfway. Install them on it over SSH, with the command the Updates tab shows.", ErrNoUnits)
 	}
+	if len(names) > 0 {
+		return r.planPicked(ctx, got, names)
+	}
 	var pick []*dockwellv1.PackageUpdate
 	for _, p := range got.GetPackages() {
 		if all || p.GetSecurity() {
@@ -108,6 +123,55 @@ func (r *Reader) PlanInstall(ctx context.Context, all bool) (*InstallPlan, error
 		return &InstallPlan{}, nil
 	}
 	return r.simulate(ctx, pick, got.GetDockerLiveRestore())
+}
+
+// planPicked simulates installing the packages named, each one the read lists,
+// and what they need. A package new to the server that none of the others named
+// pulls in is refused, as apt names only upgrades beside each other.
+func (r *Reader) planPicked(ctx context.Context, got *dockwellv1.ServerUpdates, names []string) (*InstallPlan, error) {
+	asked := slices.Clone(names)
+	slices.Sort(asked)
+	asked = slices.Compact(asked)
+	if len(asked) > maxNames {
+		return nil, fmt.Errorf("asked to install %d packages, more than the %d one install names", len(asked), maxNames)
+	}
+	byName := make(map[string]*dockwellv1.PackageUpdate, len(got.GetPackages()))
+	for _, p := range got.GetPackages() {
+		byName[p.GetName()] = p
+	}
+	pick := make([]*dockwellv1.PackageUpdate, 0, len(asked))
+	for _, name := range asked {
+		p, ok := byName[name]
+		if !ok || !packageName().MatchString(name) {
+			return nil, resource.Plainly(quoteIfOdd(name)+" isn't among the updates waiting on this server, so Dockwell won't install it. Check again on the Updates tab.",
+				fmt.Errorf("%q: %w", name, ErrNotListed))
+		}
+		pick = append(pick, p)
+	}
+	plan, err := r.simulate(ctx, pick, got.GetDockerLiveRestore())
+	if err != nil {
+		return nil, err
+	}
+	planned := make(map[string]bool, len(plan.Packages))
+	for _, p := range plan.Packages {
+		planned[p.GetName()] = true
+	}
+	for _, p := range pick {
+		if !planned[p.GetName()] {
+			return nil, resource.Plainly(p.GetName()+" is new to this server, and none of the other packages named needs it. Update it on its own, or with every update.",
+				fmt.Errorf("%s isn't in the install's simulation", p.GetName()))
+		}
+	}
+	plan.Asked = asked
+	return plan, nil
+}
+
+// quoteIfOdd quotes a name that isn't a package's, so what was sent shows as sent.
+func quoteIfOdd(name string) string {
+	if packageName().MatchString(name) {
+		return name
+	}
+	return fmt.Sprintf("%q", name)
 }
 
 // named are the packages a command names: the upgrades, as apt pulls in what they

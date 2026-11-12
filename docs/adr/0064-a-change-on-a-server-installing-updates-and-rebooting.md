@@ -2,6 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-10
+- Amended: 2026-11-11, updating packages one at a time or a selection (#521)
 
 ## Context
 
@@ -31,7 +32,7 @@ Decided in the review of this record (2026-11-10): the shape below, a server-sco
 
 The control plane plans the edit by asking the server's agent (`PlanCall`), and the host's driver answers with what the exact command would do, not what was picked:
 
-- **The install, as simulated.** The agent runs the install command with the packages picked, in simulation: `apt-get install --simulate --only-upgrade --no-remove name=version …`, `dnf upgrade --assumeno name-version …`, `apk upgrade --simulate`. The plan lists everything the simulation says: each package from the version installed to the one it gets, where it comes from, whether it's a security fix, and each package it pulls in that isn't installed, such as a new kernel. The panel offers the security updates (the default) or every update waiting; on Alpine, which marks no security fixes (ADR 0043), it offers every update and says why. Nothing is typed, and the agent refuses a name its tool didn't list.
+- **The install, as simulated.** The agent runs the install command with the packages picked, in simulation: `apt-get install --simulate --only-upgrade --no-remove name=version …`, `dnf upgrade --assumeno name-version …`, `apk upgrade --simulate`. The plan lists everything the simulation says: each package from the version installed to the one it gets, where it comes from, whether it's a security fix, and each package it pulls in that isn't installed, such as a new kernel. The panel offers the security updates (the default), every update waiting, each package on its own row, a selection of rows, and Docker's engine with what else restarts it; on Alpine, which marks no security fixes (ADR 0043), it offers every update and says why. Nothing is typed, and the agent refuses a name its tool didn't list (see "Packages one at a time", below).
 - **What it needs after,** by ADR 0043's rule: a reboot for a new kernel, libc, D-Bus, the CPU's microcode, or systemd under dnf. The plan says the server will need one, which is a change of its own.
 - **What stops.** When Docker's engine is among the packages (`docker-ce`, `docker.io`, `moby-engine`, and `containerd.io`, `containerd` or `runc` where their upgrade restarts `dockerd`), its restart stops every container on the server, Caddy's included (ADR 0024): the plan lists each service, and each domain and website served there (the panel's domain too, on the control server when Caddy serves it), and whether Docker starts each again by its restart policy. `live-restore` keeps containers running only across patch releases of the same `YY.MM`; for a larger jump the plan says they stop. On the control server with its store in Postgres there, in a container, it says the store stops with Docker.
 - **Nothing else restarts.** Ubuntu's `needrestart` runs after apt, and recent releases restart what it finds; the install runs it with `NEEDRESTART_MODE=l`, so it only lists, and the outcome shows its list. Which programs keep an old library until they restart can't be known before installing (ADR 0043).
@@ -91,10 +92,23 @@ An edit takes a set of servers, as every action does (the PRD's "Scaling the exp
 
 ADR 0043's "a change with a plan, which makes no revision" stays: the host edit is planned and applied as every change is, and makes no resource revision. Its reads run as it says. The install itself runs in a unit of its own after a download, as above, not in the read's process group.
 
+### Packages one at a time, or a selection
+
+Added on 2026-11-11 (#521), after the owner asked for an Update button on every package and every state of an update designed.
+
+- **The request names packages, from the list.** `PlanInstallUpdatesRequest.packages` names the packages to install, as `GetServerUpdates` lists them, in place of `all`; both together are refused. The control plane checks each is a package's name (letters, digits and `+._~-`, an architecture after a colon), at most 1000, each once, and the change's summary names them ("Update openssl on web-1", or "Update 5 packages on web-1" past three).
+- **The agent picks only from its own read.** It reads what waits as for the tab, and refuses a name that read doesn't list ("nginx isn't among the updates waiting on this server, so Dockwell won't install it"), whatever it's sent. It simulates exactly the packages named, pinned, so the plan lists them and whatever they need, upgraded or new, as apt finds it, and nothing else waiting. A package new to the server, such as the next kernel, installs on its own; named beside upgrades that don't pull it in, it's refused, as apt names upgrades with `--only-upgrade`, which would leave it out quietly.
+- **The plan says what was asked.** `PackageInstall.asked` lists the names asked for, so the sheet puts them first and marks every other package as pulled in. Applying, resuming and the fingerprint work from the plan's packages, as before: the names matter only at planning.
+- **An older agent is refused, not trusted.** The names reach the agent as `InstallUpdates.names`, which an agent from before this ignores, planning the security fixes instead. A new agent says the names back in `asked`; a plan for names that comes back without them is refused ("web-1's agent installs only the security fixes or every update, not packages picked one by one"), so nobody applies more than they picked.
+- **The tab follows an install, whoever started it.** While an install's step runs on a server, `ServerUpdates.install_change_id` names its change, as the control plane's session with the agent sees it, and the panel follows the change with `WatchChange`. Each row the install takes says where it is: waiting, downloading, installing (with dpkg's line for that package as it comes), installed, then "Updated to" its version, after which it leaves the list. Other rows' Update is off while it runs, saying why, and so is Check now; an install applied anyway, as from the CLI, waits for the server as the holds above say.
+- **What's read is current after an install.** No read starts while an install runs, as it would race dpkg, and a refresh would wait on its lock. Once one ends, the next look reads again, whatever the read's age, so the counts and the summary move without a reload, rather than after the 10 minutes ADR 0043 keeps a read.
+- **A failure stays on its rows,** with dpkg's or apt's last line, Retry (the same request again) and the change one step away. More than three rows failing say it once, above the list.
+
 ### Methods and numbers
 
 - `UpdateService.PlanInstallUpdates`, taking the servers and which updates (the security ones, or all), and `ServerService.PlanReboot`, taking the servers, each make the host edits and answer a planned change, applied with `ChangeService.ApplyChange`, as `RestartService` does. Both are `EFFECT_PLAN`, `needs_session`, `NEEDS_ADMIN`, `REACH_INSTALL`, with lines in the panel's `methods.ts`, and the CLI's `dockwell updates install` and `dockwell servers reboot`. `Edit` gains `install_updates` and `reboot` at its next free numbers.
 - The agent protocol takes this area's block: `Hello.boot_id` 231, and `DesiredResource.install_updates` 232 and `DesiredResource.reboot` 233, which `PlanCall` and `ApplyCall` carry as they carry `restart`.
+- Picking packages (2026-11-11) adds `PlanInstallUpdatesRequest.packages` 4, `PackageInstall.asked` 5, `ServerUpdates.install_change_id` 18, and `InstallUpdates.names` 4 in the agent protocol, a field of a message this area owns. The CLI's `dockwell updates install` takes `--packages`.
 
 ### PRD principle 2
 

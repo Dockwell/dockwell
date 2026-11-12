@@ -13771,8 +13771,14 @@ msgstr "<0>{tool}</0> installs updates"
 msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
 msgstr "Agent <0>{agent}</0>, control plane <1>{control}</1>"
 
-msgid "Apps and websites go offline"
-msgstr "Apps and websites go offline"
+msgid "An install is running on {name}. Docker can update once it ends."
+msgstr "An install is running on {name}. Docker can update once it ends."
+
+msgid "An install is running on {name}. These can start once it ends."
+msgstr "An install is running on {name}. These can start once it ends."
+
+msgid "An install is running on {name}. This one can start once it ends."
+msgstr "An install is running on {name}. This one can start once it ends."
 
 #. placeholder {0}: server.name
 msgid "Asking {0} which updates wait…"
@@ -13780,9 +13786,6 @@ msgstr "Asking {0} which updates wait…"
 
 msgid "Automatic updates"
 msgstr "Automatic updates"
-
-msgid "Available"
-msgstr "Available"
 
 msgid "By itself"
 msgstr "By itself"
@@ -13830,6 +13833,12 @@ msgstr "Dockwell installs updates with apt for now; the command installs every u
 msgid "Dockwell refreshes them once they're a day old, when someone looks"
 msgstr "Dockwell refreshes them once they're a day old, when someone looks"
 
+msgid "Downloading"
+msgstr "Downloading"
+
+msgid "Downloading the packages"
+msgstr "Downloading the packages"
+
 #. placeholder {0}: from[0]
 msgid "From {0}"
 msgstr "From {0}"
@@ -13838,15 +13847,27 @@ msgstr "From {0}"
 msgid "From {0} sources"
 msgstr "From {0} sources"
 
+msgid "In review"
+msgstr "In review"
+
 msgid "Install every update"
 msgstr "Install every update"
 
 msgid "Install security updates"
 msgstr "Install security updates"
 
-msgctxt "a package's version"
+msgctxt "a package an install has set up"
 msgid "Installed"
 msgstr "Installed"
+
+msgid "Installing"
+msgstr "Installing"
+
+msgid "Installing updates on {name}"
+msgstr "Installing updates on {name}"
+
+msgid "Installing updates on {name} failed"
+msgstr "Installing updates on {name} failed"
 
 msgid "It needs a reboot, and apps and websites go offline while {name} restarts."
 msgstr "It needs a reboot, and apps and websites go offline while {name} restarts."
@@ -13922,6 +13943,9 @@ msgstr "Refreshing {0}'s package lists, then reading which updates wait…"
 msgid "Restarts Docker"
 msgstr "Restarts Docker"
 
+msgid "Retry updating {name}"
+msgstr "Retry updating {name}"
+
 msgid "Security updates"
 msgstr "Security updates"
 
@@ -13929,15 +13953,49 @@ msgstr "Security updates"
 msgid "Security updates for {0}"
 msgstr "Security updates for {0}"
 
+msgid "Select every package in {caption}"
+msgstr "Select every package in {caption}"
+
+msgid "Select {name}"
+msgstr "Select {name}"
+
+msgid "Selected updates"
+msgstr "Selected updates"
+
 msgid "Show all"
 msgstr "Show all"
+
+msgid "Started from somewhere else"
+msgstr "Started from somewhere else"
+
+msgid "Takes effect once the server restarts"
+msgstr "Takes effect once the server restarts"
 
 #. placeholder {0}: updates.refreshError
 msgid "The package lists couldn't be refreshed, so this is what they said before: {0}"
 msgstr "The package lists couldn't be refreshed, so this is what they said before: {0}"
 
+msgid "Update Docker"
+msgstr "Update Docker"
+
 msgid "Update it on the control server, as root, which keeps what runs:"
 msgstr "Update it on the control server, as root, which keeps what runs:"
+
+msgid "Update {name}"
+msgstr "Update {name}"
+
+msgctxt "a package an install took"
+msgid "Updated"
+msgstr "Updated"
+
+msgid "Updated to <0>{to}</0>"
+msgstr "Updated to <0>{to}</0>"
+
+msgid "Updated to <0>{wentTo}</0>"
+msgstr "Updated to <0>{wentTo}</0>"
+
+msgid "Updates are read again once the install on {name} ends"
+msgstr "Updates are read again once the install on {name} ends"
 
 #. placeholder {0}: server.name
 msgid "Updates for {0}"
@@ -13945,6 +14003,9 @@ msgstr "Updates for {0}"
 
 msgid "Upgrade command copied"
 msgstr "Upgrade command copied"
+
+msgid "Waiting for what else runs on {name} to end"
+msgstr "Waiting for what else runs on {name} to end"
 
 msgid "What was installed takes effect once it restarts; apps and websites go offline meanwhile."
 msgstr "What was installed takes effect once it restarts; apps and websites go offline meanwhile."
@@ -13961,6 +14022,10 @@ msgstr "available"
 #. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
 msgid "checked {0}"
 msgstr "checked {0}"
+
+msgctxt "the version of a package installed now"
+msgid "from <0>{installed}</0>"
+msgstr "from <0>{installed}</0>"
 
 msgid "lists never refreshed"
 msgstr "lists never refreshed"
@@ -13989,8 +14054,20 @@ msgstr "{n, plural, one {# more is held back: {names}. An upgrade doesn't take i
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 
+msgid "{n, plural, one {# selected} other {# selected}}"
+msgstr "{n, plural, one {# selected} other {# selected}}"
+
 msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 msgstr "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
+
+msgid "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
+msgstr "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
+
+msgid "{n, plural, one {Update # selected} other {Update # selected}}"
+msgstr "{n, plural, one {Update # selected} other {Update # selected}}"
+
+msgid "{name} needs a reboot"
+msgstr "{name} needs a reboot"
 
 msgid "{newest} available"
 msgstr "{newest} available"

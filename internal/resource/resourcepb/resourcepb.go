@@ -546,7 +546,7 @@ func Install(in *resource.Install) *dockwellv1.PackageInstall {
 	if in == nil {
 		return nil
 	}
-	return &dockwellv1.PackageInstall{Packages: Packages(in.Packages), Reboot: in.Reboot, DockerRestarts: in.DockerRestarts, KeepsRunning: in.KeepsRunning}
+	return &dockwellv1.PackageInstall{Packages: Packages(in.Packages), Reboot: in.Reboot, DockerRestarts: in.DockerRestarts, KeepsRunning: in.KeepsRunning, Asked: in.Asked}
 }
 
 // InstallFrom reads an install's plan as the API says it; nil for none.
@@ -554,7 +554,7 @@ func InstallFrom(p *dockwellv1.PackageInstall) *resource.Install {
 	if p == nil {
 		return nil
 	}
-	return &resource.Install{Packages: PackagesFrom(p.GetPackages()), Reboot: p.GetReboot(), DockerRestarts: p.GetDockerRestarts(), KeepsRunning: p.GetKeepsRunning()}
+	return &resource.Install{Packages: PackagesFrom(p.GetPackages()), Reboot: p.GetReboot(), DockerRestarts: p.GetDockerRestarts(), KeepsRunning: p.GetKeepsRunning(), Asked: p.GetAsked()}
 }
 
 // Packages are an install's packages as the API says them.

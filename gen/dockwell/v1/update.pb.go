@@ -377,9 +377,13 @@ type ServerUpdates struct {
 	// which), "agent_outdated" (the server's agent reads no updates; update it),
 	// "server_offline" (its agent isn't connected; what's here is from before), and
 	// "read_failed" (the last read failed, with error saying why). Empty otherwise.
-	Reason        string `protobuf:"bytes,17,opt,name=reason,proto3" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Reason string `protobuf:"bytes,17,opt,name=reason,proto3" json:"reason,omitempty"`
+	// The change installing updates on the server now, by ID, while its step
+	// runs: follow it with WatchChange. Empty when none is. Another install
+	// waits until it ends.
+	InstallChangeId string `protobuf:"bytes,18,opt,name=install_change_id,json=installChangeId,proto3" json:"install_change_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ServerUpdates) Reset() {
@@ -527,6 +531,13 @@ func (x *ServerUpdates) GetDockerLiveRestore() bool {
 func (x *ServerUpdates) GetReason() string {
 	if x != nil {
 		return x.Reason
+	}
+	return ""
+}
+
+func (x *ServerUpdates) GetInstallChangeId() string {
+	if x != nil {
+		return x.InstallChangeId
 	}
 	return ""
 }
@@ -816,7 +827,7 @@ const file_dockwell_v1_update_proto_rawDesc = "" +
 	"\x19CheckServerUpdatesRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"R\n" +
 	"\x1aCheckServerUpdatesResponse\x124\n" +
-	"\aupdates\x18\x01 \x01(\v2\x1a.dockwell.v1.ServerUpdatesR\aupdates\"\xba\x05\n" +
+	"\aupdates\x18\x01 \x01(\v2\x1a.dockwell.v1.ServerUpdatesR\aupdates\"\xe6\x05\n" +
 	"\rServerUpdates\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x125\n" +
 	"\amanager\x18\x02 \x01(\x0e2\x1b.dockwell.v1.PackageManagerR\amanager\x12 \n" +
@@ -838,7 +849,8 @@ const file_dockwell_v1_update_proto_rawDesc = "" +
 	"\rrefresh_error\x18\x0e \x01(\tR\frefreshError\x12;\n" +
 	"\tautomatic\x18\x0f \x01(\v2\x1d.dockwell.v1.AutomaticUpdatesR\tautomatic\x12.\n" +
 	"\x13docker_live_restore\x18\x10 \x01(\bR\x11dockerLiveRestore\x12\x16\n" +
-	"\x06reason\x18\x11 \x01(\tR\x06reason\"\xbd\x02\n" +
+	"\x06reason\x18\x11 \x01(\tR\x06reason\x12*\n" +
+	"\x11install_change_id\x18\x12 \x01(\tR\x0finstallChangeId\"\xbd\x02\n" +
 	"\rPackageUpdate\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\"\n" +
 	"\farchitecture\x18\x02 \x01(\tR\farchitecture\x12\x18\n" +

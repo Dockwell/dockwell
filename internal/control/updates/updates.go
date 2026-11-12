@@ -72,6 +72,9 @@ type server struct {
 	// again is set when one asked while a read that doesn't refresh them ran.
 	forced time.Time
 	again  bool
+	// installsEnded is how many installs of updates had ended on the server as
+	// the last read started: once another ends, what was read is out of date.
+	installsEnded uint64
 }
 
 // New returns a handler that reads servers' updates through their agents, and
@@ -142,6 +145,7 @@ func (h *Handler) look(srv *dockwellv1.Server, force bool) (*dockwellv1.ServerUp
 		h.servers[id] = s
 	}
 	now := h.Now()
+	installing, ended := h.agents.Installing(id)
 	switch {
 	case !connected:
 		out := h.snapshot(id, s)
@@ -154,9 +158,17 @@ func (h *Handler) look(srv *dockwellv1.Server, force bool) (*dockwellv1.ServerUp
 		if force && !s.again && now.Sub(s.forced) >= agentupdates.ForceEvery {
 			s.again = true
 		}
-		return h.snapshot(id, s), s.done
+		out := h.snapshot(id, s)
+		out.InstallChangeId = installing
+		return out, s.done
+	case installing != "":
+		// What an install moves is read once it ends, not halfway: a read now would
+		// race dpkg, and a refresh would wait on its lock.
+		out := h.snapshot(id, s)
+		out.InstallChangeId = installing
+		return out, nil
 	}
-	stale := s.read.IsZero() || now.Sub(s.read) >= Fresh || s.err != "" && now.Sub(s.read) >= FailedFresh
+	stale := s.read.IsZero() || now.Sub(s.read) >= Fresh || s.err != "" && now.Sub(s.read) >= FailedFresh || ended != s.installsEnded
 	switch {
 	case force && now.Sub(s.forced) >= agentupdates.ForceEvery:
 		s.forced = now
@@ -173,6 +185,7 @@ func (h *Handler) look(srv *dockwellv1.Server, force bool) (*dockwellv1.ServerUp
 // request that asked, as a refresh can take minutes. h.mu is held.
 func (h *Handler) start(srv *dockwellv1.Server, s *server, session *agentapi.Session, force bool) {
 	s.running, s.refreshing, s.done = true, false, make(chan struct{})
+	_, s.installsEnded = h.agents.Installing(srv.GetId())
 	done := s.done
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), agentapi.UpdatesTimeout)

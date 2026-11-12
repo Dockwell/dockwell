@@ -142,12 +142,13 @@ type ChangeServiceClient interface {
 	// nothing to undo, and a restart that fails leaves the revision where it was.
 	RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error)
 	// PlanInstallUpdates plans installing the package updates waiting on
-	// servers: the security fixes, or every update. Each server's agent
-	// simulates the exact install, versions pinned, and the plan lists every
-	// package it installs, those it pulls in too, whether a reboot follows and
-	// whether Docker restarts. It's a change with a plan and no revision, as a
-	// restart is: an upgrade can't be undone, and the plan says so. Applying it
-	// takes a person's passkey, as it runs as root on the server. See
+	// servers: the security fixes, every update, or the packages named. Each
+	// server's agent simulates the exact install, versions pinned, and the plan
+	// lists every package it installs, those it pulls in too, whether a reboot
+	// follows and whether Docker restarts. It's a change with a plan and no
+	// revision, as a restart is: an upgrade can't be undone, and the plan says
+	// so. Applying it takes a person's passkey, as it runs as root on the
+	// server. See
 	// docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanInstallUpdates(context.Context, *connect.Request[v1.PlanInstallUpdatesRequest]) (*connect.Response[v1.PlanInstallUpdatesResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
@@ -408,12 +409,13 @@ type ChangeServiceHandler interface {
 	// nothing to undo, and a restart that fails leaves the revision where it was.
 	RestartService(context.Context, *connect.Request[v1.RestartServiceRequest]) (*connect.Response[v1.RestartServiceResponse], error)
 	// PlanInstallUpdates plans installing the package updates waiting on
-	// servers: the security fixes, or every update. Each server's agent
-	// simulates the exact install, versions pinned, and the plan lists every
-	// package it installs, those it pulls in too, whether a reboot follows and
-	// whether Docker restarts. It's a change with a plan and no revision, as a
-	// restart is: an upgrade can't be undone, and the plan says so. Applying it
-	// takes a person's passkey, as it runs as root on the server. See
+	// servers: the security fixes, every update, or the packages named. Each
+	// server's agent simulates the exact install, versions pinned, and the plan
+	// lists every package it installs, those it pulls in too, whether a reboot
+	// follows and whether Docker restarts. It's a change with a plan and no
+	// revision, as a restart is: an upgrade can't be undone, and the plan says
+	// so. Applying it takes a person's passkey, as it runs as root on the
+	// server. See
 	// docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanInstallUpdates(context.Context, *connect.Request[v1.PlanInstallUpdatesRequest]) (*connect.Response[v1.PlanInstallUpdatesResponse], error)
 	// ListDrift compares what servers have with the latest revision of each

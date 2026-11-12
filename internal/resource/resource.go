@@ -754,6 +754,9 @@ type Install struct {
 	// containers running meanwhile.
 	DockerRestarts bool `json:",omitempty"`
 	KeepsRunning   bool `json:",omitempty"`
+	// Asked are the packages asked for by name, for an install of a selection:
+	// every other package is one they need. None for the security fixes or all.
+	Asked []string `json:",omitempty"`
 }
 
 // InstallPackage is one package an install installs.
@@ -776,6 +779,9 @@ type InstallAsked struct {
 	Change string
 	// All installs every update waiting, not only the security fixes.
 	All bool `json:",omitempty"`
+	// Names, at planning, installs only these packages and what they need, in
+	// place of All: names the server's own read lists, and no others.
+	Names []string `json:",omitempty"`
 	// Packages are what the plan fixed: none at planning; on a resume, what it
 	// checks against.
 	Packages []InstallPackage `json:",omitempty"`

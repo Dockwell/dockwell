@@ -13771,8 +13771,14 @@ msgstr "<0>{tool}</0> 自动安装更新"
 msgid "Agent <0>{agent}</0>, control plane <1>{control}</1>"
 msgstr "代理 <0>{agent}</0>，控制平面 <1>{control}</1>"
 
-msgid "Apps and websites go offline"
-msgstr "应用和网站会离线"
+msgid "An install is running on {name}. Docker can update once it ends."
+msgstr "{name} 上正在安装更新。安装结束后才能更新 Docker。"
+
+msgid "An install is running on {name}. These can start once it ends."
+msgstr "{name} 上正在安装更新。安装结束后才能开始这些更新。"
+
+msgid "An install is running on {name}. This one can start once it ends."
+msgstr "{name} 上正在安装更新。安装结束后才能开始这一个。"
 
 #. placeholder {0}: server.name
 msgid "Asking {0} which updates wait…"
@@ -13780,9 +13786,6 @@ msgstr "正在询问 {0} 有哪些待装更新…"
 
 msgid "Automatic updates"
 msgstr "自动更新"
-
-msgid "Available"
-msgstr "可用版本"
 
 msgid "By itself"
 msgstr "自动安装"
@@ -13830,6 +13833,12 @@ msgstr "Dockwell 目前只用 apt 安装更新；这条命令会安装所有待�
 msgid "Dockwell refreshes them once they're a day old, when someone looks"
 msgstr "列表超过一天时，Dockwell 会在有人查看时刷新"
 
+msgid "Downloading"
+msgstr "下载中"
+
+msgid "Downloading the packages"
+msgstr "正在下载软件包"
+
 #. placeholder {0}: from[0]
 msgid "From {0}"
 msgstr "来自 {0}"
@@ -13838,15 +13847,27 @@ msgstr "来自 {0}"
 msgid "From {0} sources"
 msgstr "来自 {0} 个来源"
 
+msgid "In review"
+msgstr "待审阅"
+
 msgid "Install every update"
 msgstr "安装所有更新"
 
 msgid "Install security updates"
 msgstr "安装安全更新"
 
-msgctxt "a package's version"
+msgctxt "a package an install has set up"
 msgid "Installed"
-msgstr "已安装版本"
+msgstr "已安装"
+
+msgid "Installing"
+msgstr "安装中"
+
+msgid "Installing updates on {name}"
+msgstr "正在 {name} 上安装更新"
+
+msgid "Installing updates on {name} failed"
+msgstr "在 {name} 上安装更新失败"
 
 msgid "It needs a reboot, and apps and websites go offline while {name} restarts."
 msgstr "它需要重启，{name} 重启期间应用和网站会离线。"
@@ -13922,6 +13943,9 @@ msgstr "正在刷新 {0} 的软件包列表，然后读取待装更新…"
 msgid "Restarts Docker"
 msgstr "重启 Docker"
 
+msgid "Retry updating {name}"
+msgstr "重试更新 {name}"
+
 msgid "Security updates"
 msgstr "安全更新"
 
@@ -13929,15 +13953,49 @@ msgstr "安全更新"
 msgid "Security updates for {0}"
 msgstr "{0} 的安全更新"
 
+msgid "Select every package in {caption}"
+msgstr "选择{caption}中的全部软件包"
+
+msgid "Select {name}"
+msgstr "选择 {name}"
+
+msgid "Selected updates"
+msgstr "已选更新"
+
 msgid "Show all"
 msgstr "显示全部"
+
+msgid "Started from somewhere else"
+msgstr "从别处发起"
+
+msgid "Takes effect once the server restarts"
+msgstr "服务器重启后生效"
 
 #. placeholder {0}: updates.refreshError
 msgid "The package lists couldn't be refreshed, so this is what they said before: {0}"
 msgstr "软件包列表未能刷新，以下是之前的内容：{0}"
 
+msgid "Update Docker"
+msgstr "更新 Docker"
+
 msgid "Update it on the control server, as root, which keeps what runs:"
 msgstr "在控制服务器上以 root 身份更新，正在运行的内容不受影响："
+
+msgid "Update {name}"
+msgstr "更新 {name}"
+
+msgctxt "a package an install took"
+msgid "Updated"
+msgstr "已更新"
+
+msgid "Updated to <0>{to}</0>"
+msgstr "已更新到 <0>{to}</0>"
+
+msgid "Updated to <0>{wentTo}</0>"
+msgstr "已更新到 <0>{wentTo}</0>"
+
+msgid "Updates are read again once the install on {name} ends"
+msgstr "{name} 上的安装结束后会重新读取更新"
 
 #. placeholder {0}: server.name
 msgid "Updates for {0}"
@@ -13945,6 +14003,9 @@ msgstr "{0} 的更新"
 
 msgid "Upgrade command copied"
 msgstr "已复制升级命令"
+
+msgid "Waiting for what else runs on {name} to end"
+msgstr "正在等待 {name} 上的其他变更结束"
 
 msgid "What was installed takes effect once it restarts; apps and websites go offline meanwhile."
 msgstr "安装的内容在重启后生效；重启期间应用和网站会离线。"
@@ -13961,6 +14022,10 @@ msgstr "可用"
 #. placeholder {0}: words.ago(timestampDate(updates.listsTime), now)
 msgid "checked {0}"
 msgstr "{0}检查"
+
+msgctxt "the version of a package installed now"
+msgid "from <0>{installed}</0>"
+msgstr "当前 <0>{installed}</0>"
 
 msgid "lists never refreshed"
 msgstr "列表从未刷新"
@@ -13989,8 +14054,20 @@ msgstr "{n, plural, other {另有 # 个被暂缓：{names}。升级暂不安装�
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, other {# 个安全更新可以安装}}"
 
+msgid "{n, plural, one {# selected} other {# selected}}"
+msgstr "{n, plural, other {已选 # 个}}"
+
 msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 msgstr "{n, plural, other {# 个更新可以安装}}"
+
+msgid "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
+msgstr "{n, plural, other {正在 {name} 上安装 # 个软件包}}"
+
+msgid "{n, plural, one {Update # selected} other {Update # selected}}"
+msgstr "{n, plural, other {更新所选的 # 个}}"
+
+msgid "{name} needs a reboot"
+msgstr "{name} 需要重启"
 
 msgid "{newest} available"
 msgstr "{newest} 可用"
