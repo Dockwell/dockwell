@@ -20,6 +20,7 @@ import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/process.proto";
 import "dockwell/v1/server.proto";
+import "dockwell/v1/service_update.proto";
 import "dockwell/v1/system.proto";
 import "dockwell/v1/task.proto";
 import "dockwell/v1/terminal.proto";
@@ -762,6 +763,9 @@ message Call {
     // List the server's system services (ADR 0067). This area's block is 230
     // to 239.
     SystemServicesCall system_services = 235;
+    // Say what's newer than an image the server runs (ADR 0079). Knowing an
+    // app's updates takes 250 to 259.
+    ImageUpdatesCall image_updates = 250;
   }
 }
 
@@ -1174,6 +1178,57 @@ message ImageResult {
     dockwell.v1.GetImageResponse image = 3;
     ImageDigests digests = 270;
   }
+}
+
+// ImageUpdatesCall asks what's newer than an image the server runs, from its
+// registry, as the server's pull would find it: a HEAD of the tag's manifest,
+// which no registry counts as a pull, and for a tag that's a version, the
+// repository's tags once. See
+// docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
+message ImageUpdatesCall {
+  // The image as a service's spec names it, such as "postgres:16.3".
+  string reference = 1;
+  // Read the repository's tags for newer versions in the tag's track, for a tag
+  // that's a version.
+  bool tags = 2;
+  // What runs, by repository and digest, such as "postgres@sha256:ab12…", whose
+  // labels the server's own copy says, with no network. Empty when it isn't
+  // known.
+  string running = 3;
+}
+
+// ImageUpdatesResult is what an ImageUpdatesCall found.
+message ImageUpdatesResult {
+  // What the registry said of the tag.
+  dockwell.v1.ImageAnswer answer = 1;
+  // The digest the tag points at now, when the registry said.
+  string digest = 2;
+  // When the tag was last pushed, where the registry says.
+  google.protobuf.Timestamp push_time = 3;
+  // The newest tag of each kind of step newer than the tag, in its track:
+  // patch, minor, then major. Empty when tags weren't asked for, or there are
+  // none.
+  repeated NewerTag newer = 4;
+  // What reading the repository's tags said, when they were asked for. The
+  // digest stands without them.
+  dockwell.v1.ImageAnswer tags_answer = 5;
+  // The org.opencontainers.image.source label of what runs, an https address,
+  // where its image has one.
+  string source = 6;
+  // The registry's own words when it didn't answer as it should, in a line.
+  string detail = 7;
+}
+
+// NewerTag is a tag newer than the one a service runs.
+message NewerTag {
+  // The tag, such as "16.4".
+  string name = 1;
+  // How big a step it is.
+  dockwell.v1.UpdateKind kind = 2;
+  // What it points at, when the registry said.
+  string digest = 3;
+  // When it was last pushed, where the registry says.
+  google.protobuf.Timestamp push_time = 4;
 }
 
 // ReadOnePanelCall asks what 1Panel keeps on the server, read from its records,
@@ -2007,6 +2062,8 @@ message CallResult {
     RememberResult remember = 161;
     // What system_services read.
     SystemServicesResult system_services = 235;
+    // What image_updates found.
+    ImageUpdatesResult image_updates = 250;
   }
 }
 

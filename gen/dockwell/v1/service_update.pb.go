@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -29,10 +30,12 @@ type UpdateKind int32
 
 const (
 	UpdateKind_UPDATE_KIND_UNSPECIFIED UpdateKind = 0
-	// The version's last number moved: 16.3 to 16.4 where versions have two
-	// numbers, as PostgreSQL's do, or 1.27.3 to 1.27.4.
+	// The version's last number moved: 1.27.3 to 1.27.4, or 16.4 to 16.6 where the
+	// repository's tags show its versions have two numbers, as PostgreSQL's do.
 	UpdateKind_UPDATE_KIND_PATCH UpdateKind = 1
-	// With three numbers or more, the second moved: 1.27.3 to 1.28.0.
+	// The second number moved where it's a minor: 1.27.3 to 1.28.0, or 7.2 to 7.4
+	// where the repository has three-number tags. Where the tags can't tell a
+	// second number of two is a patch, it's a minor, the larger step.
 	UpdateKind_UPDATE_KIND_MINOR UpdateKind = 2
 	// The first number moved: 16.4 to 17.0.
 	UpdateKind_UPDATE_KIND_MAJOR UpdateKind = 3
@@ -291,6 +294,561 @@ func (UpdateSource) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{3}
 }
 
+// ListServiceUpdatesRequest says which services to list.
+type ListServiceUpdatesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The project of the environment, by name or ID, when environment is a name
+	// and there are several projects.
+	Project string `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
+	// Only the services of this environment, by name or ID. Empty means every
+	// environment.
+	Environment string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	// Only the services with something newer that a person hasn't skipped or
+	// snoozed.
+	Available     bool `protobuf:"varint,3,opt,name=available,proto3" json:"available,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListServiceUpdatesRequest) Reset() {
+	*x = ListServiceUpdatesRequest{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListServiceUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListServiceUpdatesRequest) ProtoMessage() {}
+
+func (x *ListServiceUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListServiceUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*ListServiceUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ListServiceUpdatesRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *ListServiceUpdatesRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *ListServiceUpdatesRequest) GetAvailable() bool {
+	if x != nil {
+		return x.Available
+	}
+	return false
+}
+
+// ListServiceUpdatesResponse is each service with its updates.
+type ListServiceUpdatesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The services, by environment, then name.
+	Services      []*ServiceUpdates `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListServiceUpdatesResponse) Reset() {
+	*x = ListServiceUpdatesResponse{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListServiceUpdatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListServiceUpdatesResponse) ProtoMessage() {}
+
+func (x *ListServiceUpdatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListServiceUpdatesResponse.ProtoReflect.Descriptor instead.
+func (*ListServiceUpdatesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListServiceUpdatesResponse) GetServices() []*ServiceUpdates {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
+// ServiceUpdates is one service and what's newer than what it runs.
+type ServiceUpdates struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service's ID.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Its kind, its environment's ID, and its name.
+	Resource *ResourceRef `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	// The image it runs, as its spec names it. Empty for an app built from Git.
+	Image string `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
+	// What's newer, and how its check stands.
+	Update        *ServiceUpdate `protobuf:"bytes,4,opt,name=update,proto3" json:"update,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServiceUpdates) Reset() {
+	*x = ServiceUpdates{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServiceUpdates) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServiceUpdates) ProtoMessage() {}
+
+func (x *ServiceUpdates) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServiceUpdates.ProtoReflect.Descriptor instead.
+func (*ServiceUpdates) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ServiceUpdates) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ServiceUpdates) GetResource() *ResourceRef {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+func (x *ServiceUpdates) GetImage() string {
+	if x != nil {
+		return x.Image
+	}
+	return ""
+}
+
+func (x *ServiceUpdates) GetUpdate() *ServiceUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+// CheckServiceUpdatesRequest names a service, or a server.
+type CheckServiceUpdatesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+	// Leave it out to check every service on server.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The project of a service named by name, by name or ID, when more than one
+	// has a service of that name.
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID, when its
+	// project has more than one.
+	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	// Every service on this server, by ID or name, in place of id.
+	Server        string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckServiceUpdatesRequest) Reset() {
+	*x = CheckServiceUpdatesRequest{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckServiceUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckServiceUpdatesRequest) ProtoMessage() {}
+
+func (x *CheckServiceUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckServiceUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*CheckServiceUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CheckServiceUpdatesRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *CheckServiceUpdatesRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *CheckServiceUpdatesRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *CheckServiceUpdatesRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+// CheckServiceUpdatesResponse is what the check found.
+type CheckServiceUpdatesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Each service checked, with what's newer.
+	Services      []*ServiceUpdates `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckServiceUpdatesResponse) Reset() {
+	*x = CheckServiceUpdatesResponse{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckServiceUpdatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckServiceUpdatesResponse) ProtoMessage() {}
+
+func (x *CheckServiceUpdatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckServiceUpdatesResponse.ProtoReflect.Descriptor instead.
+func (*CheckServiceUpdatesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CheckServiceUpdatesResponse) GetServices() []*ServiceUpdates {
+	if x != nil {
+		return x.Services
+	}
+	return nil
+}
+
+// SkipServiceUpdateRequest names a service and a version of its updates.
+type SkipServiceUpdateRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID or name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	// The version, as an AvailableUpdate's to_version says it, such as "17.2", or
+	// its to_digest, for a new build, or its to_commit.
+	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	// Takes the skip back, so the version shows again.
+	Unskip        bool `protobuf:"varint,5,opt,name=unskip,proto3" json:"unskip,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkipServiceUpdateRequest) Reset() {
+	*x = SkipServiceUpdateRequest{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkipServiceUpdateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkipServiceUpdateRequest) ProtoMessage() {}
+
+func (x *SkipServiceUpdateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkipServiceUpdateRequest.ProtoReflect.Descriptor instead.
+func (*SkipServiceUpdateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SkipServiceUpdateRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SkipServiceUpdateRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *SkipServiceUpdateRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *SkipServiceUpdateRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *SkipServiceUpdateRequest) GetUnskip() bool {
+	if x != nil {
+		return x.Unskip
+	}
+	return false
+}
+
+// SkipServiceUpdateResponse is the service's updates as they now stand.
+type SkipServiceUpdateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *ServiceUpdate         `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkipServiceUpdateResponse) Reset() {
+	*x = SkipServiceUpdateResponse{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkipServiceUpdateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkipServiceUpdateResponse) ProtoMessage() {}
+
+func (x *SkipServiceUpdateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkipServiceUpdateResponse.ProtoReflect.Descriptor instead.
+func (*SkipServiceUpdateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *SkipServiceUpdateResponse) GetUpdate() *ServiceUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
+// SnoozeServiceUpdatesRequest names a service, and for how long.
+type SnoozeServiceUpdatesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service, by ID or name.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// The project of a service named by name, by name or ID.
+	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	// The environment of a service named by name, by name or ID.
+	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
+	// How long: "1d", "7d" or "30d", or a duration such as "12h", 90 days at
+	// most. Empty ends a snooze now.
+	Duration      string `protobuf:"bytes,4,opt,name=duration,proto3" json:"duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SnoozeServiceUpdatesRequest) Reset() {
+	*x = SnoozeServiceUpdatesRequest{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SnoozeServiceUpdatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SnoozeServiceUpdatesRequest) ProtoMessage() {}
+
+func (x *SnoozeServiceUpdatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SnoozeServiceUpdatesRequest.ProtoReflect.Descriptor instead.
+func (*SnoozeServiceUpdatesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *SnoozeServiceUpdatesRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SnoozeServiceUpdatesRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *SnoozeServiceUpdatesRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+func (x *SnoozeServiceUpdatesRequest) GetDuration() string {
+	if x != nil {
+		return x.Duration
+	}
+	return ""
+}
+
+// SnoozeServiceUpdatesResponse is the service's updates as they now stand.
+type SnoozeServiceUpdatesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Update        *ServiceUpdate         `protobuf:"bytes,1,opt,name=update,proto3" json:"update,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SnoozeServiceUpdatesResponse) Reset() {
+	*x = SnoozeServiceUpdatesResponse{}
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SnoozeServiceUpdatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SnoozeServiceUpdatesResponse) ProtoMessage() {}
+
+func (x *SnoozeServiceUpdatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SnoozeServiceUpdatesResponse.ProtoReflect.Descriptor instead.
+func (*SnoozeServiceUpdatesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SnoozeServiceUpdatesResponse) GetUpdate() *ServiceUpdate {
+	if x != nil {
+		return x.Update
+	}
+	return nil
+}
+
 // ServiceUpdate is what Dockwell last found newer than what a service runs:
 // another version of its image, a new image for the tag it runs, a higher
 // release of its catalog entry, or a newer commit of the branch it builds. The
@@ -327,7 +885,7 @@ type ServiceUpdate struct {
 
 func (x *ServiceUpdate) Reset() {
 	*x = ServiceUpdate{}
-	mi := &file_dockwell_v1_service_update_proto_msgTypes[0]
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +897,7 @@ func (x *ServiceUpdate) String() string {
 func (*ServiceUpdate) ProtoMessage() {}
 
 func (x *ServiceUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_update_proto_msgTypes[0]
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +910,7 @@ func (x *ServiceUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServiceUpdate.ProtoReflect.Descriptor instead.
 func (*ServiceUpdate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ServiceUpdate) GetCheck() UpdateCheck {
@@ -456,7 +1014,7 @@ type AvailableUpdate struct {
 
 func (x *AvailableUpdate) Reset() {
 	*x = AvailableUpdate{}
-	mi := &file_dockwell_v1_service_update_proto_msgTypes[1]
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -468,7 +1026,7 @@ func (x *AvailableUpdate) String() string {
 func (*AvailableUpdate) ProtoMessage() {}
 
 func (x *AvailableUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_service_update_proto_msgTypes[1]
+	mi := &file_dockwell_v1_service_update_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -481,7 +1039,7 @@ func (x *AvailableUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvailableUpdate.ProtoReflect.Descriptor instead.
 func (*AvailableUpdate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_service_update_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AvailableUpdate) GetKind() UpdateKind {
@@ -579,7 +1137,40 @@ var File_dockwell_v1_service_update_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\n" +
-	" dockwell/v1/service_update.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc7\x03\n" +
+	" dockwell/v1/service_update.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"u\n" +
+	"\x19ListServiceUpdatesRequest\x12\x18\n" +
+	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x1c\n" +
+	"\tavailable\x18\x03 \x01(\bR\tavailable\"U\n" +
+	"\x1aListServiceUpdatesResponse\x127\n" +
+	"\bservices\x18\x01 \x03(\v2\x1b.dockwell.v1.ServiceUpdatesR\bservices\"\xa0\x01\n" +
+	"\x0eServiceUpdates\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
+	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
+	"\x05image\x18\x03 \x01(\tR\x05image\x122\n" +
+	"\x06update\x18\x04 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\x86\x01\n" +
+	"\x1aCheckServiceUpdatesRequest\x12\x14\n" +
+	"\x02id\x18\x01 \x01(\tB\x04\xb0\xbb\x18\x01R\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x16\n" +
+	"\x06server\x18\x04 \x01(\tR\x06server\"V\n" +
+	"\x1bCheckServiceUpdatesResponse\x127\n" +
+	"\bservices\x18\x01 \x03(\v2\x1b.dockwell.v1.ServiceUpdatesR\bservices\"\x98\x01\n" +
+	"\x18SkipServiceUpdateRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12\x16\n" +
+	"\x06unskip\x18\x05 \x01(\bR\x06unskip\"O\n" +
+	"\x19SkipServiceUpdateResponse\x122\n" +
+	"\x06update\x18\x01 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\x85\x01\n" +
+	"\x1bSnoozeServiceUpdatesRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x1a\n" +
+	"\bduration\x18\x04 \x01(\tR\bduration\"R\n" +
+	"\x1cSnoozeServiceUpdatesResponse\x122\n" +
+	"\x06update\x18\x01 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\xc7\x03\n" +
 	"\rServiceUpdate\x12.\n" +
 	"\x05check\x18\x01 \x01(\x0e2\x18.dockwell.v1.UpdateCheckR\x05check\x12:\n" +
 	"\tavailable\x18\x02 \x03(\v2\x1c.dockwell.v1.AvailableUpdateR\tavailable\x129\n" +
@@ -642,7 +1233,16 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x13UPDATE_SOURCE_IMAGE\x10\x01\x1a\t\xa2\xbb\x18\x05image\x12&\n" +
 	"\x15UPDATE_SOURCE_CATALOG\x10\x02\x1a\v\xa2\xbb\x18\acatalog\x12\x1e\n" +
 	"\x11UPDATE_SOURCE_GIT\x10\x03\x1a\a\xa2\xbb\x18\x03git\x12&\n" +
-	"\x15UPDATE_SOURCE_RUNTIME\x10\x04\x1a\v\xa2\xbb\x18\aruntimeB\xab\x01\n" +
+	"\x15UPDATE_SOURCE_RUNTIME\x10\x04\x1a\v\xa2\xbb\x18\aruntime2\xf7\x05\n" +
+	"\x14ServiceUpdateService\x12\xac\x01\n" +
+	"\x12ListServiceUpdates\x12&.dockwell.v1.ListServiceUpdatesRequest\x1a'.dockwell.v1.ListServiceUpdatesResponse\"E\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
+	"\vapp-updates\x12\x04list\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/service-updates\x90\x02\x01\x12\xb6\x01\n" +
+	"\x13CheckServiceUpdates\x12'.dockwell.v1.CheckServiceUpdatesRequest\x1a(.dockwell.v1.CheckServiceUpdatesResponse\"L\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
+	"\vapp-updates\x12\x05check\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/service-updates:check\x12\xb3\x01\n" +
+	"\x11SkipServiceUpdate\x12%.dockwell.v1.SkipServiceUpdateRequest\x1a&.dockwell.v1.SkipServiceUpdateResponse\"O\xa0\xbb\x18\x03\xaa\xbb\x18\x13\n" +
+	"\vapp-updates\x12\x04skip\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/service-updates/{id}:skip\x12\xc0\x01\n" +
+	"\x14SnoozeServiceUpdates\x12(.dockwell.v1.SnoozeServiceUpdatesRequest\x1a).dockwell.v1.SnoozeServiceUpdatesResponse\"S\xa0\xbb\x18\x03\xaa\xbb\x18\x15\n" +
+	"\vapp-updates\x12\x06snooze\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/service-updates/{id}:snoozeB\xab\x01\n" +
 	"\x0fcom.dockwell.v1B\x12ServiceUpdateProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -658,32 +1258,56 @@ func file_dockwell_v1_service_update_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_service_update_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_service_update_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_dockwell_v1_service_update_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_dockwell_v1_service_update_proto_goTypes = []any{
-	(UpdateKind)(0),               // 0: dockwell.v1.UpdateKind
-	(UpdateCheck)(0),              // 1: dockwell.v1.UpdateCheck
-	(UpdateProblem)(0),            // 2: dockwell.v1.UpdateProblem
-	(UpdateSource)(0),             // 3: dockwell.v1.UpdateSource
-	(*ServiceUpdate)(nil),         // 4: dockwell.v1.ServiceUpdate
-	(*AvailableUpdate)(nil),       // 5: dockwell.v1.AvailableUpdate
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	(UpdateKind)(0),                      // 0: dockwell.v1.UpdateKind
+	(UpdateCheck)(0),                     // 1: dockwell.v1.UpdateCheck
+	(UpdateProblem)(0),                   // 2: dockwell.v1.UpdateProblem
+	(UpdateSource)(0),                    // 3: dockwell.v1.UpdateSource
+	(*ListServiceUpdatesRequest)(nil),    // 4: dockwell.v1.ListServiceUpdatesRequest
+	(*ListServiceUpdatesResponse)(nil),   // 5: dockwell.v1.ListServiceUpdatesResponse
+	(*ServiceUpdates)(nil),               // 6: dockwell.v1.ServiceUpdates
+	(*CheckServiceUpdatesRequest)(nil),   // 7: dockwell.v1.CheckServiceUpdatesRequest
+	(*CheckServiceUpdatesResponse)(nil),  // 8: dockwell.v1.CheckServiceUpdatesResponse
+	(*SkipServiceUpdateRequest)(nil),     // 9: dockwell.v1.SkipServiceUpdateRequest
+	(*SkipServiceUpdateResponse)(nil),    // 10: dockwell.v1.SkipServiceUpdateResponse
+	(*SnoozeServiceUpdatesRequest)(nil),  // 11: dockwell.v1.SnoozeServiceUpdatesRequest
+	(*SnoozeServiceUpdatesResponse)(nil), // 12: dockwell.v1.SnoozeServiceUpdatesResponse
+	(*ServiceUpdate)(nil),                // 13: dockwell.v1.ServiceUpdate
+	(*AvailableUpdate)(nil),              // 14: dockwell.v1.AvailableUpdate
+	(*ResourceRef)(nil),                  // 15: dockwell.v1.ResourceRef
+	(*timestamppb.Timestamp)(nil),        // 16: google.protobuf.Timestamp
 }
 var file_dockwell_v1_service_update_proto_depIdxs = []int32{
-	1,  // 0: dockwell.v1.ServiceUpdate.check:type_name -> dockwell.v1.UpdateCheck
-	5,  // 1: dockwell.v1.ServiceUpdate.available:type_name -> dockwell.v1.AvailableUpdate
-	6,  // 2: dockwell.v1.ServiceUpdate.check_time:type_name -> google.protobuf.Timestamp
-	6,  // 3: dockwell.v1.ServiceUpdate.next_check_time:type_name -> google.protobuf.Timestamp
-	2,  // 4: dockwell.v1.ServiceUpdate.problem:type_name -> dockwell.v1.UpdateProblem
-	3,  // 5: dockwell.v1.ServiceUpdate.source:type_name -> dockwell.v1.UpdateSource
-	6,  // 6: dockwell.v1.ServiceUpdate.snooze_time:type_name -> google.protobuf.Timestamp
-	0,  // 7: dockwell.v1.AvailableUpdate.kind:type_name -> dockwell.v1.UpdateKind
-	6,  // 8: dockwell.v1.AvailableUpdate.release_time:type_name -> google.protobuf.Timestamp
-	6,  // 9: dockwell.v1.AvailableUpdate.found_time:type_name -> google.protobuf.Timestamp
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	6,  // 0: dockwell.v1.ListServiceUpdatesResponse.services:type_name -> dockwell.v1.ServiceUpdates
+	15, // 1: dockwell.v1.ServiceUpdates.resource:type_name -> dockwell.v1.ResourceRef
+	13, // 2: dockwell.v1.ServiceUpdates.update:type_name -> dockwell.v1.ServiceUpdate
+	6,  // 3: dockwell.v1.CheckServiceUpdatesResponse.services:type_name -> dockwell.v1.ServiceUpdates
+	13, // 4: dockwell.v1.SkipServiceUpdateResponse.update:type_name -> dockwell.v1.ServiceUpdate
+	13, // 5: dockwell.v1.SnoozeServiceUpdatesResponse.update:type_name -> dockwell.v1.ServiceUpdate
+	1,  // 6: dockwell.v1.ServiceUpdate.check:type_name -> dockwell.v1.UpdateCheck
+	14, // 7: dockwell.v1.ServiceUpdate.available:type_name -> dockwell.v1.AvailableUpdate
+	16, // 8: dockwell.v1.ServiceUpdate.check_time:type_name -> google.protobuf.Timestamp
+	16, // 9: dockwell.v1.ServiceUpdate.next_check_time:type_name -> google.protobuf.Timestamp
+	2,  // 10: dockwell.v1.ServiceUpdate.problem:type_name -> dockwell.v1.UpdateProblem
+	3,  // 11: dockwell.v1.ServiceUpdate.source:type_name -> dockwell.v1.UpdateSource
+	16, // 12: dockwell.v1.ServiceUpdate.snooze_time:type_name -> google.protobuf.Timestamp
+	0,  // 13: dockwell.v1.AvailableUpdate.kind:type_name -> dockwell.v1.UpdateKind
+	16, // 14: dockwell.v1.AvailableUpdate.release_time:type_name -> google.protobuf.Timestamp
+	16, // 15: dockwell.v1.AvailableUpdate.found_time:type_name -> google.protobuf.Timestamp
+	4,  // 16: dockwell.v1.ServiceUpdateService.ListServiceUpdates:input_type -> dockwell.v1.ListServiceUpdatesRequest
+	7,  // 17: dockwell.v1.ServiceUpdateService.CheckServiceUpdates:input_type -> dockwell.v1.CheckServiceUpdatesRequest
+	9,  // 18: dockwell.v1.ServiceUpdateService.SkipServiceUpdate:input_type -> dockwell.v1.SkipServiceUpdateRequest
+	11, // 19: dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates:input_type -> dockwell.v1.SnoozeServiceUpdatesRequest
+	5,  // 20: dockwell.v1.ServiceUpdateService.ListServiceUpdates:output_type -> dockwell.v1.ListServiceUpdatesResponse
+	8,  // 21: dockwell.v1.ServiceUpdateService.CheckServiceUpdates:output_type -> dockwell.v1.CheckServiceUpdatesResponse
+	10, // 22: dockwell.v1.ServiceUpdateService.SkipServiceUpdate:output_type -> dockwell.v1.SkipServiceUpdateResponse
+	12, // 23: dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates:output_type -> dockwell.v1.SnoozeServiceUpdatesResponse
+	20, // [20:24] is the sub-list for method output_type
+	16, // [16:20] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_service_update_proto_init() }
@@ -691,6 +1315,7 @@ func file_dockwell_v1_service_update_proto_init() {
 	if File_dockwell_v1_service_update_proto != nil {
 		return
 	}
+	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -698,9 +1323,9 @@ func file_dockwell_v1_service_update_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_service_update_proto_rawDesc), len(file_dockwell_v1_service_update_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   2,
+			NumMessages:   11,
 			NumExtensions: 0,
-			NumServices:   0,
+			NumServices:   1,
 		},
 		GoTypes:           file_dockwell_v1_service_update_proto_goTypes,
 		DependencyIndexes: file_dockwell_v1_service_update_proto_depIdxs,

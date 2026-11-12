@@ -192,6 +192,11 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceService.openService": "may",
   "ServiceService.rollBackService": "may",
 
+  "ServiceUpdateService.checkServiceUpdates": "unused",
+  "ServiceUpdateService.listServiceUpdates": "unused",
+  "ServiceUpdateService.skipServiceUpdate": "unused",
+  "ServiceUpdateService.snoozeServiceUpdates": "unused",
+
   "SettingsService.checkPanelDomain": "may",
   "SettingsService.createPanelSignInLink": "may",
   "SettingsService.getControlPlane": "may",

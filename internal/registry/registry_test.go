@@ -320,3 +320,43 @@ func TestNextPage(t *testing.T) {
 		t.Errorf("nextPage elsewhere = %q", got)
 	}
 }
+
+// A digest a registry answers is taken only as sha256 and its 64 hex digits, as
+// what it says flows into a plan's pins: one that isn't fails the read, and in a
+// list of tags goes unsaid.
+func TestADigestIsOnlyASha256One(t *testing.T) {
+	good := "sha256:" + strings.Repeat("ab", 32)
+	header := ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/v2/namespaces/"):
+			_, _ = fmt.Fprintf(w, `{"results":[{"name":"1.1","digest":"md5:abc"},{"name":"1.2","digest":%q},{"name":"1.3","digest":"sha256:../../etc"}]}`, good)
+		case strings.Contains(r.URL.Path, "/manifests/"):
+			w.Header().Set("Docker-Content-Digest", header)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c := New(Options{Test: srv.URL, Secure: srv.Client(), Plain: srv.Client(), Public: srv.Client()})
+	ref, _ := Parse("acme/app:1.0")
+	for _, bad := range []string{"sha512:" + strings.Repeat("ab", 64), "sha256:ABCDEF", "sha256:" + strings.Repeat("g", 64), "sha256:" + strings.Repeat("ab", 31)} {
+		header = bad
+		if d, err := c.Head(context.Background(), ref); !errors.Is(err, ErrUnreachable) || d != "" {
+			t.Errorf("Head with %q = %q, %v; want unreachable and no digest", bad, d, err)
+		}
+	}
+	header = good
+	if d, err := c.Head(context.Background(), ref); err != nil || d != good {
+		t.Errorf("Head with a sha256 digest = %q, %v", d, err)
+	}
+	tags, err := c.TagList(context.Background(), ref, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range tags {
+		if want := map[string]string{"1.2": good}[tag.Name]; tag.Digest != want {
+			t.Errorf("tag %s's digest = %q, want %q", tag.Name, tag.Digest, want)
+		}
+	}
+}

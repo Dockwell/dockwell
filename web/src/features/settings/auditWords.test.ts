@@ -127,3 +127,27 @@ describe("scheduled task runs", () => {
     }
   });
 });
+
+describe("setting an app's updates aside", () => {
+  const event = (action: string, detail: string) =>
+    create(AuditEventSchema, { action, subject: "svc_1", detail, event: { action } });
+
+  it("says the app and the version skipped, or when a snooze ends, from what was recorded", async () => {
+    const say = renderHookWithApi(useAuditWords, {}).result.current;
+    expect(say(event("service.update_skip", '{"service":"db","version":"17.2"}')).title).toBe("Skipped 17.2 of db");
+    expect(say(event("service.update_unskip", '{"service":"db","version":"17.2"}')).title).toBe(
+      "Showed 17.2 of db again",
+    );
+    expect(say(event("service.update_snooze", '{"service":"db","until":"2026-11-19T10:00:00Z"}')).title).toMatch(
+      /^Snoozed the updates of db until .+/,
+    );
+    expect(say(event("service.update_unsnooze", '{"service":"db"}')).title).toBe(
+      "Ended the snooze of the updates of db",
+    );
+    // What it can't read, it leaves out, and names the app by its ID.
+    expect(say(event("service.update_skip", "")).title).toBe("Skipped an update of svc_1");
+    await activateLocale("zh-CN");
+    const zh = renderHookWithApi(useAuditWords, {}).result.current;
+    expect(zh(event("service.update_skip", '{"service":"db","version":"17.2"}')).title).toBe("跳过了 db 的 17.2");
+  });
+});

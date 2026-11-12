@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/control/serviceupdates"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -63,6 +64,14 @@ type Handler struct {
 	Opener Opener
 	// Auth confirms an open with a passkey, and follows the session that asked.
 	Auth *auth.Service
+	// UpdateChecks says what's newer than what each service runs (ADR 0079). Nil
+	// says nothing.
+	UpdateChecks UpdateReader
+}
+
+// UpdateReader says what's newer than what each service runs.
+type UpdateReader interface {
+	Describe(ctx context.Context, subjects []serviceupdates.Subject) (map[string]*dockwellv1.ServiceUpdate, error)
 }
 
 // BuildReader reads the builds that made a service's revisions' images.
@@ -107,6 +116,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		in = env.ID
 	}
 	res := &dockwellv1.ListServicesResponse{}
+	var subjects []serviceupdates.Subject
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		// One more than asked for says whether there is a next page.
 		list, err := tx.PageResources(ctx, string(service.Kind), in, after.ID, size+1)
@@ -140,6 +150,7 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 		}
 		reaches := h.reaches(ctx, tx, list, decoded, unreadable)
 		names := serverNames{tx: tx, known: map[string]string{}}
+		subjects = make([]serviceupdates.Subject, 0, len(list))
 		for i := range list {
 			r := &list[i]
 			info := &dockwellv1.ServiceInfo{
@@ -161,6 +172,13 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 				}
 				info.Spec = Blanked(spec)
 				info.HostAccess = resourcepb.HostAccess(reaches[i])
+				subject := serviceupdates.Subject{ID: r.ID, Environment: r.Scope, Spec: spec, Digests: map[string]string{}}
+				for j := range deployments[r.ID] {
+					if d := &deployments[r.ID][j]; d.State == store.DeploymentLive {
+						subject.Digests[d.Server] = d.Digest
+					}
+				}
+				subjects = append(subjects, subject)
 			}
 			var err error
 			if info.Deployments, err = names.deployments(ctx, deployments[r.ID]); err != nil {
@@ -178,7 +196,25 @@ func (h *Handler) ListServices(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, h.internal(ctx, "listing services", err)
 	}
+	// What's newer is a nicety of the list: one that can't be read leaves it out,
+	// and the list stands.
+	if h.UpdateChecks != nil && len(subjects) > 0 {
+		updates, err := h.UpdateChecks.Describe(ctx, subjects)
+		if err != nil && ctx.Err() == nil {
+			h.logger.WarnContext(ctx, "can't say what's newer than what the services run", slog.String("error", err.Error()))
+		}
+		for _, info := range res.GetServices() {
+			info.Update = updates[info.GetId()]
+		}
+	}
 	return connect.NewResponse(res), nil
+}
+
+// EnvironmentID is the ID of the environment a request names, by name or ID,
+// in its project.
+func (h *Handler) EnvironmentID(ctx context.Context, project, environment string) (string, error) {
+	_, env, err := h.changes.Environment(ctx, project, environment)
+	return env.ID, err
 }
 
 // reaches says what each service of a page reaches, as the plan reads it,

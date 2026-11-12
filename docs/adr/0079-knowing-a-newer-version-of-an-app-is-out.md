@@ -48,16 +48,22 @@ A tag is a version where it reads as one: numbers with dots, an optional `v` bef
 
 - **Its track** is its `v`, how many numbers it has, and its suffix with each run of digits taken as any number. A newer tag is only one in the same track: `16.3-alpine` moves to `16.4-alpine` or `16.4-alpine3.21`, never to `16.4` or `16.4-bookworm`, and `1.27` to `1.28`, never to `1.27.4`, which a tag of two numbers already follows.
 - **Pre-releases** (`-rc1`, `-beta`, `-alpha` and the words ADR 0062 names) are left out, unless what runs is one, when a newer pre-release or the release itself is offered.
-- **The kind of step** reads from the first number that differs. The first is the major. The last is the patch. With three numbers or more, the second is the minor. How many numbers a version has is read from the repository's tags with the same major in that track, as projects number differently: PostgreSQL has no third number in 16.x, so 16.3 to 16.4 is a patch, as PostgreSQL means it, while nginx has 1.27.3, so 1.27 to 1.28 is a minor. A tag of one number, such as `16`, moves only by majors.
+- **The kind of step** reads from the first number that differs: the first is the major, and the last of three or more the patch. Whether a second number is a minor or a patch is read from the repository's tags, as projects number differently:
+  - a version of three numbers, or a tag of its major that has three, such as Redis's 7.2.5 beside 7.2, makes the second a minor: Redis 7.2 to 7.4 is a minor, and nginx 1.27 to 1.28;
+  - the second is a patch only where the tags show it for sure: two-number versions in another major, and no third number in its major or a later one, as PostgreSQL has numbered them since 10, so 16.4 to 16.6 is a patch; an older major's third number, such as 9.6.24's, says nothing of now;
+  - **where the tags can't tell,** as when a registry lists two-number tags of one major alone, the step is the larger one, a minor rather than a patch, so a policy of patches alone (ADR 0080's automatic updates) never moves further than a person allowed.
+
+  A tag of one number, such as `16`, moves only by majors.
 - **What's offered** is at most one of each kind, the newest: the newest patch, the newest minor and the newest major, plus a new image for the tag it runs (`UPDATE_KIND_DIGEST`). Smallest step first: digest, patch, minor, major. The panel offers the first and shows the rest one step away, so a person on 16.3 sees "16.4 · patch" first and "17.2 · major" beside it.
-- **A catalog install's** step compares its entry's app versions the same way, with the two versions alone to read the places from. A release that changes how the same version runs is `UPDATE_KIND_RELEASE`.
+- **A catalog install's** step compares its entry's app versions the same way, with the two versions alone to read from, so a second number of two can't be told and reads as a minor. A release that changes how the same version runs is `UPDATE_KIND_RELEASE`.
 
 ### Where and how it's read
 
 - **On the agent of a server the service runs on**, as ADR 0062 reads: through that server's mirrors, its insecure registries, and `netguard`. The control plane schedules the checks, dedupes them, keeps what they found, and words it. A service on several servers is checked through the first of them that's connected.
+- **A digest is taken only as `sha256:` and 64 hex digits,** as what a registry says flows into ADR 0080's pins: a Docker-Content-Digest of any other shape fails the read as unreachable, and one in a list of tags goes unsaid.
 - **One call per image a server runs**, shared by every service on that server that runs it. The agent asks the registry with a HEAD of the tag's manifest for its digest, which no registry counts as a pull. For a version tag it also reads the repository's tags, once per repository per check: Docker Hub's 100 most recently pushed, from its own API, which isn't a pull, filtered by the suffix where there is one; another registry's `/v2/` list, paged within ADR 0062's bounds. Of the newer tags it keeps the newest of each kind and asks each one's digest with a HEAD, at most three, where Docker Hub's list hasn't said it.
 - **From the server's own copy of what runs**, with no network, it reads the image's `org.opencontainers.image.source` label, for release notes.
-- **Every 6 hours per server**, jittered by a tenth so a fleet's servers don't ask at once, and the first time a few minutes after the control plane starts, so a restart doesn't ask anything that was checked in the last 6 hours again. **Check now** checks an app, or every app on a server, at once, at most once a minute each.
+- **Every 6 hours per server**, jittered by a tenth so a fleet's servers don't ask at once, and the first time a few minutes after the control plane starts, so a restart doesn't ask anything that was checked in the last 6 hours again. An app that's new, or runs another image, is checked within a few minutes of that, on its own. **Check now** checks an app, or every app on a server, at once, at most once a minute each, and answers within half a minute with what it found.
 - **Gently.** A registry that answers 429 goes unasked by that server for an hour, then two, doubling to a day, and one that doesn't answer for an hour; a check meanwhile keeps what it found before and says why it's late. An agent asks two registries at a time at most, as its reads for a form do (ADR 0062), so a check never takes a form's turn for long.
 - **Private images.** Dockwell has no registry logins yet (ADR 0062), so an image a registry keeps private reads as "Can't check: private or not found", which isn't an error a person needs to act on. When logins come, a check sends what the pull sends.
 - **A server that's offline** keeps what was found before, and is checked when its agent reconnects, if a check is due. An agent too old to check says so, and the server's page offers to update it.
@@ -92,7 +98,7 @@ What a check found is the control plane's record, as an alert is, and not manage
 - `available`: what it can move to, smallest step first, each with its kind, the version and image it runs and would run, both digests where known, when it came out and was found, its notes, the catalog release for an install, the commit for a Git app, and whether a person skipped it;
 - `check_time`, `next_check_time`, `problem` and `problem_detail`, `source`, `snooze_time`.
 
-`ServiceUpdateService` lists services with their updates, checks now, skips and snoozes, and the CLI's `dockwell updates` takes the same. Reading takes a viewer of the project; checking, skipping and snoozing a developer, as deploying does ([ADR 0049](0049-roles-and-invites-by-project.md)).
+`ServiceUpdateService` lists services with their updates, checks now, skips and snoozes, and the CLI's `dockwell app-updates` (`list`, `check`, `skip`, `snooze`) takes the same: `dockwell updates` is a server's packages already ([ADR 0043](0043-package-updates-on-a-server.md)). A server's check answers with the apps in the caller's projects alone. Reading takes a viewer of the project; checking, skipping and snoozing a developer, as deploying does ([ADR 0049](0049-roles-and-invites-by-project.md)).
 
 ### Where it shows
 
@@ -111,7 +117,16 @@ What a check found is the control plane's record, as an alert is, and not manage
 
 ### Numbers
 
-ADR 0079; `ServiceInfo` 20 to 29; the agent protocol's `Call` and `CallResult` 250 to 259; `service_update.proto` numbers its own messages from 1.
+ADR 0079; `ServiceInfo` 20 to 29; the agent protocol's `Call` and `CallResult` 250 to 259 (`image_updates` is 250); `service_update.proto` numbers its own messages from 1.
+
+### As built
+
+- The agent's check is `ImageUpdatesCall`: a HEAD of the tag, and for a version tag one list of tags (Docker Hub's API asked with the suffix's word, such as `alpine`, as its `name` filter), and a HEAD for each newer tag whose digest the list didn't say, within 20 seconds. The source label comes from the server's copy of what runs, by repository and digest.
+- How versions are read and classed is `internal/registry`'s `NewerTags` and `Step`, shared by the agent and the control plane.
+- The control plane's side is `internal/control/serviceupdates`: the loop wakes every 2 minutes, and a server's turn comes 6 hours, jittered, after its apps were last checked. What it found is one row per service in `service_updates`, whose check and whose skip and snooze are written apart, so neither undoes the other.
+- An app built from Git that follows a branch is checked from the control plane with the refs read builds already make; its update links GitHub's compare page where the repository is there.
+- Skipping and snoozing go on the audit log as `service.update_skip`, `service.update_unskip`, `service.update_snooze` and `service.update_unsnooze`.
+- For ADR 0080, `Keeper.Next` is the first update not skipped while the app isn't snoozed, and `Keeper.Skipped` and `Keeper.Snoozed` answer what automatic updates must leave alone.
 
 ## Consequences
 

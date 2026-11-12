@@ -13450,6 +13450,9 @@ msgstr "舍弃了一项变更"
 msgid "Discarded {summary}"
 msgstr "已舍弃 {summary}"
 
+msgid "Ended the snooze of the updates of {app}"
+msgstr "结束了 {app} 更新的推迟"
+
 msgid "Made {name} the owner"
 msgstr "已将 {name} 设为所有者"
 
@@ -13495,11 +13498,29 @@ msgstr "正在保存 {name} 上的 {path}"
 msgid "Set up this install"
 msgstr "创建了此安装"
 
+msgid "Showed an update of {app} again"
+msgstr "重新显示了 {app} 的一个更新"
+
+msgid "Showed {version} of {app} again"
+msgstr "重新显示了 {app} 的 {version}"
+
 msgid "Signed in with a recovery code"
 msgstr "已通过恢复码登录"
 
 msgid "Signed out"
 msgstr "已退出登录"
+
+msgid "Skipped an update of {app}"
+msgstr "跳过了 {app} 的一个更新"
+
+msgid "Skipped {version} of {app}"
+msgstr "跳过了 {app} 的 {version}"
+
+msgid "Snoozed the updates of {app}"
+msgstr "推迟了 {app} 的更新"
+
+msgid "Snoozed the updates of {app} until {at}"
+msgstr "将 {app} 的更新推迟至 {at}"
 
 msgid "Started opening a terminal"
 msgstr "开始打开终端"

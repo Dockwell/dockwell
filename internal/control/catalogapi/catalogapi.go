@@ -297,6 +297,44 @@ func (h *Handler) ListCatalogInstalls(ctx context.Context, _ *connect.Request[do
 	return connect.NewResponse(&dockwellv1.ListCatalogInstallsResponse{Installs: installs}), nil
 }
 
+// InstallUpgrade is what one catalog install can move to.
+type InstallUpgrade struct {
+	// FromVersion is the app's version it runs.
+	FromVersion string
+	// ToVersion and ToRelease are its entry's newer release, empty and 0 when
+	// it's up to date or its catalog no longer has its entry.
+	ToVersion string
+	ToRelease uint32
+	// AppSource is the app's source repository, as its entry says, for its
+	// release notes.
+	AppSource string
+}
+
+// InstallUpgrades says, of each catalog install, by project ID, what it can
+// move to, as ListCatalogInstalls does, for knowing an app's updates (ADR 0079).
+func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrade, error) {
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]InstallUpgrade{}
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		installs, err := h.installs(ctx, tx, s)
+		if err != nil {
+			return err
+		}
+		for _, in := range installs {
+			u := InstallUpgrade{FromVersion: in.GetPin().GetVersion(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease()}
+			if entry, known := s.entryFor(in.GetPin()); known {
+				u.AppSource = entry.GetAppSource()
+			}
+			out[in.GetProjectId()] = u
+		}
+		return nil
+	})
+	return out, err
+}
+
 // installs reads each project's pin, by project, and leaves out a project whose
 // services have all gone, which isn't installed any more, though it stays. An
 // install's entry is the catalog's only where it comes from the catalog the install

@@ -4,9 +4,12 @@
 // @generated from file dockwell/v1/service_update.proto (package dockwell.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { ResourceRef } from "./change_pb";
+import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
+import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -15,7 +18,305 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/service_update.proto.
  */
 export const file_dockwell_v1_service_update: GenFile = /*@__PURE__*/
-  fileDesc("CiBkb2Nrd2VsbC92MS9zZXJ2aWNlX3VwZGF0ZS5wcm90bxILZG9ja3dlbGwudjEi7wIKDVNlcnZpY2VVcGRhdGUSJwoFY2hlY2sYASABKA4yGC5kb2Nrd2VsbC52MS5VcGRhdGVDaGVjaxIvCglhdmFpbGFibGUYAiADKAsyHC5kb2Nrd2VsbC52MS5BdmFpbGFibGVVcGRhdGUSLgoKY2hlY2tfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMwoPbmV4dF9jaGVja190aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIrCgdwcm9ibGVtGAUgASgOMhouZG9ja3dlbGwudjEuVXBkYXRlUHJvYmxlbRIWCg5wcm9ibGVtX2RldGFpbBgGIAEoCRIpCgZzb3VyY2UYByABKA4yGS5kb2Nrd2VsbC52MS5VcGRhdGVTb3VyY2USLwoLc25vb3plX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIuICCg9BdmFpbGFibGVVcGRhdGUSJQoEa2luZBgBIAEoDjIXLmRvY2t3ZWxsLnYxLlVwZGF0ZUtpbmQSFAoMZnJvbV92ZXJzaW9uGAIgASgJEhIKCnRvX3ZlcnNpb24YAyABKAkSEgoKZnJvbV9pbWFnZRgEIAEoCRIQCgh0b19pbWFnZRgFIAEoCRITCgtmcm9tX2RpZ2VzdBgGIAEoCRIRCgl0b19kaWdlc3QYByABKAkSMAoMcmVsZWFzZV90aW1lGAggASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpmb3VuZF90aW1lGAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglub3Rlc191cmwYCiABKAkSFwoPY2F0YWxvZ19yZWxlYXNlGAsgASgNEhEKCXRvX2NvbW1pdBgMIAEoCRIPCgdza2lwcGVkGA0gASgIKoACCgpVcGRhdGVLaW5kEhsKF1VQREFURV9LSU5EX1VOU1BFQ0lGSUVEEAASIAoRVVBEQVRFX0tJTkRfUEFUQ0gQARoJorsYBXBhdGNoEiAKEVVQREFURV9LSU5EX01JTk9SEAIaCaK7GAVtaW5vchIgChFVUERBVEVfS0lORF9NQUpPUhADGgmiuxgFbWFqb3ISJQoSVVBEQVRFX0tJTkRfRElHRVNUEAQaDaK7GAluZXcgYnVpbGQSJAoTVVBEQVRFX0tJTkRfUkVMRUFTRRAFGguiuxgHcmVsZWFzZRIiChJVUERBVEVfS0lORF9DT01NSVQQBhoKorsYBmNvbW1pdCrXAQoLVXBkYXRlQ2hlY2sSHAoYVVBEQVRFX0NIRUNLX1VOU1BFQ0lGSUVEEAASKwoXVVBEQVRFX0NIRUNLX1VQX1RPX0RBVEUQARoOorsYCnVwIHRvIGRhdGUSKQoWVVBEQVRFX0NIRUNLX0FWQUlMQUJMRRACGg2iuxgJYXZhaWxhYmxlEiMKE1VQREFURV9DSEVDS19GQUlMRUQQAxoKorsYBmZhaWxlZBItChhVUERBVEVfQ0hFQ0tfTk9UX0NIRUNLRUQQBBoPorsYC25vdCBjaGVja2VkKqYDCg1VcGRhdGVQcm9ibGVtEh4KGlVQREFURV9QUk9CTEVNX1VOU1BFQ0lGSUVEEAASQQojVVBEQVRFX1BST0JMRU1fUFJJVkFURV9PUl9OT1RfRk9VTkQQARoYorsYFHByaXZhdGVfb3Jfbm90X2ZvdW5kEi8KGlVQREFURV9QUk9CTEVNX1VOUkVBQ0hBQkxFEAIaD6K7GAt1bnJlYWNoYWJsZRIxChtVUERBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQAxoQorsYDHJhdGVfbGltaXRlZBI1Ch1VUERBVEVfUFJPQkxFTV9TRVJWRVJfT0ZGTElORRAEGhKiuxgOc2VydmVyX29mZmxpbmUSNQodVVBEQVRFX1BST0JMRU1fQUdFTlRfT1VUREFURUQQBRoSorsYDmFnZW50X291dGRhdGVkEi8KGlVQREFURV9QUk9CTEVNX05PVF9SVU5OSU5HEAYaD6K7GAtub3RfcnVubmluZxIvChpVUERBVEVfUFJPQkxFTV9MT0NBTF9JTUFHRRAHGg+iuxgLbG9jYWxfaW1hZ2UqwQEKDFVwZGF0ZVNvdXJjZRIdChlVUERBVEVfU09VUkNFX1VOU1BFQ0lGSUVEEAASIgoTVVBEQVRFX1NPVVJDRV9JTUFHRRABGgmiuxgFaW1hZ2USJgoVVVBEQVRFX1NPVVJDRV9DQVRBTE9HEAIaC6K7GAdjYXRhbG9nEh4KEVVQREFURV9TT1VSQ0VfR0lUEAMaB6K7GANnaXQSJgoVVVBEQVRFX1NPVVJDRV9SVU5USU1FEAQaC6K7GAdydW50aW1lQqsBCg9jb20uZG9ja3dlbGwudjFCElNlcnZpY2VVcGRhdGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_protobuf_timestamp]);
+  fileDesc("CiBkb2Nrd2VsbC92MS9zZXJ2aWNlX3VwZGF0ZS5wcm90bxILZG9ja3dlbGwudjEiVAoZTGlzdFNlcnZpY2VVcGRhdGVzUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEhEKCWF2YWlsYWJsZRgDIAEoCCJLChpMaXN0U2VydmljZVVwZGF0ZXNSZXNwb25zZRItCghzZXJ2aWNlcxgBIAMoCzIbLmRvY2t3ZWxsLnYxLlNlcnZpY2VVcGRhdGVzIoMBCg5TZXJ2aWNlVXBkYXRlcxIKCgJpZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEg0KBWltYWdlGAMgASgJEioKBnVwZGF0ZRgEIAEoCzIaLmRvY2t3ZWxsLnYxLlNlcnZpY2VVcGRhdGUiZAoaQ2hlY2tTZXJ2aWNlVXBkYXRlc1JlcXVlc3QSEAoCaWQYASABKAlCBLC7GAESDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkiTAobQ2hlY2tTZXJ2aWNlVXBkYXRlc1Jlc3BvbnNlEi0KCHNlcnZpY2VzGAEgAygLMhsuZG9ja3dlbGwudjEuU2VydmljZVVwZGF0ZXMibQoYU2tpcFNlcnZpY2VVcGRhdGVSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIOCgZ1bnNraXAYBSABKAgiRwoZU2tpcFNlcnZpY2VVcGRhdGVSZXNwb25zZRIqCgZ1cGRhdGUYASABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2aWNlVXBkYXRlImEKG1Nub296ZVNlcnZpY2VVcGRhdGVzUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEhAKCGR1cmF0aW9uGAQgASgJIkoKHFNub296ZVNlcnZpY2VVcGRhdGVzUmVzcG9uc2USKgoGdXBkYXRlGAEgASgLMhouZG9ja3dlbGwudjEuU2VydmljZVVwZGF0ZSLvAgoNU2VydmljZVVwZGF0ZRInCgVjaGVjaxgBIAEoDjIYLmRvY2t3ZWxsLnYxLlVwZGF0ZUNoZWNrEi8KCWF2YWlsYWJsZRgCIAMoCzIcLmRvY2t3ZWxsLnYxLkF2YWlsYWJsZVVwZGF0ZRIuCgpjaGVja190aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIzCg9uZXh0X2NoZWNrX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEisKB3Byb2JsZW0YBSABKA4yGi5kb2Nrd2VsbC52MS5VcGRhdGVQcm9ibGVtEhYKDnByb2JsZW1fZGV0YWlsGAYgASgJEikKBnNvdXJjZRgHIAEoDjIZLmRvY2t3ZWxsLnYxLlVwZGF0ZVNvdXJjZRIvCgtzbm9vemVfdGltZRgIIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAi4gIKD0F2YWlsYWJsZVVwZGF0ZRIlCgRraW5kGAEgASgOMhcuZG9ja3dlbGwudjEuVXBkYXRlS2luZBIUCgxmcm9tX3ZlcnNpb24YAiABKAkSEgoKdG9fdmVyc2lvbhgDIAEoCRISCgpmcm9tX2ltYWdlGAQgASgJEhAKCHRvX2ltYWdlGAUgASgJEhMKC2Zyb21fZGlnZXN0GAYgASgJEhEKCXRvX2RpZ2VzdBgHIAEoCRIwCgxyZWxlYXNlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCmZvdW5kX3RpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCW5vdGVzX3VybBgKIAEoCRIXCg9jYXRhbG9nX3JlbGVhc2UYCyABKA0SEQoJdG9fY29tbWl0GAwgASgJEg8KB3NraXBwZWQYDSABKAgqgAIKClVwZGF0ZUtpbmQSGwoXVVBEQVRFX0tJTkRfVU5TUEVDSUZJRUQQABIgChFVUERBVEVfS0lORF9QQVRDSBABGgmiuxgFcGF0Y2gSIAoRVVBEQVRFX0tJTkRfTUlOT1IQAhoJorsYBW1pbm9yEiAKEVVQREFURV9LSU5EX01BSk9SEAMaCaK7GAVtYWpvchIlChJVUERBVEVfS0lORF9ESUdFU1QQBBoNorsYCW5ldyBidWlsZBIkChNVUERBVEVfS0lORF9SRUxFQVNFEAUaC6K7GAdyZWxlYXNlEiIKElVQREFURV9LSU5EX0NPTU1JVBAGGgqiuxgGY29tbWl0KtcBCgtVcGRhdGVDaGVjaxIcChhVUERBVEVfQ0hFQ0tfVU5TUEVDSUZJRUQQABIrChdVUERBVEVfQ0hFQ0tfVVBfVE9fREFURRABGg6iuxgKdXAgdG8gZGF0ZRIpChZVUERBVEVfQ0hFQ0tfQVZBSUxBQkxFEAIaDaK7GAlhdmFpbGFibGUSIwoTVVBEQVRFX0NIRUNLX0ZBSUxFRBADGgqiuxgGZmFpbGVkEi0KGFVQREFURV9DSEVDS19OT1RfQ0hFQ0tFRBAEGg+iuxgLbm90IGNoZWNrZWQqpgMKDVVwZGF0ZVByb2JsZW0SHgoaVVBEQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABJBCiNVUERBVEVfUFJPQkxFTV9QUklWQVRFX09SX05PVF9GT1VORBABGhiiuxgUcHJpdmF0ZV9vcl9ub3RfZm91bmQSLwoaVVBEQVRFX1BST0JMRU1fVU5SRUFDSEFCTEUQAhoPorsYC3VucmVhY2hhYmxlEjEKG1VQREFURV9QUk9CTEVNX1JBVEVfTElNSVRFRBADGhCiuxgMcmF0ZV9saW1pdGVkEjUKHVVQREFURV9QUk9CTEVNX1NFUlZFUl9PRkZMSU5FEAQaEqK7GA5zZXJ2ZXJfb2ZmbGluZRI1Ch1VUERBVEVfUFJPQkxFTV9BR0VOVF9PVVREQVRFRBAFGhKiuxgOYWdlbnRfb3V0ZGF0ZWQSLwoaVVBEQVRFX1BST0JMRU1fTk9UX1JVTk5JTkcQBhoPorsYC25vdF9ydW5uaW5nEi8KGlVQREFURV9QUk9CTEVNX0xPQ0FMX0lNQUdFEAcaD6K7GAtsb2NhbF9pbWFnZSrBAQoMVXBkYXRlU291cmNlEh0KGVVQREFURV9TT1VSQ0VfVU5TUEVDSUZJRUQQABIiChNVUERBVEVfU09VUkNFX0lNQUdFEAEaCaK7GAVpbWFnZRImChVVUERBVEVfU09VUkNFX0NBVEFMT0cQAhoLorsYB2NhdGFsb2cSHgoRVVBEQVRFX1NPVVJDRV9HSVQQAxoHorsYA2dpdBImChVVUERBVEVfU09VUkNFX1JVTlRJTUUQBBoLorsYB3J1bnRpbWUy9wUKFFNlcnZpY2VVcGRhdGVTZXJ2aWNlEqwBChJMaXN0U2VydmljZVVwZGF0ZXMSJi5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVVwZGF0ZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VVcGRhdGVzUmVzcG9uc2UiRZACAaC7GAGquxgTCgthcHAtdXBkYXRlcxIEbGlzdMC7GALIuxgC0LsYBILT5JMCFRITL3YxL3NlcnZpY2UtdXBkYXRlcxK2AQoTQ2hlY2tTZXJ2aWNlVXBkYXRlcxInLmRvY2t3ZWxsLnYxLkNoZWNrU2VydmljZVVwZGF0ZXNSZXF1ZXN0GiguZG9ja3dlbGwudjEuQ2hlY2tTZXJ2aWNlVXBkYXRlc1Jlc3BvbnNlIkyguxgBqrsYFAoLYXBwLXVwZGF0ZXMSBWNoZWNrwLsYA8i7GAPQuxgEgtPkkwIeOgEqIhkvdjEvc2VydmljZS11cGRhdGVzOmNoZWNrErMBChFTa2lwU2VydmljZVVwZGF0ZRIlLmRvY2t3ZWxsLnYxLlNraXBTZXJ2aWNlVXBkYXRlUmVxdWVzdBomLmRvY2t3ZWxsLnYxLlNraXBTZXJ2aWNlVXBkYXRlUmVzcG9uc2UiT6C7GAOquxgTCgthcHAtdXBkYXRlcxIEc2tpcMC7GAPIuxgD0LsYBILT5JMCIjoBKiIdL3YxL3NlcnZpY2UtdXBkYXRlcy97aWR9OnNraXASwAEKFFNub296ZVNlcnZpY2VVcGRhdGVzEiguZG9ja3dlbGwudjEuU25vb3plU2VydmljZVVwZGF0ZXNSZXF1ZXN0GikuZG9ja3dlbGwudjEuU25vb3plU2VydmljZVVwZGF0ZXNSZXNwb25zZSJToLsYA6q7GBUKC2FwcC11cGRhdGVzEgZzbm9vemXAuxgDyLsYA9C7GASC0+STAiQ6ASoiHy92MS9zZXJ2aWNlLXVwZGF0ZXMve2lkfTpzbm9vemVCqwEKD2NvbS5kb2Nrd2VsbC52MUISU2VydmljZVVwZGF0ZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * ListServiceUpdatesRequest says which services to list.
+ *
+ * @generated from message dockwell.v1.ListServiceUpdatesRequest
+ */
+export type ListServiceUpdatesRequest = Message<"dockwell.v1.ListServiceUpdatesRequest"> & {
+  /**
+   * The project of the environment, by name or ID, when environment is a name
+   * and there are several projects.
+   *
+   * @generated from field: string project = 1;
+   */
+  project: string;
+
+  /**
+   * Only the services of this environment, by name or ID. Empty means every
+   * environment.
+   *
+   * @generated from field: string environment = 2;
+   */
+  environment: string;
+
+  /**
+   * Only the services with something newer that a person hasn't skipped or
+   * snoozed.
+   *
+   * @generated from field: bool available = 3;
+   */
+  available: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ListServiceUpdatesRequest.
+ * Use `create(ListServiceUpdatesRequestSchema)` to create a new message.
+ */
+export const ListServiceUpdatesRequestSchema: GenMessage<ListServiceUpdatesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 0);
+
+/**
+ * ListServiceUpdatesResponse is each service with its updates.
+ *
+ * @generated from message dockwell.v1.ListServiceUpdatesResponse
+ */
+export type ListServiceUpdatesResponse = Message<"dockwell.v1.ListServiceUpdatesResponse"> & {
+  /**
+   * The services, by environment, then name.
+   *
+   * @generated from field: repeated dockwell.v1.ServiceUpdates services = 1;
+   */
+  services: ServiceUpdates[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListServiceUpdatesResponse.
+ * Use `create(ListServiceUpdatesResponseSchema)` to create a new message.
+ */
+export const ListServiceUpdatesResponseSchema: GenMessage<ListServiceUpdatesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 1);
+
+/**
+ * ServiceUpdates is one service and what's newer than what it runs.
+ *
+ * @generated from message dockwell.v1.ServiceUpdates
+ */
+export type ServiceUpdates = Message<"dockwell.v1.ServiceUpdates"> & {
+  /**
+   * The service's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Its kind, its environment's ID, and its name.
+   *
+   * @generated from field: dockwell.v1.ResourceRef resource = 2;
+   */
+  resource?: ResourceRef | undefined;
+
+  /**
+   * The image it runs, as its spec names it. Empty for an app built from Git.
+   *
+   * @generated from field: string image = 3;
+   */
+  image: string;
+
+  /**
+   * What's newer, and how its check stands.
+   *
+   * @generated from field: dockwell.v1.ServiceUpdate update = 4;
+   */
+  update?: ServiceUpdate | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ServiceUpdates.
+ * Use `create(ServiceUpdatesSchema)` to create a new message.
+ */
+export const ServiceUpdatesSchema: GenMessage<ServiceUpdates> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 2);
+
+/**
+ * CheckServiceUpdatesRequest names a service, or a server.
+ *
+ * @generated from message dockwell.v1.CheckServiceUpdatesRequest
+ */
+export type CheckServiceUpdatesRequest = Message<"dockwell.v1.CheckServiceUpdatesRequest"> & {
+  /**
+   * The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+   * Leave it out to check every service on server.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID, when more than one
+   * has a service of that name.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID, when its
+   * project has more than one.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * Every service on this server, by ID or name, in place of id.
+   *
+   * @generated from field: string server = 4;
+   */
+  server: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckServiceUpdatesRequest.
+ * Use `create(CheckServiceUpdatesRequestSchema)` to create a new message.
+ */
+export const CheckServiceUpdatesRequestSchema: GenMessage<CheckServiceUpdatesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 3);
+
+/**
+ * CheckServiceUpdatesResponse is what the check found.
+ *
+ * @generated from message dockwell.v1.CheckServiceUpdatesResponse
+ */
+export type CheckServiceUpdatesResponse = Message<"dockwell.v1.CheckServiceUpdatesResponse"> & {
+  /**
+   * Each service checked, with what's newer.
+   *
+   * @generated from field: repeated dockwell.v1.ServiceUpdates services = 1;
+   */
+  services: ServiceUpdates[];
+};
+
+/**
+ * Describes the message dockwell.v1.CheckServiceUpdatesResponse.
+ * Use `create(CheckServiceUpdatesResponseSchema)` to create a new message.
+ */
+export const CheckServiceUpdatesResponseSchema: GenMessage<CheckServiceUpdatesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 4);
+
+/**
+ * SkipServiceUpdateRequest names a service and a version of its updates.
+ *
+ * @generated from message dockwell.v1.SkipServiceUpdateRequest
+ */
+export type SkipServiceUpdateRequest = Message<"dockwell.v1.SkipServiceUpdateRequest"> & {
+  /**
+   * The service, by ID or name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * The version, as an AvailableUpdate's to_version says it, such as "17.2", or
+   * its to_digest, for a new build, or its to_commit.
+   *
+   * @generated from field: string version = 4;
+   */
+  version: string;
+
+  /**
+   * Takes the skip back, so the version shows again.
+   *
+   * @generated from field: bool unskip = 5;
+   */
+  unskip: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SkipServiceUpdateRequest.
+ * Use `create(SkipServiceUpdateRequestSchema)` to create a new message.
+ */
+export const SkipServiceUpdateRequestSchema: GenMessage<SkipServiceUpdateRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 5);
+
+/**
+ * SkipServiceUpdateResponse is the service's updates as they now stand.
+ *
+ * @generated from message dockwell.v1.SkipServiceUpdateResponse
+ */
+export type SkipServiceUpdateResponse = Message<"dockwell.v1.SkipServiceUpdateResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.ServiceUpdate update = 1;
+   */
+  update?: ServiceUpdate | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SkipServiceUpdateResponse.
+ * Use `create(SkipServiceUpdateResponseSchema)` to create a new message.
+ */
+export const SkipServiceUpdateResponseSchema: GenMessage<SkipServiceUpdateResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 6);
+
+/**
+ * SnoozeServiceUpdatesRequest names a service, and for how long.
+ *
+ * @generated from message dockwell.v1.SnoozeServiceUpdatesRequest
+ */
+export type SnoozeServiceUpdatesRequest = Message<"dockwell.v1.SnoozeServiceUpdatesRequest"> & {
+  /**
+   * The service, by ID or name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a service named by name, by name or ID.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a service named by name, by name or ID.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * How long: "1d", "7d" or "30d", or a duration such as "12h", 90 days at
+   * most. Empty ends a snooze now.
+   *
+   * @generated from field: string duration = 4;
+   */
+  duration: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SnoozeServiceUpdatesRequest.
+ * Use `create(SnoozeServiceUpdatesRequestSchema)` to create a new message.
+ */
+export const SnoozeServiceUpdatesRequestSchema: GenMessage<SnoozeServiceUpdatesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 7);
+
+/**
+ * SnoozeServiceUpdatesResponse is the service's updates as they now stand.
+ *
+ * @generated from message dockwell.v1.SnoozeServiceUpdatesResponse
+ */
+export type SnoozeServiceUpdatesResponse = Message<"dockwell.v1.SnoozeServiceUpdatesResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.ServiceUpdate update = 1;
+   */
+  update?: ServiceUpdate | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SnoozeServiceUpdatesResponse.
+ * Use `create(SnoozeServiceUpdatesResponseSchema)` to create a new message.
+ */
+export const SnoozeServiceUpdatesResponseSchema: GenMessage<SnoozeServiceUpdatesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service_update, 8);
 
 /**
  * ServiceUpdate is what Dockwell last found newer than what a service runs:
@@ -96,7 +397,7 @@ export type ServiceUpdate = Message<"dockwell.v1.ServiceUpdate"> & {
  * Use `create(ServiceUpdateSchema)` to create a new message.
  */
 export const ServiceUpdateSchema: GenMessage<ServiceUpdate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service_update, 0);
+  messageDesc(file_dockwell_v1_service_update, 9);
 
 /**
  * AvailableUpdate is one newer version a service can move to.
@@ -211,7 +512,7 @@ export type AvailableUpdate = Message<"dockwell.v1.AvailableUpdate"> & {
  * Use `create(AvailableUpdateSchema)` to create a new message.
  */
 export const AvailableUpdateSchema: GenMessage<AvailableUpdate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service_update, 1);
+  messageDesc(file_dockwell_v1_service_update, 10);
 
 /**
  * UpdateKind is the size of a step from what runs to a newer version.
@@ -225,15 +526,17 @@ export enum UpdateKind {
   UNSPECIFIED = 0,
 
   /**
-   * The version's last number moved: 16.3 to 16.4 where versions have two
-   * numbers, as PostgreSQL's do, or 1.27.3 to 1.27.4.
+   * The version's last number moved: 1.27.3 to 1.27.4, or 16.4 to 16.6 where the
+   * repository's tags show its versions have two numbers, as PostgreSQL's do.
    *
    * @generated from enum value: UPDATE_KIND_PATCH = 1;
    */
   PATCH = 1,
 
   /**
-   * With three numbers or more, the second moved: 1.27.3 to 1.28.0.
+   * The second number moved where it's a minor: 1.27.3 to 1.28.0, or 7.2 to 7.4
+   * where the repository has three-number tags. Where the tags can't tell a
+   * second number of two is a patch, it's a minor, the larger step.
    *
    * @generated from enum value: UPDATE_KIND_MINOR = 2;
    */
@@ -438,4 +741,70 @@ export enum UpdateSource {
  */
 export const UpdateSourceSchema: GenEnum<UpdateSource> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_service_update, 3);
+
+/**
+ * ServiceUpdateService says what's newer than what each service runs, checks
+ * again now, and sets a version, or all of a service's updates for a while,
+ * aside. The control plane checks every service every 6 hours, through the
+ * agent of a server it runs on, and keeps what it found; ListServices carries
+ * the same on each service. Nothing here changes what runs: updating is a plan.
+ * Skipping and snoozing are a person's, on the audit log, as an alert's mute
+ * is. See docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
+ *
+ * @generated from service dockwell.v1.ServiceUpdateService
+ */
+export const ServiceUpdateService: GenService<{
+  /**
+   * ListServiceUpdates returns each service with what's newer than what it
+   * runs and how its check stands, by name.
+   *
+   * @generated from rpc dockwell.v1.ServiceUpdateService.ListServiceUpdates
+   */
+  listServiceUpdates: {
+    methodKind: "unary";
+    input: typeof ListServiceUpdatesRequestSchema;
+    output: typeof ListServiceUpdatesResponseSchema;
+  },
+  /**
+   * CheckServiceUpdates checks a service now, or every service on a server,
+   * and answers with what it found, within half a minute. A service or a
+   * server is checked this way at most once a minute: asking again sooner
+   * answers with the last check. It reads registries from the server, gently:
+   * a registry that limits how often it's asked is left alone until it lets
+   * Dockwell ask again, and the answer says so. A server's check answers with
+   * the services in your projects alone.
+   *
+   * @generated from rpc dockwell.v1.ServiceUpdateService.CheckServiceUpdates
+   */
+  checkServiceUpdates: {
+    methodKind: "unary";
+    input: typeof CheckServiceUpdatesRequestSchema;
+    output: typeof CheckServiceUpdatesResponseSchema;
+  },
+  /**
+   * SkipServiceUpdate sets one version of a service's updates aside, or takes
+   * that back: a skipped 2.0 counts nowhere and sends no alert, and 2.0.1 still
+   * shows. Automatic updates never take a skipped version.
+   *
+   * @generated from rpc dockwell.v1.ServiceUpdateService.SkipServiceUpdate
+   */
+  skipServiceUpdate: {
+    methodKind: "unary";
+    input: typeof SkipServiceUpdateRequestSchema;
+    output: typeof SkipServiceUpdateResponseSchema;
+  },
+  /**
+   * SnoozeServiceUpdates sets all of a service's updates aside for a while, or
+   * ends that: they still show on its page, and count nowhere else, send no
+   * alert, and aren't applied by automatic updates until then.
+   *
+   * @generated from rpc dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates
+   */
+  snoozeServiceUpdates: {
+    methodKind: "unary";
+    input: typeof SnoozeServiceUpdatesRequestSchema;
+    output: typeof SnoozeServiceUpdatesResponseSchema;
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_dockwell_v1_service_update, 0);
 

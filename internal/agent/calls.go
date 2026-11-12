@@ -904,6 +904,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Image{Image: read}}
 	}
+	if call.GetImageUpdates() != nil {
+		found, err := c.cfg.images.imageUpdates(ctx, call.GetImageUpdates())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ImageUpdates{ImageUpdates: found}}
+	}
 	if call.GetReadOnepanel() != nil {
 		if c.cfg.OnePanel == nil {
 			return fail(errors.New("this agent doesn't read 1Panel's records"))
