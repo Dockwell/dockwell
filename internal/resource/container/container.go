@@ -1129,6 +1129,20 @@ func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) 
 	return d.Runtime.Healthy(ctx, HostTarget(ref))
 }
 
+// preparer is a Runtime that can do what a run does before anything stops.
+type preparer interface {
+	Prepare(ctx context.Context, t Target, spec *resourcev1.Container) error
+}
+
+// PrepareAt pulls what the container at t is to run, where the server hasn't it,
+// and checks what it mounts and joins, before anything stops (Docker.Prepare).
+func (d *Driver) PrepareAt(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	if p, ok := d.Runtime.(preparer); ok {
+		return p.Prepare(ctx, t, spec)
+	}
+	return nil
+}
+
 // VerifyAt checks the container at t is running and healthy.
 func (d *Driver) VerifyAt(ctx context.Context, t Target) error {
 	return d.Runtime.Healthy(ctx, t)

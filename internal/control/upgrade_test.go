@@ -3,6 +3,9 @@
 package control
 
 import (
+	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +17,8 @@ import (
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -171,15 +176,26 @@ func TestAnUpdateCanSkipItsBackupAndNamesWhatItCantBackUp(t *testing.T) {
 	})
 }
 
-// A database's major release is never a plain swap: the plan is refused before
-// anything pulls, saying why, whichever way it's asked for. A patch goes ahead,
+// pgOf is the fake PostgreSQL of a major release, as its image says it.
+func pgOf(major string) dockertest.Image {
+	img := fakePostgres
+	img.Config.Env = []string{"PG_MAJOR=" + major}
+	return img
+}
+
+// A database's major release moves its data by a dump into a new volume (ADR 0080).
+// The plan says what stops, and that the old volume stays; applying it stops the
+// rest of the app, dumps the database, loads the dump into the new release on the
+// new volume, and starts what stopped, with the dump on record as a backup of the
+// old volume. Undoing it puts the old release back on the old volume, as it was.
+// Down a release is refused before anything pulls, saying why. A patch goes ahead,
 // with a dump first.
-func TestADatabasesMajorReleaseIsNotAPlainSwap(t *testing.T) {
+func TestADatabasesMajorReleaseMovesByADump(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		b := newBench(t, backend)
-		b.e.Registry["postgres:16.4"] = dockertest.Image{Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=16"}}}
-		b.e.Registry["postgres:16.5"] = dockertest.Image{Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=16"}}}
-		b.e.Registry["postgres:17.2"] = dockertest.Image{Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=17"}}}
+		for tag, major := range map[string]string{"16.4": "16", "16.5": "16", "17.2": "17", "15.8": "15"} {
+			b.e.Registry["postgres:"+tag] = pgOf(major)
+		}
 		b.run(t, &dockwellv1.ImportComposeRequest{Compose: `name: shop
 services:
   db:
@@ -188,25 +204,86 @@ services:
       POSTGRES_PASSWORD: example
     volumes:
       - pgdata:/var/lib/postgresql/data
+  web:
+    image: alpine:latest
 volumes:
   pgdata: {}
 `})
 		db := b.service(t, "shop", "db")
-		pulls := b.e.Pulls
-		for _, ask := range []func() error{
-			func() error {
-				_, err := b.s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:17.2"}))
-				return err
-			},
-			func() error {
-				_, err := b.s.DeployService(t.Context(), connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: db.GetId(), Image: "postgres:17.2"}))
-				return err
-			},
-		} {
-			err := ask()
-			if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "PostgreSQL 17 can't start on the data of db, which runs PostgreSQL 16") {
-				t.Errorf("moving PostgreSQL from 16 to 17 = %v", err)
+		scope := db.GetResource().GetScope()
+		dir := func(name string) string {
+			return b.e.VolumeDir(volume.TargetOf(resource.Ref{Kind: volume.Kind, Scope: scope, Name: name}).Name)
+		}
+		const data = "CREATE TABLE orders (id int);\n"
+		if err := os.WriteFile(filepath.Join(dir("pgdata"), "data.sql"), []byte(data), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		project := docker.Project(scope)
+		webStarts := b.e.Started(b.e.Newest(project, "web").Name)
+
+		move := b.upgrade(t, &dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:17.2"})
+		var moved *dockwellv1.DatabaseMove
+		made := false
+		for _, s := range move.GetPlan().GetServers()[0].GetSteps() {
+			if s.GetBackupFirst() != nil {
+				t.Errorf("a move backs its volume up again: %v", s)
 			}
+			if m := s.GetDatabaseMove(); m != nil {
+				moved = m
+			}
+			if s.GetResource().GetKind() == string(volume.Kind) && s.GetResource().GetName() == "pgdata-17" && s.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE {
+				made = true
+			}
+		}
+		switch {
+		case moved == nil:
+			t.Fatalf("the plan moves nothing: %v", move.GetPlan().GetServers()[0].GetSteps())
+		case moved.GetFromVolume() != "pgdata" || moved.GetToVolume() != "pgdata-17" || moved.GetDatabase() != "PostgreSQL" ||
+			moved.GetFromSeries() != "16" || moved.GetToSeries() != "17" || !slices.Equal(moved.GetStops(), []string{"web"}) || moved.GetBackupId() == "":
+			t.Errorf("the move = %v", moved)
+		case !made:
+			t.Errorf("the plan makes no volume pgdata-17: %v", move.GetPlan().GetServers()[0].GetSteps())
+		}
+		if n := noteOf(move, "database_move"); n == nil || !strings.Contains(n.GetMessage(), "pgdata stays as it was, so undoing this puts PostgreSQL 16 back on it") {
+			t.Errorf("the plan's notes = %v", move.GetPlan().GetNotes())
+		}
+		b.done(t, move)
+		now := b.e.Newest(project, "db")
+		if now.Config.Image != "postgres:17.2" || !slices.ContainsFunc(now.Mounts, func(m docker.MountPoint) bool { return strings.HasSuffix(m.Name, "_pgdata-17") }) {
+			t.Errorf("after the move, db runs %s on %v", now.Config.Image, now.Mounts)
+		}
+		for _, name := range []string{"pgdata", "pgdata-17"} {
+			if got, err := os.ReadFile(filepath.Join(dir(name), "data.sql")); err != nil || !strings.Contains(string(got), data) {
+				t.Errorf("%s holds %q, %v, want what the database held", name, got, err)
+			}
+		}
+		if web := b.e.Newest(project, "web"); !web.State.Running || b.e.Started(web.Name) <= webStarts {
+			t.Errorf("web didn't stop and start again for the move: running %v", web.State.Running)
+		}
+		backups, err := backupClient(b.b, b.b.origin).ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(backups.Msg.GetBackups(), func(k *dockwellv1.Backup) bool {
+			return k.GetId() == moved.GetBackupId() && k.GetVolume() == "pgdata" && k.GetMethod() == dockwellv1.BackupMethod_BACKUP_METHOD_DUMP
+		}) {
+			t.Errorf("the move's dump isn't on record as a backup of pgdata: %v", backups.Msg.GetBackups())
+		}
+
+		undo, err := b.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: move.GetId()}))
+		if err != nil {
+			t.Fatalf("undoing the move = %v", err)
+		}
+		b.done(t, undo.Msg.GetChange())
+		back := b.e.Newest(project, "db")
+		if back.Config.Image != "postgres:16.4" || !slices.ContainsFunc(back.Mounts, func(m docker.MountPoint) bool { return strings.HasSuffix(m.Name, "_pgdata") }) {
+			t.Errorf("after undoing the move, db runs %s on %v", back.Config.Image, back.Mounts)
+		}
+
+		pulls := b.e.Pulls
+		_, err = b.s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:15.8"}))
+		if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "PostgreSQL 15 can't read the data of db, which runs PostgreSQL 16") {
+			t.Errorf("moving PostgreSQL from 16 down to 15 = %v", err)
 		}
 		if b.e.Pulls != pulls {
 			t.Error("a refused move pulled an image")
@@ -221,6 +298,96 @@ volumes:
 			t.Errorf("a database's backup first is a %v", got)
 		}
 	})
+}
+
+// A move whose dump won't load into the new release changes nothing: the database
+// goes on as it was, on its volume, what stopped starts again, and no backup goes
+// on record, as its dump went with it.
+func TestAMoveThatWontLoadChangesNothing(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	b.e.Registry["postgres:16.4"] = pgOf("16")
+	broken := pgOf("17")
+	load := broken.Exec
+	broken.Exec = func(x dockertest.Exec) int {
+		if strings.Contains(strings.Join(x.Cmd, " "), "psql") {
+			_, _ = io.WriteString(x.Stderr, "ERROR:  syntax error at or near \"WAT\"\n")
+			return 3
+		}
+		return load(x)
+	}
+	b.e.Registry["postgres:17.2"] = broken
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: `name: shop
+services:
+  db:
+    image: postgres:16.4
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  web:
+    image: alpine:latest
+volumes:
+  pgdata: {}
+`})
+	db := b.service(t, "shop", "db")
+	scope := db.GetResource().GetScope()
+	if err := os.WriteFile(filepath.Join(b.e.VolumeDir(volume.TargetOf(resource.Ref{Kind: volume.Kind, Scope: scope, Name: "pgdata"}).Name), "data.sql"), []byte("SELECT 1;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	project := docker.Project(scope)
+	before := b.e.Newest(project, "db").ID
+	move := b.upgrade(t, &dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:17.2"})
+	got := applied(t, b.c, move)
+	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || !strings.Contains(got.GetError(), "the dump didn't load into PostgreSQL 17") ||
+		!strings.Contains(got.GetError(), "Nothing changed: db runs PostgreSQL 16 on pgdata as before") {
+		t.Fatalf("the move ended %v: %s", got.GetState(), got.GetError())
+	}
+	if now := b.e.Newest(project, "db"); now.ID != before || !now.State.Running {
+		t.Errorf("db isn't the container it was, running: %s, %v", now.Image, now.State.Running)
+	}
+	if !b.e.Newest(project, "web").State.Running {
+		t.Error("web didn't start again")
+	}
+	backups, err := backupClient(b.b, b.b.origin).ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(backups.Msg.GetBackups()) != 0 {
+		t.Errorf("a move that didn't happen left backups on record: %v", backups.Msg.GetBackups())
+	}
+}
+
+// A move's new volume takes a name no volume of its environment has had, and a
+// volume with options of its own, which Dockwell can't make one like, is refused.
+func TestADatabaseMoveNamesAFreeVolumeAndRefusesOneItCantCopy(t *testing.T) {
+	b := newBench(t, store.SQLite)
+	b.e.Registry["postgres:16.4"] = pgOf("16")
+	b.e.Registry["postgres:17.2"] = pgOf("17")
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: `name: shop
+services:
+  db:
+    image: postgres:16.4
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  cache:
+    image: postgres:16.4
+    volumes:
+      - scratch:/var/lib/postgresql/data
+volumes:
+  pgdata: {}
+  pgdata-17: {}
+  scratch:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+`})
+	move := b.upgrade(t, &dockwellv1.UpgradeServiceRequest{Id: b.service(t, "shop", "db").GetId(), Image: "postgres:17.2"})
+	i := slices.IndexFunc(move.GetPlan().GetServers()[0].GetSteps(), func(s *dockwellv1.PlanStep) bool { return s.GetDatabaseMove() != nil })
+	if i < 0 || move.GetPlan().GetServers()[0].GetSteps()[i].GetDatabaseMove().GetToVolume() != "pgdata-17-2" {
+		t.Errorf("with pgdata-17 taken, the move = %v", move.GetPlan().GetServers()[0].GetSteps())
+	}
+	_, err := b.s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: b.service(t, "shop", "cache").GetId(), Image: "postgres:17.2"}))
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "scratch mounts what its driver or options say") {
+		t.Errorf("moving data on a volume with options = %v", err)
+	}
 }
 
 // A service of a catalog install updates its install, with what the release leaves
@@ -267,8 +434,8 @@ func TestAnUpdateOfAnInstallsServiceUpgradesTheInstall(t *testing.T) {
 
 // An update that names no image takes what ADR 0079's keeper found, the first a
 // person didn't skip: postgres:16.3 goes to 16.4; with 16.4 skipped, 17.2 is next,
-// which a database's major release refuses as a plain swap; and snoozed, it knows
-// of none (ADR 0080).
+// a major release, whose move by a dump this database's data, in its image's own
+// volume, can't take; and snoozed, it knows of none (ADR 0080).
 func TestAnUpdateWithNoImageTakesWhatTheKeeperFound(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -315,7 +482,7 @@ func TestAnUpdateWithNoImageTakesWhatTheKeeperFound(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: "db"}))
-	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "PostgreSQL 17 can't start on the data of db") {
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "PostgreSQL 17 moves the data of db, which runs PostgreSQL 16, by a dump into a new volume, and its data isn't in a volume of its environment") {
 		t.Errorf("with 16.4 skipped, the update to 17.2 = %v", err)
 	}
 

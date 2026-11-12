@@ -29,7 +29,7 @@ import { applied, mira, moved, watched } from "../../test/changes";
 import { type Api, feed, renderWithApi } from "../../test/render";
 import { UpgradeProgress } from "../apps/upgrade";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
-import { tagOf, upgradePhases } from "./upgrade";
+import { movesDatabase, tagOf, upgradePhases } from "./upgrade";
 
 /** A planned update of web from 1.4 to 1.5, with its volume data backed up first. */
 function updatePlanned(): Change {
@@ -80,6 +80,70 @@ function updatePlanned(): Change {
               downtime: durationFromMs(2_000),
             },
           ],
+        },
+      ],
+    },
+  });
+}
+
+/** A planned move of db from PostgreSQL 16 to 17, by a dump into a new volume. */
+function movePlanned(): Change {
+  return create(ChangeSchema, {
+    id: "chg_move",
+    summary: "Update db to postgres:17.2",
+    state: ChangeState.PLANNED,
+    proposedBy: mira,
+    proposedVia: Surface.PANEL,
+    createTime: timestampFromDate(new Date()),
+    plan: {
+      fingerprint: "a1b2c3d4e5f60718293a4b5c6d7e8f91",
+      summary: { create: 1, replace: 1 },
+      undoWindow: durationFromMs(7 * 86_400_000),
+      intent: { kind: IntentKind.UPGRADE, resourceId: "svc_db", image: "postgres:17.2", fromImage: "postgres:16.4" },
+      resources: [
+        { id: "vol_17", resource: { kind: "volume", scope: "env_1", name: "pgdata-17" }, action: PlanAction.CREATE },
+        {
+          id: "svc_db",
+          resource: { kind: "service", scope: "env_1", name: "db" },
+          action: PlanAction.REPLACE,
+          servers: ["srv_1"],
+          previousServers: ["srv_1"],
+        },
+      ],
+      servers: [
+        {
+          serverId: "srv_1",
+          serverName: "hz-1",
+          downtime: durationFromMs(60_000),
+          steps: [
+            {
+              resourceId: "vol_17",
+              resource: { kind: "volume", scope: "env_1", name: "pgdata-17" },
+              action: PlanAction.CREATE,
+            },
+            {
+              resourceId: "svc_db",
+              resource: { kind: "service", scope: "env_1", name: "db" },
+              action: PlanAction.REPLACE,
+              downtime: durationFromMs(60_000),
+              databaseMove: {
+                backupId: "bak_move",
+                database: "PostgreSQL",
+                fromSeries: "16",
+                toSeries: "17",
+                fromVolume: "pgdata",
+                toVolume: "pgdata-17",
+                stops: ["web"],
+              },
+            },
+          ],
+        },
+      ],
+      notes: [
+        {
+          reason: "database_move",
+          message:
+            "db moves to PostgreSQL 17 by a dump. pgdata stays as it was, so undoing this puts PostgreSQL 16 back on it",
         },
       ],
     },
@@ -152,6 +216,31 @@ describe("an update's phases", () => {
       steps: [step("vol_data", StepState.DONE), step("svc_web", StepState.FAILED, { reason: "disk" })],
     });
     expect(upgradePhases(noRoom.plan, noRoom).map((p) => p.state)).toEqual(["done", "failed", "queued", "queued"]);
+  });
+
+  it("of a database's move pull first, then move its data, which is its backup, then start", () => {
+    const planned = movePlanned();
+    expect(upgradePhases(planned.plan, undefined).map((p) => `${p.key}:${p.state}`)).toEqual([
+      "pull:queued",
+      "move:queued",
+      "start:queued",
+      "check:queued",
+    ]);
+    const loading = moved(planned, {
+      state: ChangeState.APPLYING,
+      steps: [
+        step("vol_17", StepState.DONE),
+        step("svc_db", StepState.RUNNING, { phase: StepPhase.BACKING_UP, activity: "Loading the dump into pgdata-17" }),
+      ],
+    });
+    const phases = upgradePhases(loading.plan, loading);
+    expect(phases.map((p) => `${p.key}:${p.state}`)).toEqual([
+      "pull:done",
+      "move:current",
+      "start:queued",
+      "check:queued",
+    ]);
+    expect(phases[1]?.activity).toBe("Loading the dump into pgdata-17");
   });
 
   it("name a version by its image's tag", () => {
@@ -246,6 +335,30 @@ describe("the plan sheet, for an update", () => {
 
     act(() => watch.push(watched(applied(running))));
     expect(await screen.findByRole("dialog", { name: "Updated to 1.5" })).toBeVisible();
+  });
+});
+
+describe("the plan sheet, for a database's move", () => {
+  it("has no backup switch, as the move's dump is its backup, and says what moves", async () => {
+    const planned = movePlanned();
+    renderSheet(
+      {
+        kind: "plan",
+        make: () => Promise.resolve({ change: planned }),
+        choice: {
+          label: "Back up first",
+          on: true,
+          flip: () => ({ kind: "plan", make: () => Promise.resolve({ change: planned }) }),
+          moot: movesDatabase,
+        },
+      },
+      { changes: { discardChange: () => ({}) } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    await within(sheet).findByText("postgres:16.4", { selector: "code" });
+    expect(within(sheet).queryByRole("switch", { name: /Back up first/ })).toBeNull();
+    expect(sheet).toHaveTextContent("pgdata stays as it was, so undoing this puts PostgreSQL 16 back on it");
+    await expectAccessible(document.body);
   });
 });
 

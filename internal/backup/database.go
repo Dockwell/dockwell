@@ -37,8 +37,9 @@ type databaseKind struct {
 	// series is how many parts of an image's version have to match for its files to
 	// open: the part that names a release of the database.
 	series int
-	// needs is a variable it has to have set for the commands to sign in.
-	needs string
+	// needs are the variables one of which it has to have set for the commands to
+	// sign in.
+	needs []string
 	// dump writes the whole server to stdout; load reads that from stdin, and
 	// ready exits 0 once the server takes connections over TCP, which the
 	// temporary server its image runs while it sets up doesn't.
@@ -80,10 +81,24 @@ var databaseKinds = []*databaseKind{
 		neverReady: func(code int, _ string) bool { return code == 3 },
 	},
 	{
-		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: "MYSQL_ROOT_PASSWORD", series: 2,
+		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: []string{"MYSQL_ROOT_PASSWORD"}, series: 2,
 		dump:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
 		load:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
 		ready:      []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
+		complete:   "Dump completed",
+		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
+	},
+	{
+		// Its tools are mariadb and mariadb-dump from 10.5, and mysql and mysqldump
+		// before; its root password is in either variable, its own first.
+		name: "MariaDB", image: "mariadb", data: "/var/lib/mysql", needs: []string{"MARIADB_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD"}, series: 2,
+		dump: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
+			`exec "$tool" -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges`},
+		load: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb; command -v "$tool" >/dev/null 2>&1 || tool=mysql; exec "$tool" -uroot --binary-mode=1`},
+		ready: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb; command -v "$tool" >/dev/null 2>&1 || tool=mysql; exec "$tool" --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
 		complete:   "Dump completed",
 		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
 	},
@@ -131,9 +146,9 @@ func kindOf(c *docker.Container, volumeName string) *databaseKind {
 		if repo != k.image {
 			continue
 		}
-		if k.needs != "" && !slices.ContainsFunc(c.Config.Env, func(e string) bool {
+		if len(k.needs) > 0 && !slices.ContainsFunc(c.Config.Env, func(e string) bool {
 			name, value, _ := strings.Cut(e, "=")
-			return name == k.needs && value != ""
+			return slices.Contains(k.needs, name) && value != ""
 		}) {
 			continue
 		}

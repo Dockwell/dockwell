@@ -1158,6 +1158,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if b := d.Backup; b != nil {
 			dr.BackupId = b.ID
 		}
+		if m := d.Move; m != nil {
+			dr.MoveDatabase = &agentv1.MoveDatabase{BackupId: m.Backup, FromVolume: m.From, ToVolume: m.To}
+		}
 		if in := d.Install; in != nil {
 			dr.InstallUpdates = &agentv1.InstallUpdates{ChangeId: in.Change, All: in.All, Packages: resourcepb.Packages(in.Packages), Names: in.Names}
 		}
@@ -1204,6 +1207,12 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		// plans the security fixes: it never says them back, so its plan is refused.
 		if in := desired[i].Install; in != nil && len(in.Names) > 0 && len(in.Packages) == 0 && steps[i].Install != nil && len(steps[i].Install.Asked) == 0 { //nolint:gosec // as above
 			return nil, fault.New(ErrOlderAgent, "%s's agent installs only the security fixes or every update, not packages picked one by one. "+
+				"Update its agent by running the install script on the server again", s.name)
+		}
+		// An agent from before databases moved by a dump reads past the move, and
+		// would start the new release on the empty volume: its plan is refused.
+		if desired[i].Move != nil && steps[i].Action == resource.ActionReplace && steps[i].Move == nil { //nolint:gosec // as above
+			return nil, fault.New(ErrOlderAgent, "%s's agent can't move a database to a new release by a dump into a new volume, so nothing was planned. "+
 				"Update its agent by running the install script on the server again", s.name)
 		}
 		// A field the schema marks sensitive never shows its value, whatever

@@ -1369,6 +1369,10 @@ message PlanStep {
   PackageInstall install = 45;
   // What rebooting does, for a step that reboots its server.
   HostReboot reboot = 46;
+  // What a step that moves a database to a newer release does beside replacing
+  // its container, by a dump into a new volume (ADR 0080). Numbered in the
+  // updates area's block, 260 to 269.
+  DatabaseMove database_move = 260;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
@@ -1527,6 +1531,32 @@ message BackupFirst {
   // True when nothing could tell: there was no backup before, and measuring the
   // volume took too long. The time the step gets is a guess, and the plan says so.
   bool unmeasured = 6;
+}
+
+// DatabaseMove is what a step that moves a database to a newer release does
+// (ADR 0080): it stops what else of its app runs on the server, dumps the
+// database, loads the dump into the new release on a new volume, checks that it
+// starts there and answers, then replaces the container and starts what stopped.
+// The volume the data was on stays as it was, so undo puts the old release back
+// on it.
+message DatabaseMove {
+  // The dump's ID, kept as a backup of from_volume.
+  string backup_id = 1;
+  // The database, such as "PostgreSQL".
+  string database = 2;
+  // The release series it moves from and to, such as "16" and "17".
+  string from_series = 3;
+  string to_series = 4;
+  // The volume its data is on now, which stays as it is, and the new one.
+  string from_volume = 5;
+  string to_volume = 6;
+  // What else stops while it moves: services by name, and anything else by its
+  // container's.
+  repeated string stops = 7;
+  // About how large the dump will be, in bytes.
+  int64 estimate_bytes = 8;
+  // True when nothing could tell, so the time the step gets is a guess.
+  bool unmeasured = 9;
 }
 
 // SharedName is a name more than one container answers to on a network.

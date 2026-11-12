@@ -7724,6 +7724,9 @@ msgstr "From <0>{from}</0> to <1>{to}</1>"
 msgid "How the update is going"
 msgstr "How the update is going"
 
+msgid "Move the data"
+msgstr "Move the data"
+
 msgid "Pull the image"
 msgstr "Pull the image"
 

@@ -4634,8 +4634,8 @@ paths:
                 UpgradeService plans updating a service to a newer version of what it runs,
                  safe by default: a backup of each volume it mounts first, the image pulled
                  before anything stops, room for it on the server checked first, a database's
-                 major release refused as a plain swap, and the health-gated rollout that
-                 rolls back on its own. A service of a catalog install upgrades its install to
+                 major release moved by a dump into a new volume, never as a plain swap, and the
+                 health-gated rollout that rolls back on its own. A service of a catalog install upgrades its install to
                  the newer release, as UpgradeCatalogInstall plans it. Like DeployService, it
                  needs no one to read the service's environment back. See
                  docs/adr/0080-updating-an-app-safely-and-automatically.md.
@@ -9583,6 +9583,45 @@ components:
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
+        DatabaseMove:
+            type: object
+            properties:
+                backupId:
+                    type: string
+                    description: The dump's ID, kept as a backup of from_volume.
+                database:
+                    type: string
+                    description: The database, such as "PostgreSQL".
+                fromSeries:
+                    type: string
+                    description: The release series it moves from and to, such as "16" and "17".
+                toSeries:
+                    type: string
+                fromVolume:
+                    type: string
+                    description: The volume its data is on now, which stays as it is, and the new one.
+                toVolume:
+                    type: string
+                stops:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What else stops while it moves: services by name, and anything else by its
+                         container's.
+                estimateBytes:
+                    type: string
+                    description: About how large the dump will be, in bytes.
+                unmeasured:
+                    type: boolean
+                    description: True when nothing could tell, so the time the step gets is a guess.
+            description: |-
+                DatabaseMove is what a step that moves a database to a newer release does
+                 (ADR 0080): it stops what else of its app runs on the server, dumps the
+                 database, loads the dump into the new release on a new volume, checks that it
+                 starts there and answers, then replaces the container and starts what stopped.
+                 The volume the data was on stays as it was, so undo puts the old release back
+                 on it.
         DatabaseReading:
             type: object
             properties:
@@ -15314,6 +15353,13 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/HostReboot'
                     description: What rebooting does, for a step that reboots its server.
+                databaseMove:
+                    allOf:
+                        - $ref: '#/components/schemas/DatabaseMove'
+                    description: |-
+                        What a step that moves a database to a newer release does beside replacing
+                         its container, by a dump into a new volume (ADR 0080). Numbered in the
+                         updates area's block, 260 to 269.
             description: PlanStep is what applying does to one resource on one server.
         PlanSummary:
             type: object

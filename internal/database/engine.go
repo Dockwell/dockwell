@@ -225,9 +225,13 @@ func Recognise(image string) *Engine {
 type Found struct {
 	Engine *Engine
 	// Volume holds its data, by name, and External says Dockwell didn't make it.
-	// Empty when nothing does.
+	// Empty when nothing does. Target is where it's mounted.
 	Volume   string
 	External bool
+	Target   string
+	// Moved says its spec puts the data somewhere of its own, by its variable or a
+	// flag, not where its image keeps it.
+	Moved bool
 	// Port is what it listens on in its container.
 	Port uint32
 	// PasswordSecret is the environment's secret its first user's password is in,
@@ -265,8 +269,9 @@ func FromSpec(svc *resourcev1.Service) (Found, bool) {
 		m = dataMount(app.GetMounts(), old, e.Volume(1))
 	}
 	if m != nil {
-		f.Volume, f.External = m.GetVolume(), m.GetExternal()
+		f.Volume, f.External, f.Target = m.GetVolume(), m.GetExternal(), path.Clean(m.GetTarget())
 	}
+	f.Moved = moved
 	if p := PortOf(e, app.GetCommand()); p != 0 {
 		f.Port = p
 	}

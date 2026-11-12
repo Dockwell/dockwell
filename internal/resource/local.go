@@ -42,6 +42,9 @@ type Desired struct {
 	// Backup backs up the resource's data as a step of this change. Its kind is a
 	// BackerUp.
 	Backup *BackupAsked
+	// Move moves the database a service runs to a newer release, by a dump into a
+	// new volume, as its step replaces its container. Its kind is a Mover.
+	Move *MoveAsked
 	// Install installs the server's updates as a step of this change. Its kind is
 	// an Installer.
 	Install *InstallAsked
@@ -52,6 +55,16 @@ type Desired struct {
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
 type BackupAsked struct {
 	ID string
+}
+
+// MoveAsked is a database a change moves to a newer release on a server, by a dump
+// of the release it runs, kept as a backup of the volume From under the ID Backup,
+// loaded into the new release on the volume To (ADR 0080). From and To are volumes
+// of the service's environment, by name, and FromID is From's resource ID, which
+// the backup is recorded against.
+type MoveAsked struct {
+	Server, Backup   string
+	From, FromID, To string
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -286,7 +299,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Install: want.Install, Reboot: want.Reboot}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -378,6 +391,16 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			}
 			steps = append(steps, step)
 			continue
+		}
+		// A move that's done has replaced what runs, so only a replace has one to do.
+		if want.Move != nil && step.Action == ActionReplace {
+			m, ok := d.(Mover)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't move a database to a new release", want.Ref)
+			}
+			if step.Decision, err = m.JudgeMove(ctx, want.Ref, step, spec, *want.Move); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
 		}
 		if want.Backup != nil && step.Action == ActionNone {
 			b, ok := d.(BackerUp)

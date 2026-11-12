@@ -216,8 +216,9 @@ jobs:
   docker-e2e:
     name: Service end to end on Docker
     runs-on: ubuntu-24.04
-    # About 18 minutes on 2026-11-07, and it grows with each feature, so this leaves room for a slow runner.
-    timeout-minutes: 35
+    # About 29 minutes on 2026-11-12, before it moved PostgreSQL, MySQL and MariaDB to new
+    # releases, and it grows with each feature, so this leaves room for a slow runner.
+    timeout-minutes: 45
     # A service through the CLI end to end, beside docker compose (ADR 0021), and
     # the ingress in its container on 80 and 443, with a real certificate from
     # Pebble, which the script fetches (ADR 0024), with Dockwell as root, as on a

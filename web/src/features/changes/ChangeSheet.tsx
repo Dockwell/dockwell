@@ -161,6 +161,8 @@ export interface PlanChoice {
   /** Why it can't be flipped, for someone whose role doesn't cover the other plan (ADR 0059). It says so in place of the description. */
   off?: string;
   flip: () => Opening;
+  /** Says the plan has no use for it, so the switch goes: a database's move takes its dump whatever a backup's switch says. */
+  moot?: (plan: Plan | undefined) => boolean;
 }
 
 /**
@@ -896,7 +898,9 @@ function ChangeSheet({
       <span className="dw-sr" role="status">
         {phase === "applying" || phase === "arrived" ? title : ""}
       </span>
-      {opening.choice && (phase === "planning" || phase === "review" || phase === "unplanned") ? (
+      {opening.choice &&
+      !opening.choice.moot?.(plan) &&
+      (phase === "planning" || phase === "review" || phase === "unplanned") ? (
         <PlanChoiceSwitch choice={opening.choice} onFlip={() => open(opening.choice?.flip() ?? opening)} />
       ) : null}
       <PlanBody

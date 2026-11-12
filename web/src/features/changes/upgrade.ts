@@ -13,8 +13,12 @@ import {
 
 import { intentOf } from "./plan";
 
-/** What a person follows an update by, in the order it goes (ADR 0080). */
-export type UpgradePhaseKey = "backup" | "pull" | "start" | "check";
+/**
+ * What a person follows an update by, in the order it goes (ADR 0080). A database's
+ * move to a newer release pulls first, then moves the data by a dump into a new
+ * volume, before its start.
+ */
+export type UpgradePhaseKey = "backup" | "move" | "pull" | "start" | "check";
 
 /** How far a phase is. */
 export type UpgradePhaseState = "queued" | "current" | "done" | "failed";
@@ -73,11 +77,12 @@ function failedIn(reason: string): UpgradePhaseKey {
 }
 
 const ORDER: readonly UpgradePhaseKey[] = ["backup", "pull", "start", "check"];
+const MOVE_ORDER: readonly UpgradePhaseKey[] = ["pull", "move", "start", "check"];
 
-function phaseKey(phase: StepPhase): UpgradePhaseKey | undefined {
+function phaseKey(phase: StepPhase, moving: boolean): UpgradePhaseKey | undefined {
   switch (phase) {
     case StepPhase.BACKING_UP:
-      return "backup";
+      return moving ? "move" : "backup";
     case StepPhase.PULLING:
       return "pull";
     case StepPhase.STARTING:
@@ -93,10 +98,16 @@ interface Stepped {
   progress: StepProgress | undefined;
 }
 
+/** Whether a plan moves a database to a newer release, by a dump into a new volume (ADR 0080). */
+export function movesDatabase(plan: Plan | undefined): boolean {
+  return (plan?.servers ?? []).some((server) => server.steps.some((step) => step.databaseMove !== undefined));
+}
+
 /**
  * The phases of an update, from its plan and how its steps are going: a backup
  * first where it takes one, then the pull, the start and the health check of what
- * it replaces. A plan not yet applied has them all to come.
+ * it replaces. A database's move pulls, then moves its data, which is its backup,
+ * then starts. A plan not yet applied has them all to come.
  */
 export function upgradePhases(plan: Plan | undefined, change: Change | undefined): UpgradePhase[] {
   const progress = change?.steps ?? [];
@@ -108,8 +119,10 @@ export function upgradePhases(plan: Plan | undefined, change: Change | undefined
   );
   const backups = steps.filter((s) => s.plan.backupFirst !== undefined);
   const services = steps.filter((s) => s.plan.resource?.kind === "service");
+  const moving = movesDatabase(plan);
+  const order = moving ? MOVE_ORDER : ORDER;
   const out: UpgradePhase[] = [];
-  if (backups.length > 0) {
+  if (backups.length > 0 && !moving) {
     const states = backups.map((s) => s.progress?.state);
     const running = backups.find((s) => s.progress?.state === StepState.RUNNING);
     out.push({
@@ -130,14 +143,14 @@ export function upgradePhases(plan: Plan | undefined, change: Change | undefined
   const at = failed
     ? failedIn(failed.progress?.reason ?? "")
     : running
-      ? (phaseKey(running.progress?.phase ?? StepPhase.UNSPECIFIED) ?? "pull")
+      ? (phaseKey(running.progress?.phase ?? StepPhase.UNSPECIFIED, moving) ?? "pull")
       : undefined;
-  for (const key of ORDER.slice(1)) {
+  for (const key of moving ? order : order.slice(1)) {
     let state: UpgradePhaseState = "queued";
     if (allDone) state = "done";
     else if (at) {
-      const here = ORDER.indexOf(key);
-      const there = ORDER.indexOf(at);
+      const here = order.indexOf(key);
+      const there = order.indexOf(at);
       state = here < there ? "done" : here === there ? (failed ? "failed" : "current") : "queued";
     }
     const phase: UpgradePhase = { key, state };

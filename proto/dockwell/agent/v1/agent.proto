@@ -1906,6 +1906,20 @@ message DesiredResource {
   // agent reboots at most once for that change, as a mark it keeps says, and
   // plans nothing once it runs on another boot.
   string reboot = 233;
+  // Moves the database a service runs to a newer release, by a dump into a new
+  // volume, as its step replaces its container (ADR 0080). Numbered in the updates
+  // area's block, 260 to 269.
+  MoveDatabase move_database = 260;
+}
+
+// MoveDatabase is a database a change moves to a newer release on a server.
+message MoveDatabase {
+  // The ID the dump is kept under, as a backup of from_volume.
+  string backup_id = 1;
+  // The volume its data is on now, and the one it moves to, by name, in the
+  // service's environment.
+  string from_volume = 2;
+  string to_volume = 3;
 }
 
 // InstallUpdates asks a server's host to install its updates.

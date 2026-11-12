@@ -13,7 +13,7 @@ import { installIn, useInstalls } from "../catalog/useCatalog";
 import { type Opening, type PlanChoice, useChangeSheet } from "../changes/ChangeSheet";
 import { followChange } from "../changes/follow";
 import { UpgradeLine, UpgradePhases } from "../changes/UpgradeLead";
-import { upgradeOf, upgradePhases, upgradeTo } from "../changes/upgrade";
+import { movesDatabase, upgradeOf, upgradePhases, upgradeTo } from "../changes/upgrade";
 import { environmentOf } from "./app";
 import { useServices } from "./useServices";
 import "../changes/Upgrade.css";
@@ -59,6 +59,7 @@ export function useUpgrade(service: ServiceInfo): Upgrade {
         ? t`Backs up ${names} before anything changes`
         : t`Undo won't bring back what it changes in ${names}`,
       flip: () => opening(image, !backup),
+      moot: movesDatabase,
     };
     return {
       kind: "plan",

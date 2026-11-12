@@ -169,6 +169,42 @@ volumes:
 	if got := b.e.Newest(docker.Project(env), "db").Config.Image; got != "postgres:16.4" || b.e.Pulls != pulls {
 		t.Errorf("a database's major release was taken on its own: it runs %s", got)
 	}
+	// Nor another release series that its version's numbers call minor, as MySQL 8.0
+	// to 8.4 is, which moves its data by a dump.
+	b.e.Registry["mysql:8.0.36"] = dockertest.Image{Volumes: []string{"/var/lib/mysql"}, Config: docker.Config{Cmd: []string{"mysqld"}, Env: []string{"MYSQL_MAJOR=8.0"}}}
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: `name: books
+services:
+  ledger:
+    image: mysql:8.0.36
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+    volumes:
+      - data:/var/lib/mysql
+volumes:
+  data: {}
+`})
+	ledger := b.service(t, "books", "ledger")
+	b.setAutoUpdate(t, ledger, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_ANY, At: "03:00", TimeZone: "UTC"})
+	r.Updates = &newer{found: map[string]services.Newer{ledger.GetId(): {Image: "mysql:8.4.3", Kind: "minor"}}}
+	planned := &countingPlanner{Planner: r.Planner}
+	r.Planner = planned
+	if err := r.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if planned.n != 0 {
+		t.Errorf("MySQL 8.0's move to 8.4 was planned on its own, %d times", planned.n)
+	}
+}
+
+// countingPlanner counts the updates a runner plans.
+type countingPlanner struct {
+	autoupdate.Planner
+	n int
+}
+
+func (c *countingPlanner) UpgradeService(ctx context.Context, req *connect.Request[dockwellv1.UpgradeServiceRequest]) (*connect.Response[dockwellv1.UpgradeServiceResponse], error) {
+	c.n++
+	return c.Planner.UpgradeService(ctx, req)
 }
 
 // An admin's default for new apps' automatic updates goes to an app a change

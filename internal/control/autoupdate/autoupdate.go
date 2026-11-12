@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -232,12 +233,12 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	if !service.Takes(a.GetLevel(), kind) {
 		return nil
 	}
-	// A database's major release is never taken on its own: the plan would refuse a
-	// plain swap anyway, and the safe move is a person's to start.
-	if kind == "major" {
-		if _, db := database.FromSpec(d.spec); db {
-			return nil
-		}
+	// A database's major release is never taken on its own, nor a move of its data to
+	// another release series, which a version's numbers can call minor, as MySQL 8.0
+	// to 8.4: the move by a dump keeps its app down for it, and is a person's to start
+	// (ADR 0080).
+	if _, db := database.FromSpec(d.spec); db && (kind == "major" || movesData(d, newer.Image)) {
+		return nil
 	}
 	// What a window left for a person goes once the next window plans again.
 	if d.tried.Change != "" {
@@ -296,6 +297,21 @@ func (r *Runner) movedBy(ctx context.Context, d *due, image string) string {
 		return "patch"
 	}
 	return "major"
+}
+
+// movesData says updating a database to image moves its data to another release
+// series, as its tags say.
+func movesData(d *due, image string) bool {
+	if image == "" {
+		return false
+	}
+	to, ok := proto.Clone(d.spec).(*resourcev1.Service)
+	if !ok || to.GetApp() == nil {
+		return false
+	}
+	to.GetApp().Image = image
+	move, err := database.MoveOf(d.name, d.spec, to)
+	return err != nil || move != nil && move.Dumps
 }
 
 // needsPerson says a plan asks for a person: one that destroys data, lets two
