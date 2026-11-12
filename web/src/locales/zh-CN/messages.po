@@ -636,6 +636,9 @@ msgstr "{volume} 的一个备份未能检查"
 msgid "A change failed: {subject}"
 msgstr "变更失败：{subject}"
 
+msgid "A major update of {subject} is out: {where}"
+msgstr "{subject} 有主要版本更新：{where}"
+
 msgid "A scheduled task failed"
 msgstr "某个计划任务失败了"
 
@@ -668,6 +671,9 @@ msgstr "用身份验证器验证码登录后添加了通行密钥 {name}"
 
 msgid "Alert opened: {title}"
 msgstr "告警触发：{title}"
+
+msgid "An update of {subject} is out: {where}"
+msgstr "{subject} 有可用更新：{where}"
 
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
@@ -1759,6 +1765,9 @@ msgstr "{watching, plural, other {# 条规则在监视 · 还没有发送渠道}
 msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
 msgstr "{watching, plural, other {# 条规则在监视}}"
 
+msgid "Any update"
+msgstr "任何更新"
+
 msgid "At once"
 msgstr "立即"
 
@@ -1779,6 +1788,9 @@ msgstr "持续"
 
 msgid "How much it matters"
 msgstr "严重程度"
+
+msgid "Majors only"
+msgstr "仅主要版本"
 
 msgid "Never"
 msgstr "从不"
@@ -1815,6 +1827,9 @@ msgstr "在此时间内到期"
 
 msgid "When memory in use is over"
 msgstr "内存使用超过"
+
+msgid "Which updates"
+msgstr "哪些更新"
 
 msgid "While it lasts, say it again"
 msgstr "持续期间再次发送"
@@ -2800,6 +2815,7 @@ msgstr "{away} 重新连接前无法确定"
 msgid "Unknown, as putting it back failed"
 msgstr "未知，因为恢复失败了"
 
+#. placeholder {0}: a.toVersion
 #. placeholder {0}: newer.release
 #. placeholder {0}: runtime.release
 msgid "Update to {0}"
@@ -2911,9 +2927,6 @@ msgstr "添加卷或挂载"
 
 msgid "Any status from 200 to 399 passes."
 msgstr "200 到 399 之间的任何状态码都算通过。"
-
-msgid "Any update"
-msgstr "任何更新"
 
 msgid "Automatic updates"
 msgstr "自动更新"
@@ -3397,6 +3410,9 @@ msgstr "{moving} 个正在部署"
 
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, other {# 个需要查看}}"
+
+msgid "{updates, plural, one {# update available} other {# updates available}}"
+msgstr "{updates, plural, other {# 个可用更新}}"
 
 #. placeholder {0}: shownRepository(build.url)
 #. placeholder {1}: shownRef(build.ref)
@@ -4699,6 +4715,138 @@ msgstr "{revision} 于 {when}由 {name} 部署"
 
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} 于 {when}通过 {local} 上的命令行部署"
+
+msgid "Also"
+msgstr "另有"
+
+msgid "Built on its server, so no registry has newer versions"
+msgstr "在其服务器上构建，没有镜像仓库提供更新版本"
+
+msgid "Can't check: the image is private, or not on its registry"
+msgstr "无法检查：镜像为私有，或不在其镜像仓库中"
+
+msgid "Can't reach its registry from its server; checked again later"
+msgstr "其服务器无法连接镜像仓库；稍后会再次检查"
+
+msgid "Check now"
+msgstr "立即检查"
+
+#. placeholder {0}: time.ago(checked, now)
+#. placeholder {0}: words.ago(timestampDate(u.listsTime), now)
+msgid "Checked {0}"
+msgstr "{0}检查"
+
+msgid "Deploy the new commits"
+msgstr "部署新提交"
+
+msgid "Its registry asked Dockwell to wait; checked again later"
+msgstr "镜像仓库要求 Dockwell 稍候；稍后会再次检查"
+
+msgid "Its server is offline; checked when it's back"
+msgstr "其服务器离线；恢复后会检查"
+
+msgid "Its server's agent is too old to check; update the agent"
+msgstr "其服务器的代理版本过旧，无法检查；请更新代理"
+
+msgid "New build"
+msgstr "新构建"
+
+msgid "Not checked yet"
+msgstr "尚未检查"
+
+msgid "Not now"
+msgstr "暂不"
+
+msgid "Not running yet, so there's nothing to compare"
+msgstr "尚未运行，无从比较"
+
+msgctxt "release notes"
+msgid "Notes"
+msgstr "发布说明"
+
+msgid "Pull the new build"
+msgstr "拉取新构建"
+
+msgid "Review the change"
+msgstr "查看更改"
+
+msgid "Show again"
+msgstr "重新显示"
+
+#. placeholder {0}: a.toVersion
+msgid "Show {0} again"
+msgstr "重新显示 {0}"
+
+#. placeholder {0}: first.toVersion
+msgid "Skip {0}"
+msgstr "跳过 {0}"
+
+msgid "Skipped:"
+msgstr "已跳过："
+
+msgid "Snooze a day"
+msgstr "推迟一天"
+
+msgid "Snooze a month"
+msgstr "推迟一个月"
+
+msgid "Snooze a week"
+msgstr "推迟一周"
+
+#. placeholder {0}: formatDateTime(until, i18n.locale)
+msgid "Snoozed until {0}"
+msgstr "推迟至 {0}"
+
+msgid "Up to date"
+msgstr "已是最新"
+
+msgid "Update available"
+msgstr "有可用更新"
+
+#. placeholder {0}: stepOf(a)
+msgid "Update available: {0}, {kind}"
+msgstr "有可用更新：{0}，{kind}"
+
+msgid "Updates"
+msgstr "更新"
+
+msgid "Updates snoozed"
+msgstr "更新已推迟"
+
+msgctxt "update kind"
+msgid "catalog release"
+msgstr "目录发布"
+
+#. placeholder {0}: time.ago(found, now)
+msgid "found {0}"
+msgstr "{0}发现"
+
+msgctxt "update kind"
+msgid "major"
+msgstr "主要版本"
+
+msgctxt "update kind"
+msgid "minor"
+msgstr "次要版本"
+
+msgctxt "update kind"
+msgid "new build"
+msgstr "新构建"
+
+msgctxt "update kind"
+msgid "new commits"
+msgstr "新提交"
+
+#. placeholder {0}: time.span(Math.max(0, now - released.getTime()))
+msgid "out {0}"
+msgstr "已发布 {0}"
+
+msgctxt "update kind"
+msgid "patch"
+msgstr "补丁"
+
+msgid "{count, plural, one {# update} other {# updates}}"
+msgstr "{count, plural, other {# 个更新}}"
 
 msgid "Backs up {names} before anything changes"
 msgstr "在任何改动之前备份 {names}"
@@ -6451,9 +6599,6 @@ msgstr "来自应用目录"
 
 msgid "Its secrets"
 msgstr "它的密钥"
-
-msgid "Review the change"
-msgstr "查看更改"
 
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
@@ -10073,9 +10218,6 @@ msgstr "稍后，待 Dockwell 支持网站"
 msgid "Move in from 1Panel"
 msgstr "从 1Panel 迁入"
 
-msgid "Not now"
-msgstr "暂不"
-
 msgid "Nothing to plan now"
 msgstr "现在没有可计划的内容"
 
@@ -10681,6 +10823,9 @@ msgstr "此服务器上的应用"
 
 msgid "Apps on your servers"
 msgstr "你的服务器上的应用"
+
+msgid "{updates, plural, one {# update · Review} other {# updates · Review}}"
+msgstr "{updates, plural, other {# 个更新 · 查看}}"
 
 msgid "Kept"
 msgstr "保存位置"
@@ -12137,9 +12282,6 @@ msgstr "服务器 {0}"
 
 msgid "System services"
 msgstr "系统服务"
-
-msgid "Updates"
-msgstr "更新"
 
 msgid "Control server"
 msgstr "控制服务器"
@@ -14577,10 +14719,6 @@ msgstr "代理与控制平面"
 msgid "Asking {0}"
 msgstr "正在询问 {0}"
 
-#. placeholder {0}: words.ago(timestampDate(u.listsTime), now)
-msgid "Checked {0}"
-msgstr "{0}检查"
-
 msgid "Checking for updates"
 msgstr "正在检查更新"
 
@@ -14605,9 +14743,6 @@ msgstr "查看更新"
 
 msgid "This runs {version}. Its Updates tab says how to update"
 msgstr "当前运行 {version}。它的“更新”页说明了如何更新"
-
-msgid "Up to date"
-msgstr "已是最新"
 
 #. placeholder {0}: s.total
 msgid "{0, plural, one {# update, not for security} other {# updates, none for security}}"
@@ -14671,9 +14806,6 @@ msgstr "正在询问 {0} 有哪些待装更新…"
 
 msgid "By itself"
 msgstr "自动安装"
-
-msgid "Check now"
-msgstr "立即检查"
 
 msgid "Containers keep running"
 msgstr "容器保持运行"

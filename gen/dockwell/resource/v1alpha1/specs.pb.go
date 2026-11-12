@@ -680,6 +680,10 @@ const (
 	// A policy that drills has gone two of its periods without a drill that
 	// passed, whether its drills weren't checked or never ran (ADR 0068).
 	AlertRule_CONDITION_RESTORE_DRILL_LATE AlertRule_Condition = 21
+	// An app has an update that counts: newer than what it runs, not skipped,
+	// and not snoozed (ADR 0079). threshold 3 fires for a major alone; 0, for
+	// any. Numbered apart, as open work adds to this enum.
+	AlertRule_CONDITION_UPDATE_AVAILABLE AlertRule_Condition = 40
 )
 
 // Enum value maps for AlertRule_Condition.
@@ -698,6 +702,7 @@ var (
 		10: "CONDITION_CHECK_DOWN",
 		20: "CONDITION_RESTORE_DRILL_FAILED",
 		21: "CONDITION_RESTORE_DRILL_LATE",
+		40: "CONDITION_UPDATE_AVAILABLE",
 	}
 	AlertRule_Condition_value = map[string]int32{
 		"CONDITION_UNSPECIFIED":          0,
@@ -713,6 +718,7 @@ var (
 		"CONDITION_CHECK_DOWN":           10,
 		"CONDITION_RESTORE_DRILL_FAILED": 20,
 		"CONDITION_RESTORE_DRILL_LATE":   21,
+		"CONDITION_UPDATE_AVAILABLE":     40,
 	}
 )
 
@@ -4886,7 +4892,8 @@ type AlertRule struct {
 	// What it watches for.
 	Condition AlertRule_Condition `protobuf:"varint,1,opt,name=condition,proto3,enum=dockwell.resource.v1alpha1.AlertRule_Condition" json:"condition,omitempty"`
 	// The level, for a condition that has one: a percent for disk and memory, 1 to
-	// 100, and days for a certificate, 1 to 90. Others leave it 0.
+	// 100, days for a certificate, 1 to 90, and for an update, 3 for majors alone
+	// or 0 for any. Others leave it 0.
 	Threshold uint32 `protobuf:"varint,2,opt,name=threshold,proto3" json:"threshold,omitempty"`
 	// How long the condition holds before the alert fires, such as "5m". Empty
 	// fires at once. For a late backup, how long after its time a run may start.
@@ -6087,7 +6094,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\vTaskRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
-	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus\"\x99\x06\n" +
+	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus\"\xb9\x06\n" +
 	"\tAlertRule\x12M\n" +
 	"\tcondition\x18\x01 \x01(\x0e2/.dockwell.resource.v1alpha1.AlertRule.ConditionR\tcondition\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\rR\tthreshold\x12\x1a\n" +
@@ -6095,7 +6102,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bseverity\x18\x04 \x01(\x0e2..dockwell.resource.v1alpha1.AlertRule.SeverityR\bseverity\x12\x1a\n" +
 	"\bchannels\x18\x05 \x03(\tR\bchannels\x12\x16\n" +
 	"\x06repeat\x18\x06 \x01(\tR\x06repeat\x12\x1a\n" +
-	"\bdisabled\x18\a \x01(\bR\bdisabled\"\x93\x03\n" +
+	"\bdisabled\x18\a \x01(\bR\bdisabled\"\xb3\x03\n" +
 	"\tCondition\x12\x19\n" +
 	"\x15CONDITION_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16CONDITION_SERVICE_DOWN\x10\x01\x12 \n" +
@@ -6110,7 +6117,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x14CONDITION_CHECK_DOWN\x10\n" +
 	"\x12\"\n" +
 	"\x1eCONDITION_RESTORE_DRILL_FAILED\x10\x14\x12 \n" +
-	"\x1cCONDITION_RESTORE_DRILL_LATE\x10\x15\"Q\n" +
+	"\x1cCONDITION_RESTORE_DRILL_LATE\x10\x15\x12\x1e\n" +
+	"\x1aCONDITION_UPDATE_AVAILABLE\x10(\"Q\n" +
 	"\bSeverity\x12\x18\n" +
 	"\x14SEVERITY_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SEVERITY_WARNING\x10\x01\x12\x15\n" +

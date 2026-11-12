@@ -95,6 +95,9 @@ type Keeper struct {
 	askedAt map[string]time.Time
 	// limits holds off a registry from a server, by server and registry.
 	limits map[string]holdOff
+	// counted is what Counting found last, and when.
+	counted   []Counted
+	countedAt time.Time
 	// catalog is what the catalog said last, and when.
 	catalog   map[string]CatalogInstall
 	catalogAt time.Time

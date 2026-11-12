@@ -3,11 +3,13 @@
 package control
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -15,8 +17,10 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
+	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -239,3 +243,63 @@ func TestAppUpdatesKeepToAPersonsProjects(t *testing.T) {
 }
 
 func second[T any](_ T, err error) error { return err }
+
+// The update-available rule starts off, and once on, sends an app's update
+// once, for a major alone where it says so, and resolves once the app has none
+// that counts (ADR 0079).
+func TestAnUpdateIsSentOnceItsRuleIsOn(t *testing.T) {
+	h := newHook(t)
+	f, c, _ := evalStand(t, h.srv.URL+"/hook")
+	at := &clock{now: time.Now()}
+	found := []alerts.AppUpdate{
+		{ServiceID: "svc_db", Name: "db", From: "16.3", To: "17.2", Major: true, Kind: "a major update"},
+		{ServiceID: "svc_web", Name: "web", From: "1.27.3", To: "1.27.4", Kind: "a patch"},
+	}
+	e := evaluatorOn(f, at)
+	e.Updates = func(context.Context) ([]alerts.AppUpdate, error) { return found, nil }
+	tickOn(t, e)
+	if got := h.of("update-available"); len(got) != 0 {
+		t.Fatalf("a rule that's off sent %q", got)
+	}
+	turnOn := func(threshold uint32) {
+		t.Helper()
+		apply(t, c, propose(t, c, "Tell of updates", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(alert.RuleKind), Name: "update-available"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_AlertRule{AlertRule: &resourcev1.AlertRule{
+				Condition: resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE, Threshold: threshold, Severity: resourcev1.AlertRule_SEVERITY_WARNING,
+			}}},
+		}))
+	}
+	turnOn(alert.MajorsOnly)
+	ticks := func(n int) {
+		for range n {
+			tickOn(t, e)
+			at.add(alerts.Every)
+		}
+	}
+	ticks(12)
+	var open []string
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		alerted, err := tx.OpenAlerts(t.Context())
+		for i := range alerted {
+			if alerted[i].RuleName == "update-available" {
+				open = append(open, alerted[i].Thing+" "+alerted[i].Title)
+			}
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(open, ", ") != "update:svc_db db can move to 17.2" {
+		t.Errorf("for majors alone, open = %q", open)
+	}
+	if got := h.of("update-available"); len(got) != 1 || !strings.HasPrefix(got[0], "firing:") {
+		t.Errorf("sent %q, want one firing message", got)
+	}
+	// Updated, skipped or snoozed, it has none that counts, and resolves.
+	found = nil
+	ticks(12)
+	if got := h.of("update-available"); len(got) != 2 || !strings.HasPrefix(got[1], "resolved:") {
+		t.Errorf("sent %q, want firing then resolved", got)
+	}
+}

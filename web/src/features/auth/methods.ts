@@ -194,10 +194,10 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   // Asked by name before Update is offered, from the app's page and the catalog's (ADR 0080).
   "ServiceService.upgradeService": "may",
 
-  "ServiceUpdateService.checkServiceUpdates": "unused",
+  "ServiceUpdateService.checkServiceUpdates": "may",
   "ServiceUpdateService.listServiceUpdates": "unused",
-  "ServiceUpdateService.skipServiceUpdate": "unused",
-  "ServiceUpdateService.snoozeServiceUpdates": "unused",
+  "ServiceUpdateService.skipServiceUpdate": "may",
+  "ServiceUpdateService.snoozeServiceUpdates": "may",
 
   "SettingsService.checkPanelDomain": "may",
   "SettingsService.createPanelSignInLink": "may",

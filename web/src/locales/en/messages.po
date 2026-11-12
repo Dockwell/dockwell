@@ -636,6 +636,9 @@ msgstr "A backup of {volume} wasn't checked"
 msgid "A change failed: {subject}"
 msgstr "A change failed: {subject}"
 
+msgid "A major update of {subject} is out: {where}"
+msgstr "A major update of {subject} is out: {where}"
+
 msgid "A scheduled task failed"
 msgstr "A scheduled task failed"
 
@@ -668,6 +671,9 @@ msgstr "Added the passkey {name} after signing in with an authenticator code"
 
 msgid "Alert opened: {title}"
 msgstr "Alert opened: {title}"
+
+msgid "An update of {subject} is out: {where}"
+msgstr "An update of {subject} is out: {where}"
 
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "Asked for a passkey to apply {change}, and none came"
@@ -1759,6 +1765,9 @@ msgstr "{watching, plural, one {# rule watching · nowhere to send yet} other {#
 msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
 msgstr "{watching, plural, one {# rule watching} other {# rules watching}}"
 
+msgid "Any update"
+msgstr "Any update"
+
 msgid "At once"
 msgstr "At once"
 
@@ -1779,6 +1788,9 @@ msgstr "For"
 
 msgid "How much it matters"
 msgstr "How much it matters"
+
+msgid "Majors only"
+msgstr "Majors only"
 
 msgid "Never"
 msgstr "Never"
@@ -1815,6 +1827,9 @@ msgstr "When it expires within"
 
 msgid "When memory in use is over"
 msgstr "When memory in use is over"
+
+msgid "Which updates"
+msgstr "Which updates"
 
 msgid "While it lasts, say it again"
 msgstr "While it lasts, say it again"
@@ -2800,6 +2815,7 @@ msgstr "Unknown until {away} reconnects"
 msgid "Unknown, as putting it back failed"
 msgstr "Unknown, as putting it back failed"
 
+#. placeholder {0}: a.toVersion
 #. placeholder {0}: newer.release
 #. placeholder {0}: runtime.release
 msgid "Update to {0}"
@@ -2911,9 +2927,6 @@ msgstr "Add a volume or mount"
 
 msgid "Any status from 200 to 399 passes."
 msgstr "Any status from 200 to 399 passes."
-
-msgid "Any update"
-msgstr "Any update"
 
 msgid "Automatic updates"
 msgstr "Automatic updates"
@@ -3397,6 +3410,9 @@ msgstr "{moving} deploying"
 
 msgid "{needing, plural, one {# needs a look} other {# need a look}}"
 msgstr "{needing, plural, one {# needs a look} other {# need a look}}"
+
+msgid "{updates, plural, one {# update available} other {# updates available}}"
+msgstr "{updates, plural, one {# update available} other {# updates available}}"
 
 #. placeholder {0}: shownRepository(build.url)
 #. placeholder {1}: shownRef(build.ref)
@@ -4699,6 +4715,138 @@ msgstr "{revision} deployed {when} by {name}"
 
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} deployed {when} from the CLI on {local}"
+
+msgid "Also"
+msgstr "Also"
+
+msgid "Built on its server, so no registry has newer versions"
+msgstr "Built on its server, so no registry has newer versions"
+
+msgid "Can't check: the image is private, or not on its registry"
+msgstr "Can't check: the image is private, or not on its registry"
+
+msgid "Can't reach its registry from its server; checked again later"
+msgstr "Can't reach its registry from its server; checked again later"
+
+msgid "Check now"
+msgstr "Check now"
+
+#. placeholder {0}: time.ago(checked, now)
+#. placeholder {0}: words.ago(timestampDate(u.listsTime), now)
+msgid "Checked {0}"
+msgstr "Checked {0}"
+
+msgid "Deploy the new commits"
+msgstr "Deploy the new commits"
+
+msgid "Its registry asked Dockwell to wait; checked again later"
+msgstr "Its registry asked Dockwell to wait; checked again later"
+
+msgid "Its server is offline; checked when it's back"
+msgstr "Its server is offline; checked when it's back"
+
+msgid "Its server's agent is too old to check; update the agent"
+msgstr "Its server's agent is too old to check; update the agent"
+
+msgid "New build"
+msgstr "New build"
+
+msgid "Not checked yet"
+msgstr "Not checked yet"
+
+msgid "Not now"
+msgstr "Not now"
+
+msgid "Not running yet, so there's nothing to compare"
+msgstr "Not running yet, so there's nothing to compare"
+
+msgctxt "release notes"
+msgid "Notes"
+msgstr "Notes"
+
+msgid "Pull the new build"
+msgstr "Pull the new build"
+
+msgid "Review the change"
+msgstr "Review the change"
+
+msgid "Show again"
+msgstr "Show again"
+
+#. placeholder {0}: a.toVersion
+msgid "Show {0} again"
+msgstr "Show {0} again"
+
+#. placeholder {0}: first.toVersion
+msgid "Skip {0}"
+msgstr "Skip {0}"
+
+msgid "Skipped:"
+msgstr "Skipped:"
+
+msgid "Snooze a day"
+msgstr "Snooze a day"
+
+msgid "Snooze a month"
+msgstr "Snooze a month"
+
+msgid "Snooze a week"
+msgstr "Snooze a week"
+
+#. placeholder {0}: formatDateTime(until, i18n.locale)
+msgid "Snoozed until {0}"
+msgstr "Snoozed until {0}"
+
+msgid "Up to date"
+msgstr "Up to date"
+
+msgid "Update available"
+msgstr "Update available"
+
+#. placeholder {0}: stepOf(a)
+msgid "Update available: {0}, {kind}"
+msgstr "Update available: {0}, {kind}"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Updates snoozed"
+msgstr "Updates snoozed"
+
+msgctxt "update kind"
+msgid "catalog release"
+msgstr "catalog release"
+
+#. placeholder {0}: time.ago(found, now)
+msgid "found {0}"
+msgstr "found {0}"
+
+msgctxt "update kind"
+msgid "major"
+msgstr "major"
+
+msgctxt "update kind"
+msgid "minor"
+msgstr "minor"
+
+msgctxt "update kind"
+msgid "new build"
+msgstr "new build"
+
+msgctxt "update kind"
+msgid "new commits"
+msgstr "new commits"
+
+#. placeholder {0}: time.span(Math.max(0, now - released.getTime()))
+msgid "out {0}"
+msgstr "out {0}"
+
+msgctxt "update kind"
+msgid "patch"
+msgstr "patch"
+
+msgid "{count, plural, one {# update} other {# updates}}"
+msgstr "{count, plural, one {# update} other {# updates}}"
 
 msgid "Backs up {names} before anything changes"
 msgstr "Backs up {names} before anything changes"
@@ -6451,9 +6599,6 @@ msgstr "From the catalog"
 
 msgid "Its secrets"
 msgstr "Its secrets"
-
-msgid "Review the change"
-msgstr "Review the change"
 
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
@@ -10073,9 +10218,6 @@ msgstr "Later, once Dockwell has websites"
 msgid "Move in from 1Panel"
 msgstr "Move in from 1Panel"
 
-msgid "Not now"
-msgstr "Not now"
-
 msgid "Nothing to plan now"
 msgstr "Nothing to plan now"
 
@@ -10681,6 +10823,9 @@ msgstr "Apps on this server"
 
 msgid "Apps on your servers"
 msgstr "Apps on your servers"
+
+msgid "{updates, plural, one {# update · Review} other {# updates · Review}}"
+msgstr "{updates, plural, one {# update · Review} other {# updates · Review}}"
 
 msgid "Kept"
 msgstr "Kept"
@@ -12137,9 +12282,6 @@ msgstr "Server {0}"
 
 msgid "System services"
 msgstr "System services"
-
-msgid "Updates"
-msgstr "Updates"
 
 msgid "Control server"
 msgstr "Control server"
@@ -14577,10 +14719,6 @@ msgstr "Agent and control plane"
 msgid "Asking {0}"
 msgstr "Asking {0}"
 
-#. placeholder {0}: words.ago(timestampDate(u.listsTime), now)
-msgid "Checked {0}"
-msgstr "Checked {0}"
-
 msgid "Checking for updates"
 msgstr "Checking for updates"
 
@@ -14605,9 +14743,6 @@ msgstr "Review updates"
 
 msgid "This runs {version}. Its Updates tab says how to update"
 msgstr "This runs {version}. Its Updates tab says how to update"
-
-msgid "Up to date"
-msgstr "Up to date"
 
 #. placeholder {0}: s.total
 msgid "{0, plural, one {# update, not for security} other {# updates, none for security}}"
@@ -14671,9 +14806,6 @@ msgstr "Asking {0} which updates wait…"
 
 msgid "By itself"
 msgstr "By itself"
-
-msgid "Check now"
-msgstr "Check now"
 
 msgid "Containers keep running"
 msgstr "Containers keep running"

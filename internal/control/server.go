@@ -517,6 +517,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Fleet != nil {
 			(*alertsOut).Fleet = cfg.Fleet
 		}
+		if keeper := *updatesOut; keeper != nil {
+			(*alertsOut).Updates = appUpdates(keeper)
+		}
 		handle(dockwellv1connect.NewAlertServiceHandler(alerts.New(*alertsOut, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
@@ -958,5 +961,35 @@ func serverID(hub *fleet.Hub) func(named string) (string, error) {
 			}
 		}
 		return "", connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", named))
+	}
+}
+
+// updateWords say each kind of update in a message.
+var updateWords = map[dockwellv1.UpdateKind]string{
+	dockwellv1.UpdateKind_UPDATE_KIND_PATCH:   "a patch",
+	dockwellv1.UpdateKind_UPDATE_KIND_MINOR:   "a minor update",
+	dockwellv1.UpdateKind_UPDATE_KIND_MAJOR:   "a major update",
+	dockwellv1.UpdateKind_UPDATE_KIND_DIGEST:  "a new build of the same tag",
+	dockwellv1.UpdateKind_UPDATE_KIND_RELEASE: "a catalog release",
+	dockwellv1.UpdateKind_UPDATE_KIND_COMMIT:  "new commits",
+}
+
+// appUpdates says which apps have an update that counts, as the alerts read it
+// (ADR 0079).
+func appUpdates(keeper *serviceupdates.Keeper) func(ctx context.Context) ([]alerts.AppUpdate, error) {
+	return func(ctx context.Context) ([]alerts.AppUpdate, error) {
+		counted, err := keeper.Counting(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]alerts.AppUpdate, 0, len(counted))
+		for _, c := range counted {
+			o := c.Offer
+			out = append(out, alerts.AppUpdate{
+				ServiceID: c.ServiceID, Name: c.Name, ServerID: c.ServerID, From: o.GetFromVersion(), To: o.GetToVersion(),
+				Major: o.GetKind() == dockwellv1.UpdateKind_UPDATE_KIND_MAJOR, Kind: updateWords[o.GetKind()],
+			})
+		}
+		return out, nil
 	}
 }

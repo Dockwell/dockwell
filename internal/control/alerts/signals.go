@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
@@ -61,6 +62,8 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.drillsFailed(ctx)
 	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE:
 		return s.drillsLate(ctx)
+	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
+		return s.updates(ctx, r), nil
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
@@ -687,4 +690,52 @@ func sentence(s string) string {
 		s = s[:len(s)-1]
 	}
 	return s
+}
+
+// AppUpdate is an app with an update that counts: newer than what it runs, not
+// skipped and not snoozed (ADR 0079).
+type AppUpdate struct {
+	ServiceID, Name, ServerID string
+	// From and To are the versions it runs and would run, such as 16.3 and 16.4.
+	From, To string
+	// Major says the step moves the version's first number.
+	Major bool
+	// Kind is the step as a message says it, such as "a patch" or "a major
+	// update".
+	Kind string
+}
+
+// UpdatesThing starts the thing of every alert of an app's update.
+const UpdatesThing = "update:"
+
+// updates says of each app with an update that counts that its rule holds, for
+// a major alone where the rule says so. An app that has none, or no longer
+// does, as one updated, skipped or snoozed, isn't there, so its alert resolves.
+// While they can't be read, what's open stays open.
+func (s *signals) updates(ctx context.Context, r rule) []finding {
+	if s.e.Updates == nil {
+		return nil
+	}
+	found, err := s.e.Updates(ctx)
+	if err != nil {
+		return []finding{{thing: UpdatesThing, prefix: true, verdict: unknown}}
+	}
+	var out []finding
+	for _, u := range found {
+		if r.spec.GetThreshold() == alert.MajorsOnly && !u.Major {
+			continue
+		}
+		variant := "update"
+		if u.Major {
+			variant = "major"
+		}
+		f := finding{
+			thing: UpdatesThing + u.ServiceID, verdict: holds, serverID: u.ServerID, subjectID: u.ServiceID, subjectName: u.Name,
+			path: "/apps/" + u.ServiceID, facts: Facts{Variant: variant, Where: u.To},
+			title:  fmt.Sprintf("%s can move to %s", u.Name, u.To),
+			detail: fmt.Sprintf("%s runs %s, and %s is out, %s. Review it on the app's page, then update it, or skip that version.", u.Name, u.From, u.To, u.Kind),
+		}
+		out = append(out, f)
+	}
+	return out
 }

@@ -11,7 +11,7 @@ import { expectAccessible } from "../test/a11y";
 import { Button, ButtonLink } from "./Button/Button";
 import { Glyph } from "./Glyph/Glyph";
 import { Icon } from "./Icon/Icon";
-import { iconNames } from "./Icon/icons";
+import { iconNames, icons } from "./Icon/icons";
 import { Kbd } from "./Kbd/Kbd";
 import { Logo } from "./Logo/Logo";
 import { Panel } from "./Panel/Panel";
@@ -21,7 +21,7 @@ import { Tag } from "./Tag/Tag";
 
 describe("Icon", () => {
   it("draws every icon on the 24-unit grid", () => {
-    expect(iconNames).toHaveLength(66);
+    expect(iconNames).toHaveLength(67);
     for (const name of iconNames) {
       const { container, unmount } = render(<Icon name={name} />);
       const svg = container.querySelector("svg");
@@ -29,6 +29,40 @@ describe("Icon", () => {
       expect(svg?.childElementCount, name).toBeGreaterThan(0);
       unmount();
     }
+  });
+
+  // An arrow is one drawing, turned: the same shaft and head, inside the grid, so the
+  // arrows read as one set wherever they stand.
+  it("draws its arrows as one drawing turned", () => {
+    const points = (name: "arrow-right" | "arrow-left" | "arrow-up") => {
+      const attrs = icons[name][0]?.[1] as { d?: string } | undefined;
+      const d = attrs?.d ?? "";
+      expect(d, name).not.toBe("");
+      const out: string[] = [];
+      let x = 0;
+      let y = 0;
+      for (const [, cmd, args] of d.matchAll(/([MmLlHhVv])([^MmLlHhVv]*)/g)) {
+        const nums = (args?.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+        const step = cmd === "H" || cmd === "h" || cmd === "V" || cmd === "v" ? 1 : 2;
+        for (let i = 0; i < nums.length; i += step) {
+          const a = nums[i] ?? 0;
+          const b = nums[i + 1] ?? 0;
+          if (cmd === "M" || cmd === "L") [x, y] = [a, b];
+          else if (cmd === "m" || cmd === "l") [x, y] = [x + a, y + b];
+          else if (cmd === "H") x = a;
+          else if (cmd === "h") x += a;
+          else if (cmd === "V") y = a;
+          else y += a;
+          expect(x >= 0 && x <= 24 && y >= 0 && y <= 24, `${name} stays on the grid`).toBe(true);
+          out.push(`${x},${y}`);
+        }
+      }
+      return out.sort();
+    };
+    const right = points("arrow-right").map((p) => p.split(",").map(Number) as [number, number]);
+    // Up is right turned a quarter to the left; left is right mirrored.
+    expect(points("arrow-up")).toEqual(right.map(([x, y]) => `${y},${24 - x}`).sort());
+    expect(points("arrow-left")).toEqual(right.map(([x, y]) => `${24 - x},${y}`).sort());
   });
 
   it("is decorative unless labelled", () => {

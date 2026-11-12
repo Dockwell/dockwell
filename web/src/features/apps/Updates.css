@@ -1,0 +1,157 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* An update on a row: quiet, in the link's colour, beside what the app runs (ADR 0079). */
+.update-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--link);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
+/* A count is words, not a version. */
+.update-mark.is-count {
+  font-family: inherit;
+}
+
+.update-mark .dw-icon {
+  flex: none;
+}
+
+.update-mark-to {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14ch;
+}
+
+/* What runs, then its update, on one line under the app's name. */
+.update-runs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.update-runs > :first-child {
+  min-width: 0;
+}
+
+/* The card on an app's page. */
+.update-card .dw-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.update-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.update-offer.is-also {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.update-offer-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.update-step {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.update-offer.is-also .update-step {
+  font-size: 13px;
+}
+
+.update-kind.is-major {
+  color: var(--warning);
+}
+
+.update-also,
+.update-when {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.update-card p {
+  margin: 0;
+}
+
+.update-notes {
+  color: var(--link);
+  font-size: 13px;
+}
+
+/* Skip and snooze, one step away. */
+.update-more > summary {
+  cursor: pointer;
+  width: max-content;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.update-more > summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+.update-more-actions,
+.update-skipped {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-2);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.update-card.is-snoozed .update-step {
+  color: var(--ink-muted);
+}
+
+.update-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.update-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--healthy);
+}
+
+.update-failed {
+  color: var(--critical);
+  font-size: 12px;
+}
+
+/* The list's filter, beside the others. */
+.apps-updates-filter[aria-pressed="true"] {
+  color: var(--link);
+}

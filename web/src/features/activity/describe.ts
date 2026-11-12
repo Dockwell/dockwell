@@ -671,6 +671,10 @@ export function alertTitle(
       return i18n._(msg`The newest checked backup of ${subject} doesn't restore`);
     case AlertRule_Condition.RESTORE_DRILL_LATE:
       return i18n._(msg`No restore check of ${subject} has passed lately`);
+    case AlertRule_Condition.UPDATE_AVAILABLE:
+      return a.variant === "major"
+        ? i18n._(msg`A major update of ${subject} is out: ${where}`)
+        : i18n._(msg`An update of ${subject} is out: ${where}`);
   }
   return a.title;
 }

@@ -68,6 +68,17 @@
   margin-left: auto;
 }
 
+/* What's newer than what runs, before View all (ADR 0079). */
+.overview-section-head .overview-updates {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.overview-section-head .overview-updates + .overview-link {
+  margin-left: var(--space-3);
+}
+
 .overview-domain {
   display: flex;
   align-items: baseline;

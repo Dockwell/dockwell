@@ -282,9 +282,19 @@ func record(ctx context.Context, tx *store.Tx, action string, r store.Resource, 
 // rows are the services keep holds, each with its updates, by environment and
 // name.
 func (k *Keeper) rows(ctx context.Context, keep func(subject) bool) ([]*dockwellv1.ServiceUpdates, error) {
+	out, _, err := k.rowsWith(ctx, keep)
+	return out, err
+}
+
+// rowsWith is rows, with the server each service is checked through, by its ID.
+func (k *Keeper) rowsWith(ctx context.Context, keep func(subject) bool) ([]*dockwellv1.ServiceUpdates, map[string]string, error) {
 	subjects, _, err := k.load(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	homes := make(map[string]string, len(subjects))
+	for i := range subjects {
+		homes[subjects[i].ID] = subjects[i].home
 	}
 	var picked []subject
 	for i := range subjects {
@@ -298,7 +308,7 @@ func (k *Keeper) rows(ctx context.Context, keep func(subject) bool) ([]*dockwell
 	}
 	described, err := k.Describe(ctx, plain)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make([]*dockwellv1.ServiceUpdates, 0, len(picked))
 	for i := range picked {
@@ -313,7 +323,7 @@ func (k *Keeper) rows(ctx context.Context, keep func(subject) bool) ([]*dockwell
 	slices.SortFunc(out, func(a, b *dockwellv1.ServiceUpdates) int {
 		return cmp.Or(cmp.Compare(a.GetResource().GetScope(), b.GetResource().GetScope()), cmp.Compare(a.GetResource().GetName(), b.GetResource().GetName()))
 	})
-	return out, nil
+	return out, homes, nil
 }
 
 // one is a service's updates as they stand.
@@ -463,4 +473,52 @@ func (k *Keeper) Snoozed(ctx context.Context, serviceID string) (bool, error) {
 		return err
 	})
 	return until.After(k.now()), err
+}
+
+// countingFor is how long what Counting found is kept, as the alerts ask it
+// each time they look.
+const countingFor = time.Minute
+
+// Counted is a service with an update that counts, and the first it offers.
+type Counted struct {
+	ServiceID, Name, ServerID string
+	Offer                     *dockwellv1.AvailableUpdate
+}
+
+// Counting is every service with an update that counts: newer than what it runs,
+// not skipped and not snoozed, as the alerts read it, kept a minute.
+func (k *Keeper) Counting(ctx context.Context) ([]Counted, error) {
+	k.mu.Lock()
+	if k.counted != nil && k.now().Sub(k.countedAt) < countingFor {
+		out := k.counted
+		k.mu.Unlock()
+		return out, nil
+	}
+	k.mu.Unlock()
+	now := k.now()
+	rows, homes, err := k.rowsWith(ctx, func(subject) bool { return true })
+	if err != nil {
+		return nil, err
+	}
+	out := []Counted{}
+	for _, r := range rows {
+		if !Counts(r.GetUpdate(), now) {
+			continue
+		}
+		out = append(out, Counted{ServiceID: r.GetId(), Name: r.GetResource().GetName(), ServerID: homes[r.GetId()], Offer: offered(r.GetUpdate())})
+	}
+	k.mu.Lock()
+	k.counted, k.countedAt = out, now
+	k.mu.Unlock()
+	return out, nil
+}
+
+// offered is the first update that isn't skipped.
+func offered(u *dockwellv1.ServiceUpdate) *dockwellv1.AvailableUpdate {
+	for _, a := range u.GetAvailable() {
+		if !a.GetSkipped() {
+			return a
+		}
+	}
+	return nil
 }

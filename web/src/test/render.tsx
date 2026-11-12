@@ -27,6 +27,7 @@ import {
   ResourceService,
   ServerService,
   ServiceService,
+  ServiceUpdateService,
   SettingsService,
   SystemService,
   TaskService,
@@ -82,6 +83,7 @@ export type Api = {
   alerts?: Partial<ServiceImpl<typeof AlertService>>;
   terminals?: Partial<ServiceImpl<typeof TerminalService>>;
   images?: Partial<ServiceImpl<typeof ImageService>>;
+  appUpdates?: Partial<ServiceImpl<typeof ServiceUpdateService>>;
 };
 
 /** A server watch that stays open with nothing to report, so screens around it settle. */
@@ -141,6 +143,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         getImage: () => ({}),
         ...api.images,
       });
+      service(ServiceUpdateService, api.appUpdates ?? {});
       service(FirewallService, {
         getServerFirewall: () => ({ firewall: {} }),
         getServerSsh: () => ({ ssh: {} }),

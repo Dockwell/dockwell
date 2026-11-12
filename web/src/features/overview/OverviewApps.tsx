@@ -8,7 +8,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
 
 import { formatDateTime } from "../../lib/format";
-import { useTimeWords } from "../../lib/time";
+import { useNow, useTimeWords } from "../../lib/time";
 import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
 import { useDomainNames } from "../apps/domains";
@@ -16,6 +16,7 @@ import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
 import { WhatRuns } from "../apps/ImageName";
 import { runtimeOf, runtimeWords } from "../apps/runtime";
+import { withUpdates } from "../apps/updates";
 import { useApps, usePlaces } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useRuntimes } from "../websites/website";
@@ -61,6 +62,9 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
   );
   const rows = useMemo<Row[]>(() => groups.slice(0, SHOWN).map((group) => ({ id: group.key, group })), [groups]);
   const { lead } = useAppsLead(all ?? [], "", health);
+  // What's newer than what runs, with the way to them (ADR 0079).
+  const now = useNow(60_000);
+  const updates = useMemo(() => withUpdates(all ?? [], now).length, [all, now]);
 
   let body: ReactNode;
   if (services.isPending || places.isPending) {
@@ -92,6 +96,12 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
           <Trans>Apps</Trans>
         </h2>
         {all && all.length > 0 ? <span className="overview-section-lead">{lead}</span> : null}
+        {updates > 0 ? (
+          <Link to="/apps" search={{ show: "updates" }} className="overview-link overview-updates">
+            <Icon name="arrow-up" size={14} />
+            {plural(updates, { one: "# update · Review", other: "# updates · Review" })}
+          </Link>
+        ) : null}
         {all && all.length > 0 ? (
           <Link to="/apps" className="overview-link">
             <Trans>View all</Trans>

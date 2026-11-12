@@ -18,6 +18,7 @@ import {
   RestartPolicy,
   type ServiceInfo,
   ServiceService,
+  UpdateSource,
 } from "@dockwell/api";
 import {
   Button,
@@ -80,6 +81,7 @@ import { ImageName, WholeImage } from "./ImageName";
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
+import { offered, UpdateCard } from "./updates";
 import { UpgradeProgress } from "./upgrade";
 import { usePlaces } from "./useServices";
 import { useAppWords } from "./words";
@@ -94,18 +96,27 @@ const RECENT = 5;
  */
 export function AppOverview() {
   const { service } = useApp();
+  // A catalog install's update is its catalog panel's, with its plan, as it has been (ADR 0079).
+  const update = service.update?.source === UpdateSource.CATALOG ? undefined : service.update;
   return (
     <div className="app-overview">
       <div className="app-main">
         <WaitingNotice />
         <AppNotice />
         <RunningPanel />
+        {/* What's newer takes room in the main column when there's something to take, and an
+            update under way, or just landed, takes its place (ADR 0079, ADR 0080). */}
+        <UpgradeProgress
+          service={service}
+          fallback={update && offered(update) ? <UpdateCard service={service} /> : null}
+        />
         <InstalledPanel service={service} />
         <RecentHealth />
         <RecentDeployments />
       </div>
       <div className="app-aside">
         <ConfigurationPanel />
+        {update && !offered(update) ? <UpdateCard service={service} /> : null}
         <HealthCheckPanel />
         <VolumesPanel app={appOf(service)} />
         <AppBackups service={service} app={appOf(service)} />
@@ -279,10 +290,12 @@ function AppNotice() {
   const openChange = (id: string) => sheet.open({ kind: "change", id });
   switch (state.kind) {
     case "deploying":
-      // An update says how it goes as its phases, where any other deploy has its steps in the plan (ADR 0080).
+      // An update says how it goes as its phases, in the place of what's newer, where any other deploy has
+      // its steps in the plan (ADR 0080).
       return (
         <UpgradeProgress
           service={service}
+          elsewhere
           fallback={
             <Callout
               tone="info"
@@ -441,17 +454,15 @@ function AppNotice() {
         </Callout>
       );
   }
-  // An update that just landed says so, with Undo, before what its health says (ADR 0080).
+  // An update that just landed says so, with Undo, in the place of what's newer (ADR 0080), so here
+  // it's what its health says.
   return (
-    <>
-      <UpgradeProgress service={service} />
-      <HealthNotice
-        health={health}
-        name={name}
-        serviceId={service.id}
-        restart={appOf(service)?.restart ?? RestartPolicy.UNSPECIFIED}
-      />
-    </>
+    <HealthNotice
+      health={health}
+      name={name}
+      serviceId={service.id}
+      restart={appOf(service)?.restart ?? RestartPolicy.UNSPECIFIED}
+    />
   );
 }
 

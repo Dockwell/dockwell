@@ -106,6 +106,10 @@ func (Rule) Validate(spec proto.Message) error {
 		if r.GetThreshold() > 90 {
 			return errors.New("a rule's threshold for a certificate is in days, from 1 to 90, as a certificate from Let's Encrypt lasts 90")
 		}
+	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
+		if r.GetThreshold() != 0 && r.GetThreshold() != MajorsOnly {
+			return fmt.Errorf("a rule's threshold for an update is %d, for majors alone, or 0, for any", MajorsOnly)
+		}
 	default:
 		if r.GetThreshold() != 0 {
 			return fmt.Errorf("a rule for %s takes no threshold. Leave it 0", Word(c))
@@ -250,6 +254,8 @@ func Word(c resourcev1.AlertRule_Condition) string {
 		return "a backup that doesn't restore"
 	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE:
 		return "a restore check that's late"
+	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
+		return "an app's update"
 	default:
 		return "that condition"
 	}
@@ -282,6 +288,11 @@ func Title(r *resourcev1.AlertRule) string {
 		return "Restore check failed"
 	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE:
 		return "Restore check late"
+	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
+		if r.GetThreshold() == MajorsOnly {
+			return "Major update available"
+		}
+		return "Update available"
 	default:
 		return "Unknown condition"
 	}
@@ -315,10 +326,19 @@ func Expression(r *resourcev1.AlertRule) string {
 		return "backup.drill == failed"
 	case resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE:
 		return "backup.drill.passed > 2 periods ago"
+	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
+		if r.GetThreshold() == MajorsOnly {
+			return "service.update == major"
+		}
+		return "service.update != none"
 	default:
 		return ""
 	}
 }
+
+// MajorsOnly is the threshold of a rule for an update that fires for a major
+// alone, the first number of the version moving.
+const MajorsOnly = 3
 
 // Default is one of the rules an install starts with.
 type Default struct {
@@ -344,6 +364,8 @@ func Defaults() []Default {
 		{"check-down", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CHECK_DOWN, Duration: "2m", Severity: critical, Repeat: "4h"}},
 		{"restore-drill-failed", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_RESTORE_DRILL_FAILED, Severity: critical}},
 		{"restore-drill-late", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE, Severity: warning}},
+		// Off until a person turns it on: an update is news, not trouble (ADR 0079).
+		{"update-available", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE, Severity: warning, Disabled: true}},
 	}
 	return slices.Clip(rules)
 }

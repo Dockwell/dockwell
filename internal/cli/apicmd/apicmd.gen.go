@@ -3145,7 +3145,7 @@ func Kinds() []*apicli.Kind {
 			Long:  "AlertRule is something Dockwell watches for, on every server or app it applies\nto, and who it tells when it holds. It lives in the organization, and the\ncontrol plane evaluates it, from what it hears of servers already. See\ndocs/adr/0044-alerts.md.",
 			Fields: []apicli.Field{
 				{Path: "condition", Help: "What it watches for."},
-				{Path: "threshold", Help: "The level, for a condition that has one: a percent for disk and memory, 1 to 100, and days for a certificate, 1 to 90. Others leave it 0."},
+				{Path: "threshold", Help: "The level, for a condition that has one: a percent for disk and memory, 1 to 100, days for a certificate, 1 to 90, and for an update, 3 for majors alone or 0 for any. Others leave it 0."},
 				{Path: "duration", Help: "How long the condition holds before the alert fires, such as \"5m\". Empty fires at once. For a late backup, how long after its time a run may start."},
 				{Path: "severity", Help: "How much it matters: warning unless set."},
 				{Path: "channels", Help: "The channels it sends to, by name. Empty sends to every channel, so a rule tells someone as soon as there is one."},

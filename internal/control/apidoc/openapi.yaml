@@ -6232,6 +6232,7 @@ components:
                         - CONDITION_CHECK_DOWN
                         - CONDITION_RESTORE_DRILL_FAILED
                         - CONDITION_RESTORE_DRILL_LATE
+                        - CONDITION_UPDATE_AVAILABLE
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
                     format: enum
@@ -6628,6 +6629,7 @@ components:
                         - CONDITION_CHECK_DOWN
                         - CONDITION_RESTORE_DRILL_FAILED
                         - CONDITION_RESTORE_DRILL_LATE
+                        - CONDITION_UPDATE_AVAILABLE
                     type: string
                     description: What it watches for.
                     format: enum
@@ -6635,7 +6637,8 @@ components:
                     type: integer
                     description: |-
                         The level, for a condition that has one: a percent for disk and memory, 1 to
-                         100, and days for a certificate, 1 to 90. Others leave it 0.
+                         100, days for a certificate, 1 to 90, and for an update, 3 for majors alone
+                         or 0 for any. Others leave it 0.
                     format: uint32
                 duration:
                     type: string
@@ -10645,6 +10648,7 @@ components:
                         - CONDITION_CHECK_DOWN
                         - CONDITION_RESTORE_DRILL_FAILED
                         - CONDITION_RESTORE_DRILL_LATE
+                        - CONDITION_UPDATE_AVAILABLE
                     type: string
                     description: |-
                         What its title says, apart, for the panel to say in its own language: the

@@ -42,17 +42,19 @@ var fakeRepos = map[string]fakeRepo{
 		cmd: []string{"nginx", "-g", "daemon off;"},
 	},
 	"library/postgres": {
-		tags: []string{"17.2", "17", "16.6", "16"}, ports: []string{"5432/tcp"},
+		tags: []string{"17.2", "17", "16.6", "16.4", "16"}, ports: []string{"5432/tcp"},
 		env:     []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "PG_MAJOR=17", "PGDATA=/var/lib/postgresql/data"},
 		volumes: []string{"/var/lib/postgresql/data"}, cmd: []string{"postgres"},
 	},
 	"library/redis": {
-		tags: []string{"7.4", "7.2"}, ports: []string{"6379/tcp"}, volumes: []string{"/data"},
+		// Three numbers and the two-number tags that follow them, as Docker Hub has
+		// Redis's, so 7.2 to 7.4 reads as the minor it is (ADR 0079).
+		tags: []string{"7.4.1", "7.4", "7.2.6", "7.2.5", "7.2", "7"}, ports: []string{"6379/tcp"}, volumes: []string{"/data"},
 		env: []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "REDIS_VERSION=7.4.1"},
 		cmd: []string{"redis-server"},
 	},
 	"library/ghost": {
-		tags: []string{"5.96", "5.95"}, ports: []string{"2368/tcp"}, volumes: []string{"/var/lib/ghost/content"},
+		tags: []string{"5.96.0", "5.96", "5.95.0", "5.95"}, ports: []string{"2368/tcp"}, volumes: []string{"/var/lib/ghost/content"},
 		env: []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "url=http://localhost:2368"},
 		cmd: []string{"node", "current/index.js"},
 	},
@@ -80,6 +82,31 @@ var fakeHub = []docker.Found{
 func digestOfBytes(b []byte) string {
 	sum := sha256.Sum256(b)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+// registryDigest is what the stand-in calls the image a reference names, such
+// as postgres:16.4, so what the engine pulls is what the stand-in says runs (ADR
+// 0079): empty for an image it hasn't got.
+func registryDigest(ref string) string {
+	name, tag, _ := strings.Cut(ref, ":")
+	if tag == "" {
+		tag = "latest"
+	}
+	if !strings.Contains(name, "/") {
+		name = "library/" + name
+	}
+	repo, ok := fakeRepos[name]
+	if !ok {
+		return ""
+	}
+	if tag == "latest" {
+		tag = repo.tags[0]
+	}
+	if !slices.Contains(repo.tags, tag) {
+		return ""
+	}
+	_, m := configOf(name, repo, tag)
+	return digestOfBytes(m)
 }
 
 // configOf is a repository's config at a tag, and its manifest, as a registry
