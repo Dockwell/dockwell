@@ -84,5 +84,5 @@ Selecting rows on the Apps list or the Overview plans one update for each app, e
 - A database's major move that used to fail at start, and roll back, is refused before anything stops, and a moving tag that crosses a major no longer takes a database down.
 - An update with volumes takes longer by its backup, and a volume that isn't a database's stops its app while it's copied, which the plan says. `skip_backup` leaves it out.
 - `StepProgress` gains a phase and bytes, which every deploy fills, not only updates.
-- ADR 0079's record of a found update is what an update with no image takes. Before it lands, `UpgradeService` needs an image.
+- ADR 0079's record of a found update is what an update with no image takes: the first a person neither skipped nor snoozed (`serviceupdates.Keeper.Next`). A catalog install's upgrades its install, with no image of its own.
 - Still to come: the dump-and-restore move across a database's major release, updating several, automatic updates, and keeping the image an update leaves.

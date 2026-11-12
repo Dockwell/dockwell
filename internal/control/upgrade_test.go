@@ -11,6 +11,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -262,4 +263,66 @@ func TestAnUpdateOfAnInstallsServiceUpgradesTheInstall(t *testing.T) {
 			t.Errorf("web runs %s", got.Config.Image)
 		}
 	})
+}
+
+// An update that names no image takes what ADR 0079's keeper found, the first a
+// person didn't skip: postgres:16.3 goes to 16.4; with 16.4 skipped, 17.2 is next,
+// which a database's major release refuses as a plain swap; and snoozed, it knows
+// of none (ADR 0080).
+func TestAnUpdateWithNoImageTakesWhatTheKeeperFound(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	srv := f.lastDocker
+	srv.stop()
+	waitConnected(t, f, srv.id.ServerID, false)
+	srv.images = agent.ImageReads{Test: updatesRegistry(t)}
+	srv.run(t)
+	waitConnected(t, f, srv.id.ServerID, true)
+	e.Registry["postgres:16.3"] = dockertest.Image{Digest: pg163, Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=16"}}}
+	e.Registry["postgres:16.4"] = dockertest.Image{Digest: pg164, Config: docker.Config{Cmd: []string{"postgres"}, Env: []string{"PG_MAJOR=16"}}}
+	c := changeClient(b, b.origin)
+	made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+		Summary: "Run a database", Edits: []*dockwellv1.Edit{serviceEdit("db", "postgres:16.3", map[string]string{"POSTGRES_PASSWORD": "example"})},
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := applied(t, c, made.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
+	}
+	s := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	u := dockwellv1connect.NewServiceUpdateServiceClient(b, b.origin, connect.WithProtoJSON())
+	if _, err := s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: "db"})); reasonOf(err) != "up_to_date" {
+		t.Errorf("before any check, an update with no image = %v", err)
+	}
+	if _, err := u.CheckServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.CheckServiceUpdatesRequest{Server: "hz-1"})); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if intent := res.Msg.GetChange().GetPlan().GetIntent(); intent.GetImage() != "postgres:16.4" || intent.GetFromImage() != "postgres:16.3" {
+		t.Errorf("with no image, the update goes %s to %s", intent.GetFromImage(), intent.GetImage())
+	}
+	if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: res.Msg.GetChange().GetId()})); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := u.SkipServiceUpdate(t.Context(), connect.NewRequest(&dockwellv1.SkipServiceUpdateRequest{Id: "db", Version: "16.4"})); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: "db"}))
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "PostgreSQL 17 can't start on the data of db") {
+		t.Errorf("with 16.4 skipped, the update to 17.2 = %v", err)
+	}
+
+	if _, err := u.SnoozeServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.SnoozeServiceUpdatesRequest{Id: "db", Duration: "7d"})); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: "db"})); reasonOf(err) != "up_to_date" {
+		t.Errorf("snoozed, an update with no image = %v", err)
+	}
 }

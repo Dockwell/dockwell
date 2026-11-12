@@ -472,6 +472,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 				},
 			}
 			serviceHandler.UpdateChecks = keeper
+			// An update that names no image takes what the keeper found (ADR 0080).
+			serviceHandler.Updates = serviceapi.NewerFrom(keeper)
 			handle(dockwellv1connect.NewServiceUpdateServiceHandler(serviceupdates.NewHandler(keeper, serviceHandler, serverID(cfg.Fleet), cfg.Logger), opts...))
 			*updatesOut = keeper
 		}

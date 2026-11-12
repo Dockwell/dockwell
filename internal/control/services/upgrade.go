@@ -38,6 +38,12 @@ type Newer struct {
 	// Image is what an update deploys, such as "postgres:16.4", or the tag the
 	// service runs, for one that moved.
 	Image string
+	// Kind is how far it moves: "patch", "minor", "major", "digest" for a new image
+	// of the tag it runs, or "release" for a catalog release of the same version.
+	Kind string
+	// Catalog says it's a catalog install's newer release, which upgrades the
+	// install and takes no image.
+	Catalog bool
 }
 
 // Updates says what newer image each service has, as Dockwell's checks found
@@ -97,7 +103,7 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 		if err != nil {
 			return nil, h.internal(ctx, "reading what newer versions there are", err)
 		}
-		if ok {
+		if ok && !newer.Catalog {
 			to = newer.Image
 		}
 	}
