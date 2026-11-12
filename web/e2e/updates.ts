@@ -74,6 +74,42 @@ function put(name: string, content: string, mode = 0o644) {
 const lists = "var/lib/apt/lists/archive.ubuntu.com_dists_noble_InRelease";
 
 /**
+ * apt-get, after the stand-ins' head: the names after --, each with what it needs as the
+ * fixture has it, and the fixture's Inst lines for them that aren't installed yet, or
+ * all of them when none is named.
+ */
+const aptGet = String.raw`want=
+seen=0
+for a in "$@"; do
+  if [ "$seen" = 1 ]; then
+    n=$(printf '%s' "$a" | cut -d= -f1)
+    want="$want $n"
+    case "$n" in
+      openssl) want="$want libssl3t64" ;;
+      linux-image-virtual) want="$want linux-image-6.8.0-49-generic linux-modules-6.8.0-49-generic" ;;
+    esac
+  fi
+  [ "$a" = "--" ] && seen=1
+done
+pick() {
+  awk -v want="$want" -v done="$ROOT/installed" -v only="$1" '
+    BEGIN { n = split(want, w, " "); for (i = 1; i <= n; i++) W[w[i]] = 1
+            while ((getline l < done) > 0) { split(l, f, "\t"); I[f[1] " " f[3]] = 1 } }
+    /^Inst / { name = $2; p = substr($0, index($0, "(") + 1); p = substr(p, 1, index(p, ")") - 1)
+               split(p, v, " "); ver = v[1]; a = p; sub(/.*\[/, "", a); sub(/\].*/, "", a)
+               if ((n == 0 || (name in W)) && !((name " " ver) in I)) print (only ? name " " a " " ver : $0); next }
+    { if (!only && n == 0) print }' "$FIX/apt-simulate-ubuntu.txt"
+}
+case "$*" in
+*" update") sleep 1; touch "$ROOT/var/lib/apt/lists/archive.ubuntu.com_dists_noble_InRelease" ;;
+*" upgrade") pick 0 ;;
+*"--simulate"*" install "*) pick 0 ;;
+*"--download-only"*) pick 1 > /dev/null ;;
+*"--no-download"*) pick 1 | while read -r n a v; do echo "Unpacking $n ($v) ..."; sleep 0.3; echo "Setting up $n ($v) ..."; printf '%s\t%s\t%s\tii \n' "$n" "$a" "$v" >> "$ROOT/installed"; done ;;
+esac
+`;
+
+/**
  * An Ubuntu server's files with stand-ins for apt-get, dpkg-query and apt-cache,
  * which print the agent's fixtures and note each call, and lists from 30 hours ago.
  */
@@ -87,9 +123,9 @@ function makeStand() {
   const head = `#!/bin/sh\nFIX='${fixtures}'\nROOT='${stand}'\necho "$(basename "$0") $*" >> "$ROOT/calls"\n`;
   put(
     "usr/bin/apt-get",
-    // An install's simulation (ADR 0064) says what the read's does, as apt would for these packages.
-    // The install itself sets up what the simulation said, pulled-in packages too.
-    `${head}case "$*" in\n*" update") sleep 1; touch "$ROOT/${lists}" ;;\n*" upgrade") cat "$FIX/apt-simulate-ubuntu.txt" ;;\n*"--simulate"*" install "*) cat "$FIX/apt-simulate-ubuntu.txt" ;;\n*"--no-download"*) sed -n 's/^Inst \\([^ ]*\\) \\(\\[[^]]*\\] \\)\\{0,1\\}(\\([^ ]*\\) .*\\[\\([a-z0-9]*\\)\\].*/\\1 \\4 \\3/p' "$FIX/apt-simulate-ubuntu.txt" | while read -r n a v; do echo "Setting up $n ($v)"; printf '%s\\t%s\\t%s\\tii \\n' "$n" "$a" "$v" >> "$ROOT/installed"; sleep 0.2; done ;;\nesac\n`,
+    // A read says what waits, less what's installed. An install's simulation (ADR 0064) says what
+    // apt would do for the packages named and what they need; the install sets up the same.
+    head + aptGet,
     0o755,
   );
   // What an install leaves installed, once it has run, is what dpkg reads of each package.
@@ -325,61 +361,6 @@ async function main() {
   await sleep(1500);
   if (refreshes() !== 2) fail("Check now refreshed twice within a minute");
 
-  step("Install security updates plans what the server simulated, what it pulls in too, and what restarts");
-  // The install's simulation, apart from the reads', which simulate an upgrade.
-  const simulated = () =>
-    readFileSync(join(stand, "calls"), "utf8")
-      .split("\n")
-      .filter((l) => l.startsWith("apt-get ") && l.includes("--simulate") && l.includes(" install -- ")).length;
-  await page.getByRole("button", { name: "Install security updates" }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
-  const packages = plan.getByRole("list", { name: /^Packages it installs on / });
-  await packages.waitFor({ timeout: 30_000 });
-  await packages.getByRole("listitem").filter({ hasText: "openssl" }).getByText("→", { exact: false }).waitFor();
-  await packages
-    .getByRole("listitem")
-    .filter({ hasText: "linux-image-6.8.0-49-generic" })
-    .getByText("Pulled in")
-    .waitFor();
-  await plan.getByText(/^Docker restarts/).waitFor();
-  await plan.getByText("Applying this asks for your passkey").waitFor();
-  if (simulated() !== 1) fail(`the plan simulated the install ${simulated()} times, want once`);
-  await shoot(page, "install-plan");
-
-  step("applied with the passkey, it downloads, then installs in a unit of its own, and applies");
-  // Docker's restart stops what runs there, so the plan asks for what it names to be typed.
-  const confirmWith = await plan.locator("#plan-confirm-why code").innerText();
-  await plan.getByRole("textbox", { name: /to apply it/ }).fill(confirmWith);
-  await plan.getByRole("button", { name: /^Apply plan/ }).click();
-  // However it ends, the sheet's heading says so; anything but Applied is a failure, said with what the sheet shows.
-  const sheet = page.getByRole("dialog").last();
-  const ended = await until(
-    "the install to end",
-    async () => {
-      const title = await sheet
-        .getByRole("heading")
-        .first()
-        .innerText()
-        .catch(() => "");
-      return title && !/^(Review plan|Planning|Applying|Installing updates on [^ ]+$)/.test(title) ? title : undefined;
-    },
-    120_000,
-  );
-  if (!ended.startsWith("Updates are installed on ")) fail(`the install ended "${ended}": ${await sheet.innerText()}`);
-  const applied = page.getByRole("dialog", { name: ended });
-  const install = called("apt-get -q -y --no-download");
-  if (called("apt-get -q -y --download-only") !== 1 || install !== 1) {
-    fail(
-      `the install downloaded ${called("apt-get -q -y --download-only")} times and installed ${install} times, want once each`,
-    );
-  }
-  if (!readFileSync(join(stand, "installed"), "utf8").includes("docker-ce\tamd64\t5:27.4.0-1~ubuntu.24.04~noble")) {
-    fail("the install didn't set up docker-ce at its planned version");
-  }
-  await shoot(page, "install-applied");
-  await applied.getByRole("button", { name: "Done" }).click();
-  await applied.waitFor({ state: "hidden" });
-
   step("on a phone, a package a row, and the overview's card is one link");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("list", { name: /^Security updates for / }).waitFor();
@@ -408,6 +389,126 @@ async function main() {
   execFileSync(bin, ["login", "--local"], { encoding: "utf8", env: env() });
   const cli = execFileSync(bin, ["updates", "get", serverId, "--json"], { encoding: "utf8", env: env() });
   if (!cli.includes('"libssh-4"') || !cli.includes('"noble-security"')) fail(`dockwell updates get printed:\n${cli}`);
+
+  // The install's simulations, apart from the reads', which simulate an upgrade.
+  const simulated = () =>
+    readFileSync(join(stand, "calls"), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("apt-get ") && l.includes("--simulate") && l.includes(" install -- ")).length;
+  const downloads = () => called("apt-get -q -y --download-only");
+  const installs = () => called("apt-get -q -y --no-download");
+  /** The package's row in the Security updates table. */
+  const row = (name: string) =>
+    page.getByRole("table", { name: /^Security updates for / }).locator("tr", {
+      has: page.locator(".updates-name", { hasText: new RegExp(`^${name.replace(/\./g, "\\.")}$`) }),
+    });
+
+  step("Update on one package's row plans it and what it needs, and nothing else waiting");
+  await page.goto(`${origin}/servers/${serverId}/updates`);
+  await row("openssl").getByRole("button", { name: "Update openssl", exact: true }).click();
+  const one = page.getByRole("dialog", { name: "Review plan" });
+  const onePackages = one.getByRole("list", { name: /^Packages it installs on / });
+  await onePackages.waitFor({ timeout: 30_000 });
+  const listed = await onePackages.getByRole("listitem").allTextContents();
+  if (listed.length !== 2 || !listed[0]?.startsWith("openssl ") || !/^libssl3t64 .*Pulled in/.test(listed[1] ?? "")) {
+    fail(`updating openssl planned ${JSON.stringify(listed)}, want openssl, then libssl3t64 pulled in`);
+  }
+  await one.getByText("Update openssl on ", { exact: false }).first().waitFor();
+  await shoot(page, "update-one-plan");
+
+  step("applied with the passkey, its rows say what they're doing, then what they went to, then leave");
+  const oneCode = await one.locator("#plan-confirm-why code").innerText();
+  await one.getByRole("textbox", { name: /to apply it/ }).fill(oneCode);
+  await one.getByRole("button", { name: /^Apply plan/ }).click();
+  // The sheet follows it too; closed, the rows carry on saying how it goes.
+  await page
+    .getByRole("dialog")
+    .last()
+    .getByRole("heading", { name: /^(Applying|Installing updates|Updates are installed)/ })
+    .first()
+    .waitFor({ timeout: 30_000 });
+  await page.keyboard.press("Escape");
+  await row("openssl")
+    .getByText(/^(Waiting|Downloading|Installing|Installed|Updated)$/)
+    .waitFor({ timeout: 30_000 });
+  await row("openssl").getByText("Updated", { exact: true }).waitFor({ timeout: 60_000 });
+  await row("openssl").getByText("Updated to 3.0.13-0ubuntu3.5").waitFor();
+  await shoot(page, "update-one-updated");
+  // Read again once it ended: the tab counts what's left, with no reload.
+  await page.getByRole("link", { name: "Updates 4" }).waitFor({ timeout: 30_000 });
+  await row("openssl").waitFor({ state: "detached", timeout: 30_000 });
+  await row("libssl3t64").waitFor({ state: "detached" });
+  if (simulated() !== 2 || downloads() !== 1 || installs() !== 1) {
+    fail(
+      `updating openssl simulated ${simulated()} times, downloaded ${downloads()} and installed ${installs()}, want 2, 1 and 1`,
+    );
+  }
+  const afterOne = readFileSync(join(stand, "installed"), "utf8");
+  if (!afterOne.includes("openssl\tamd64\t3.0.13-0ubuntu3.5") || afterOne.includes("libssh-4")) {
+    fail(`updating openssl installed:\n${afterOne}`);
+  }
+
+  step("Install every update plans what the server simulated, what it pulls in too, and what restarts");
+  await page.getByRole("button", { name: "Install every update" }).first().click();
+  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const packages = plan.getByRole("list", { name: /^Packages it installs on / });
+  await packages.waitFor({ timeout: 30_000 });
+  await packages.getByRole("listitem").filter({ hasText: "libssh-4" }).getByText("→", { exact: false }).waitFor();
+  await packages
+    .getByRole("listitem")
+    .filter({ hasText: "linux-image-6.8.0-49-generic" })
+    .getByText("Pulled in")
+    .waitFor();
+  if (
+    await packages
+      .getByRole("listitem")
+      .filter({ hasText: /^openssl / })
+      .count()
+  ) {
+    fail("every update planned openssl again, which is installed");
+  }
+  await plan.getByText(/^Docker restarts/).waitFor();
+  await plan.getByText("Applying this asks for your passkey").waitFor();
+  if (simulated() !== 3) fail(`the plan simulated the install ${simulated() - 2} times, want once`);
+  await shoot(page, "install-plan");
+
+  step("applied with the passkey, it downloads, then installs in a unit of its own, and applies");
+  // Docker's restart stops what runs there, so the plan asks for what it names to be typed.
+  const confirmWith = await plan.locator("#plan-confirm-why code").innerText();
+  await plan.getByRole("textbox", { name: /to apply it/ }).fill(confirmWith);
+  await plan.getByRole("button", { name: /^Apply plan/ }).click();
+  // However it ends, the sheet's heading says so; anything but Applied is a failure, said with what the sheet shows.
+  const sheet = page.getByRole("dialog").last();
+  const ended = await until(
+    "the install to end",
+    async () => {
+      const title = await sheet
+        .getByRole("heading")
+        .first()
+        .innerText()
+        .catch(() => "");
+      return title && !/^(Review plan|Planning|Applying|Installing updates on [^ ]+$)/.test(title) ? title : undefined;
+    },
+    120_000,
+  );
+  if (!ended.startsWith("Updates are installed on ")) fail(`the install ended "${ended}": ${await sheet.innerText()}`);
+  const applied = page.getByRole("dialog", { name: ended });
+  if (downloads() !== 2 || installs() !== 2) {
+    fail(`the install downloaded ${downloads() - 1} times and installed ${installs() - 1} times, want once each`);
+  }
+  if (!readFileSync(join(stand, "installed"), "utf8").includes("docker-ce\tamd64\t5:27.4.0-1~ubuntu.24.04~noble")) {
+    fail("the install didn't set up docker-ce at its planned version");
+  }
+  await shoot(page, "install-applied");
+  await applied.getByRole("button", { name: "Done" }).click();
+  await applied.waitFor({ state: "hidden" });
+
+  step("with nothing left, the tab says so, and no count");
+  await page
+    .getByText("is up to date, as far as its lists say.", { exact: false })
+    .first()
+    .waitFor({ timeout: 30_000 });
+  await page.getByRole("link", { name: "Updates", exact: true }).waitFor();
   step("all good");
 }
 

@@ -167,7 +167,7 @@ export function aRevision(
   return create(ServiceRevisionSchema, { ...base, ...init } as MessageInitShape<typeof ServiceRevisionSchema>);
 }
 
-function resource(id: string, kind: string, scope: string, name: string): Resource {
+export function resource(id: string, kind: string, scope: string, name: string): Resource {
   return create(ResourceSchema, { id, resource: { kind, scope, name } });
 }
 

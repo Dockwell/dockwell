@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient, type Transport } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ChangeService,
@@ -25,6 +24,7 @@ import { useAppWords } from "../apps/words";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
+import { environmentsOf, planDeletingProject } from "../projects/contents";
 import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { useWebsiteOfEnvironment } from "../websites/website";
@@ -107,31 +107,6 @@ type Prompt =
   | { kind: "environment"; project?: Resource | undefined }
   | { kind: "delete-project" };
 
-/**
- * Plans deleting a project, with the volumes and networks left in it, as nothing else
- * in the panel deletes those, and deleting an app from its Settings keeps its volumes. So the plan names
- * each, and a volume going needs a person's confirmation, as any data loss does.
- * Whatever else is left keeps the project, and the API says what.
- */
-async function planDeletingProject(
-  transport: Transport,
-  project: Resource,
-  environments: readonly Resource[],
-  summary: string,
-) {
-  const inside = new Set(environments.filter((e) => e.resource?.scope === project.id).map((e) => e.id));
-  const resources = createClient(ResourceService, transport);
-  const lists = await Promise.all(["volume", "network"].map((kind) => resources.listResources({ kind })));
-  const left = lists.flatMap((list) => list.resources).filter((r) => inside.has(r.resource?.scope ?? ""));
-  return createClient(ChangeService, transport).proposeChange({
-    summary,
-    edits: [
-      ...left.map((r) => ({ resource: r.resource, delete: true })),
-      { resource: { kind: "project", name: project.resource?.name ?? project.id }, delete: true },
-    ],
-  });
-}
-
 /** The project a new environment is for: the one chosen, or the only one there is. */
 function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): Resource | undefined {
   if (prompt.kind !== "environment") return undefined;
@@ -177,7 +152,8 @@ function Commands({ onClose }: { onClose: () => void }) {
           onClose();
           sheet.open(opening);
         },
-        (project, summary) => planDeletingProject(transport, project, environments ?? [], summary),
+        (project, summary) =>
+          planDeletingProject(transport, project, environmentsOf(project.id, environments ?? []), summary),
       );
     const pages = t`Pages`;
     list.push({

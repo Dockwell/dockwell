@@ -2,7 +2,7 @@
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, ConnectError } from "@connectrpc/connect";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   AutomaticUpdatesSchema,
   BuildInfoSchema,
@@ -18,6 +18,7 @@ import {
   type PlanInstallUpdatesRequest,
   ServerInventorySchema,
   ServerUpdatesSchema,
+  StepState,
   Surface,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -29,8 +30,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { authError } from "../../test/auth";
-import { type Api, feed, onPhone, renderAt } from "../../test/render";
+import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { lastLine, packageLine } from "./install";
 import { releaseStanding, splitVersion, summarize } from "./updates";
 
 const NOW = new Date(2026, 10, 7, 12, 0);
@@ -186,6 +188,27 @@ describe("summarize", () => {
     expect(splitVersion("3.0.13-0ubuntu3.4", "3.0.13-0ubuntu3.5")).toEqual(["3.0.13-0ubuntu3.", "5"]);
     expect(splitVersion("0.10.6-2build2", "0.10.6-2ubuntu0.1")).toEqual(["0.10.6-", "2ubuntu0.1"]);
     expect(splitVersion("", "6.8.0-49.49")).toEqual(["", "6.8.0-49.49"]);
+  });
+
+  it("reads what an install's lines say of each package, and why one failed", () => {
+    expect(packageLine("Unpacking libssl3t64:amd64 (3.0.13-0ubuntu3.5) over (3.0.13-0ubuntu3.4) ...")).toEqual({
+      name: "libssl3t64",
+      phase: "installing",
+    });
+    expect(packageLine("Preparing to unpack .../03-openssl_3.0.13-0ubuntu3.5_amd64.deb ...")).toEqual({
+      name: "openssl",
+      phase: "installing",
+    });
+    expect(packageLine("Setting up openssl (3.0.13-0ubuntu3.5) ...")).toEqual({ name: "openssl", phase: "installed" });
+    expect(packageLine("Downloading the packages")).toBeUndefined();
+    expect(
+      lastLine(
+        "the install ended with status 100, and 1 package didn't reach the planned version: dpkg: error processing package openssl (--configure):; installed openssl package post-installation script subprocess returned error exit status 1; E: Sub-process /usr/bin/dpkg returned an error code (1)",
+      ),
+    ).toBe("E: Sub-process /usr/bin/dpkg returned an error code (1)");
+    expect(lastLine("web-1 hasn't come back after its reboot. Check its console.")).toBe(
+      "web-1 hasn't come back after its reboot. Check its console.",
+    );
   });
 
   it("says whether Dockwell is its newest release", () => {
@@ -501,7 +524,8 @@ describe("UpdatesPage", () => {
     const list = await screen.findByRole("list", { name: "Security updates for hz-1" });
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveTextContent("0.10.6-2build2→0.10.6-2ubuntu0.1");
+    expect(rows[0]).toHaveTextContent("0.10.6-2ubuntu0.1from 0.10.6-2build2");
+    expect(within(rows[0] as HTMLElement).getByRole("button", { name: "Update libssh-4" })).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -582,5 +606,308 @@ describe("the overview's Updates card", () => {
     await waitFor(() => expect(getServerUpdates).toHaveBeenCalled());
     await act(() => Promise.resolve());
     expect(screen.queryByRole("region", { name: "Updates" })).toBeNull();
+  });
+});
+
+/**
+ * A change's watch that every watcher hears, the page and the sheet alike, each
+ * from the change as it last stood.
+ */
+function watched() {
+  const subs = new Set<(c: Change) => void>();
+  let last: Change | undefined;
+  return {
+    push(c: Change) {
+      last = c;
+      for (const sub of subs) sub(c);
+    },
+    async *watchChange(_req: unknown, ctx: HandlerContext): AsyncGenerator<WatchChangeResponse> {
+      const queue: Change[] = last ? [last] : [];
+      let wake = () => {};
+      const sub = (c: Change) => {
+        queue.push(c);
+        wake();
+      };
+      subs.add(sub);
+      try {
+        for (;;) {
+          const next = queue.shift();
+          if (next) {
+            yield {
+              $typeName: "dockwell.v1.WatchChangeResponse",
+              event: { case: "change", value: next },
+            } as WatchChangeResponse;
+            continue;
+          }
+          if (ctx.signal.aborted) return;
+          await Promise.race([new Promise<void>((resolve) => (wake = resolve)), untilAborted(ctx.signal)]);
+        }
+      } finally {
+        subs.delete(sub);
+      }
+    },
+  };
+}
+
+/** A plan to update openssl on hz-1, which pulls in libssl3t64, as it stands at state with its step. */
+function opensslUpdate(state: ChangeState, step?: { state: StepState; activity?: string; detail?: string }): Change {
+  const host = { kind: "server.host", scope: "srv_1", name: "host" };
+  const install = {
+    packages: [
+      { name: "openssl", installed: "3.0.13-0ubuntu3.4", available: "3.0.13-0ubuntu3.5", security: true },
+      { name: "libssl3t64", installed: "3.0.13-0ubuntu3.4", available: "3.0.13-0ubuntu3.5", security: true },
+    ],
+    asked: ["openssl"],
+  };
+  return create(ChangeSchema, {
+    id: "chg_openssl",
+    summary: "Update openssl on hz-1",
+    state,
+    proposedVia: Surface.PANEL,
+    createTime: timestampFromDate(NOW),
+    error: state === ChangeState.FAILED ? "Installing updates on hz-1 failed" : "",
+    plan: {
+      fingerprint: "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      hostAccess: true,
+      resources: [{ id: "res_host", resource: host, action: PlanAction.UPDATE, servers: ["srv_1"], install }],
+      servers: [
+        {
+          serverId: "srv_1",
+          serverName: "hz-1",
+          steps: [{ resourceId: "res_host", resource: host, action: PlanAction.UPDATE, install }],
+        },
+      ],
+    },
+    steps: step
+      ? [{ serverId: "srv_1", resourceId: "res_host", resource: host, action: PlanAction.UPDATE, ...step }]
+      : [],
+  });
+}
+
+/** What hz-1 has waiting, with libssl3t64 among the security fixes. */
+function withLibssl(updates: MessageInitShape<typeof ServerUpdatesSchema> = {}) {
+  return answer({
+    packages: [
+      ...waiting,
+      pkg({
+        name: "libssl3t64",
+        summary: "Secure Sockets Layer toolkit - shared libraries",
+        installed: "3.0.13-0ubuntu3.4",
+        available: "3.0.13-0ubuntu3.5",
+        origin: "noble-security",
+        security: true,
+      }),
+    ].sort((a, b) => Number(b.security) - Number(a.security) || a.name.localeCompare(b.name)),
+    ...updates,
+  });
+}
+
+function rowOf(table: HTMLElement, name: string): HTMLElement {
+  const cell = within(table).getByText(name, { selector: ".updates-name" });
+  const row = cell.closest("tr");
+  if (!row) throw new Error(`no row for ${name}`);
+  return row;
+}
+
+describe("updating packages one by one", () => {
+  it("plans one package from its own row, and its row says so until the plan is up", async () => {
+    const user = userEvent.setup();
+    let answerPlan: (c: { change: Change }) => void = () => {};
+    const planInstallUpdates = vi.fn(
+      (_req: PlanInstallUpdatesRequest) => new Promise<{ change: Change }>((resolve) => (answerPlan = resolve)),
+    );
+    const watch = watched();
+    await renderUpdates(() => withLibssl(), "/servers/srv_1/updates", vi.fn(), {
+      changes: { planInstallUpdates, watchChange: watch.watchChange },
+    });
+    const table = await screen.findByRole("table", { name: "Security updates for hz-1" });
+    const update = within(rowOf(table, "openssl")).getByRole("button", { name: "Update openssl" });
+    await user.click(update);
+    expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({
+      serverIds: ["srv_1"],
+      packages: ["openssl"],
+      all: false,
+    });
+    // Planning shows on the row's own button; the others wait for it, and nothing moves.
+    expect(update).toHaveAttribute("aria-busy", "true");
+    expect(within(rowOf(table, "libssh-4")).getByRole("button", { name: "Update libssh-4" })).toBeDisabled();
+    watch.push(opensslUpdate(ChangeState.PLANNED));
+    act(() => answerPlan({ change: opensslUpdate(ChangeState.PLANNED) }));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const packages = within(sheet).getByRole("list", { name: "Packages it installs on hz-1" });
+    // What was picked comes first, then what it pulls in, each with what changes marked.
+    expect(
+      within(packages)
+        .getAllByRole("listitem")
+        .map((r) => r.textContent),
+    ).toEqual([
+      "openssl 3.0.13-0ubuntu3.4 → 3.0.13-0ubuntu3.5Security fix",
+      "libssl3t64 3.0.13-0ubuntu3.4 → 3.0.13-0ubuntu3.5Pulled inSecurity fix",
+    ]);
+    expect(packages.querySelector(".plan-install-changed")).toHaveTextContent(/^5$/);
+    expect(await within(rowOf(table, "openssl")).findByText("In review")).toBeInTheDocument();
+    expect(within(rowOf(table, "libssl3t64")).getByText("In review")).toBeInTheDocument();
+  });
+
+  it("picks a range with shift, and updates what's picked in one plan", async () => {
+    const user = userEvent.setup();
+    const planInstallUpdates = vi.fn((_req: PlanInstallUpdatesRequest) => ({
+      change: opensslUpdate(ChangeState.PLANNED),
+    }));
+    await renderUpdates(() => withLibssl(), "/servers/srv_1/updates", vi.fn(), {
+      changes: { planInstallUpdates, watchChange: watched().watchChange },
+    });
+    const table = await screen.findByRole("table", { name: "Security updates for hz-1" });
+    expect(screen.queryByRole("region", { name: "Selected updates" })).toBeNull();
+    await user.click(within(table).getByRole("checkbox", { name: "Select libssh-4" }));
+    await user.keyboard("{Shift>}");
+    await user.click(within(table).getByRole("checkbox", { name: "Select linux-image-6.8.0-49-generic" }));
+    await user.keyboard("{/Shift}");
+    const bar = screen.getByRole("region", { name: "Selected updates" });
+    expect(bar).toHaveTextContent("3 selected");
+    expect(within(table).getByRole("checkbox", { name: "Select libssl3t64" })).toBeChecked();
+    expect(within(table).getByRole("checkbox", { name: "Select openssl" })).not.toBeChecked();
+    // The column's box says some are picked; Clear lets go of them, and the box picks every one.
+    const all = within(table).getByRole("checkbox", { name: /^Select every package in/ });
+    expect((all as HTMLInputElement).indeterminate).toBe(true);
+    await user.click(within(bar).getByRole("button", { name: "Clear" }));
+    expect(screen.queryByRole("region", { name: "Selected updates" })).toBeNull();
+    await user.click(all);
+    const again = screen.getByRole("region", { name: "Selected updates" });
+    await user.click(within(again).getByRole("button", { name: "Update 4 selected" }));
+    await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(1));
+    expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({
+      packages: ["libssh-4", "libssl3t64", "linux-image-6.8.0-49-generic", "openssl"],
+    });
+  });
+
+  it("follows an install on its rows, then says what each went to before it leaves", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: NOW });
+    let installed = false;
+    const watch = watched();
+    const { getServerUpdates } = await renderUpdates(
+      () =>
+        installed
+          ? answer({
+              packages: waiting.filter((p) => p.name !== "openssl"),
+              readTime: timestampFromDate(new Date(NOW.getTime() + 60_000)),
+            })
+          : withLibssl({ installChangeId: "chg_openssl" }),
+      "/servers/srv_1/updates",
+      vi.fn(),
+      { changes: { watchChange: watch.watchChange } },
+    );
+    // An install someone started elsewhere is followed as well: the others wait for it, with why.
+    watch.push(opensslUpdate(ChangeState.APPLYING, { state: StepState.RUNNING, activity: "Downloading the packages" }));
+    const lead = await callout("Installing 2 packages on hz-1");
+    expect(lead).toHaveTextContent("Downloading the packages");
+    const table = screen.getByRole("table", { name: "Security updates for hz-1" });
+    expect(await within(rowOf(table, "openssl")).findByText("Downloading")).toBeVisible();
+    const other = within(rowOf(table, "libssh-4")).getByRole("button", { name: "Update libssh-4" });
+    expect(other).toHaveAttribute("aria-disabled", "true");
+    expect(other).toHaveAccessibleDescription("An install is running on hz-1. This one can start once it ends.");
+    expect(screen.getByRole("button", { name: "Check now" })).toHaveAttribute("aria-disabled", "true");
+
+    watch.push(
+      opensslUpdate(ChangeState.APPLYING, {
+        state: StepState.RUNNING,
+        activity: "Unpacking openssl (3.0.13-0ubuntu3.5) over (3.0.13-0ubuntu3.4) ...",
+      }),
+    );
+    expect(await within(rowOf(table, "openssl")).findByText("Installing")).toBeVisible();
+    expect(rowOf(table, "openssl")).toHaveTextContent("Unpacking openssl (3.0.13-0ubuntu3.5)");
+    watch.push(
+      opensslUpdate(ChangeState.APPLYING, {
+        state: StepState.RUNNING,
+        activity: "Setting up openssl (3.0.13-0ubuntu3.5) ...",
+      }),
+    );
+    expect(await within(rowOf(table, "openssl")).findByText("Installed")).toBeVisible();
+    expect(within(rowOf(table, "libssl3t64")).getByText("Installing")).toBeVisible();
+
+    installed = true;
+    const asked = getServerUpdates.mock.calls.length;
+    watch.push(opensslUpdate(ChangeState.APPLIED, { state: StepState.DONE }));
+    // Once it applies, it's read again, and each row says what it went to, in place.
+    await waitFor(() => expect(getServerUpdates.mock.calls.length).toBeGreaterThan(asked));
+    expect(await within(rowOf(table, "openssl")).findByText("Updated")).toBeVisible();
+    expect(rowOf(table, "openssl")).toHaveTextContent("Updated to 3.0.13-0ubuntu3.5");
+    expect(rowOf(table, "libssl3t64")).toHaveTextContent("Updated to 3.0.13-0ubuntu3.5");
+    expect(screen.queryByText("Installing 2 packages on hz-1")).toBeNull();
+    // Then they leave, and the counts follow, with no reload.
+    await act(() => vi.advanceTimersByTimeAsync(5_000));
+    await waitFor(() => expect(within(table).queryByText("openssl", { selector: ".updates-name" })).toBeNull());
+    expect(within(table).queryByText("libssl3t64", { selector: ".updates-name" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Updates 2" })).toBeVisible();
+  });
+
+  it("says on the row that an install failed, with its last line, the change, and Retry", async () => {
+    const user = userEvent.setup();
+    const watch = watched();
+    const planInstallUpdates = vi.fn((_req: PlanInstallUpdatesRequest) => ({
+      change: opensslUpdate(ChangeState.PLANNED),
+    }));
+    await renderUpdates(() => withLibssl({ installChangeId: "chg_openssl" }), "/servers/srv_1/updates", vi.fn(), {
+      changes: {
+        planInstallUpdates,
+        watchChange: watch.watchChange,
+        getChange: () => ({ change: opensslUpdate(ChangeState.FAILED) }),
+      },
+    });
+    watch.push(opensslUpdate(ChangeState.APPLYING, { state: StepState.RUNNING, activity: "Installing 2 packages" }));
+    const table = await screen.findByRole("table", { name: "Security updates for hz-1" });
+    await within(rowOf(table, "openssl")).findByText("Installing");
+    watch.push(
+      opensslUpdate(ChangeState.FAILED, {
+        state: StepState.FAILED,
+        message: "Installing updates on hz-1 failed",
+        detail:
+          "the install ended with status 100, and 1 package didn't reach the planned version: dpkg: error processing package openssl (--configure): E: Sub-process /usr/bin/dpkg returned an error code (1)",
+      } as never),
+    );
+    const row = rowOf(table, "openssl");
+    expect(await within(row).findByText("Failed")).toBeVisible();
+    expect(row).toHaveTextContent("E: Sub-process /usr/bin/dpkg returned an error code (1)");
+    expect(within(row).getByRole("button", { name: "Details" })).toBeVisible();
+    await user.click(within(row).getByRole("button", { name: "Retry updating openssl" }));
+    await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(1));
+    expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({ packages: ["openssl"] });
+  });
+
+  it("updates Docker from its card, with what else restarts it", async () => {
+    const user = userEvent.setup();
+    const planInstallUpdates = vi.fn((_req: PlanInstallUpdatesRequest) => ({
+      change: opensslUpdate(ChangeState.PLANNED),
+    }));
+    await renderUpdates(
+      () =>
+        answer({
+          packages: [
+            ...waiting,
+            pkg({
+              name: "containerd.io",
+              installed: "1.7.22-1",
+              available: "1.7.24-1",
+              effect: PackageEffect.DOCKER_RESTART,
+            }),
+          ],
+        }),
+      "/servers/srv_1/updates",
+      vi.fn(),
+      { changes: { planInstallUpdates, watchChange: watched().watchChange } },
+    );
+    const versions = await screen.findByRole("region", { name: "Docker and Dockwell" });
+    // The card is the engine's: containerd's version isn't Docker's.
+    expect(versions).toHaveTextContent("27.3.1 → 27.4.0 available");
+    await user.click(within(versions).getByRole("button", { name: "Update Docker" }));
+    await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(1));
+    expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({ packages: ["containerd.io", "docker-ce"] });
+  });
+
+  it("offers no Update where Dockwell doesn't install, and nothing to pick", async () => {
+    await renderUpdates(() => answer({ manager: PackageManager.DNF, automatic: undefined }));
+    const table = await screen.findByRole("table", { name: "Security updates for hz-1" });
+    expect(within(table).queryByRole("button", { name: /^Update / })).toBeNull();
+    expect(within(table).queryByRole("checkbox")).toBeNull();
   });
 });

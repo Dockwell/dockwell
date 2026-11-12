@@ -4,10 +4,8 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
-  ChangeService,
   type DockwellRelease,
   PackageEffect,
-  PackageManager,
   type PackageUpdate,
   type Server,
   type ServerUpdates,
@@ -26,19 +24,20 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useId, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
-import { useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ReadFailed, RoleRefused } from "../shell/ReadFailed";
 import { CopyButton as CopyAction } from "../system/CopyCommand";
+import { type Install, type InstallAsk, type RowState, useInstall } from "./install";
 import {
   installCommand,
+  isDockerEngine,
   managerName,
   plainVersion,
   releaseStanding,
@@ -71,6 +70,8 @@ function Updates({ server }: { server: Server }) {
   const [pressed, setPressed] = useState(false);
   const updates = query.data?.updates;
   const summary = summarize(updates);
+  const install = useInstall(server, updates, () => void query.refetch());
+  const selection = useSelection(updates, install);
   const check = async () => {
     setAsked(undefined);
     setPressed(true);
@@ -104,8 +105,17 @@ function Updates({ server }: { server: Server }) {
   if (!updates) return null;
   const release = query.data?.dockwell;
   const checking = updates.checking || pressed;
+  const name = server.name;
   const checkButton = (
-    <Button variant="ghost" size="sm" icon="refresh" loading={checking} onClick={() => void check()}>
+    <Button
+      variant="ghost"
+      size="sm"
+      icon="refresh"
+      loading={checking}
+      onClick={() => void check()}
+      // An install moves what's read: it's read again once it ends.
+      off={install.busy ? t`Updates are read again once the install on ${name} ends` : undefined}
+    >
       {checking ? (updates.refreshing ? t`Refreshing lists` : t`Checking`) : t`Check now`}
     </Button>
   );
@@ -133,57 +143,157 @@ function Updates({ server }: { server: Server }) {
     }
     return why ? <WhyNotCallout why={why} action={why.retry ? checkButton : undefined} /> : null;
   }
+  const rows: RowProps = { server, updates, install, selection };
   return (
-    <div className="updates-layout">
-      <div className="updates-main">
-        {why ? <WhyNotCallout why={why} /> : <Lead server={server} updates={updates} summary={summary} />}
-        {asked ? <p className="updates-note updates-note-warning">{sentence(asked)}</p> : null}
-        {updates.marksSecurity ? (
-          <>
-            <SecuritySection server={server} updates={updates} summary={summary} action={checkButton} />
-            {summary.other.length > 0 ? <OtherUpdates server={server} updates={updates} summary={summary} /> : null}
-          </>
-        ) : (
-          <AllSection server={server} updates={updates} summary={summary} action={checkButton} />
-        )}
-        <Held updates={updates} />
-      </div>
-      <div className="updates-side">
-        <HowItUpdates updates={updates} />
-        <DockerAndDockwell server={server} updates={updates} summary={summary} release={release} />
+    <div className="updates">
+      <div className="updates-layout">
+        <div className="updates-main">
+          {why ? (
+            <WhyNotCallout why={why} />
+          ) : (
+            <Lead server={server} updates={updates} summary={summary} install={install} />
+          )}
+          {asked ? <p className="updates-note updates-note-warning">{sentence(asked)}</p> : null}
+          {updates.marksSecurity ? (
+            <>
+              <SecuritySection rows={rows} summary={summary} action={checkButton} />
+              {summary.other.length > 0 ||
+              leavingIn(install, (p) => !p.security && !isDockerEngine(p.name)).length > 0 ? (
+                <OtherUpdates rows={rows} summary={summary} />
+              ) : null}
+            </>
+          ) : (
+            <AllSection rows={rows} summary={summary} action={checkButton} />
+          )}
+          <Held updates={updates} />
+          <SelectionBar server={server} install={install} selection={selection} />
+        </div>
+        <div className="updates-side">
+          <DockerAndDockwell server={server} updates={updates} summary={summary} release={release} install={install} />
+          <HowItUpdates updates={updates} />
+        </div>
       </div>
     </div>
   );
 }
 
-/**
- * Installing a server's updates as a plan (ADR 0064): the security fixes, or every update, each
- * opening the plan sheet on what the server's agent simulated. Only apt installs for now.
- */
-function useInstall(server: Server, updates: ServerUpdates) {
-  const transport = useTransport();
-  const sheet = useChangeSheet();
-  const may = useMay()(ChangeService.method.planInstallUpdates, { install: true });
-  const client = createClient(ChangeService, transport);
-  const offered = updates.manager === PackageManager.APT;
-  const open = (all: boolean) =>
-    sheet.open({ kind: "plan", make: () => client.planInstallUpdates({ serverIds: [server.id], all }) });
-  return { offered, may, open };
+/** What every table of updates is drawn from. */
+interface RowProps {
+  server: Server;
+  updates: ServerUpdates;
+  install: Install;
+  selection: Selection;
+}
+
+/** The packages that left the read but still say what they went to, of a section. */
+function leavingIn(install: Install, of: (p: PackageUpdate) => boolean): PackageUpdate[] {
+  return install.leaving.map((r) => r.pkg).filter(of);
+}
+
+/** A section's packages, with those that just left it still in their place for a moment. */
+function withLeaving(packages: PackageUpdate[], install: Install, of: (p: PackageUpdate) => boolean): PackageUpdate[] {
+  const left = leavingIn(install, of);
+  if (left.length === 0) return packages;
+  return [...packages, ...left].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Which packages are picked for "Update n selected", and the last one picked, for a range with shift. */
+function useSelection(updates: ServerUpdates | undefined, install: Install) {
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const anchor = useRef<string>(undefined);
+  const waiting = useMemo(() => new Set((updates?.packages ?? []).map((p) => p.name)), [updates?.packages]);
+  // What isn't waiting any more, or has an install of its own under way, can't stay picked.
+  const selected = useMemo(
+    () => new Set([...picked].filter((n) => waiting.has(n) && pickable(install.stateOf(n)))),
+    [picked, waiting, install],
+  );
+  return {
+    selected,
+    /** Picks or lets go of name, or with shift everything from the last one picked to it, in order. */
+    toggle(order: string[], name: string, on: boolean, range: boolean) {
+      const from = anchor.current ? order.indexOf(anchor.current) : -1;
+      const to = order.indexOf(name);
+      const names = range && from >= 0 && to >= 0 ? order.slice(Math.min(from, to), Math.max(from, to) + 1) : [name];
+      setPicked((was) => {
+        const next = new Set(was);
+        for (const n of names) {
+          if (on) next.add(n);
+          else next.delete(n);
+        }
+        return next;
+      });
+      anchor.current = name;
+    },
+    setAll(names: string[], on: boolean) {
+      setPicked((was) => {
+        const next = new Set(was);
+        for (const n of names) {
+          if (on) next.add(n);
+          else next.delete(n);
+        }
+        return next;
+      });
+    },
+    clear() {
+      setPicked(new Set());
+      anchor.current = undefined;
+    },
+  };
+}
+
+type Selection = ReturnType<typeof useSelection>;
+
+/** Whether a package in this state can be picked: one nothing is doing anything with. */
+function pickable(s: RowState): boolean {
+  return s.kind === "idle" || s.kind === "failed";
 }
 
 /** The one callout the tab leads with: what's most worth doing, or why what's here can't stand. */
-function Lead({ server, updates, summary }: { server: Server; updates: ServerUpdates; summary: UpdatesSummary }) {
+function Lead({
+  server,
+  updates,
+  summary,
+  install,
+}: {
+  server: Server;
+  updates: ServerUpdates;
+  summary: UpdatesSummary;
+  install: Install;
+}) {
   const { t } = useLingui();
-  const install = useInstall(server, updates);
   const command = upgradeCommand(updates.manager);
   const auto = updates.automatic;
   const tool = auto?.on ? auto.tool : "";
+  const name = server.name;
+  if (install.busy) return <Installing server={server} install={install} />;
+  const failure = install.failure;
+  // A failure of one to three packages is said on their rows; of more, here, once.
+  if (failure && failure.names.size > 3) {
+    return (
+      <Callout
+        tone="critical"
+        title={t`Installing updates on ${name} failed`}
+        actions={
+          <>
+            <Button size="sm" onClick={() => install.plan(failure.ask)} {...install.may.off}>
+              <Trans>Retry</Trans>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => install.open(failure.id)}>
+              <Trans>Details</Trans>
+            </Button>
+          </>
+        }
+      >
+        <span className="updates-detail">{failure.why}</span>
+      </Callout>
+    );
+  }
   if (updates.rebootRequired) {
     const what = updates.rebootPackages.join(", ");
     return (
       <Callout
         tone="warning"
-        title={t`${server.name} needs a reboot`}
+        title={t`${name} needs a reboot`}
         actions={
           <CopyAction
             text="sudo reboot"
@@ -199,6 +309,11 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
       </Callout>
     );
   }
+  const planning = install.planning;
+  const plansAll = planning !== undefined && "all" in planning && planning.all;
+  const plansSecurity = planning !== undefined && "all" in planning && !planning.all;
+  // While one plan is made, the others wait for it, as the sheet shows one plan at a time.
+  const offFor = (mine: boolean) => (planning !== undefined && !mine ? { disabled: true as const } : install.may.off);
   if (summary.security.length > 0) {
     const n = summary.security.length;
     const title = plural(n, {
@@ -206,7 +321,6 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
       other: "# security updates are ready to install",
     });
     const reboots = summary.security.filter((p) => p.effect === PackageEffect.REBOOT).length;
-    const name = server.name;
     const rebooting =
       reboots === 0
         ? ""
@@ -223,10 +337,16 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
           title={title}
           actions={
             <>
-              <Button size="sm" variant="primary" onClick={() => install.open(false)} {...install.may.off}>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={plansSecurity}
+                onClick={() => install.plan({ all: false })}
+                {...offFor(plansSecurity)}
+              >
                 <Trans>Install security updates</Trans>
               </Button>
-              <Button size="sm" onClick={() => install.open(true)} {...install.may.off}>
+              <Button size="sm" loading={plansAll} onClick={() => install.plan({ all: true })} {...offFor(plansAll)}>
                 <Trans>Install every update</Trans>
               </Button>
             </>
@@ -279,7 +399,7 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
         tone="info"
         title={plural(n, { one: "# update is ready to install", other: "# updates are ready to install" })}
         actions={
-          <Button size="sm" onClick={() => install.open(true)} {...install.may.off}>
+          <Button size="sm" loading={plansAll} onClick={() => install.plan({ all: true })} {...offFor(plansAll)}>
             <Trans>Install every update</Trans>
           </Button>
         }
@@ -287,6 +407,41 @@ function Lead({ server, updates, summary }: { server: Server; updates: ServerUpd
     );
   }
   return null;
+}
+
+/** An install under way on the server: what it installs, where it is, and the sheet one step away. */
+function Installing({ server, install }: { server: Server; install: Install }) {
+  const { t } = useLingui();
+  const name = server.name;
+  const n = install.install?.packages.length ?? 0;
+  const id = install.change?.id;
+  const title =
+    n > 0
+      ? plural(n, { one: `Installing # package on ${name}`, other: `Installing # packages on ${name}` })
+      : t`Installing updates on ${name}`;
+  const where = install.change
+    ? install.downloading
+      ? t`Downloading the packages`
+      : install.activity || t`Waiting for what else runs on ${name} to end`
+    : t`Started from somewhere else`;
+  return (
+    <Callout
+      tone="info"
+      shape="spinner"
+      title={title}
+      actions={
+        id ? (
+          <Button size="sm" variant="ghost" onClick={() => install.open(id)}>
+            <Trans>Open</Trans>
+          </Button>
+        ) : undefined
+      }
+    >
+      <span className="updates-activity" aria-live="polite">
+        {where}
+      </span>
+    </Callout>
+  );
 }
 
 /** Why what's shown isn't a current read, as a callout, with Check now where it could help. */
@@ -311,23 +466,15 @@ function useListsAgo(updates: ServerUpdates): string {
   return updates.listsTime ? t`checked ${words.ago(timestampDate(updates.listsTime), now)}` : t`lists never refreshed`;
 }
 
-function SecuritySection({
-  server,
-  updates,
-  summary,
-  action,
-}: {
-  server: Server;
-  updates: ServerUpdates;
-  summary: UpdatesSummary;
-  action: ReactNode;
-}) {
+function SecuritySection({ rows, summary, action }: { rows: RowProps; summary: UpdatesSummary; action: ReactNode }) {
   const { t } = useLingui();
+  const { server, updates, install } = rows;
   const checked = useListsAgo(updates);
   const n = summary.security.length;
   const from = summary.securityFrom;
   const source = from.length === 1 ? from[0] : "";
   const meta = n === 0 ? checked : source ? `${t`${n} from ${source}`} · ${checked}` : `${n} · ${checked}`;
+  const packages = withLeaving(summary.security, install, (p) => p.security && !isDockerEngine(p.name));
   return (
     <section className="updates-section" aria-labelledby="updates-security">
       <div className="updates-section-head">
@@ -339,8 +486,8 @@ function SecuritySection({
         {action}
       </div>
       <RefreshNote updates={updates} />
-      {n > 0 ? (
-        <UpdatesTable updates={updates} packages={summary.security} caption={t`Security updates for ${server.name}`} />
+      {packages.length > 0 ? (
+        <UpdatesTable rows={rows} packages={packages} caption={t`Security updates for ${server.name}`} />
       ) : (
         <p className="updates-clear">
           <StatusBadge status="healthy" label={t`None waiting`} labelIsState />
@@ -356,20 +503,11 @@ function SecuritySection({
 }
 
 /** Every update in one list, where the distribution doesn't mark security fixes, as Alpine doesn't. */
-function AllSection({
-  server,
-  updates,
-  summary,
-  action,
-}: {
-  server: Server;
-  updates: ServerUpdates;
-  summary: UpdatesSummary;
-  action: ReactNode;
-}) {
+function AllSection({ rows, summary, action }: { rows: RowProps; summary: UpdatesSummary; action: ReactNode }) {
   const { t } = useLingui();
+  const { server, updates, install } = rows;
   const checked = useListsAgo(updates);
-  const all = [...summary.security, ...summary.other];
+  const all = withLeaving([...summary.security, ...summary.other], install, (p) => !isDockerEngine(p.name));
   return (
     <section className="updates-section" aria-labelledby="updates-all">
       <div className="updates-section-head">
@@ -387,7 +525,7 @@ function AllSection({
         </Trans>
       </p>
       {all.length > 0 ? (
-        <UpdatesTable updates={updates} packages={all} caption={t`Updates for ${server.name}`} />
+        <UpdatesTable rows={rows} packages={all} caption={t`Updates for ${server.name}`} />
       ) : (
         <p className="updates-clear">
           <StatusBadge status="healthy" label={t`None waiting`} labelIsState />
@@ -409,19 +547,18 @@ function RefreshNote({ updates }: { updates: ServerUpdates }) {
 }
 
 /** The updates that aren't security fixes, folded away until asked for. */
-function OtherUpdates({
-  server,
-  updates,
-  summary,
-}: {
-  server: Server;
-  updates: ServerUpdates;
-  summary: UpdatesSummary;
-}) {
+function OtherUpdates({ rows, summary }: { rows: RowProps; summary: UpdatesSummary }) {
   const { t } = useLingui();
-  const [open, setOpen] = useState(false);
+  const { server, install, selection } = rows;
   const id = useId();
   const others = summary.other;
+  const packages = withLeaving(others, install, (p) => !p.security && !isDockerEngine(p.name));
+  // Open on its own while something in it is picked or being installed, so its rows say so.
+  const active = packages.some((p) => selection.selected.has(p.name) || install.stateOf(p.name).kind !== "idle");
+  const [open, setOpen] = useState(active);
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
   const reboots = others.filter((p) => p.effect === PackageEffect.REBOOT).length;
   const from = summary.otherFrom;
   const fromWords = from.length === 1 ? t`From ${from[0]}` : from.length > 1 ? t`From ${from.length} sources` : "";
@@ -450,15 +587,13 @@ function OtherUpdates({
             <span className="dw-tab-count">{others.length}</span>
           </span>
           <span className="updates-other-sub">
-            {[fromWords ? `${fromWords}, ${rebootWords}` : rebootWords, names].join(" · ")}
+            {[fromWords ? `${fromWords}, ${rebootWords}` : rebootWords, names].filter(Boolean).join(" · ")}
           </span>
         </span>
         <span className="updates-other-show">{open ? t`Hide` : t`Show all`}</span>
       </button>
       <div id={id} hidden={!open} className="updates-other-body">
-        {open ? (
-          <UpdatesTable updates={updates} packages={others} caption={t`Other updates for ${server.name}`} />
-        ) : null}
+        {open ? <UpdatesTable rows={rows} packages={packages} caption={t`Other updates for ${server.name}`} /> : null}
       </div>
     </section>
   );
@@ -479,19 +614,19 @@ function Held({ updates }: { updates: ServerUpdates }) {
   );
 }
 
-/** What installing a package does, beyond replacing its files. */
+/** What installing a package does beyond replacing its files, as a short state. */
 function useEffectWords(updates: ServerUpdates) {
   const { t } = useLingui();
-  return (p: PackageUpdate): { effect: string; sub: string; strong: boolean } => {
+  return (p: PackageUpdate): { effect: string; why: string; strong: boolean } => {
     switch (p.effect) {
       case PackageEffect.REBOOT:
-        return { effect: t`Needs a reboot`, sub: t`Apps and websites go offline`, strong: true };
+        return { effect: t`Needs a reboot`, why: t`Takes effect once the server restarts`, strong: true };
       case PackageEffect.DOCKER_RESTART:
         return updates.dockerLiveRestore
-          ? { effect: t`Restarts Docker`, sub: t`Containers keep running`, strong: false }
-          : { effect: t`Restarts Docker`, sub: t`Containers stop; those set to restart start again`, strong: true };
+          ? { effect: t`Restarts Docker`, why: t`Containers keep running`, strong: false }
+          : { effect: t`Restarts Docker`, why: t`Containers stop; those set to restart start again`, strong: true };
     }
-    return { effect: t`No reboot`, sub: "", strong: false };
+    return { effect: t`No reboot`, why: "", strong: false };
   };
 }
 
@@ -506,87 +641,337 @@ function Available({ p }: { p: PackageUpdate }) {
   );
 }
 
-/** A package's name, with its description and advisory beneath. */
-function Name({ p }: { p: PackageUpdate }) {
-  const advisory = [p.advisory, p.severity].filter(Boolean).join(", ");
+/** The version a package gets, its changed part marked, with what's installed beneath. */
+function Versions({ p }: { p: PackageUpdate }) {
+  const { t } = useLingui();
+  const installed = p.installed;
   return (
-    <div className="dw-cell">
-      <span className="updates-name">{p.name}</span>
-      {p.summary ? <span className="updates-summary">{p.summary}</span> : null}
-      {advisory ? <span className="updates-summary">{advisory}</span> : null}
+    <div className="dw-cell updates-versions-cell">
+      <Available p={p} />
+      <span className="updates-installed">
+        {installed ? (
+          <Trans context="the version of a package installed now">
+            from <span className="updates-mono">{installed}</span>
+          </Trans>
+        ) : (
+          t({ message: "New", context: "a package not installed yet" })
+        )}
+      </span>
     </div>
   );
 }
 
-function UpdatesTable({
-  updates,
-  packages,
-  caption,
+/** A package's name, with what it is beneath, or what's happening to it while something is. */
+function Name({
+  p,
+  state,
+  rows,
+  failedAlone,
 }: {
-  updates: ServerUpdates;
-  packages: PackageUpdate[];
-  caption: string;
+  p: PackageUpdate;
+  state: RowState;
+  rows: RowProps;
+  failedAlone: boolean;
 }) {
   const { t } = useLingui();
+  const { install } = rows;
+  const advisory = [p.advisory, p.severity].filter(Boolean).join(", ");
+  let sub: ReactNode = (
+    <>
+      {p.summary ? <span className="updates-summary">{p.summary}</span> : null}
+      {advisory ? <span className="updates-summary">{advisory}</span> : null}
+    </>
+  );
+  if (state.kind === "updated") {
+    const to = state.to;
+    sub = (
+      <span className="updates-summary updates-said-healthy">
+        <Trans>
+          Updated to <span className="updates-mono">{to}</span>
+        </Trans>
+      </span>
+    );
+  } else if (state.kind === "installing" && install.activity.includes(` ${p.name} `)) {
+    sub = <span className="updates-summary updates-said-line">{install.activity}</span>;
+  } else if (state.kind === "failed" && failedAlone && install.failure) {
+    const failure = install.failure;
+    sub = (
+      <span className="updates-summary updates-said-critical">
+        <span className="updates-said-line" title={failure.why}>
+          {failure.why}
+        </span>{" "}
+        <button type="button" className="updates-link" onClick={() => install.open(failure.id)}>
+          {t`Details`}
+        </button>
+      </span>
+    );
+  }
+  return (
+    <div className="dw-cell updates-name-cell">
+      <span className="updates-name">{p.name}</span>
+      {sub}
+    </div>
+  );
+}
+
+/** Where a package is, or its Update button: the row's last cell, the same width in every state. */
+function RowAction({ p, state, rows }: { p: PackageUpdate; state: RowState; rows: RowProps }) {
+  const { t } = useLingui();
+  const { server, install } = rows;
+  const rowOff = useRowOff();
+  const name = p.name;
+  const label = t`Update ${name}`;
+  switch (state.kind) {
+    case "planning":
+      return (
+        <Button size="sm" loading aria-label={label}>
+          <Trans>Update</Trans>
+        </Button>
+      );
+    case "reviewing":
+      return <span className="updates-row-state">{t`In review`}</span>;
+    case "waiting":
+      return <StatusBadge status="stopped" label={t`Waiting`} labelIsState />;
+    case "downloading":
+      return <StatusBadge status="deploying" label={t`Downloading`} labelIsState />;
+    case "installing":
+      return <StatusBadge status="deploying" label={t`Installing`} labelIsState />;
+    case "installed":
+      return (
+        <StatusBadge
+          status="healthy"
+          label={t({ message: "Installed", context: "a package an install has set up" })}
+          labelIsState
+        />
+      );
+    case "updated":
+      return (
+        <StatusBadge
+          status="healthy"
+          label={t({ message: "Updated", context: "a package an install took" })}
+          labelIsState
+        />
+      );
+    case "failed": {
+      const failure = install.failure;
+      return (
+        <span className="updates-row-failed">
+          <StatusBadge status="down" label={t`Failed`} labelIsState />
+          {failure ? (
+            <Button
+              size="sm"
+              aria-label={t`Retry updating ${name}`}
+              onClick={() => install.plan(failure.ask)}
+              {...install.may.off}
+            >
+              <Trans>Retry</Trans>
+            </Button>
+          ) : null}
+        </span>
+      );
+    }
+  }
+  return (
+    <Button size="sm" aria-label={label} onClick={() => install.plan({ names: [name] })} {...rowOff(rows, server)}>
+      <Trans>Update</Trans>
+    </Button>
+  );
+}
+
+/** Why a row's Update is off: a role that can't, an install under way, or another plan being made. */
+function useRowOff() {
+  const { t } = useLingui();
+  return (rows: RowProps, server: Server): { off?: string; disabled?: true } => {
+    if (!rows.install.may.allowed) return rows.install.may.off;
+    if (rows.install.busy) {
+      const name = server.name;
+      return { off: t`An install is running on ${name}. This one can start once it ends.` };
+    }
+    if (rows.install.planning) return { disabled: true };
+    return {};
+  };
+}
+
+/** A checkbox that can be part-checked, as a column's head is when some of its rows are. */
+function Check({
+  checked,
+  partly = false,
+  label,
+  onPick,
+  disabled,
+}: {
+  checked: boolean;
+  partly?: boolean;
+  label: string;
+  onPick: (on: boolean, range: boolean) => void;
+  disabled?: boolean;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = partly && !checked;
+  }, [partly, checked]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="updates-check"
+      checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onChange={(e) => onPick(e.currentTarget.checked, (e.nativeEvent as MouseEvent).shiftKey === true)}
+    />
+  );
+}
+
+function UpdatesTable({ rows, packages, caption }: { rows: RowProps; packages: PackageUpdate[]; caption: string }) {
+  const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const effectOf = useEffectWords(updates);
-  const rows = packages.map((p) => ({ key: `${p.name}:${p.architecture}`, p }));
+  const effectOf = useEffectWords(rows.updates);
+  const { install, selection } = rows;
+  const picks = install.offered && install.may.allowed;
+  const states = new Map(packages.map((p) => [p.name, install.stateOf(p.name)]));
+  const failedRows = [...states.values()].filter((s) => s.kind === "failed").length;
+  const order = packages.filter((p) => pickable(states.get(p.name) ?? { kind: "idle" })).map((p) => p.name);
+  const picked = order.filter((n) => selection.selected.has(n)).length;
+  const head = (
+    <Check
+      checked={order.length > 0 && picked === order.length}
+      partly={picked > 0}
+      label={t`Select every package in ${caption}`}
+      disabled={order.length === 0 || install.busy}
+      onPick={(on) => selection.setAll(order, on)}
+    />
+  );
+  const pick = (p: PackageUpdate) => {
+    const state = states.get(p.name) ?? { kind: "idle" };
+    const name = p.name;
+    return (
+      <Check
+        checked={selection.selected.has(p.name)}
+        label={t`Select ${name}`}
+        disabled={!pickable(state) || install.busy}
+        onPick={(on, range) => selection.toggle(order, p.name, on, range)}
+      />
+    );
+  };
+  const when = (p: PackageUpdate) => {
+    const e = effectOf(p);
+    return (
+      <span className={e.strong ? "updates-effect updates-effect-strong" : "updates-effect"} title={e.why || undefined}>
+        {e.effect}
+      </span>
+    );
+  };
+  const rowClass = (p: PackageUpdate) => {
+    const s = states.get(p.name)?.kind ?? "idle";
+    return cx("updates-row", s !== "idle" && `is-${s}`, selection.selected.has(p.name) && "is-picked");
+  };
   if (phone) {
     return (
       <ul className="dw-panel updates-list" aria-label={caption}>
-        {rows.map(({ key, p }) => {
-          const e = effectOf(p);
+        {packages.map((p) => {
+          const state = states.get(p.name) ?? { kind: "idle" };
           return (
-            <li key={key} className="updates-list-row">
-              <Name p={p} />
-              <span className="updates-list-versions">
-                <span className="updates-installed">
-                  {p.installed || t({ message: "New", context: "a package not installed yet" })}
-                </span>
-                <span className="updates-arrow" aria-hidden="true">
-                  →
-                </span>
-                <Available p={p} />
+            <li
+              key={`${p.name}:${p.architecture}`}
+              className={cx("updates-list-row", rowClass(p), picks && "has-pick")}
+            >
+              {picks ? <span className="updates-list-pick">{pick(p)}</span> : null}
+              <span className="updates-list-what">
+                <Name p={p} state={state} rows={rows} failedAlone={failedRows <= 3} />
+                <Versions p={p} />
+                {when(p)}
               </span>
-              <span className={e.strong ? "updates-effect updates-effect-strong" : "updates-effect"}>
-                {e.sub ? `${e.effect} · ${e.sub}` : e.effect}
-              </span>
+              {install.offered ? (
+                <span className="updates-list-action">
+                  <RowAction p={p} state={state} rows={rows} />
+                </span>
+              ) : null}
             </li>
           );
         })}
       </ul>
     );
   }
-  type Row = (typeof rows)[number];
+  type Row = { key: string; p: PackageUpdate };
+  const tableRows: Row[] = packages.map((p) => ({ key: `${p.name}:${p.architecture}`, p }));
   const columns: TableColumn<Row>[] = [
-    { key: "pkg", header: t`Package`, render: (r) => <Name p={r.p} /> },
+    ...(picks ? [{ key: "pick", header: head, width: 40, render: (r: Row) => pick(r.p) }] : []),
     {
-      key: "installed",
-      header: t({ message: "Installed", context: "a package's version" }),
-      width: 168,
+      key: "pkg",
+      header: t`Package`,
       render: (r) => (
-        <span className="updates-installed">
-          {r.p.installed || t({ message: "New", context: "a package not installed yet" })}
-        </span>
+        <Name p={r.p} state={states.get(r.p.name) ?? { kind: "idle" }} rows={rows} failedAlone={failedRows <= 3} />
       ),
     },
-    { key: "available", header: t`Available`, width: 184, render: (r) => <Available p={r.p} /> },
-    {
-      key: "effect",
-      header: t`When installed`,
-      width: 232,
-      render: (r) => {
-        const e = effectOf(r.p);
-        return (
-          <div className="dw-cell">
-            <span className={e.strong ? "updates-effect-strong" : undefined}>{e.effect}</span>
-            {e.sub ? <span className="updates-summary">{e.sub}</span> : null}
-          </div>
-        );
-      },
-    },
+    { key: "version", header: t`Version`, width: "28%", render: (r) => <Versions p={r.p} /> },
+    { key: "effect", header: t`When installed`, width: 128, render: (r) => when(r.p) },
+    ...(install.offered
+      ? [
+          {
+            key: "action",
+            header: <span className="dw-sr">{t`Action`}</span>,
+            width: 144,
+            render: (r: Row) => <RowAction p={r.p} state={states.get(r.p.name) ?? { kind: "idle" }} rows={rows} />,
+          },
+        ]
+      : []),
   ];
-  return <Table columns={columns} rows={rows} rowKey="key" caption={caption} />;
+  return (
+    <Table
+      columns={columns}
+      rows={tableRows}
+      rowKey="key"
+      caption={caption}
+      className="updates-table"
+      rowClassName={(r) => rowClass(r.p)}
+    />
+  );
+}
+
+function cx(...names: (string | false | undefined)[]): string {
+  return names.filter(Boolean).join(" ");
+}
+
+/** "Update n selected", once anything is picked: at the end of the list, and in reach while it scrolls. */
+function SelectionBar({ server, install, selection }: { server: Server; install: Install; selection: Selection }) {
+  const { t } = useLingui();
+  const n = selection.selected.size;
+  if (n === 0 || !install.offered) return null;
+  const names = [...selection.selected].sort();
+  const planning = install.planning;
+  const mine =
+    planning !== undefined &&
+    "names" in planning &&
+    planning.names.length === n &&
+    planning.names.every((x) => selection.selected.has(x));
+  const name = server.name;
+  const off = install.busy
+    ? { off: t`An install is running on ${name}. These can start once it ends.` }
+    : planning && !mine
+      ? { disabled: true as const }
+      : install.may.off;
+  const ask: InstallAsk = { names };
+  return (
+    <section className="updates-selection" aria-label={t`Selected updates`}>
+      <span className="updates-selection-count">{plural(n, { one: "# selected", other: "# selected" })}</span>
+      <span className="updates-grow" />
+      <Button size="sm" variant="ghost" onClick={() => selection.clear()}>
+        <Trans>Clear</Trans>
+      </Button>
+      <Button
+        size="sm"
+        variant="primary"
+        loading={mine}
+        onClick={() => {
+          install.plan(ask);
+        }}
+        {...off}
+      >
+        {plural(n, { one: "Update # selected", other: "Update # selected" })}
+      </Button>
+    </section>
+  );
 }
 
 /** Whether the server updates itself, and how fresh its lists are. */
@@ -631,17 +1016,19 @@ function HowItUpdates({ updates }: { updates: ServerUpdates }) {
   );
 }
 
-/** Docker's engine as the package manager has it, and Dockwell against its newest release. */
+/** Docker's engine as the package manager has it, with its own update, and Dockwell against its newest release. */
 function DockerAndDockwell({
   server,
   updates,
   summary,
   release,
+  install,
 }: {
   server: Server;
   updates: ServerUpdates;
   summary: UpdatesSummary;
   release: DockwellRelease | undefined;
+  install: Install;
 }) {
   const { t } = useLingui();
   const docker = summary.docker;
@@ -650,13 +1037,33 @@ function DockerAndDockwell({
   const control = plainVersion(release?.controlPlane ?? "");
   const standing = releaseStanding(release);
   const newest = plainVersion(release?.newest ?? "");
+  const engine = docker ? install.stateOf(docker.name) : undefined;
+  // Once the read no longer lists it, the engine still says what it went to for a moment.
+  const left = install.leaving.find((r) => isDockerEngine(r.pkg.name));
+  const to = engine?.kind === "updated" ? engine.to : docker ? "" : (left?.to ?? "");
+  const wentTo = to ? engineVersion(to) : "";
+  const planning = install.planning;
+  const plansDocker =
+    docker !== undefined && planning !== undefined && "names" in planning && planning.names.includes(docker.name);
+  const name = server.name;
+  const off = install.busy
+    ? { off: t`An install is running on ${name}. Docker can update once it ends.` }
+    : planning && !plansDocker
+      ? { disabled: true as const }
+      : install.may.off;
   return (
     <Panel title={t`Docker and Dockwell`} flush>
       <ul className="updates-versions">
         <li className="updates-versions-row">
           <div className="updates-versions-text">
             <span className="updates-versions-name">{t`Docker Engine`}</span>
-            {docker ? (
+            {wentTo ? (
+              <span className="updates-summary updates-said-healthy">
+                <Trans>
+                  Updated to <span className="updates-mono">{wentTo}</span>
+                </Trans>
+              </span>
+            ) : docker ? (
               <>
                 <span className="updates-versions-mono">
                   <span className="updates-installed">{installed || engineVersion(docker.installed)}</span>
@@ -680,6 +1087,20 @@ function DockerAndDockwell({
               </span>
             )}
           </div>
+          {docker && install.offered && engine ? (
+            engine.kind === "idle" || engine.kind === "planning" ? (
+              <Button
+                size="sm"
+                loading={plansDocker}
+                onClick={() => install.plan({ names: summary.dockerNames })}
+                {...off}
+              >
+                <Trans>Update Docker</Trans>
+              </Button>
+            ) : (
+              <RowAction p={docker} state={engine} rows={{ server, updates, install, selection: noSelection }} />
+            )
+          ) : null}
         </li>
         <li className="updates-versions-row">
           <div className="updates-versions-text">
@@ -707,6 +1128,8 @@ function DockerAndDockwell({
     </Panel>
   );
 }
+
+const noSelection: Selection = { selected: new Set(), toggle: () => {}, setAll: () => {}, clear: () => {} };
 
 /**
  * How to update Dockwell to its newest release: that release's own install script,

@@ -1321,40 +1321,6 @@ function RunsWithPanel() {
   );
 }
 
-/**
- * Deleting an app is a plan too: this only opens it. A route can't outlive what
- * it serves, so the plan takes the app's domains with it, and lists them. Once it
- * applies, the app's pages have nothing to show, so the list comes next.
- */
-export function useDeleteApp(service: ServiceInfo): { routes: number; open: () => void } {
-  const { t } = useLingui();
-  const sheet = useChangeSheet();
-  const navigate = useNavigate();
-  const name = nameOf(service);
-  const resource = service.resource;
-  const routes = useAppDomains(service).domains.flatMap((domain) =>
-    domain.routes.filter((route) => route.service === name),
-  );
-  const open = () =>
-    sheet.open({
-      kind: "propose",
-      summary: t`Delete ${name}`,
-      edits: [
-        ...routes.map((route) => ({
-          resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
-          delete: true,
-        })),
-        { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
-      ],
-      onClose: (change) => {
-        if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
-          void navigate({ to: "/apps" });
-        }
-      },
-    });
-  return { routes: routes.length, open };
-}
-
 /** A panel's link that acts, which stays where it is, off, with why, for someone who may not (ADR 0059). */
 function PanelLink({ offer, onClick, children }: { offer: Offer; onClick: () => void; children: ReactNode }) {
   const off = useOff(offer.reason || undefined);

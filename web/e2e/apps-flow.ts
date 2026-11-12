@@ -592,6 +592,7 @@ export async function appsFlow(
     await page
       .getByRole("region", { name: "Danger zone" })
       .getByRole("button", { name: /^Delete / })
+      .first()
       .click();
     await review.waitFor({ timeout: 30_000 });
     for (const goes of [bare, "onhost"]) await review.locator(".dw-plan-res", { hasText: goes }).first().waitFor();
@@ -824,9 +825,11 @@ export async function appsFlow(
       .getByRole("navigation", { name: "App sections" })
       .getByRole("link", { name: "Settings", exact: true })
       .click();
+    // The app's own Delete comes first; one of several in a project offers the whole project after it (ADR 0074).
     await page
       .getByRole("region", { name: "Danger zone" })
       .getByRole("button", { name: /^Delete / })
+      .first()
       .click();
     await applyPlan(page, "Done");
     await page.getByRole("heading", { level: 1, name: "Apps", exact: true }).waitFor();
@@ -835,6 +838,20 @@ export async function appsFlow(
   }
   const left = await docker();
   if (left.some((c) => c.running)) fail(`Docker still runs what was deleted: ${JSON.stringify(left)}`);
+  // The last app in each Compose project took its project with it (ADR 0074).
+  const projects = await page.evaluate(async () => {
+    const res = await fetch("/dockwell.v1.ResourceService/ListResources", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+      body: JSON.stringify({ kind: "project" }),
+    });
+    const body = (await res.json()) as { resources?: { resource: { name: string } }[] };
+    return (body.resources ?? []).map((r) => r.resource.name);
+  });
+  for (const gone of ["blog", "wiki"]) {
+    if (projects.includes(gone)) fail(`deleting the last app in ${gone} left the project: ${projects.join(", ")}`);
+  }
+  step("  the last app in each project took its project with it");
 }
 
 /** Where sign-in.ts runs this among the flows, on the fake engine (flows.ts). */

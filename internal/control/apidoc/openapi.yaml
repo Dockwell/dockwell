@@ -5383,12 +5383,13 @@ paths:
                 - ChangeService
             description: |-
                 PlanInstallUpdates plans installing the package updates waiting on
-                 servers: the security fixes, or every update. Each server's agent
-                 simulates the exact install, versions pinned, and the plan lists every
-                 package it installs, those it pulls in too, whether a reboot follows and
-                 whether Docker restarts. It's a change with a plan and no revision, as a
-                 restart is: an upgrade can't be undone, and the plan says so. Applying it
-                 takes a person's passkey, as it runs as root on the server. See
+                 servers: the security fixes, every update, or the packages named. Each
+                 server's agent simulates the exact install, versions pinned, and the plan
+                 lists every package it installs, those it pulls in too, whether a reboot
+                 follows and whether Docker restarts. It's a change with a plan and no
+                 revision, as a restart is: an upgrade can't be undone, and the plan says
+                 so. Applying it takes a person's passkey, as it runs as root on the
+                 server. See
                  docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
             operationId: ChangeService_PlanInstallUpdates
             requestBody:
@@ -13860,6 +13861,14 @@ components:
                     description: |-
                         Docker keeps containers running while it restarts (live-restore), which
                          holds across patch releases of the same version only.
+                asked:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The packages asked for by name, when the install was of a selection: every
+                         other package listed is one they need. Empty for the security fixes or
+                         every update.
             description: |-
                 PackageInstall is what installing a server's updates will do, as its package
                  manager simulated the exact command.
@@ -14105,6 +14114,14 @@ components:
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it installs.
+                packages:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Installs only these packages, by name as GetServerUpdates lists them, such
+                         as "openssl", with what they need: the plan lists those too. A name the
+                         server's updates don't list is refused. Leave all unset with it.
             description: PlanInstallUpdatesRequest names the servers and which updates to install.
         PlanInstallUpdatesResponse:
             type: object
@@ -16646,6 +16663,12 @@ components:
                          which), "agent_outdated" (the server's agent reads no updates; update it),
                          "server_offline" (its agent isn't connected; what's here is from before), and
                          "read_failed" (the last read failed, with error saying why). Empty otherwise.
+                installChangeId:
+                    type: string
+                    description: |-
+                        The change installing updates on the server now, by ID, while its step
+                         runs: follow it with WatchChange. Empty when none is. Another install
+                         waits until it ends.
             description: ServerUpdates is what a server's package manager says waits.
         Service:
             type: object

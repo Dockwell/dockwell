@@ -115,6 +115,11 @@ type Agents struct {
 	pace       time.Duration
 	paceGen    uint64
 	runsHearer func(server string)
+	// installing names, for each server, the change whose install of updates runs
+	// there now, and installsEnded counts those that ended, so what was read of
+	// its updates before one ended is read again (ADR 0064).
+	installing    map[string]string
+	installsEnded map[string]uint64
 	// terminalHearer hears how each terminal ended.
 	terminalHearer func(server string, ended *agentv1.TerminalEnded)
 	// reconciledHearer hears what agents did on their own (OnReconciled).
@@ -127,6 +132,7 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, forwards: map[uint64]*forwardLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
+		installing: map[string]string{}, installsEnded: map[string]uint64{},
 		applyTimeout: ApplyTimeout,
 	}
 }
@@ -1121,7 +1127,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			dr.BackupId = b.ID
 		}
 		if in := d.Install; in != nil {
-			dr.InstallUpdates = &agentv1.InstallUpdates{ChangeId: in.Change, All: in.All, Packages: resourcepb.Packages(in.Packages)}
+			dr.InstallUpdates = &agentv1.InstallUpdates{ChangeId: in.Change, All: in.All, Packages: resourcepb.Packages(in.Packages), Names: in.Names}
 		}
 		call.Desired = append(call.Desired, dr)
 	}
@@ -1155,6 +1161,12 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		// The step is about the resource asked for, whatever the agent says.
 		steps[i].Ref, steps[i].Alongside, steps[i].Via = want, alongside, via
+		// An agent from before installs could be picked reads past the names, and
+		// plans the security fixes: it never says them back, so its plan is refused.
+		if in := desired[i].Install; in != nil && len(in.Names) > 0 && len(in.Packages) == 0 && steps[i].Install != nil && len(steps[i].Install.Asked) == 0 { //nolint:gosec // as above
+			return nil, fault.New(ErrOlderAgent, "%s's agent installs only the security fixes or every update, not packages picked one by one. "+
+				"Update its agent by running the install script on the server again", s.name)
+		}
 		// A field the schema marks sensitive never shows its value, whatever
 		// the agent says of it: plans are kept, and an agent that got it
 		// wrong mustn't put a secret in one.
@@ -1210,6 +1222,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 			call.Values = sealed
 			return err
 		}
+	}
+	if step.Install != nil {
+		defer s.agents.installStarts(s.server, call.GetDeploy().GetChangeId())()
 	}
 	// What a step waits on by design, such as a health check with a long start
 	// period, comes on top of the time any step gets.
