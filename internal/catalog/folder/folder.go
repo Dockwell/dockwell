@@ -134,6 +134,10 @@ type Options struct {
 	// keeps in Also, once it reads as an install would, rather than leaving it out.
 	// Nil leaves every one out.
 	Same func(before, e *catalogv1.Entry) bool
+	// Proved reads no entry's Compose file again, for files this whole check passed
+	// as they were built: the catalog a build holds, whose tests check it so. Each
+	// entry is still parsed, and each image it names still has to be in media.
+	Proved bool
 }
 
 // Check checks each <id>.yaml in files, by name, as Dockwell's own entries are
@@ -169,9 +173,11 @@ func Check(ctx context.Context, name string, files map[string][]byte, media map[
 			refuse(file, fmt.Sprintf("%s has an entry of the ID %s, which comes first. Give it another ID", taken[e.GetId()].By, e.GetId()), KindTaken)
 			continue
 		}
-		if err := ReadsAsInstall(ctx, e, opts.Tagged); err != nil {
-			refuse(file, err.Error(), KindCheck)
-			continue
+		if !opts.Proved {
+			if err := ReadsAsInstall(ctx, e, opts.Tagged); err != nil {
+				refuse(file, err.Error(), KindCheck)
+				continue
+			}
 		}
 		// The same app a catalog before this one lists: another choice of it.
 		also := taken[e.GetId()].By != ""

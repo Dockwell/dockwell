@@ -560,6 +560,13 @@ func snapshotFiles(spec *resourcev1.CatalogSource) (commitFiles, bool) {
 	if !atSnapshot(spec) {
 		return commitFiles{}, false
 	}
+	return readSnapshot()
+}
+
+// readSnapshot reads the snapshot's files once a process, as they're the build's:
+// each entry, and what each image's first bytes say it is. Every read of the
+// snapshot shares what it returns, so nothing writes to it.
+var readSnapshot = sync.OnceValues(func() (commitFiles, bool) {
 	root := snapshot.Entries()
 	out := commitFiles{entries: map[string][]byte{}, media: map[string]error{}, mediaKept: true}
 	list, err := fs.ReadDir(root, ".")
@@ -578,14 +585,33 @@ func snapshotFiles(spec *resourcev1.CatalogSource) (commitFiles, bool) {
 		if !e.Type().IsRegular() || !folder.ImageName(e.Name()) {
 			continue
 		}
-		data, err := fs.ReadFile(root, folder.Media+"/"+e.Name())
+		f, err := root.Open(folder.Media + "/" + e.Name())
 		if err != nil {
 			return commitFiles{}, false
 		}
-		_, out.media[e.Name()] = folder.Image(e.Name(), data)
+		head := make([]byte, folder.Sniffed)
+		n, err := io.ReadFull(f, head)
+		_ = f.Close()
+		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+			return commitFiles{}, false
+		}
+		_, out.media[e.Name()] = folder.Image(e.Name(), head[:n])
 	}
 	return out, true
-}
+})
+
+// checkedSnapshot is the check of the snapshot, made once a process and shared by
+// every control plane that starts and every read of Dockwell's own catalog. What the
+// build holds never changes, and the build proved it passes the whole check
+// (TestTheSnapshotPassesTheWholeCheck), so its entries are parsed and its images
+// checked, but no Compose file is read again: an install reads each in a process of
+// its own, which took a first start a second. A source at the snapshot names the
+// same repository, folder and commit, so the paths of its images are the same too,
+// and what the check says of a file never names the source.
+var checkedSnapshot = sync.OnceValue(func() sourceRead {
+	files, _ := readSnapshot()
+	return checkFiles(context.Background(), DefaultName, snapshotSpec(), files, claims{}, true)
+})
 
 // readHead reads the first bytes of a file, as many as folder.Image looks at.
 func readHead(file string) ([]byte, error) {
@@ -656,7 +682,19 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 // Another store's commit was converted as it was read, so its entries name their
 // images by tag, for an install to pin, and what the converter left out comes first,
 // each app with its reason.
+//
+// Dockwell's own at the commit this build holds, with nothing taken before it, as it
+// comes first, is checkedSnapshot's, shared, so nothing writes to what it returns.
 func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, files commitFiles, taken claims) sourceRead {
+	if len(taken) == 0 && atSnapshot(spec) {
+		return checkedSnapshot()
+	}
+	return checkFiles(ctx, name, spec, files, taken, false)
+}
+
+// checkFiles is checkSource, made each time. proved reads no Compose file again,
+// for files the build proved pass the whole check.
+func checkFiles(ctx context.Context, name string, spec *resourcev1.CatalogSource, files commitFiles, taken claims, proved bool) sourceRead {
 	var out sourceRead
 	byTag := converted(spec)
 	if byTag {
@@ -671,7 +709,7 @@ func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSourc
 			out.refused = append(out.refused, &dockwellv1.CatalogSourceRefusal{File: folder.Media + "/" + image, Reason: err.Error()})
 		}
 	}
-	got := folder.Check(ctx, name, files.entries, files.images(), taken, folder.Options{Tagged: byTag, Same: sameApp})
+	got := folder.Check(ctx, name, files.entries, files.images(), taken, folder.Options{Tagged: byTag, Same: sameApp, Proved: proved})
 	for _, r := range got.Refused {
 		refusal := &dockwellv1.CatalogSourceRefusal{File: r.File, Reason: r.Reason}
 		// A converted entry's refusal names its app and kind, as the converter's do.
@@ -1122,9 +1160,11 @@ func (h *Handler) planSource(ctx context.Context, name string, spec *resourcev1.
 	h.sources.forget(spec)
 	out.read = checkSource(ctx, name, spec, files, maps.Clone(taken))
 	ref := out.ref
-	commit := h.sources.commitNote(ctx, ref, spec)
-	if branch != "" {
-		commit = revision.Note{Reason: "catalog_source_commit", Ref: ref, Names: []string{"refs/heads/" + branch}, Message: "It's the commit the branch " + branch + " is at."}
+	// A move along a branch, or Dockwell's own at a first start, says its branch, and
+	// asks the repository nothing: offline, a listing would hold the plan up.
+	commit := revision.Note{Reason: "catalog_source_commit", Ref: ref, Names: []string{"refs/heads/" + branch}, Message: "It's the commit the branch " + branch + " is at."}
+	if branch == "" {
+		commit = h.sources.commitNote(ctx, ref, spec)
 	}
 	out.notes = []revision.Note{{
 		Reason:  "catalog_source_reads",

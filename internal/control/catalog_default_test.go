@@ -4,11 +4,15 @@ package control
 
 import (
 	"context"
+	"errors"
+	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -19,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
+	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -197,6 +202,33 @@ func testBuiltInInstallsMoveToDockwellsOwnCatalog(t *testing.T, backend store.Ba
 		t.Errorf("a later start made another: %d", n)
 	}
 }
+
+// Dockwell's own catalog comes at a first start with no network: the build holds its
+// commit, and the change says the branch it follows rather than asking GitHub which
+// branches are at it, so an install that starts offline waits for nothing (ADR 0077).
+func TestAFirstStartAsksTheNetworkNothing(t *testing.T) {
+	var asked atomic.Int32
+	client := &http.Client{Transport: askedOf(func(*http.Request) (*http.Response, error) {
+		asked.Add(1)
+		return nil, errors.New("this test has no network")
+	})}
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.CatalogClient = client })
+	res, err := catalogClient(signedIn(t, f)).ListCatalogEntries(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogEntriesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Msg.GetEntries()) < 30 {
+		t.Errorf("the catalog lists %d apps", len(res.Msg.GetEntries()))
+	}
+	if n := asked.Load(); n != 0 {
+		t.Errorf("a first start asked the network %d times", n)
+	}
+}
+
+// askedOf is an http.RoundTripper of a function.
+type askedOf func(*http.Request) (*http.Response, error)
+
+func (f askedOf) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 // asBuiltIn writes each project's pin as an older Dockwell wrote it, from the catalog
 // built into it at the build's commit, as Dockwell's own change.
