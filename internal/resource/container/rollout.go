@@ -801,7 +801,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 		if err := d.startsAsPlanned(ctx, t, spec, dec, keep.ID); err != nil {
 			return err
 		}
-		resource.Progress(ctx, "Starting "+t.Service)
+		resource.Stage(ctx, resource.PhaseStarting, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, keep.ID); err != nil {
 			err = fmt.Errorf("docker can't start %s: %w", keep.name(), hideIn(err, valuesInContainer(keep.Container)))
 			if made && dec.Restart != "" {
@@ -812,7 +812,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 	}
 	d.Points.Reach(PointStarted)
 	if len(others) > 0 {
-		resource.Progress(ctx, "Waiting for the new "+t.Service+" to be healthy, with the old one still serving")
+		resource.Stage(ctx, resource.PhaseChecking, "Waiting for the new "+t.Service+" to be healthy, with the old one still serving")
 	}
 	soak := d.soak()
 	if !made && keep.State.Running && !keep.State.StartedAt.IsZero() && time.Since(keep.State.StartedAt) >= settled {
@@ -1054,7 +1054,8 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		// While it still serves, so the downtime doesn't wait for most of its log.
 		keep := d.beginKeepingLogs(ctx, o.Container)
 		if ran {
-			resource.Progress(ctx, "Stopping the old "+t.Service)
+			// Stopping first is where its restart begins, which a person follows as starting.
+			resource.Stage(ctx, resource.PhaseStarting, "Stopping the old "+t.Service)
 			if err := d.markStopping(ctx, t, o); err != nil {
 				return discard(err)
 			}
@@ -1103,7 +1104,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		if err := d.startsAsPlanned(ctx, t, spec, dec, id); err != nil {
 			return err
 		}
-		resource.Progress(ctx, "Starting "+t.Service)
+		resource.Stage(ctx, resource.PhaseStarting, "Starting "+t.Service)
 		if err := d.Client.StartContainer(ctx, id); err != nil {
 			return fmt.Errorf("docker can't start %s: %w", t.Name, hideIn(err, valuesInSpec(spec)))
 		}

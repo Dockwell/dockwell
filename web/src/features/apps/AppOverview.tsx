@@ -80,6 +80,7 @@ import { ImageName, WholeImage } from "./ImageName";
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
+import { UpgradeProgress } from "./upgrade";
 import { usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 
@@ -278,19 +279,25 @@ function AppNotice() {
   const openChange = (id: string) => sheet.open({ kind: "change", id });
   switch (state.kind) {
     case "deploying":
+      // An update says how it goes as its phases, where any other deploy has its steps in the plan (ADR 0080).
       return (
-        <Callout
-          tone="info"
-          shape="spinner"
-          title={t`Deploying ${revision} of ${name}`}
-          actions={
-            <Button onClick={() => openChange(service.changeId)}>
-              <Trans>Follow it</Trans>
-            </Button>
+        <UpgradeProgress
+          service={service}
+          fallback={
+            <Callout
+              tone="info"
+              shape="spinner"
+              title={t`Deploying ${revision} of ${name}`}
+              actions={
+                <Button onClick={() => openChange(service.changeId)}>
+                  <Trans>Follow it</Trans>
+                </Button>
+              }
+            >
+              <Trans>It keeps going whether or not you stay here. Its steps show in the plan.</Trans>
+            </Callout>
           }
-        >
-          <Trans>It keeps going whether or not you stay here. Its steps show in the plan.</Trans>
-        </Callout>
+        />
       );
     case "waiting":
       return (
@@ -434,13 +441,17 @@ function AppNotice() {
         </Callout>
       );
   }
+  // An update that just landed says so, with Undo, before what its health says (ADR 0080).
   return (
-    <HealthNotice
-      health={health}
-      name={name}
-      serviceId={service.id}
-      restart={appOf(service)?.restart ?? RestartPolicy.UNSPECIFIED}
-    />
+    <>
+      <UpgradeProgress service={service} />
+      <HealthNotice
+        health={health}
+        name={name}
+        serviceId={service.id}
+        restart={appOf(service)?.restart ?? RestartPolicy.UNSPECIFIED}
+      />
+    </>
   );
 }
 

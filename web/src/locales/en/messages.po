@@ -4581,6 +4581,21 @@ msgstr "{revision} deployed {when} by {name}"
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} deployed {when} from the CLI on {local}"
 
+msgid "Back up first"
+msgstr "Back up first"
+
+msgid "Backs up {names} before anything changes"
+msgstr "Backs up {names} before anything changes"
+
+msgid "Undo won't bring back what it changes in {names}"
+msgstr "Undo won't bring back what it changes in {names}"
+
+msgid "Updated to {to}"
+msgstr "Updated to {to}"
+
+msgid "Updating to {to}"
+msgstr "Updating to {to}"
+
 msgid "Always"
 msgstr "Always"
 
@@ -7331,6 +7346,40 @@ msgstr "This stopped before it reached that, and Dockwell put back the rest."
 msgid "What ran before runs again"
 msgstr "What ran before runs again"
 
+msgid "From <0>{from}</0> to <1>{to}</1>"
+msgstr "From <0>{from}</0> to <1>{to}</1>"
+
+msgid "How the update is going"
+msgstr "How the update is going"
+
+msgid "Pull the image"
+msgstr "Pull the image"
+
+msgid "Pulled of the image"
+msgstr "Pulled of the image"
+
+msgid "Start"
+msgstr "Start"
+
+msgid "To come"
+msgstr "To come"
+
+msgid "Under way"
+msgstr "Under way"
+
+msgid "its newest image"
+msgstr "its newest image"
+
+msgctxt "update"
+msgid "to"
+msgstr "to"
+
+#. placeholder {0}: bytes[0]
+#. placeholder {1}: bytes[1]
+msgctxt "bytes pulled"
+msgid "{0} of {1}"
+msgstr "{0} of {1}"
+
 msgid "<0>{source}</0> at <1>{target}</1>"
 msgstr "<0>{source}</0> at <1>{target}</1>"
 
@@ -8302,6 +8351,9 @@ msgstr "Couldn't take on"
 msgid "Couldn't update"
 msgstr "Couldn't update"
 
+msgid "Couldn't update to {to}"
+msgstr "Couldn't update to {to}"
+
 msgid "Creating"
 msgstr "Creating"
 
@@ -8565,6 +8617,9 @@ msgstr "Two containers mustn't write to the volume {volumes} at once, so the old
 
 msgid "Update"
 msgstr "Update"
+
+msgid "Update to {to}"
+msgstr "Update to {to}"
 
 msgid "Updating"
 msgstr "Updating"

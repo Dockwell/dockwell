@@ -423,6 +423,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		cfg.Changes.SetSources(sources)
 		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		serviceHandler.Installs = catalogHandler
 		serviceHandler.Sources = sources
 		if cfg.Agents != nil {
 			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)

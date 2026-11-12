@@ -188,7 +188,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
-		SkipBackup: also.SkipBackup,
+		SkipBackup: also.SkipBackup, BackUp: also.BackUp,
 	})
 	if err != nil {
 		return nil, fail(err)
@@ -1208,6 +1208,7 @@ var intentKinds = map[string]dockwellv1.IntentKind{
 	revision.IntentPublishPort: dockwellv1.IntentKind_INTENT_KIND_PUBLISH_PORT,
 	revision.IntentRollBack:    dockwellv1.IntentKind_INTENT_KIND_ROLL_BACK,
 	revision.IntentRepull:      dockwellv1.IntentKind_INTENT_KIND_REPULL,
+	revision.IntentUpgrade:     dockwellv1.IntentKind_INTENT_KIND_UPGRADE,
 }
 
 func intentProto(i *revision.Intent) *dockwellv1.Intent {
@@ -1216,6 +1217,7 @@ func intentProto(i *revision.Intent) *dockwellv1.Intent {
 	}
 	return &dockwellv1.Intent{
 		Kind: intentKinds[i.Kind], ResourceId: i.Resource, Image: i.Image, Commit: i.Commit, Ref: i.Ref,
+		FromImage: i.FromImage, FromDigest: i.FromDigest, FromRelease: i.FromRelease, Release: i.Release,
 		Port: int32(min(i.Port, math.MaxInt32)), Revision: int64(i.Revision), //nolint:gosec // bounded just here
 	}
 }
@@ -1224,6 +1226,7 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	p := &dockwellv1.StepProgress{
 		ServerId: s.Server, ResourceId: s.ResourceID, Resource: resourcepb.Ref(s.Ref), Action: resourcepb.Action(s.Action),
 		State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
+		Phase: dockwellv1.StepPhase(s.Phase), DoneBytes: s.Done, TotalBytes: s.Total,
 	}
 	if !s.Started.IsZero() {
 		p.StartTime = timestamppb.New(s.Started)

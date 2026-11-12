@@ -46,6 +46,9 @@ type Upgrade struct {
 	// Companion says it changes which of the install's companions run, at the
 	// release it's on: no data moves, so it takes no backup and says nothing of one.
 	Companion bool
+	// FromRelease and Release are the releases an upgrade leaves and goes to, which
+	// its plan's intent says (ADR 0080). A companion's change has none.
+	FromRelease, Release string
 	// Old is the file the install has now, with what it used and what stood for its
 	// secrets, which nothing but reading it needs.
 	Old          []byte
@@ -107,6 +110,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		Message: "Dockwell backs up this app's volumes before it changes anything. If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that",
 		Ref:     project,
 	}
+	intent := &revision.Intent{Kind: revision.IntentUpgrade, Resource: in.Project, FromRelease: in.FromRelease, Release: in.Release}
 	switch {
 	case in.Companion:
 		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
@@ -118,9 +122,9 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 			Ref:     project,
 		}
 	case len(backUp) == 0:
-		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
+		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent})
 	}
-	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...)})
+	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent})
 }
 
 // normalize gives what a file says the shape the store keeps it in, so it compares

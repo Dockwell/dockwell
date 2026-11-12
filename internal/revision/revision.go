@@ -323,6 +323,10 @@ type Proposal struct {
 	// SkipBackup leaves out the backup a database's move to a release it can't come
 	// back from takes first (ADR 0038).
 	SkipBackup bool
+	// BackUp names volumes to back up before anything else, as an update's are
+	// (ADR 0080): one no edit names is kept as it is, with its backup. Edit.Backup
+	// says the same of an edit's own resource.
+	BackUp []resource.Ref
 }
 
 // Place is where a plan's resources live, as far as anyone has a choice: Project
@@ -339,6 +343,7 @@ const (
 	IntentPublishPort = "publish_port" // it publishes one more port
 	IntentRollBack    = "roll_back"    // a person takes it back to an earlier revision
 	IntentRepull      = "repull"       // it pulls its image again, and replaces it only if that is newer
+	IntentUpgrade     = "upgrade"      // it updates an app to a newer version of what it runs (ADR 0080)
 )
 
 // Intent is what a change is for, in a person's terms. A plan says what happens
@@ -353,6 +358,12 @@ type Intent struct {
 	// Commit and Ref are what a deploy builds, for a service that builds from Git.
 	Commit string `json:",omitempty"`
 	Ref    string `json:",omitempty"`
+	// FromImage and FromDigest are what an update leaves, and FromRelease and
+	// Release the releases a catalog install's update leaves and goes to.
+	FromImage   string `json:",omitempty"`
+	FromDigest  string `json:",omitempty"`
+	FromRelease string `json:",omitempty"`
+	Release     string `json:",omitempty"`
 }
 
 // Plan is what applying a change would do.
@@ -708,6 +719,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	moves, backUp, err := databaseMoves(items, p.SkipBackup, e.features)
 	if err != nil {
 		return nil, err
+	}
+	for _, ref := range p.BackUp {
+		if !slices.Contains(backUp, ref) {
+			backUp = append(backUp, ref)
+		}
 	}
 	if len(backUp) > 0 {
 		if p.Edits, err = e.withBackups(ctx, p.Edits, backUp); err != nil {
@@ -3627,7 +3643,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		callCtx, called := e.calling(ctx)
 		index := q.index
-		callCtx = resource.WithProgress(callCtx, func(m string) { e.progressed(c.ID, index, m) })
+		callCtx = resource.WithActivities(callCtx, func(r resource.Activity) { e.progressed(c.ID, index, r) })
 		var told resource.Outcome
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
 			// The first note stands: that a pull failed says more than what came of it.

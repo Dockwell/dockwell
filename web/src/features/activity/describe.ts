@@ -817,7 +817,7 @@ export function changeIcon(change: Change): IconName {
   if (change.reverts) return "undo";
   if (change.restart) return "refresh";
   const intent = change.plan?.intent?.kind;
-  if (intent === IntentKind.DEPLOY || intent === IntentKind.REPULL) return "deploy";
+  if (intent === IntentKind.DEPLOY || intent === IntentKind.REPULL || intent === IntentKind.UPGRADE) return "deploy";
   if (intent === IntentKind.ROLL_BACK) return "undo";
   const s = change.plan?.summary;
   if (s && s.destroy > 0 && !s.create && !s.change && !s.replace) return "trash";

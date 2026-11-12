@@ -67,6 +67,12 @@ type Handler struct {
 	// UpdateChecks says what's newer than what each service runs (ADR 0079). Nil
 	// says nothing.
 	UpdateChecks UpdateReader
+	// Installs plans the upgrade of a catalog install, for an update of one of its
+	// services. Nil updates every service as an image app.
+	Installs Installs
+	// Updates says what newer image each service has, for an update that names
+	// none. Nil knows of none, so an update needs an image.
+	Updates Updates
 }
 
 // UpdateReader says what's newer than what each service runs.

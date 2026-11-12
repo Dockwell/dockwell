@@ -86,6 +86,10 @@ type Docker struct {
 	// one there, as a database's move to another release asks (ADR 0038): an
 	// error stops the change there, with the old one as it was. Nil runs nothing.
 	BeforeReplace func(ctx context.Context, old *docker.Container, spec *resourcev1.Container) error
+	// Room says how much is free, and how large it is in all, in bytes, on the disk
+	// where Docker keeps images, for the room a pull needs (room.go). Nil checks
+	// nothing, and leaves a full disk to Docker's own error.
+	Room func(ctx context.Context) (free, size uint64, err error)
 	// ResolvePath says where a server path leads. Nil follows its links on this
 	// server.
 	ResolvePath func(path string) (string, error)
@@ -1359,8 +1363,10 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 		return resource.PlainlyBecause(resource.ReasonBuild, "This server hasn't the image "+ref+", which Dockwell builds, and nothing pulls one. Deploy again to build it",
 			fmt.Errorf("the image %s isn't on this server, and only its service's build makes it", ref))
 	}
-	resource.Progress(ctx, "Pulling "+ref)
-	err = d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+": "+p) })
+	resource.Stage(ctx, resource.PhasePulling, "Pulling "+ref)
+	err = d.Client.PullImageBytes(ctx, ref, func(done, total int64) {
+		resource.Tell(ctx, resource.Activity{Message: "Pulling " + ref + ": " + docker.SizeOf(done, total), Phase: resource.PhasePulling, Done: done, Total: total})
+	})
 	d.pulled(ref)
 	if err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
 		return pullFailure(ref, err)
@@ -1421,8 +1427,10 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 // that tag stands. Unless that's a new build over what's there, as nothing but the
 // tag it just lost names what ran, so nothing could go back to it, and it's refused.
 func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container, ref string) error {
-	resource.Progress(ctx, "Pulling "+ref+" again")
-	err := d.Client.PullImage(ctx, ref, func(p string) { resource.Progress(ctx, "Pulling "+ref+" again, "+p) })
+	resource.Stage(ctx, resource.PhasePulling, "Pulling "+ref+" again")
+	err := d.Client.PullImageBytes(ctx, ref, func(done, total int64) {
+		resource.Tell(ctx, resource.Activity{Message: "Pulling " + ref + " again, " + docker.SizeOf(done, total), Phase: resource.PhasePulling, Done: done, Total: total})
+	})
 	d.pulled(ref)
 	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
 		return err
@@ -1645,6 +1653,9 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 }
 
 func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
+	if err := d.roomFor(ctx, t, spec.GetImage()); err != nil {
+		return err
+	}
 	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
 		return err
 	}
@@ -2093,9 +2104,9 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 		if restarts < 0 {
 			restarts = c.RestartCount
 			if s.Health != nil {
-				resource.Progress(ctx, "Waiting for "+t.Service+" to pass its health check")
+				resource.Stage(ctx, resource.PhaseChecking, "Waiting for "+t.Service+" to pass its health check")
 			} else {
-				resource.Progress(ctx, "Checking that "+t.Service+" stays up")
+				resource.Stage(ctx, resource.PhaseChecking, "Checking that "+t.Service+" stays up")
 			}
 		}
 		switch {

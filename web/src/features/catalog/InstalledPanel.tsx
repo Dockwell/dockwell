@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient } from "@connectrpc/connect";
-import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { useQuery } from "@connectrpc/connect-query";
 import { CatalogService, type ServiceInfo } from "@dockwell/api";
 import { Button, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { RouterButtonLink } from "../../lib/links";
 import { environmentOf } from "../apps/app";
+import { useUpgrade } from "../apps/upgrade";
 import { useServices } from "../apps/useServices";
-import { useChangeSheet } from "../changes/ChangeSheet";
 import { Facts, SignInCard, useInstallFacts } from "./access";
 import { CompanionLines } from "./Companions";
 import { installIn, useInstalls } from "./useCatalog";
 import "./Catalog.css";
-import { useMay } from "../auth/may";
 
 /**
  * What the catalog says of an app it installed, on each of its services' pages: which
@@ -24,15 +22,13 @@ import { useMay } from "../auth/may";
  */
 export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const { t } = useLingui();
-  const transport = useTransport();
-  const sheet = useChangeSheet();
   const environment = environmentOf(service);
-  const may = useMay();
   const install = installIn(useInstalls().data?.installs ?? [], environment);
   const id = install?.pin?.entry ?? "";
   const entry = useQuery(CatalogService.method.getCatalogEntry, { id }, { enabled: id !== "" }).data?.entry;
   const web = useServices().data?.find((s) => s.id === install?.webServiceId);
   const facts = useInstallFacts(entry, install, web);
+  const upgrading = useUpgrade(service);
   if (!install) return null;
   // How to sign in is to what the entry opens, which a companion left out isn't (ADR 0076).
   const opens = entry?.web?.service ?? "";
@@ -41,12 +37,9 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const version = install.pin?.version ?? "";
   const next = install.upgrade?.version ?? "";
   // An action on what you can see stays where it is, off, with why (ADR 0059).
-  const mayUpgrade = may(CatalogService.method.upgradeCatalogInstall, { project: install.projectId });
-  const upgrade = () =>
-    sheet.open({
-      kind: "plan",
-      make: () => createClient(CatalogService, transport).upgradeCatalogInstall({ id: install.projectId }),
-    });
+  const mayUpgrade = upgrading.may;
+  // One flow for every update: the install's, with its backup first, which a switch leaves out (ADR 0080).
+  const upgrade = () => upgrading.open();
   return (
     <>
       <Panel

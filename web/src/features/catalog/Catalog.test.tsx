@@ -14,6 +14,7 @@ import {
   PlanAction,
   RestartPolicy,
   ScreenshotSchema,
+  type UpgradeServiceRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -337,24 +338,26 @@ describe("A newer release", () => {
     expect(within(panel).queryByText(/Version 17.11 is out/)).not.toBeInTheDocument();
   });
 
-  it("offers its plan on the app's page, by the project", async () => {
+  it("offers its plan on the app's page, as an update of the app, with its backup first", async () => {
     const user = userEvent.setup();
-    let asked = "";
+    let asked: UpgradeServiceRequest | undefined;
     renderAt("/apps/svc_adminer", {
-      ...api({
-        listCatalogInstalls: () => behind,
-        upgradeCatalogInstall: (req) => {
-          asked = req.id;
+      ...api({ listCatalogInstalls: () => behind }),
+      resources: places(),
+      services: {
+        listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }),
+        upgradeService: (req) => {
+          asked = req;
           throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
         },
-      }),
-      resources: places(),
-      services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
+      },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
     expect(await within(panel).findByText("Version 17.13 is out.")).toBeVisible();
     await user.click(within(panel).getByRole("button", { name: "Upgrade to 17.13" }));
-    await waitFor(() => expect(asked).toBe("prj_1"));
+    await waitFor(() => expect(asked?.id).toBe("svc_adminer"));
+    expect(asked?.skipBackup).toBe(false);
+    expect(asked?.image).toBe("");
   });
 });
 

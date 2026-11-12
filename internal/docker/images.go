@@ -26,6 +26,8 @@ type Image struct {
 	RepoDigests []string `json:"RepoDigests"`
 	// Architecture is what it's built for, such as amd64.
 	Architecture string `json:"Architecture"`
+	// Size is what it takes on the server's disk, unpacked, in bytes.
+	Size int64 `json:"Size"`
 }
 
 // Digest says what a registry calls an image a reference names, or nothing for
@@ -172,6 +174,16 @@ const progressEvery = time.Second
 // PullImage pulls an image, and tells progress how far it is, at most
 // once a second, such as "12 of 48 MB".
 func (c *Client) PullImage(ctx context.Context, ref string, progress func(string)) error {
+	var told func(done, total int64)
+	if progress != nil {
+		told = func(done, total int64) { progress(SizeOf(done, total)) }
+	}
+	return c.PullImageBytes(ctx, ref, told)
+}
+
+// PullImageBytes is PullImage for a caller that words the bytes done and the
+// bytes in all itself, as a step that says them as numbers does.
+func (c *Client) PullImageBytes(ctx context.Context, ref string, progress func(done, total int64)) error {
 	ref = WithTag(ref)
 	path, err := c.versioned(ctx, "/images/create")
 	if err != nil {
@@ -223,16 +235,16 @@ func (c *Client) PullImage(ctx context.Context, ref string, progress func(string
 				done, total = done+l[0], total+l[1]
 			}
 			if total > 0 {
-				progress(sizeOf(done, total))
+				progress(done, total)
 				last = time.Now()
 			}
 		}
 	}
 }
 
-// sizeOf words how much of a size is done, in the size's unit, such as
+// SizeOf words how much of a size is done, in the size's unit, such as
 // "12 of 48 MB" or "1.2 of 4 GB", 1024-based with one decimal under 10.
-func sizeOf(done, total int64) string {
+func SizeOf(done, total int64) string {
 	units := []string{"B", "KB", "MB", "GB", "TB"}
 	f := float64(total)
 	i, div := 0, 1.0

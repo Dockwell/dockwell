@@ -4581,6 +4581,21 @@ msgstr "{revision} 于 {when}由 {name} 部署"
 msgid "{revision} deployed {when} from the CLI on {local}"
 msgstr "{revision} 于 {when}通过 {local} 上的命令行部署"
 
+msgid "Back up first"
+msgstr "先备份"
+
+msgid "Backs up {names} before anything changes"
+msgstr "在任何改动之前备份 {names}"
+
+msgid "Undo won't bring back what it changes in {names}"
+msgstr "撤销不会还原它在 {names} 中改动的内容"
+
+msgid "Updated to {to}"
+msgstr "已更新到 {to}"
+
+msgid "Updating to {to}"
+msgstr "正在更新到 {to}"
+
 msgid "Always"
 msgstr "始终"
 
@@ -7331,6 +7346,40 @@ msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部
 msgid "What ran before runs again"
 msgstr "之前运行的内容已重新运行"
 
+msgid "From <0>{from}</0> to <1>{to}</1>"
+msgstr "从 <0>{from}</0> 到 <1>{to}</1>"
+
+msgid "How the update is going"
+msgstr "更新进度"
+
+msgid "Pull the image"
+msgstr "拉取镜像"
+
+msgid "Pulled of the image"
+msgstr "镜像已拉取的部分"
+
+msgid "Start"
+msgstr "启动"
+
+msgid "To come"
+msgstr "待进行"
+
+msgid "Under way"
+msgstr "进行中"
+
+msgid "its newest image"
+msgstr "它的最新镜像"
+
+msgctxt "update"
+msgid "to"
+msgstr "更新到"
+
+#. placeholder {0}: bytes[0]
+#. placeholder {1}: bytes[1]
+msgctxt "bytes pulled"
+msgid "{0} of {1}"
+msgstr "{0} / {1}"
+
 msgid "<0>{source}</0> at <1>{target}</1>"
 msgstr "<0>{source}</0> 挂载到 <1>{target}</1>"
 
@@ -8302,6 +8351,9 @@ msgstr "无法接管"
 msgid "Couldn't update"
 msgstr "无法更新"
 
+msgid "Couldn't update to {to}"
+msgstr "无法更新到 {to}"
+
 msgid "Creating"
 msgstr "正在创建"
 
@@ -8565,6 +8617,9 @@ msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停�
 
 msgid "Update"
 msgstr "更新"
+
+msgid "Update to {to}"
+msgstr "更新到 {to}"
 
 msgid "Updating"
 msgstr "正在更新"

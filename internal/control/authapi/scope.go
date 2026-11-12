@@ -43,6 +43,7 @@ var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session
 var idNames = map[string]string{
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure:       "service",
 	dockwellv1connect.ServiceServiceDeployServiceProcedure:              "service",
+	dockwellv1connect.ServiceServiceUpgradeServiceProcedure:             "service",
 	dockwellv1connect.ServiceServiceRollBackServiceProcedure:            "service",
 	dockwellv1connect.ServiceServiceAddServicePortProcedure:             "service",
 	dockwellv1connect.ServiceServiceOpenServiceProcedure:                "service",

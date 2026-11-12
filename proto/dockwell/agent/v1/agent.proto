@@ -285,6 +285,14 @@ message CallProgress {
   // What the step found out on its server, which goes on record, sent as soon
   // as it is known, and always before the call's result.
   StepOutcome outcome = 3;
+  // What the step is doing, as a phase beside message, such as pulling. Unset
+  // from an older agent, and for what isn't one of the phases. Numbered apart,
+  // as open work adds to this message (ADR 0080).
+  dockwell.v1.StepPhase phase = 260;
+  // How much of a pull is done, and how much it is in all, in bytes, while
+  // phase is pulling and Docker has said. 0 otherwise.
+  int64 done_bytes = 261;
+  int64 total_bytes = 262;
 }
 
 // StepOutcome is what a step found out on its server.

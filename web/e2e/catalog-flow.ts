@@ -338,9 +338,14 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await upgrade.click();
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByText("Its volumes are backed up first").waitFor();
+  // An update says what it goes from and to, and backs up first unless you switch it off (ADR 0080).
+  await plan.locator(".upgrade-line", { hasText: "From 1.0 to 2.0" }).waitFor();
+  if (!(await plan.getByRole("switch", { name: /Back up first/ }).isChecked())) fail("an update doesn't back up first");
   await shoot(page, "catalog-upgrade-plan");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
-  const undo = page.getByRole("button", { name: /Undo/ });
+  await page.getByRole("dialog", { name: "Updated to 2.0" }).waitFor({ timeout: 120_000 });
+  // The sheet's Undo, beside the app page's own card that says it's updated.
+  const undo = page.getByRole("button", { name: /Undo until/ });
   await undo.waitFor({ timeout: 120_000 });
   const now = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
   if (now.length !== 1 || !now[0]?.includes(SECOND_DIGEST)) fail(`after the upgrade, Docker runs ${now.join(", ")}`);

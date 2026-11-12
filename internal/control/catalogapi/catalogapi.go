@@ -386,7 +386,42 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 
 // UpgradeCatalogInstall plans an install's newest release.
 func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[dockwellv1.UpgradeCatalogInstallRequest]) (*connect.Response[dockwellv1.UpgradeCatalogInstallResponse], error) {
-	m := req.Msg
+	change, err := h.upgrade(ctx, req.Msg, "")
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.UpgradeCatalogInstallResponse{Change: change}), nil
+}
+
+// IsInstall says a project, by its ID, is an install from the catalog, for an update
+// of one of its services, which upgrades the install (ADR 0080).
+func (h *Handler) IsInstall(ctx context.Context, project string) (bool, error) {
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return false, err
+	}
+	var is bool
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		all, err := h.installs(ctx, tx, s)
+		is = slices.ContainsFunc(all, func(in *dockwellv1.CatalogInstall) bool { return in.GetProjectId() == project })
+		return err
+	})
+	if err != nil {
+		return false, h.internal(ctx, err)
+	}
+	return is, nil
+}
+
+// UpgradeInstall plans upgrading the install a project is, by its ID, as
+// UpgradeCatalogInstall does, for an update of one of its services (ADR 0080).
+// Empty summary says what it upgrades.
+func (h *Handler) UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string) (*dockwellv1.Change, error) {
+	return h.upgrade(ctx, &dockwellv1.UpgradeCatalogInstallRequest{Id: project, SkipBackup: skipBackup}, summary)
+}
+
+// upgrade plans an install's upgrade, with summary for the timeline, or what it
+// upgrades, from and to, where that's empty.
+func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInstallRequest, summary string) (*dockwellv1.Change, error) {
 	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
@@ -436,10 +471,12 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
+	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
-		Summary:     fmt.Sprintf("Upgrade %s from %s to %s", install.GetProject(), pin.GetVersion(), entry.GetVersion()),
+		Summary:     cmp.Or(summary, fmt.Sprintf("Upgrade %s from %s to %s", install.GetProject(), pin.GetVersion(), entry.GetVersion())),
+		FromRelease: pin.GetVersion(),
+		Release:     entry.GetVersion(),
 		Name:        found.display,
 		File:        []byte(chosen.GetCompose()),
 		Variables:   filled.Variables,
@@ -453,10 +490,6 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		OldStands:    oldStands,
 		Notes:        pinNotes,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&dockwellv1.UpgradeCatalogInstallResponse{Change: change}), nil
 }
 
 // SetCatalogCompanion plans adding one of an install's companions, or taking it away,

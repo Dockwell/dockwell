@@ -37,6 +37,12 @@ const (
 	// properly, so the same pull may work in a while, and nothing about the image
 	// needs changing.
 	ReasonRegistry = "registry"
+	// ReasonDisk is a server without room for the image a step would pull (ADR
+	// 0080).
+	ReasonDisk = "disk"
+	// ReasonDatabaseRelease is a database whose new image runs a release its data
+	// can't move to in place, as PostgreSQL 16's to 17 (ADR 0080).
+	ReasonDatabaseRelease = "database_release"
 )
 
 func (f *Failure) Error() string { return f.Err.Error() }
