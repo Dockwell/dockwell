@@ -6682,6 +6682,51 @@ msgstr "{name} puts back its firewall as it was in {left} s unless you keep it."
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 
+msgctxt "what stops while Docker restarts"
+msgid "App"
+msgstr "App"
+
+msgctxt "what stops while Docker restarts"
+msgid "Database"
+msgstr "Database"
+
+msgid "Its restart policy never starts it again"
+msgstr "Its restart policy never starts it again"
+
+msgid "Its restart policy starts it again only after it fails"
+msgstr "Its restart policy starts it again only after it fails"
+
+msgid "Nothing Dockwell runs is on {server}."
+msgstr "Nothing Dockwell runs is on {server}."
+
+msgid "Reading what runs on {server}…"
+msgstr "Reading what runs on {server}…"
+
+msgid "See them"
+msgstr "See them"
+
+msgid "Starts again"
+msgstr "Starts again"
+
+msgid "Stays stopped"
+msgstr "Stays stopped"
+
+msgctxt "what stops while Docker restarts"
+msgid "Website"
+msgstr "Website"
+
+msgid "What stops on {server}"
+msgstr "What stops on {server}"
+
+msgid "What stops on {server} until Docker is back · all of it starts again"
+msgstr "What stops on {server} until Docker is back · all of it starts again"
+
+msgid "{others, plural, one {# container Dockwell didn't make stops too, and its own restart policy decides.} other {# containers Dockwell didn't make stop too, and their own restart policies decide.}}"
+msgstr "{others, plural, one {# container Dockwell didn't make stops too, and its own restart policy decides.} other {# containers Dockwell didn't make stop too, and their own restart policies decide.}}"
+
+msgid "{staying, plural, one {What stops on {server} until Docker is back · # stays stopped after} other {What stops on {server} until Docker is back · # stay stopped after}}"
+msgstr "{staying, plural, one {What stops on {server} until Docker is back · # stays stopped after} other {What stops on {server} until Docker is back · # stay stopped after}}"
+
 msgid "Details"
 msgstr "Details"
 

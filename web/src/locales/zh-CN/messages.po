@@ -6682,6 +6682,51 @@ msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
 
+msgctxt "what stops while Docker restarts"
+msgid "App"
+msgstr "应用"
+
+msgctxt "what stops while Docker restarts"
+msgid "Database"
+msgstr "数据库"
+
+msgid "Its restart policy never starts it again"
+msgstr "它的重启策略不会再次启动它"
+
+msgid "Its restart policy starts it again only after it fails"
+msgstr "它的重启策略只在它出错退出后才会再次启动它"
+
+msgid "Nothing Dockwell runs is on {server}."
+msgstr "{server} 上没有 Dockwell 运行的内容。"
+
+msgid "Reading what runs on {server}…"
+msgstr "正在读取 {server} 上运行的内容…"
+
+msgid "See them"
+msgstr "查看"
+
+msgid "Starts again"
+msgstr "会再次启动"
+
+msgid "Stays stopped"
+msgstr "保持停止"
+
+msgctxt "what stops while Docker restarts"
+msgid "Website"
+msgstr "网站"
+
+msgid "What stops on {server}"
+msgstr "{server} 上会停止的内容"
+
+msgid "What stops on {server} until Docker is back · all of it starts again"
+msgstr "Docker 恢复前 {server} 上会停止的内容 · 全部会再次启动"
+
+msgid "{others, plural, one {# container Dockwell didn't make stops too, and its own restart policy decides.} other {# containers Dockwell didn't make stop too, and their own restart policies decide.}}"
+msgstr "{others, plural, other {另有 # 个非 Dockwell 创建的容器也会停止，是否再次启动由它们自己的重启策略决定。}}"
+
+msgid "{staying, plural, one {What stops on {server} until Docker is back · # stays stopped after} other {What stops on {server} until Docker is back · # stay stopped after}}"
+msgstr "{staying, plural, other {Docker 恢复前 {server} 上会停止的内容 · 之后有 # 个保持停止}}"
+
 msgid "Details"
 msgstr "详细信息"
 
