@@ -201,18 +201,16 @@ func step(from, to track, places int) Kind {
 // in its track, among tags: the newest patch, minor and major, in that order.
 // A track is a tag's v, how many numbers it has, and its suffix with any digits:
 // 16.3-alpine moves to 16.4-alpine, never to 16.4 or 16.4-bookworm. Pre-releases
-// are left out unless current is one. How many numbers its versions have, which
-// says whether the second is a minor or a patch, is read from the tags of its
-// major in its track: PostgreSQL's 16.x have two, so 16.3 to 16.4 is a patch,
-// and nginx's 1.27.3 makes 1.27 to 1.28 a minor. Nil when current isn't a
-// version.
+// are left out unless current is one. Whether a second number is a minor or a
+// patch is read from the repository's tags, as placesOf says. Nil when current
+// isn't a version.
 func NewerTags(current string, tags []string) []Newer {
 	cur, ok := readTrack(current)
 	if !ok {
 		return nil
 	}
 	want := cur.key()
-	places := len(cur.nums)
+	places := placesOf(cur, tags)
 	shape := variantShape(cur.variant)
 	type candidate struct {
 		tag  string
@@ -224,11 +222,6 @@ func NewerTags(current string, tags []string) []Newer {
 		t, ok := readTrack(tag)
 		if !ok || t.v != cur.v || variantShape(t.variant) != shape {
 			continue
-		}
-		// Any tag of its major in its track, however many numbers, says how many its
-		// versions have.
-		if t.nums[0] == cur.nums[0] && len(t.nums) > places {
-			places = len(t.nums)
 		}
 		if t.key() != want || t.pre && !cur.pre || tag == current {
 			continue
@@ -252,6 +245,44 @@ func NewerTags(current string, tags []string) []Newer {
 		}
 	}
 	return out
+}
+
+// placesOf is how many places a version tag's numbers stand for, as its
+// repository's tags show it, which says whether its second number is a minor
+// (three) or a patch (two) (ADR 0079):
+//   - with three numbers or more, or a tag of its major that has them, such as
+//     Redis's 7.2.5 beside 7.2, the second is a minor;
+//   - with two, the second is a patch only where the tags show it for sure: a
+//     version of two numbers in another major, and none of three from its major
+//     on, as PostgreSQL has numbered them since 10;
+//   - otherwise it can't be told, so it's read as a minor, the larger step, and
+//     a policy of patches alone never moves further than a person allowed.
+//
+// Every version tag of the same v counts, whatever its suffix: how a project
+// numbers its versions is the project's.
+func placesOf(cur track, tags []string) int {
+	if len(cur.nums) != 2 {
+		return max(len(cur.nums), 3)
+	}
+	deep, twoElsewhere, deepFromHere := false, false, false
+	for _, tag := range tags {
+		t, ok := readTrack(tag)
+		if !ok || t.v != cur.v {
+			continue
+		}
+		switch {
+		case len(t.nums) >= 3 && t.nums[0] == cur.nums[0]:
+			deep = true
+		case len(t.nums) >= 3 && t.nums[0] > cur.nums[0]:
+			deepFromHere = true
+		case len(t.nums) == 2 && t.nums[0] != cur.nums[0]:
+			twoElsewhere = true
+		}
+	}
+	if !deep && !deepFromHere && twoElsewhere {
+		return 2
+	}
+	return 3
 }
 
 // better says whether a is a better tag to move to than b: a newer version, a
@@ -279,7 +310,8 @@ func better(a track, aTag string, b track, bTag, variant string) bool {
 // Step classes a step from one version to another, read alone, as a catalog
 // entry's versions are: KindNone when they're the same, and KindMajor when they
 // differ and either doesn't read as a version, which says too much rather than
-// too little.
+// too little. Two versions alone can't say whether a second number is a minor
+// or a patch, so it's read as a minor, the larger step (ADR 0079).
 func Step(from, to string) Kind {
 	if strings.EqualFold(strings.TrimSpace(from), strings.TrimSpace(to)) {
 		return KindNone
@@ -289,9 +321,8 @@ func Step(from, to string) Kind {
 	if !okA || !okB {
 		return KindMajor
 	}
-	places := max(len(a.nums), len(b.nums))
 	// Compare as many numbers as both have, a missing one as 0.
-	n := places
+	n := max(len(a.nums), len(b.nums))
 	pad := func(t track) track {
 		nums := slices.Clone(t.nums)
 		for len(nums) < n {
@@ -300,7 +331,7 @@ func Step(from, to string) Kind {
 		t.nums = nums
 		return t
 	}
-	k := step(pad(a), pad(b), places)
+	k := step(pad(a), pad(b), 3)
 	if k == KindNone {
 		// Older, or the same version written another way: a catalog release
 		// moved it, so it's no smaller a step than a patch.

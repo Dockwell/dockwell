@@ -526,15 +526,17 @@ export enum UpdateKind {
   UNSPECIFIED = 0,
 
   /**
-   * The version's last number moved: 16.3 to 16.4 where versions have two
-   * numbers, as PostgreSQL's do, or 1.27.3 to 1.27.4.
+   * The version's last number moved: 1.27.3 to 1.27.4, or 16.4 to 16.6 where the
+   * repository's tags show its versions have two numbers, as PostgreSQL's do.
    *
    * @generated from enum value: UPDATE_KIND_PATCH = 1;
    */
   PATCH = 1,
 
   /**
-   * With three numbers or more, the second moved: 1.27.3 to 1.28.0.
+   * The second number moved where it's a minor: 1.27.3 to 1.28.0, or 7.2 to 7.4
+   * where the repository has three-number tags. Where the tags can't tell a
+   * second number of two is a patch, it's a minor, the larger step.
    *
    * @generated from enum value: UPDATE_KIND_MINOR = 2;
    */

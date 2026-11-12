@@ -482,12 +482,24 @@ func (c *Client) Head(ctx context.Context, r Ref) (string, error) {
 		return "", err
 	}
 	drain(resp)
-	digest := resp.Header.Get("Docker-Content-Digest")
-	if digest == "" && r.Digest != "" {
-		digest = r.Digest
+	return answeredDigest(resp.Header.Get("Docker-Content-Digest"), r.Digest)
+}
+
+// IsDigest says whether a digest is one Dockwell takes from a registry: sha256
+// and its 64 hex digits, as what a registry says flows into a plan's pins.
+func IsDigest(s string) bool { return digestShape().MatchString(s) }
+
+// answeredDigest is the digest a registry's answer names: its
+// Docker-Content-Digest, else the digest asked for. Either must be a sha256 one,
+// as anything else could carry what a pin never should: one that isn't is
+// ErrBadDigest. Empty where neither says.
+func answeredDigest(header, asked string) (string, error) {
+	digest := header
+	if digest == "" {
+		digest = asked
 	}
 	// A digest is what a plan pins an image by, so one that isn't one is no answer.
-	if digest != "" && !digestShape().MatchString(digest) {
+	if digest != "" && !IsDigest(digest) {
 		return "", ErrBadDigest
 	}
 	return digest, nil
@@ -629,9 +641,14 @@ func (c *Client) manifest(ctx context.Context, r Ref, reference string) (*manife
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
 		return nil, "", fmt.Errorf("%w: its manifest can't be read", ErrUnreachable)
 	}
-	digest := resp.Header.Get("Docker-Content-Digest")
-	if digest == "" && strings.Contains(reference, ":") {
-		digest = reference
+	// A reference by digest names what it was asked for; a tag names none.
+	asked := ""
+	if strings.Contains(reference, ":") {
+		asked = reference
+	}
+	digest, err := answeredDigest(resp.Header.Get("Docker-Content-Digest"), asked)
+	if err != nil {
+		return nil, "", err
 	}
 	return &m, digest, nil
 }

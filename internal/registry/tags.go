@@ -229,9 +229,14 @@ func (c *Client) hubTags(ctx context.Context, r Ref, filter string, mark bool) (
 			pushed = t.LastUpdated
 		}
 		at, _ := time.Parse(time.RFC3339Nano, pushed)
-		out = append(out, Tag{Name: t.Name, Digest: t.Digest, Pushed: at})
+		// A digest that isn't a sha256 one is left unsaid, as one never pins.
+		digest := t.Digest
+		if !IsDigest(digest) {
+			digest = ""
+		}
+		out = append(out, Tag{Name: t.Name, Digest: digest, Pushed: at})
 		if t.Name == "latest" {
-			latest = t.Digest
+			latest = digest
 		}
 	}
 	slices.SortStableFunc(out, func(a, b Tag) int { return b.Pushed.Compare(a.Pushed) })

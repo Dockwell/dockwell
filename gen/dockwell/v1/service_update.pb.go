@@ -30,10 +30,12 @@ type UpdateKind int32
 
 const (
 	UpdateKind_UPDATE_KIND_UNSPECIFIED UpdateKind = 0
-	// The version's last number moved: 16.3 to 16.4 where versions have two
-	// numbers, as PostgreSQL's do, or 1.27.3 to 1.27.4.
+	// The version's last number moved: 1.27.3 to 1.27.4, or 16.4 to 16.6 where the
+	// repository's tags show its versions have two numbers, as PostgreSQL's do.
 	UpdateKind_UPDATE_KIND_PATCH UpdateKind = 1
-	// With three numbers or more, the second moved: 1.27.3 to 1.28.0.
+	// The second number moved where it's a minor: 1.27.3 to 1.28.0, or 7.2 to 7.4
+	// where the repository has three-number tags. Where the tags can't tell a
+	// second number of two is a patch, it's a minor, the larger step.
 	UpdateKind_UPDATE_KIND_MINOR UpdateKind = 2
 	// The first number moved: 16.4 to 17.0.
 	UpdateKind_UPDATE_KIND_MAJOR UpdateKind = 3

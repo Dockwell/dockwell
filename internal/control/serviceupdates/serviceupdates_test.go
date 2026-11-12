@@ -75,15 +75,17 @@ func TestOffersOfAPinnedImage(t *testing.T) {
 	}
 }
 
-// A catalog install's step reads from its entry's versions; the same version is
-// a release.
+// A catalog install's step reads from its entry's versions, a second number of
+// two as the larger step; the same version is a release.
 func TestCatalogUpdate(t *testing.T) {
 	now := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
 	for _, c := range []struct {
 		from, to string
 		want     dockwellv1.UpdateKind
 	}{
-		{"17.11", "17.12", dockwellv1.UpdateKind_UPDATE_KIND_PATCH},
+		// Two versions alone can't say the second number is a patch: the larger step.
+		{"17.11", "17.12", dockwellv1.UpdateKind_UPDATE_KIND_MINOR},
+		{"11.4.4", "11.4.5", dockwellv1.UpdateKind_UPDATE_KIND_PATCH},
 		{"17.12", "18.1", dockwellv1.UpdateKind_UPDATE_KIND_MAJOR},
 		{"11.4.4", "11.8.2", dockwellv1.UpdateKind_UPDATE_KIND_MINOR},
 		{"11.4.4", "11.4.4", dockwellv1.UpdateKind_UPDATE_KIND_RELEASE},
