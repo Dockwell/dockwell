@@ -3,6 +3,7 @@
 import { clone, create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  CatalogFormat,
   ChangeSchema,
   ChangeState,
   CompanionSchema,
@@ -1035,7 +1036,11 @@ describe("The same app in several catalogs", () => {
       listCatalogEntries: () => ({ entries: [own], also: [{ id: "ghost", catalog: "coolify", entry: theirs }] }),
       listCatalogSources: () => ({
         sources: [
-          { name: "coolify", source: { repository: "https://github.com/coollabsio/coolify" }, also: ["ghost"] },
+          {
+            name: "coolify",
+            source: { repository: "https://github.com/coollabsio/coolify", format: CatalogFormat.COOLIFY },
+            also: ["ghost"],
+          },
         ],
       }),
       getCatalogEntry: (req) => ({
@@ -1055,7 +1060,9 @@ describe("The same app in several catalogs", () => {
     renderAt("/catalog", several());
     const cards = await screen.findAllByRole("link", { name: /^Ghost/ });
     expect(cards).toHaveLength(1);
-    expect(cards[0]).toHaveTextContent("Dockwell's own · also in coolify");
+    // Each catalog as a person says it, the store's own name, and its ID only in the tooltip.
+    expect(cards[0]).toHaveTextContent("Dockwell's own · also in Coolify");
+    expect(within(cards[0] as HTMLElement).getByTitle("From the catalogs coolify")).toBeVisible();
   });
 
   it("picks the catalog on the app's page, and installs from the one picked", async () => {
@@ -1064,7 +1071,7 @@ describe("The same app in several catalogs", () => {
     const choice = await screen.findByRole("radiogroup", { name: "Catalog to install from" });
     expect(within(choice).getByRole("radio", { name: "Dockwell's own" })).toBeChecked();
     expect(screen.getByText("6.4.0")).toBeVisible();
-    await user.click(within(choice).getByRole("radio", { name: "coolify" }));
+    await user.click(within(choice).getByRole("radio", { name: "Coolify" }));
     expect(await screen.findByText("6.0.0")).toBeVisible();
     await expectAccessible(container);
     await user.click(screen.getAllByRole("link", { name: /Install Ghost/ })[0] as HTMLElement);

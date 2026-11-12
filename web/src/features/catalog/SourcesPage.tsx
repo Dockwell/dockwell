@@ -28,7 +28,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import { converted, FormatLine, LeftOut, PRESETS, SourcePresets, useFormatWords } from "./SourceFormats";
-import { useCatalog, useSources } from "./useCatalog";
+import { useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
 /** What the source form starts from: nothing for a new source, or the one it moves. */
@@ -177,13 +177,14 @@ function SourcePanel({
   const transport = useTransport();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const name = source.name;
+  const said = useSourceNames()(name);
   const commit = source.source?.commit ?? "";
   const path = source.source?.path ?? "";
   const count = source.entries.length;
   const formatWords = useFormatWords();
   return (
     <Panel
-      title={name}
+      title={<span title={t`From the catalog ${name}`}>{said}</span>}
       className="sources-panel"
       actions={
         <>
@@ -194,7 +195,7 @@ function SourcePanel({
             size="sm"
             variant="ghost"
             icon="trash"
-            aria-label={t`Remove ${name}`}
+            aria-label={t`Remove ${said}`}
             {...removeOff}
             onClick={() => sheet.open({ kind: "plan", make: () => client.removeCatalogSource({ name }) })}
           />
@@ -345,6 +346,8 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
   const transport = useTransport();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const moving = editing.name !== undefined;
+  // The source it moves, as a person says it; its ID is in the form's Name.
+  const movingWords = useSourceNames()(editing.name ?? "");
   const [named, setNamed] = useState(editing.name);
   const [repository, setRepository] = useState(editing.repository ?? "");
   const [path, setPath] = useState(editing.path ?? "");
@@ -482,7 +485,7 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={first}
-      title={moving ? t`Move ${name} to another commit` : t`Add a catalog source`}
+      title={moving ? t`Move ${movingWords} to another commit` : t`Add a catalog source`}
       subtitle={t`Apps from a public Git repository, pinned at one commit`}
       onClose={close}
       className={cx("sources-sheet", phone && "is-phone")}

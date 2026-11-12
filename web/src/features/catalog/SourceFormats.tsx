@@ -24,6 +24,8 @@ import { useMemo } from "react";
 export interface Preset {
   id: string;
   name: MessageDescriptor;
+  /** What a person calls the store, as a source of it reads. */
+  label: string;
   repository: string;
   format: CatalogFormat;
 }
@@ -33,22 +35,71 @@ export const PRESETS: readonly Preset[] = [
   {
     id: "onepanel",
     name: msg`1Panel's app store`,
+    label: "1Panel",
     repository: "https://github.com/1Panel-dev/appstore",
     format: CatalogFormat.ONEPANEL,
   },
   {
     id: "dokploy",
     name: msg`Dokploy's templates`,
+    label: "Dokploy",
     repository: "https://github.com/Dokploy/templates",
     format: CatalogFormat.DOKPLOY,
   },
   {
     id: "coolify",
     name: msg`Coolify's templates`,
+    label: "Coolify",
     repository: "https://github.com/coollabsio/coolify",
     format: CatalogFormat.COOLIFY,
   },
 ];
+
+/** A repository's address as it compares: lowercase, with no trailing slash or .git. */
+function repositoryKey(url: string): string {
+  return url
+    .trim()
+    .toLowerCase()
+    .replace(/\/+$/, "")
+    .replace(/\.git$/, "")
+    .replace(/\/+$/, "");
+}
+
+/**
+ * How a person says a source, never by its ID: the store's own name for a store read
+ * at its own repository, as "1Panel", and for any other source its repository's
+ * owner and name, as "acme/appstore". The ID is the CLI's, and a tooltip's.
+ */
+export function sourceWords(source: CatalogSourceInfo): string {
+  const repository = source.source?.repository ?? "";
+  const format = source.source?.format ?? CatalogFormat.UNSPECIFIED;
+  const preset = PRESETS.find((p) => p.format === format && repositoryKey(p.repository) === repositoryKey(repository));
+  if (preset) return preset.label;
+  try {
+    const u = new URL(repositoryKey(repository));
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
+    if (parts.length === 1) return `${u.host}/${parts[0]}`;
+    return u.host || source.name;
+  } catch {
+    return source.name;
+  }
+}
+
+/**
+ * Each source's words, by its ID: two that would read alike say their folder too, or
+ * their ID as a last resort, so no two read the same.
+ */
+export function sourcesWords(sources: readonly CatalogSourceInfo[]): ReadonlyMap<string, string> {
+  const words = new Map(sources.map((s) => [s.name, sourceWords(s)]));
+  const seen = new Map<string, number>();
+  for (const w of words.values()) seen.set(w, (seen.get(w) ?? 0) + 1);
+  for (const s of sources) {
+    const w = words.get(s.name) ?? s.name;
+    if ((seen.get(w) ?? 0) > 1) words.set(s.name, `${w} (${s.source?.path || s.name})`);
+  }
+  return words;
+}
 
 /** What each format reads as. */
 const FORMATS: Readonly<Partial<Record<CatalogFormat, MessageDescriptor>>> = {

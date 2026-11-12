@@ -98,7 +98,7 @@ describe("Catalog sources", () => {
   it("says what each source reads, which apps it gives, and what it leaves out", async () => {
     const user = userEvent.setup();
     const { container } = renderAt("/catalog/sources", api());
-    const panel = (await screen.findByRole("heading", { name: "community" })).closest("section") as HTMLElement;
+    const panel = (await screen.findByRole("heading", { name: "example/catalog" })).closest("section") as HTMLElement;
     expect(within(panel).getByText(REPO)).toBeVisible();
     expect(within(panel).getByText("entries")).toBeVisible();
     expect(within(panel).getByText(COMMIT.slice(0, 12))).toBeVisible();
@@ -121,7 +121,7 @@ describe("Catalog sources", () => {
     expect(await screen.findByText("Can't be read now, so its apps are out of the catalog")).toBeVisible();
     expect(screen.getByText("The host didn't answer.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Move to another commit" }));
-    expect(await screen.findByRole("dialog", { name: "Move community to another commit" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Move example/catalog to another commit" })).toBeVisible();
   });
 
   it("offers Try again when the sources can't be listed", async () => {
@@ -139,7 +139,7 @@ describe("Catalog sources", () => {
     expect(await screen.findByText("Couldn't read the sources")).toBeVisible();
     fail = false;
     await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("heading", { name: "community" })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "example/catalog" })).toBeVisible();
   });
 
   it("says Dockwell's own catalog is all it reads, with none, in a line and a button", async () => {
@@ -426,7 +426,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     expect(within(sheet).getByLabelText("Repository")).toHaveValue(REPO);
     expect(within(sheet).getByText("Entries at entries")).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Change" }));
@@ -434,7 +434,7 @@ describe("Catalog sources", () => {
     expect(within(sheet).queryByLabelText("Name")).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
 
-    await user.click(screen.getByRole("button", { name: "Remove community" }));
+    await user.click(screen.getByRole("button", { name: "Remove example/catalog" }));
     await waitFor(() => expect(removed).toBe("community"));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
     // A warning reads as its fact, then what it means.
@@ -459,7 +459,7 @@ describe("Catalog sources", () => {
     fixture.changes = { ...fixture.changes, discardChange: discard };
     const { router } = renderAt("/catalog/sources", fixture);
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const form = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const form = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(form).findByLabelText("Commit"), COMMIT);
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(requested).toHaveBeenCalledTimes(1));
@@ -496,7 +496,7 @@ describe("Catalog sources", () => {
     ];
     renderAt("/catalog/sources", api({ setCatalogSource: () => ({ change: old }) }));
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const form = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const form = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(form).findByLabelText("Commit"), COMMIT);
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -513,7 +513,7 @@ describe("Catalog sources", () => {
       api({ setCatalogSource: () => ({ change: planned(["catalog_source_refuses", ["broken.yaml"]]) }) }),
     );
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -538,7 +538,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move community to another commit" });
+    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -564,12 +564,12 @@ describe("Catalog sources, for whoever may not change them", () => {
         }),
     };
     renderAt("/catalog/sources", fixture);
-    await screen.findByRole("heading", { name: "community" });
+    await screen.findByRole("heading", { name: "example/catalog" });
     const why = "Only an admin or the owner can do this. Ask one of them.";
     for (const control of [
       screen.getByRole("button", { name: "Add a source" }),
       screen.getByRole("button", { name: "Move" }),
-      screen.getByRole("button", { name: "Remove community" }),
+      screen.getByRole("button", { name: "Remove example/catalog" }),
     ]) {
       expect(control).toHaveAttribute("aria-disabled", "true");
       expect(control).toHaveAccessibleDescription(why);
@@ -583,7 +583,7 @@ describe("Catalog sources on a phone", () => {
   it("leads the page with Add a source, as the header has no room for it", async () => {
     onPhone();
     renderAt("/catalog/sources", api());
-    await screen.findByRole("heading", { name: "community" });
+    await screen.findByRole("heading", { name: "example/catalog" });
     expect(screen.getByRole("button", { name: "Add a source" })).toBeVisible();
   });
 
@@ -618,7 +618,7 @@ describe("The catalog, with sources", () => {
     const sheet = await screen.findByRole("dialog", { name: "Install Notes" });
     expect(await within(sheet).findByText(/Not tested by Dockwell/)).toBeVisible();
     expect(within(sheet).getByRole("group", { name: "Catalog" })).toHaveTextContent(
-      "community · Not tested by Dockwell",
+      "example/catalog · Not tested by Dockwell",
     );
     // What it installs is under Advanced, one step away.
     await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
@@ -668,9 +668,9 @@ describe("The catalog, with sources", () => {
     });
     renderAt("/catalog", api({ listCatalogInstalls: () => ({ installs: [fromOwn] }) }));
     const card = await card$("notes-src");
-    expect(within(card).getByTitle("From the catalog community")).toHaveTextContent("community");
+    expect(within(card).getByTitle("From the catalog community")).toHaveTextContent("example/catalog");
     expect(card).not.toHaveTextContent("Installed");
-    expect(await card$("postgres")).not.toHaveTextContent("community");
+    expect(await card$("postgres")).not.toHaveTextContent("example/catalog");
   });
 
   it.each([
@@ -736,7 +736,7 @@ describe("The catalog, with sources", () => {
     const { container } = renderAt("/catalog/notes-src", api({ getCatalogEntry: () => ({ entry: notes }) }));
     const origin = await screen.findByRole("region", { name: "Where it comes from" });
     expect(within(origin).getByText("Not tested by Dockwell")).toBeVisible();
-    expect(within(origin).getByRole("link", { name: "community" })).toHaveAttribute("href", "/catalog/sources");
+    expect(within(origin).getByRole("link", { name: "example/catalog" })).toHaveAttribute("href", "/catalog/sources");
     expect(within(origin).getByText(REPO)).toBeVisible();
     expect(within(origin).getByText(COMMIT.slice(0, 12))).toHaveAttribute("title", COMMIT);
     // A state and its facts: no paragraph of advice.
@@ -921,7 +921,7 @@ describe("Other stores' catalogs", () => {
   it("says which store a source is, and what it leaves out by why, the most first", async () => {
     const user = userEvent.setup();
     renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [store] }) }));
-    const panel = (await screen.findByRole("heading", { name: "1panel" })).closest("section") as HTMLElement;
+    const panel = (await screen.findByRole("heading", { name: "1Panel" })).closest("section") as HTMLElement;
     expect(within(panel).getByText("1Panel's app store")).toBeVisible();
     await user.click(within(panel).getByText("3 apps left out, and why"));
     const kinds = [...panel.querySelectorAll(".sources-left-kind > summary")].map((k) => k.textContent);

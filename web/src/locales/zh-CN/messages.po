@@ -5973,6 +5973,13 @@ msgstr "文档"
 msgid "Explore the app"
 msgstr "了解应用"
 
+#. placeholder {0}: from.name
+msgid "From the catalog {0}"
+msgstr "来自目录 {0}"
+
+msgid "From the catalog {name}"
+msgstr "来自目录 {name}"
+
 msgid "Good to know"
 msgstr "须知"
 
@@ -6071,6 +6078,10 @@ msgstr "为你的服务器寻找应用。安装前，先了解它的功能。"
 msgid "From the catalog {source}"
 msgstr "来自目录 {source}"
 
+#. placeholder {0}: list([source ?? "", ...also].filter(Boolean))
+msgid "From the catalogs {0}"
+msgstr "来自目录 {0}"
+
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "没有应用的名称或用途中包含 <0>{typed}</0>。"
 
@@ -6104,7 +6115,7 @@ msgstr "升级到 {latest}"
 msgid "View app"
 msgstr "查看应用"
 
-#. placeholder {0}: list(also)
+#. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "另见于 {0}"
 
@@ -6291,6 +6302,10 @@ msgstr "base64 编码的 {0} 个字节"
 msgid "{0} hex digits"
 msgstr "{0} 位十六进制数字"
 
+#. placeholder {0}: named(source)
+msgid "{0} · Not tested by Dockwell"
+msgstr "{0} · 未经 Dockwell 测试"
+
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
 
@@ -6299,9 +6314,6 @@ msgstr "{cpus} 个 vCPU"
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, other {# 个自己设置的密钥}}"
-
-msgid "{source} · Not tested by Dockwell"
-msgstr "{source} · 未经 Dockwell 测试"
 
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
@@ -6459,8 +6471,8 @@ msgstr "切换提交"
 msgid "Move to another commit"
 msgstr "切换到其他提交"
 
-msgid "Move {name} to another commit"
-msgstr "将 {name} 切换到其他提交"
+msgid "Move {movingWords} to another commit"
+msgstr "将 {movingWords} 切换到其他提交"
 
 msgid "Named {name} · entries at {folderWords}"
 msgstr "名称 {name} · 条目位于 {folderWords}"
@@ -6473,6 +6485,9 @@ msgstr "固定到"
 
 msgid "Read. It has {count} or more branches and tags."
 msgstr "已读取。共有 {count} 个或更多分支和标签。"
+
+msgid "Remove {said}"
+msgstr "移除 {said}"
 
 msgctxt "catalog source"
 msgid "Store"

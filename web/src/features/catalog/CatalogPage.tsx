@@ -13,7 +13,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, installOf, useAlso, useCatalog, useInstalls, useOrigins } from "./useCatalog";
+import { categoryLabel, installOf, useAlso, useCatalog, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
 import "./Catalog.css";
 
 export interface CatalogPageProps {
@@ -33,6 +33,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   const catalog = useCatalog();
   const origins = useOrigins();
   const also = useAlso();
+  const named = useSourceNames();
   // Both reads again, whichever failed.
   const retry = () => {
     void catalog.refetch();
@@ -197,6 +198,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
                 search={search}
                 source={origins.origins.get(entry.id)?.name}
                 also={also.get(entry.id)}
+                named={named}
                 installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins, origins.also))}
               />
             ))}
@@ -241,6 +243,7 @@ function Card({
   category,
   source,
   also,
+  named,
   installs,
   search,
 }: {
@@ -251,6 +254,8 @@ function Card({
   source?: string | undefined;
   /** The other catalogs that have it, by their sources' names. */
   also?: readonly string[] | undefined;
+  /** How a person says a catalog, by its source's name. */
+  named: (name: string) => string;
   installs: readonly CatalogInstall[];
   search: CatalogSearch;
 }) {
@@ -283,16 +288,19 @@ function Card({
         <span className="catalog-card-about">
           <code>{entry.version}</code>
           {also?.length ? (
-            <span className="catalog-card-from">
+            <span
+              className="catalog-card-from"
+              title={t`From the catalogs ${list([source ?? "", ...also].filter(Boolean))}`}
+            >
               <Icon name="branch" size={12} />
               <span>
-                {source ?? t`Dockwell's own`} · {t`also in ${list(also)}`}
+                {named(source ?? "")} · {t`also in ${list(also.map(named))}`}
               </span>
             </span>
           ) : source ? (
             <span className="catalog-card-from" title={t`From the catalog ${source}`}>
               <Icon name="branch" size={12} />
-              <span>{source}</span>
+              <span>{named(source)}</span>
             </span>
           ) : null}
         </span>

@@ -14,7 +14,7 @@ import { Page } from "../shell/Page";
 import { Facts, useEntryFacts } from "./access";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, installOf, useInstalls, useOrigins } from "./useCatalog";
+import { categoryLabel, installOf, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
 import "./Catalog.css";
 
 /** Browsing an app is read-only. Its installation form opens only from the Install action. */
@@ -35,6 +35,7 @@ export function CatalogDetailPage({
   const chosen = search.catalog ?? catalogs[0] ?? "";
   // Where the entry comes from decides which installs are its own, as another catalog's app of this ID is another app.
   const origins = useOrigins();
+  const named = useSourceNames();
   const from = search.catalog
     ? (origins.data?.sources.find((source) => source.name === search.catalog) ?? origins.origins.get(id))
     : origins.origins.get(id);
@@ -142,7 +143,10 @@ export function CatalogDetailPage({
                   <SegmentedControl
                     label={t`Catalog to install from`}
                     value={chosen}
-                    options={catalogs.map((name) => ({ value: name, label: name || t`Dockwell's own` }))}
+                    options={catalogs.map((name) => ({
+                      value: name,
+                      label: name ? <span title={t`From the catalog ${name}`}>{named(name)}</span> : named(name),
+                    }))}
                     onChange={(name) =>
                       void navigate({
                         to: "/catalog/$entryId",
@@ -161,9 +165,9 @@ export function CatalogDetailPage({
                 </dt>
                 <dd>
                   {from ? (
-                    <span className="catalog-fact-from">
+                    <span className="catalog-fact-from" title={t`From the catalog ${from.name}`}>
                       <Icon name="branch" size={14} />
-                      {from.name}
+                      {named(from.name)}
                     </span>
                   ) : (
                     <Trans>Dockwell's own</Trans>
@@ -269,8 +273,8 @@ export function CatalogDetailPage({
                         <Trans>Catalog</Trans>
                       </dt>
                       <dd>
-                        <Link to="/catalog/sources" className="catalog-link">
-                          {from.name}
+                        <Link to="/catalog/sources" className="catalog-link" title={t`From the catalog ${from.name}`}>
+                          {named(from.name)}
                         </Link>
                       </dd>
                     </div>

@@ -4,7 +4,10 @@ import { useQuery } from "@connectrpc/connect-query";
 import { type CatalogInstall, CatalogService, type CatalogSourceInfo } from "@dockwell/api";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
-import { useMemo } from "react";
+import { useLingui } from "@lingui/react/macro";
+import { useCallback, useMemo } from "react";
+
+import { sourcesWords } from "./SourceFormats";
 
 /** The catalog, sorted by name. */
 export function useCatalog() {
@@ -53,6 +56,18 @@ export function installOf(
     pin.catalog === source.name && pin.repository === source.source?.repository && pin.path === source.source?.path;
   const source = origins.get(id);
   return (source ? from(source) : pin.catalog === "") || (also?.get(id) ?? []).some(from);
+}
+
+/**
+ * How a person says each catalog, by its source's ID: "Dockwell's own" for the
+ * built-in one (the empty ID), a store's name for a store at its own repository, and
+ * otherwise its repository's owner and name. Never the ID, which a tooltip keeps.
+ */
+export function useSourceNames(): (name: string) => string {
+  const { t } = useLingui();
+  const sources = useSources().data?.sources;
+  const words = useMemo(() => sourcesWords(sources ?? []), [sources]);
+  return useCallback((name: string) => (name === "" ? t`Dockwell's own` : (words.get(name) ?? name)), [words, t]);
 }
 
 /** The other catalogs that have each app, by its ID, as the catalog lists them. */

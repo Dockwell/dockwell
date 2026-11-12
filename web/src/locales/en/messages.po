@@ -5973,6 +5973,13 @@ msgstr "Documentation"
 msgid "Explore the app"
 msgstr "Explore the app"
 
+#. placeholder {0}: from.name
+msgid "From the catalog {0}"
+msgstr "From the catalog {0}"
+
+msgid "From the catalog {name}"
+msgstr "From the catalog {name}"
+
 msgid "Good to know"
 msgstr "Good to know"
 
@@ -6071,6 +6078,10 @@ msgstr "Find an app for your server. Explore what it does before you install."
 msgid "From the catalog {source}"
 msgstr "From the catalog {source}"
 
+#. placeholder {0}: list([source ?? "", ...also].filter(Boolean))
+msgid "From the catalogs {0}"
+msgstr "From the catalogs {0}"
+
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "No app here has <0>{typed}</0> in its name or what it does."
 
@@ -6104,7 +6115,7 @@ msgstr "Upgrade to {latest}"
 msgid "View app"
 msgstr "View app"
 
-#. placeholder {0}: list(also)
+#. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "also in {0}"
 
@@ -6291,6 +6302,10 @@ msgstr "{0} bytes in base64"
 msgid "{0} hex digits"
 msgstr "{0} hex digits"
 
+#. placeholder {0}: named(source)
+msgid "{0} · Not tested by Dockwell"
+msgstr "{0} · Not tested by Dockwell"
+
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
 
@@ -6299,9 +6314,6 @@ msgstr "{cpus} vCPU"
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
-
-msgid "{source} · Not tested by Dockwell"
-msgstr "{source} · Not tested by Dockwell"
 
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
@@ -6459,8 +6471,8 @@ msgstr "Move"
 msgid "Move to another commit"
 msgstr "Move to another commit"
 
-msgid "Move {name} to another commit"
-msgstr "Move {name} to another commit"
+msgid "Move {movingWords} to another commit"
+msgstr "Move {movingWords} to another commit"
 
 msgid "Named {name} · entries at {folderWords}"
 msgstr "Named {name} · entries at {folderWords}"
@@ -6473,6 +6485,9 @@ msgstr "Pin to"
 
 msgid "Read. It has {count} or more branches and tags."
 msgstr "Read. It has {count} or more branches and tags."
+
+msgid "Remove {said}"
+msgstr "Remove {said}"
 
 msgctxt "catalog source"
 msgid "Store"
