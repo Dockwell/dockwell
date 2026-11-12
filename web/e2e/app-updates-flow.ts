@@ -37,7 +37,25 @@ export const flow: Flow = {
     cli("login", "--local");
 
     step("app updates: an app on redis:7.2 is checked, and its page offers 7.4, a minor, as Redis numbers it");
-    cli("services", "create", "updates-cache", "--project", "default", "--app-image", "redis:7.2", "-y");
+    // On the control server, by its ID: earlier flows may have joined others, and a
+    // name alone would then ask which.
+    const fleet = JSON.parse(cli("servers", "list", "--json")) as {
+      servers?: { id?: string; name?: string; controlServer?: boolean }[];
+    };
+    const control =
+      fleet.servers?.find((s) => s.controlServer)?.id ?? fail(`no control server is listed: ${JSON.stringify(fleet)}`);
+    cli(
+      "services",
+      "create",
+      "updates-cache",
+      "--project",
+      "default",
+      "--on",
+      control,
+      "--app-image",
+      "redis:7.2",
+      "-y",
+    );
     const checked = cli("app-updates", "check", "updates-cache", "--project", "default");
     if (!checked.includes("7.4 minor")) fail(`the check found ${checked}`);
     const listed = JSON.parse(cli("services", "list", "--json")) as {
