@@ -474,7 +474,7 @@ func testASealedSpecOpensOnlyInItsOwnRevision(t *testing.T, backend store.Backen
 			q = strings.ReplaceAll(q, `X'0a0a6d792d6f776e2d6b6579'`, `'\x0a0a6d792d6f776e2d6b6579'::bytea`)
 		}
 		storetest.Exec(t, location, q)
-		if got, err := k.Reveal(t.Context(), id, "user:usr_test", store.SurfacePanel, func() error { return nil }); err == nil {
+		if got, err := k.Reveal(t.Context(), id, "user:usr_test", store.SurfacePanel, func(*store.Tx) error { return nil }); err == nil {
 			t.Errorf("with %s in revision 2's row, revealing gave %+v, want it refused", what, got)
 		}
 		if _, err := e.Propose(t.Context(), Proposal{Summary: "Rotate", Actor: "usr_test", Edits: []Edit{secretEdit(env, "DB_PASSWORD", "x")}}); err == nil {

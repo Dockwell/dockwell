@@ -164,6 +164,7 @@ The install's key is a separate file, and a backup of the database without it op
   - The options allow only the person's own passkeys for this address that aren't flagged as copied, and require user verification. Finishing checks the assertion against every passkey the options allowed, and it must come from one of them.
   - Finishing checks the assertion, its counter and copies as sign-in does, in one transaction, and audits it as `auth.step_up`, or `auth.step_up_failed` when refused.
   - It returns a proof of 256 random bits. Only the proof's hash is kept, in memory. It works once, within a minute, in that session, for that action and target. A proof given for anything else is spent all the same.
+  - [ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md) lets the session stand in for the proof for someone who chooses to be asked once an hour or only when signing in, recorded in the same transaction as the reveal. Changing how you sign in still takes a proof each time.
 - **Changing how you sign in takes one too.** Otherwise a stolen session could add a passkey of its own and pass every step-up with it. Each of these needs a proof for itself, as its request's `proof`:
 
   | Action | Method | Target |

@@ -138,7 +138,7 @@ func (s *Service) CreateInvite(ctx context.Context, client Client, p Principal, 
 	if err := s.db.View(ctx, func(tx *store.Tx) error { return s.memberAlready(ctx, tx, email) }); err != nil {
 		return MadeInvite{}, err
 	}
-	if err := s.UseStepUp(p, proof, StepUpInvite, InviteTarget(email, role, projectID)); err != nil {
+	if err := s.UseStepUp(ctx, client, p, proof, StepUpInvite, InviteTarget(email, role, projectID)); err != nil {
 		return MadeInvite{}, err
 	}
 	now := s.now()

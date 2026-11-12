@@ -53,13 +53,14 @@ func (s *Service) CreateJoinTicket(ctx context.Context, req *connect.Request[doc
 	}
 	// The action is on the person's own account, so its target is them, as
 	// BeginStepUp fills it in.
-	if req.Msg.GetProof() == "" {
-		s.people.AskedForStepUp(p, auth.StepUpAddServer, p.User.ID, func() {})
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, auth.ErrNeedsStepUp, authapi.ReasonNeedsStepUp)
-	}
-	giveBack, err := s.people.HoldStepUp(p, req.Msg.GetProof(), auth.StepUpAddServer, p.User.ID)
+	// With no proof, the session's cover may stand in (ADR 0075).
+	client, _ := authapi.ClientFrom(ctx)
+	giveBack, err := s.people.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpAddServer, p.User.ID)
 	if err != nil {
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+		if req.Msg.GetProof() == "" && errors.Is(err, auth.ErrNeedsStepUp) {
+			s.people.AskedForStepUp(p, auth.StepUpAddServer, p.User.ID, func() {})
+		}
+		return nil, authapi.StepUpRefused(err)
 	}
 	urls, err := s.ident.JoinURLs(ctx)
 	if err != nil {

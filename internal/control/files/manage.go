@@ -127,12 +127,24 @@ func (w *writing) hold(ctx context.Context, at, proof, paths string) error {
 	if proof == "" {
 		return nil
 	}
-	back, err := w.h.auth.HoldStepUp(w.p, proof, w.op.stepUp, w.target(paths))
+	back, err := w.h.auth.HoldStepUp(ctx, w.record.client, w.p, proof, w.op.stepUp, w.target(paths))
 	if err != nil {
-		return w.failedAt(ctx, at, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp))
+		return w.failedAt(ctx, at, authapi.StepUpRefused(err))
 	}
 	w.giveBack = back
 	return nil
+}
+
+// covered reports whether, with no proof given, the session's cover stands in for
+// the passkey the agent just asked for, for paths, and puts that on the audit log
+// (ADR 0075). The write then goes again, once, with those paths confirmed, as a
+// proof would have it, and the agent still writes only where its walk ends there.
+func (w *writing) covered(ctx context.Context, proof, paths string, r *agentv1.FileRefusal) bool {
+	if proof != "" || paths == "" || r.GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+		return false
+	}
+	_, err := w.h.auth.HoldStepUp(ctx, w.record.client, w.p, "", w.op.stepUp, w.target(paths))
+	return err == nil
 }
 
 // failedAt puts on record a write that came to nothing, and why.
@@ -221,6 +233,9 @@ func (h *Handler) MakeFile(ctx context.Context, req *connect.Request[dockwellv1.
 		confirmed = path
 	}
 	out, err := w.session.MakeFile(ctx, path, kind, confirmed)
+	if err == nil && w.covered(ctx, proof, path, out.GetRefusal()) {
+		out, err = w.session.MakeFile(ctx, path, kind, path)
+	}
 	if err != nil {
 		return nil, w.called(ctx, path, err)
 	}
@@ -254,6 +269,9 @@ func (h *Handler) MoveFile(ctx context.Context, req *connect.Request[dockwellv1.
 		confirmedFrom, confirmedTo = from, to
 	}
 	out, err := w.session.MoveFile(ctx, from, to, confirmedFrom, confirmedTo)
+	if err == nil && w.covered(ctx, proof, paths, out.GetRefusal()) {
+		out, err = w.session.MoveFile(ctx, from, to, from, to)
+	}
 	if err != nil {
 		return nil, w.called(ctx, from, err)
 	}
@@ -281,6 +299,9 @@ func (h *Handler) DeleteFile(ctx context.Context, req *connect.Request[dockwellv
 		confirmed = path
 	}
 	out, err := w.session.DeleteFile(ctx, path, forGood, confirmed)
+	if err == nil && w.covered(ctx, proof, path, out.GetRefusal()) {
+		out, err = w.session.DeleteFile(ctx, path, forGood, path)
+	}
 	if err != nil {
 		return nil, w.called(ctx, path, err)
 	}
@@ -341,9 +362,13 @@ func (h *Handler) RestoreFile(ctx context.Context, req *connect.Request[dockwell
 			return nil, err
 		}
 	}
+	dest := at
 	at = cmp.Or(at, id)
 	ctx = context.WithoutCancel(ctx)
 	out, err := w.session.RestoreFile(ctx, id, confirmed)
+	if err == nil && w.covered(ctx, proof, dest, out.GetRefusal()) {
+		out, err = w.session.RestoreFile(ctx, id, dest)
+	}
 	if err != nil {
 		return nil, w.called(ctx, at, err)
 	}

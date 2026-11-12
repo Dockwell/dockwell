@@ -330,7 +330,7 @@ func (s *Service) BeginAddPasskey(ctx context.Context, client Client, p Principa
 		confirmed: fresh, fresh: proof == "",
 	}
 	if proof != "" {
-		if err := s.confirmed(p, proof, StepUpAddPasskey); err != nil {
+		if err := s.UseStepUp(ctx, client, p, proof, StepUpAddPasskey, p.User.ID); err != nil {
 			return Ceremony{}, err
 		}
 		cer.confirmed = "confirmed with a passkey"
@@ -493,7 +493,7 @@ func (s *Service) RemovePasskey(ctx context.Context, p Principal, passkeyID, pro
 		if s.usablePasskeys(all, passkeyID) == 0 && user.TOTPSecret == nil {
 			return ErrLastWayIn
 		}
-		if err := s.UseStepUp(p, proof, StepUpRemovePasskey, passkeyID); err != nil {
+		if err := s.UseStepUpIn(ctx, tx, Client{}, p, proof, StepUpRemovePasskey, passkeyID); err != nil {
 			return err
 		}
 		if err := tx.DeletePasskey(ctx, p.User.ID, passkeyID); err != nil {

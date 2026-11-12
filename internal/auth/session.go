@@ -109,6 +109,11 @@ func (s *Service) startSession(ctx context.Context, tx *store.Tx, user store.Use
 		LastSeenAt: now,
 		ExpiresAt:  now.Add(SessionMax),
 	}
+	// A sign-in with a passkey, as claiming and accepting an invite make one,
+	// opens the session's hour, for someone who asks once an hour (ADR 0075).
+	if method == MethodPasskey || method == MethodClaim || method == MethodInvite {
+		sess.PasskeyAt = &now
+	}
 	// Ended sessions and tokens are kept pruneAfter for the record.
 	if err := tx.PruneSessions(ctx, now.Add(-pruneAfter)); err != nil {
 		return SignedIn{}, err

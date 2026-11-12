@@ -61,31 +61,31 @@ func testAStepUpProvesOneActionOnce(t *testing.T, backend store.Backend) {
 	if up.Proof == "" || !up.Expires.Equal(f.clock.now().Add(StepUpTTL)) {
 		t.Fatalf("a step-up gave %+v", up)
 	}
-	if err := f.svc.UseStepUp(p, up.Proof, StepUpRevealSecret, "sec_1"); err != nil {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, up.Proof, StepUpRevealSecret, "sec_1"); err != nil {
 		t.Fatalf("using a fresh proof: %v", err)
 	}
-	if err := f.svc.UseStepUp(p, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("using a proof twice: %v, want it refused", err)
 	}
 
 	up = f.stepUp(t, p, a)
-	if err := f.svc.UseStepUp(p, up.Proof, StepUpRevealSecret, "sec_2"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, up.Proof, StepUpRevealSecret, "sec_2"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("a proof for one secret used for another: %v, want it refused", err)
 	}
-	if err := f.svc.UseStepUp(p, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("a proof spent on the wrong secret still works: %v", err)
 	}
 
 	up = f.stepUp(t, p, a)
 	f.clock.advance(StepUpTTL + time.Second)
-	if err := f.svc.UseStepUp(p, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("a stale proof: %v, want it refused", err)
 	}
 
 	up = f.stepUp(t, p, a)
 	other := p
 	other.Session.ID = "ses_other"
-	if err := f.svc.UseStepUp(other, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, other, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("a proof used from another session: %v, want it refused", err)
 	}
 
@@ -94,10 +94,10 @@ func testAStepUpProvesOneActionOnce(t *testing.T, backend store.Backend) {
 		t.Errorf("a token beginning a step-up: %v, want it refused", err)
 	}
 	up = f.stepUp(t, p, a)
-	if err := f.svc.UseStepUp(token, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsSession) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, token, up.Proof, StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsSession) {
 		t.Errorf("a token using a proof: %v, want it refused", err)
 	}
-	if err := f.svc.UseStepUp(p, "", StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, "", StepUpRevealSecret, "sec_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("no proof: %v, want it refused", err)
 	}
 
@@ -190,7 +190,7 @@ func testChangingHowYouSignInTakesAStepUp(t *testing.T, backend store.Backend) {
 		"adding a passkey": func(proof string) error { _, err := f.svc.BeginAddPasskey(ctx, localhost, p, proof); return err },
 		"setting up codes": func(proof string) error { _, err := f.svc.BeginTOTP(ctx, p, proof); return err },
 		"making a token": func(proof string) error {
-			_, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, proof)
+			_, err := f.svc.CreateToken(ctx, Client{}, p, "CI", store.ScopeReadOnly, nil, nil, proof)
 			return err
 		},
 	} {
@@ -314,7 +314,7 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 	// A token with no name, or one too many.
 	create := f.proof(t, p, StepUpCreateToken, "")
 	for _, proof := range []string{"", create} {
-		if _, err := f.svc.CreateToken(ctx, p, " ", store.ScopeReadOnly, nil, nil, proof); !errors.Is(err, ErrInvalid) {
+		if _, err := f.svc.CreateToken(ctx, Client{}, p, " ", store.ScopeReadOnly, nil, nil, proof); !errors.Is(err, ErrInvalid) {
 			t.Errorf("a token with no name, proof %t = %v, want ErrInvalid", proof != "", err)
 		}
 	}
@@ -333,7 +333,7 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 		return nil
 	})
 	for _, proof := range []string{"", create} {
-		if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, proof); !errors.Is(err, ErrInvalid) ||
+		if _, err := f.svc.CreateToken(ctx, Client{}, p, "CI", store.ScopeReadOnly, nil, nil, proof); !errors.Is(err, ErrInvalid) ||
 			!strings.Contains(err.Error(), "the most you can have") {
 			t.Errorf("one token too many, proof %t = %v, want it refused for the most tokens", proof != "", err)
 		}
@@ -343,7 +343,7 @@ func testARefusalForAnotherReasonLeavesTheProof(t *testing.T, backend store.Back
 	if err := f.svc.RevokeToken(ctx, p, last); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, create); err != nil {
+	if _, err := f.svc.CreateToken(ctx, Client{}, p, "CI", store.ScopeReadOnly, nil, nil, create); err != nil {
 		t.Errorf("making a token with the proof a refusal left: %v", err)
 	}
 	f.enableTOTP(t, p)
@@ -404,7 +404,7 @@ func testASignInJustNowConfirmsAddingAPasskey(t *testing.T, backend store.Backen
 	if _, err := add(localhost, p); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("adding a passkey after a code sign-in, with a passkey here = %v, want ErrNeedsStepUp", err)
 	}
-	if _, err := f.svc.CreateToken(ctx, p, "CI", store.ScopeReadOnly, nil, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
+	if _, err := f.svc.CreateToken(ctx, Client{}, p, "CI", store.ScopeReadOnly, nil, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("making a token just after signing in with a code = %v, want ErrNeedsStepUp", err)
 	}
 
@@ -545,18 +545,18 @@ func TestAHeldProofGoesBackIfTheActionIsRefused(t *testing.T) {
 	now := time.Now()
 	s := holding(&now, StepUpApplyRootChange, "chg_1")
 	p := aPerson("s")
-	back, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1")
+	back, err := s.HoldStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if _, err := s.HoldStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Fatalf("a proof that's held worked again: %v", err)
 	}
 	back()
-	if err := s.UseStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); err != nil {
+	if err := s.UseStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1"); err != nil {
 		t.Fatalf("a proof given back: %v", err)
 	}
-	if err := s.UseStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := s.UseStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Fatalf("a proof that was used worked again: %v", err)
 	}
 }
@@ -566,13 +566,13 @@ func TestAProofGivenBackDoesntGetLonger(t *testing.T) {
 	now := time.Now()
 	s := holding(&now, StepUpApplyRootChange, "chg_1")
 	p := aPerson("s")
-	back, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1")
+	back, err := s.HoldStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	now = now.Add(StepUpTTL + time.Second)
 	back()
-	if err := s.UseStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
+	if err := s.UseStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1"); !errors.Is(err, ErrNeedsStepUp) {
 		t.Fatalf("a proof past its minute: %v", err)
 	}
 }
@@ -618,7 +618,7 @@ func TestAStepUpAskedForThatNeverComesIsHeardOnce(t *testing.T) {
 	s.AskedForStepUp(p, StepUpApplyRootChange, "chg_2", func() { heard <- "chg_2" })
 	s.AskedForStepUp(p, StepUpApplyRootChange, "chg_2", func() { heard <- "chg_2 again" })
 	s.AskedForStepUp(p, StepUpApplyRootChange, "chg_1", func() { heard <- "chg_1" })
-	if _, err := s.HoldStepUp(p, "proof", StepUpApplyRootChange, "chg_1"); err != nil {
+	if _, err := s.HoldStepUp(t.Context(), Client{}, p, "proof", StepUpApplyRootChange, "chg_1"); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -662,7 +662,7 @@ func TestAPasskeyStillAnswersOnceExported(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a passkey read back from a file: %v", err)
 	}
-	if err := f.svc.UseStepUp(p, up.Proof, StepUpApplyRootChange, "chg_1"); err != nil {
+	if err := f.svc.UseStepUp(t.Context(), Client{}, p, up.Proof, StepUpApplyRootChange, "chg_1"); err != nil {
 		t.Fatalf("its proof: %v", err)
 	}
 }

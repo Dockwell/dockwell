@@ -51,6 +51,7 @@ import { Route as ShellSettingsSettingsControlPlaneRouteImport } from './routes/
 import { Route as ShellSettingsSettingsGeneralRouteImport } from './routes/_shell/_settings/settings.general'
 import { Route as ShellSettingsSettingsIntegrationsRouteImport } from './routes/_shell/_settings/settings.integrations'
 import { Route as ShellSettingsSettingsMembersRouteImport } from './routes/_shell/_settings/settings.members'
+import { Route as ShellSettingsSettingsSecurityRouteImport } from './routes/_shell/_settings/settings.security'
 import { Route as ShellAppsServiceIdIndexRouteImport } from './routes/_shell/apps.$serviceId.index'
 import { Route as ShellAppsServiceIdDeploymentsRouteImport } from './routes/_shell/apps.$serviceId.deployments'
 import { Route as ShellAppsServiceIdEnvironmentRouteImport } from './routes/_shell/apps.$serviceId.environment'
@@ -290,6 +291,12 @@ const ShellSettingsSettingsMembersRoute =
     path: '/settings/members',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellSettingsSettingsSecurityRoute =
+  ShellSettingsSettingsSecurityRouteImport.update({
+    id: '/settings/security',
+    path: '/settings/security',
+    getParentRoute: () => ShellSettingsRoute,
+  } as any)
 const ShellAppsServiceIdIndexRoute = ShellAppsServiceIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -467,6 +474,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
+  '/settings/security': typeof ShellSettingsSettingsSecurityRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
@@ -529,6 +537,7 @@ export interface FileRoutesByTo {
   '/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/settings/members': typeof ShellSettingsSettingsMembersRoute
+  '/settings/security': typeof ShellSettingsSettingsSecurityRoute
   '/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
@@ -597,6 +606,7 @@ export interface FileRoutesById {
   '/_shell/_settings/settings/general': typeof ShellSettingsSettingsGeneralRoute
   '/_shell/_settings/settings/integrations': typeof ShellSettingsSettingsIntegrationsRoute
   '/_shell/_settings/settings/members': typeof ShellSettingsSettingsMembersRoute
+  '/_shell/_settings/settings/security': typeof ShellSettingsSettingsSecurityRoute
   '/_shell/apps/$serviceId/deployments': typeof ShellAppsServiceIdDeploymentsRoute
   '/_shell/apps/$serviceId/environment': typeof ShellAppsServiceIdEnvironmentRoute
   '/_shell/apps/$serviceId/logs': typeof ShellAppsServiceIdLogsRoute
@@ -664,6 +674,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/members'
+    | '/settings/security'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
@@ -726,6 +737,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/integrations'
     | '/settings/members'
+    | '/settings/security'
     | '/apps/$serviceId/deployments'
     | '/apps/$serviceId/environment'
     | '/apps/$serviceId/logs'
@@ -793,6 +805,7 @@ export interface FileRouteTypes {
     | '/_shell/_settings/settings/general'
     | '/_shell/_settings/settings/integrations'
     | '/_shell/_settings/settings/members'
+    | '/_shell/_settings/settings/security'
     | '/_shell/apps/$serviceId/deployments'
     | '/_shell/apps/$serviceId/environment'
     | '/_shell/apps/$serviceId/logs'
@@ -1124,6 +1137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsMembersRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/_settings/settings/security': {
+      id: '/_shell/_settings/settings/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof ShellSettingsSettingsSecurityRouteImport
+      parentRoute: typeof ShellSettingsRoute
+    }
     '/_shell/apps/$serviceId/': {
       id: '/_shell/apps/$serviceId/'
       path: '/'
@@ -1296,6 +1316,7 @@ interface ShellSettingsRouteChildren {
   ShellSettingsSettingsGeneralRoute: typeof ShellSettingsSettingsGeneralRoute
   ShellSettingsSettingsIntegrationsRoute: typeof ShellSettingsSettingsIntegrationsRoute
   ShellSettingsSettingsMembersRoute: typeof ShellSettingsSettingsMembersRoute
+  ShellSettingsSettingsSecurityRoute: typeof ShellSettingsSettingsSecurityRoute
   ShellSettingsSettingsIndexRoute: typeof ShellSettingsSettingsIndexRoute
 }
 
@@ -1309,6 +1330,7 @@ const ShellSettingsRouteChildren: ShellSettingsRouteChildren = {
   ShellSettingsSettingsIntegrationsRoute:
     ShellSettingsSettingsIntegrationsRoute,
   ShellSettingsSettingsMembersRoute: ShellSettingsSettingsMembersRoute,
+  ShellSettingsSettingsSecurityRoute: ShellSettingsSettingsSecurityRoute,
   ShellSettingsSettingsIndexRoute: ShellSettingsSettingsIndexRoute,
 }
 

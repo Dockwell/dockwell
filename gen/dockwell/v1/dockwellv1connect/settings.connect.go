@@ -53,6 +53,9 @@ const (
 	// SettingsServiceCreatePanelSignInLinkProcedure is the fully-qualified name of the
 	// SettingsService's CreatePanelSignInLink RPC.
 	SettingsServiceCreatePanelSignInLinkProcedure = "/dockwell.v1.SettingsService/CreatePanelSignInLink"
+	// SettingsServiceSetStepUpFloorProcedure is the fully-qualified name of the SettingsService's
+	// SetStepUpFloor RPC.
+	SettingsServiceSetStepUpFloorProcedure = "/dockwell.v1.SettingsService/SetStepUpFloor"
 	// SettingsServiceGetControlPlaneProcedure is the fully-qualified name of the SettingsService's
 	// GetControlPlane RPC.
 	SettingsServiceGetControlPlaneProcedure = "/dockwell.v1.SettingsService/GetControlPlane"
@@ -104,6 +107,14 @@ type SettingsServiceClient interface {
 	// FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
 	// domain. It's on the activity log as sign_in_link.create.
 	CreatePanelSignInLink(context.Context, *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error)
+	// SetStepUpFloor sets the least anyone may choose for how often they're
+	// asked for their passkey again (AuthService.SetStepUpPolicy, ADR 0075).
+	// What applies to each person is the stricter of their choice and this.
+	// Only the owner sets it, in a session, and it takes a passkey just now:
+	// call it without a proof first, then again with the proof from
+	// FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_FLOOR. It's on the activity
+	// log with the floor it replaced.
+	SetStepUpFloor(context.Context, *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error)
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
@@ -163,6 +174,12 @@ func NewSettingsServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(settingsServiceMethods.ByName("CreatePanelSignInLink")),
 			connect.WithClientOptions(opts...),
 		),
+		setStepUpFloor: connect.NewClient[v1.SetStepUpFloorRequest, v1.SetStepUpFloorResponse](
+			httpClient,
+			baseURL+SettingsServiceSetStepUpFloorProcedure,
+			connect.WithSchema(settingsServiceMethods.ByName("SetStepUpFloor")),
+			connect.WithClientOptions(opts...),
+		),
 		getControlPlane: connect.NewClient[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse](
 			httpClient,
 			baseURL+SettingsServiceGetControlPlaneProcedure,
@@ -181,6 +198,7 @@ type settingsServiceClient struct {
 	checkPanelDomain      *connect.Client[v1.CheckPanelDomainRequest, v1.CheckPanelDomainResponse]
 	setPanelDomain        *connect.Client[v1.SetPanelDomainRequest, v1.SetPanelDomainResponse]
 	createPanelSignInLink *connect.Client[v1.CreatePanelSignInLinkRequest, v1.CreatePanelSignInLinkResponse]
+	setStepUpFloor        *connect.Client[v1.SetStepUpFloorRequest, v1.SetStepUpFloorResponse]
 	getControlPlane       *connect.Client[v1.GetControlPlaneRequest, v1.GetControlPlaneResponse]
 }
 
@@ -212,6 +230,11 @@ func (c *settingsServiceClient) SetPanelDomain(ctx context.Context, req *connect
 // CreatePanelSignInLink calls dockwell.v1.SettingsService.CreatePanelSignInLink.
 func (c *settingsServiceClient) CreatePanelSignInLink(ctx context.Context, req *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error) {
 	return c.createPanelSignInLink.CallUnary(ctx, req)
+}
+
+// SetStepUpFloor calls dockwell.v1.SettingsService.SetStepUpFloor.
+func (c *settingsServiceClient) SetStepUpFloor(ctx context.Context, req *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error) {
+	return c.setStepUpFloor.CallUnary(ctx, req)
 }
 
 // GetControlPlane calls dockwell.v1.SettingsService.GetControlPlane.
@@ -265,6 +288,14 @@ type SettingsServiceHandler interface {
 	// FinishStepUp for STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN, whose target is the
 	// domain. It's on the activity log as sign_in_link.create.
 	CreatePanelSignInLink(context.Context, *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error)
+	// SetStepUpFloor sets the least anyone may choose for how often they're
+	// asked for their passkey again (AuthService.SetStepUpPolicy, ADR 0075).
+	// What applies to each person is the stricter of their choice and this.
+	// Only the owner sets it, in a session, and it takes a passkey just now:
+	// call it without a proof first, then again with the proof from
+	// FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_FLOOR. It's on the activity
+	// log with the floor it replaced.
+	SetStepUpFloor(context.Context, *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error)
 	// GetControlPlane returns what serves the panel and API: its build, where it
 	// keeps its state, the addresses it answers on, and how it's doing. Most of
 	// it comes from how dockwell run was started, and changes there.
@@ -320,6 +351,12 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 		connect.WithSchema(settingsServiceMethods.ByName("CreatePanelSignInLink")),
 		connect.WithHandlerOptions(opts...),
 	)
+	settingsServiceSetStepUpFloorHandler := connect.NewUnaryHandler(
+		SettingsServiceSetStepUpFloorProcedure,
+		svc.SetStepUpFloor,
+		connect.WithSchema(settingsServiceMethods.ByName("SetStepUpFloor")),
+		connect.WithHandlerOptions(opts...),
+	)
 	settingsServiceGetControlPlaneHandler := connect.NewUnaryHandler(
 		SettingsServiceGetControlPlaneProcedure,
 		svc.GetControlPlane,
@@ -341,6 +378,8 @@ func NewSettingsServiceHandler(svc SettingsServiceHandler, opts ...connect.Handl
 			settingsServiceSetPanelDomainHandler.ServeHTTP(w, r)
 		case SettingsServiceCreatePanelSignInLinkProcedure:
 			settingsServiceCreatePanelSignInLinkHandler.ServeHTTP(w, r)
+		case SettingsServiceSetStepUpFloorProcedure:
+			settingsServiceSetStepUpFloorHandler.ServeHTTP(w, r)
 		case SettingsServiceGetControlPlaneProcedure:
 			settingsServiceGetControlPlaneHandler.ServeHTTP(w, r)
 		default:
@@ -374,6 +413,10 @@ func (UnimplementedSettingsServiceHandler) SetPanelDomain(context.Context, *conn
 
 func (UnimplementedSettingsServiceHandler) CreatePanelSignInLink(context.Context, *connect.Request[v1.CreatePanelSignInLinkRequest]) (*connect.Response[v1.CreatePanelSignInLinkResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.CreatePanelSignInLink is not implemented"))
+}
+
+func (UnimplementedSettingsServiceHandler) SetStepUpFloor(context.Context, *connect.Request[v1.SetStepUpFloorRequest]) (*connect.Response[v1.SetStepUpFloorResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.SettingsService.SetStepUpFloor is not implemented"))
 }
 
 func (UnimplementedSettingsServiceHandler) GetControlPlane(context.Context, *connect.Request[v1.GetControlPlaneRequest]) (*connect.Response[v1.GetControlPlaneResponse], error) {

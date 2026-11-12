@@ -18,6 +18,7 @@ import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { SessionsPanel } from "./SessionsPanel";
+import { StepUpPanel } from "./StepUpPanel";
 import { TotpPanel } from "./TotpPanel";
 import { useSignedIn } from "./useAuthState";
 import { useSignOut } from "./useSignOut";
@@ -58,13 +59,19 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
         </p>
       ) : null}
       <ProfileCallout via={via} rpId={auth?.rpId ?? ""} />
-      {/* Preferences in the first row, where the mock has it beside the account. */}
+      {/* Two stacks that each flow on their own, so a short panel leaves no gap beside a tall one.
+          Read in order, they're the order on a phone, with Preferences first, where the mock has it. */}
       <div className="profile-grid">
-        <PreferencesPanel />
-        <PasskeysPanel rpId={auth?.rpId ?? ""} />
-        <TotpPanel />
-        <SessionsPanel />
-        <TokensPointer />
+        <div className="profile-stack">
+          <PreferencesPanel />
+          <PasskeysPanel rpId={auth?.rpId ?? ""} />
+          <StepUpPanel />
+        </div>
+        <div className="profile-stack">
+          <TotpPanel />
+          <SessionsPanel />
+          <TokensPointer />
+        </div>
       </div>
     </Page>
   );

@@ -14,6 +14,7 @@ import { useMay } from "../auth/may";
 interface Section {
   to:
     | "/settings/general"
+    | "/settings/security"
     | "/settings/members"
     | "/settings/api-tokens"
     | "/settings/audit-log"
@@ -43,6 +44,7 @@ function useSections(): { label: string; sections: Section[] }[] {
       label: t`Install`,
       sections: [
         { to: "/settings/general", label: t`General`, icon: "settings" },
+        { to: "/settings/security", label: t`Security`, icon: "shield" },
         ...members,
         { to: "/settings/api-tokens", label: t`API tokens`, icon: "key" },
         ...audit,

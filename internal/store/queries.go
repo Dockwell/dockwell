@@ -38,6 +38,9 @@ const (
 	SettingInstallName = "install.name"
 	// SettingTimeZone is the zone new schedules start in.
 	SettingTimeZone = "install.time_zone"
+	// SettingStepUpFloor is the least anyone may choose for how often they're
+	// asked for their passkey again (ADR 0075). Unset allows all three.
+	SettingStepUpFloor = "auth.step_up_floor"
 )
 
 // SettingPublicAddress is the key of what a person set of a server's public address.

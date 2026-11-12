@@ -57,7 +57,8 @@ func (h *Handler) CreateToken(ctx context.Context, req *connect.Request[dockwell
 		}
 		grants = append(grants, store.GrantLogs)
 	}
-	made, err := h.auth.CreateToken(ctx, p, m.GetName(), scope, grants, expires, m.GetProof())
+	client, _ := ClientFrom(ctx)
+	made, err := h.auth.CreateToken(ctx, client, p, m.GetName(), scope, grants, expires, m.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

@@ -36,6 +36,9 @@ import (
 // docs/adr/0011-claim-and-sign-in.md, docs/adr/0032-files-on-a-server.md,
 // docs/adr/0037-a-terminal-on-a-server.md and
 // docs/adr/0061-opening-an-apps-web-ui-through-the-panel.md.
+//
+// For someone who asks to be asked less often, their session's cover stands in
+// for the proof, except for what always asks (cover.go, ADR 0075).
 
 // StepUpTTL is how long a step-up's proof works.
 const StepUpTTL = time.Minute
@@ -109,6 +112,11 @@ const (
 	// StepUpSignInOnPanelDomain makes a one-time link that signs in on the
 	// panel's domain. Its target is the domain.
 	StepUpSignInOnPanelDomain StepUpAction = "sign_in_link.panel_domain"
+	// StepUpSetPolicy chooses how often the person is asked for their passkey
+	// again (ADR 0075). It always asks.
+	StepUpSetPolicy StepUpAction = "step_up_policy.set"
+	// StepUpSetFloor sets the least anyone may choose for that. It always asks.
+	StepUpSetFloor StepUpAction = "step_up_floor.set"
 )
 
 // stepUpActions says what each action is doing, for the audit log, and
@@ -140,6 +148,8 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSetPanelDomain:   {"setting the panel's domain to", true},
 	// A sign-in link to the domain, for the person asking.
 	StepUpSignInOnPanelDomain: {"signing in on", true},
+	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},
+	StepUpSetFloor:            {"setting how often everyone is asked for a passkey at least", false},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
@@ -469,6 +479,10 @@ func (s *Service) FinishStepUp(ctx context.Context, client Client, p Principal, 
 			return err
 		}
 		used = pk.ID
+		// It opens the session's hour, for someone who asks once an hour (ADR 0075).
+		if err := tx.ConfirmSession(ctx, p.Session.ID, now); err != nil {
+			return err
+		}
 		return s.auditOn(ctx, tx, p.Actor(), "auth.step_up", p.User.ID, cer.target,
 			fmt.Sprintf("confirmed %s with passkey %s, from %s", what, pk.ID, client.remoteIP()))
 	})
@@ -496,8 +510,31 @@ func (s *Service) FinishStepUp(ctx context.Context, client Client, p Principal, 
 // UseStepUp spends a proof for action on target, in the principal's session. It
 // works once: a proof given for anything else is spent too. No API token can use
 // one. For an action on the person's own account, the target is their ID.
-func (s *Service) UseStepUp(p Principal, proof string, action StepUpAction, target string) error {
-	_, err := s.HoldStepUp(p, proof, action, target)
+//
+// With no proof, the session's cover stands in where the person asked to be asked
+// less often and the action doesn't always ask (ADR 0075). That goes on the audit
+// log, from client, in a transaction of its own; an action that happens in a
+// transaction already uses UseStepUpIn.
+func (s *Service) UseStepUp(ctx context.Context, client Client, p Principal, proof string, action StepUpAction, target string) error {
+	_, err := s.HoldStepUp(ctx, client, p, proof, action, target)
+	return err
+}
+
+// UseStepUpIn is UseStepUp for an action that happens in tx, such as revealing a
+// secret, so the record of what confirmed it is written with what it did, or
+// neither is.
+func (s *Service) UseStepUpIn(ctx context.Context, tx *store.Tx, client Client, p Principal, proof string, action StepUpAction, target string) error {
+	if p.Token != nil || p.Session.ID == "" {
+		return ErrNeedsSession
+	}
+	if proof == "" {
+		if err := s.coverIn(ctx, tx, client, p, action, target); err != nil {
+			return err
+		}
+		s.stepUps.settle(forPrincipal(p, action, target))
+		return nil
+	}
+	_, err := s.holdProof(p, proof, action, target)
 	return err
 }
 
@@ -505,11 +542,27 @@ func (s *Service) UseStepUp(p Principal, proof string, action StepUpAction, targ
 // says how to give the proof back if it is. ADR 0022 spends a proof where the action
 // happens, so one that confirmed nothing isn't used up, and holding it means no
 // second call can use it meanwhile. A save happens on an agent, where no
-// transaction reaches, and starting a change happens in the engine.
-func (s *Service) HoldStepUp(p Principal, proof string, action StepUpAction, target string) (func(), error) {
+// transaction reaches, and starting a change happens in the engine. Where the
+// session's cover stands in, there's nothing to give back.
+func (s *Service) HoldStepUp(ctx context.Context, client Client, p Principal, proof string, action StepUpAction, target string) (func(), error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return nil, ErrNeedsSession
 	}
+	if proof == "" {
+		if !mayCover(p, action) {
+			return nil, ErrNeedsStepUp
+		}
+		if err := s.db.Update(ctx, func(tx *store.Tx) error { return s.coverIn(ctx, tx, client, p, action, target) }); err != nil {
+			return nil, err
+		}
+		s.stepUps.settle(forPrincipal(p, action, target))
+		return func() {}, nil
+	}
+	return s.holdProof(p, proof, action, target)
+}
+
+// holdProof takes a proof for action on target, and says how to give it back.
+func (s *Service) holdProof(p Principal, proof string, action StepUpAction, target string) (func(), error) {
 	if proof == "" {
 		return nil, ErrNeedsStepUp
 	}
@@ -555,10 +608,10 @@ func (s *Service) AskedForStepUp(p Principal, action StepUpAction, target string
 	}
 }
 
-// confirmed spends a proof for an action on the principal's own account
-// (UseStepUp).
-func (s *Service) confirmed(p Principal, proof string, action StepUpAction) error {
-	return s.UseStepUp(p, proof, action, p.User.ID)
+// confirmedIn spends a proof for an action on the principal's own account, in
+// tx (UseStepUpIn).
+func (s *Service) confirmedIn(ctx context.Context, tx *store.Tx, client Client, p Principal, proof string, action StepUpAction) error {
+	return s.UseStepUpIn(ctx, tx, client, p, proof, action, p.User.ID)
 }
 
 // freshSignIn reports whether the principal's session may add a passkey

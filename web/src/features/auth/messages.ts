@@ -60,6 +60,8 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
           return t`API tokens can't remove data, cut off access, reveal a secret, reach a server's files, processes or terminal, rename the install, or change how you sign in and your tokens. Sign in and do it in the panel.`;
         case "needs_step_up":
           return t`That needs your passkey just now, and the confirmation was missing, used or expired. Try again, and confirm when your browser asks.`;
+        case "below_floor":
+          return t`The owner asks everyone for their passkey at least as often as that, so it isn't open to you. Pick one above it.`;
         case "no_passkey_here":
           return t`That takes a passkey, and there's none for this address yet. Add one under Profile and security.`;
         case "needs_fresh_sign_in":

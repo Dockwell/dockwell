@@ -191,11 +191,12 @@ var ErrNotSecret = errors.New("there's no such secret")
 
 // Reveal returns a secret's latest value, and records in the audit log, in
 // the same transaction, that actor revealed it. If the record can't be
-// written, nothing is revealed. confirm checks that a person in a
-// signed-in session confirmed it with a passkey just now, and may spend the
-// proof: it is called once nothing else refuses, such as there being no
-// such secret, and before the value is read.
-func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, confirm func() error) (Revealed, error) {
+// written, nothing is revealed. confirm checks, in the same transaction,
+// that a person in a signed-in session confirmed it with a passkey just now,
+// or with their session's cover (ADR 0075), and may spend the proof: it is
+// called once nothing else refuses, such as there being no such secret, and
+// before the value is read.
+func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, confirm func(*store.Tx) error) (Revealed, error) {
 	var out Revealed
 	err := k.db.Update(ctx, func(tx *store.Tx) error {
 		r, err := tx.GetResourceByID(ctx, secretID)
@@ -205,7 +206,7 @@ func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, co
 		if err != nil {
 			return err
 		}
-		if err := confirm(); err != nil {
+		if err := confirm(tx); err != nil {
 			return err
 		}
 		spec, err := k.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)

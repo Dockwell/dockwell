@@ -1,0 +1,102 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* How often a passkey is asked for again: three cards, in Profile and in Settings, Security. */
+
+.step-up {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.step-up-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.step-up-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.step-up-choice.is-on {
+  border-color: var(--action);
+}
+
+.step-up-choice.is-off {
+  cursor: default;
+}
+
+.step-up-choices:disabled .step-up-choice {
+  cursor: default;
+}
+
+.step-up-choice input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--action);
+}
+
+.step-up-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.step-up-choice-name {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+.step-up-choice.is-off:not(.is-on) .step-up-choice-name {
+  color: var(--ink-muted);
+}
+
+.step-up-choice-hint {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.step-up-choice-hint.is-pending {
+  color: var(--cobalt);
+}
+
+/* A state of the session, or why a choice reads as the floor: one line each. */
+.step-up-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.step-up-line > svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.step-up-line.is-covered {
+  color: var(--ink);
+}
+
+.step-up-line.is-covered > svg {
+  color: var(--healthy);
+}

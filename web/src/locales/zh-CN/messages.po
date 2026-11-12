@@ -812,6 +812,9 @@ msgstr "邀请 {0} 成为 {1}"
 msgid "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 秒内没有停止"
 
+msgid "Let everyone choose how often their passkey is asked for"
+msgstr "允许每个人自行选择多久验证一次通行密钥"
+
 msgid "Made a join ticket for a new server"
 msgstr "为新服务器生成了加入票据"
 
@@ -941,6 +944,12 @@ msgstr "向 {name}（{kind}，{host}）发送了测试，已送达"
 
 msgid "Sent a test to {name} ({kind}, {host}), which didn't arrive"
 msgstr "向 {name}（{kind}，{host}）发送了测试，未送达"
+
+msgid "Set everyone to be asked for their passkey at least once an hour"
+msgstr "将所有人设为至少每小时验证一次通行密钥"
+
+msgid "Set everyone to be asked for their passkey each time"
+msgstr "将所有人设为每次都验证通行密钥"
 
 msgid "Set the panel's domain to {value}"
 msgstr "将面板的域名设置为 {value}"
@@ -5062,6 +5071,57 @@ msgstr "版本 <0>{0}</0>"
 msgid "You're not signed in"
 msgstr "你尚未登录"
 
+msgid "Confirm with your passkey"
+msgstr "用通行密钥确认"
+
+msgid "A passkey covers this session for the next hour."
+msgstr "一次通行密钥验证在接下来一小时内对本会话有效。"
+
+msgid "Ask for my passkey"
+msgstr "何时要求验证通行密钥"
+
+msgid "Changing how you sign in, this choice, and approving someone else's change always ask."
+msgstr "更改登录方式、更改此选项以及批准他人的变更时，始终需要验证。"
+
+msgid "Confirmed at {since} · asks again at {until}"
+msgstr "已于 {since} 确认 · {until} 再次验证"
+
+msgid "Confirmed when you signed in at {since}, for as long as this session lasts"
+msgstr "已在 {since} 登录时确认，在本会话结束前一直有效"
+
+msgid "Each time"
+msgstr "每次"
+
+msgid "Every sensitive action asks."
+msgstr "每个敏感操作都需要验证。"
+
+msgid "Once an hour"
+msgstr "每小时一次"
+
+msgid "Only when I sign in"
+msgstr "仅在登录时"
+
+msgid "Signing in covers the whole session."
+msgstr "登录后整个会话都有效。"
+
+msgid "The owner asks at least once an hour."
+msgstr "所有者要求至少每小时验证一次。"
+
+msgid "The owner asks each time."
+msgstr "所有者要求每次都验证。"
+
+msgid "The passkey prompt closed, so your choice didn't change."
+msgstr "通行密钥提示已关闭，你的选择没有改变。"
+
+msgid "Your choice reads as each time, the least the owner allows."
+msgstr "你的选择按每次验证处理，这是所有者允许的最低要求。"
+
+msgid "Your choice reads as once an hour, the least the owner allows."
+msgstr "你的选择按每小时一次处理，这是所有者允许的最低要求。"
+
+msgid "Your next passkey covers this session for an hour."
+msgstr "下一次通行密钥验证将在一小时内对本会话有效。"
+
 msgid "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
 msgstr "通行密钥不在手边时，可用 6 位验证码登录，面板的任何地址都可以。"
 
@@ -5246,6 +5306,9 @@ msgstr "控制平面不在这个地址上响应。请通过 SSH 隧道在 http:/
 
 msgid "The control plane refused this because it didn't come from the panel's own address. Open the panel at its usual address and try there."
 msgstr "控制平面拒绝了这个请求，因为它不是从面板自己的地址发出的。请在面板的常用地址打开它，然后在那里重试。"
+
+msgid "The owner asks everyone for their passkey at least as often as that, so it isn't open to you. Pick one above it."
+msgstr "所有者要求每个人验证通行密钥的频率不低于此，因此你不能选择它。请选择更严格的一项。"
 
 msgid "The passkey prompt closed before it finished. Try again when you're ready."
 msgstr "通行密钥提示在完成前关闭了。准备好后请重试。"
@@ -12729,6 +12792,39 @@ msgstr "{domain} 未在提供"
 msgid "{leads}. This server's public address isn't known: set it, and Dockwell compares the two."
 msgstr "{leads}。尚不知道此服务器的公网地址：设置后，Dockwell 会比较两者。"
 
+msgid "Ask for a passkey"
+msgstr "验证通行密钥"
+
+msgid "At least once an hour"
+msgstr "至少每小时一次"
+
+msgid "Each person chooses theirs in <0>Profile and security</0>."
+msgstr "每个人在<0>个人资料和安全</0>中选择自己的方式。"
+
+msgid "Each time, once an hour, or only when they sign in."
+msgstr "每次、每小时一次，或仅在登录时。"
+
+msgid "Everyone confirms every sensitive action."
+msgstr "每个人的每个敏感操作都需要确认。"
+
+msgid "How often everyone in this install is asked for their passkey again"
+msgstr "此安装中每个人多久需要再次验证通行密钥"
+
+msgid "Let each person choose"
+msgstr "由每个人自行选择"
+
+msgid "Nobody can choose only when they sign in."
+msgstr "任何人都不能选择仅在登录时验证。"
+
+msgid "Only the owner sets this."
+msgstr "只有所有者可以设置。"
+
+msgid "The least anyone may choose"
+msgstr "任何人可选的最低要求"
+
+msgid "The passkey prompt closed, so the floor didn't change."
+msgstr "通行密钥提示已关闭，最低要求没有改变。"
+
 msgid "Account"
 msgstr "账户"
 
@@ -12903,8 +12999,17 @@ msgstr "请求取消构建"
 msgid "Asked to cancel a build on {name}"
 msgstr "请求取消 {name} 上的构建"
 
+msgid "Changed how often their passkey is asked for"
+msgstr "更改了通行密钥的验证频率"
+
+msgid "Confirmed by signing in"
+msgstr "已通过登录确认"
+
 msgid "Confirmed with a passkey"
 msgstr "已用通行密钥确认"
+
+msgid "Confirmed within an hour of a passkey"
+msgstr "已在通行密钥验证后一小时内确认"
 
 msgid "Couldn't apply {summary}"
 msgstr "无法应用 {summary}"
@@ -13705,9 +13810,6 @@ msgstr "关闭终端"
 
 msgid "Close this tab"
 msgstr "关闭这个标签"
-
-msgid "Confirm with your passkey"
-msgstr "用通行密钥确认"
 
 msgid "Connected through the agent"
 msgstr "已通过代理连接"

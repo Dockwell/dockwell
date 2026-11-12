@@ -230,18 +230,19 @@ func (h *Handler) EndProcess(ctx context.Context, req *connect.Request[dockwellv
 	}
 	target := Target(srv.GetId(), m.GetPid(), m.GetStartTicks())
 	rec := h.recorder(ctx, p, srv)
-	if m.GetProof() == "" {
-		// Not a failure, as every end starts here. What matters is whether a passkey follows.
-		h.auth.AskedForStepUp(p, auth.StepUpEndProcess, target, func() {
-			if err := rec.record(EventEndUnconfirmed, Detail{PID: m.GetPid()}); err != nil {
-				h.logger.WarnContext(ctx, "can't record an end that wasn't confirmed", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
-			}
-		})
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, auth.ErrNeedsStepUp, authapi.ReasonNeedsStepUp)
-	}
-	giveBack, err := h.auth.HoldStepUp(p, m.GetProof(), auth.StepUpEndProcess, target)
+	// With no proof, the session's cover may stand in (ADR 0075).
+	client, _ := authapi.ClientFrom(ctx)
+	giveBack, err := h.auth.HoldStepUp(ctx, client, p, m.GetProof(), auth.StepUpEndProcess, target)
 	if err != nil {
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)
+		if m.GetProof() == "" && errors.Is(err, auth.ErrNeedsStepUp) {
+			// Not a failure, as every end starts here. What matters is whether a passkey follows.
+			h.auth.AskedForStepUp(p, auth.StepUpEndProcess, target, func() {
+				if err := rec.record(EventEndUnconfirmed, Detail{PID: m.GetPid()}); err != nil {
+					h.logger.WarnContext(ctx, "can't record an end that wasn't confirmed", slog.String("server", srv.GetId()), slog.String("error", err.Error()))
+				}
+			})
+		}
+		return nil, authapi.StepUpRefused(err)
 	}
 	session, err := h.session(ctx, srv)
 	if err != nil {

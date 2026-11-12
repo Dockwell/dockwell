@@ -69,7 +69,7 @@ func flip(c byte) string {
 
 func (f *fixture) token(t *testing.T, p Principal, scope string, expires *time.Time) NewToken {
 	t.Helper()
-	made, err := f.svc.CreateToken(t.Context(), p, "GitHub Actions deploy", scope, nil, expires, f.proof(t, p, StepUpCreateToken, ""))
+	made, err := f.svc.CreateToken(t.Context(), Client{}, p, "GitHub Actions deploy", scope, nil, expires, f.proof(t, p, StepUpCreateToken, ""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,29 +183,35 @@ func testCreateTokenChecksItsRequest(t *testing.T, b store.Backend) {
 	past := f.clock.now().Add(-time.Second)
 	for name, try := range map[string]func() error{
 		"no name": func() error {
-			_, err := f.svc.CreateToken(t.Context(), owner, "  \t", store.ScopeReadOnly, nil, nil, "")
+			_, err := f.svc.CreateToken(t.Context(), Client{}, owner, "  \t", store.ScopeReadOnly, nil, nil, "")
 			return err
 		},
 		"a long name": func() error {
-			_, err := f.svc.CreateToken(t.Context(), owner, strings.Repeat("é", 101), store.ScopeReadOnly, nil, nil, "")
+			_, err := f.svc.CreateToken(t.Context(), Client{}, owner, strings.Repeat("é", 101), store.ScopeReadOnly, nil, nil, "")
 			return err
 		},
-		"no scope": func() error { _, err := f.svc.CreateToken(t.Context(), owner, "CI", "", nil, nil, ""); return err },
+		"no scope": func() error {
+			_, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", "", nil, nil, "")
+			return err
+		},
 		"an expiry gone": func() error {
-			_, err := f.svc.CreateToken(t.Context(), owner, "CI", store.ScopeReadOnly, nil, &past, "")
+			_, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", store.ScopeReadOnly, nil, &past, "")
 			return err
 		},
-		"an unknown kind": func() error { _, err := f.svc.CreateToken(t.Context(), owner, "CI", "admin", nil, nil, ""); return err },
+		"an unknown kind": func() error {
+			_, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", "admin", nil, nil, "")
+			return err
+		},
 	} {
 		// The request is checked before a step-up is asked for.
 		if err := try(); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%s = %v, want ErrInvalid", name, err)
 		}
 	}
-	if _, err := f.svc.CreateToken(t.Context(), owner, "CI", store.ScopeReadOnly, nil, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
+	if _, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", store.ScopeReadOnly, nil, nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 		t.Errorf("CreateToken without a step-up = %v, want ErrNeedsStepUp", err)
 	}
-	made, err := f.svc.CreateToken(t.Context(), owner, "  Grafana\x00 read ", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, ""))
+	made, err := f.svc.CreateToken(t.Context(), Client{}, owner, "  Grafana\x00 read ", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, ""))
 	if err != nil || made.Token.Name != "Grafana read" {
 		t.Errorf("CreateToken = %q, %v, want the name tidied", made.Token.Name, err)
 	}
@@ -214,25 +220,25 @@ func testCreateTokenChecksItsRequest(t *testing.T, b store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.CreateToken(t.Context(), p, "Sneaky", store.ScopeReadWrite, nil, nil, ""); !errors.Is(err, ErrNeedsSession) {
+	if _, err := f.svc.CreateToken(t.Context(), Client{}, p, "Sneaky", store.ScopeReadWrite, nil, nil, ""); !errors.Is(err, ErrNeedsSession) {
 		t.Errorf("CreateToken with a token = %v, want ErrNeedsSession", err)
 	}
 	if err := f.svc.RevokeToken(t.Context(), p, made.Token.ID); !errors.Is(err, ErrNeedsSession) {
 		t.Errorf("RevokeToken with a token = %v, want ErrNeedsSession", err)
 	}
 	for i := range maxTokens - 1 {
-		if _, err := f.svc.CreateToken(t.Context(), owner, "CI", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, "")); err != nil {
+		if _, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, "")); err != nil {
 			t.Fatalf("token %d: %v", i+2, err)
 		}
 	}
-	if _, err := f.svc.CreateToken(t.Context(), owner, "CI", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, "")); !errors.Is(err, ErrInvalid) {
+	if _, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, "")); !errors.Is(err, ErrInvalid) {
 		t.Errorf("token %d = %v, want ErrInvalid", maxTokens+1, err)
 	}
 	// Only tokens that still work count.
 	if err := f.svc.RevokeToken(t.Context(), owner, made.Token.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.svc.CreateToken(t.Context(), owner, "CI", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, "")); err != nil {
+	if _, err := f.svc.CreateToken(t.Context(), Client{}, owner, "CI", store.ScopeReadOnly, nil, nil, f.proof(t, owner, StepUpCreateToken, "")); err != nil {
 		t.Errorf("a token after revoking one at the limit = %v", err)
 	}
 }

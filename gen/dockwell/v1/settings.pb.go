@@ -346,7 +346,11 @@ type Settings struct {
 	// How the panel is served.
 	Panel *PanelServing `protobuf:"bytes,3,opt,name=panel,proto3" json:"panel,omitempty"`
 	// When the install was set up.
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// The least anyone may choose for how often they're asked for their
+	// passkey again. STEP_UP_POLICY_AT_SIGN_IN, which allows all three, until
+	// the owner sets it.
+	StepUpFloor   StepUpPolicy `protobuf:"varint,5,opt,name=step_up_floor,json=stepUpFloor,proto3,enum=dockwell.v1.StepUpPolicy" json:"step_up_floor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -407,6 +411,13 @@ func (x *Settings) GetCreateTime() *timestamppb.Timestamp {
 		return x.CreateTime
 	}
 	return nil
+}
+
+func (x *Settings) GetStepUpFloor() StepUpPolicy {
+	if x != nil {
+		return x.StepUpFloor
+	}
+	return StepUpPolicy_STEP_UP_POLICY_UNSPECIFIED
 }
 
 // PanelServing is how the panel is served, as dockwell run was started.
@@ -1149,6 +1160,106 @@ func (x *SetTimeZoneResponse) GetSettings() *Settings {
 	return nil
 }
 
+// SetStepUpFloorRequest carries the floor.
+type SetStepUpFloorRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The least anyone may choose.
+	Floor StepUpPolicy `protobuf:"varint,1,opt,name=floor,proto3,enum=dockwell.v1.StepUpPolicy" json:"floor,omitempty"`
+	// The proof from FinishStepUp, for STEP_UP_ACTION_SET_STEP_UP_FLOOR.
+	Proof         string `protobuf:"bytes,2,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetStepUpFloorRequest) Reset() {
+	*x = SetStepUpFloorRequest{}
+	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetStepUpFloorRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetStepUpFloorRequest) ProtoMessage() {}
+
+func (x *SetStepUpFloorRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetStepUpFloorRequest.ProtoReflect.Descriptor instead.
+func (*SetStepUpFloorRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SetStepUpFloorRequest) GetFloor() StepUpPolicy {
+	if x != nil {
+		return x.Floor
+	}
+	return StepUpPolicy_STEP_UP_POLICY_UNSPECIFIED
+}
+
+func (x *SetStepUpFloorRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// SetStepUpFloorResponse carries the settings as they now are.
+type SetStepUpFloorResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Settings      *Settings              `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetStepUpFloorResponse) Reset() {
+	*x = SetStepUpFloorResponse{}
+	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetStepUpFloorResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetStepUpFloorResponse) ProtoMessage() {}
+
+func (x *SetStepUpFloorResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetStepUpFloorResponse.ProtoReflect.Descriptor instead.
+func (*SetStepUpFloorResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *SetStepUpFloorResponse) GetSettings() *Settings {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
 // GetControlPlaneRequest takes no parameters.
 type GetControlPlaneRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1158,7 +1269,7 @@ type GetControlPlaneRequest struct {
 
 func (x *GetControlPlaneRequest) Reset() {
 	*x = GetControlPlaneRequest{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1170,7 +1281,7 @@ func (x *GetControlPlaneRequest) String() string {
 func (*GetControlPlaneRequest) ProtoMessage() {}
 
 func (x *GetControlPlaneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[15]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1183,7 +1294,7 @@ func (x *GetControlPlaneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetControlPlaneRequest.ProtoReflect.Descriptor instead.
 func (*GetControlPlaneRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{17}
 }
 
 // GetControlPlaneResponse describes the control plane that answers.
@@ -1197,7 +1308,7 @@ type GetControlPlaneResponse struct {
 
 func (x *GetControlPlaneResponse) Reset() {
 	*x = GetControlPlaneResponse{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1209,7 +1320,7 @@ func (x *GetControlPlaneResponse) String() string {
 func (*GetControlPlaneResponse) ProtoMessage() {}
 
 func (x *GetControlPlaneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[16]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1222,7 +1333,7 @@ func (x *GetControlPlaneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetControlPlaneResponse.ProtoReflect.Descriptor instead.
 func (*GetControlPlaneResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetControlPlaneResponse) GetControlPlane() *ControlPlane {
@@ -1264,7 +1375,7 @@ type ControlPlane struct {
 
 func (x *ControlPlane) Reset() {
 	*x = ControlPlane{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1276,7 +1387,7 @@ func (x *ControlPlane) String() string {
 func (*ControlPlane) ProtoMessage() {}
 
 func (x *ControlPlane) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[17]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1289,7 +1400,7 @@ func (x *ControlPlane) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ControlPlane.ProtoReflect.Descriptor instead.
 func (*ControlPlane) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{17}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ControlPlane) GetBuild() *BuildInfo {
@@ -1375,7 +1486,7 @@ type StateStore struct {
 
 func (x *StateStore) Reset() {
 	*x = StateStore{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1387,7 +1498,7 @@ func (x *StateStore) String() string {
 func (*StateStore) ProtoMessage() {}
 
 func (x *StateStore) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[18]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1400,7 +1511,7 @@ func (x *StateStore) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateStore.ProtoReflect.Descriptor instead.
 func (*StateStore) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{18}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *StateStore) GetEngine() StateStoreEngine {
@@ -1456,7 +1567,7 @@ type AgentListener struct {
 
 func (x *AgentListener) Reset() {
 	*x = AgentListener{}
-	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1468,7 +1579,7 @@ func (x *AgentListener) String() string {
 func (*AgentListener) ProtoMessage() {}
 
 func (x *AgentListener) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_settings_proto_msgTypes[19]
+	mi := &file_dockwell_v1_settings_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1481,7 +1592,7 @@ func (x *AgentListener) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentListener.ProtoReflect.Descriptor instead.
 func (*AgentListener) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{19}
+	return file_dockwell_v1_settings_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *AgentListener) GetListen() string {
@@ -1509,16 +1620,17 @@ var File_dockwell_v1_settings_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/settings.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
+	"\x1adockwell/v1/settings.proto\x12\vdockwell.v1\x1a\x16dockwell/v1/auth.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/system.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x14\n" +
 	"\x12GetSettingsRequest\"H\n" +
 	"\x13GetSettingsResponse\x121\n" +
-	"\bsettings\x18\x01 \x01(\v2\x15.dockwell.v1.SettingsR\bsettings\"\xa9\x01\n" +
+	"\bsettings\x18\x01 \x01(\v2\x15.dockwell.v1.SettingsR\bsettings\"\xe8\x01\n" +
 	"\bSettings\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\ttime_zone\x18\x02 \x01(\tR\btimeZone\x12/\n" +
 	"\x05panel\x18\x03 \x01(\v2\x19.dockwell.v1.PanelServingR\x05panel\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xb2\x03\n" +
+	"createTime\x12=\n" +
+	"\rstep_up_floor\x18\x05 \x01(\x0e2\x19.dockwell.v1.StepUpPolicyR\vstepUpFloor\"\xb2\x03\n" +
 	"\fPanelServing\x12\x16\n" +
 	"\x06listen\x18\x01 \x01(\tR\x06listen\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domain\x127\n" +
@@ -1571,6 +1683,11 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x12SetTimeZoneRequest\x12\x1b\n" +
 	"\ttime_zone\x18\x01 \x01(\tR\btimeZone\"H\n" +
 	"\x13SetTimeZoneResponse\x121\n" +
+	"\bsettings\x18\x01 \x01(\v2\x15.dockwell.v1.SettingsR\bsettings\"^\n" +
+	"\x15SetStepUpFloorRequest\x12/\n" +
+	"\x05floor\x18\x01 \x01(\x0e2\x19.dockwell.v1.StepUpPolicyR\x05floor\x12\x14\n" +
+	"\x05proof\x18\x02 \x01(\tR\x05proof\"K\n" +
+	"\x16SetStepUpFloorResponse\x121\n" +
 	"\bsettings\x18\x01 \x01(\v2\x15.dockwell.v1.SettingsR\bsettings\"\x18\n" +
 	"\x16GetControlPlaneRequest\"Y\n" +
 	"\x17GetControlPlaneResponse\x12>\n" +
@@ -1618,7 +1735,7 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x10StateStoreEngine\x12\"\n" +
 	"\x1eSTATE_STORE_ENGINE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19STATE_STORE_ENGINE_SQLITE\x10\x01\x12\x1f\n" +
-	"\x1bSTATE_STORE_ENGINE_POSTGRES\x10\x022\x9b\x0e\n" +
+	"\x1bSTATE_STORE_ENGINE_POSTGRES\x10\x022\xb3\x0f\n" +
 	"\x0fSettingsService\x12\x8c\x01\n" +
 	"\vGetSettings\x12\x1f.dockwell.v1.GetSettingsRequest\x1a .dockwell.v1.GetSettingsResponse\":\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\n" +
 	"\bsettings\x12\x03get\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/settings\x90\x02\x01\x12\xa6\x01\n" +
@@ -1631,7 +1748,8 @@ const file_dockwell_v1_settings_proto_rawDesc = "" +
 	"\x0eSetPanelDomain\x12\".dockwell.v1.SetPanelDomainRequest\x1a#.dockwell.v1.SetPanelDomainResponse\"Z\xa0\xbb\x18\x03\xaa\xbb\x18\x1c\n" +
 	"\bsettings\x12\x10set-panel-domain\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/settings:setPanelDomain\x12\xda\x01\n" +
 	"\x15CreatePanelSignInLink\x12).dockwell.v1.CreatePanelSignInLinkRequest\x1a*.dockwell.v1.CreatePanelSignInLinkResponse\"j\xa0\xbb\x18\x03\xaa\xbb\x18%\n" +
-	"\bsettings\x12\x19create-panel-sign-in-link\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/settings:createPanelSignInLink\x12\xa1\x01\n" +
+	"\bsettings\x12\x19create-panel-sign-in-link\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02':\x01*\"\"/v1/settings:createPanelSignInLink\x12\x95\x01\n" +
+	"\x0eSetStepUpFloor\x12\".dockwell.v1.SetStepUpFloorRequest\x1a#.dockwell.v1.SetStepUpFloorResponse\":\xa0\xbb\x18\x03\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/settings:setStepUpFloor\x12\xa1\x01\n" +
 	"\x0fGetControlPlane\x12#.dockwell.v1.GetControlPlaneRequest\x1a$.dockwell.v1.GetControlPlaneResponse\"C\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
 	"\rcontrol-plane\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/controlPlane\x90\x02\x01\x1a\xb2\x04\xa2\xbb\x18\x8a\x02\n" +
 	"\bsettings\x12\xfd\x01The install's settings are what it's called, the time zone new schedules start in, and how its panel is served. They change what Dockwell says and suggests, not what runs, so a change needs no plan, and each is on the activity log with what it replaced.\xa2\xbb\x18\x9e\x02\n" +
@@ -1651,7 +1769,7 @@ func file_dockwell_v1_settings_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_dockwell_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_dockwell_v1_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_dockwell_v1_settings_proto_goTypes = []any{
 	(PanelDomainFrom)(0),                  // 0: dockwell.v1.PanelDomainFrom
 	(PanelServedBy)(0),                    // 1: dockwell.v1.PanelServedBy
@@ -1672,55 +1790,63 @@ var file_dockwell_v1_settings_proto_goTypes = []any{
 	(*SetInstallNameResponse)(nil),        // 16: dockwell.v1.SetInstallNameResponse
 	(*SetTimeZoneRequest)(nil),            // 17: dockwell.v1.SetTimeZoneRequest
 	(*SetTimeZoneResponse)(nil),           // 18: dockwell.v1.SetTimeZoneResponse
-	(*GetControlPlaneRequest)(nil),        // 19: dockwell.v1.GetControlPlaneRequest
-	(*GetControlPlaneResponse)(nil),       // 20: dockwell.v1.GetControlPlaneResponse
-	(*ControlPlane)(nil),                  // 21: dockwell.v1.ControlPlane
-	(*StateStore)(nil),                    // 22: dockwell.v1.StateStore
-	(*AgentListener)(nil),                 // 23: dockwell.v1.AgentListener
-	(*timestamppb.Timestamp)(nil),         // 24: google.protobuf.Timestamp
-	(*BuildInfo)(nil),                     // 25: dockwell.v1.BuildInfo
-	(*durationpb.Duration)(nil),           // 26: google.protobuf.Duration
+	(*SetStepUpFloorRequest)(nil),         // 19: dockwell.v1.SetStepUpFloorRequest
+	(*SetStepUpFloorResponse)(nil),        // 20: dockwell.v1.SetStepUpFloorResponse
+	(*GetControlPlaneRequest)(nil),        // 21: dockwell.v1.GetControlPlaneRequest
+	(*GetControlPlaneResponse)(nil),       // 22: dockwell.v1.GetControlPlaneResponse
+	(*ControlPlane)(nil),                  // 23: dockwell.v1.ControlPlane
+	(*StateStore)(nil),                    // 24: dockwell.v1.StateStore
+	(*AgentListener)(nil),                 // 25: dockwell.v1.AgentListener
+	(*timestamppb.Timestamp)(nil),         // 26: google.protobuf.Timestamp
+	(StepUpPolicy)(0),                     // 27: dockwell.v1.StepUpPolicy
+	(*BuildInfo)(nil),                     // 28: dockwell.v1.BuildInfo
+	(*durationpb.Duration)(nil),           // 29: google.protobuf.Duration
 }
 var file_dockwell_v1_settings_proto_depIdxs = []int32{
 	6,  // 0: dockwell.v1.GetSettingsResponse.settings:type_name -> dockwell.v1.Settings
 	7,  // 1: dockwell.v1.Settings.panel:type_name -> dockwell.v1.PanelServing
-	24, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
-	1,  // 3: dockwell.v1.PanelServing.served_by:type_name -> dockwell.v1.PanelServedBy
-	0,  // 4: dockwell.v1.PanelServing.domain_from:type_name -> dockwell.v1.PanelDomainFrom
-	24, // 5: dockwell.v1.PanelServing.start_time:type_name -> google.protobuf.Timestamp
-	10, // 6: dockwell.v1.CheckPanelDomainResponse.ports_held:type_name -> dockwell.v1.PanelPortHolder
-	6,  // 7: dockwell.v1.SetPanelDomainResponse.settings:type_name -> dockwell.v1.Settings
-	24, // 8: dockwell.v1.CreatePanelSignInLinkResponse.expire_time:type_name -> google.protobuf.Timestamp
-	6,  // 9: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
-	6,  // 10: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
-	21, // 11: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
-	25, // 12: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
-	24, // 13: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
-	22, // 14: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
-	7,  // 15: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
-	23, // 16: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
-	2,  // 17: dockwell.v1.ControlPlane.service_manager:type_name -> dockwell.v1.ServiceManager
-	3,  // 18: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
-	26, // 19: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
-	4,  // 20: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
-	15, // 21: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
-	17, // 22: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
-	8,  // 23: dockwell.v1.SettingsService.CheckPanelDomain:input_type -> dockwell.v1.CheckPanelDomainRequest
-	11, // 24: dockwell.v1.SettingsService.SetPanelDomain:input_type -> dockwell.v1.SetPanelDomainRequest
-	13, // 25: dockwell.v1.SettingsService.CreatePanelSignInLink:input_type -> dockwell.v1.CreatePanelSignInLinkRequest
-	19, // 26: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
-	5,  // 27: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
-	16, // 28: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
-	18, // 29: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
-	9,  // 30: dockwell.v1.SettingsService.CheckPanelDomain:output_type -> dockwell.v1.CheckPanelDomainResponse
-	12, // 31: dockwell.v1.SettingsService.SetPanelDomain:output_type -> dockwell.v1.SetPanelDomainResponse
-	14, // 32: dockwell.v1.SettingsService.CreatePanelSignInLink:output_type -> dockwell.v1.CreatePanelSignInLinkResponse
-	20, // 33: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
-	27, // [27:34] is the sub-list for method output_type
-	20, // [20:27] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	26, // 2: dockwell.v1.Settings.create_time:type_name -> google.protobuf.Timestamp
+	27, // 3: dockwell.v1.Settings.step_up_floor:type_name -> dockwell.v1.StepUpPolicy
+	1,  // 4: dockwell.v1.PanelServing.served_by:type_name -> dockwell.v1.PanelServedBy
+	0,  // 5: dockwell.v1.PanelServing.domain_from:type_name -> dockwell.v1.PanelDomainFrom
+	26, // 6: dockwell.v1.PanelServing.start_time:type_name -> google.protobuf.Timestamp
+	10, // 7: dockwell.v1.CheckPanelDomainResponse.ports_held:type_name -> dockwell.v1.PanelPortHolder
+	6,  // 8: dockwell.v1.SetPanelDomainResponse.settings:type_name -> dockwell.v1.Settings
+	26, // 9: dockwell.v1.CreatePanelSignInLinkResponse.expire_time:type_name -> google.protobuf.Timestamp
+	6,  // 10: dockwell.v1.SetInstallNameResponse.settings:type_name -> dockwell.v1.Settings
+	6,  // 11: dockwell.v1.SetTimeZoneResponse.settings:type_name -> dockwell.v1.Settings
+	27, // 12: dockwell.v1.SetStepUpFloorRequest.floor:type_name -> dockwell.v1.StepUpPolicy
+	6,  // 13: dockwell.v1.SetStepUpFloorResponse.settings:type_name -> dockwell.v1.Settings
+	23, // 14: dockwell.v1.GetControlPlaneResponse.control_plane:type_name -> dockwell.v1.ControlPlane
+	28, // 15: dockwell.v1.ControlPlane.build:type_name -> dockwell.v1.BuildInfo
+	26, // 16: dockwell.v1.ControlPlane.start_time:type_name -> google.protobuf.Timestamp
+	24, // 17: dockwell.v1.ControlPlane.store:type_name -> dockwell.v1.StateStore
+	7,  // 18: dockwell.v1.ControlPlane.panel:type_name -> dockwell.v1.PanelServing
+	25, // 19: dockwell.v1.ControlPlane.agents:type_name -> dockwell.v1.AgentListener
+	2,  // 20: dockwell.v1.ControlPlane.service_manager:type_name -> dockwell.v1.ServiceManager
+	3,  // 21: dockwell.v1.StateStore.engine:type_name -> dockwell.v1.StateStoreEngine
+	29, // 22: dockwell.v1.StateStore.round_trip:type_name -> google.protobuf.Duration
+	4,  // 23: dockwell.v1.SettingsService.GetSettings:input_type -> dockwell.v1.GetSettingsRequest
+	15, // 24: dockwell.v1.SettingsService.SetInstallName:input_type -> dockwell.v1.SetInstallNameRequest
+	17, // 25: dockwell.v1.SettingsService.SetTimeZone:input_type -> dockwell.v1.SetTimeZoneRequest
+	8,  // 26: dockwell.v1.SettingsService.CheckPanelDomain:input_type -> dockwell.v1.CheckPanelDomainRequest
+	11, // 27: dockwell.v1.SettingsService.SetPanelDomain:input_type -> dockwell.v1.SetPanelDomainRequest
+	13, // 28: dockwell.v1.SettingsService.CreatePanelSignInLink:input_type -> dockwell.v1.CreatePanelSignInLinkRequest
+	19, // 29: dockwell.v1.SettingsService.SetStepUpFloor:input_type -> dockwell.v1.SetStepUpFloorRequest
+	21, // 30: dockwell.v1.SettingsService.GetControlPlane:input_type -> dockwell.v1.GetControlPlaneRequest
+	5,  // 31: dockwell.v1.SettingsService.GetSettings:output_type -> dockwell.v1.GetSettingsResponse
+	16, // 32: dockwell.v1.SettingsService.SetInstallName:output_type -> dockwell.v1.SetInstallNameResponse
+	18, // 33: dockwell.v1.SettingsService.SetTimeZone:output_type -> dockwell.v1.SetTimeZoneResponse
+	9,  // 34: dockwell.v1.SettingsService.CheckPanelDomain:output_type -> dockwell.v1.CheckPanelDomainResponse
+	12, // 35: dockwell.v1.SettingsService.SetPanelDomain:output_type -> dockwell.v1.SetPanelDomainResponse
+	14, // 36: dockwell.v1.SettingsService.CreatePanelSignInLink:output_type -> dockwell.v1.CreatePanelSignInLinkResponse
+	20, // 37: dockwell.v1.SettingsService.SetStepUpFloor:output_type -> dockwell.v1.SetStepUpFloorResponse
+	22, // 38: dockwell.v1.SettingsService.GetControlPlane:output_type -> dockwell.v1.GetControlPlaneResponse
+	31, // [31:39] is the sub-list for method output_type
+	23, // [23:31] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_settings_proto_init() }
@@ -1728,6 +1854,7 @@ func file_dockwell_v1_settings_proto_init() {
 	if File_dockwell_v1_settings_proto != nil {
 		return
 	}
+	file_dockwell_v1_auth_proto_init()
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_system_proto_init()
 	type x struct{}
@@ -1736,7 +1863,7 @@ func file_dockwell_v1_settings_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_settings_proto_rawDesc), len(file_dockwell_v1_settings_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   20,
+			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

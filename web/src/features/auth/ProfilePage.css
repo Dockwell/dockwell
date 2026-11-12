@@ -1,9 +1,18 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
+/* Two columns side by side where they fit, one under the other where they don't. Each column is a
+   stack of its own, so no panel's height opens a gap in the other column. */
 .profile-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
   gap: var(--space-4);
   align-items: start;
+}
+
+.profile-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
 }
 
 .profile-list {

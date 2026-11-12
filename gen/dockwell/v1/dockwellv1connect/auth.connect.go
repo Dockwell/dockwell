@@ -80,6 +80,12 @@ const (
 	// AuthServiceFinishStepUpProcedure is the fully-qualified name of the AuthService's FinishStepUp
 	// RPC.
 	AuthServiceFinishStepUpProcedure = "/dockwell.v1.AuthService/FinishStepUp"
+	// AuthServiceGetStepUpPolicyProcedure is the fully-qualified name of the AuthService's
+	// GetStepUpPolicy RPC.
+	AuthServiceGetStepUpPolicyProcedure = "/dockwell.v1.AuthService/GetStepUpPolicy"
+	// AuthServiceSetStepUpPolicyProcedure is the fully-qualified name of the AuthService's
+	// SetStepUpPolicy RPC.
+	AuthServiceSetStepUpPolicyProcedure = "/dockwell.v1.AuthService/SetStepUpPolicy"
 	// AuthServiceListPasskeysProcedure is the fully-qualified name of the AuthService's ListPasskeys
 	// RPC.
 	AuthServiceListPasskeysProcedure = "/dockwell.v1.AuthService/ListPasskeys"
@@ -171,12 +177,25 @@ type AuthServiceClient interface {
 	// Call the action without a proof first. It checks everything else, such
 	// as the last way in or a token's name, and only then refuses with the
 	// reason needs_step_up. Step up, and call it again with the proof, which
-	// the action spends only once nothing else refuses it.
+	// the action spends only once nothing else refuses it. For someone who
+	// chose to be asked less often (StepUpPolicy), the first call may need no
+	// proof at all: their session confirms it.
 	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
 	// FinishStepUp checks the passkey's answer and returns a proof for the
 	// action it began with. The proof works once, within a minute, in this
-	// session alone, for that action on that target.
+	// session alone, for that action on that target. It also opens this
+	// session's hour for someone who chose STEP_UP_POLICY_HOURLY.
 	FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error)
+	// GetStepUpPolicy says how often you're asked for your passkey again: what
+	// you chose, the least the install allows, what applies, and whether this
+	// session needs no passkey now, until when
+	// (docs/adr/0075-how-often-a-passkey-is-asked-for-again.md).
+	GetStepUpPolicy(context.Context, *connect.Request[v1.GetStepUpPolicyRequest]) (*connect.Response[v1.GetStepUpPolicyResponse], error)
+	// SetStepUpPolicy chooses how often you're asked for your passkey again. It
+	// needs a proof from FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_POLICY,
+	// whichever way it goes, and refuses a choice below the install's floor
+	// with the reason below_floor.
+	SetStepUpPolicy(context.Context, *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
@@ -337,6 +356,19 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("FinishStepUp")),
 			connect.WithClientOptions(opts...),
 		),
+		getStepUpPolicy: connect.NewClient[v1.GetStepUpPolicyRequest, v1.GetStepUpPolicyResponse](
+			httpClient,
+			baseURL+AuthServiceGetStepUpPolicyProcedure,
+			connect.WithSchema(authServiceMethods.ByName("GetStepUpPolicy")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		setStepUpPolicy: connect.NewClient[v1.SetStepUpPolicyRequest, v1.SetStepUpPolicyResponse](
+			httpClient,
+			baseURL+AuthServiceSetStepUpPolicyProcedure,
+			connect.WithSchema(authServiceMethods.ByName("SetStepUpPolicy")),
+			connect.WithClientOptions(opts...),
+		),
 		listPasskeys: connect.NewClient[v1.ListPasskeysRequest, v1.ListPasskeysResponse](
 			httpClient,
 			baseURL+AuthServiceListPasskeysProcedure,
@@ -427,6 +459,8 @@ type authServiceClient struct {
 	revokeOtherSessions     *connect.Client[v1.RevokeOtherSessionsRequest, v1.RevokeOtherSessionsResponse]
 	beginStepUp             *connect.Client[v1.BeginStepUpRequest, v1.BeginStepUpResponse]
 	finishStepUp            *connect.Client[v1.FinishStepUpRequest, v1.FinishStepUpResponse]
+	getStepUpPolicy         *connect.Client[v1.GetStepUpPolicyRequest, v1.GetStepUpPolicyResponse]
+	setStepUpPolicy         *connect.Client[v1.SetStepUpPolicyRequest, v1.SetStepUpPolicyResponse]
 	listPasskeys            *connect.Client[v1.ListPasskeysRequest, v1.ListPasskeysResponse]
 	beginAddPasskey         *connect.Client[v1.BeginAddPasskeyRequest, v1.BeginAddPasskeyResponse]
 	finishAddPasskey        *connect.Client[v1.FinishAddPasskeyRequest, v1.FinishAddPasskeyResponse]
@@ -523,6 +557,16 @@ func (c *authServiceClient) BeginStepUp(ctx context.Context, req *connect.Reques
 // FinishStepUp calls dockwell.v1.AuthService.FinishStepUp.
 func (c *authServiceClient) FinishStepUp(ctx context.Context, req *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error) {
 	return c.finishStepUp.CallUnary(ctx, req)
+}
+
+// GetStepUpPolicy calls dockwell.v1.AuthService.GetStepUpPolicy.
+func (c *authServiceClient) GetStepUpPolicy(ctx context.Context, req *connect.Request[v1.GetStepUpPolicyRequest]) (*connect.Response[v1.GetStepUpPolicyResponse], error) {
+	return c.getStepUpPolicy.CallUnary(ctx, req)
+}
+
+// SetStepUpPolicy calls dockwell.v1.AuthService.SetStepUpPolicy.
+func (c *authServiceClient) SetStepUpPolicy(ctx context.Context, req *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error) {
+	return c.setStepUpPolicy.CallUnary(ctx, req)
 }
 
 // ListPasskeys calls dockwell.v1.AuthService.ListPasskeys.
@@ -638,12 +682,25 @@ type AuthServiceHandler interface {
 	// Call the action without a proof first. It checks everything else, such
 	// as the last way in or a token's name, and only then refuses with the
 	// reason needs_step_up. Step up, and call it again with the proof, which
-	// the action spends only once nothing else refuses it.
+	// the action spends only once nothing else refuses it. For someone who
+	// chose to be asked less often (StepUpPolicy), the first call may need no
+	// proof at all: their session confirms it.
 	BeginStepUp(context.Context, *connect.Request[v1.BeginStepUpRequest]) (*connect.Response[v1.BeginStepUpResponse], error)
 	// FinishStepUp checks the passkey's answer and returns a proof for the
 	// action it began with. The proof works once, within a minute, in this
-	// session alone, for that action on that target.
+	// session alone, for that action on that target. It also opens this
+	// session's hour for someone who chose STEP_UP_POLICY_HOURLY.
 	FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error)
+	// GetStepUpPolicy says how often you're asked for your passkey again: what
+	// you chose, the least the install allows, what applies, and whether this
+	// session needs no passkey now, until when
+	// (docs/adr/0075-how-often-a-passkey-is-asked-for-again.md).
+	GetStepUpPolicy(context.Context, *connect.Request[v1.GetStepUpPolicyRequest]) (*connect.Response[v1.GetStepUpPolicyResponse], error)
+	// SetStepUpPolicy chooses how often you're asked for your passkey again. It
+	// needs a proof from FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_POLICY,
+	// whichever way it goes, and refuses a choice below the install's floor
+	// with the reason below_floor.
+	SetStepUpPolicy(context.Context, *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
@@ -800,6 +857,19 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("FinishStepUp")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceGetStepUpPolicyHandler := connect.NewUnaryHandler(
+		AuthServiceGetStepUpPolicyProcedure,
+		svc.GetStepUpPolicy,
+		connect.WithSchema(authServiceMethods.ByName("GetStepUpPolicy")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	authServiceSetStepUpPolicyHandler := connect.NewUnaryHandler(
+		AuthServiceSetStepUpPolicyProcedure,
+		svc.SetStepUpPolicy,
+		connect.WithSchema(authServiceMethods.ByName("SetStepUpPolicy")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceListPasskeysHandler := connect.NewUnaryHandler(
 		AuthServiceListPasskeysProcedure,
 		svc.ListPasskeys,
@@ -904,6 +974,10 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceBeginStepUpHandler.ServeHTTP(w, r)
 		case AuthServiceFinishStepUpProcedure:
 			authServiceFinishStepUpHandler.ServeHTTP(w, r)
+		case AuthServiceGetStepUpPolicyProcedure:
+			authServiceGetStepUpPolicyHandler.ServeHTTP(w, r)
+		case AuthServiceSetStepUpPolicyProcedure:
+			authServiceSetStepUpPolicyHandler.ServeHTTP(w, r)
 		case AuthServiceListPasskeysProcedure:
 			authServiceListPasskeysHandler.ServeHTTP(w, r)
 		case AuthServiceBeginAddPasskeyProcedure:
@@ -1001,6 +1075,14 @@ func (UnimplementedAuthServiceHandler) BeginStepUp(context.Context, *connect.Req
 
 func (UnimplementedAuthServiceHandler) FinishStepUp(context.Context, *connect.Request[v1.FinishStepUpRequest]) (*connect.Response[v1.FinishStepUpResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.FinishStepUp is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) GetStepUpPolicy(context.Context, *connect.Request[v1.GetStepUpPolicyRequest]) (*connect.Response[v1.GetStepUpPolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.GetStepUpPolicy is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) SetStepUpPolicy(context.Context, *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.SetStepUpPolicy is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error) {

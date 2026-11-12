@@ -79,7 +79,7 @@ So a save asks for the existing step-up where what it writes lets someone back i
 **How a proof works**
 
 - **It's for that path on that server.** The control plane hands the path on with the save, and the agent writes only if its own walk ended there, so a link swapped in after the passkey doesn't pass.
-- **One stands for ten minutes,** for that path on that server, in that session, as editing a file means saving it again. It's the only step-up that lasts past its action. It starts with the first save, and saving again doesn't extend it.
+- **One stands for ten minutes,** for that path on that server, in that session, as editing a file means saving it again. It's the only step-up that lasts past its action. It starts with the first save, and saving again doesn't extend it. For someone who chooses to be asked less often, the session stands in for the passkey, and the control plane asks the agent again with the path confirmed ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)).
 - **It goes where the action does.** ADR 0022 spends a proof in the transaction that acts, and neither of these has one that reaches: a save happens on an agent, and a change starts in the engine. So the proof is held, which stops a second call using it, and given back if the action is refused: busy, offline, out of date, or `file_changed`. A wrong proof is still spent, and so is one for a save that may have landed.
 
 **What's on Activity**

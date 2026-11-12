@@ -115,13 +115,17 @@ func (h *Handler) OpenService(ctx context.Context, req *connect.Request[dockwell
 	}
 	// An admin tool may sign whoever reaches it in, so opening one takes a passkey,
 	// as revealing a secret does, once nothing else refuses. A proof opens it once.
-	if m.GetProof() == "" {
+	// With no proof, the session's cover may stand in (ADR 0075).
+	giveBack, err := h.Auth.HoldStepUp(ctx, client, p, m.GetProof(), auth.StepUpOpenService, r.ID)
+	if err != nil && m.GetProof() == "" {
+		if !errors.Is(err, auth.ErrNeedsStepUp) {
+			return nil, authapi.StepUpRefused(err)
+		}
 		h.Auth.AskedForStepUp(p, auth.StepUpOpenService, r.ID, func() {})
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s may sign in whoever opens it, so opening it takes your passkey. Confirm with it, then open it again", r.Name),
 			authapi.ReasonNeedsStepUp)
 	}
-	giveBack, err := h.Auth.HoldStepUp(p, m.GetProof(), auth.StepUpOpenService, r.ID)
 	if err != nil {
 		h.logger.InfoContext(ctx, "refused to open an app with a confirmation that is used, expired or for something else",
 			slog.String("service", r.ID), slog.String("user", p.User.ID))

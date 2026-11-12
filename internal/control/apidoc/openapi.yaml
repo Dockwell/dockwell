@@ -4448,7 +4448,9 @@ paths:
                  Call the action without a proof first. It checks everything else, such
                  as the last way in or a token's name, and only then refuses with the
                  reason needs_step_up. Step up, and call it again with the proof, which
-                 the action spends only once nothing else refuses it.
+                 the action spends only once nothing else refuses it. For someone who
+                 chose to be asked less often (StepUpPolicy), the first call may need no
+                 proof at all: their session confirms it.
             operationId: AuthService_BeginStepUp
             requestBody:
                 content:
@@ -4501,7 +4503,8 @@ paths:
             description: |-
                 FinishStepUp checks the passkey's answer and returns a proof for the
                  action it began with. The proof works once, within a minute, in this
-                 session alone, for that action on that target.
+                 session alone, for that action on that target. It also opens this
+                 session's hour for someone who chose STEP_UP_POLICY_HOURLY.
             operationId: AuthService_FinishStepUp
             requestBody:
                 content:
@@ -4777,6 +4780,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/settings:setStepUpFloor:
+        post:
+            tags:
+                - SettingsService
+            description: |-
+                SetStepUpFloor sets the least anyone may choose for how often they're
+                 asked for their passkey again (AuthService.SetStepUpPolicy, ADR 0075).
+                 What applies to each person is the stricter of their choice and this.
+                 Only the owner sets it, in a session, and it takes a passkey just now:
+                 call it without a proof first, then again with the proof from
+                 FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_FLOOR. It's on the activity
+                 log with the floor it replaced.
+            operationId: SettingsService_SetStepUpFloor
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetStepUpFloorRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetStepUpFloorResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/settings:setTimeZone:
         post:
             tags:
@@ -4800,6 +4835,58 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/SetTimeZoneResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/stepUpPolicy:
+        get:
+            tags:
+                - AuthService
+            description: |-
+                GetStepUpPolicy says how often you're asked for your passkey again: what
+                 you chose, the least the install allows, what applies, and whether this
+                 session needs no passkey now, until when
+                 (docs/adr/0075-how-often-a-passkey-is-asked-for-again.md).
+            operationId: AuthService_GetStepUpPolicy
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetStepUpPolicyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/stepUpPolicy:set:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                SetStepUpPolicy chooses how often you're asked for your passkey again. It
+                 needs a proof from FinishStepUp for STEP_UP_ACTION_SET_STEP_UP_POLICY,
+                 whichever way it goes, and refuses a choice below the install's floor
+                 with the reason below_floor.
+            operationId: AuthService_SetStepUpPolicy
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetStepUpPolicyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetStepUpPolicyResponse'
                 default:
                     description: Default error response
                     content:
@@ -6940,6 +7027,8 @@ components:
                         - STEP_UP_ACTION_OPEN_SERVICE
                         - STEP_UP_ACTION_SET_PANEL_DOMAIN
                         - STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN
+                        - STEP_UP_ACTION_SET_STEP_UP_POLICY
+                        - STEP_UP_ACTION_SET_STEP_UP_FLOOR
                     type: string
                     description: The action.
                     format: enum
@@ -11164,6 +11253,12 @@ components:
                         - $ref: '#/components/schemas/Settings'
                     description: The settings.
             description: GetSettingsResponse carries the install's settings.
+        GetStepUpPolicyResponse:
+            type: object
+            properties:
+                choice:
+                    $ref: '#/components/schemas/StepUpChoice'
+            description: GetStepUpPolicyResponse carries the choice.
         GetTaskResponse:
             type: object
             properties:
@@ -17010,6 +17105,50 @@ components:
                         - $ref: '#/components/schemas/Server'
                     description: The server, without history.
             description: SetServerPublicAddressResponse carries the server as it now reads.
+        SetStepUpFloorRequest:
+            type: object
+            properties:
+                floor:
+                    enum:
+                        - STEP_UP_POLICY_UNSPECIFIED
+                        - STEP_UP_POLICY_EACH_TIME
+                        - STEP_UP_POLICY_HOURLY
+                        - STEP_UP_POLICY_AT_SIGN_IN
+                    type: string
+                    description: The least anyone may choose.
+                    format: enum
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for STEP_UP_ACTION_SET_STEP_UP_FLOOR.
+            description: SetStepUpFloorRequest carries the floor.
+        SetStepUpFloorResponse:
+            type: object
+            properties:
+                settings:
+                    $ref: '#/components/schemas/Settings'
+            description: SetStepUpFloorResponse carries the settings as they now are.
+        SetStepUpPolicyRequest:
+            type: object
+            properties:
+                policy:
+                    enum:
+                        - STEP_UP_POLICY_UNSPECIFIED
+                        - STEP_UP_POLICY_EACH_TIME
+                        - STEP_UP_POLICY_HOURLY
+                        - STEP_UP_POLICY_AT_SIGN_IN
+                    type: string
+                    description: The choice. Not below the install's floor.
+                    format: enum
+                proof:
+                    type: string
+                    description: The proof from FinishStepUp, for STEP_UP_ACTION_SET_STEP_UP_POLICY.
+            description: SetStepUpPolicyRequest carries the new choice.
+        SetStepUpPolicyResponse:
+            type: object
+            properties:
+                choice:
+                    $ref: '#/components/schemas/StepUpChoice'
+            description: SetStepUpPolicyResponse carries the choice as it now is.
         SetTimeZoneRequest:
             type: object
             properties:
@@ -17049,6 +17188,18 @@ components:
                     type: string
                     description: When the install was set up.
                     format: date-time
+                stepUpFloor:
+                    enum:
+                        - STEP_UP_POLICY_UNSPECIFIED
+                        - STEP_UP_POLICY_EACH_TIME
+                        - STEP_UP_POLICY_HOURLY
+                        - STEP_UP_POLICY_AT_SIGN_IN
+                    type: string
+                    description: |-
+                        The least anyone may choose for how often they're asked for their
+                         passkey again. STEP_UP_POLICY_AT_SIGN_IN, which allows all three, until
+                         the owner sets it.
+                    format: enum
             description: Settings are the install's own settings.
         SharedName:
             type: object
@@ -17465,6 +17616,56 @@ components:
                          for the person who applied it to confirm they still can (ConfirmChange).
                          Numbered apart, as open work adds to this message.
             description: StepProgress is one step of an applying change, and how it is going.
+        StepUpChoice:
+            type: object
+            properties:
+                policy:
+                    enum:
+                        - STEP_UP_POLICY_UNSPECIFIED
+                        - STEP_UP_POLICY_EACH_TIME
+                        - STEP_UP_POLICY_HOURLY
+                        - STEP_UP_POLICY_AT_SIGN_IN
+                    type: string
+                    description: What they chose. STEP_UP_POLICY_EACH_TIME until they choose.
+                    format: enum
+                floor:
+                    enum:
+                        - STEP_UP_POLICY_UNSPECIFIED
+                        - STEP_UP_POLICY_EACH_TIME
+                        - STEP_UP_POLICY_HOURLY
+                        - STEP_UP_POLICY_AT_SIGN_IN
+                    type: string
+                    description: The least the install lets anyone choose, which the owner sets.
+                    format: enum
+                effective:
+                    enum:
+                        - STEP_UP_POLICY_UNSPECIFIED
+                        - STEP_UP_POLICY_EACH_TIME
+                        - STEP_UP_POLICY_HOURLY
+                        - STEP_UP_POLICY_AT_SIGN_IN
+                    type: string
+                    description: 'What applies: the stricter of policy and floor.'
+                    format: enum
+                coverTime:
+                    type: string
+                    description: |-
+                        When this session's cover began: the passkey that opened the hour, or
+                         signing in. Unset when it has none now, as for each time.
+                    format: date-time
+                coverExpireTime:
+                    type: string
+                    description: |-
+                        When it ends: an hour after that passkey, or when the session does.
+                         Unset with cover_time.
+                    format: date-time
+                coverAtSignIn:
+                    type: boolean
+                    description: |-
+                        True when signing in is what covers this session, for its life, rather
+                         than a passkey's hour.
+            description: |-
+                StepUpChoice is how often someone is asked for their passkey again, and
+                 what that comes to in this session.
         Task:
             type: object
             properties:
@@ -18775,7 +18976,8 @@ tags:
     - name: SettingsService
       description: |-
         SettingsService reads and changes the install's own settings: what it's
-         called, the time zone its schedules start in, and how its panel is served.
+         called, the time zone its schedules start in, how its panel is served, and
+         the least anyone may choose for how often their passkey is asked for again.
          It also says what the control plane is, and how it's doing.
 
          None of these is managed state: they change what Dockwell says and suggests,

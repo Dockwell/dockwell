@@ -12,6 +12,7 @@ import {
   SessionSchema,
   SignInMethod,
   StepUpAction,
+  StepUpPolicy,
   TokenSchema,
   TokenScope,
   TotpSchema,
@@ -110,6 +111,9 @@ function api(overrides: Record<string, unknown> = {}, tokens: Record<string, unk
       listPasskeys: vi.fn(() => ({ passkeys: [laptop, yubikey] })),
       listSessions: vi.fn(() => ({ sessions })),
       getTotp: vi.fn(() => ({ totp: create(TotpSchema, { enabled: true, recoveryCodesLeft: 7 }) })),
+      getStepUpPolicy: vi.fn(() => ({
+        choice: { policy: StepUpPolicy.EACH_TIME, floor: StepUpPolicy.AT_SIGN_IN, effective: StepUpPolicy.EACH_TIME },
+      })),
       ...overrides,
     },
     tokens: {

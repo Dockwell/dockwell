@@ -28,6 +28,7 @@ AuthService.FinishClaim                        apply        nothing    nothing  
 AuthService.FinishPasskeySignIn                apply        nothing    nothing    anyone
 AuthService.FinishStepUp                       apply        viewer     viewer     self
 AuthService.GetAuthState                       read         nothing    nothing    anyone
+AuthService.GetStepUpPolicy                    read         viewer     viewer     self
 AuthService.GetTotp                            read         viewer     viewer     self
 AuthService.ListPasskeys                       read         viewer     viewer     self
 AuthService.ListSessions                       read         viewer     viewer     self
@@ -35,6 +36,7 @@ AuthService.RegenerateRecoveryCodes            destructive  viewer     viewer   
 AuthService.RemovePasskey                      destructive  viewer     viewer     self
 AuthService.RevokeOtherSessions                destructive  viewer     viewer     self
 AuthService.RevokeSession                      destructive  viewer     viewer     self
+AuthService.SetStepUpPolicy                    apply        viewer     viewer     self
 AuthService.SignInWithCode                     apply        nothing    nothing    anyone
 AuthService.SignInWithLink                     apply        nothing    nothing    anyone
 AuthService.SignOut                            apply        nothing    nothing    self
@@ -146,6 +148,7 @@ SettingsService.GetControlPlane                read         admin      admin    
 SettingsService.GetSettings                    read         viewer     viewer     shared
 SettingsService.SetInstallName                 apply        admin      admin      install  session
 SettingsService.SetPanelDomain                 apply        admin      admin      install  session
+SettingsService.SetStepUpFloor                 apply        admin      admin      install  session
 SettingsService.SetTimeZone                    apply        admin      admin      install
 SystemService.GetVersion                       read         nothing    nothing    anyone
 TaskService.GetTask                            read         viewer     viewer     project
