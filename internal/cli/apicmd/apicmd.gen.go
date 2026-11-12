@@ -220,7 +220,7 @@ func Methods() []*apicli.Method {
 			Long:      "Check a service now, or every service on a server, and answers with what it\nfound, within half a minute. A service or a server is checked this way at most\nonce a minute: asking again sooner answers with the last check. It reads\nregistries from the server, gently: a registry that limits how often it's asked\nis left alone until it lets Dockwell ask again, and the answer says so. A\nserver's check answers with the services in your projects alone.",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
-				{Path: "id", Help: "The service, by ID, such as \"svc_01JD6Z3R8M9QF2K7T4XW5BNC0V\", or by name. Leave it out to check every service on server.", Arg: true},
+				{Path: "id", Help: "The service, by ID, such as \"svc_01JD6Z3R8M9QF2K7T4XW5BNC0V\", or by name. Leave it out to check every service on server.", Arg: true, OptionalArg: true},
 				{Path: "project", Help: "The project of a service named by name, by name or ID, when more than one has a service of that name."},
 				{Path: "environment", Help: "The environment of a service named by name, by name or ID, when its project has more than one."},
 				{Path: "server", Help: "Every service on this server, by ID or name, in place of id."},

@@ -1146,9 +1146,9 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x14\n" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x122\n" +
-	"\x06update\x18\x04 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\x80\x01\n" +
-	"\x1aCheckServiceUpdatesRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\x06update\x18\x04 \x01(\v2\x1a.dockwell.v1.ServiceUpdateR\x06update\"\x86\x01\n" +
+	"\x1aCheckServiceUpdatesRequest\x12\x14\n" +
+	"\x02id\x18\x01 \x01(\tB\x04\xb0\xbb\x18\x01R\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x16\n" +
 	"\x06server\x18\x04 \x01(\tR\x06server\"V\n" +
