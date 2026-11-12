@@ -65,6 +65,7 @@ A source may be 1Panel's app store, Dokploy's templates or Coolify's (ADR 0078).
 | Pinning at a plan asks registries too often | Only a plan asks, never a refresh: a HEAD each, which no registry counts as a pull, 20 images a call, two calls reaching registries at once on a server, and digests kept 10 minutes, shared with a form's reads. |
 | A store says it's under one licence and isn't | The licence is read from the repository's own licence file and matched to four licences' texts; anything else is `NOASSERTION`, and the plan says Dockwell can't tell it. |
 | A store's words reach a person as markup, or as an instruction | An entry's summary is the store's line, one line of 160 characters at most, shown as text. The converter writes no first steps. |
+| A store names its app as one of Dockwell's own, to be installed in its place | It's joined to that app only with the same ID, name and image repository, and then only as another choice: the card is listed from Dockwell's own first, the default is Dockwell's own, and choosing the store's shows where it comes from and that Dockwell doesn't test it. An install from it upgrades from that store alone. Anything less certain is left out as `taken`. |
 
 ## Not covered
 

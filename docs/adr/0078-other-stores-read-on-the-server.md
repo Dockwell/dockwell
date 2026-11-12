@@ -104,6 +104,22 @@ Dockwell's own catalog keeps its 14 days, where it's built.
 
 - **A converted entry's release is when its commit was made,** in seconds, so a later commit's entry is a higher release, whichever commit Dockwell read first. Pinning an older commit gives a lower one, which no upgrade goes to. A commit dated after now, as a fork can date one, counts from when it's converted, so it can't outrank every later commit.
 
+### The same app in several catalogs
+
+*Added with the second slice of #544.*
+
+WordPress from Dockwell's own, from 1Panel's app store and from Coolify's templates is one app, and the catalog shouldn't show it three times.
+
+- **An entry of an ID a catalog before it has, with the same name, in any case, and the same image repository for the service a person opens, is the same app.** It's kept as another choice of that app, not left out. Anything less certain stays out as `taken`, as ADR 0055 has it: a missed match costs a card, a wrong one installs the wrong software (ADR 0029). Entries of different IDs are never joined, so 1Panel's `bitwarden`, which runs `vaultwarden/server`, stays apart from a `vaultwarden`.
+- **The card is listed from the first catalog that has the app,** Dockwell's own first, then each source by name, and names the others: "Dockwell's own · also in 1panel and coolify". `ListCatalogEntries` returns them as `also`, and `ListCatalogSources` says which apps each source offers that way.
+- **The app's page picks the catalog,** where there's more than one, as a choice of the catalogs `GetCatalogEntry` names, and shows that catalog's entry: its version, licence and what it installs. The install sheet installs from the one picked, and the install upgrades from that catalog alone, as ADR 0055 has it. A source's plan says which apps it offers as another choice.
+
+### One click for each store
+
+- **The Sources page offers 1Panel's app store, Dokploy's templates and Coolify's templates** as buttons, in its empty state and above the list, each one no source reads yet. One opens the source form with the store's link, format and a name filled in, so the next thing a person sees is the plan.
+- **A pasted link says how it reads** as a line under it, such as "1Panel's app store · 269 apps", from `ListCatalogSourceRefs`. Only where the folders could be more than one does the form ask, as a choice of those, never as a field.
+- **What a store leaves out is one step away,** counted by why, the most first, each kind opening to its apps and their reasons.
+
 ## What we turned down
 
 - **Publishing converted copies,** in Dockwell/catalog or anywhere, which waits for counsel, as the owner decided.
@@ -119,4 +135,4 @@ Dockwell's own catalog keeps its 14 days, where it's built.
 - The control plane carries three adapters and their parsers (YAML, TOML, JSON), in the full build alone, and a refresh runs them on whatever a store's branch says next, within the bounds above.
 - A store's change that breaks its adapter leaves the source where it was, as a commit that can't be read does, rather than breaking anyone's server.
 - A plan for a converted entry needs its server's agent connected, to pin its images.
-- Still to build: the one-click presets on the Sources page, the same app in several catalogs shown as one card with the catalog picked at install, a store's own icons once a source reads media (ADR 0077), and an app that runs on amd64 alone offered for amd64 servers.
+- Still to build: a store's own icons once a source reads media (ADR 0077), following each preset's branch once sources follow one (ADR 0077), and an app that runs on amd64 alone offered for amd64 servers.

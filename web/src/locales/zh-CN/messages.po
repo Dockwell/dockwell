@@ -6324,6 +6324,84 @@ msgstr "已发布版本 {next}。"
 msgid "{name} {version}"
 msgstr "{name} {version}"
 
+msgid "1Panel's app store"
+msgstr "1Panel 应用商店"
+
+msgid "Add another store's apps"
+msgstr "添加其他商店的应用"
+
+msgid "Ask for a value Dockwell doesn't make yet"
+msgstr "需要 Dockwell 尚不能生成的值"
+
+msgid "Ask for what Dockwell can't run yet"
+msgstr "需要 Dockwell 尚不能运行的配置"
+
+msgid "Ask for what an entry can't say yet"
+msgstr "需要条目尚不能表达的配置"
+
+msgid "Come under terms of their own"
+msgstr "附带自有条款"
+
+msgid "Coolify's templates"
+msgstr "Coolify 模板"
+
+msgid "Dockwell's entries"
+msgstr "Dockwell 条目"
+
+msgid "Dokploy's templates"
+msgstr "Dokploy 模板"
+
+msgid "Fail the catalog's checks"
+msgstr "未通过目录检查"
+
+msgid "Have an ID a catalog before it has"
+msgstr "ID 已被排在前面的目录占用"
+
+msgid "Have files that can't be read"
+msgstr "有无法读取的文件"
+
+msgid "Marked by their store to leave out"
+msgstr "被其商店标记为不收录"
+
+msgid "Name no version that stays put"
+msgstr "未指定固定的版本"
+
+msgid "Other reasons"
+msgstr "其他原因"
+
+msgid "Put a secret inside a longer value"
+msgstr "把密钥写在更长的值里"
+
+msgid "Read it as"
+msgstr "读取为"
+
+msgid "Run on amd64 alone"
+msgstr "仅支持 amd64"
+
+msgid "Run scripts on the server"
+msgstr "会在服务器上运行脚本"
+
+msgid "Ship files beside their Compose file"
+msgstr "在 Compose 文件旁附带文件"
+
+msgid "Use a value their store fills in"
+msgstr "使用其商店自动填写的值"
+
+msgid "Use another app's database"
+msgstr "使用其他应用的数据库"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: count.apps
+#. placeholder {0}: here.length
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
+
+msgid "{left, plural, one {# app left out, and why} other {# apps left out, and why}}"
+msgstr "{left, plural, other {未收录的 # 个应用及原因}}"
+
+msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
+msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
+
 msgid "A source adds the apps in a public Git repository."
 msgstr "来源会加入公开 Git 仓库中的应用。"
 
@@ -6396,6 +6474,10 @@ msgstr "固定到"
 msgid "Read. It has {count} or more branches and tags."
 msgstr "已读取。共有 {count} 个或更多分支和标签。"
 
+msgctxt "catalog source"
+msgid "Store"
+msgstr "商店"
+
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
 msgstr "请使用小写字母、数字和短横线，并以字母开头，例如 community。"
 
@@ -6420,9 +6502,6 @@ msgstr "{count, plural, =0 {这里没有应用} other {这里有 # 个应用}}"
 
 msgid "{count, plural, one {Read. It has # branch or tag.} other {Read. It has # branches and tags.}}"
 msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
-
-msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
-msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
 
 msgid "{short} (tag)"
 msgstr "{short}（标签）"
@@ -6780,12 +6859,6 @@ msgstr "{0, plural, other {# 个应用将停止，你可以在 {deadline} 之前
 #. placeholder {0}: n.apps
 msgid "{0, plural, one {# app stops.} other {# apps stop.}}"
 msgstr "{0, plural, other {# 个应用将停止。}}"
-
-#. placeholder {0}: apps.length
-#. placeholder {0}: count.apps
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, other {# 个应用}}"
 
 #. placeholder {0}: n.databases
 msgid "{0, plural, one {# database stops, and you can undo this until {deadline}.} other {# databases stop, and you can undo this until {deadline}.}}"

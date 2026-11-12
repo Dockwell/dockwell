@@ -3,6 +3,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  CatalogFormat,
   CatalogInstallSchema,
   CatalogSourceInfoSchema,
   ChangeSchema,
@@ -820,5 +821,112 @@ describe("The catalog, with sources", () => {
     });
     await waitFor(() => expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeEnabled());
     expect(within(sheet).getByText(/Not tested by Dockwell/)).toBeVisible();
+  });
+});
+
+describe("Other stores' catalogs", () => {
+  const ONEPANEL = "https://github.com/1Panel-dev/appstore";
+  const store = create(CatalogSourceInfoSchema, {
+    name: "1panel",
+    source: { repository: ONEPANEL, commit: COMMIT, format: CatalogFormat.ONEPANEL },
+    entries: ["notes-src"],
+    refused: [
+      { file: "apps/2fauth/5.0.0", id: "2fauth", kind: "scripts", reason: "it runs scripts on the server" },
+      { file: "apps/alist/3.0.0", id: "alist", kind: "scripts", reason: "it runs scripts on the server" },
+      { file: "apps/artalk", id: "artalk", kind: "arch", reason: "1Panel says it runs on amd64 alone" },
+    ],
+  });
+
+  it("adds 1Panel's app store, Dokploy's or Coolify's in one click, read as that store, with nothing to type", async () => {
+    const user = userEvent.setup();
+    let asked: SetCatalogSourceRequest | undefined;
+    const { container } = renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSources: () => ({ sources: [] }),
+        listCatalogSourceRefs: () => ({
+          refs: [{ name: "refs/heads/main", commit: COMMIT }],
+          head: "refs/heads/main",
+          formats: [{ format: CatalogFormat.ONEPANEL, path: "", apps: 269 }],
+        }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_reads", ["notes-src"]]) };
+        },
+      }),
+    );
+    const presets = await screen.findByRole("group", { name: "Add another store's apps" });
+    expect(
+      within(presets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["1Panel's app store", "Dokploy's templates", "Coolify's templates"]);
+    await expectAccessible(container);
+    await user.click(within(presets).getByRole("button", { name: "1Panel's app store" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    expect(within(sheet).getByLabelText("Repository")).toHaveValue(ONEPANEL);
+    expect(await within(sheet).findByText("269 apps")).toBeVisible();
+    expect(within(sheet).getByText(/Named onepanel/)).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked).toMatchObject({
+      name: "onepanel",
+      repository: ONEPANEL,
+      commit: COMMIT,
+      format: CatalogFormat.ONEPANEL,
+    });
+  });
+
+  it("offers a store no source reads yet above the list, and none it reads", async () => {
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [community, store] }) }));
+    const presets = await screen.findByRole("group", { name: "Add another store's apps" });
+    expect(
+      within(presets)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Dokploy's templates", "Coolify's templates"]);
+  });
+
+  it("asks which store a repository is only where it could be more than one", async () => {
+    const user = userEvent.setup();
+    let asked: SetCatalogSourceRequest | undefined;
+    renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSourceRefs: () => ({
+          refs: [{ name: "refs/heads/main", commit: COMMIT }],
+          head: "refs/heads/main",
+          formats: [
+            { format: CatalogFormat.DOKPLOY, path: "", apps: 2 },
+            { format: CatalogFormat.ONEPANEL, path: "", apps: 1 },
+          ],
+        }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_reads", ["notes-src"]]) };
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Add a source" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/example/stores");
+    const choice = await within(sheet).findByRole("radiogroup", { name: "Read it as" });
+    expect(within(choice).getByRole("radio", { name: "Dokploy's templates" })).toBeChecked();
+    await user.click(within(choice).getByRole("radio", { name: "1Panel's app store" }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.format).toBe(CatalogFormat.ONEPANEL);
+  });
+
+  it("says which store a source is, and what it leaves out by why, the most first", async () => {
+    const user = userEvent.setup();
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [store] }) }));
+    const panel = (await screen.findByRole("heading", { name: "1panel" })).closest("section") as HTMLElement;
+    expect(within(panel).getByText("1Panel's app store")).toBeVisible();
+    await user.click(within(panel).getByText("3 apps left out, and why"));
+    const kinds = [...panel.querySelectorAll(".sources-left-kind > summary")].map((k) => k.textContent);
+    expect(kinds).toEqual(["Run scripts on the server2", "Run on amd64 alone1"]);
+    await user.click(within(panel).getByText("Run scripts on the server"));
+    expect(within(panel).getByText("2fauth")).toBeVisible();
   });
 });

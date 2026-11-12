@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
+import { CatalogFormat, CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -27,6 +27,7 @@ import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
+import { converted, FormatLine, LeftOut, SourcePresets, useFormatWords } from "./SourceFormats";
 import { useCatalog, useSources } from "./useCatalog";
 import "./Sources.css";
 
@@ -35,6 +36,10 @@ interface Editing {
   name?: string;
   repository?: string;
   path?: string;
+  /** How its folder is laid out, as a preset knows it; left out, Dockwell tells (ADR 0078). */
+  format?: CatalogFormat;
+  /** The name a new source starts from, as a preset gives it. */
+  suggested?: string;
 }
 
 /**
@@ -79,6 +84,13 @@ export function SourcesPage() {
           </Button>
         </div>
       ) : null}
+      {list?.length ? (
+        <SourcePresets
+          sources={list}
+          off={set.off}
+          onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
+        />
+      ) : null}
       {sources.error ? (
         <Callout
           tone="critical"
@@ -108,6 +120,11 @@ export function SourcesPage() {
           <p>
             <Trans>A source adds the apps in a public Git repository.</Trans>
           </p>
+          <SourcePresets
+            sources={[]}
+            off={set.off}
+            onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
+          />
         </EmptyState>
       ) : (
         list.map((source) => (
@@ -161,7 +178,7 @@ function SourcePanel({
   const commit = source.source?.commit ?? "";
   const path = source.source?.path ?? "";
   const count = source.entries.length;
-  const left = source.refused.length;
+  const formatWords = useFormatWords();
   return (
     <Panel
       title={name}
@@ -191,6 +208,14 @@ function SourcePanel({
             <code>{source.source?.repository}</code>
           </dd>
         </div>
+        {converted(source) ? (
+          <div>
+            <dt>
+              <Trans context="catalog source">Store</Trans>
+            </dt>
+            <dd>{formatWords(source.source?.format ?? CatalogFormat.UNSPECIFIED)}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>
             <Trans>Folder</Trans>
@@ -241,19 +266,7 @@ function SourcePanel({
               ))}
             </ul>
           ) : null}
-          {left > 0 ? (
-            <details className="sources-left">
-              <summary>{plural(left, { one: "# file left out, and why", other: "# files left out, and why" })}</summary>
-              <ul>
-                {source.refused.map((r) => (
-                  <li key={r.file}>
-                    <code>{r.file}</code>
-                    <span>{r.reason}</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
+          <LeftOut refused={source.refused} />
         </>
       )}
     </Panel>
@@ -333,6 +346,7 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
   const [named, setNamed] = useState(editing.name);
   const [repository, setRepository] = useState(editing.repository ?? "");
   const [path, setPath] = useState(editing.path ?? "");
+  const [format, setFormat] = useState(editing.format);
   const [picked, setPicked] = useState<string>();
   const [commit, setCommit] = useState("");
   const [more, setMore] = useState(false);
@@ -354,7 +368,11 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
     { enabled: askable, retry: false, staleTime: 60_000 },
   );
   const found = askable ? (refs.data?.refs ?? []) : [];
-  const name = named ?? nameFor(url, taken);
+  // How its default branch reads, as Dockwell tells from its folders: a fact, or a choice where it can't tell.
+  const guesses = askable ? (refs.data?.formats ?? []) : [];
+  const guess = guesses.find((g) => g.format === format) ?? (guesses.length === 1 ? guesses[0] : undefined);
+  const suggested = editing.suggested && !taken.includes(editing.suggested) ? editing.suggested : undefined;
+  const name = named ?? suggested ?? nameFor(url, taken);
   // The repository's default branch, unless another is chosen; main or master where it names none.
   const head = askable ? (refs.data?.head ?? "") : "";
   const lead =
@@ -403,7 +421,9 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
       setWaiting(true);
       return;
     }
-    const request = { name, repository: url, path: path.trim(), commit: pin };
+    // A folder Dockwell found the catalog in, such as entries, where nobody named one.
+    const folder = path.trim() === "" && guess ? guess.path : path.trim();
+    const request = { name, repository: url, path: folder, commit: pin, format: format ?? guess?.format };
     const opening: Opening = {
       kind: "plan",
       // PlanView owns the request from its start, so leaving mid-fetch discards a late plan too.
@@ -503,11 +523,14 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
           onChange={(event) => {
             setRepository(event.target.value);
             setPicked(undefined);
+            // What a preset knew of one repository says nothing of another.
+            setFormat(undefined);
             // A press for another repository doesn't carry over to this one.
             setWaiting(false);
             setErrors({ ...errors, repository: undefined });
           }}
         />
+        <FormatLine guesses={guesses} chosen={format} onChoose={(g) => setFormat(g.format)} />
         {count > 0 ? (
           <SelectField
             label={t`Pin to`}

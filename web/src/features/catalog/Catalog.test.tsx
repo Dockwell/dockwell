@@ -1034,7 +1034,9 @@ describe("The same app in several catalogs", () => {
     ...api({
       listCatalogEntries: () => ({ entries: [own], also: [{ id: "ghost", catalog: "coolify", entry: theirs }] }),
       listCatalogSources: () => ({
-        sources: [{ name: "coolify", source: { repository: "https://github.com/coollabsio/coolify" }, also: ["ghost"] }],
+        sources: [
+          { name: "coolify", source: { repository: "https://github.com/coollabsio/coolify" }, also: ["ghost"] },
+        ],
       }),
       getCatalogEntry: (req) => ({
         entry: req.catalog === "coolify" ? theirs : own,

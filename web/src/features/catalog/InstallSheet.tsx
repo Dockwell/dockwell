@@ -279,7 +279,11 @@ export function InstallSheet({
   }, [name]);
   const nameValid = name !== "" && SERVICE_NAME.test(name);
   const nameAsked = nameValid && !nameIsDefault && settled === name;
-  const nameRead = useQuery(CatalogService.method.getCatalogEntry, { id, catalog, project: settled }, { enabled: nameAsked });
+  const nameRead = useQuery(
+    CatalogService.method.getCatalogEntry,
+    { id, catalog, project: settled },
+    { enabled: nameAsked },
+  );
   const nameAnswer = nameAsked ? nameRead.data?.project : undefined;
   const nameHere = places.projects.includes(name);
   const nameState: NameState | undefined =

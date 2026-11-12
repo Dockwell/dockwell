@@ -666,9 +666,9 @@ type sourced struct {
 	catalog *catalog.Catalog
 	origins map[string]origin
 	// also are the same apps from catalogs after the one each is listed from, by ID.
-	also    map[string][]alternative
-	reads   map[string]sourceRead
-	unread  map[string]error
+	also   map[string][]alternative
+	reads  map[string]sourceRead
+	unread map[string]error
 }
 
 // entryFor is the catalog's entry for an install: its ID's, where it comes from the
