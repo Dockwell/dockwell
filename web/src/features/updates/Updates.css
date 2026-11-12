@@ -1,16 +1,20 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* Server-Updates.dc.html: what waits on the left, how the server updates and Docker's and Dockwell's versions on the right. */
+/* Server-Updates.dc.html: what waits on the left, Docker's and Dockwell's versions and how the server updates on the
+   right. Where the tab is too narrow for both, the cards go under the list, side by side while there's room. */
+.updates {
+  container-type: inline-size;
+}
+
 .updates-layout {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+  align-items: start;
   gap: var(--space-6);
 }
 
 .updates-main {
   display: flex;
-  flex: 1 1 600px;
   flex-direction: column;
   gap: var(--space-6);
   min-width: 0;
@@ -18,10 +22,21 @@
 
 .updates-side {
   display: flex;
-  flex: 0 1 352px;
   flex-direction: column;
   gap: var(--space-4);
-  min-width: min(300px, 100%);
+  min-width: 0;
+}
+
+@container (max-width: 1019px) {
+  .updates-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .updates-side {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+    align-items: start;
+  }
 }
 
 .updates-waiting {
@@ -87,6 +102,141 @@
   margin: 0;
   font-size: 13px;
   line-height: 20px;
+}
+
+/* A row says what happens to its package as it happens, and fades between states. */
+.updates-row td {
+  transition: background-color 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .updates-row td {
+    transition: none;
+  }
+}
+
+/* The table fits its width: columns by the widths given, and what's long wraps rather than scrolls or is cut. */
+.updates-table .dw-table {
+  table-layout: fixed;
+}
+
+.updates-table .dw-table td {
+  white-space: normal;
+}
+
+.updates-table .dw-table td:first-child:has(.updates-check),
+.updates-table .dw-table th:first-child:has(.updates-check) {
+  padding-right: 0;
+}
+
+.updates-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--action);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.updates-check:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* A picked row, and one an install just took, which says so in place before it leaves. */
+.updates-row.is-picked td {
+  background: var(--selection);
+}
+
+.updates-row.is-updated td {
+  background: var(--healthy-soft);
+}
+
+.updates-name-cell,
+.updates-versions-cell {
+  min-width: 0;
+}
+
+.updates-mono {
+  font-family: var(--font-mono);
+}
+
+/* What happens to a package, under its name, while something does. */
+.updates-said-healthy {
+  color: var(--healthy);
+}
+
+.updates-said-critical {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--critical);
+}
+
+.updates-said-line {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.updates-link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.updates-link:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.updates-row-state {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.updates-row-failed {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The install under way, in the lead: its last line, which can be long. */
+.updates-activity {
+  overflow-wrap: anywhere;
+}
+
+/* "Update n selected": at the end of the list, and kept in reach while it scrolls. */
+.updates-selection {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.updates-selection-count {
+  font-size: 13px;
+  font-weight: 550;
 }
 
 /* A package: its name in mono, its description beneath. */
@@ -251,7 +401,7 @@
   font-size: 11.5px;
 }
 
-/* On a phone, a package a row: name and description, versions, what installing does. */
+/* On a phone, a package a row: its box, then name and description, versions and what installing does, then Update. */
 .updates-list {
   margin: 0;
   padding: 0;
@@ -259,21 +409,50 @@
 }
 
 .updates-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.updates-list-row.has-pick {
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+
+.updates-list-row.is-picked {
+  background: var(--selection);
+}
+
+.updates-list-row.is-updated {
+  background: var(--healthy-soft);
+}
+
+.updates-list-pick {
+  display: flex;
+  padding-top: 1px;
+}
+
+.updates-list-what {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+
+.updates-list-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 639px) {
+  .updates-selection {
+    bottom: calc(var(--tabbar-height) + var(--space-2));
+  }
 }
 
 .updates-list-row + .updates-list-row {
   border-top: 1px solid var(--line);
-}
-
-.updates-list-versions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
 }
 
 .updates-effect {

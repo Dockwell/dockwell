@@ -17,6 +17,31 @@ import (
 // own deadline and its grace, and a minute more (ADR 0043).
 const UpdatesTimeout = updates.RefreshTimeout + 4*updates.ReadTimeout + 5*updates.KillGrace + time.Minute
 
+// Installing names the change installing updates on a server now, empty when
+// none is, and how many installs there have ended since the control plane
+// started: a read of its updates from before one ended is out of date.
+func (a *Agents) Installing(server string) (change string, ended uint64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.installing[server], a.installsEnded[server]
+}
+
+// installStarts notes that change's install of updates runs on server, until the
+// function it returns is called, as the step's call ends however it ends.
+func (a *Agents) installStarts(server, change string) func() {
+	a.mu.Lock()
+	a.installing[server] = change
+	a.mu.Unlock()
+	return func() {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		if a.installing[server] == change {
+			delete(a.installing, server)
+		}
+		a.installsEnded[server]++
+	}
+}
+
 // ReadsUpdates reports an agent that reads its server's package updates.
 func (s *Session) ReadsUpdates() bool { return s.readsUpdates }
 

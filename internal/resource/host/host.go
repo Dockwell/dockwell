@@ -25,8 +25,9 @@ const Name = "host"
 // Backend installs a server's updates: the agent's package manager and init
 // system. Nil on the control plane, which plans through the agent.
 type Backend interface {
-	// Plan simulates installing the updates waiting, the security fixes or all.
-	Plan(ctx context.Context, all bool) (*resource.Install, error)
+	// Plan simulates installing the updates waiting: the packages named and what
+	// they need, or with none named the security fixes, or all.
+	Plan(ctx context.Context, all bool, names []string) (*resource.Install, error)
 	// Left are the planned packages not yet at their planned version, and
 	// whether an install for the change still runs.
 	Left(ctx context.Context, change string, planned []resource.InstallPackage) (left []resource.InstallPackage, running bool, err error)
@@ -92,7 +93,7 @@ func (d *Driver) JudgeInstall(ctx context.Context, _ resource.Ref, ask resource.
 	}
 	dec := resource.Decision{Action: resource.ActionUpdate, Effect: resource.EffectNone}
 	if len(ask.Packages) == 0 {
-		in, err := d.Backend.Plan(ctx, ask.All)
+		in, err := d.Backend.Plan(ctx, ask.All, ask.Names)
 		if err != nil {
 			return resource.Decision{}, false, err
 		}

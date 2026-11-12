@@ -15,13 +15,14 @@ type Host struct {
 	Installer *Installer
 }
 
-// Plan simulates installing the updates waiting.
-func (h Host) Plan(ctx context.Context, all bool) (*resource.Install, error) {
-	p, err := h.Installer.Reader.PlanInstall(ctx, all)
+// Plan simulates installing the updates waiting: the packages named and what they
+// need, or the security fixes, or all.
+func (h Host) Plan(ctx context.Context, all bool, names []string) (*resource.Install, error) {
+	p, err := h.Installer.Reader.PlanInstall(ctx, all, names...)
 	if err != nil {
 		return nil, err
 	}
-	return &resource.Install{Packages: packagesOf(p.Packages), Reboot: p.Reboot, DockerRestarts: p.DockerRestarts, KeepsRunning: p.KeepsRunning}, nil
+	return &resource.Install{Packages: packagesOf(p.Packages), Reboot: p.Reboot, DockerRestarts: p.DockerRestarts, KeepsRunning: p.KeepsRunning, Asked: p.Asked}, nil
 }
 
 // Left are the planned packages not at their version yet, and whether the

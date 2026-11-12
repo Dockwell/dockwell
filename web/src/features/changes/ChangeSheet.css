@@ -774,3 +774,12 @@ a.plan-reach-at:focus-visible {
   font-family: var(--font-mono);
   font-size: 12px;
 }
+
+/* What changes of a package's version, as a diff's addition. */
+.plan-install-changed {
+  margin: 0 -2px;
+  padding: 1px 2px;
+  border-radius: 3px;
+  background: var(--diff-add-soft);
+  color: var(--diff-add);
+}

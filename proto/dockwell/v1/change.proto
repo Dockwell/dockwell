@@ -189,12 +189,13 @@ service ChangeService {
   }
 
   // PlanInstallUpdates plans installing the package updates waiting on
-  // servers: the security fixes, or every update. Each server's agent
-  // simulates the exact install, versions pinned, and the plan lists every
-  // package it installs, those it pulls in too, whether a reboot follows and
-  // whether Docker restarts. It's a change with a plan and no revision, as a
-  // restart is: an upgrade can't be undone, and the plan says so. Applying it
-  // takes a person's passkey, as it runs as root on the server. See
+  // servers: the security fixes, every update, or the packages named. Each
+  // server's agent simulates the exact install, versions pinned, and the plan
+  // lists every package it installs, those it pulls in too, whether a reboot
+  // follows and whether Docker restarts. It's a change with a plan and no
+  // revision, as a restart is: an upgrade can't be undone, and the plan says
+  // so. Applying it takes a person's passkey, as it runs as root on the
+  // server. See
   // docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
   rpc PlanInstallUpdates(PlanInstallUpdatesRequest) returns (PlanInstallUpdatesResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
@@ -515,6 +516,10 @@ message PlanInstallUpdatesRequest {
   bool all = 2;
   // What the change is for, for the timeline. Empty says what it installs.
   string summary = 3;
+  // Installs only these packages, by name as GetServerUpdates lists them, such
+  // as "openssl", with what they need: the plan lists those too. A name the
+  // server's updates don't list is refused. Leave all unset with it.
+  repeated string packages = 4;
 }
 
 // PlanInstallUpdatesResponse carries the planned install.
@@ -537,6 +542,10 @@ message PackageInstall {
   // Docker keeps containers running while it restarts (live-restore), which
   // holds across patch releases of the same version only.
   bool keeps_running = 4;
+  // The packages asked for by name, when the install was of a selection: every
+  // other package listed is one they need. Empty for the security fixes or
+  // every update.
+  repeated string asked = 5;
 }
 
 // ListDriftRequest says where to look for drift.

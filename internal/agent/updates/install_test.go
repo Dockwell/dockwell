@@ -346,3 +346,67 @@ esac`)
 		t.Errorf("an ended unit reads %d, %v; calls %v", code, err, s.calls())
 	}
 }
+
+// A plan for packages picked by name simulates only those, pinned, and lists what
+// they need too; it says back which were asked for.
+func TestAPlanForPickedPackagesSimulatesOnlyThem(t *testing.T) {
+	s := installStand(t)
+	write(t, s.root, "sim", `Inst libssl3t64 [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64]) [openssl:amd64 ]
+Inst openssl [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+`, 0o644)
+	p, err := New(Options{Root: s.root}).PlanInstall(t.Context(), false, "openssl", "openssl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, pk := range p.Packages {
+		names = append(names, pk.GetName())
+	}
+	if !slices.Equal(names, []string{"libssl3t64", "openssl"}) || !slices.Equal(p.Asked, []string{"openssl"}) {
+		t.Errorf("planned %v asked %v, want openssl and the library it needs, asked openssl", names, p.Asked)
+	}
+	sim := ""
+	for _, c := range s.calls() {
+		if strings.Contains(c, "--simulate_--only-upgrade_--no-remove_install") {
+			sim = c
+		}
+	}
+	if !strings.HasSuffix(sim, "_install_--_openssl=3.0.13-0ubuntu3.5") {
+		t.Errorf("simulated %q, want openssl alone, pinned", sim)
+	}
+}
+
+// A name the server's own read doesn't list is refused before anything is
+// simulated: the agent installs nothing it didn't list, whatever it's sent.
+func TestAPackageTheReadDoesntListIsRefused(t *testing.T) {
+	for _, name := range []string{"nginx", "--allow-downgrades", "openssl=1.0", "openssl; reboot"} {
+		s := installStand(t)
+		write(t, s.root, "sim", simulated, 0o644)
+		_, err := New(Options{Root: s.root}).PlanInstall(t.Context(), false, "openssl", name)
+		if !errors.Is(err, ErrNotListed) {
+			t.Errorf("planning %q = %v, want it refused as not listed", name, err)
+		}
+		if n := s.called("apt-get_-q_-o_Debug::NoLocking=true_-o_APT::Get::Show-User-Simulation-Note=false_--simulate_--only-upgrade"); n != 0 {
+			t.Errorf("planning %q simulated an install %d times", name, n)
+		}
+	}
+}
+
+// A package new to the server, such as the next kernel, installs on its own; beside
+// upgrades that don't pull it in, it's refused rather than left out quietly.
+func TestANewPackageIsPickedOnItsOwn(t *testing.T) {
+	s := installStand(t)
+	write(t, s.root, "sim", "Inst linux-modules-6.8.0-49-generic (6.8.0-49.49 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])\n", 0o644)
+	p, err := New(Options{Root: s.root}).PlanInstall(t.Context(), false, "linux-modules-6.8.0-49-generic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Packages) != 1 || p.Packages[0].GetName() != "linux-modules-6.8.0-49-generic" {
+		t.Errorf("planned %v, want the new kernel's modules", p.Packages)
+	}
+	write(t, s.root, "sim", simulated, 0o644)
+	_, err = New(Options{Root: s.root}).PlanInstall(t.Context(), false, "linux-modules-6.8.0-49-generic", "openssl")
+	if err == nil || !strings.Contains(err.Error(), "isn't in the install's simulation") {
+		t.Errorf("a new package beside an upgrade that doesn't need it = %v, want it refused", err)
+	}
+}

@@ -2562,7 +2562,11 @@ type PlanInstallUpdatesRequest struct {
 	// Installs every update waiting, not only the security fixes.
 	All bool `protobuf:"varint,2,opt,name=all,proto3" json:"all,omitempty"`
 	// What the change is for, for the timeline. Empty says what it installs.
-	Summary       string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	Summary string `protobuf:"bytes,3,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Installs only these packages, by name as GetServerUpdates lists them, such
+	// as "openssl", with what they need: the plan lists those too. A name the
+	// server's updates don't list is refused. Leave all unset with it.
+	Packages      []string `protobuf:"bytes,4,rep,name=packages,proto3" json:"packages,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2616,6 +2620,13 @@ func (x *PlanInstallUpdatesRequest) GetSummary() string {
 		return x.Summary
 	}
 	return ""
+}
+
+func (x *PlanInstallUpdatesRequest) GetPackages() []string {
+	if x != nil {
+		return x.Packages
+	}
+	return nil
 }
 
 // PlanInstallUpdatesResponse carries the planned install.
@@ -2678,7 +2689,11 @@ type PackageInstall struct {
 	DockerRestarts bool `protobuf:"varint,3,opt,name=docker_restarts,json=dockerRestarts,proto3" json:"docker_restarts,omitempty"`
 	// Docker keeps containers running while it restarts (live-restore), which
 	// holds across patch releases of the same version only.
-	KeepsRunning  bool `protobuf:"varint,4,opt,name=keeps_running,json=keepsRunning,proto3" json:"keeps_running,omitempty"`
+	KeepsRunning bool `protobuf:"varint,4,opt,name=keeps_running,json=keepsRunning,proto3" json:"keeps_running,omitempty"`
+	// The packages asked for by name, when the install was of a selection: every
+	// other package listed is one they need. Empty for the security fixes or
+	// every update.
+	Asked         []string `protobuf:"bytes,5,rep,name=asked,proto3" json:"asked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2739,6 +2754,13 @@ func (x *PackageInstall) GetKeepsRunning() bool {
 		return x.KeepsRunning
 	}
 	return false
+}
+
+func (x *PackageInstall) GetAsked() []string {
+	if x != nil {
+		return x.Asked
+	}
+	return nil
 }
 
 // ListDriftRequest says where to look for drift.
@@ -7150,19 +7172,21 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x18\n" +
 	"\asummary\x18\x04 \x01(\tR\asummary\"E\n" +
 	"\x16RestartServiceResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"f\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x82\x01\n" +
 	"\x19PlanInstallUpdatesRequest\x12\x1d\n" +
 	"\n" +
 	"server_ids\x18\x01 \x03(\tR\tserverIds\x12\x10\n" +
 	"\x03all\x18\x02 \x01(\bR\x03all\x12\x18\n" +
-	"\asummary\x18\x03 \x01(\tR\asummary\"I\n" +
+	"\asummary\x18\x03 \x01(\tR\asummary\x12\x1a\n" +
+	"\bpackages\x18\x04 \x03(\tR\bpackages\"I\n" +
 	"\x1aPlanInstallUpdatesResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xae\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xc4\x01\n" +
 	"\x0ePackageInstall\x126\n" +
 	"\bpackages\x18\x01 \x03(\v2\x1a.dockwell.v1.PackageUpdateR\bpackages\x12\x16\n" +
 	"\x06reboot\x18\x02 \x01(\bR\x06reboot\x12'\n" +
 	"\x0fdocker_restarts\x18\x03 \x01(\bR\x0edockerRestarts\x12#\n" +
-	"\rkeeps_running\x18\x04 \x01(\bR\fkeepsRunning\"/\n" +
+	"\rkeeps_running\x18\x04 \x01(\bR\fkeepsRunning\x12\x14\n" +
+	"\x05asked\x18\x05 \x03(\tR\x05asked\"/\n" +
 	"\x10ListDriftRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"\x88\x01\n" +
 	"\x11ListDriftResponse\x12(\n" +

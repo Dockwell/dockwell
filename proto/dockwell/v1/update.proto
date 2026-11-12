@@ -134,6 +134,10 @@ message ServerUpdates {
   // "server_offline" (its agent isn't connected; what's here is from before), and
   // "read_failed" (the last read failed, with error saying why). Empty otherwise.
   string reason = 17;
+  // The change installing updates on the server now, by ID, while its step
+  // runs: follow it with WatchChange. Empty when none is. Another install
+  // waits until it ends.
+  string install_change_id = 18;
 }
 
 // PackageManager is the tool a server installs packages with.

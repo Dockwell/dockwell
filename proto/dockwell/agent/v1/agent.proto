@@ -1819,6 +1819,10 @@ message InstallUpdates {
   // The packages the plan fixed, as the plan simulated them: empty at planning,
   // and what a resume checks against.
   repeated dockwell.v1.PackageUpdate packages = 3;
+  // At planning, installs only these, by name, with what they need, in place of
+  // all: the agent refuses a name its own read didn't list, and says the names
+  // back in the plan's asked, which an older agent doesn't.
+  repeated string names = 4;
 }
 
 // CancelBuildCall stops a build that is waiting or running, which fails the

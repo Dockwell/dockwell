@@ -9932,7 +9932,11 @@ type InstallUpdates struct {
 	All bool `protobuf:"varint,2,opt,name=all,proto3" json:"all,omitempty"`
 	// The packages the plan fixed, as the plan simulated them: empty at planning,
 	// and what a resume checks against.
-	Packages      []*v1.PackageUpdate `protobuf:"bytes,3,rep,name=packages,proto3" json:"packages,omitempty"`
+	Packages []*v1.PackageUpdate `protobuf:"bytes,3,rep,name=packages,proto3" json:"packages,omitempty"`
+	// At planning, installs only these, by name, with what they need, in place of
+	// all: the agent refuses a name its own read didn't list, and says the names
+	// back in the plan's asked, which an older agent doesn't.
+	Names         []string `protobuf:"bytes,4,rep,name=names,proto3" json:"names,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9984,6 +9988,13 @@ func (x *InstallUpdates) GetAll() bool {
 func (x *InstallUpdates) GetPackages() []*v1.PackageUpdate {
 	if x != nil {
 		return x.Packages
+	}
+	return nil
+}
+
+func (x *InstallUpdates) GetNames() []string {
+	if x != nil {
+		return x.Names
 	}
 	return nil
 }
@@ -12982,11 +12993,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tbackup_id\x18\n" +
 	" \x01(\tR\bbackupId\x12K\n" +
 	"\x0finstall_updates\x18\xe8\x01 \x01(\v2!.dockwell.agent.v1.InstallUpdatesR\x0einstallUpdatesB\a\n" +
-	"\x05_spec\"w\n" +
+	"\x05_spec\"\x8d\x01\n" +
 	"\x0eInstallUpdates\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12\x10\n" +
 	"\x03all\x18\x02 \x01(\bR\x03all\x126\n" +
-	"\bpackages\x18\x03 \x03(\v2\x1a.dockwell.v1.PackageUpdateR\bpackages\"t\n" +
+	"\bpackages\x18\x03 \x03(\v2\x1a.dockwell.v1.PackageUpdateR\bpackages\x12\x14\n" +
+	"\x05names\x18\x04 \x03(\tR\x05names\"t\n" +
 	"\x0fCancelBuildCall\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x0e\n" +

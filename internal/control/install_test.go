@@ -15,6 +15,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
+	agentupdates "github.com/dockwell/dockwell/internal/agent/updates"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -35,16 +36,35 @@ type packages struct {
 	hold chan struct{}
 	// ended is closed as the running install's unit ends; nil while none runs.
 	ended chan struct{}
+	// needs says what each package pulls in with it, and older plans past the
+	// names asked, as an agent from before they could be picked does.
+	needs map[string][]string
+	older bool
+	// asked are the names each plan asked for.
+	asked [][]string
 }
 
-func (p *packages) Plan(context.Context, bool) (*resource.Install, error) {
+func (p *packages) Plan(_ context.Context, _ bool, names []string) (*resource.Install, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.asked = append(p.asked, names)
 	if p.waiting == nil {
 		return &resource.Install{}, nil
 	}
 	in := *p.waiting
 	in.Packages = slices.Clone(p.waiting.Packages)
+	if len(names) == 0 || p.older {
+		return &in, nil
+	}
+	want := map[string]bool{}
+	for _, n := range names {
+		want[n] = true
+		for _, d := range p.needs[n] {
+			want[d] = true
+		}
+	}
+	in.Packages = slices.DeleteFunc(in.Packages, func(pk resource.InstallPackage) bool { return !want[pk.Name] })
+	in.Asked = names
 	return &in, nil
 }
 
@@ -105,6 +125,13 @@ func (p *packages) Install(ctx context.Context, _ string, planned []resource.Ins
 // addHostServer adds web-1, whose host installs from packages.
 func (f *fullServer) addHostServer(t *testing.T, p *packages) *testServer {
 	t.Helper()
+	return f.addHostServerReading(t, p, "")
+}
+
+// addHostServerReading adds web-1, whose host installs from packages, and whose
+// agent reads its updates from the stand at root, unless root is empty.
+func (f *fullServer) addHostServerReading(t *testing.T, p *packages, root string) *testServer {
+	t.Helper()
 	key, csr, err := pki.NewServerKey()
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +144,9 @@ func (f *fullServer) addHostServer(t *testing.T, p *packages) *testServer {
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 		drivers: resource.NewRegistry(&host.Driver{Backend: p}),
 		dataDir: t.TempDir(),
+	}
+	if root != "" {
+		s.updates = agentupdates.New(agentupdates.Options{Root: root})
 	}
 	s.connect(t, f)
 	// The control plane makes the server's host as its agent connects: a plan
@@ -373,4 +403,205 @@ func listChanges(t *testing.T, c dockwellv1connect.ChangeServiceClient) []*dockw
 		t.Fatal(err)
 	}
 	return res.Msg.GetChanges()
+}
+
+// Updating one package plans it and what it needs, and no other update waiting;
+// the plan says which was asked for, and applies as any install does.
+func TestUpdatingOnePackagePlansItAndWhatItNeeds(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	p := &packages{
+		installed: map[string]string{"openssl": "3.0.13-0ubuntu3.4", "libssl3t64": "3.0.13-0ubuntu3.4", "curl": "8.5.0-2ubuntu10.4"},
+		waiting: &resource.Install{Packages: []resource.InstallPackage{
+			{Name: "curl", From: "8.5.0-2ubuntu10.4", To: "8.5.0-2ubuntu10.6"},
+			{Name: "libssl3t64", From: "3.0.13-0ubuntu3.4", To: "3.0.13-0ubuntu3.5", Security: true},
+			{Name: "openssl", From: "3.0.13-0ubuntu3.4", To: "3.0.13-0ubuntu3.5", Security: true},
+		}},
+		needs: map[string][]string{"openssl": {"libssl3t64"}},
+	}
+	s := f.addHostServer(t, p)
+	c := changeClient(b, b.origin)
+
+	res, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{"openssl", "openssl"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	if change.GetSummary() != "Update openssl on web-1" {
+		t.Errorf("the change reads %q", change.GetSummary())
+	}
+	var install *dockwellv1.PackageInstall
+	for _, r := range change.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == string(host.Kind) {
+			install = r.GetInstall()
+		}
+	}
+	var planned []string
+	for _, pk := range install.GetPackages() {
+		planned = append(planned, pk.GetName())
+	}
+	if !slices.Equal(planned, []string{"libssl3t64", "openssl"}) || !slices.Equal(install.GetAsked(), []string{"openssl"}) {
+		t.Fatalf("the plan installs %v, asked %v; want openssl with libssl3t64, which it needs", planned, install.GetAsked())
+	}
+	p.mu.Lock()
+	asked := p.asked[len(p.asked)-1]
+	p.mu.Unlock()
+	if !slices.Equal(asked, []string{"openssl"}) {
+		t.Errorf("the agent was asked for %v, want openssl once", asked)
+	}
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	done := waitChange(t, c, change.GetId(), "the update applies", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED || ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_FAILED
+	})
+	if done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the update ended %v: %s", done.GetState(), done.GetError())
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.installed["openssl"] != "3.0.13-0ubuntu3.5" || p.installed["curl"] != "8.5.0-2ubuntu10.4" {
+		t.Errorf("after updating openssl: openssl at %q, curl at %q; want curl left as it was", p.installed["openssl"], p.installed["curl"])
+	}
+
+	// Three or fewer are named in the change, more counted.
+	for _, tc := range []struct {
+		packages []string
+		want     string
+	}{
+		{[]string{"curl", "openssl"}, "Update curl and openssl on web-1"},
+		{[]string{"a", "b", "c", "d"}, "Update 4 packages on web-1"},
+	} {
+		p.waiting = &resource.Install{Packages: []resource.InstallPackage{
+			{Name: "a", From: "1", To: "2"}, {Name: "b", From: "1", To: "2"}, {Name: "c", From: "1", To: "2"}, {Name: "curl", From: "1", To: "2"}, {Name: "d", From: "1", To: "2"}, {Name: "openssl", From: "1", To: "2"},
+		}}
+		p.needs = nil
+		p.mu.Unlock()
+		res, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: tc.packages}))
+		p.mu.Lock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := res.Msg.GetChange().GetSummary(); got != tc.want {
+			t.Errorf("updating %v reads %q, want %q", tc.packages, got, tc.want)
+		}
+	}
+}
+
+// A package list is names, and only names: one with a shell's characters, or one
+// asked for beside every update, is refused before any server is asked.
+func TestPackagesToUpdateAreNamesOnly(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	p := &packages{installed: map[string]string{}, waiting: &resource.Install{Packages: []resource.InstallPackage{{Name: "openssl", From: "1", To: "2"}}}}
+	s := f.addHostServer(t, p)
+	c := changeClient(b, b.origin)
+	for _, tc := range []struct {
+		name string
+		req  *dockwellv1.PlanInstallUpdatesRequest
+	}{
+		{"a shell's characters", &dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{"openssl; rm -rf /"}}},
+		{"a flag", &dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{"--allow-downgrades"}}},
+		{"nothing", &dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{" "}}},
+		{"beside every update", &dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{"openssl"}, All: true}},
+	} {
+		if _, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(tc.req)); connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Errorf("packages with %s = %v, want refused as invalid", tc.name, err)
+		}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.asked) != 0 {
+		t.Errorf("the agent was asked to plan %v", p.asked)
+	}
+}
+
+// An agent from before packages could be picked reads past the names and plans
+// the security fixes: its plan is refused, so nobody applies more than they picked.
+func TestAnOlderAgentIsRefusedPickedPackages(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	p := &packages{
+		installed: map[string]string{},
+		waiting: &resource.Install{Packages: []resource.InstallPackage{
+			{Name: "curl", From: "1", To: "2"},
+			{Name: "openssl", From: "1", To: "2", Security: true},
+		}},
+		older: true,
+	}
+	s := f.addHostServer(t, p)
+	c := changeClient(b, b.origin)
+	_, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{"curl"}}))
+	if err == nil || !strings.Contains(err.Error(), "not packages picked one by one") {
+		t.Fatalf("an older agent's plan for curl = %v, want it refused", err)
+	}
+	for _, ch := range listChanges(t, c) {
+		if ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+			t.Errorf("a refused plan was left: %v", ch.GetSummary())
+		}
+	}
+}
+
+// While an install runs, the server's updates name its change, so the Updates tab
+// follows it, and aren't read halfway through; once it ends, the next look reads
+// them again, whatever their age, so what it installed is gone from the list.
+func TestTheUpdatesTabFollowsAnInstallAndReadsAgainAfter(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	root := aptStand(t, 0)
+	p := &packages{installed: map[string]string{}, waiting: &resource.Install{Packages: []resource.InstallPackage{
+		{Name: "openssl", From: "3.0.13-0ubuntu3.4", To: "3.0.13-0ubuntu3.5", Security: true},
+	}}}
+	p.hold = make(chan struct{})
+	s := f.addHostServerReading(t, p, root)
+	c := changeClient(b, b.origin)
+	u := dockwellv1connect.NewUpdateServiceClient(b, b.origin, connect.WithProtoJSON())
+	look := func() *dockwellv1.ServerUpdates {
+		t.Helper()
+		res, err := u.GetServerUpdates(t.Context(), connect.NewRequest(&dockwellv1.GetServerUpdatesRequest{Id: s.id.ServerID}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetUpdates()
+	}
+	reads := func() int { return standCalls(t, root, "apt-get -q -o Debug::NoLocking") }
+	if got := look(); got.GetInstallChangeId() != "" || reads() != 1 {
+		t.Fatalf("before any install: install %q, %d reads", got.GetInstallChangeId(), reads())
+	}
+
+	res, err := c.PlanInstallUpdates(t.Context(), connect.NewRequest(&dockwellv1.PlanInstallUpdatesRequest{ServerIds: []string{s.id.ServerID}, Packages: []string{"openssl"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := res.Msg.GetChange()
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPLY_ROOT_CHANGE, change.GetId())
+	if _, err := c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint(), Proof: proof})); err != nil {
+		t.Fatal(err)
+	}
+	waitChange(t, c, change.GetId(), "the install runs", func(ch *dockwellv1.Change) bool {
+		return slices.ContainsFunc(ch.GetSteps(), func(st *dockwellv1.StepProgress) bool { return strings.HasPrefix(st.GetActivity(), "Setting up ") })
+	})
+	if got := look(); got.GetInstallChangeId() != change.GetId() || len(got.GetPackages()) != 8 {
+		t.Errorf("while it installs: install %q with %d packages, want %s with what was read before", got.GetInstallChangeId(), len(got.GetPackages()), change.GetId())
+	}
+	if _, err := u.CheckServerUpdates(t.Context(), connect.NewRequest(&dockwellv1.CheckServerUpdatesRequest{Id: s.id.ServerID})); err != nil {
+		t.Fatal(err)
+	}
+	if n := reads(); n != 1 {
+		t.Errorf("read the updates %d times while an install ran, want none past the first", n-1)
+	}
+	close(p.hold)
+	waitChange(t, c, change.GetId(), "the install applies", func(ch *dockwellv1.Change) bool {
+		return ch.GetState() == dockwellv1.ChangeState_CHANGE_STATE_APPLIED
+	})
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		got := look()
+		if got.GetInstallChangeId() == "" && reads() == 2 && !got.GetChecking() {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("after the install: install %q, %d reads, checking %t; want it read again once", got.GetInstallChangeId(), reads(), got.GetChecking())
+		}
+	}
 }

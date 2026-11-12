@@ -10,9 +10,13 @@ import {
   UpdateService,
 } from "@dockwell/api";
 
-/** How often an open page asks again while the server's agent reads its updates, and otherwise. */
+/**
+ * How often an open page asks again while the server's agent reads its updates, and
+ * otherwise. Asking is cheap, as the control plane answers from what it read until
+ * that's 10 minutes old, and it's how a page hears of an install someone else started.
+ */
 const CHECKING_EVERY_MS = 2_000;
-const ASK_EVERY_MS = 10 * 60_000;
+const ASK_EVERY_MS = 15_000;
 
 /**
  * A server's package updates, while a page that shows them is open (ADR 0043). The
@@ -42,6 +46,8 @@ export interface UpdatesSummary {
   other: PackageUpdate[];
   /** Docker's engine, which restarts every container unless it keeps them. */
   docker: PackageUpdate | undefined;
+  /** What updating Docker installs: its engine, and what else restarts it, such as containerd. */
+  dockerNames: string[];
   /** Every update that waits. */
   total: number;
   /** Updates that take effect only once the server reboots. */
@@ -51,9 +57,18 @@ export interface UpdatesSummary {
   otherFrom: string[];
 }
 
+/** Docker's engine, by its package's name in Docker's repository, Debian and Ubuntu, and Fedora. */
+const DOCKER_ENGINES = new Set(["docker-ce", "docker.io", "moby-engine", "docker-engine"]);
+
+/** Whether a package is Docker's engine, which the Docker card shows rather than a list. */
+export function isDockerEngine(name: string): boolean {
+  return DOCKER_ENGINES.has(name);
+}
+
 export function summarize(updates: ServerUpdates | undefined): UpdatesSummary {
   const packages = updates?.packages ?? [];
-  const docker = packages.find((p) => p.effect === PackageEffect.DOCKER_RESTART);
+  // The engine itself: containerd and runc restart Docker too, and stay in the lists with their own versions.
+  const docker = packages.find((p) => DOCKER_ENGINES.has(p.name));
   // Docker's engine has a panel of its own, and a security fix in it counts as one.
   const security = packages.filter((p) => p.security);
   const other = packages.filter((p) => !p.security && p !== docker);
@@ -61,6 +76,12 @@ export function summarize(updates: ServerUpdates | undefined): UpdatesSummary {
     security,
     other,
     docker,
+    dockerNames: docker
+      ? [
+          docker.name,
+          ...packages.filter((p) => p !== docker && p.effect === PackageEffect.DOCKER_RESTART).map((p) => p.name),
+        ]
+      : [],
     total: packages.length,
     rebooting: packages.filter((p) => p.effect === PackageEffect.REBOOT),
     securityFrom: origins(security),
@@ -101,18 +122,7 @@ export function upgradeCommand(m: PackageManager | undefined): string {
   return "";
 }
 
-/**
- * The available version split where it starts to differ from the installed one,
- * at the start of the part that changed, so "3.0.13-0ubuntu3.5" against
- * "3.0.13-0ubuntu3.4" shows its last part as what's new.
- */
-export function splitVersion(installed: string, available: string): [same: string, changed: string] {
-  if (!installed) return ["", available];
-  let i = 0;
-  while (i < installed.length && i < available.length && installed[i] === available[i]) i++;
-  while (i > 0 && !/[.\-~+:]/.test(available[i - 1] ?? "")) i--;
-  return [available.slice(0, i), available.slice(i)];
-}
+export { splitVersion } from "../../lib/versions";
 
 /** Dockwell's newest release against what runs, where both are known. */
 export type ReleaseStanding = "current" | "behind" | "unknown";
