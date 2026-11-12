@@ -191,6 +191,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServiceService.listServices": "read",
   "ServiceService.openService": "may",
   "ServiceService.rollBackService": "may",
+  // Asked by name before Update is offered, from the app's page and the catalog's (ADR 0080).
+  "ServiceService.upgradeService": "may",
 
   "ServiceUpdateService.checkServiceUpdates": "unused",
   "ServiceUpdateService.listServiceUpdates": "unused",
