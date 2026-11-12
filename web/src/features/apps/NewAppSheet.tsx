@@ -36,12 +36,13 @@ import {
   Tag,
   TextField,
   type TextFieldProps,
+  TONE,
   useMediaQuery,
   useUIStrings,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   type ChangeEvent,
   type ClipboardEvent,
@@ -61,6 +62,7 @@ import { editCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useMay } from "../auth/may";
+import { nextFree } from "../catalog/freeName";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
@@ -109,6 +111,7 @@ import {
   validPort,
 } from "./form";
 import { ImageField, type ImageRead } from "./ImageField";
+import { useProjectPage } from "./projectPage";
 import { joinWords, splitWords, validCpus, validMemory } from "./specEdit";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
@@ -213,8 +216,13 @@ export function NewAppSheet({
   const fileTooBig = fileBytes > MAX_FILE;
   const check = useComposeCheck(source === "compose" && !fileTooBig ? file : "", variables, envFile, directory);
 
-  // A Compose file goes in the project it names, and an image in the one chosen.
-  const project = typedProject ?? toLabel(check.data?.name ?? "");
+  // A Compose file goes in the project it names, and an image in the one chosen. A
+  // name a project has already, which a file's name: can match by chance, starts at
+  // the next that's free, so the plan never updates what's there unless someone
+  // says so, which is a click away (ADR 0026).
+  const fileName = toLabel(check.data?.name ?? "");
+  const fileNameTaken = fileName !== "" && places.projects.includes(fileName);
+  const project = typedProject ?? (fileNameTaken ? nextFree(fileName, places.projects) : fileName);
   const projectName = project.trim();
   const projectKnown = places.projects.includes(projectName);
   const defaultPlace = places.defaultEnvironment;
@@ -831,6 +839,8 @@ export function NewAppSheet({
             }
             projectKnown={projectKnown}
             projectRequired={defaultHasApps}
+            projectMovedFrom={fileNameTaken && projectName === nextFree(fileName, places.projects) ? fileName : ""}
+            projectNext={projectKnown ? nextFree(projectName, places.projects) : ""}
           />
         )}
         {source === "compose" && choosesEnvironment ? (
@@ -2112,6 +2122,8 @@ function ComposeFields({
   projectError,
   projectKnown,
   projectRequired,
+  projectMovedFrom,
+  projectNext,
 }: {
   fieldRef: Ref<HTMLInputElement & HTMLTextAreaElement>;
   file: string;
@@ -2130,10 +2142,21 @@ function ComposeFields({
   projectError: string | undefined;
   projectKnown: boolean;
   projectRequired: boolean;
+  /** The file's own name, which a project has already, when the field starts past it. */
+  projectMovedFrom: string;
+  /** The next name that's free, when the one in the field is taken. */
+  projectNext: string;
 }) {
   const { t } = useLingui();
   const input = useRef<HTMLInputElement>(null);
   const [showOptional, setShowOptional] = useState(false);
+  // Whether the name is free, beside the field as it's typed (Check as they go), and a way to what has it.
+  const nameStateId = useId();
+  const typedName = project.trim();
+  const nameState: "free" | "here" | undefined =
+    typedName === "" || projectError !== undefined ? undefined : projectKnown ? "here" : "free";
+  const knownPage = useProjectPage(projectKnown ? typedName : "");
+  const movedPage = useProjectPage(projectMovedFrom);
   const refusal = check.data?.refusal;
   const allVars = check.data?.variables ?? [];
   const required = allVars.filter((v) => v.required);
@@ -2215,11 +2238,62 @@ function ComposeFields({
         optional={!projectRequired && project === ""}
         value={project}
         error={projectError}
+        aria-describedby={nameState ? nameStateId : undefined}
+        suffix={
+          nameState ? (
+            <span id={nameStateId} className={cx("app-name-state", `is-${nameState}`)} aria-live="polite">
+              <Glyph shape={nameState === "free" ? TONE.healthy.shape : TONE.warning.shape} size={9} />
+              <span>
+                {nameState === "free" ? (
+                  <Trans context="a project name">Free</Trans>
+                ) : (
+                  <Trans context="a project name">Here already</Trans>
+                )}
+              </span>
+            </span>
+          ) : undefined
+        }
         hint={
           projectKnown ? (
-            <Trans>
-              <code>{project}</code> is here already: the plan updates it.
-            </Trans>
+            <>
+              <Trans>
+                <code>{project}</code> is here already: the plan updates it
+              </Trans>
+              {projectNext ? (
+                <>
+                  {" · "}
+                  <button type="button" className="app-inline-action" onClick={() => onProject(projectNext)}>
+                    <Trans>Use {projectNext}</Trans>
+                  </button>
+                </>
+              ) : null}
+              {knownPage ? (
+                <>
+                  {" · "}
+                  <Link {...knownPage} className="app-inline-action">
+                    <Trans>Open {project}</Trans>
+                  </Link>
+                </>
+              ) : null}
+            </>
+          ) : projectMovedFrom ? (
+            <>
+              <Trans>
+                <code>{projectMovedFrom}</code> is here already
+              </Trans>
+              {" · "}
+              <button type="button" className="app-inline-action" onClick={() => onProject(projectMovedFrom)}>
+                <Trans>Update {projectMovedFrom} instead</Trans>
+              </button>
+              {movedPage ? (
+                <>
+                  {" · "}
+                  <Link {...movedPage} className="app-inline-action">
+                    <Trans>Open {projectMovedFrom}</Trans>
+                  </Link>
+                </>
+              ) : null}
+            </>
           ) : projectRequired ? (
             <Trans>
               Other apps are here, so give it a name, such as <code>shop</code>.

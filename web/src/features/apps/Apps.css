@@ -2895,3 +2895,39 @@
 .app-domain-follows svg {
   flex: none;
 }
+
+/* Whether a project name is free, beside the field as it's typed: a project of that
+   name is here already reads in amber, as the plan updates it rather than refusing. */
+.app-name-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
+.app-name-state.is-free {
+  color: var(--healthy);
+}
+
+.app-name-state.is-here {
+  color: var(--warning);
+}
+
+/* An action inside a field's line of words, such as "Use shop-2" and "Open shop". */
+.app-inline-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-inline-action:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

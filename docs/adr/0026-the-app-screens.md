@@ -94,6 +94,12 @@ What it leaves open:
 - **New app asks a Compose file for a name,** filled in from its `name:`, and optional only while the default project has no apps. It says when that name is here already, so the plan updates it. What a re-import would remove says how many, and lists them only when asked, on a control that could delete them all.
 - **Restart isn't on these screens yet.** It came with #28 (`RestartService`, ADR 0027), with a plan and no revision, and `dockwell services restart` calls it. The panel has no button for it yet.
 
+### A name that's here already, by chance or on purpose
+
+*Added with #519, as the install sheet learnt to start on a free name and check a typed one as it's typed.*
+
+A file's `name:` can match a project by chance, and importing it then updates that project, which reads as an ordinary update in the plan. So New app now starts the name at the next that's free when the file's name is taken (`shop-2` for `shop`), says "`shop` is here already" with **Update shop instead** and **Open shop** beside the field, and plans a new project unless someone takes the update. A name typed or taken on purpose that a project has keeps meaning an update, as this record says, and says so with **Use shop-2** and **Open shop** beside it. "Free" or "Here already" sits in the field as it's typed. The API is as it was: a request that names a project that exists still imports into it.
+
 ### Refusals at their field
 
 The API writes one message for a whole change. New app reads which field it is about from what it names, such as the path or the image, and shows it there, and shows it above the form when it names none. Compose refusals carry a line, and the field marks it and brings it into view. The same words reach the CLI, so they stay the API's, and the panel only leaves out the environment's ID, which says nothing on an app's page. A word of the file's own comes in backticks, which the panel sets in mono. A file over the API's limit is said at the field, without asking the API, as what comes back from the limit on a request is a protocol error.
