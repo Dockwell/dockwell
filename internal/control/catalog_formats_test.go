@@ -115,7 +115,7 @@ func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
 	}
 	board := entries.Msg.GetEntries()[i]
 	if board.GetLicense() != "Apache-2.0" || board.GetSource().GetRepository() != repo.URL || board.GetSummary() != "A board for notes." ||
-		!slices.Contains(board.GetNotes(), "From Coolify's templates, under Apache-2.0") || board.GetRelease() < 1_700_000_000 {
+		!slices.Contains(board.GetNotes(), "From "+strings.TrimSuffix(strings.TrimPrefix(repo.URL, "https://"), "/.git")+", in Coolify's format, under Apache-2.0") || board.GetRelease() < 1_700_000_000 {
 		t.Errorf("the board's entry = %v", board)
 	}
 	if !strings.Contains(board.GetCompose(), "image: nginx:1.27\n") {

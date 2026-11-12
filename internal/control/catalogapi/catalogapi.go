@@ -28,7 +28,6 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
-	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -204,7 +203,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if len(m.GetServers()) > 0 {
 		onServer = m.GetServers()[0]
 	}
-	entry, pinNotes, err := h.pinImages(ctx, entry, onServer, nil, resource.Ref{})
+	entry, pinNotes, err := h.pinImages(ctx, entry, onServer, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +364,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	}
 	// An image whose tag the release keeps stays at the build the install runs, and
 	// one it moves is pinned to the build its new tag points at now.
-	entry, pinNotes, err := h.pinImages(ctx, entry, h.serverOf(ctx, install.GetEnvironmentId()), catalog.PinnedDigests(string(pin.GetFile())), resource.Ref{})
+	entry, pinNotes, err := h.pinImages(ctx, entry, h.serverOf(ctx, install.GetEnvironmentId()), catalog.PinnedDigests(string(pin.GetFile())))
 	if err != nil {
 		return nil, err
 	}

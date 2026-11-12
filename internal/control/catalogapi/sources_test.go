@@ -287,25 +287,25 @@ func TestSourcesFetchOneAtATime(t *testing.T) {
 	}
 }
 
-// What an older converter kept of a store's commit is converted again, and goes, so
-// what's converted now is kept in its place (ADR 0078).
+// What an older converter kept of a store's commit isn't read as kept, so it's
+// converted again, and it stays where it is until that succeeds (ADR 0078, and the
+// review of #548, its L4).
 func TestAStoresCommitKeptByAnOlderConverterIsReadAgain(t *testing.T) {
 	dir := t.TempDir()
 	spec := &resourcev1.CatalogSource{Repository: "https://example.com/appstore", Commit: "0123456789abcdef0123456789abcdef01234567", Format: resourcev1.CatalogFormat_CATALOG_FORMAT_ONEPANEL}
 	s := &Sources{Dir: dir}
 	kept, _ := s.folders(spec)
 	keep(kept, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: []byte(`{"format":"1panel","version":0}`)})
-	if _, err := os.Stat(kept); err != nil {
-		t.Fatal(err)
-	}
 	if _, ok := s.kept(spec); ok {
 		t.Error("what an older converter kept reads as kept")
 	}
-	if _, err := os.Stat(kept); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("what an older converter kept stays: %v", err)
+	if _, err := os.Stat(kept); err != nil {
+		t.Errorf("what an older converter kept went before anything took its place: %v", err)
 	}
-	keep(kept, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)})
-	if files, ok := s.kept(spec); !ok || files["memos.yaml"] == nil {
+	other := &resourcev1.CatalogSource{Repository: spec.GetRepository(), Commit: "fedcba9876543210fedcba9876543210fedcba98", Format: spec.GetFormat()}
+	fresh, _ := s.folders(other)
+	keep(fresh, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)})
+	if files, ok := s.kept(other); !ok || files["memos.yaml"] == nil {
 		t.Errorf("what this converter kept doesn't read as kept: %v", files)
 	}
 	// The same folder read as Dockwell's entries is kept apart.

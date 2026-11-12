@@ -48,11 +48,15 @@ We measured the three stores on 11 and 12 Nov 2026, at 1Panel's `33c0c8ed`, Dokp
 
 A store now converts on the server, and refreshes with nobody watching once it follows a branch, so each part of it has a bound of its own, on top of ADR 0055's:
 
-- **Files:** 256 KiB for a Compose file, a form or a template, where the largest of the three stores' was 38 KiB, and each nests 64 levels at most, counted before any parser recurses through it. YAML's aliases stand for 100,000 nodes at most, as the converter already wrote them out.
-- **Apps:** 2,000 a store at most, as a source holds 2,000 entries.
+- **Files:** 256 KiB for a Compose file, a form or a template, where the largest of the three stores' was 38 KiB. Each nests 64 levels at most by its brackets and its indentation, counted before any parser reads it. That count is a rough one: a compact block sequence (`- - -`) nests with neither, and YAML's parser stops those at its own 10,000 levels.
+- **Aliases:** expanding YAML's aliases writes out 256 KiB at most (what a Compose file may be once it's read, `compose.MaxFile`), counted as each value is copied, beside 100,000 nodes. An anchor of 100 KiB named through two levels of ten aliases is about 1,100 nodes and 10 MB, so a count of nodes alone let it by.
+- **Dokploy's variables:** a variable's value comes to 4 KiB at most, a template's values to 256 KiB together, in 10,000 steps at most, as variables that each name the next ten times stand for gigabytes in a template of a few hundred bytes. Depth alone was bounded before.
+- **Apps:** 2,000 a store at most, as a source holds 2,000 entries. Two apps that come to one ID, such as `my_app` and `my-app`, keep the first by its folder, and the other is left out, saying whose ID it is.
+- **What a commit converts to:** 16 MiB at most, as a source of Dockwell's own entries reads 16 MiB of a commit; past it, the commit is refused. A licence's copyright line, which each entry repeats, is one line of 200 characters at most. What's kept of each left-out app is its ID and folder, 200 characters each, and a reason of 500.
 - **What it asks Dockwell to make:** a secret any entry generates is 256 characters at most, checked for every source's entries, as one of a billion would cost the control plane a gigabyte at install. A template's helper that asks for more is left out.
-- **Where its images are:** an image on a registry that's this server, a private network or a metadata address is left out, as pinning it would have the server ask there before anyone has looked.
-- **Time:** converting a commit takes a minute at most, checked between apps, after its fetch. One commit is fetched and converted at a time, and once per commit.
+- **Where its images are:** an image on a registry that's this server, a private network or a metadata address, by its name, is left out, as pinning it would have the server ask there before anyone has looked. Where a name leads is checked as the agent connects (below).
+- **What it writes into what's kept:** a store's text reaches a kept entry only through the YAML encoder, and through the header's comments as one line, every control character and line or paragraph separator made a space, as YAML reads a carriage return, NEL, U+2028 and U+2029 as line breaks. A tree entry whose name holds a control character or a separator refuses the commit, in gitfetch.
+- **Time:** fetching a store's commit takes a minute at most, and converting it another, each with a budget of its own. Each adapter checks the time once an app, and the converter between apps. One commit is fetched and converted at a time, and once per commit and converter.
 
 ### What only the offline converter has stays there
 
@@ -66,7 +70,10 @@ The offline converter has a person's overlays: our own summary and category for 
 
 - **A converted entry names its images by tag,** written plainly. Refreshing a store asks no registry: pinning 400 images at each refresh would take minutes and hundreds of calls.
 - **When an install or upgrade is planned, the control plane asks the agent of the server it goes on for each tag's digest** ([ADR 0062](0062-reading-an-image-from-its-registry.md)), and the plan installs `image@digest`. The plan shows each digest, and says it's the build the tag points at now.
-- **It's one call, `ImageCall.digests`, a HEAD each,** which no registry counts as a pull, 20 images at most, through the reader and the short-lived digests a form's reads keep. Detecting updates (ADR 0079, in review with #545) is to use the same call and the same digests, so there's one cache of them.
+- **It's one call, `ImageCall.digests`, a HEAD each,** which no registry counts as a pull, 20 images a call, an app of more asking in calls of 20, through the reader and the short-lived digests a form's reads keep. Detecting updates (ADR 0079, in review with #545) is to use the same call and the same digests, so there's one cache of them.
+- **Only what the app's services run is pinned:** each service's own `image`, as the file is parsed and as an install reads it. An `image:` line elsewhere, such as a variable in a service's environment, was never checked as an image, so the agent is never asked about it.
+- **Where an image's registry is, is checked again when the plan is made,** by its name, as at conversion. And the agent reads a registry the server's Docker doesn't name in its configuration at public addresses alone, through netguard, over HTTPS, wherever its name resolves: a store's file can't have it reach this server or its networks. A registry Docker names, such as an insecure one in daemon.json, is read as a pull would reach it.
+- **A digest is checked for its shape,** `sha256:` and 64 hex digits, in the registry client and again before it's pinned.
 - **What runs never moves without a plan.** An upgrade keeps the digest an install runs for an image whose tag the release didn't change, and pins only a tag that moved. A companion added or taken away keeps every digest. A tag pushed again upstream changes nothing until a person plans an upgrade.
 - **An upgrade is offered only where the entry's file changes,** read without the digests the install chose, so a refresh offers nobody an upgrade of an app it didn't touch.
 
@@ -82,18 +89,20 @@ Dockwell's own catalog keeps its 14 days, where it's built.
 
 ### Licence and source
 
-- **A converted entry keeps its store's licence and source.** The licence is read from the repository's own `LICENSE`, `LICENSE.md`, `LICENSE.txt` or `COPYING`, and matched to the GPL-3.0, AGPL-3.0, Apache-2.0 or MIT; one that's none of them plainly is `NOASSERTION`, and the plan says Dockwell can't tell it. Its `source` is the repository, the app's folder and the commit, and its notes start "From 1Panel's app store, under GPL-3.0-only", or as its store and licence are.
+- **A converted entry keeps its store's licence and source.** The licence is read from the repository's own `LICENSE`, `LICENSE.md`, `LICENSE.txt` or `COPYING`, by its title, and matched to the GPL-3.0, AGPL-3.0, Apache-2.0 or MIT; one that's none of them plainly is `NOASSERTION`, and the plan says Dockwell can't tell it. Its `source` is the repository, the app's folder and the commit.
+- **Its notes say where it's from as it is.** From the store's own repository, "From 1Panel's app store, under GPL-3.0-only". From any other repository laid out the same way, the repository and the layout, "From github.com/acme/appstore, in 1Panel's format, under GPL-3.0-only", as anyone can copy a store's layout.
 - **What's kept on disk says it was converted:** each entry is kept as the offline converter writes one, with a header naming its source and licence and that it was modified, and when.
 
 ### What's kept, and what a plan says
 
-- **A converted commit is kept as its entries,** each `<id>.yaml`, beside a record of the apps it left out and why, by the converter's version. A newer converter converts a kept commit again.
+- **A converted commit is kept as its entries,** each `<id>.yaml`, beside a record of the apps it left out and why, by the converter's version. A newer converter converts a kept commit again, and what the older one kept stays, and is read, until that succeeds, so a repository that's gone leaves what's installed from it its upgrades.
+- **What's read of sources and layouts is kept in memory within bounds:** 64 reads of sources, let go of whole past that, and 64 layouts of commits, which a form asks for as a link is typed, read one at a time.
 - **A store's plan says how many apps it brings, at which commit, as which store, under which licence,** and in one note how many it leaves out and why, counted by kind, as "It leaves out 175 of 269 apps: 60 run scripts on the server, 25 ship files beside their Compose file, …". Each app and its reason is a step away: `ListCatalogSources` lists them, each with its kind, such as `scripts`, for the panel to count and say in its reader's language.
 - **An entry whose ID a catalog before it has is left out,** as ADR 0055 says, counted as `taken`, until the same app in several catalogs shows as one card.
 
 ### Releases
 
-- **A converted entry's release is when its commit was made,** in seconds, so a later commit's entry is a higher release, whichever commit Dockwell read first. Pinning an older commit gives a lower one, which no upgrade goes to.
+- **A converted entry's release is when its commit was made,** in seconds, so a later commit's entry is a higher release, whichever commit Dockwell read first. Pinning an older commit gives a lower one, which no upgrade goes to. A commit dated after now, as a fork can date one, counts from when it's converted, so it can't outrank every later commit.
 
 ## What we turned down
 

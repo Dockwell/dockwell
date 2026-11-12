@@ -4,6 +4,7 @@ package convert
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"path"
 	"regexp"
@@ -94,16 +95,20 @@ func OnePanel(root string) ([]App, error) {
 		return nil, fmt.Errorf("reading 1Panel's app store: %w. Name the folder of a checkout of github.com/1Panel-dev/appstore", err)
 	}
 	defer t.Close()
-	return onePanelApps(t, root)
+	return onePanelApps(context.Background(), t, root)
 }
 
-func onePanelApps(t *tree, root string) ([]App, error) {
+// onePanelApps reads each app, stopping once ctx is done.
+func onePanelApps(ctx context.Context, t *tree, root string) ([]App, error) {
 	dirs, err := t.readDir("apps")
 	if err != nil {
 		return nil, fmt.Errorf("reading 1Panel's app store: %w. Name the folder of a checkout of github.com/1Panel-dev/appstore", err)
 	}
 	var out []App
 	for _, d := range dirs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if d.IsDir() {
 			out = append(out, onePanelRead(t, d.Name()))
 		}

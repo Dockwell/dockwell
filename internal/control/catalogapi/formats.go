@@ -111,7 +111,10 @@ func readLeftOut(files map[string][]byte, format string) (leftOutRecord, bool) {
 // <id>.yaml, and leftOutFile.
 func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource) (map[string][]byte, error) {
 	store, _ := convert.StoreOf(formatOf(spec))
-	ctx, cancel := context.WithTimeout(ctx, convertWait)
+	// Fetching and converting each have a budget of their own, so a slow host leaves
+	// converting its time, and a heavy commit can't take the fetch's.
+	parent := ctx
+	ctx, cancel := context.WithTimeout(parent, fetchWait)
 	defer cancel()
 	snap, err := gitfetch.Trees(ctx, s.Client, spec.GetRepository(), spec.GetCommit(), gitfetch.TreeDefault)
 	if err != nil {
@@ -164,30 +167,36 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	for _, p := range big {
 		l.Big[rel(p)] = true
 	}
-	src := convert.Source{Name: store.Name, Repository: spec.GetRepository(), Commit: spec.GetCommit(), License: "NOASSERTION"}
+	src := convert.Source{Name: store.SourceName(spec.GetRepository()), Repository: spec.GetRepository(), Commit: spec.GetCommit(), License: "NOASSERTION"}
 	if len(licenseFile) > 0 {
 		text := files[licenseFile[0].Path]
 		if found := convert.LicenseOf(text); found != "" {
 			src.License, src.LicenseText, src.CopyrightInLicense = found, text, found == "MIT"
 		}
 	}
-	run, err := convert.OnServer(ctx, store, l, src, snap.Time)
+	converting, done := context.WithTimeout(parent, convertWait)
+	defer done()
+	run, err := convert.OnServer(converting, store, l, src, snap.Time)
 	if err != nil {
 		return nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
 	}
 	out := map[string][]byte{}
 	rec := leftOutRecord{Format: store.Format, Version: convert.Version, License: src.License, Apps: len(run.Results)}
 	date := snap.Time.UTC().Format(time.DateOnly)
+	size := 0
 	for i := range run.Results {
 		r := &run.Results[i]
 		if r.Entry == nil {
-			rec.LeftOut = append(rec.LeftOut, leftOutApp{ID: r.ID, Path: r.Path, Kind: r.Class.Key(), Reason: r.LeftOut})
+			rec.LeftOut = append(rec.LeftOut, leftOutApp{ID: cut(r.ID, maxLeftOutName), Path: cut(r.Path, maxLeftOutName), Kind: r.Class.Key(), Reason: cut(r.LeftOut, maxReason)})
 			continue
 		}
 		raw, err := convert.Encode(r.Entry, src, date)
 		if err != nil {
-			rec.LeftOut = append(rec.LeftOut, leftOutApp{ID: r.ID, Path: r.Path, Kind: convert.ClassFile.Key(), Reason: err.Error()})
+			rec.LeftOut = append(rec.LeftOut, leftOutApp{ID: cut(r.ID, maxLeftOutName), Path: cut(r.Path, maxLeftOutName), Kind: convert.ClassFile.Key(), Reason: cut(err.Error(), maxReason)})
 			continue
+		}
+		if size += len(raw); size > convert.MaxConverted {
+			return nil, fmt.Errorf("reading it as %s: what it converts to comes to over %d MiB, more than a source keeps of one commit", store.Name, convert.MaxConverted>>20)
 		}
 		out[r.ID+".yaml"] = raw
 	}
@@ -199,11 +208,67 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	return out, nil
 }
 
+// What a converted commit keeps of each app it leaves out: its ID and folder, and a
+// reason, each cut to a length a person reads, as a store names them, and 2,000 apps
+// of a megabyte each would otherwise be kept and listed.
+const (
+	maxLeftOutName = 200
+	maxReason      = 500
+)
+
+// cut is text of n characters at most, one line, ending in an ellipsis where it's cut.
+func cut(s string, n int) string {
+	s = convert.CommentText(s)
+	if r := []rune(s); len(r) > n {
+		return string(r[:n-1]) + "…"
+	}
+	return s
+}
+
+// guessed is a commit's layouts, as detect read them.
+type guessed struct {
+	guesses []convert.Guess
+	counts  map[convert.Guess]int
+}
+
 // detect says how a commit's folder is laid out, from its folders alone, the
-// likeliest first, each with the folder under dir that holds it.
+// likeliest first, each with the folder under dir that holds it. A commit never
+// changes, so what it read of one is kept, mostGuesses of them, and it reads one at a
+// time, as a form asks as a person types.
 func (s *Sources) detect(ctx context.Context, repo, commit, dir string) ([]convert.Guess, map[convert.Guess]int, error) {
+	key := repo + "\x00" + dir + "\x00" + commit
+	s.mu.Lock()
+	if g, ok := s.guessed[key]; ok {
+		s.mu.Unlock()
+		return g.guesses, g.counts, nil
+	}
+	if s.detecting == nil {
+		s.detecting = make(chan struct{}, 1)
+	}
+	slot := s.detecting
+	s.mu.Unlock()
 	ctx, cancel := context.WithTimeout(ctx, fetchWait)
 	defer cancel()
+	select {
+	case slot <- struct{}{}:
+		defer func() { <-slot }()
+	case <-ctx.Done():
+		return nil, nil, fmt.Errorf("waiting for another repository's read: %w", ctx.Err())
+	}
+	guesses, counts, err := s.detectOnce(ctx, repo, commit, dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	s.mu.Lock()
+	if s.guessed == nil || len(s.guessed) >= mostGuesses {
+		s.guessed = map[string]guessed{}
+	}
+	s.guessed[key] = guessed{guesses, counts}
+	s.mu.Unlock()
+	return guesses, counts, nil
+}
+
+func (s *Sources) detectOnce(ctx context.Context, repo, commit, dir string) ([]convert.Guess, map[convert.Guess]int, error) {
 	snap, err := gitfetch.Trees(ctx, s.Client, repo, commit, gitfetch.TreeDefault)
 	if err != nil {
 		return nil, nil, err
@@ -325,20 +390,37 @@ func convertedWords(spec *resourcev1.CatalogSource, entries []*catalogv1.Entry, 
 	return fmt.Sprintf("It reads %d %s from %s, at %s, as %s, under %s.", n, plural(n, "app", "apps"), where, spec.GetCommit()[:12], formatWords(spec), license)
 }
 
-// pinImages pins each image an entry converted on the control plane names by tag, as
-// a plan installs it (ADR 0078): to the digest the install runs already, from had,
+// mostDigests is how many images one call to an agent asks the digests of, as it
+// reads 20 at most.
+const mostDigests = 20
+
+// pinImages pins each image an entry converted on the control plane runs by tag, as a
+// plan installs it (ADR 0078): to the digest the install runs already, from had,
 // where the tag is the same, or else the one the tag points at now, as the agent of
-// the server it goes on reads it. An entry pinned already is returned as it is. The
-// notes say each digest that's new.
-func (h *Handler) pinImages(ctx context.Context, e *catalogv1.Entry, server string, had map[string]string, ref resource.Ref) (*catalogv1.Entry, []revision.Note, error) {
-	images := catalog.TaggedImages(e.GetCompose())
-	if len(images) == 0 {
+// the server it goes on reads it. Only what its services run, as an install reads
+// the file, is asked about: an image: line elsewhere, such as a variable, was never
+// checked as an image. Each is checked again for where its registry is, and each
+// digest for its shape. An entry pinned already is returned as it is. The notes say
+// each digest that's new, naming no resource, as the plan's project is what they're
+// of.
+func (h *Handler) pinImages(ctx context.Context, e *catalogv1.Entry, server string, had map[string]string) (*catalogv1.Entry, []revision.Note, error) {
+	tagged := catalog.TaggedImages(e.GetCompose())
+	if len(tagged) == 0 {
 		return e, nil, nil
 	}
+	runs, err := runImages(ctx, e)
+	if err != nil {
+		return nil, nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "invalid")
+	}
+	images := slices.DeleteFunc(slices.Clone(tagged), func(image string) bool { return !slices.Contains(runs, image) })
 	digests := map[string]string{}
 	var ask []string
 	for _, image := range images {
-		if d := had[image]; d != "" {
+		if why := convert.PrivateRegistry(image); why != "" {
+			return nil, nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("%s is on a registry that's %s, where a store's app may not pull from, so it can't be installed", image, why), "private_registry")
+		}
+		if d := had[image]; catalog.Digest(d) {
 			digests[image] = d
 		} else {
 			ask = append(ask, image)
@@ -349,27 +431,48 @@ func (h *Handler) pinImages(ctx context.Context, e *catalogv1.Entry, server stri
 		if h.digests == nil {
 			return nil, nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s's images can't be pinned by digest here, so its install can't be planned. Try again once a server is connected", e.GetName()), authapi.ReasonUnavailable)
 		}
-		found, err := h.digests.Digests(ctx, server, ask)
-		if err != nil {
-			return nil, nil, err
+		found := map[string]string{}
+		for chunk := range slices.Chunk(ask, mostDigests) {
+			got, err := h.digests.Digests(ctx, server, chunk)
+			if err != nil {
+				return nil, nil, err
+			}
+			maps.Copy(found, got)
 		}
 		var pinned []string
 		for _, image := range ask {
 			d := found[image]
-			if d == "" {
+			switch {
+			case d == "":
 				return nil, nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the registry of %s didn't say which build its tag points at, so Dockwell can't pin it, and the plan can't say what it installs. Try again in a moment", image), "unpinned")
+			case !catalog.Digest(d):
+				return nil, nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the registry of %s answered with a digest that isn't one, so Dockwell can't pin it. Try again later, or check the registry", image), "unpinned")
 			}
 			digests[image] = d
 			pinned = append(pinned, image+" at "+shortDigest(d))
 		}
 		notes = append(notes, revision.Note{
-			Reason: "catalog_pins_images", Ref: ref, Names: ask,
+			Reason: "catalog_pins_images", Names: ask,
 			Message: "It pins " + strings.Join(pinned, ", ") + ", the build each tag points at now, so what runs stays put until a plan moves it.",
 		})
 	}
 	out := proto.CloneOf(e)
 	out.Compose = catalog.Pin(e.GetCompose(), digests)
 	return out, notes, nil
+}
+
+// runImages are the images an entry's services run, as an install reads its file,
+// with stand-ins for what a person types.
+func runImages(ctx context.Context, e *catalogv1.Entry) ([]string, error) {
+	stack, err := readStack(ctx, e)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, s := range stack.Services {
+		out = append(out, s.Spec.GetApp().GetImage())
+	}
+	return out, nil
 }
 
 // shortDigest is a digest as a person reads one: its algorithm and first 12 digits.

@@ -216,6 +216,13 @@ var taggedImage = regexp.MustCompile(`^(\s*image:\s*)([^\s@#"']+:[A-Za-z0-9_][A-
 // digestOf is the digest an image line pins, as @sha256:<hex>.
 var digestOf = regexp.MustCompile(`@sha256:[0-9a-f]{64}`)
 
+// digestShape is a digest as an image is pinned by one.
+var digestShape = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+
+// Digest says a registry's answer is a digest an image can be pinned by: sha256 and
+// 64 hex digits, and nothing else.
+func Digest(d string) bool { return digestShape.MatchString(d) }
+
 // MovingTags are tags that name a branch rather than a version, which moves.
 var MovingTags = map[string]bool{"latest": true, "stable": true, "main": true, "master": true, "nightly": true, "dev": true, "develop": true, "edge": true, "beta": true, "server": true}
 
@@ -235,11 +242,48 @@ func Tagged(e *catalogv1.Entry) bool {
 	return false
 }
 
-// TaggedImages are the images an entry names by tag alone, in the order its file
-// names them, once each.
+// serviceImageLines are the lines of a Compose file, from 1, that hold a service's
+// own image, as a plain scalar on its key's line: what an install runs. An image:
+// line anywhere else, such as a variable in a service's environment, is none of them.
+func serviceImageLines(compose string) map[int]bool {
+	var doc yaml.Node
+	if yaml.Unmarshal([]byte(compose), &doc) != nil || len(doc.Content) != 1 {
+		return nil
+	}
+	out := map[int]bool{}
+	services := mappingValue(doc.Content[0], "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		if image := mappingValue(services.Content[i], "image"); image != nil && image.Kind == yaml.ScalarNode && image.Style == 0 {
+			out[image.Line] = true
+		}
+	}
+	return out
+}
+
+// mappingValue is a mapping's value of a key, or nil.
+func mappingValue(m *yaml.Node, key string) *yaml.Node {
+	if m == nil || m.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return m.Content[i+1]
+		}
+	}
+	return nil
+}
+
+// TaggedImages are the images an entry's services run that its file names by tag
+// alone, in the order its file names them, once each.
 func TaggedImages(compose string) []string {
+	lines := serviceImageLines(compose)
 	var out []string
+	n := 0
 	for line := range strings.Lines(compose) {
+		n++
+		if !lines[n] {
+			continue
+		}
 		if m := taggedImage.FindStringSubmatch(strings.TrimRight(line, "\n")); len(m) == 3 && !slices.Contains(out, m[2]) {
 			out = append(out, m[2])
 		}
@@ -247,13 +291,17 @@ func TaggedImages(compose string) []string {
 	return out
 }
 
-// Pin writes each image an entry's file names by tag as the digest digests gives it,
-// by the image as the file names it. An image digests hasn't got is left as it is.
+// Pin writes each image an entry's services run by tag as the digest digests gives
+// it, by the image as the file names it, on the services' own image lines alone. An
+// image digests hasn't got is left as it is.
 func Pin(compose string, digests map[string]string) string {
+	lines := serviceImageLines(compose)
 	var b strings.Builder
+	n := 0
 	for line := range strings.Lines(compose) {
+		n++
 		body, nl := strings.CutSuffix(line, "\n")
-		if m := taggedImage.FindStringSubmatch(body); len(m) == 3 && digests[m[2]] != "" {
+		if m := taggedImage.FindStringSubmatch(body); lines[n] && len(m) == 3 && digests[m[2]] != "" {
 			body = m[1] + m[2] + "@" + digests[m[2]]
 		}
 		b.WriteString(body)
@@ -281,7 +329,13 @@ func Unpin(compose string) string {
 // image whose tag didn't change.
 func PinnedDigests(compose string) map[string]string {
 	out := map[string]string{}
+	lines := serviceImageLines(compose)
+	n := 0
 	for line := range strings.Lines(compose) {
+		n++
+		if !lines[n] {
+			continue
+		}
 		trimmed := strings.TrimSpace(line)
 		image, ok := strings.CutPrefix(trimmed, "image:")
 		if !ok {

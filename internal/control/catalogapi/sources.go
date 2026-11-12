@@ -46,6 +46,10 @@ const (
 	// plansKept is how many commits read for plans are kept, the newest, so a plan
 	// that's applied finds its commit read.
 	plansKept = 4
+	// mostReads is how many reads of sources are kept in memory, and mostGuesses how
+	// many layouts of commits.
+	mostReads   = 64
+	mostGuesses = 64
 )
 
 // Sources reads the catalogs Dockwell reads beside its own, each at its commit
@@ -68,6 +72,11 @@ type Sources struct {
 	read     map[string]sourceRead
 	unread   map[string]unread
 	fetching map[string]*fetching
+	// guessed are the layouts read of commits, by repository, folder and commit, as a
+	// form asks again and again of the one a person is typing, and detecting is the
+	// one read of a commit's folders that's made at a time for it.
+	guessed   map[string]guessed
+	detecting chan struct{}
 	// slot holds the one fetch the control plane makes at a time, as a pack's index
 	// and what's made of it take memory while it's read, and reads at once add up.
 	slot chan struct{}
@@ -150,7 +159,9 @@ func (s *Sources) files(ctx context.Context, spec *resourcev1.CatalogSource) (ma
 	return f.files, f.err
 }
 
-// kept is a commit's files as kept, if they are.
+// kept is a commit's files as kept, if they are. What an older converter kept of
+// another store's commit isn't, as this one may convert more of it, or less: it's
+// converted again, and what was kept stays until that succeeds (staleKept).
 func (s *Sources) kept(spec *resourcev1.CatalogSource) (map[string][]byte, bool) {
 	kept, plan := s.folders(spec)
 	if kept == "" {
@@ -158,13 +169,7 @@ func (s *Sources) kept(spec *resourcev1.CatalogSource) (map[string][]byte, bool)
 	}
 	for _, dir := range []string{kept, plan} {
 		files, err := readKept(dir)
-		if err != nil {
-			continue
-		}
-		// What an older converter wrote is converted again, as this one may write
-		// more of it, or less, and goes, so what it converts now is kept in its place.
-		if _, ok := readLeftOut(files, formatOf(spec)); converted(spec) && !ok {
-			_ = os.RemoveAll(dir)
+		if err != nil || stale(spec, files) {
 			continue
 		}
 		return files, true
@@ -172,10 +177,30 @@ func (s *Sources) kept(spec *resourcev1.CatalogSource) (map[string][]byte, bool)
 	return nil, false
 }
 
+// stale says what's kept of another store's commit was converted by an older
+// converter, or for another format.
+func stale(spec *resourcev1.CatalogSource, files map[string][]byte) bool {
+	_, ok := readLeftOut(files, formatOf(spec))
+	return converted(spec) && !ok
+}
+
+// staleKept is what an older converter kept of the commit a source applied names, to
+// read while the commit can't be converted again, as when its repository is gone, so
+// what's installed from it keeps its upgrades.
+func (s *Sources) staleKept(spec *resourcev1.CatalogSource) (map[string][]byte, bool) {
+	kept, _ := s.folders(spec)
+	if kept == "" {
+		return nil, false
+	}
+	files, err := readKept(kept)
+	return files, err == nil
+}
+
 // fetchOne fetches a commit's files once the slot is free, within fetchWait of
-// asking, and keeps them for a plan.
-func (s *Sources) fetchOne(ctx context.Context, slot chan struct{}, spec *resourcev1.CatalogSource) (map[string][]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, fetchWait)
+// asking, and keeps them for a plan. Another store's commit is fetched and converted
+// within budgets of their own (convertOne).
+func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *resourcev1.CatalogSource) (map[string][]byte, error) {
+	ctx, cancel := context.WithTimeout(parent, fetchWait)
 	defer cancel()
 	select {
 	case slot <- struct{}{}:
@@ -189,8 +214,12 @@ func (s *Sources) fetchOne(ctx context.Context, slot chan struct{}, spec *resour
 	}
 	_, plan := s.folders(spec)
 	if converted(spec) {
-		files, err := s.convertOne(ctx, spec)
+		files, err := s.convertOne(parent, spec)
 		if err != nil {
+			// Converted by an older converter, it still reads, until this one can.
+			if old, ok := s.staleKept(spec); ok {
+				return old, nil
+			}
 			return nil, err
 		}
 		if plan != "" {
@@ -233,6 +262,13 @@ func (s *Sources) tidy(sources []stored) {
 	for _, st := range sources {
 		kept, plan := s.folders(st.spec)
 		want[kept] = true
+		// What an older converter kept gives way to what this one converted, once it has.
+		if files, err := readKept(kept); err == nil && stale(st.spec, files) {
+			if fresh, err := readKept(plan); err == nil && !stale(st.spec, fresh) && os.RemoveAll(kept) == nil {
+				_ = os.Rename(plan, kept)
+			}
+			continue
+		}
 		if _, err := os.Stat(kept); err == nil {
 			continue
 		}
@@ -436,7 +472,9 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 	s.forget(spec)
 	got = checkSource(ctx, name, spec, files, taken)
 	s.mu.Lock()
-	if s.read == nil {
+	// What's read is kept for each commit and the IDs before it, which moves as
+	// sources do, so it's let go of whole once it holds mostReads.
+	if s.read == nil || len(s.read) >= mostReads {
 		s.read = map[string]sourceRead{}
 	}
 	s.read[key] = got
@@ -512,19 +550,9 @@ func checkSource(ctx context.Context, name string, spec *resourcev1.CatalogSourc
 // plainly, as an entry converted on the control plane names one until an install
 // pins it.
 func readsAsInstall(ctx context.Context, e *catalogv1.Entry, byTag bool) error {
-	given := map[string]string{}
-	for _, in := range e.GetInputs() {
-		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
-			given[in.GetName()] = standIn(in)
-		}
-	}
-	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	stack, err := readStack(ctx, e)
 	if err != nil {
-		return fmt.Errorf("its form can't be filled in: %w", err)
-	}
-	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
-	if err != nil {
-		return fmt.Errorf("its Compose file, as an install reads it: %w", err)
+		return err
 	}
 	// Each service's image as an install reads it, however the file writes it: a
 	// flow mapping or a quoted key gets past a check of lines (its M3).
@@ -539,6 +567,26 @@ func readsAsInstall(ctx context.Context, e *catalogv1.Entry, byTag bool) error {
 		}
 	}
 	return nil
+}
+
+// readStack reads an entry's Compose file as an install would, with stand-ins for
+// what a person types.
+func readStack(ctx context.Context, e *catalogv1.Entry) (*compose.Stack, error) {
+	given := map[string]string{}
+	for _, in := range e.GetInputs() {
+		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {
+			given[in.GetName()] = standIn(in)
+		}
+	}
+	filled, err := catalog.Fill(e, given, catalog.Suggest(e, nil))
+	if err != nil {
+		return nil, fmt.Errorf("its form can't be filled in: %w", err)
+	}
+	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: filled.Variables})
+	if err != nil {
+		return nil, fmt.Errorf("its Compose file, as an install reads it: %w", err)
+	}
+	return stack, nil
 }
 
 // pinnedImage is an image named by its digest.

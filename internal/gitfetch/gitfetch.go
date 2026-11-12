@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/dockwell/dockwell/internal/netguard"
 )
@@ -596,7 +597,7 @@ func readTree(p *pack, sha string) ([]treeEntry, error) {
 		name := string(data[sp+1 : nul])
 		switch {
 		case !entryName(name):
-			return nil, fmt.Errorf("the tree %s has an entry named %q, which Git refuses", sha, name)
+			return nil, fmt.Errorf("the tree %s has an entry named %q, which Dockwell refuses", sha, name)
 		case seen[name]:
 			return nil, fmt.Errorf("the tree %s has two entries named %q, which Git refuses", sha, name)
 		}
@@ -609,11 +610,15 @@ func readTree(p *pack, sha string) ([]treeEntry, error) {
 
 // entryName says a tree's entry has a name Git would check out: not empty, . or ..,
 // and no .git, in any case, with no slash or backslash in it, so no name read from a
-// tree reaches past its folder.
+// tree reaches past its folder. Nor a control character or a line or paragraph
+// separator, as a name is written into what's kept and said, and one with a line
+// break in it could start a line of its own there.
 func entryName(name string) bool {
 	switch {
 	case name == "", name == ".", name == "..", strings.EqualFold(name, ".git"):
 		return false
 	}
-	return !strings.ContainsAny(name, "/\\\x00")
+	return !strings.ContainsAny(name, "/\\") && !strings.ContainsFunc(name, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.Is(unicode.Zl, r) || unicode.Is(unicode.Zp, r)
+	})
 }

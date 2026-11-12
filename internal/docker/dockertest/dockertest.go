@@ -113,6 +113,9 @@ type Engine struct {
 	// LoggingDriver is what /info says keeps containers' logs: json-file
 	// unless set.
 	LoggingDriver string
+	// Registries are the registries /info says its daemon.json names, as insecure
+	// ones, reached over plain HTTP.
+	Registries []string
 	// nextHost is how many addresses it has given out.
 	nextHost int
 
@@ -444,7 +447,11 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		if driver == "" {
 			driver = docker.LogDriverJSONFile
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore})
+		index := map[string]any{"docker.io": map[string]any{"Secure": true}}
+		for _, r := range e.Registries {
+			index[r] = map[string]any{"Secure": false}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index}})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":

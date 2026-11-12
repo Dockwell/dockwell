@@ -3,14 +3,20 @@
 package convert
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
+
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog"
 )
 
 // listingOf lists a folder as the control plane lists a commit: every file and
@@ -236,5 +242,168 @@ func TestServerSummary(t *testing.T) {
 	}
 	if got := firstSentence("Ghost is a platform. Deploy it on Dokploy in minutes."); got != "Ghost is a platform." {
 		t.Errorf("firstSentence = %q", got)
+	}
+}
+
+// allocated is how many bytes f allocates.
+func allocated(f func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+// aliases is a list of n aliases to an anchor, in flow style.
+func aliases(anchor string, n int) string {
+	return "[" + strings.TrimSuffix(strings.Repeat("*"+anchor+", ", n), ", ") + "]"
+}
+
+// An anchor of 100 KiB named through three levels of ten aliases is a few thousand
+// nodes and 100 MB written out, so expanding aliases stops at the bytes it writes,
+// not only at the nodes it makes (the review of #548, its H1).
+func TestOnServerStopsAnAliasBombByItsBytes(t *testing.T) {
+	store := storeOf(t, FormatCoolify)
+	src := Source{Name: store.Name, Repository: "https://example.com/coolify", Commit: strings.Repeat("e", 40), License: "Apache-2.0"}
+	bomb := "# port: 80\nx-a: &a \"" + strings.Repeat("A", 100<<10) + "\"\n" +
+		"x-b: &b " + aliases("a", 10) + "\nx-c: &c " + aliases("b", 10) + "\n" +
+		"services:\n  web:\n    image: nginx:1.27\n    command: " + aliases("c", 10) + "\n"
+	l := listingOf(t, store, t.TempDir(), map[string]string{"templates/compose/bomb.yaml": bomb})
+	var run Run
+	var err error
+	used := allocated(func() { run, err = OnServer(t.Context(), store, l, src, committed) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := run.Results[0]; r.Entry != nil || !strings.Contains(r.LeftOut, "aliases write out over 256 KiB") {
+		t.Errorf("an alias bomb: left out %q", r.LeftOut)
+	}
+	if used > 32<<20 {
+		t.Errorf("converting an alias bomb allocated %d MiB", used>>20)
+	}
+}
+
+// Dokploy's variables that each name the next ten times stand for gigabytes in a
+// template of a few hundred bytes, so what a value comes to and the work of working
+// it out are bounded (the review of #548, its H2).
+func TestOnServerStopsAFanOutTemplate(t *testing.T) {
+	store := storeOf(t, FormatDokploy)
+	var vars strings.Builder
+	vars.WriteString("[variables]\n")
+	for i := range 5 {
+		fmt.Fprintf(&vars, "v%d = \"%s\"\n", i, strings.Repeat(fmt.Sprintf("${v%d} ", i+1), 10))
+	}
+	vars.WriteString("v5 = \"x\"\n\n[config]\n[[config.domains]]\nserviceName = \"web\"\nport = 80\nhost = \"${domain}\"\n\n[config.env]\nFOO = \"${v0}\"\n")
+	l := listingOf(t, store, t.TempDir(), map[string]string{
+		"blueprints/fan/docker-compose.yml": "services:\n  web:\n    image: nginx:1.27\n    environment:\n      - FOO=${FOO}\n",
+		"blueprints/fan/template.toml":      vars.String(),
+	})
+	src := Source{Name: store.Name, Repository: "https://example.com/dokploy", Commit: strings.Repeat("f", 40), License: "MIT"}
+	run, err := OnServer(t.Context(), store, l, src, committed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := run.Results[0]
+	if r.Entry != nil || !strings.Contains(r.LeftOut, "comes to over 4 KiB") && !strings.Contains(r.LeftOut, "steps to work out") {
+		t.Errorf("a fan-out template: left out %q", r.LeftOut)
+	}
+}
+
+// What a commit converts to is bounded, as 2,000 apps of a file each just under what
+// a file may be come to gigabytes (the review of #548, its H3).
+func TestOnServerBoundsWhatACommitConvertsTo(t *testing.T) {
+	store := storeOf(t, FormatCoolify)
+	src := Source{Name: store.Name, Repository: "https://example.com/coolify", Commit: strings.Repeat("a", 40), License: "Apache-2.0"}
+	more := map[string]string{}
+	for i := range 90 {
+		more[fmt.Sprintf("templates/compose/app%d.yaml", i)] = "# port: 80\nservices:\n  web:\n    image: nginx:1.27\n    environment:\n      - NOTE=" + strings.Repeat("n", 200<<10) + "\n"
+	}
+	_, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), more), src, committed)
+	if err == nil || !strings.Contains(err.Error(), "comes to over 16 MiB") {
+		t.Errorf("a commit that converts to 18 MiB: %v", err)
+	}
+}
+
+// A copyright line is one line of 200 characters at most in each entry, as a
+// licence's first line of a megabyte would ride in every entry (the review of #548,
+// its H3).
+func TestACopyrightLineIsShort(t *testing.T) {
+	src := Source{
+		Name: "Dokploy's templates", Repository: "https://example.com/t", License: "MIT", CopyrightInLicense: true,
+		LicenseText: []byte("Copyright " + strings.Repeat("x", 1<<20) + "\n\nPermission is hereby granted, free of charge"),
+	}
+	e := &catalogv1.Entry{Id: "x", Name: "X", Compose: "services: {}\n", Source: &catalogv1.Source{Repository: src.Repository, Path: "blueprints/x"}}
+	raw, err := Encode(e, src, "2026-11-12")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) > 2<<10 {
+		t.Errorf("an entry with a megabyte's copyright line is %d bytes", len(raw))
+	}
+}
+
+// What a store writes reaches a kept entry's header as comments alone: a carriage
+// return, NEL or a line or paragraph separator, each a line break to YAML, can't end
+// a comment and start a field (the review of #548, its M1).
+func TestAStoresTextStaysInItsComment(t *testing.T) {
+	for _, sep := range []string{"\r", "\n", "\u0085", " ", " ", "\x0b", "\x0c"} {
+		r, _ := utf8.DecodeRuneInString(sep)
+		t.Run(fmt.Sprintf("%U", r), func(t *testing.T) {
+			src := Source{
+				Name: "Dokploy's templates", Repository: "https://example.com/t", License: "MIT", CopyrightInLicense: true,
+				LicenseText: []byte("Copyright 2024 Someone" + sep + "first_steps: from the copyright line\n"),
+			}
+			e := &catalogv1.Entry{Id: "x", Name: "X", Compose: "services: {}\n", Source: &catalogv1.Source{Repository: src.Repository, Path: "apps/x" + sep + "notes: [from the path]" + sep + "#"}}
+			raw, err := Encode(e, src, "2026-11-12"+sep+"first_steps: from the date")
+			if err != nil {
+				t.Fatal(err)
+			}
+			back, err := catalog.Decode(raw)
+			if err != nil {
+				t.Fatalf("the kept entry doesn't read back: %v\n%s", err, raw)
+			}
+			if back.GetFirstSteps() != "" || len(back.GetNotes()) != 0 {
+				t.Errorf("a store's text became a field: first_steps %q, notes %q\n%s", back.GetFirstSteps(), back.GetNotes(), raw)
+			}
+		})
+	}
+}
+
+// Two apps that come to one ID keep the same one each time, the first by where it
+// is, and the other says why it's left out; a commit dated in the future counts from
+// now; and an entry from a repository laid out as a store says which repository it
+// is, as only the store's own is the store (the review of #548, its L7 and L3).
+func TestOnServerIsDeterministicAndSaysWhereItsFrom(t *testing.T) {
+	store := storeOf(t, FormatCoolify)
+	app := "# slogan: An app.\n# port: 80\nservices:\n  web:\n    image: nginx:1.27\n"
+	l := listingOf(t, store, t.TempDir(), map[string]string{"templates/compose/my.app.yaml": app, "templates/compose/my-app.yaml": app})
+	src := Source{Name: store.SourceName("https://github.com/acme/templates"), Repository: "https://github.com/acme/templates", Commit: strings.Repeat("b", 40), License: "Apache-2.0"}
+	future := time.Now().AddDate(10, 0, 0)
+	for range 3 {
+		run, err := OnServer(t.Context(), store, l, src, future)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var kept, out []Result
+		for _, r := range run.Results {
+			if r.Entry != nil {
+				kept = append(kept, r)
+			} else {
+				out = append(out, r)
+			}
+		}
+		if len(kept) != 1 || kept[0].Path != "templates/compose/my-app.yaml" || len(out) != 1 || !strings.Contains(out[0].LeftOut, "is another app's in this store") {
+			t.Fatalf("two apps of one ID: kept %v, left out %v", kept, out)
+		}
+		if rel := kept[0].Entry.GetRelease(); int64(rel) > time.Now().Unix() {
+			t.Errorf("a commit dated %v gives release %d, after now", future, rel)
+		}
+		if !slices.Contains(kept[0].Entry.GetNotes(), "From github.com/acme/templates, in Coolify's format, under Apache-2.0") {
+			t.Errorf("notes = %q", kept[0].Entry.GetNotes())
+		}
+	}
+	if got := store.SourceName("https://github.com/coollabsio/coolify/"); got != "Coolify's templates" {
+		t.Errorf("Coolify's own repository reads as %q", got)
 	}
 }

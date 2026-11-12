@@ -5,6 +5,7 @@ package convert
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"path"
 	"slices"
@@ -44,10 +45,11 @@ func Coolify(root string) ([]App, error) {
 		return nil, fmt.Errorf("reading Coolify's templates: %w. Name the folder of a checkout of github.com/coollabsio/coolify", err)
 	}
 	defer t.Close()
-	return coolifyApps(t, root)
+	return coolifyApps(context.Background(), t, root)
 }
 
-func coolifyApps(t *tree, root string) ([]App, error) {
+// coolifyApps reads each template, stopping once ctx is done.
+func coolifyApps(ctx context.Context, t *tree, root string) ([]App, error) {
 	dir := path.Join("templates", "compose")
 	ents, err := t.readDir(dir)
 	if err != nil {
@@ -55,6 +57,9 @@ func coolifyApps(t *tree, root string) ([]App, error) {
 	}
 	var out []App
 	for _, d := range ents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		name, ok := strings.CutSuffix(d.Name(), ".yaml")
 		if !ok || d.IsDir() {
 			continue

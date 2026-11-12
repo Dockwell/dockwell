@@ -541,3 +541,54 @@ func TestImagesPinDigestsWithHeadsAlone(t *testing.T) {
 		t.Error("a call for more digests than an agent reads at once went ahead")
 	}
 }
+
+// A plan's digests come from a store's file, so a registry the server's Docker
+// doesn't name is read at public addresses alone, wherever its name leads: an image
+// on this server's own registry is never asked about, unless the server's Docker
+// names that registry, as a pull would reach it then (the review of #548, its M2).
+func TestImagesPinOnlyWhatDockerNamesOffThePublicInternet(t *testing.T) {
+	var asked atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked.Add(1)
+		w.Header().Set("Docker-Content-Digest", "sha256:"+strings.Repeat("a", 64))
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+	read := func(e *dockertest.Engine) *agentv1.ImageDigest {
+		t.Helper()
+		im := newImages(e.Client(), ImageReads{}, nil)
+		got, err := im.read(context.Background(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: []string{host + "/x:1.0"}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.GetDigests().GetDigests()[0]
+	}
+	if d := read(dockertest.New(t)); d.GetAnswer() == dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND || asked.Load() != 0 {
+		t.Errorf("a registry on this server that Docker doesn't name: %v %q, asked %d times", d.GetAnswer(), d.GetDigest(), asked.Load())
+	}
+	named := dockertest.New(t)
+	named.Registries = []string{host}
+	if d := read(named); d.GetAnswer() != dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND || asked.Load() == 0 {
+		t.Errorf("a registry Docker's daemon.json names: %v, asked %d times", d.GetAnswer(), asked.Load())
+	}
+}
+
+// A registry that names a digest that isn't one answers nothing a plan could pin
+// (the review of #548, its L1).
+func TestImagesRefuseADigestThatIsntOne(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Docker-Content-Digest", "sha256:../../not-a-digest")
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+	e := dockertest.New(t)
+	e.Registries = []string{host}
+	im := newImages(e.Client(), ImageReads{}, nil)
+	got, err := im.read(context.Background(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Digests{Digests: &agentv1.ImageDigestsCall{References: []string{host + "/x:1.0"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := got.GetDigests().GetDigests()[0]; d.GetAnswer() == dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND || d.GetDigest() != "" {
+		t.Errorf("a digest that isn't one: %v %q", d.GetAnswer(), d.GetDigest())
+	}
+}

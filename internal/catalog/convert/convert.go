@@ -57,13 +57,21 @@ type Source struct {
 	CopyrightInLicense bool
 }
 
-// copyrightOf is the work's copyright line in a source's licence, if it has one.
+// maxCopyright is the most of a copyright line an entry repeats: a line names a year
+// and its holders, and one of a megabyte would ride in every entry of a source.
+const maxCopyright = 200
+
+// copyrightOf is the work's copyright line in a source's licence, if it has one: one
+// line, of maxCopyright characters at most, with nothing that could end a comment.
 func copyrightOf(src Source) string {
 	if !src.CopyrightInLicense {
 		return ""
 	}
 	for line := range strings.Lines(string(src.LicenseText)) {
-		if line = strings.TrimSpace(line); strings.HasPrefix(strings.ToLower(line), "copyright") {
+		if line = strings.TrimSpace(CommentText(line)); strings.HasPrefix(strings.ToLower(line), "copyright") {
+			if r := []rune(line); len(r) > maxCopyright {
+				line = string(r[:maxCopyright])
+			}
 			return line
 		}
 	}

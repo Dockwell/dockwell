@@ -4,6 +4,7 @@ package convert
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -18,6 +19,7 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/compose"
 )
 
 // DokploySource is Dokploy's templates, under the MIT licence its repository declares.
@@ -77,16 +79,20 @@ func Dokploy(root string) ([]App, error) {
 		return nil, fmt.Errorf("reading Dokploy's templates: %w. Name the folder of a checkout of github.com/Dokploy/templates", err)
 	}
 	defer t.Close()
-	return dokployApps(t, root)
+	return dokployApps(context.Background(), t, root)
 }
 
-func dokployApps(t *tree, root string) ([]App, error) {
+// dokployApps reads each template, stopping once ctx is done.
+func dokployApps(ctx context.Context, t *tree, root string) ([]App, error) {
 	ents, err := t.readDir("blueprints")
 	if err != nil {
 		return nil, fmt.Errorf("reading Dokploy's templates: %w. Name the folder of a checkout of github.com/Dokploy/templates", err)
 	}
 	var out []App
 	for _, d := range ents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if d.IsDir() {
 			out = append(out, dokployRead(t, d.Name()))
 		}
@@ -403,7 +409,20 @@ type dokployEval struct {
 	hosts     map[string]string
 	firstHost string
 	inline    int
+	// calls and written are the work its values have taken so far: how many times a
+	// variable was worked out, and how many bytes that wrote, each bounded, as
+	// variables that each name another ten times stand for gigabytes in a template of
+	// a few hundred bytes.
+	calls, written int
 }
+
+// What working out one template's values may take: a value is a variable's text, a
+// few dozen bytes, and a template has a few dozen of them.
+const (
+	maxValue      = 4 << 10
+	maxValueCalls = 10_000
+	maxValueBytes = compose.MaxFile
+)
 
 var token = regexp.MustCompile(`\$\{([^{}]*)\}`)
 
@@ -417,6 +436,24 @@ func (ev *dokployEval) expand(expr, holder string, depth int) (string, *made, er
 	if depth > 8 {
 		return "", nil, leave(ClassCantSay, "uses variables that use each other")
 	}
+	ev.calls++
+	if ev.calls > maxValueCalls {
+		return "", nil, leave(ClassFile, "its template's variables take over %d steps to work out, more than any template does", maxValueCalls)
+	}
+	text, m, err := ev.expandOnce(expr, holder, depth)
+	switch {
+	case err != nil:
+		return "", nil, err
+	case len(text) > maxValue:
+		return "", nil, leave(ClassFile, "a value of its template comes to over %d KiB, more than any value a template sets", maxValue>>10)
+	}
+	if ev.written += len(text); ev.written > maxValueBytes {
+		return "", nil, leave(ClassFile, "its template's values come to over %d KiB, more than any template's do", maxValueBytes>>10)
+	}
+	return text, m, nil
+}
+
+func (ev *dokployEval) expandOnce(expr, holder string, depth int) (string, *made, error) {
 	if m := token.FindStringSubmatch(strings.TrimSpace(expr)); len(m) == 2 && m[0] == strings.TrimSpace(expr) {
 		// A variable named as a helper is, as username = "${username}" is, uses the helper.
 		if v, ok := ev.vars[m[1]]; ok && m[1] != holder {

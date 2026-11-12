@@ -18,6 +18,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/registry"
 )
 
@@ -91,8 +92,13 @@ type images struct {
 	// every request to its stand-in.
 	newClient func(registry.Options) *registry.Client
 
-	mu       sync.Mutex
-	client   *registry.Client
+	mu     sync.Mutex
+	client *registry.Client
+	// public reads a registry for a plan's digests that the server's Docker doesn't
+	// name, at public addresses alone (ADR 0078), and named are the registries its
+	// configuration names, which client reads as a pull would.
+	public   *registry.Client
+	named    map[string]bool
 	platform registry.Platform
 	digests  *shelf[string]
 	tags     *shelf[[]registry.Tag]
@@ -171,8 +177,12 @@ func (im *images) ready(ctx context.Context) (*registry.Client, registry.Platfor
 	}
 	im.mu.Unlock()
 	o := registry.Options{Test: im.o.Test, Now: im.now}
+	named := map[string]bool{registry.Hub: true}
 	if info, err := im.docker.Info(ctx); err == nil && info.RegistryConfig != nil {
 		o.Mirrors, o.Insecure = info.RegistryConfig.Mirrors, info.RegistryConfig.Insecure
+		for host := range info.RegistryConfig.IndexConfigs {
+			named[host] = true
+		}
 	} else {
 		o.Insecure = (*docker.RegistryConfig)(nil).Insecure
 	}
@@ -184,6 +194,9 @@ func (im *images) ready(ctx context.Context) (*registry.Client, registry.Platfor
 		}
 	}
 	client := im.newClient(o)
+	// Over HTTPS, at public addresses alone, wherever a name leads.
+	guard := netguard.Client(netguard.Options{MaxBody: registry.MaxBody, Timeout: registry.RequestTimeout})
+	public := im.newClient(registry.Options{Test: im.o.Test, Now: im.now, Secure: guard, Plain: guard, Public: guard, Insecure: func(string) bool { return false }})
 	im.mu.Lock()
 	defer im.mu.Unlock()
 	switch {
@@ -192,7 +205,7 @@ func (im *images) ready(ctx context.Context) (*registry.Client, registry.Platfor
 	case platform.Architecture == "":
 		return client, platform
 	}
-	im.client, im.platform = client, platform
+	im.client, im.platform, im.public, im.named = client, platform, public, named
 	im.digests = newShelf(digestBytes, func(d string) int { return len(d) })
 	im.tags = newShelf(tagBytes, tagsSize)
 	im.searches = newShelf(searchBytes, foundSize)
@@ -215,6 +228,7 @@ func (im *images) forgetLocked() {
 		im.forgets.Stop()
 	}
 	im.client, im.digests, im.tags, im.searches, im.configs, im.silent = nil, nil, nil, nil, nil, nil
+	im.public, im.named = nil, nil
 	im.forgets = nil
 }
 
@@ -405,8 +419,18 @@ func (im *images) digest(ctx context.Context, client *registry.Client, ref regis
 const mostDigests = 20
 
 // digestsOf answers each image's digest, as a plan pins it (ADR 0078), in the order
-// asked. One reference that can't be read says so in its answer, and no other's.
+// asked. One reference that can't be read says so in its answer, and no other's. A
+// registry the server's Docker doesn't name is read at public addresses alone, as
+// what asks is a store's file, whatever its registry's name resolves to.
 func (im *images) digestsOf(ctx context.Context, client *registry.Client, refs []string) (*agentv1.ImageDigests, error) {
+	im.mu.Lock()
+	public, named := im.public, im.named
+	im.mu.Unlock()
+	if public == nil {
+		// Made without the server's architecture, for this read alone: guard it all.
+		guard := netguard.Client(netguard.Options{MaxBody: registry.MaxBody, Timeout: registry.RequestTimeout})
+		public = im.newClient(registry.Options{Test: im.o.Test, Now: im.now, Secure: guard, Plain: guard, Public: guard, Insecure: func(string) bool { return false }})
+	}
 	if len(refs) > mostDigests {
 		return nil, fmt.Errorf("the call asks for %d digests, more than the %d an agent reads at once", len(refs), mostDigests)
 	}
@@ -439,7 +463,11 @@ func (im *images) digestsOf(ctx context.Context, client *registry.Client, refs [
 			d.Answer = dockwellv1.ImageAnswer_IMAGE_ANSWER_UNREACHABLE
 			continue
 		}
-		digest, said, err := im.digest(ctx, client, ref, take)
+		via := public
+		if named[ref.Registry] {
+			via = client
+		}
+		digest, said, err := im.digest(ctx, via, ref, take)
 		if err != nil {
 			return nil, err
 		}

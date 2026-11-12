@@ -4,6 +4,7 @@ package convert
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
@@ -38,6 +41,9 @@ const (
 	// Version is the converter's version, which goes up whenever what it writes
 	// changes, so a commit converted by an older one is converted again.
 	Version = 1
+	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
+	// entries reads 16 MiB of a commit at most.
+	MaxConverted = 16 << 20
 )
 
 // The formats the control plane reads, beside Dockwell's own.
@@ -58,18 +64,23 @@ type Store struct {
 	License string
 	// Root is the folder it keeps its apps in, such as apps.
 	Root string
+	// Upstream is the store's own repository, and Layout how another repository laid
+	// out as it is says so, such as "1Panel's format", as any repository can copy a
+	// store's layout, and an entry says where it comes from as it is.
+	Upstream, Layout string
 	// Descend says whether to list a folder's contents, by its path in the store's
 	// folder and how deep it is, from 1.
 	Descend func(p string, depth int) bool
 	// Want says whether to read a file's contents, by its path.
 	Want func(p string) bool
-	read func(t *tree, root string) ([]App, error)
+	read func(ctx context.Context, t *tree, root string) ([]App, error)
 }
 
 // Stores are the formats the control plane converts.
 var Stores = []Store{
 	{
 		Format: FormatOnePanel, Name: "1Panel's app store", License: "GPL-3.0-only", Root: "apps",
+		Upstream: "https://github.com/1Panel-dev/appstore", Layout: "1Panel's format",
 		// apps/<key>/<version>/..., where a version's own folders are read for what
 		// they hold, as a script or a shipped file leaves its app out.
 		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 6 },
@@ -87,6 +98,7 @@ var Stores = []Store{
 	},
 	{
 		Format: FormatDokploy, Name: "Dokploy's templates", License: "MIT", Root: "blueprints",
+		Upstream: "https://github.com/Dokploy/templates", Layout: "Dokploy's format",
 		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "blueprints/") && depth <= 6 },
 		Want: func(p string) bool {
 			parts := strings.Split(p, "/")
@@ -96,6 +108,7 @@ var Stores = []Store{
 	},
 	{
 		Format: FormatCoolify, Name: "Coolify's templates", License: "Apache-2.0", Root: "templates/compose",
+		Upstream: "https://github.com/coollabsio/coolify", Layout: "Coolify's format",
 		Descend: func(p string, depth int) bool { return p == "templates" || p == "templates/compose" },
 		Want: func(p string) bool {
 			dir, file := path.Split(p)
@@ -103,6 +116,21 @@ var Stores = []Store{
 		},
 		read: coolifyApps,
 	},
+}
+
+// SourceName is how an entry says where it comes from: the store's name for its own
+// repository, and for any other, the repository and the store's format, such as
+// "github.com/acme/appstore, in 1Panel's format".
+func (s Store) SourceName(repository string) string {
+	clean := func(u string) string {
+		u = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(u)), "/")
+		return strings.TrimSuffix(strings.TrimSuffix(u, ".git"), "/")
+	}
+	if clean(repository) == clean(s.Upstream) {
+		return s.Name
+	}
+	where := strings.TrimPrefix(strings.TrimPrefix(clean(repository), "https://"), "http://")
+	return CommentText(where) + ", in " + s.Layout
 }
 
 // StoreOf is the store of a format, if the control plane converts it.
@@ -249,7 +277,7 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 	if held > MaxApps {
 		return Run{}, fmt.Errorf("it holds over %d apps, more than a source reads", MaxApps)
 	}
-	apps, err := store.read(t, src.Repository)
+	apps, err := store.read(ctx, t, src.Repository)
 	if errors.Is(err, ErrNoApps) {
 		return Run{}, fmt.Errorf("it holds no apps where %s keeps them", store.Name)
 	}
@@ -259,20 +287,54 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 	if len(apps) > MaxApps {
 		return Run{}, fmt.Errorf("it holds %d apps, more than the %d a source reads", len(apps), MaxApps)
 	}
+	// A commit dated after now, as a fork can date one, would outrank every later
+	// commit's releases, so it counts from now.
+	if now := time.Now(); committed.After(now) {
+		committed = now
+	}
 	release := uint32(1)
 	if secs := committed.Unix(); secs > 0 && secs <= int64(^uint32(0)) {
 		release = uint32(secs)
 	}
 	c := &Converter{Source: src, OnServer: true, Release: release, Now: committed}
 	var run Run
+	size := 0
 	for i := range apps {
 		if err := ctx.Err(); err != nil {
 			return Run{}, err
 		}
-		run.Results = append(run.Results, c.Convert(ctx, apps[i]))
+		r := c.Convert(ctx, apps[i])
+		if r.Entry != nil {
+			if size += proto.Size(r.Entry); size > MaxConverted {
+				return Run{}, fmt.Errorf("what it converts to comes to over %d MiB, more than a source keeps of one commit", MaxConverted>>20)
+			}
+		}
+		run.Results = append(run.Results, r)
 	}
-	slices.SortFunc(run.Results, func(a, b Result) int { return strings.Compare(a.ID, b.ID) })
+	// By ID, then by where each is, so two apps that come to one ID, such as my_app and
+	// my-app, always keep the same one, and the other says why it's left out.
+	slices.SortStableFunc(run.Results, func(a, b Result) int { return cmp.Or(strings.Compare(a.ID, b.ID), strings.Compare(a.Path, b.Path)) })
+	for i := 1; i < len(run.Results); i++ {
+		r, before := &run.Results[i], &run.Results[i-1]
+		if r.ID != before.ID || r.Entry == nil {
+			continue
+		}
+		if kept := slices.IndexFunc(run.Results, func(o Result) bool { return o.ID == r.ID && o.Entry != nil }); kept != i {
+			r.Entry, r.LeftOut, r.Class = nil, fmt.Sprintf("its ID, %s, is another app's in this store, %s, which comes first", r.ID, run.Results[kept].Path), ClassCantSay
+		}
+	}
 	return run, nil
+}
+
+// PrivateRegistry says an image names a registry that's this server, a private
+// network or a metadata address, by its name, which a store's app may not pull from,
+// or "" when it doesn't. Where a name leads is checked again as the agent connects.
+func PrivateRegistry(image string) string {
+	r, err := parseRef(image)
+	if err != nil {
+		return ""
+	}
+	return privateRegistry(r)
 }
 
 // serverFile checks a file read on the server: within its size, and nesting no
