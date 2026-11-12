@@ -190,6 +190,15 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		if r.code == exitOK || !strings.Contains(r.err, "--values POSTGRES_PASSWORD gives a secret") {
 			t.Errorf("a generated secret on the command line = %d:\n%s%s", r.code, r.out, r.err)
 		}
+		// A companion is a switch, as KEY=true.
+		r = run(t, env, "catalog", "install", "postgres", "--companions", "adminer=true", "--project", "Not A Name", "--plan-only")
+		if !strings.Contains(r.err, "Not A Name") {
+			t.Errorf("a companion didn't reach the control plane:\n%s", r.err)
+		}
+		r = run(t, env, "catalog", "install", "postgres", "--companions", "pgweb=true", "--plan-only")
+		if !strings.Contains(r.err, "PostgreSQL has no companion pgweb") {
+			t.Errorf("a companion it hasn't:\n%s", r.err)
+		}
 		fromEnv["POSTGRES_PASSWORD"] = "short"
 		r = run(t, fromEnv, "catalog", "install", "postgres", "--values", "POSTGRES_PASSWORD", "--plan-only")
 		if !strings.Contains(r.err, "Database password takes at least 8 characters") || strings.Contains(r.out+r.err, "short") {

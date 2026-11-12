@@ -37,6 +37,7 @@ import { usePlaces, useServices } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import { useMethodWord, useScheduleWords } from "../backups/words";
+import { CompanionsPanel } from "../catalog/Companions";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
@@ -64,6 +65,7 @@ export function DatabaseOverview() {
   const db = useThisDatabase();
   const reading = firstReading(db);
   const read = readOf(reading);
+  const install = useOwnInstall(db);
   return (
     <div className="database-overview">
       {reading && !read ? <UnreadNote db={db} reading={reading} /> : null}
@@ -76,6 +78,7 @@ export function DatabaseOverview() {
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
       </div>
+      <CompanionsPanel install={install} />
       {speaksSQL(db.engine) && read ? (
         <>
           <UsersSection db={db} read={read} />

@@ -156,7 +156,7 @@ func TestFirstWordsSayHowToSignIn(t *testing.T) {
 			"New devices wait for approval: in its container, node /app/dist/index.js devices list, then devices approve with its ID.",
 	} {
 		e, _ := c.Entry(id)
-		if got := catalog.FirstWords(e); got != want {
+		if got := catalog.FirstWords(e, nil); got != want {
 			t.Errorf("%s says %q, want %q", id, got, want)
 		}
 	}

@@ -107,7 +107,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   if (await page.getByRole("dialog").count()) fail("browsing an app opened an install form");
   await page.getByRole("heading", { name: "About PostgreSQL" }).waitFor();
   await page.getByRole("link", { name: "Documentation", exact: true }).waitFor();
-  const preview = page.getByRole("img", { name: "Table browser in Adminer, included with this install" });
+  const preview = page.getByRole("img", { name: "Table browser in Adminer, which you can add with this install" });
   await preview.scrollIntoViewIfNeeded();
   await preview.evaluate((image: HTMLImageElement) => image.decode());
   const logo = page.locator(".catalog-detail .catalog-icon img").first();
@@ -128,11 +128,13 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("link", { name: "Install PostgreSQL" }).click();
   const direct = page.getByRole("dialog", { name: "Install PostgreSQL" });
-  await direct.getByRole("group", { name: "Adminer port" }).waitFor();
+  await direct.getByRole("switch", { name: "Adminer" }).waitFor();
   const gap = await direct.locator("form").evaluate((form) => getComputedStyle(form).rowGap);
   if (gap !== "20px") fail(`the installation form's fields have a gap of ${gap}`);
 
   step("catalog: an app's page says what it installs before the plan, the app you open first, each by image");
+  // Its admin tool is what a person opens, once it's on.
+  await direct.getByRole("switch", { name: "Adminer" }).click();
   await direct.getByRole("button", { name: "Advanced" }).click();
   const parts = direct.getByRole("region", { name: "What it installs" });
   await parts.getByText("App you open").waitFor();
@@ -162,6 +164,13 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   const sheet = page.getByRole("dialog", { name: "Install PostgreSQL" });
   await sheet.waitFor();
   await sheet.getByRole("group", { name: "Version" }).getByText("17.11").waitFor();
+  // Its admin tool is left out unless it's turned on, and its port shows only then.
+  const adminerSwitch = sheet.getByRole("switch", { name: "Adminer" });
+  if ((await adminerSwitch.getAttribute("aria-checked")) !== "false") fail("Adminer is on before anyone turns it on");
+  if ((await sheet.getByRole("group", { name: "Adminer port" }).count()) !== 0)
+    fail("Adminer's port shows while it's off");
+  await shoot(page, "catalog-install-tools-off");
+  await adminerSwitch.click();
   const portLine = sheet.getByRole("group", { name: "Adminer port" });
   await portLine.getByText("Free").waitFor();
   const port = (await portLine.locator("code").innerText()).trim();
@@ -194,6 +203,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await open.click();
   await page.getByRole("heading", { level: 1, name: "db", exact: true }).waitFor();
   if (!new URL(page.url()).pathname.startsWith("/databases/")) fail(`a database install lands on ${page.url()}`);
+  const databasePage = page.url();
   await page.getByRole("region", { name: "Connect" }).getByText("postgres", { exact: true }).waitFor();
 
   step("catalog: its admin tool's page says how to sign in, with a way to reach it");
@@ -222,6 +232,19 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await from.getByRole("link", { name: "Its secrets" }).click();
   await page.getByRole("heading", { level: 1, name: "Variables and secrets" }).waitFor();
   await page.getByText("POSTGRES_PASSWORD", { exact: true }).first().waitFor();
+
+  step("catalog: its admin tool is among its tools on the database's page, and removing it is a plan");
+  await page.goto(databasePage);
+  const tools = page.getByRole("region", { name: "Tools" });
+  await tools.getByText("Installed", { exact: true }).waitFor();
+  await shoot(page, "catalog-database-tools");
+  await tools.getByRole("button", { name: "Remove Adminer" }).click();
+  const removing = page.getByRole("dialog", { name: "Review plan" });
+  await removing.getByText("Remove Adminer from postgres").waitFor({ timeout: 30_000 });
+  await removing.getByText("adminer", { exact: true }).first().waitFor();
+  await shoot(page, "catalog-database-tools-plan");
+  // Later flows use the Adminer beside it, so this one leaves it as it is.
+  await removing.getByRole("button", { name: /Cancel/ }).click();
 
   step("catalog: an installed app keeps its details and links to the running app");
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Catalog" }).click();

@@ -10,6 +10,7 @@ import {
   type ChangeDatabasePasswordRequest,
   ChangeSchema,
   ChangeState,
+  CompanionSchema,
   ContainerState,
   type CreateDatabaseUserRequest,
   type Database,
@@ -22,6 +23,7 @@ import {
   type ListBackupsRequest,
   type RestoreBackupRequest,
   Role,
+  type SetCatalogCompanionRequest,
   type UpgradeCatalogInstallRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -803,6 +805,62 @@ describe("a database's backups and upgrades", () => {
     await user.click(screen.getByRole("button", { name: "Upgrade to 17.12" }));
     await waitFor(() =>
       expect(upgraded).toHaveBeenCalledWith(expect.objectContaining({ id: "prj_pg" }), expect.anything()),
+    );
+  });
+
+  it("adds the admin tool its install left out, from its own page, as a plan", async () => {
+    const user = userEvent.setup();
+    const set = vi.fn((req: SetCatalogCompanionRequest) => {
+      void req;
+      return { change: planned };
+    });
+    const withTools = create(EntrySchema, {
+      id: "postgres",
+      name: "PostgreSQL",
+      category: "databases",
+      companions: [
+        create(CompanionSchema, {
+          service: "adminer",
+          label: "Adminer",
+          purpose: "Browse and edit tables in your browser",
+        }),
+      ],
+    });
+    const { container } = renderAt(
+      "/databases/svc_db",
+      api([aDatabase({ catalogEntry: "postgres" })], {
+        catalog: {
+          listCatalogEntries: () => ({ entries: [withTools] }),
+          getCatalogEntry: () => ({ entry: withTools }),
+          listCatalogInstalls: () => ({
+            installs: [
+              {
+                projectId: "prj_pg",
+                project: "postgres",
+                environmentId: ENV,
+                name: "PostgreSQL",
+                pin: { entry: "postgres", version: "17.11", release: 5 },
+                companions: { adminer: false },
+              },
+            ],
+          }),
+          setCatalogCompanion: set,
+        },
+        changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const tools = await screen.findByRole("region", { name: "Tools" });
+    expect(within(tools).getByText("Browse and edit tables in your browser")).toBeVisible();
+    // What's beside it goes by the tool's own name, not its service's.
+    expect(screen.getByText(/beside Adminer/)).toBeVisible();
+    expect(within(tools).getByText("Not installed")).toBeVisible();
+    await expectAccessible(container);
+    await user.click(within(tools).getByRole("button", { name: "Add Adminer" }));
+    await waitFor(() =>
+      expect(set).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "prj_pg", service: "adminer", on: true }),
+        expect.anything(),
+      ),
     );
   });
 

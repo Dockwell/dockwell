@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -197,7 +198,19 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	filled, err := catalog.Fill(entry, m.GetValues(), free.values)
+	// What it installs is the entry without the companions left out.
+	choice, err := catalog.Chosen(entry, m.GetCompanions())
+	if err == nil {
+		err = catalog.LeftOut(entry, choice, m.GetValues())
+	}
+	if err != nil {
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+	}
+	chosen, err := catalog.Choose(entry, choice)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	filled, err := catalog.Fill(chosen, m.GetValues(), free.values)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
@@ -209,13 +222,13 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Project:    project,
 		Summary:    fmt.Sprintf("Install %s %s as %s", entry.GetName(), entry.GetVersion(), project),
 		Name:       entry.GetName(),
-		File:       []byte(entry.GetCompose()),
+		File:       []byte(chosen.GetCompose()),
 		Variables:  filled.Variables,
 		Secrets:    filled.Secrets,
 		Stands:     filled.Stands(),
 		Servers:    m.GetServers(),
-		FirstSteps: catalog.FirstWords(entry),
-		Pin:        pinTo(entry, from, filled),
+		FirstSteps: catalog.FirstWords(entry, choice),
+		Pin:        pinTo(entry, from, filled, choice),
 		Limits:     limitsOf(m),
 	})
 	if err != nil {
@@ -284,7 +297,8 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 		install := &dockwellv1.CatalogInstall{ProjectId: p.ID, Project: p.Name, Pin: pin}
 		entry, known := s.entryFor(pin)
 		if known {
-			install.Name, install.FirstSteps = entry.GetName(), catalog.FirstWords(entry)
+			install.Companions = catalog.Resolve(entry, pin)
+			install.Name, install.FirstSteps = entry.GetName(), catalog.FirstWords(entry, install.GetCompanions())
 			if catalog.Upgrades(entry, pin) && len(pin.GetFile()) > 0 {
 				install.Upgrade = &dockwellv1.CatalogUpgrade{Version: entry.GetVersion(), Release: entry.GetRelease()}
 			}
@@ -317,42 +331,11 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	var install *dockwellv1.CatalogInstall
-	var display string
-	held := map[string]bool{}
-	err = h.db.View(ctx, func(tx *store.Tx) error {
-		all, err := h.installs(ctx, tx, s)
-		if err != nil {
-			return err
-		}
-		i := slices.IndexFunc(all, func(in *dockwellv1.CatalogInstall) bool {
-			return in.GetProject() == m.GetId() || in.GetProjectId() == m.GetId()
-		})
-		if i < 0 {
-			return nil
-		}
-		install = all[i]
-		tree, err := scope.Load(ctx, tx)
-		if err != nil {
-			return err
-		}
-		for _, p := range tree.Projects {
-			if p.ID == install.GetProjectId() {
-				display = p.DisplayName
-			}
-		}
-		list, err := tx.ListResources(ctx, install.GetEnvironmentId(), string(variable.SecretKind))
-		for i := range list {
-			held[list[i].Name] = true
-		}
-		return err
-	})
+	found, err := h.find(ctx, s, m.GetId())
 	if err != nil {
-		return nil, h.internal(ctx, err)
+		return nil, err
 	}
-	if install == nil {
-		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("nothing installed from the catalog is called %s. Run dockwell catalog installs to see what is", m.GetId()), "not_found")
-	}
+	install := found.install
 	pin := install.GetPin()
 	entry, ok := s.entryFor(pin)
 	switch {
@@ -369,11 +352,21 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	filled, err := catalog.Carry(entry, pin, m.GetValues(), free.values, held)
+	// The companions it runs stay as they are, and one the release adds is as its entry says.
+	choice := catalog.Resolve(entry, pin)
+	chosen, err := catalog.Choose(entry, choice)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	filled, err := catalog.Carry(chosen, pin, m.GetValues(), free.values, found.held)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
-	oldVariables, oldStands, err := catalog.Given(pin)
+	old, err := ranFile(pin)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	oldVariables, oldStands, err := catalog.Given(old)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -381,15 +374,15 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
 		Summary:     fmt.Sprintf("Upgrade %s from %s to %s", install.GetProject(), pin.GetVersion(), entry.GetVersion()),
-		Name:        display,
-		File:        []byte(entry.GetCompose()),
+		Name:        found.display,
+		File:        []byte(chosen.GetCompose()),
 		Variables:   filled.Variables,
 		Secrets:     filled.Secrets,
 		Stands:      filled.Stands(),
-		Pin:         pinTo(entry, s.origins[entry.GetId()], filled),
+		Pin:         pinTo(entry, s.origins[entry.GetId()], filled, choice),
 		SkipBackup:  m.GetSkipBackup(),
 
-		Old:          pin.GetFile(),
+		Old:          old.GetFile(),
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
 	})
@@ -399,10 +392,170 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&dockwellv1.UpgradeCatalogInstallResponse{Change: change}), nil
 }
 
+// SetCatalogCompanion plans adding one of an install's companions, or taking it away,
+// at the release it's on: a merge of its file as it runs now and as it would, as an
+// upgrade is, with the pin's choice in the same change.
+func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[dockwellv1.SetCatalogCompanionRequest]) (*connect.Response[dockwellv1.SetCatalogCompanionResponse], error) {
+	m := req.Msg
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	found, err := h.find(ctx, s, m.GetId())
+	if err != nil {
+		return nil, err
+	}
+	install := found.install
+	pin := install.GetPin()
+	entry, ok := s.entryFor(pin)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so its companions stay as they are", install.GetProject(), originOf(pin).words(), pin.GetEntry()), "not_in_catalog")
+	}
+	companion, ok := catalog.Companion(entry, m.GetService())
+	switch {
+	case !ok:
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("%s has no companion %s. %s", entry.GetName(), m.GetService(), catalog.CompanionList(entry)), "invalid")
+	case len(pin.GetFile()) == 0:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so its companions stay as they are", install.GetProject()), "no_record")
+	case !catalog.Runs(string(pin.GetFile()), m.GetService()):
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs %s %s, which has no %s. Upgrade it first", install.GetProject(), entry.GetName(), pin.GetVersion(), companion.GetLabel()), "upgrade_first")
+	}
+	choice := catalog.Resolve(entry, pin)
+	if choice[m.GetService()] == m.GetOn() {
+		state := "off"
+		if m.GetOn() {
+			state = "on"
+		}
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is %s already in %s", companion.GetLabel(), state, install.GetProject()), "unchanged")
+	}
+	values := maps.Clone(pin.GetValues())
+	if values == nil {
+		values = map[string]string{}
+	}
+	for _, in := range companion.GetInputs() {
+		delete(values, in)
+	}
+	if m.GetOn() {
+		free, err := h.whatsFree(ctx, entry, "")
+		if err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		given, err := catalog.CompanionValues(entry, companion, m.GetValues(), free.values)
+		if err != nil {
+			return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+		}
+		maps.Copy(values, given)
+	} else if len(m.GetValues()) > 0 {
+		return nil, authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("removing %s takes no values. Leave them out", companion.GetLabel()), "invalid")
+	}
+	next := maps.Clone(choice)
+	next[m.GetService()] = m.GetOn()
+	old, err := ranFile(pin)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	file, err := catalog.Without(string(pin.GetFile()), catalog.Off(next))
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	newPin := proto.CloneOf(pin)
+	newPin.Values, newPin.Companions = values, next
+	oldVariables, oldStands, err := catalog.Given(old)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	variables, stands, err := catalog.Given(&resourcev1.CatalogPin{File: []byte(file), Values: values})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	summary := fmt.Sprintf("Add %s to %s", companion.GetLabel(), install.GetProject())
+	if !m.GetOn() {
+		summary = fmt.Sprintf("Remove %s from %s", companion.GetLabel(), install.GetProject())
+	}
+	change, err := h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
+		Project:     install.GetProjectId(),
+		Environment: install.GetEnvironmentId(),
+		Summary:     summary,
+		Name:        found.display,
+		File:        []byte(file),
+		Variables:   variables,
+		Stands:      stands,
+		Pin:         newPin,
+		Companion:   true,
+
+		Old:          old.GetFile(),
+		OldVariables: oldVariables,
+		OldStands:    oldStands,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.SetCatalogCompanionResponse{Change: change}), nil
+}
+
+// ranFile is the pin as what runs now read it: its file without the companions it
+// left out, with the values it kept.
+func ranFile(pin *resourcev1.CatalogPin) (*resourcev1.CatalogPin, error) {
+	file, err := catalog.Without(string(pin.GetFile()), catalog.Off(pin.GetCompanions()))
+	if err != nil {
+		return nil, err
+	}
+	return &resourcev1.CatalogPin{File: []byte(file), Values: pin.GetValues()}, nil
+}
+
+// found is an install, as an upgrade or a change to its companions needs it.
+type found struct {
+	install *dockwellv1.CatalogInstall
+	// display is how its project shows.
+	display string
+	// held are the secrets it has, by name.
+	held map[string]bool
+}
+
+// find reads an install by its project's name or ID, with the secrets it has.
+func (h *Handler) find(ctx context.Context, s sourced, id string) (found, error) {
+	out := found{held: map[string]bool{}}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		all, err := h.installs(ctx, tx, s)
+		if err != nil {
+			return err
+		}
+		i := slices.IndexFunc(all, func(in *dockwellv1.CatalogInstall) bool {
+			return in.GetProject() == id || in.GetProjectId() == id
+		})
+		if i < 0 {
+			return nil
+		}
+		out.install = all[i]
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if p.ID == out.install.GetProjectId() {
+				out.display = p.DisplayName
+			}
+		}
+		list, err := tx.ListResources(ctx, out.install.GetEnvironmentId(), string(variable.SecretKind))
+		for i := range list {
+			out.held[list[i].Name] = true
+		}
+		return err
+	})
+	if err != nil {
+		return found{}, h.internal(ctx, err)
+	}
+	if out.install == nil {
+		return found{}, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("nothing installed from the catalog is called %s. Run dockwell catalog installs to see what is", id), "not_found")
+	}
+	return out, nil
+}
+
 // pinTo is what an install of an entry is pinned to: the entry, and where it came
 // from, as the control plane knows it.
-func pinTo(e *catalogv1.Entry, from origin, filled *catalog.Filled) *resourcev1.CatalogPin {
+func pinTo(e *catalogv1.Entry, from origin, filled *catalog.Filled, companions map[string]bool) *resourcev1.CatalogPin {
 	return &resourcev1.CatalogPin{
+		Companions: companions,
 		Entry:      e.GetId(),
 		Version:    e.GetVersion(),
 		Release:    e.GetRelease(),

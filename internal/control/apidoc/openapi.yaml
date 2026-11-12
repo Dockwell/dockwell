@@ -1019,6 +1019,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:set-companion:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SetCatalogCompanion plans adding one of an install's companions, or taking
+                 it away, ready to apply or discard, at the release the install is on. Adding
+                 one publishes it on a port that's free unless values names one. Taking one
+                 away keeps any volume it had, as an upgrade does. The pin records the choice
+                 in the same change, so an upgrade keeps it and an undo puts both back. It's
+                 refused with the reason unchanged when the companion is as asked already,
+                 and upgrade_first when the release installed has no such service.
+            operationId: CatalogService_SetCatalogCompanion
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetCatalogCompanionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetCatalogCompanionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/installs/{id}:upgrade:
         post:
             tags:
@@ -7373,6 +7412,13 @@ components:
                          version the same as the pin's is a change to how that version runs. Unset when
                          it's up to date, when a release changes only an entry's words, when the catalog
                          no longer has its entry, or when the install has no record of its file.
+                companions:
+                    type: object
+                    additionalProperties:
+                        type: boolean
+                    description: |-
+                        Whether each of its entry's companions runs, by service, such as adminer:
+                         false. Empty when the catalog no longer has its entry, or it has none.
             description: CatalogInstall is one project installed from the catalog.
         CatalogPart:
             type: object
@@ -7482,6 +7528,15 @@ components:
                 path:
                     type: string
                     description: The folder in the repository its source reads, for an entry from a source.
+                companions:
+                    type: object
+                    additionalProperties:
+                        type: boolean
+                    description: |-
+                        Which of the entry's companions it runs, by service: true for one it runs,
+                         false for one left out, so an upgrade keeps the choice. A companion with no
+                         word here runs when file has its service, as an install from before
+                         companions ran every service, and is otherwise as its entry says.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -8066,6 +8121,45 @@ components:
                 end:
                     $ref: '#/components/schemas/TerminalEnd'
             description: CloseTerminalResponse says how it ended.
+        Companion:
+            type: object
+            properties:
+                service:
+                    type: string
+                    description: |-
+                        The service, by its name in the entry's Compose file, such as "adminer". No
+                         other service depends on it, and it isn't one of the entry's databases.
+                label:
+                    type: string
+                    description: What people call it, such as "Adminer".
+                purpose:
+                    type: string
+                    description: |-
+                        What it's for, in a few words, such as "Browse and edit tables in your
+                         browser".
+                on:
+                    type: boolean
+                    description: |-
+                        It's installed unless a person turns it off. Unset, it's left out until a
+                         person turns it on.
+                inputs:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The inputs it alone uses, by name, such as "ADMIN_PORT", which a form asks
+                         for only while it's on. None of them is a secret.
+                notes:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        What a person may want to know of it as it runs here, a line each, which a
+                         form shows only while it's on, such as "Choose PostgreSQL as Adminer's
+                         system".
+            description: |-
+                Companion is a service an app runs without, such as a database's admin tool,
+                 which a person installs only if they want it.
         ComposeRefusal:
             type: object
             properties:
@@ -9710,6 +9804,16 @@ components:
                     description: |-
                         What a person may want to know of the app as it runs here, a line each,
                          such as "Transcodes on the server's CPU". Never steps to follow.
+                companions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Companion'
+                    description: |-
+                        Services of its Compose file the app runs without, such as Adminer beside
+                         PostgreSQL, each a switch a person turns on or off as they install. The
+                         install records which are on, an upgrade keeps that, and a person adds or
+                         removes one later as a plan. Empty installs every service, as before. See
+                         docs/adr/0076-optional-companions-in-a-catalog-entry.md.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -12051,6 +12155,14 @@ components:
                     description: |-
                         When Docker restarts a service's container, by its name, such as always for
                          db.
+                companions:
+                    type: object
+                    additionalProperties:
+                        type: boolean
+                    description: |-
+                        Which of the entry's companions to install, by service, such as adminer:
+                         true. One left out is as its entry says. An input only a companion left out
+                         uses is refused.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object
@@ -16927,6 +17039,34 @@ components:
                     type: string
                     description: 'The address it works on: "localhost" or the panel''s domain.'
             description: Session is one signed-in browser.
+        SetCatalogCompanionRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                service:
+                    type: string
+                    description: The companion, by its service's name in the entry, such as "adminer".
+                on:
+                    type: boolean
+                    description: 'Whether it runs: true adds it, false takes it away.'
+                values:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        A value for each input it uses, by name, such as ADMIN_PORT. Left out, a
+                         port is one that nothing Dockwell runs has taken.
+            description: SetCatalogCompanionRequest names an install's companion, and whether it runs.
+        SetCatalogCompanionResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: SetCatalogCompanionResponse carries the planned change.
         SetCatalogSourceRequest:
             type: object
             properties:

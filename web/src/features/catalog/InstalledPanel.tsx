@@ -11,6 +11,7 @@ import { environmentOf } from "../apps/app";
 import { useServices } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { Facts, SignInCard, useInstallFacts } from "./access";
+import { CompanionLines } from "./Companions";
 import { installIn, useInstalls } from "./useCatalog";
 import "./Catalog.css";
 import { useMay } from "../auth/may";
@@ -33,6 +34,9 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   const web = useServices().data?.find((s) => s.id === install?.webServiceId);
   const facts = useInstallFacts(entry, install, web);
   if (!install) return null;
+  // How to sign in is to what the entry opens, which a companion left out isn't (ADR 0076).
+  const opens = entry?.web?.service ?? "";
+  const webRuns = !entry?.companions.some((c) => c.service === opens) || install.companions[opens] === true;
   const name = install.name || install.pin?.entry || "";
   const version = install.pin?.version ?? "";
   const next = install.upgrade?.version ?? "";
@@ -59,6 +63,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           </Trans>
         </p>
         <Facts facts={facts} />
+        {entry ? <CompanionLines entry={entry} install={install} /> : null}
         {install.upgrade ? (
           <div className="catalog-upgrade">
             <p className="catalog-upgrade-line">
@@ -74,7 +79,9 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           </div>
         ) : null}
       </Panel>
-      {entry?.signIn && service.id === install.webServiceId ? <SignInCard entry={entry} install={install} /> : null}
+      {entry?.signIn && service.id === install.webServiceId && webRuns ? (
+        <SignInCard entry={entry} install={install} />
+      ) : null}
     </>
   );
 }

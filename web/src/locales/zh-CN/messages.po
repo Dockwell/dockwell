@@ -5908,6 +5908,14 @@ msgstr "打开应用"
 msgid "Open app: {0}"
 msgstr "打开应用：{0}"
 
+msgctxt "companion"
+msgid "Optional, a switch when you install"
+msgstr "可选，安装时用开关决定"
+
+msgctxt "companion"
+msgid "Optional, on unless you turn it off"
+msgstr "可选，默认开启，可以关闭"
+
 msgid "Persistent storage"
 msgstr "持久存储"
 
@@ -6005,6 +6013,24 @@ msgstr "{count, plural, other {已安装 # 个}}"
 
 msgid "{count} installed"
 msgstr "已安装 {count} 个"
+
+msgid "Add {label}"
+msgstr "添加 {label}"
+
+msgctxt "companion"
+msgid "Installed"
+msgstr "已安装"
+
+msgctxt "companion"
+msgid "Not installed"
+msgstr "未安装"
+
+msgid "Remove {label}"
+msgstr "移除 {label}"
+
+msgctxt "companions"
+msgid "Tools"
+msgstr "附带工具"
 
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>，只读"

@@ -277,7 +277,7 @@ func Check(e *catalogv1.Entry) error {
 			}
 		}
 	}
-	return nil
+	return checkCompanions(e)
 }
 
 // checkDatabases refuses a database the entry marks that its Compose file doesn't run.

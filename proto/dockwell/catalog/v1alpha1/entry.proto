@@ -90,6 +90,35 @@ message Entry {
   // What a person may want to know of the app as it runs here, a line each,
   // such as "Transcodes on the server's CPU". Never steps to follow.
   repeated string notes = 27;
+  // Services of its Compose file the app runs without, such as Adminer beside
+  // PostgreSQL, each a switch a person turns on or off as they install. The
+  // install records which are on, an upgrade keeps that, and a person adds or
+  // removes one later as a plan. Empty installs every service, as before. See
+  // docs/adr/0076-optional-companions-in-a-catalog-entry.md.
+  repeated Companion companions = 28;
+}
+
+// Companion is a service an app runs without, such as a database's admin tool,
+// which a person installs only if they want it.
+message Companion {
+  // The service, by its name in the entry's Compose file, such as "adminer". No
+  // other service depends on it, and it isn't one of the entry's databases.
+  string service = 1;
+  // What people call it, such as "Adminer".
+  string label = 2;
+  // What it's for, in a few words, such as "Browse and edit tables in your
+  // browser".
+  string purpose = 3;
+  // It's installed unless a person turns it off. Unset, it's left out until a
+  // person turns it on.
+  bool on = 4;
+  // The inputs it alone uses, by name, such as "ADMIN_PORT", which a form asks
+  // for only while it's on. None of them is a secret.
+  repeated string inputs = 5;
+  // What a person may want to know of it as it runs here, a line each, which a
+  // form shows only while it's on, such as "Choose PostgreSQL as Adminer's
+  // system".
+  repeated string notes = 6;
 }
 
 // SignIn is how a person signs in to an app once it's installed.

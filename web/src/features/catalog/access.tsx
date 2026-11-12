@@ -214,6 +214,10 @@ export function useInstallFacts(
     ).data?.domains ?? [];
   if (!entry || !install) return [];
   const app = entry.name;
+  // What Open names: a companion by its label, such as Adminer; another service of a database's install by its name.
+  const webName = web ? nameOf(web) : "";
+  const tool =
+    entry.companions.find((c) => c.service === webName)?.label ?? (entry.category === "databases" ? webName : app);
   const inEnvironment = (name: string) =>
     services.find((s) => environmentOf(s) === install.environmentId && nameOf(s) === name);
   const out: Fact[] = [];
@@ -302,12 +306,7 @@ export function useInstallFacts(
       text: t`Answers on this server alone, on port ${port}, until it has a domain`,
       action: onLocalhost ? (
         <>
-          <OpenAppButton
-            serviceId={web.id}
-            environment={install.environmentId}
-            port={local.containerPort}
-            app={entry.category === "databases" ? nameOf(web) : app}
-          />
+          <OpenAppButton serviceId={web.id} environment={install.environmentId} port={local.containerPort} app={tool} />
           {tunnel}
         </>
       ) : (
@@ -329,13 +328,18 @@ export function useInstallFacts(
             serviceId={web.id}
             environment={install.environmentId}
             port={published.containerPort}
-            app={entry.category === "databases" ? nameOf(web) : app}
+            app={tool}
           />
         ),
       });
     }
   }
   for (const [i, note] of entry.notes.entries()) out.push({ key: `note-${i}`, icon: "question", text: note });
+  // A companion's notes, while it runs.
+  for (const c of entry.companions)
+    if (install.companions[c.service])
+      for (const [i, note] of c.notes.entries())
+        out.push({ key: `note-${c.service}-${i}`, icon: "question", text: note });
   if (entry.firstSteps) out.push({ key: "first", icon: "arrow-right", text: entry.firstSteps });
   return out;
 }

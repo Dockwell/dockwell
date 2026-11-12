@@ -488,6 +488,11 @@ message CatalogPin {
   string catalog = 80;
   // The folder in the repository its source reads, for an entry from a source.
   string path = 81;
+  // Which of the entry's companions it runs, by service: true for one it runs,
+  // false for one left out, so an upgrade keeps the choice. A companion with no
+  // word here runs when file has its service, as an install from before
+  // companions ran every service, and is otherwise as its entry says.
+  map<string, bool> companions = 8;
 }
 
 // Environment is a stage of a project, such as production or staging, with

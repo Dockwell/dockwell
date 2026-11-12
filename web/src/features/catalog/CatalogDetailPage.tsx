@@ -297,6 +297,15 @@ export function CatalogDetailPage({
                               <Trans>Persistent storage</Trans>
                             </span>
                           ) : null}
+                          {entry.companions.some((c) => c.service === part.service) ? (
+                            <span>
+                              {entry.companions.find((c) => c.service === part.service)?.on ? (
+                                <Trans context="companion">Optional, on unless you turn it off</Trans>
+                              ) : (
+                                <Trans context="companion">Optional, a switch when you install</Trans>
+                              )}
+                            </span>
+                          ) : null}
                         </div>
                       </li>
                     ))}

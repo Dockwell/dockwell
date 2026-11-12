@@ -822,7 +822,7 @@
     "kind": "screenshot",
     "repo": "phpmyadmin/website",
     "path": "pmaweb/static/images/screenshots/structure.png",
-    "caption": "phpMyAdmin, the database browser included with this install",
+    "caption": "phpMyAdmin, the database browser you can add with this install",
     "commit": "9a1840a005292617d3e2b18dbeeffba8dd38f264",
     "url": "https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png",
     "project": "https://github.com/phpmyadmin/website",

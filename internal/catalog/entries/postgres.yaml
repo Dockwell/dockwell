@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 id: postgres
 name: PostgreSQL
-summary: Relational database, with Adminer to manage it
+summary: Relational database, with Adminer to manage it if you want it
 description: |-
   PostgreSQL is a relational database for applications that need reliable SQL storage, transactions and flexible queries. It supports structured records, JSON data and a large ecosystem of extensions and client libraries.
 
-  This entry includes Adminer as a lightweight browser interface. Dockwell generates the initial database password and keeps database files on a persistent volume.
+  Adminer, a lightweight browser interface, is one switch away when you install it, or later from its page. Dockwell generates the initial database password and keeps database files on a persistent volume.
 icon: /catalog-media/postgres-icon.webp
 documentation: https://www.postgresql.org/docs/
 appSource: https://github.com/postgres/postgres
 features:
   - "SQL queries and transactions"
   - "JSON data and extensible types"
-  - "Included Adminer database browser"
+  - "Adminer database browser, if you want it"
   - "Persistent database storage"
 screenshots:
   - path: /catalog-media/adminer-table.webp
-    caption: "Table browser in Adminer, included with this install"
+    caption: "Table browser in Adminer, which you can add with this install"
     source: https://www.adminer.org/static/screenshots/table.webp
 category: databases
 version: "17.11"
-release: 4
+release: 5
 homepage: https://www.postgresql.org
 license: AGPL-3.0-only
 appLicense: PostgreSQL
@@ -33,8 +33,13 @@ signIn:
   user: "postgres"
   passwordInput: "POSTGRES_PASSWORD"
   server: "db"
-notes:
-  - "Choose PostgreSQL as Adminer's system."
+companions:
+  - service: adminer
+    label: Adminer
+    purpose: Browse and edit tables in your browser
+    inputs: [ADMIN_PORT]
+    notes:
+      - "Choose PostgreSQL as Adminer's system."
 inputs:
   - name: ADMIN_PORT
     label: Adminer port

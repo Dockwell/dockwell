@@ -7,6 +7,7 @@ import {
   CatalogService,
   type Change,
   ChangeState,
+  type Companion,
   type Entry,
   type HostAccess,
   HostAccessKind,
@@ -31,6 +32,7 @@ import {
   SelectField,
   Sheet,
   STATUS,
+  Switch,
   TextField,
   TONE,
   useMediaQuery,
@@ -127,7 +129,16 @@ export function InstallSheet({
   const got = useQuery(CatalogService.method.getCatalogEntry, { id });
   const entry = got.data?.entry;
   const email = useSignedInUser()?.email ?? "";
-  const inputs = (entry?.inputs ?? []).filter(asked);
+  // The services it may leave out, such as a database's admin tool (ADR 0076): each a
+  // switch, off or on as its entry says until someone turns it, with its inputs and notes
+  // only while it's on.
+  const companions = entry?.companions ?? [];
+  const [turned, setTurned] = useState<Readonly<Record<string, boolean>>>({});
+  const isOn = (c: Companion) => turned[c.service] ?? c.on;
+  const companionInput = new Set(companions.flatMap((c) => c.inputs));
+  const leftOut = new Set(companions.filter((c) => !isOn(c)).flatMap((c) => c.inputs));
+  const offServices = new Set(companions.filter((c) => !isOn(c)).map((c) => c.service));
+  const inputs = (entry?.inputs ?? []).filter((input) => asked(input) && !leftOut.has(input.name));
   const generated = (entry?.inputs ?? []).filter((input) => !asked(input));
 
   // Kept apart from what the control plane suggests, so a value typed stays when it reads again.
@@ -157,6 +168,7 @@ export function InstallSheet({
     setTyped({});
     setTypedName(undefined);
     setOwn({});
+    setTurned({});
     setChanging(new Set());
     setFailure(undefined);
     setNameError(undefined);
@@ -206,11 +218,12 @@ export function InstallSheet({
     input.type === InputType.EMAIL ||
     folders.has(input.name) ||
     (!input.optional && suggested(input) === "");
-  const top = inputs.filter(onTop);
-  const more = inputs.filter((input) => !onTop(input));
+  // A companion's inputs sit under its switch.
+  const top = inputs.filter((input) => onTop(input) && !companionInput.has(input.name));
+  const more = inputs.filter((input) => !onTop(input) && !companionInput.has(input.name));
 
   // What each part may use and when it restarts: the entry's, unless someone changed it.
-  const parts = got.data?.parts ?? [];
+  const parts = (got.data?.parts ?? []).filter((part) => !offServices.has(part.service));
   const cpusOf = (part: CatalogPart) => limits[part.service]?.cpus ?? part.cpus;
   const memoryOf = (part: CatalogPart) => limits[part.service]?.memory ?? part.memory;
   const restartOf = (part: CatalogPart) => limits[part.service]?.restart ?? entryRestart(part);
@@ -341,6 +354,7 @@ export function InstallSheet({
           memory,
           cpus,
           restart,
+          companions: Object.fromEntries(companions.filter((c) => isOn(c) !== c.on).map((c) => [c.service, isOn(c)])),
         },
         (_path, key) => !secrets.has(key),
       )
@@ -417,6 +431,7 @@ export function InstallSheet({
         memory,
         cpus,
         restart,
+        companions: Object.fromEntries(companions.map((c) => [c.service, isOn(c)])),
       });
       if (picked.current !== asked) return;
       review(res.change);
@@ -446,6 +461,20 @@ export function InstallSheet({
       />
     );
   };
+
+  // A default as its line, or its field once someone changes it.
+  const line = (input: Input) =>
+    open(input) ? (
+      field(input)
+    ) : (
+      <Chosen
+        key={input.name}
+        label={input.label}
+        value={value(input)}
+        state={input.type === InputType.PORT ? <PortState check={portCheck(input)} /> : undefined}
+        onChange={() => change(input.name)}
+      />
+    );
 
   return (
     <Sheet
@@ -561,24 +590,38 @@ export function InstallSheet({
               ) : only ? (
                 <Chosen label={t`Runs on`} value={only.name} />
               ) : null}
-              {top.map((input) =>
-                open(input) ? (
-                  field(input)
-                ) : (
-                  <Chosen
-                    key={input.name}
-                    label={input.label}
-                    value={value(input)}
-                    state={input.type === InputType.PORT ? <PortState check={portCheck(input)} /> : undefined}
-                    onChange={() => change(input.name)}
-                  />
-                ),
-              )}
+              {top.map(line)}
               {source ? (
                 <Chosen label={t`Catalog`} value={t`${source} · Not tested by Dockwell`} tone="warning" />
               ) : null}
               {entry.hostAccess ? <Chosen label={t`Reaches`} value={entry.hostAccess} tone="warning" /> : null}
             </div>
+            {companions.length > 0 ? (
+              <section className="catalog-companions" aria-label={t({ message: "Tools", context: "companions" })}>
+                {companions.map((c) => (
+                  <div key={c.service} className={cx("catalog-companion", isOn(c) && "is-on")}>
+                    <Switch
+                      label={c.label}
+                      description={c.purpose}
+                      checked={isOn(c)}
+                      disabled={busy}
+                      onChange={(on) => setTurned((was) => ({ ...was, [c.service]: on }))}
+                    />
+                    {isOn(c) ? (
+                      <div className="catalog-companion-more">
+                        <div className="catalog-chosen-list">
+                          {inputs.filter((input) => c.inputs.includes(input.name)).map(line)}
+                        </div>
+                        <Facts
+                          facts={c.notes.map((note, i) => ({ key: `${c.service}-${i}`, icon: "question", text: note }))}
+                          className="catalog-sheet-facts"
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </section>
+            ) : null}
             <Facts facts={facts} className="catalog-sheet-facts" />
             <Advanced open={advancedOpen} onOpenChange={setAdvancedOpen} summary={summary}>
               {more.map(field)}

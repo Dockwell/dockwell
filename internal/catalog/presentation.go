@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -72,11 +73,17 @@ func presentationLink(address string) bool {
 
 // FirstWords is what an install's plan says a person needs, in words, as the CLI
 // shows a plan as the panel does: how to sign in, that its first account owns it, its
-// notes and its first steps, a short sentence each. The panel shows the same as state
-// on the app's page once it runs.
-func FirstWords(e *catalogv1.Entry) string {
+// notes and its first steps, a short sentence each, and the notes of each companion
+// that runs. How to sign in to a companion left out, it doesn't say. A nil choice of
+// companions runs every one. The panel shows the same as state on the app's page once
+// it runs.
+func FirstWords(e *catalogv1.Entry, choice map[string]bool) string {
+	runs := func(service string) bool {
+		_, companion := Companion(e, service)
+		return choice == nil || !companion || choice[service]
+	}
 	var out []string
-	if s := e.GetSignIn(); s != nil {
+	if s := e.GetSignIn(); s != nil && runs(e.GetWeb().GetService()) {
 		web := cmp.Or(e.GetWeb().GetService(), e.GetName())
 		user := s.GetUser()
 		for _, in := range e.GetInputs() {
@@ -103,7 +110,13 @@ func FirstWords(e *catalogv1.Entry) string {
 	if e.GetFirstVisitorOwns() {
 		out = append(out, "Its first account is its owner, so make yours before it has a domain.")
 	}
-	for _, note := range e.GetNotes() {
+	notes := slices.Clone(e.GetNotes())
+	for _, c := range e.GetCompanions() {
+		if runs(c.GetService()) {
+			notes = append(notes, c.GetNotes()...)
+		}
+	}
+	for _, note := range notes {
 		if note = strings.TrimSpace(note); note != "" {
 			if !strings.HasSuffix(note, ".") {
 				note += "."

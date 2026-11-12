@@ -1096,6 +1096,10 @@ declare -A given=(
   [jellyfin]="MEDIA_DIR=$media_dir"
   [lobechat]="OPENAI_API_KEY"
 )
+# The companions an entry's check signs in through, which an install leaves out unless asked (ADR 0076).
+declare -A companions=(
+  [mariadb]="phpmyadmin"
+)
 # Secret inputs use their names above and values in the CLI's environment, including under sudo.
 declare -A given_env=(
   [lobechat]="OPENAI_API_KEY=catalog-test-provider-key-never-sent-outside-this-container"
@@ -1223,6 +1227,7 @@ for id in "$@"; do
   read -r -a input_env <<<"${given_env[$id]:-}"
   flags=()
   for v in "${values[@]}"; do flags+=(--values "$v"); done
+  for c in ${companions[$id]:-}; do flags+=(--companions "$c=true"); done
   before=${previous[$id]:-}
 
   if [[ -n "$before" ]]; then
