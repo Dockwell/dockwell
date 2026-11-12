@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package catalog holds the apps Dockwell can install: entries in the format ADR
-// 0029 sets out, which it reads and fills in for an install. For now the first
-// set is built in, written here and so free of any other catalog's terms, and
-// Dockwell/catalog's signed index takes over from Load when it exists. See
-// docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md.
+// 0029 sets out, which it reads and fills in for an install. Dockwell's own are
+// written in Dockwell/catalog, which every install reads as a source; the binary
+// holds a snapshot of it (package snapshot), which BuiltIn reads. See
+// docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md and
+// docs/adr/0077-dockwells-catalog-in-its-own-repository.md.
 package catalog
 
 import (
 	"cmp"
 	"crypto/rand"
-	"embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -39,24 +39,44 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/resource"
 )
-
-//go:embed entries/*.yaml
-var entries embed.FS
 
 // Catalog is a set of entries, sorted by name.
 type Catalog struct {
 	entries []*catalogv1.Entry
 }
 
-// builtIn is what ships in the binary, read once.
-var builtIn = sync.OnceValues(func() (*Catalog, error) { return load(entries, "entries/*.yaml") })
+// builtIn is what ships in the binary, Dockwell/catalog's snapshot, read once.
+var builtIn = sync.OnceValues(func() (*Catalog, error) { return load(snapshot.Entries(), "*.yaml") })
 
-// DirEnv names a directory of entries, read each time and taking over from a
-// built-in entry of the same ID. It's what a newer release looks like before a feed
-// can bring one, for trying an entry and for the tests that upgrade one.
+// DirEnv names a directory of entries, read each time and taking over from an entry
+// of Dockwell's own of the same ID. It's what a newer release looks like before the
+// catalog can bring one, for trying an entry and for the tests that upgrade one.
 const DirEnv = "DOCKWELL_CATALOG_DIR"
+
+// FromDir returns the entries DirEnv names, or an empty catalog without it, read
+// each time.
+func FromDir() (*Catalog, error) {
+	dir := os.Getenv(DirEnv)
+	if dir == "" {
+		return &Catalog{}, nil
+	}
+	return load(os.DirFS(dir), "*.yaml")
+}
+
+// Over returns the catalog with each of more's entries in place of its own of the
+// same ID, and the rest of more beside them, as DirEnv's take over.
+func (c *Catalog) Over(more *Catalog) *Catalog {
+	out := &Catalog{entries: slices.Clone(c.entries)}
+	for _, e := range more.entries {
+		out.entries = slices.DeleteFunc(out.entries, func(had *catalogv1.Entry) bool { return had.GetId() == e.GetId() })
+		out.entries = append(out.entries, e)
+	}
+	sortEntries(out.entries)
+	return out
+}
 
 // Load returns the catalog: what's built in, and what DirEnv adds. commit is the
 // build's, which an entry built in takes as the commit it came from.
@@ -65,20 +85,11 @@ func Load(commit string) (*Catalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	dir := os.Getenv(DirEnv)
-	if dir == "" {
-		return out, nil
-	}
-	more, err := load(os.DirFS(dir), "*.yaml")
+	more, err := FromDir()
 	if err != nil {
 		return nil, err
 	}
-	for _, e := range more.entries {
-		out.entries = slices.DeleteFunc(out.entries, func(had *catalogv1.Entry) bool { return had.GetId() == e.GetId() })
-		out.entries = append(out.entries, e)
-	}
-	sortEntries(out.entries)
-	return out, nil
+	return out.Over(more), nil
 }
 
 // sortEntries sorts by name as people read one, whatever its case and accents, so n8n
@@ -90,8 +101,9 @@ func sortEntries(entries []*catalogv1.Entry) {
 	})
 }
 
-// BuiltIn returns the entries built into the binary alone, whatever DirEnv names,
-// for what must tell Dockwell's own entries from any other.
+// BuiltIn returns the entries built into the binary alone, Dockwell/catalog's
+// snapshot, whatever DirEnv names, for what must tell Dockwell's own entries from
+// any other.
 func BuiltIn(commit string) (*Catalog, error) {
 	c, err := builtIn()
 	if err != nil {

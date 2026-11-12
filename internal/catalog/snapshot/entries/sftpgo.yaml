@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: sftpgo
+name: SFTPGo
+summary: File transfers with SFTP, accounts and a web client
+description: |-
+  SFTPGo is a file transfer server with accounts you manage in a browser. People upload and download over SFTP or through its web client, each within their own folder and limits.
+
+  This entry runs SFTPGo with its admin page, web client and SFTP listener, all on this server's loopback address until you publish them. Its volumes keep the host keys, accounts and transferred files.
+icon: media/sftpgo-icon.webp
+documentation: https://docs.sftpgo.com
+appSource: https://github.com/drakkan/sftpgo
+features:
+  - "SFTP with per-user folders and quotas"
+  - "A web client for uploads and downloads"
+  - "Accounts, groups and shares in a web admin"
+  - "Host keys that stay through upgrades"
+screenshots:
+  - path: media/sftpgo-files.webp
+    caption: "Files in the SFTPGo web client"
+    source: https://raw.githubusercontent.com/sftpgo/docs/e68d37804d7d4f8500de7dd3f6d34ed473a84abc/docs/assets/img/web-client-files.png
+category: storage
+version: "2.7.6"
+release: 1
+homepage: https://sftpgo.com
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/sftpgo.yaml
+web:
+  service: sftpgo
+signIn:
+  user: "admin"
+  passwordInput: "SFTPGO_PASSWORD"
+  changedIn: "Change password"
+notes:
+  - "Its web admin is at /web/admin, where you make a user for transfers."
+  - "SFTP answers on its SFTP port, on this server alone: reach it from your computer through an SSH tunnel."
+inputs:
+  - name: PORT
+    label: Web port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8088"
+  - name: SFTP_PORT
+    label: SFTP port on this server
+    hint: SFTP, on this server alone.
+    type: INPUT_TYPE_PORT
+    defaultValue: "2022"
+  - name: SFTPGO_PASSWORD
+    setOnce: true
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    sftpgo:
+      image: drakkan/sftpgo:v2.7.6@sha256:1edd28d80de2a008863fbfc58c8ff7db47b1b410bae48d4e6076192337809b11
+      restart: unless-stopped
+      environment:
+        SFTPGO_DATA_PROVIDER__CREATE_DEFAULT_ADMIN: "true"
+        SFTPGO_DEFAULT_ADMIN_USERNAME: admin
+        SFTPGO_DEFAULT_ADMIN_PASSWORD: ${SFTPGO_PASSWORD}
+      ports:
+        - "127.0.0.1:${PORT}:8080"
+        - "127.0.0.1:${SFTP_PORT}:2022"
+      volumes:
+        - home:/var/lib/sftpgo
+        - data:/srv/sftpgo
+      healthcheck:
+        test: ["CMD", "sftpgo", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 10s
+  volumes:
+    home: {}
+    data: {}

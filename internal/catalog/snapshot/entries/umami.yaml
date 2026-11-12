@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: umami
+name: Umami
+summary: Counts your sites' visitors and pages, without cookies
+description: |-
+  Umami shows how people use your websites through a clear analytics dashboard. Explore page views, traffic sources, devices and events while collecting less visitor information than many traditional analytics tools.
+
+  This entry includes Umami and its PostgreSQL database. Add your website after installation and include the tracking script on the pages you want to measure.
+icon: media/umami-icon.webp
+documentation: https://umami.is/docs
+appSource: https://github.com/umami-software/umami
+features:
+  - "Website traffic dashboards"
+  - "Sources, pages and device breakdowns"
+  - "Custom event tracking"
+  - "Cookie-free analytics"
+screenshots:
+  - path: media/umami-dashboard.webp
+    caption: "Explore website visits, referrers and countries in Umami"
+    source: https://umami.is/_next/static/immutable/media/screenshot-dashboard.3vmc7t3hapnqk.jpg
+category: analytics
+version: "3.4.1"
+release: 5
+homepage: https://umami.is
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/umami.yaml
+web:
+  service: umami
+firstSteps: "It starts with the account admin and the password umami: change it under Settings, Profile, before it has a domain."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: APP_SECRET
+    label: App secret
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: POSTGRES_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+    characters: CHARACTERS_URL_SAFE
+databases: [db]
+compose: |
+  services:
+    umami:
+      image: ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      # Its migrations read the database's password from the URL alone, so a shell
+      # writes that from the secret as it starts, and the file names no password.
+      command: ["sh", "-c", "export DATABASE_URL=\"postgresql://umami:$$POSTGRES_PASSWORD@db:5432/umami\" && exec sh scripts/start-docker.sh"]
+      environment:
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        APP_SECRET: ${APP_SECRET}
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+      # Its heartbeat touches no database, and a sign-in does: one that doesn't exist is
+      # refused only once PostgreSQL has said so.
+      healthcheck:
+        test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/auth/login', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({username: 'health-check', password: 'health-check'})}).then(r => process.exit(r.status === 401 ? 0 : 1), () => process.exit(1))"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 30s
+    db:
+      image: postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: umami
+        POSTGRES_DB: umami
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      volumes:
+        - data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "umami", "-d", "umami"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}

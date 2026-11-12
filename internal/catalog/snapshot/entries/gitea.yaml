@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: gitea
+name: Gitea
+summary: Git hosting with code review
+description: |-
+  Gitea hosts Git repositories with the collaboration tools around them. Keep source code on your server, track issues, and review changes through pull requests in a browser.
+
+  This install gives you a Gitea server and persistent storage. Set up the first account after installation, then create or import your repositories.
+icon: media/gitea-icon.webp
+documentation: https://docs.gitea.com
+appSource: https://github.com/go-gitea/gitea
+features:
+  - "Git repositories on your server"
+  - "Pull requests and code review"
+  - "Issue tracking and project collaboration"
+  - "Repository permissions and webhooks"
+screenshots:
+  - path: media/gitea-repository.webp
+    caption: "Browse a Git repository in Gitea"
+    source: https://about.gitea.com/img/home-screenshot.png
+  - path: media/gitea-review.webp
+    caption: "Collaborate on code in Gitea"
+    source: https://about.gitea.com/img/home-screenshot-2.png
+category: developer tools
+version: "28.2.0"
+release: 3
+homepage: https://about.gitea.com
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/gitea.yaml
+web:
+  service: gitea
+firstVisitorOwns: true
+signups:
+  service: gitea
+  variable: GITEA__service__DISABLE_REGISTRATION
+  closed: "true"
+addressVariables:
+  - service: gitea
+    variable: GITEA__server__ROOT_URL
+    value: "https://{domain}/"
+notes:
+  - "Git over SSH answers on its SSH port, on this server alone."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: SSH_PORT
+    label: SSH port
+    hint: "Git over SSH, beside the server's own on 22."
+    type: INPUT_TYPE_PORT
+    defaultValue: "2222"
+  - name: SECRET_KEY
+    setOnce: true
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 64
+compose: |
+  services:
+    gitea:
+      image: gitea/gitea:28.2.0@sha256:30777c91280d973fa02be48b1ade735bd6859e8f6f7af3b4444d519437852504
+      restart: unless-stopped
+      environment:
+        GITEA__database__DB_TYPE: sqlite3
+        GITEA__security__INSTALL_LOCK: "true"
+        GITEA__server__SSH_PORT: ${SSH_PORT}
+        # Without one, Gitea encrypts with a key everyone knows, and can't change it later.
+        GITEA__security__SECRET_KEY: ${SECRET_KEY}
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+        - "127.0.0.1:${SSH_PORT}:22"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:3000/api/healthz"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}

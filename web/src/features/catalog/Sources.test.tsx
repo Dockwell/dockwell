@@ -153,18 +153,58 @@ describe("Catalog sources", () => {
     expect(await screen.findByRole("heading", { name: "example/catalog" })).toBeVisible();
   });
 
-  it("says Dockwell's own catalog is all it reads, with none, in a line and a button", async () => {
+  it("with no sources, offers Dockwell's own catalog back in one click, and any other repository", async () => {
     const user = userEvent.setup();
-    const { container } = renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [] }) }));
-    const empty = (await screen.findByRole("heading", { name: "Dockwell's own catalog is all it reads" })).closest(
+    let asked: SetCatalogSourceRequest | undefined;
+    const { container } = renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSources: () => ({ sources: [] }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_follows", ["refs/heads/main"]]) };
+        },
+      }),
+    );
+    const empty = (await screen.findByRole("heading", { name: "No catalogs to install from" })).closest(
       ".empty-state",
     ) as HTMLElement;
     expect(empty.querySelectorAll("p")).toHaveLength(1);
-    // One way in: the empty state's own button, not a second one in the header.
-    expect(screen.getAllByRole("button", { name: "Add a source" })).toHaveLength(1);
-    await user.click(within(empty).getByRole("button", { name: "Add a source" }));
-    expect(await screen.findByRole("dialog", { name: "Add a catalog source" })).toBeVisible();
+    // Its own buttons, not a second set in the header.
+    expect(screen.getAllByRole("button", { name: "Add another source" })).toHaveLength(1);
     await expectAccessible(container);
+    await user.click(within(empty).getByRole("button", { name: "Add Dockwell's catalog" }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked).toMatchObject({
+      name: "dockwell",
+      repository: "https://github.com/Dockwell/catalog",
+      path: "entries",
+      follow: "main",
+      commit: "",
+    });
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+  });
+
+  it("opens the form for another repository from the empty state", async () => {
+    const user = userEvent.setup();
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [] }) }));
+    await user.click(await screen.findByRole("button", { name: "Add another source" }));
+    expect(await screen.findByRole("dialog", { name: "Add a catalog source" })).toBeVisible();
+  });
+
+  it("calls Dockwell's own catalog so, and no other", async () => {
+    const own = create(CatalogSourceInfoSchema, {
+      name: "dockwell",
+      own: true,
+      entries: ["postgres"],
+      source: { repository: "https://github.com/Dockwell/catalog", path: "entries", commit: COMMIT, follow: "main" },
+    });
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [own, community] }) }));
+    const panel = (await screen.findByRole("heading", { name: "Dockwell's own" })).closest("section") as HTMLElement;
+    expect(within(panel).getByTitle("From the catalog dockwell")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Change Dockwell's own" })).toBeVisible();
+    const other = (await screen.findByRole("heading", { name: "example/catalog" })).closest("section") as HTMLElement;
+    expect(within(other).queryByText("Dockwell's own")).not.toBeInTheDocument();
   });
 
   it("asks for the repository alone, reads it as it's typed and pins the branch it leads with", async () => {
@@ -191,7 +231,7 @@ describe("Catalog sources", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Add a source" }));
+    await user.click(await screen.findByRole("button", { name: "Add another source" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
     // Nothing to fill but the repository: no name, folder or commit field until asked for.
     expect(within(sheet).getAllByRole("textbox")).toHaveLength(1);

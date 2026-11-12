@@ -493,6 +493,11 @@ message CatalogPin {
   // word here runs when file has its service, as an install from before
   // companions ran every service, and is otherwise as its entry says.
   map<string, bool> companions = 8;
+  // The build's commit it was installed from, for an install made from the catalog
+  // built into Dockwell before Dockwell/catalog: Dockwell moved its pin to the
+  // source that reads Dockwell/catalog, which its upgrades come from since (ADR
+  // 0077). Empty for any other install.
+  string built_in_commit = 9;
 }
 
 // Environment is a stage of a project, such as production or staging, with

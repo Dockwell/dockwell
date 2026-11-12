@@ -27,6 +27,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
+	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/gitfetch"
@@ -193,11 +194,16 @@ func (s *Sources) files(ctx context.Context, spec *resourcev1.CatalogSource) (co
 	return f.files, f.err
 }
 
-// kept is a commit's files as kept, if they are. What an older converter kept of
-// another store's commit isn't, as this one may convert more of it, or less: it's
-// converted again, and what was kept stays until that succeeds (staleKept). A commit
-// of Dockwell's format kept before sources held images is read again, as a whole.
+// kept is a commit's files as kept, if they are: Dockwell/catalog's commit this build
+// holds, from the snapshot, or one read before, from where it's kept. What an older
+// converter kept of another store's commit isn't, as this one may convert more of it,
+// or less: it's converted again, and what was kept stays until that succeeds
+// (staleKept). A commit of Dockwell's format kept before sources held images is read
+// again, as a whole.
 func (s *Sources) kept(spec *resourcev1.CatalogSource) (commitFiles, bool) {
+	if files, ok := snapshotFiles(spec); ok {
+		return files, true
+	}
 	kept, plan := s.folders(spec)
 	if kept == "" {
 		return commitFiles{}, false
@@ -536,6 +542,51 @@ func readKept(dir string) (commitFiles, error) {
 	return out, nil
 }
 
+// snapshotSpec is Dockwell's own catalog at the commit this build holds.
+func snapshotSpec() *resourcev1.CatalogSource {
+	return &resourcev1.CatalogSource{Repository: snapshot.Repository, Path: snapshot.Path, Commit: snapshot.Commit(), Follow: snapshot.Branch}
+}
+
+// atSnapshot says a source reads Dockwell/catalog's entries at the commit this build
+// holds, named as the snapshot names it.
+func atSnapshot(spec *resourcev1.CatalogSource) bool {
+	return spec.GetRepository() == snapshot.Repository && spec.GetPath() == snapshot.Path && spec.GetCommit() == snapshot.Commit() && !converted(spec)
+}
+
+// snapshotFiles are the files of Dockwell/catalog's commit this build holds, for a
+// source at that commit, as a read of it would keep them: no network, as on a first
+// boot offline, or an install that can't reach GitHub (ADR 0077).
+func snapshotFiles(spec *resourcev1.CatalogSource) (commitFiles, bool) {
+	if !atSnapshot(spec) {
+		return commitFiles{}, false
+	}
+	root := snapshot.Entries()
+	out := commitFiles{entries: map[string][]byte{}, media: map[string]error{}, mediaKept: true}
+	list, err := fs.ReadDir(root, ".")
+	if err != nil {
+		return commitFiles{}, false
+	}
+	for _, e := range list {
+		if e.Type().IsRegular() && entryFile(e.Name()) {
+			if out.entries[e.Name()], err = fs.ReadFile(root, e.Name()); err != nil {
+				return commitFiles{}, false
+			}
+		}
+	}
+	images, _ := fs.ReadDir(root, folder.Media)
+	for _, e := range images {
+		if !e.Type().IsRegular() || !folder.ImageName(e.Name()) {
+			continue
+		}
+		data, err := fs.ReadFile(root, folder.Media+"/"+e.Name())
+		if err != nil {
+			return commitFiles{}, false
+		}
+		_, out.media[e.Name()] = folder.Image(e.Name(), data)
+	}
+	return out, true
+}
+
 // readHead reads the first bytes of a file, as many as folder.Image looks at.
 func readHead(file string) ([]byte, error) {
 	f, err := os.Open(file) //nolint:gosec // what this kept, under the control plane's own folder
@@ -663,8 +714,8 @@ type stored struct {
 	scope    string
 }
 
-// storedSources reads the sources, in their names' order, which is the order their
-// entries come in.
+// storedSources reads the sources in the order their entries come in: Dockwell's
+// own first, then the rest in their names' order.
 func (h *Handler) storedSources(ctx context.Context) ([]stored, error) {
 	var out []stored
 	err := h.db.View(ctx, func(tx *store.Tx) error {
@@ -682,14 +733,40 @@ func (h *Handler) storedSources(ctx context.Context) ([]stored, error) {
 		}
 		return nil
 	})
-	slices.SortFunc(out, func(a, b stored) int { return strings.Compare(a.name, b.name) })
+	order(out)
 	return out, err
 }
 
-// origin is where an entry comes from, as the control plane knows it: Dockwell's own
-// catalog, at its build's commit, or a source, at the commit it's read at. What an
-// entry's own source field says, which a source's file writes itself, never counts.
-type origin struct{ catalog, repository, path, commit string }
+// order sorts sources as their entries come: Dockwell's own first, as its entries
+// came first when they were built in, then the rest by name.
+func order(list []stored) {
+	slices.SortFunc(list, func(a, b stored) int {
+		if a, b := isOwn(a.spec), isOwn(b.spec); a != b {
+			if a {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.name, b.name)
+	})
+}
+
+// isOwn says a source reads Dockwell's own catalog: Dockwell/catalog's entries, in
+// Dockwell's format, whatever its name, and whether it follows main or stands at a
+// commit.
+func isOwn(spec *resourcev1.CatalogSource) bool {
+	repo := strings.TrimSuffix(strings.TrimSuffix(spec.GetRepository(), "/"), ".git")
+	return strings.EqualFold(repo, snapshot.Repository) && spec.GetPath() == snapshot.Path && !converted(spec)
+}
+
+// origin is where an entry comes from, as the control plane knows it: a source, at the
+// commit it's read at, or for an install made before Dockwell/catalog, the catalog
+// built into Dockwell. own says the source is Dockwell's own catalog. What an entry's
+// own source field says, which a source's file writes itself, never counts.
+type origin struct {
+	catalog, repository, path, commit string
+	own                               bool
+}
 
 // originOf is where a pin says its install came from.
 func originOf(pin *resourcev1.CatalogPin) origin {
@@ -697,7 +774,10 @@ func originOf(pin *resourcev1.CatalogPin) origin {
 }
 
 func (o origin) words() string {
-	if o.catalog == "" {
+	switch {
+	case o.catalog == "":
+		return "the catalog built into Dockwell"
+	case o.own || isOwn(&resourcev1.CatalogSource{Repository: o.repository, Path: o.path}):
 		return "Dockwell's own catalog"
 	}
 	return "the catalog " + o.catalog
@@ -745,69 +825,136 @@ type alternative struct {
 	entry *catalogv1.Entry
 }
 
-// withSources adds each source's entries to the catalog, in their names' order. With
-// instead, it's what a plan would make of them: a source of each name in place of
-// what's stored, or none for nil. A source that can't be read now adds nothing, and
-// says why.
-func (h *Handler) withSources(ctx context.Context, c *catalog.Catalog, instead map[string]*resourcev1.CatalogSource) (sourced, error) {
+// planned is what a plan would make of the sources: a source of each name in place
+// of what's stored, or none for nil.
+type planned map[string]*resourcev1.CatalogSource
+
+// apply is the sources with a plan's in place: a source of each name instead's
+// in place of what's stored, or none for nil, in the order their entries come.
+func (instead planned) apply(list []stored) []stored {
+	if instead == nil {
+		return list
+	}
+	list = slices.DeleteFunc(slices.Clone(list), func(s stored) bool { _, ok := instead[s.name]; return ok })
+	for name, spec := range instead {
+		if spec != nil {
+			list = append(list, stored{name: name, spec: spec})
+		}
+	}
+	order(list)
+	return list
+}
+
+// withSources is the catalog: each source's entries, Dockwell's own first, then the
+// rest by name, with DOCKWELL_CATALOG_DIR's entries in place of Dockwell's own of
+// the same ID. With instead, it's what a plan would make of them. A source that
+// can't be read now adds nothing, and says why.
+func (h *Handler) withSources(ctx context.Context, instead planned) (sourced, error) {
 	list, err := h.storedSources(ctx)
 	if err != nil {
 		return sourced{}, err
 	}
-	if instead != nil {
-		list = slices.DeleteFunc(list, func(s stored) bool { _, ok := instead[s.name]; return ok })
-		for name, spec := range instead {
-			if spec != nil {
-				list = append(list, stored{name: name, spec: spec})
-			}
-		}
-		slices.SortFunc(list, func(a, b stored) int { return strings.Compare(a.name, b.name) })
-	}
 	if instead == nil {
 		h.sources.tidy(list)
 	}
-	out := sourced{catalog: c, origins: map[string]origin{}, also: map[string][]alternative{}, reads: map[string]sourceRead{}, unread: map[string]error{}}
+	list = instead.apply(list)
+	dir, err := catalog.FromDir()
+	if err != nil {
+		return sourced{}, err
+	}
+	out := sourced{catalog: &catalog.Catalog{}, origins: map[string]origin{}, also: map[string][]alternative{}, reads: map[string]sourceRead{}, unread: map[string]error{}}
 	taken := claims{}
-	for _, e := range c.All() {
-		taken[e.GetId()] = folder.Taken{By: "Dockwell's own catalog", Entry: e}
-		out.origins[e.GetId()] = origin{repository: e.GetSource().GetRepository(), commit: e.GetSource().GetCommit()}
+	// What DOCKWELL_CATALOG_DIR adds takes over Dockwell's own, or with none, stands
+	// for the catalog built into Dockwell, as it did before Dockwell/catalog.
+	// Its entries name images as Dockwell's own do, as media/<name>, which are its
+	// source's, at the commit the source is at.
+	overlay := func(o origin, spec *resourcev1.CatalogSource) {
+		for _, e := range dir.All() {
+			at := func(path string) string {
+				if image, ok := folder.MediaFile(path); ok && spec != nil {
+					return MediaPath(spec, image)
+				}
+				return path
+			}
+			e.Icon = at(e.GetIcon())
+			for _, shot := range e.GetScreenshots() {
+				shot.Path = at(shot.GetPath())
+			}
+			taken[e.GetId()] = folder.Taken{By: o.words(), Entry: e}
+			out.origins[e.GetId()] = o
+		}
+		out.catalog = out.catalog.Over(dir)
+		dir = &catalog.Catalog{}
+	}
+	if !slices.ContainsFunc(list, func(s stored) bool { return isOwn(s.spec) }) {
+		overlay(origin{}, nil)
 	}
 	for _, s := range list {
+		o := origin{catalog: s.name, repository: s.spec.GetRepository(), path: s.spec.GetPath(), commit: s.spec.GetCommit(), own: isOwn(s.spec)}
 		got, err := h.sources.readSource(ctx, s.name, s.spec, maps.Clone(taken))
 		if err != nil {
 			out.unread[s.name] = err
 			h.logger.WarnContext(ctx, "a catalog source can't be read, so its entries are left out until it can", "source", s.name, "url", s.spec.GetRepository(), "commit", s.spec.GetCommit(), "error", err)
-			continue
+		} else {
+			out.reads[s.name] = got
+			out.catalog = out.catalog.With(got.entries)
+			// Taken whether the read was kept or made, so a later source's clash is the
+			// same either way (its M4).
+			for _, e := range got.entries {
+				taken[e.GetId()] = folder.Taken{By: o.words(), Entry: e}
+				out.origins[e.GetId()] = o
+			}
+			for _, e := range got.also {
+				out.also[e.GetId()] = append(out.also[e.GetId()], alternative{from: o, entry: e})
+			}
 		}
-		out.reads[s.name] = got
-		out.catalog = out.catalog.With(got.entries)
-		// Taken whether the read was kept or made, so a later source's clash is the
-		// same either way (its M4).
-		from := origin{catalog: s.name, repository: s.spec.GetRepository(), path: s.spec.GetPath(), commit: s.spec.GetCommit()}
-		for _, e := range got.entries {
-			taken[e.GetId()] = folder.Taken{By: "the catalog " + s.name, Entry: e}
-			out.origins[e.GetId()] = from
-		}
-		for _, e := range got.also {
-			out.also[e.GetId()] = append(out.also[e.GetId()], alternative{from: from, entry: e})
+		if o.own {
+			overlay(o, s.spec)
 		}
 	}
 	return out, nil
 }
 
+// before is what the entries of the sources that come before a source say of each
+// ID, by whose it is, with spec in place of what's stored of name.
+func (h *Handler) before(ctx context.Context, name string, spec *resourcev1.CatalogSource) (claims, error) {
+	got, err := h.withSources(ctx, planned{name: nil})
+	if err != nil {
+		return nil, err
+	}
+	list, err := h.storedSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	list = planned{name: spec}.apply(list)
+	earlier := map[string]bool{}
+	for _, s := range list {
+		if s.name == name {
+			break
+		}
+		earlier[s.name] = true
+	}
+	taken := claims{}
+	for id, o := range got.origins {
+		// What DOCKWELL_CATALOG_DIR adds comes first with no source of Dockwell's own,
+		// and takes over that source's entries once there is one.
+		if earlier[o.catalog] || o.catalog == "" && !isOwn(spec) {
+			e, _ := got.catalog.Entry(id)
+			taken[id] = folder.Taken{By: o.words(), Entry: e}
+		}
+	}
+	return taken, nil
+}
+
 // handsNotes says what a plan for a source changes of where entries come from: an ID
 // it takes from another catalog, or that another gets from it, and each install that
 // would have no upgrade after it, or would have one again.
-func (h *Handler) handsNotes(ctx context.Context, ref resource.Ref, name string, instead map[string]*resourcev1.CatalogSource) ([]revision.Note, error) {
-	own, err := catalog.Load(h.commit)
+func (h *Handler) handsNotes(ctx context.Context, ref resource.Ref, name string, instead planned) ([]revision.Note, error) {
+	before, err := h.withSources(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	before, err := h.withSources(ctx, own, nil)
-	if err != nil {
-		return nil, err
-	}
-	after, err := h.withSources(ctx, own, instead)
+	after, err := h.withSources(ctx, instead)
 	if err != nil {
 		return nil, err
 	}
@@ -891,7 +1038,12 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 			return nil, authapi.Invalid(err)
 		}
 		at, err := h.sources.branchAt(ctx, spec)
-		if err != nil {
+		switch {
+		case err != nil && spec.GetRepository() == snapshot.Repository && spec.GetPath() == snapshot.Path:
+			// Dockwell's own catalog, with GitHub out of reach: the commit this build
+			// holds, which reads with no network, as a first boot's does.
+			at = snapshot.Commit()
+		case err != nil:
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "unreadable")
 		}
 		spec.Commit = at
@@ -899,8 +1051,12 @@ func (h *Handler) SetCatalogSource(ctx context.Context, req *connect.Request[doc
 	if err := (catalogsource.Type{}).Validate(spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	if err := h.sources.chooseFormat(ctx, spec, req.Msg.GetFormat()); err != nil {
-		return nil, err
+	// Dockwell's own catalog at the commit this build holds is in Dockwell's format,
+	// with nothing to read to tell, as when it's added back with GitHub out of reach.
+	if req.Msg.GetFormat() != resourcev1.CatalogFormat_CATALOG_FORMAT_UNSPECIFIED || !atSnapshot(spec) {
+		if err := h.sources.chooseFormat(ctx, spec, req.Msg.GetFormat()); err != nil {
+			return nil, err
+		}
 	}
 	plan, err := h.planSource(ctx, name, spec, "")
 	var cant unreadable
@@ -944,30 +1100,19 @@ type sourcePlan struct {
 // hands. branch, for a move Dockwell makes as the branch spec follows moved, is the
 // branch's name, and the plan says so in place of listing the repository's refs.
 func (h *Handler) planSource(ctx context.Context, name string, spec *resourcev1.CatalogSource, branch string) (sourcePlan, error) {
-	own, err := catalog.Load(h.commit)
+	// What comes before it: Dockwell's own, then each other source before it by name.
+	taken, err := h.before(ctx, name, spec)
 	if err != nil {
 		return sourcePlan{}, err
 	}
-	// What comes before it: Dockwell's own, then each other source before it by name.
 	others, err := h.storedSources(ctx)
 	if err != nil {
 		return sourcePlan{}, err
 	}
-	taken := claims{}
-	for _, e := range own.All() {
-		taken[e.GetId()] = folder.Taken{By: "Dockwell's own catalog", Entry: e}
-	}
 	out := sourcePlan{ref: resource.Ref{Kind: catalogsource.Kind, Name: name}}
 	for _, o := range others {
-		switch {
-		case o.name == name:
+		if o.name == name {
 			out.before = o.spec
-		case o.name < name:
-			if got, err := h.sources.readSource(ctx, o.name, o.spec, maps.Clone(taken)); err == nil {
-				for _, e := range got.entries {
-					taken[e.GetId()] = folder.Taken{By: "the catalog " + o.name, Entry: e}
-				}
-			}
 		}
 	}
 	files, err := h.sources.files(ctx, spec)
@@ -1031,7 +1176,7 @@ func (h *Handler) planSource(ctx context.Context, name string, spec *resourcev1.
 			Message: "It stops following " + was.GetFollow() + ", and stays at " + spec.GetCommit()[:12] + " until you move it.",
 		})
 	}
-	hands, err := h.handsNotes(ctx, ref, name, map[string]*resourcev1.CatalogSource{name: spec})
+	hands, err := h.handsNotes(ctx, ref, name, planned{name: spec})
 	if err != nil {
 		return sourcePlan{}, err
 	}
@@ -1109,25 +1254,21 @@ func (h *Handler) ListCatalogSources(ctx context.Context, _ *connect.Request[doc
 	return connect.NewResponse(&dockwellv1.ListCatalogSourcesResponse{Sources: infos}), nil
 }
 
-// sourceInfos says of each source, in their names' order, what the catalog shows of
+// sourceInfos says of each source, in the order their entries come, what the catalog shows of
 // it and leaves out, and for one that follows a branch, what the last look found.
 func (h *Handler) sourceInfos(ctx context.Context) ([]*dockwellv1.CatalogSourceInfo, error) {
-	own, err := catalog.Load(h.commit)
-	if err != nil {
-		return nil, err
-	}
 	list, err := h.storedSources(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s, err := h.withSources(ctx, own, nil)
+	s, err := h.withSources(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 	reads, unread := s.reads, s.unread
 	var out []*dockwellv1.CatalogSourceInfo
 	for _, s := range list {
-		info := &dockwellv1.CatalogSourceInfo{Name: s.name, Source: s.spec}
+		info := &dockwellv1.CatalogSourceInfo{Name: s.name, Source: s.spec, Own: isOwn(s.spec)}
 		if err := unread[s.name]; err != nil {
 			info.Unread = err.Error()
 		}
@@ -1205,7 +1346,7 @@ func (h *Handler) RemoveCatalogSource(ctx context.Context, req *connect.Request[
 		Message: "Its entries leave the catalog. What's installed from them keeps running, with no upgrade until a source of the same name, repository and folder has them again.",
 		Ref:     ref,
 	}}
-	hands, err := h.handsNotes(ctx, ref, name, map[string]*resourcev1.CatalogSource{name: nil})
+	hands, err := h.handsNotes(ctx, ref, name, planned{name: nil})
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}

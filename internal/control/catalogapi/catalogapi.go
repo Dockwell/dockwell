@@ -770,11 +770,7 @@ func (h *Handler) addPorts(ctx context.Context, tx *store.Tx, env string, taken 
 
 // catalog is Dockwell's own catalog, then each source's entries, as ADR 0055 has it.
 func (h *Handler) catalog(ctx context.Context) (sourced, error) {
-	c, err := catalog.Load(h.commit)
-	if err != nil {
-		return sourced{}, h.internal(ctx, err)
-	}
-	s, err := h.withSources(ctx, c, nil)
+	s, err := h.withSources(ctx, nil)
 	if err != nil {
 		return sourced{}, h.internal(ctx, err)
 	}

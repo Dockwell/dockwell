@@ -548,9 +548,12 @@ func testPlanApplyAndUndoThroughTheAPI(t *testing.T, backend store.Backend) {
 			break
 		}
 	}
-	// The oldest two are Dockwell's own: the default project, and the first alert rules.
-	if len(all) != 6 || all[0].GetId() != undo.GetId() || all[4].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL || all[5].GetProposedBy().GetKind() != dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL {
-		t.Errorf("ListChanges gave %d changes, newest %s; want 6, newest %s, the oldest two by Dockwell", len(all), all[0].GetId(), undo.GetId())
+	// The oldest are Dockwell's own, from the install's first start: the default
+	// project, the first alert rules and Dockwell's own catalog, however many a
+	// release makes. Before them come the four this test made.
+	first := firstStart(all)
+	if len(all)-first != 4 || first < 2 || all[0].GetId() != undo.GetId() {
+		t.Errorf("ListChanges gave %d changes, newest %s, %d of them Dockwell's first; want 4 and Dockwell's first, newest %s", len(all), all[0].GetId(), first, undo.GetId())
 	}
 
 	// The audit log has each step for the timeline: the change, who, from
@@ -1568,4 +1571,14 @@ func testAProjectGoesWithWhatsLeft(t *testing.T, backend store.Backend) {
 	if got := projects(); !slices.Equal(got, []string{"default", "shop"}) {
 		t.Errorf("after undoing it the projects are %v", got)
 	}
+}
+
+// firstStart counts the changes Dockwell made itself at the install's first start,
+// the oldest of a list newest first, as a list ends with them.
+func firstStart(changes []*dockwellv1.Change) int {
+	n := 0
+	for i := len(changes) - 1; i >= 0 && changes[i].GetProposedBy().GetKind() == dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL; i-- {
+		n++
+	}
+	return n
 }

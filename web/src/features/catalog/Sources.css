@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-.sources-page .sources-panel + .sources-panel {
-  margin-top: var(--space-4);
-}
-
 .sources-note {
   margin: 0;
   color: var(--ink-muted);

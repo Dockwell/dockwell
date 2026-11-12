@@ -1396,6 +1396,10 @@ type CatalogSourceInfo struct {
 	BranchCommit string `protobuf:"bytes,12,opt,name=branch_commit,json=branchCommit,proto3" json:"branch_commit,omitempty"`
 	// When Dockwell looks at the branch next, later after each look that failed.
 	NextCheck *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=next_check,json=nextCheck,proto3" json:"next_check,omitempty"`
+	// It's Dockwell's own catalog: it reads Dockwell/catalog's entries, and comes
+	// before every other source. See
+	// docs/adr/0077-dockwells-catalog-in-its-own-repository.md.
+	Own bool `protobuf:"varint,14,opt,name=own,proto3" json:"own,omitempty"`
 	// The IDs of the apps it has that the catalog lists from a catalog before it,
 	// whose entries in it are another choice of the same app, sorted.
 	Also          []string `protobuf:"bytes,20,rep,name=also,proto3" json:"also,omitempty"`
@@ -1494,6 +1498,13 @@ func (x *CatalogSourceInfo) GetNextCheck() *timestamppb.Timestamp {
 		return x.NextCheck
 	}
 	return nil
+}
+
+func (x *CatalogSourceInfo) GetOwn() bool {
+	if x != nil {
+		return x.Own
+	}
+	return false
 }
 
 func (x *CatalogSourceInfo) GetAlso() []string {
@@ -2146,7 +2157,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x1b\n" +
 	"\x19ListCatalogSourcesRequest\"V\n" +
 	"\x1aListCatalogSourcesResponse\x128\n" +
-	"\asources\x18\x01 \x03(\v2\x1e.dockwell.v1.CatalogSourceInfoR\asources\"\x9d\x03\n" +
+	"\asources\x18\x01 \x03(\v2\x1e.dockwell.v1.CatalogSourceInfoR\asources\"\xaf\x03\n" +
 	"\x11CatalogSourceInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12A\n" +
 	"\x06source\x18\x02 \x01(\v2).dockwell.resource.v1alpha1.CatalogSourceR\x06source\x12\x18\n" +
@@ -2158,7 +2169,8 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\aproblem\x18\v \x01(\tR\aproblem\x12#\n" +
 	"\rbranch_commit\x18\f \x01(\tR\fbranchCommit\x129\n" +
 	"\n" +
-	"next_check\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tnextCheck\x12\x12\n" +
+	"next_check\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tnextCheck\x12\x10\n" +
+	"\x03own\x18\x0e \x01(\bR\x03own\x12\x12\n" +
 	"\x04also\x18\x14 \x03(\tR\x04also\"f\n" +
 	"\x14CatalogSourceRefusal\x12\x12\n" +
 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x16\n" +

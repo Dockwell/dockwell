@@ -16,7 +16,7 @@ What a catalog source can do to the control plane and to what's installed, and w
 - **A source's repository, and the host that serves it,** are a stranger's, whoever named them. Everything it sends is checked as if it means harm: its pack, its trees' names, its entries and its words.
 - **An admin** can add, move or remove a source. Adding one reads the network and the disk when the plan is made, outside the revision store, and decides what anyone can install, so `SetCatalogSource` and `RemoveCatalogSource` need an admin's role on the install, checked before anything is read (ADR 0049). The revision engine holds the resource to an admin too, as it belongs to no project. Anyone with a role can list the sources. `ListCatalogSourceRefs`, which a form uses to check a repository as it's typed and to offer its branches, is an admin's too: it reads the network for whoever asks, through the same guarded client, with the same refusals, and answers with names and commit IDs alone.
 - **Whoever applies the plan** chooses to trust the source's entries, as anything they add is theirs. A source's entry is never *tested*, as ADR 0029 says of the reviewed list.
-- **A source that follows a branch** is trusted further: its repository's owner can change what the install offers, by pushing, with no person on the install. Adding it, or having it follow, is that trust, and its plan says so.
+- **A source that follows a branch** is trusted further: its repository's owner can change what the install offers, by pushing, with no person on the install. Adding it, or having it follow, is that trust, and its plan says so. Dockwell's own source follows Dockwell/catalog, whose main moves only by reviewed pull requests that pass the check a server makes.
 
 ## Threats and mitigations
 
@@ -47,6 +47,8 @@ What a catalog source can do to the control plane and to what's installed, and w
 | A pushed commit changes what runs | A move changes only what the catalog offers. An install whose entry has a newer release shows an upgrade, which a person plans and applies, as before. |
 | A source that follows moves with no one seeing it | Each move is Dockwell's own change, on Activity, with the notes a person's plan has: what the commit adds, changes and leaves out, and each install that loses or regains its upgrades. It can be undone. |
 | An undone move comes straight back | Dockwell keeps the commit it last moved each source to, and its hourly look never moves the source back to it: the source stays where the undo put it until the branch moves again. |
+| A first boot offline, or an install with no way out, has no catalog | The binary holds a snapshot of Dockwell/catalog at a pinned commit, made from the repository by a make target and checked against it in CI. Dockwell's own source starts at that commit, read from the snapshot, with no network. |
+| A source named `dockwell`, or one that names Dockwell/catalog, passes for Dockwell's own | Dockwell's own is the source that reads `https://github.com/Dockwell/catalog` at `entries`, whatever it's named, and nothing else. Its name decides nothing. |
 | A broken commit, or one that refuses every entry, empties the catalog | A commit that can't be read, or whose entries all fail when the commit before had some, leaves the source where it is. The Sources page says why, and an alert does too. |
 | A branch is force-pushed to an older or a stranger's commit | It's followed as any move is: the plan says which commit it is, as the branch's, and what it changes. Pinning the source to a commit stops following. |
 

@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: jellyfin
+name: Jellyfin
+summary: Stream your films, shows and music to any device
+description: |-
+  Jellyfin organizes and streams your own media collection. Browse films, television, music and other libraries from a browser or a compatible client, while keeping the server and files under your control.
+
+  Choose the media folder on your server during installation. Jellyfin can read that folder, and keeps its library metadata and settings in persistent storage. Media content is not included.
+icon: media/jellyfin-icon.webp
+documentation: https://jellyfin.org/docs/
+appSource: https://github.com/jellyfin/jellyfin
+features:
+  - "Film, television and music libraries"
+  - "Playback in browsers and compatible apps"
+  - "Separate users and viewing access"
+  - "Metadata and library organization"
+screenshots:
+  - path: media/jellyfin-home.webp
+    caption: "Jellyfin media libraries and recently added titles"
+    source: https://raw.githubusercontent.com/jellyfin/jellyfin.org/4acfc64a884ff59aa6b7329724b7c325ddb4580e/static/images/screenshots/home/10.8-home.png
+  - path: media/jellyfin-library.webp
+    caption: "Browse a Jellyfin media library"
+    source: https://raw.githubusercontent.com/jellyfin/jellyfin.org/4acfc64a884ff59aa6b7329724b7c325ddb4580e/static/images/screenshots/home/10.8-library.png
+category: media
+version: "12.3"
+release: 3
+homepage: https://jellyfin.org
+license: AGPL-3.0-only
+appLicense: GPL-2.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/jellyfin.yaml
+web:
+  service: jellyfin
+hostAccess: >-
+  The folder you give for your media, read-only, so Jellyfin can play what's in it
+  and change nothing.
+firstVisitorOwns: true
+notes:
+  - "Reads your media folder as /media."
+  - "Transcodes on the server's CPU, as it reaches no graphics card."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8096"
+  - name: MEDIA_DIR
+    label: Media folder
+    hint: "Jellyfin reads it as /media, and changes nothing in it."
+    type: INPUT_TYPE_TEXT
+    defaultValue: /srv/media
+compose: |
+  services:
+    jellyfin:
+      image: jellyfin/jellyfin:12.3@sha256:2038fe038ab3876a80f6e7b7e0aef6607b032c7dc0c9b3ad3296d0b2eba3bbb5
+      restart: unless-stopped
+      ports:
+        - "127.0.0.1:${PORT}:8096"
+      volumes:
+        - config:/config
+        - cache:/cache
+        - ${MEDIA_DIR}:/media:ro
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:8096/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 30s
+  volumes:
+    config: {}
+    cache: {}

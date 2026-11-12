@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: adminer
+name: Adminer
+summary: Manage PostgreSQL, MySQL and MariaDB from one page
+description: |-
+  Adminer gives you a small browser-based workspace for your databases. Browse tables, run SQL, edit records and export data without installing a desktop client.
+
+  This entry installs Adminer on its own. Connect it to a database you already run using that database's address and credentials.
+icon: media/adminer-icon.webp
+documentation: https://www.adminer.org/#usage
+appSource: https://github.com/vrana/adminer
+features:
+  - "Browse and edit database tables"
+  - "Run SQL queries in your browser"
+  - "Import and export database data"
+  - "Connect to PostgreSQL, MySQL and MariaDB"
+screenshots:
+  - path: media/adminer-table.webp
+    caption: "Browse and edit database tables in Adminer"
+    source: https://www.adminer.org/static/screenshots/table.webp
+category: databases
+version: "6.2.0"
+release: 3
+homepage: https://www.adminer.org
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/adminer.yaml
+web:
+  service: adminer
+notes:
+  - "Signs in to a database by an address its container reaches: host.docker.internal is this server."
+  - "PostgreSQL, MySQL and MariaDB from the catalog come with an admin tool of their own."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8086"
+compose: |
+  services:
+    adminer:
+      image: adminer:6.2.0@sha256:400af848ac3f57938abde4867677df1b195674d232c8896a27d111d04b9c088c
+      restart: unless-stopped
+      ports:
+        - "127.0.0.1:${PORT}:8080"
+      # This server, as Adminer reaches it, for a database it runs outside this project.
+      extra_hosts:
+        - host.docker.internal:host-gateway
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(str_contains((string) @file_get_contents('http://127.0.0.1:8080/'), 'auth[driver]') ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12

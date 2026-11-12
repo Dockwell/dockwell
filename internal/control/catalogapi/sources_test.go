@@ -136,11 +136,12 @@ var png = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
 // its name says is left out, and an entry that names it, or one the commit hasn't,
 // or the panel's own artwork, shows none in its place, saying so.
 func TestASourcesImagesAreItsOwn(t *testing.T) {
-	own, err := os.ReadFile("../../catalog/entries/memos.yaml")
+	own, err := os.ReadFile("../../catalog/snapshot/entries/memos.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
+	// As an entry built into Dockwell named its artwork, under /catalog-media/.
+	file := strings.ReplaceAll(strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1), ": media/", ": /catalog-media/")
 	file = regexp.MustCompile(`(?m)^icon: .*$`).ReplaceAllString(file, "icon: media/memos-icon.png")
 	shots := strings.Count(file, "  - path: /catalog-media/")
 	file = strings.Replace(file, "  - path: /catalog-media/", "  - path: media/fake.png\n    caption: A page, not an image\n    source: https://example.com/fake.png\n  - path: media/missing.webp\n    caption: Not in the commit\n    source: https://example.com/missing.webp\n  - path: /catalog-media/", 1)
@@ -210,11 +211,12 @@ func TestASourcesEntryCanAskForAServerPath(t *testing.T) {
 // apps it tests. The catalog shows a source's entry without it, so another
 // catalog's app can't pass for one of Dockwell's by its logo and screens.
 func TestASourcesEntryShowsNoBundledArtwork(t *testing.T) {
-	own, err := os.ReadFile("../../catalog/entries/memos.yaml")
+	own, err := os.ReadFile("../../catalog/snapshot/entries/memos.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
+	// As an entry built into Dockwell named its artwork, under /catalog-media/.
+	file := strings.ReplaceAll(strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1), ": media/", ": /catalog-media/")
 	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("a", 40)}
 	got := checkSource(t.Context(), "community", spec, commitFiles{entries: map[string][]byte{"memos-src.yaml": []byte(file)}}, claims{})
 	if len(got.entries) != 1 {

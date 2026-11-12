@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: rustfs
+name: RustFS
+summary: S3-compatible object storage, in place of MinIO
+description: |-
+  RustFS provides S3-compatible object storage on infrastructure you control. Keep files as objects in buckets and connect applications through an S3 client or SDK.
+
+  This entry includes the RustFS service and its web console, with persistent storage for object data. Use the generated credentials to sign in and create your first bucket.
+icon: media/rustfs-icon.webp
+documentation: https://docs.rustfs.com/
+appSource: https://github.com/rustfs/rustfs
+features:
+  - "S3-compatible object API"
+  - "Buckets and object management"
+  - "Included web console"
+  - "Storage on your own server"
+screenshots:
+  - path: media/rustfs-console.webp
+    caption: "Manage object storage in the RustFS console"
+    source: https://github.com/user-attachments/assets/7ee40bb4-3e46-4eac-b0d0-5fbeb85ff8f3
+category: storage
+version: "1.0.3"
+release: 3
+homepage: https://rustfs.com
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/rustfs.yaml
+web:
+  service: rustfs
+signIn:
+  userInput: "ACCESS_KEY"
+  passwordInput: "RUSTFS_SECRET_KEY"
+notes:
+  - "S3 clients on this server reach it at 127.0.0.1 on its S3 port, with the same keys."
+inputs:
+  - name: CONSOLE_PORT
+    label: Console port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "9001"
+  - name: S3_PORT
+    label: S3 port on this server
+    hint: "For S3 clients on this server, on 127.0.0.1."
+    type: INPUT_TYPE_PORT
+    defaultValue: "9000"
+  - name: ACCESS_KEY
+    label: Access key
+    hint: "Like a user name."
+    type: INPUT_TYPE_TEXT
+    defaultValue: admin
+  - name: RUSTFS_SECRET_KEY
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 40
+compose: |
+  services:
+    rustfs:
+      image: rustfs/rustfs:1.0.3@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b
+      restart: unless-stopped
+      environment:
+        RUSTFS_ACCESS_KEY: ${ACCESS_KEY}
+        RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+        RUSTFS_ADDRESS: 0.0.0.0:9000
+        RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+        RUSTFS_CONSOLE_ENABLE: "true"
+        RUSTFS_OBS_LOG_DIRECTORY: ""
+      ports:
+        - "127.0.0.1:${S3_PORT}:9000"
+        - "127.0.0.1:${CONSOLE_PORT}:9001"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD-SHELL", "curl -fsS --max-time 4 http://127.0.0.1:9000/health && curl -fsS --max-time 4 http://127.0.0.1:9001/rustfs/console/health"]
+        interval: 10s
+        timeout: 10s
+        retries: 12
+        start_period: 20s
+  volumes:
+    data: {}

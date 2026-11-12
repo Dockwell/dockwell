@@ -71,4 +71,7 @@ What an install runs must still be what a person chose (PRD principle 2). A cata
 ## As built
 
 - **Pull request 1 (#543):** images from a source, following a branch, `CheckCatalogSource`, the stuck alert, `dockwell-catalog check`, and the Sources page's follow line, "Check now" and "Pin here".
-- **Pull request 2 (#543):** the Dockwell/catalog repository, the `dockwell` source and its first change, moving the built-in pins, and the embedded snapshot with its make target and CI check.
+  - Activity leaves out the changes Dockwell makes on its own, as bookkeeping, but for a rollback; a change to a catalog source now shows too, so a move along a branch is there to see and undo.
+  - A commit kept by a Dockwell from before sources held images is read again, as a whole, so an upgrade doesn't leave a source's entries without their images.
+- **Pull request 2 (#543):** the `dockwell` source and its first change, moving the built-in pins, the embedded snapshot (`internal/catalog/snapshot`, `make catalog-snapshot`, and the Go job's check against Dockwell/catalog), and the Sources page's mark for Dockwell's own, with one click to add it back. Added back with GitHub out of reach, it starts at the commit the build holds.
+- **Dockwell/catalog** started at commit `e907f83`, made from the built-in entries with their images moved beside them; its CI runs `dockwell-catalog check` from the commit in `.github/dockwell-commit`.

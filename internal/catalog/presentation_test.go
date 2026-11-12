@@ -81,7 +81,7 @@ func TestBuiltInPresentationAndMedia(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := "../../web/public/catalog-media"
+	root := "snapshot/entries/media"
 	raw, err := os.ReadFile(filepath.Join(root, "manifest.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +100,7 @@ func TestBuiltInPresentationAndMedia(t *testing.T) {
 		if hex.EncodeToString(hash[:]) != item.SHA256 || !strings.HasPrefix(item.URL, "https://") {
 			t.Errorf("%s has lost its provenance", item.File)
 		}
-		credited["/catalog-media/"+item.File] = true
+		credited["media/"+item.File] = true
 	}
 	for _, e := range c.All() {
 		t.Run(e.GetId(), func(t *testing.T) {

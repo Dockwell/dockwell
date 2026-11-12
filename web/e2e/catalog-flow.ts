@@ -359,10 +359,16 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   const back = (await docker()).filter((c) => c.image.startsWith("notes:")).map((c) => c.image);
   if (back.length !== 1 || !back[0]?.includes(FIRST_DIGEST)) fail(`after the undo, Docker runs ${back.join(", ")}`);
 
-  step("catalog: its sources are the catalogs it reads beside its own, none until a plan adds one");
+  step("catalog: its sources start with Dockwell's own, following main, which a test leaves where the build put it");
   await page.goto(`${origin}/catalog`);
   await page.getByRole("link", { name: "Sources", exact: true }).first().click();
-  await page.getByRole("heading", { name: "Dockwell's own catalog is all it reads" }).waitFor();
+  const dockwells = page.locator("section.sources-panel", {
+    has: page.getByRole("heading", { name: "Dockwell's own" }),
+  });
+  await dockwells.getByTitle("From the catalog dockwell").waitFor();
+  await dockwells.getByText("Following main").waitFor();
+  if ((await dockwells.locator(".sources-apps li").count()) < 30)
+    fail("Dockwell's own catalog shows fewer than 30 apps");
   await shoot(page, "catalog-sources");
 
   // The form reads a repository as it's typed. An address of this server is refused

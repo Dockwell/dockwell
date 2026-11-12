@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: grafana
+name: Grafana
+summary: Dashboards for metrics and logs
+description: |-
+  Grafana turns metrics and logs into dashboards you can explore. Connect your data sources, build panels for the signals that matter, and share a common view of how your systems behave.
+
+  This entry installs Grafana with persistent configuration and dashboard storage. Add your own metrics or log data source after installation; a monitoring database is not included.
+icon: media/grafana-icon.webp
+documentation: https://grafana.com/docs/grafana/latest/
+appSource: https://github.com/grafana/grafana
+features:
+  - "Dashboards with interactive panels"
+  - "Connections to metrics and log data sources"
+  - "Time ranges and query exploration"
+  - "Dashboard sharing and access controls"
+screenshots:
+  - path: media/grafana-dashboard.webp
+    caption: "A dashboard of system metrics in Grafana"
+    source: https://raw.githubusercontent.com/grafana/grafana/905a2379d5e165f3240846c25d9a679b23d9f51f/public/img/dashboard-library/dashboard_library_1.jpg
+category: monitoring
+version: "13.2.4"
+release: 3
+homepage: https://grafana.com/oss/grafana/
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/grafana.yaml
+web:
+  service: grafana
+signIn:
+  user: "admin"
+  passwordInput: "GRAFANA_PASSWORD"
+  changedIn: "your profile"
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3000"
+  - name: GRAFANA_PASSWORD
+    setOnce: true
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: GRAFANA_SECRET_KEY
+    setOnce: true
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 40
+compose: |
+  services:
+    grafana:
+      image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+      restart: unless-stopped
+      environment:
+        GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+        # Without one, Grafana encrypts with the key its documentation publishes.
+        GF_SECURITY_SECRET_KEY: ${GRAFANA_SECRET_KEY}
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+      volumes:
+        - data:/var/lib/grafana
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:3000/api/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { monogram } from "./useCatalog";
 
-/** Catalog artwork is shipped with the panel, never loaded from an entry's host. */
+/** Catalog artwork is served by the control plane, from what it read of the catalog, never loaded from an entry's host. */
 export function mediaPath(path: string): string | undefined {
   return /^\/catalog-media\/[a-z0-9]+(?:[-_/][a-z0-9]+)*\.(?:svg|png|jpg|jpeg|webp|avif)$/.test(path)
     ? path

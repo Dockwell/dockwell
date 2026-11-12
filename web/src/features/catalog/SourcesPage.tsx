@@ -70,11 +70,29 @@ export function SourcesPage() {
   const set = may(CatalogService.method.setCatalogSource, { install: true });
   const remove = may(CatalogService.method.removeCatalogSource, { install: true });
   const check = may(CatalogService.method.checkCatalogSource, { install: true });
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const client = useMemo(() => createClient(CatalogService, transport), [transport]);
+  // Dockwell's own catalog, back in one click, following its main branch as a new install's does.
+  const addOwn = () =>
+    sheet.open({
+      kind: "plan",
+      make: () =>
+        client.setCatalogSource({
+          name: nameFor(
+            OWN_REPOSITORY,
+            (list ?? []).map((source) => source.name),
+          ),
+          repository: OWN_REPOSITORY,
+          path: "entries",
+          follow: "main",
+        }),
+    });
   return (
     <Page
       title={t`Catalog sources`}
       back="/catalog"
-      lead={t`Catalogs Dockwell reads apps from beside its own`}
+      lead={t`The catalogs Dockwell installs apps from`}
       actions={
         // With none yet, the empty state's own button is the way in.
         !list?.length ? undefined : (
@@ -119,7 +137,7 @@ export function SourcesPage() {
       ) : list.length === 0 ? (
         <EmptyState
           icon="branch"
-          title={<Trans>Dockwell's own catalog is all it reads</Trans>}
+          title={<Trans>No catalogs to install from</Trans>}
           action={
             <>
               <SourcePresets
@@ -127,14 +145,17 @@ export function SourcesPage() {
                 off={set.off}
                 onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
               />
-              <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
-                <Trans>Add a source</Trans>
+              <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={addOwn}>
+                <Trans>Add Dockwell's catalog</Trans>
+              </Button>
+              <Button size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
+                <Trans>Add another source</Trans>
               </Button>
             </>
           }
         >
           <p>
-            <Trans>A source adds the apps in a public Git repository.</Trans>
+            <Trans>Dockwell's own apps, kept up to date, or any public Git repository.</Trans>
           </p>
         </EmptyState>
       ) : (
@@ -390,6 +411,9 @@ function FollowLine({
     </>
   );
 }
+
+/** Dockwell's own catalog, which every install starts with (ADR 0077). */
+const OWN_REPOSITORY = "https://github.com/Dockwell/catalog";
 
 /** A commit in full, as a source is pinned by one. */
 const COMMIT = /^[0-9a-f]{40}$/;

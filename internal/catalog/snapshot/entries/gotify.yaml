@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: gotify
+name: Gotify
+summary: Push notifications from your apps to your devices
+description: |-
+  Gotify sends and receives push notifications on your own server. Scripts and apps post a message with a simple HTTP request, and you read it in the web interface or on a phone with the Gotify app.
+
+  This entry runs the Gotify server with a data volume for its messages, applications and users. Dockwell generates the first admin password.
+icon: media/gotify-icon.webp
+documentation: https://gotify.net/docs/
+appSource: https://github.com/gotify/server
+features:
+  - "Messages over a simple HTTP API"
+  - "A web interface with live updates"
+  - "Applications and clients with their own tokens"
+  - "Message priorities"
+screenshots:
+  - path: media/gotify-messages.webp
+    caption: "Messages in the Gotify web interface"
+    source: https://raw.githubusercontent.com/gotify/server/01086b95a8b69ee87383f6e8bcae601d8c33384b/ui.png
+category: monitoring
+version: "3.1.1"
+release: 1
+homepage: https://gotify.net
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/gotify.yaml
+web:
+  service: gotify
+signIn:
+  user: "admin"
+  passwordInput: "GOTIFY_PASSWORD"
+  changedIn: "Change password"
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8089"
+  - name: GOTIFY_PASSWORD
+    setOnce: true
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    gotify:
+      image: gotify/server:3.1.1@sha256:44fc5bbd1c0618878e33073d38c2c13126b48f245c3fe12236b1da48eb203b86
+      restart: unless-stopped
+      environment:
+        GOTIFY_DEFAULTUSER_NAME: admin
+        GOTIFY_DEFAULTUSER_PASS: ${GOTIFY_PASSWORD}
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      volumes:
+        - data:/app/data
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:80/health"]
+        interval: 10s
+        timeout: 5s
+        retries: 12
+        start_period: 10s
+  volumes:
+    data: {}

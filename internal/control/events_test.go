@@ -141,6 +141,9 @@ func (w *eventWatch) until(what string, ok func(*eventWatch) bool) {
 // included; and no secret anywhere.
 func TestTheTimelineThroughTheAPI(t *testing.T) { storetest.Each(t, testTheTimelineThroughTheAPI) }
 
+// ownCatalog is what the change that gives an install Dockwell's own catalog says.
+const ownCatalog = "Add Dockwell's own catalog, following main"
+
 func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
@@ -152,8 +155,9 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Errorf("the first message = %v, want the whole snapshot", watch.first)
 	}
 	// Claiming signed the owner in with a passkey; the setup change isn't
-	// on the timeline.
-	if got := actions(watch.first.GetEvents()); !slices.Equal(got, []string{"auth.sign_in", "passkey.add", "owner.claim", "claim_link.create"}) {
+	// on the timeline, and Dockwell's own catalog, which changes what can be
+	// installed, is (ADR 0077).
+	if got := actions(watch.first.GetEvents()); !slices.Equal(got, []string{"auth.sign_in", "passkey.add", "owner.claim", "change.applied " + ownCatalog, "claim_link.create"}) {
 		t.Errorf("the snapshot holds %v, want the claim's events newest first", got)
 	}
 	signIn := watch.first.GetEvents()[0]
@@ -304,7 +308,7 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	onlyChanges := listEvents(t, ev, &dockwellv1.ListEventsRequest{Kinds: []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_CHANGE}})
 	if got := actions(onlyChanges); !slices.Equal(got, []string{
 		"change.planned Run cache", "change.applied Roll back Break web", "change.failed Break web", "change.applied Undo: Run web",
-		"change.applied Run web",
+		"change.applied Run web", "change.applied " + ownCatalog,
 	}) {
 		t.Errorf("the changes are %v", got)
 	}
@@ -327,8 +331,8 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 	byDockwell := listEvents(t, ev, &dockwellv1.ListEventsRequest{ActorKind: dockwellv1.ActorKind_ACTOR_KIND_DOCKWELL})
 	// The test enrolls hz-1 as the control server, which Dockwell joins
 	// itself.
-	if got := actions(byDockwell); !slices.Equal(got, []string{"change.applied Roll back Break web", "server.join"}) {
-		t.Errorf("what Dockwell did is %v, want the rollback and hz-1 joining", got)
+	if got := actions(byDockwell); !slices.Equal(got, []string{"change.applied Roll back Break web", "server.join", "change.applied " + ownCatalog}) {
+		t.Errorf("what Dockwell did is %v, want the rollback, hz-1 joining and Dockwell's own catalog", got)
 	}
 	byShell := listEvents(t, ev, &dockwellv1.ListEventsRequest{ActorId: "mira@hz-1"})
 	if len(byShell) != 1 || byShell[0].GetId() != linkEvent {
@@ -350,8 +354,8 @@ func testTheTimelineThroughTheAPI(t *testing.T, backend store.Backend) {
 		Kinds:     []dockwellv1.EventKind{dockwellv1.EventKind_EVENT_KIND_CHANGE},
 		PageToken: changesOnly.first.GetNextPageToken(),
 	})
-	if len(rest) != 3 {
-		t.Errorf("after the snapshot ListEvents has %v, want the three older changes", actions(rest))
+	if len(rest) != 4 {
+		t.Errorf("after the snapshot ListEvents has %v, want the four older changes", actions(rest))
 	}
 	apply(t, script, byToken)
 	changesOnly.until("the token's change applies", func(w *eventWatch) bool {
@@ -437,13 +441,14 @@ func testProjectEventsAndResources(t *testing.T, backend store.Backend) {
 	for _, r := range all.Msg.GetResources() {
 		made = append(made, r.GetResource().GetKind()+" "+r.GetResource().GetName())
 	}
-	// An install starts with its alert rules too, after its default project.
+	// An install starts with its alert rules too, after its default project, then
+	// Dockwell's own catalog (ADR 0077).
 	var rules []string
 	for _, d := range alert.Defaults() {
 		rules = append(rules, "alert.rule "+d.Name)
 	}
 	if !slices.Equal(made, slices.Concat([]string{"project default", "environment production"}, rules, []string{
-		"project shop", "environment production", "environment staging", "environment qa",
+		"catalog.source dockwell", "project shop", "environment production", "environment staging", "environment qa",
 	})) {
 		t.Errorf("every resource, oldest first, is %v", made)
 	}

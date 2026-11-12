@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: new-api
+name: new-api
+summary: One API and account system for your model providers
+description: |-
+  new-api is a gateway that puts one API and one account system in front of your model providers. Add each provider as a channel, hand out API tokens with quotas, and see who used what.
+
+  This entry runs new-api with its built-in SQLite database on a data volume. You make the owner account on first visit, then add your provider keys as channels.
+icon: media/new-api-icon.webp
+documentation: https://docs.newapi.pro
+appSource: https://github.com/QuantumNous/new-api
+features:
+  - "One API for many model providers"
+  - "Tokens with quotas and expiry"
+  - "Usage logs and a dashboard"
+  - "Users and groups with their own limits"
+screenshots:
+  - path: media/new-api-dashboard.webp
+    caption: "The new-api dashboard"
+    source: https://raw.githubusercontent.com/QuantumNous/new-api/bd6bb53019fb7e21804b31ab7365c9b2097f4b6c/assets/screenshots/dashboard.en.jpg
+category: ai
+version: "0.13.2"
+release: 1
+homepage: https://www.newapi.ai
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/new-api.yaml
+web:
+  service: new-api
+firstVisitorOwns: true
+notes:
+  - "Leave the SESSION_SECRET secret as it is: changing it signs everyone out."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3004"
+  - name: SESSION_SECRET
+    label: Session secret
+    type: INPUT_TYPE_SECRET
+    generate: 48
+compose: |
+  services:
+    new-api:
+      image: calciumion/new-api:v0.13.2@sha256:0c6aa7afce4747f0fc4fab9c7934d7c2e4b69fda6844065acca6a5e1bf258506
+      restart: unless-stopped
+      environment:
+        SESSION_SECRET: ${SESSION_SECRET}
+        SQLITE_PATH: /data/new-api.db
+      ports:
+        - "127.0.0.1:${PORT}:3000"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/status"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 10s
+  volumes:
+    data: {}

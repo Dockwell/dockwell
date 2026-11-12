@@ -464,6 +464,10 @@ message CatalogSourceInfo {
   string branch_commit = 12;
   // When Dockwell looks at the branch next, later after each look that failed.
   google.protobuf.Timestamp next_check = 13;
+  // It's Dockwell's own catalog: it reads Dockwell/catalog's entries, and comes
+  // before every other source. See
+  // docs/adr/0077-dockwells-catalog-in-its-own-repository.md.
+  bool own = 14;
   // The IDs of the apps it has that the catalog lists from a catalog before it,
   // whose entries in it are another choice of the same app, sorted.
   repeated string also = 20;

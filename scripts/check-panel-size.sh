@@ -29,12 +29,13 @@
 # domain, databases, firewall, history, drills, runtimes and more), and with
 # runtimes (#358) the code reached 3.25 MB. A control plane with its agent idled
 # at 66.2 MB of its 250 MB budget, so allow the code 3.75 MB.
+# On 2026-11-12 the catalog's artwork moved out of the panel, into Dockwell/catalog
+# and the binary's snapshot of it, which the control plane serves from (ADR 0077),
+# so the panel holds code alone. The catalog's own checks hold its images.
 set -euo pipefail
 
 code_limit=3750000
-media_limit=2250000
 dir=${1:-internal/panel/dist/app}
-media=catalog-media
 
 if [[ ! -f $dir/index.html ]]; then
   echo "check-panel-size: $dir has no index.html, so there's no panel build to measure. Run make web first." >&2
@@ -42,23 +43,14 @@ if [[ ! -f $dir/index.html ]]; then
 fi
 # The size and count of the files under a folder that are read at start.
 measure() { find "$@" -type f ! -name '*.br' ! -name '*.gz' -printf '%s\n' | awk '{ s += $1; n++ } END { print s + 0, n + 0 }'; }
-read -r code code_files < <(measure "$dir" -path "$dir/$media" -prune -o)
-read -r art art_files < <(if [[ -d $dir/$media ]]; then measure "$dir/$media"; else echo 0 0; fi)
+read -r code code_files < <(measure "$dir")
 mb() { awk -v b="$1" 'BEGIN { printf "%.2f MB", b / 1e6 }'; }
-failed=0
 if ((code > code_limit)); then
   echo "check-panel-size: the panel's code is $(mb "$code") in $code_files files, over its $(mb "$code_limit") limit. The control plane reads all of it at start, so its idle memory grows by about as much. Find what grew with the Bundle size table in this job's summary, or raise code_limit in scripts/check-panel-size.sh if it's worth it, and say why in the pull request." >&2
-  failed=1
-fi
-if ((art > media_limit)); then
-  echo "check-panel-size: the catalog's bundled artwork is $(mb "$art") in $art_files files, over its $(mb "$media_limit") limit. The control plane reads all of it at start too. Check each new image is WebP at the size web/public/catalog-media/README.md gives and that no notice is kept twice, or raise media_limit in scripts/check-panel-size.sh, and say why in the pull request." >&2
-  failed=1
-fi
-if ((failed)); then
   exit 1
 fi
-said="the panel's code is $(mb "$code") in $code_files files, within its $(mb "$code_limit") limit, and the catalog's artwork $(mb "$art") in $art_files files, within its $(mb "$media_limit") limit"
+said="the panel's code is $(mb "$code") in $code_files files, within its $(mb "$code_limit") limit"
 echo "check-panel-size: $said."
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
-  echo "The control plane reads both at start: $said." >>"$GITHUB_STEP_SUMMARY"
+  echo "The control plane reads it all at start: $said." >>"$GITHUB_STEP_SUMMARY"
 fi

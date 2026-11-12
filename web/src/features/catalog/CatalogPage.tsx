@@ -13,7 +13,16 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, installOf, useAlso, useCatalog, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
+import {
+  categoryLabel,
+  installOf,
+  stranger,
+  useAlso,
+  useCatalog,
+  useInstalls,
+  useOrigins,
+  useSourceNames,
+} from "./useCatalog";
 import "./Catalog.css";
 
 export interface CatalogPageProps {
@@ -196,7 +205,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
                 entry={entry}
                 category={words(entry.category)}
                 search={search}
-                source={origins.origins.get(entry.id)?.name}
+                source={stranger(origins.origins, entry.id)?.name}
                 also={also.get(entry.id)}
                 named={named}
                 installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins, origins.also))}

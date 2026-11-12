@@ -60,11 +60,11 @@ func TestItReadsOverlays(t *testing.T) {
 // that isn't an entry, is named with why, and fails the check.
 func TestItChecksAFolder(t *testing.T) {
 	dir := t.TempDir()
-	own, err := os.ReadFile("../../internal/catalog/entries/memos.yaml")
+	own, err := os.ReadFile("../../internal/catalog/snapshot/entries/memos.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry := strings.ReplaceAll(string(own), "/catalog-media/", "media/")
+	entry := string(own)
 	write := func(name string, data []byte) {
 		t.Helper()
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o750); err != nil {
@@ -77,7 +77,7 @@ func TestItChecksAFolder(t *testing.T) {
 	write("memos.yaml", []byte(entry))
 	write("README.md", []byte("A catalog.\n"))
 	for _, image := range []string{"memos-icon.webp", "memos-timeline.webp"} {
-		data, err := os.ReadFile("../../web/public/catalog-media/" + image)
+		data, err := os.ReadFile("../../internal/catalog/snapshot/entries/media/" + image)
 		if err != nil {
 			t.Fatal(err)
 		}

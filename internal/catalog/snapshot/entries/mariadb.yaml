@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: mariadb
+name: MariaDB
+summary: Relational database, with phpMyAdmin to manage it if you want it
+description: |-
+  MariaDB is a relational database for applications that use SQL. It stores structured data with transactions, indexes and familiar MySQL-compatible tools.
+
+  phpMyAdmin, to browse tables and run queries from your browser, is one switch away when you install it, or later from its page. Database data lives on a persistent volume, and Dockwell generates the initial root password.
+icon: media/mariadb-icon.webp
+documentation: https://mariadb.com/docs/server
+appSource: https://github.com/MariaDB/server
+features:
+  - "SQL database with transactions"
+  - "MySQL-compatible client tools"
+  - "phpMyAdmin web interface, if you want it"
+  - "Persistent database storage"
+screenshots:
+  - path: media/phpmyadmin-tables.webp
+    caption: "Manage MariaDB tables in phpMyAdmin, which you can add with this install"
+    source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
+category: databases
+version: "12.3.3"
+release: 5
+homepage: https://mariadb.org
+license: AGPL-3.0-only
+appLicense: GPL-2.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/mariadb.yaml
+web:
+  service: phpmyadmin
+signIn:
+  user: "root"
+  passwordInput: "MARIADB_ROOT_PASSWORD"
+companions:
+  - service: phpmyadmin
+    label: phpMyAdmin
+    purpose: Browse and edit tables in your browser
+    inputs: [ADMIN_PORT]
+inputs:
+  - name: ADMIN_PORT
+    label: phpMyAdmin port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8083"
+  - name: MARIADB_ROOT_PASSWORD
+    label: Root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    db:
+      image: mariadb:12.3.3@sha256:d46e102fa8b9b72bfcdeb56f9dd538742092119dc8b11f31fe662605cd234cd9
+      restart: unless-stopped
+      environment:
+        MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+        MARIADB_AUTO_UPGRADE: "1"
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+    phpmyadmin:
+      image: phpmyadmin:5.2.3@sha256:f54a37b908b26caa7032c4eb0c7f3495fdd90208a06eed9c4b2c8e691dd1662c
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        PMA_HOST: db
+      ports:
+        - "127.0.0.1:${ADMIN_PORT}:80"
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 80) ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}

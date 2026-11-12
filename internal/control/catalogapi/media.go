@@ -5,12 +5,14 @@ package catalogapi
 import (
 	"bytes"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"regexp"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/catalog/folder"
+	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 )
 
 // MediaRoute is the pattern the control plane serves sources' images at, as
@@ -31,7 +33,7 @@ var (
 func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key, commit, image := r.PathValue("key"), r.PathValue("commit"), r.PathValue("image")
-		if s.Dir == "" || !mediaKey.MatchString(key) || !mediaCommit.MatchString(commit) || !folder.ImageName(image) {
+		if !mediaKey.MatchString(key) || !mediaCommit.MatchString(commit) || !folder.ImageName(image) {
 			http.NotFound(w, r)
 			return
 		}
@@ -62,8 +64,16 @@ func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 }
 
 // readImage reads an image a source's commit keeps, through os.Root, so no name
-// reaches out of the control plane's folder of sources.
+// reaches out of the control plane's folder of sources, or for Dockwell/catalog's
+// commit this build holds, from the snapshot.
 func (s *Sources) readImage(key, commit, image string) ([]byte, time.Time, error) {
+	if own := snapshotSpec(); key == keyOf(own) && commit == own.GetCommit() {
+		data, err := fs.ReadFile(snapshot.Entries(), folder.Media+"/"+image)
+		return data, time.Time{}, err
+	}
+	if s.Dir == "" {
+		return nil, time.Time{}, os.ErrNotExist
+	}
 	root, err := os.OpenRoot(s.Dir)
 	if err != nil {
 		return nil, time.Time{}, err

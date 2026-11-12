@@ -6690,17 +6690,20 @@ msgstr "{left, plural, one {# app left out, and why} other {# apps left out, and
 msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
 msgstr "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
 
-msgid "A source adds the apps in a public Git repository."
-msgstr "A source adds the apps in a public Git repository."
-
 msgid "A source is already named {name}. Use another name."
 msgstr "A source is already named {name}. Use another name."
+
+msgid "Add Dockwell's catalog"
+msgstr "Add Dockwell's catalog"
 
 msgid "Add a catalog source"
 msgstr "Add a catalog source"
 
 msgid "Add a source"
 msgstr "Add a source"
+
+msgid "Add another source"
+msgstr "Add another source"
 
 msgid "Another commit"
 msgstr "Another commit"
@@ -6717,9 +6720,6 @@ msgstr "Can't be read now, so its apps are out of the catalog"
 
 msgid "Catalog sources"
 msgstr "Catalog sources"
-
-msgid "Catalogs Dockwell reads apps from beside its own"
-msgstr "Catalogs Dockwell reads apps from beside its own"
 
 msgctxt "catalog source"
 msgid "Change"
@@ -6744,8 +6744,8 @@ msgstr "Didn't follow {branch}"
 msgid "Dockwell can't read that commit: {0}"
 msgstr "Dockwell can't read that commit: {0}"
 
-msgid "Dockwell's own catalog is all it reads"
-msgstr "Dockwell's own catalog is all it reads"
+msgid "Dockwell's own apps, kept up to date, or any public Git repository."
+msgstr "Dockwell's own apps, kept up to date, or any public Git repository."
 
 msgid "Entries at {folderWords}"
 msgstr "Entries at {folderWords}"
@@ -6775,6 +6775,9 @@ msgstr "Named {name} · entries at {folderWords}"
 msgid "No branch or tag is at this commit."
 msgstr "No branch or tag is at this commit."
 
+msgid "No catalogs to install from"
+msgstr "No catalogs to install from"
+
 msgctxt "catalog source"
 msgid "Pin here"
 msgstr "Pin here"
@@ -6792,6 +6795,9 @@ msgstr "Remove {said}"
 msgctxt "catalog source"
 msgid "Store"
 msgstr "Store"
+
+msgid "The catalogs Dockwell installs apps from"
+msgstr "The catalogs Dockwell installs apps from"
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
 msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as community."

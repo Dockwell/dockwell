@@ -8064,6 +8064,13 @@ components:
                          false for one left out, so an upgrade keeps the choice. A companion with no
                          word here runs when file has its service, as an install from before
                          companions ran every service, and is otherwise as its entry says.
+                builtInCommit:
+                    type: string
+                    description: |-
+                        The build's commit it was installed from, for an install made from the catalog
+                         built into Dockwell before Dockwell/catalog: Dockwell moved its pin to the
+                         source that reads Dockwell/catalog, which its upgrades come from since (ADR
+                         0077). Empty for any other install.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -8180,6 +8187,12 @@ components:
                     type: string
                     description: When Dockwell looks at the branch next, later after each look that failed.
                     format: date-time
+                own:
+                    type: boolean
+                    description: |-
+                        It's Dockwell's own catalog: it reads Dockwell/catalog's entries, and comes
+                         before every other source. See
+                         docs/adr/0077-dockwells-catalog-in-its-own-repository.md.
                 also:
                     type: array
                     items:

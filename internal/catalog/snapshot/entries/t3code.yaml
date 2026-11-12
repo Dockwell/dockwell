@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: t3code
+name: T3 Code
+summary: Run coding agents on your server, and reach them from any device
+description: |-
+  T3 Code gives you a workspace for coding agents that you can reach from your browser. Keep projects on your server, follow agent conversations, and work with the tools your agents need.
+
+  This entry uses the t3code-docker server packaging. Add an HTTPS domain, open its setup page, pair your devices and connect your agent accounts. Agent providers bring their own accounts and terms.
+icon: media/t3code-icon.webp
+documentation: https://github.com/dizys/t3code-docker#readme
+appSource: https://github.com/pingdotgg/t3code
+features:
+  - "Browser access to coding agents"
+  - "Projects and workspace files on your server"
+  - "Device pairing through the setup page"
+  - "Persistent home and workspace storage"
+screenshots:
+  - path: media/t3code-workspace.webp
+    caption: Coding conversations and changes in the T3 Code workspace
+    source: https://raw.githubusercontent.com/pingdotgg/t3code/ff7aa5ace311c70587631dcedb43f1d92068c342/apps/marketing/src/assets/app-desktop.webp
+  - path: media/t3code-setup.webp
+    caption: "Pair devices and connect coding agents in T3 Code setup"
+    source: https://raw.githubusercontent.com/dizys/t3code-docker/a6831ef592a26a301ed7a7052111874a04ef7e8f/docs/media/setup-light.png
+category: ai
+version: "0.26.5"
+release: 4
+homepage: https://github.com/dizys/t3code-docker
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/t3code.yaml
+web:
+  service: t3code
+firstSteps: "Open /__setup on its domain and sign in with the setup key."
+signIn:
+  passwordInput: "T3_SETUP_KEY"
+notes:
+  - "Anyone who reaches it over plain HTTP gets a shell, so it needs a domain over HTTPS."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3773"
+  - name: T3_SETUP_KEY
+    label: Setup key
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    t3code:
+      image: ghcr.io/dizys/t3code-docker:0.26.5-browser@sha256:ae38393bc6867e67fcb36975e3fcf5dbf50b3f2f480bd7fbe08c83297696f40a
+      restart: unless-stopped
+      stop_grace_period: 30s
+      shm_size: 1g
+      environment:
+        T3_SETUP_KEY: ${T3_SETUP_KEY}
+        T3_SINGLE_PORT: "8080"
+      ports:
+        - "127.0.0.1:${PORT}:8080"
+      volumes:
+        - home:/home/t3
+        - workspace:/workspace
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:8080/.well-known/t3/environment"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 120s
+  volumes:
+    home: {}
+    workspace: {}

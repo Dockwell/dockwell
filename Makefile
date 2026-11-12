@@ -129,6 +129,10 @@ fmt: deps ## Format Go, proto, TypeScript and CSS
 i18n: deps ## Extract new messages into the translation catalogs
 	pnpm --filter @dockwell/web i18n:extract
 
+.PHONY: catalog-snapshot
+catalog-snapshot: ## Write Dockwell/catalog at internal/catalog/snapshot/commit into the binary's snapshot of it (COMMIT=<sha> moves it first)
+	scripts/catalog-snapshot.sh $(COMMIT)
+
 .PHONY: adrs
 adrs: ## List the architecture decision records, with their titles and statuses
 	@scripts/adrs.sh

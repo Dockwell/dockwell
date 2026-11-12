@@ -6690,17 +6690,20 @@ msgstr "{left, plural, other {未收录的 # 个应用及原因}}"
 msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
 msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
 
-msgid "A source adds the apps in a public Git repository."
-msgstr "来源会加入公开 Git 仓库中的应用。"
-
 msgid "A source is already named {name}. Use another name."
 msgstr "已有名为 {name} 的来源。请换一个名称。"
+
+msgid "Add Dockwell's catalog"
+msgstr "添加 Dockwell 的目录"
 
 msgid "Add a catalog source"
 msgstr "添加目录来源"
 
 msgid "Add a source"
 msgstr "添加来源"
+
+msgid "Add another source"
+msgstr "添加其他来源"
 
 msgid "Another commit"
 msgstr "其他提交"
@@ -6717,9 +6720,6 @@ msgstr "暂时无法读取，其应用不在应用目录中"
 
 msgid "Catalog sources"
 msgstr "目录来源"
-
-msgid "Catalogs Dockwell reads apps from beside its own"
-msgstr "除自带目录外，Dockwell 读取应用的目录"
 
 msgctxt "catalog source"
 msgid "Change"
@@ -6744,8 +6744,8 @@ msgstr "未能跟随 {branch}"
 msgid "Dockwell can't read that commit: {0}"
 msgstr "Dockwell 无法读取该提交：{0}"
 
-msgid "Dockwell's own catalog is all it reads"
-msgstr "目前只读取 Dockwell 自带的目录"
+msgid "Dockwell's own apps, kept up to date, or any public Git repository."
+msgstr "Dockwell 自带的应用，始终保持最新，或者任意公开的 Git 仓库。"
 
 msgid "Entries at {folderWords}"
 msgstr "条目位于 {folderWords}"
@@ -6775,6 +6775,9 @@ msgstr "名称 {name} · 条目位于 {folderWords}"
 msgid "No branch or tag is at this commit."
 msgstr "没有分支或标签位于此提交。"
 
+msgid "No catalogs to install from"
+msgstr "没有可以安装应用的目录"
+
 msgctxt "catalog source"
 msgid "Pin here"
 msgstr "固定在此"
@@ -6792,6 +6795,9 @@ msgstr "移除 {said}"
 msgctxt "catalog source"
 msgid "Store"
 msgstr "商店"
+
+msgid "The catalogs Dockwell installs apps from"
+msgstr "Dockwell 安装应用所用的目录"
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
 msgstr "请使用小写字母、数字和短横线，并以字母开头，例如 community。"

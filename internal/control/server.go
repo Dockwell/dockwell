@@ -236,7 +236,9 @@ type Server struct {
 	hosts *Hosts
 	// follower moves the catalog sources that follow a branch along it (ADR 0077),
 	// when Config.CatalogFollow asks it to.
-	follower  *catalogapi.Follower
+	follower *catalogapi.Follower
+	// catalogs gives the install Dockwell's own catalog at its first start (ADR 0077).
+	catalogs  *catalogapi.Follower
 	store     *store.DB
 	stepGrace time.Duration
 	ports     *PublicPorts
@@ -279,6 +281,7 @@ func New(cfg Config) (*Server, error) {
 		cfg.Changes.RequireRoles()
 	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates}
+	s.catalogs = follower
 	if cfg.CatalogFollow {
 		s.follower = follower
 	}
@@ -807,6 +810,12 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.alerts != nil {
 		if err := s.alerts.MakeDefaults(ctx); err != nil && ctx.Err() == nil {
 			s.logger.ErrorContext(ctx, "can't make the install's first alert rules; it tries again at the next start", slog.String("error", err.Error()))
+		}
+	}
+	// And Dockwell's own catalog, which the catalog lists from the first request too.
+	if s.catalogs != nil {
+		if err := s.catalogs.MakeDefault(ctx); err != nil && ctx.Err() == nil {
+			s.logger.ErrorContext(ctx, "can't give the install Dockwell's own catalog; it tries again at the next start", slog.String("error", err.Error()))
 		}
 	}
 	apiCtx, stopAPI := context.WithCancel(ctx)

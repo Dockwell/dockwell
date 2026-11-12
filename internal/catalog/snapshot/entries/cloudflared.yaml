@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: cloudflared
+name: Cloudflare Tunnel
+summary: Reach apps on this server with no open port
+description: |-
+  Cloudflare Tunnel connects services on your server to Cloudflare through an outbound connection. It is useful when your server has no public address or you want to avoid opening an inbound port.
+
+  This entry runs the cloudflared connector. Create a tunnel in your Cloudflare account and provide its token during setup. This is a background service with no local web interface; you manage its routes in Cloudflare.
+icon: media/cloudflared-icon.webp
+documentation: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+appSource: https://github.com/cloudflare/cloudflared
+features:
+  - "Outbound tunnel connections"
+  - "No inbound port required for the tunnel"
+  - "Works with a tunnel in your Cloudflare account"
+  - "Runs as a background connector"
+category: networking
+version: "2026.10.3"
+release: 3
+homepage: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+license: AGPL-3.0-only
+appLicense: Apache-2.0
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/cloudflared.yaml
+hostAccess: The server's own network, so the tunnel reaches routes on this server's port 80.
+firstSteps: "In Cloudflare, publish your domain on this tunnel to http://127.0.0.1:80, then add it to an app here as behind a tunnel."
+inputs:
+  - name: TUNNEL_TOKEN
+    label: Tunnel token
+    hint: In Cloudflare, under Networks, in the tunnel's install command.
+    type: INPUT_TYPE_SECRET
+compose: |
+  services:
+    tunnel:
+      image: cloudflare/cloudflared:2026.10.3@sha256:faa8e0a1475f137c910be6025f43c8e4092fdd35461b31e19fd1390657a1ff39
+      restart: unless-stopped
+      network_mode: host
+      command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run"]
+      environment:
+        TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+      healthcheck:
+        test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]
+        interval: 10s
+        timeout: 5s
+        retries: 6

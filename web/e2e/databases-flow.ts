@@ -171,7 +171,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
 
   step("databases: a newer release of its entry is an upgrade, a plan that backs it up first");
   const entry = join(catalogDir, "postgres.yaml");
-  const builtIn = readFileSync("internal/catalog/entries/postgres.yaml", "utf8");
+  const builtIn = readFileSync("internal/catalog/snapshot/entries/postgres.yaml", "utf8");
   const newer = builtIn
     .replace('version: "17.11"', 'version: "17.12"')
     .replace(/^release: (\d+)$/m, (_, current: string) => `release: ${Number(current) + 1}`)

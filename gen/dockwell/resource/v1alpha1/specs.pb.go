@@ -2554,7 +2554,12 @@ type CatalogPin struct {
 	// false for one left out, so an upgrade keeps the choice. A companion with no
 	// word here runs when file has its service, as an install from before
 	// companions ran every service, and is otherwise as its entry says.
-	Companions    map[string]bool `protobuf:"bytes,8,rep,name=companions,proto3" json:"companions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	Companions map[string]bool `protobuf:"bytes,8,rep,name=companions,proto3" json:"companions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// The build's commit it was installed from, for an install made from the catalog
+	// built into Dockwell before Dockwell/catalog: Dockwell moved its pin to the
+	// source that reads Dockwell/catalog, which its upgrades come from since (ADR
+	// 0077). Empty for any other install.
+	BuiltInCommit string `protobuf:"bytes,9,opt,name=built_in_commit,json=builtInCommit,proto3" json:"built_in_commit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2657,6 +2662,13 @@ func (x *CatalogPin) GetCompanions() map[string]bool {
 		return x.Companions
 	}
 	return nil
+}
+
+func (x *CatalogPin) GetBuiltInCommit() string {
+	if x != nil {
+		return x.BuiltInCommit
+	}
+	return ""
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -5879,7 +5891,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fWebsiteProxy\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12(\n" +
-	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\xee\x03\n" +
+	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\x96\x04\n" +
 	"\n" +
 	"CatalogPin\x12\x14\n" +
 	"\x05entry\x18\x01 \x01(\tR\x05entry\x12\x18\n" +
@@ -5895,7 +5907,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04path\x18Q \x01(\tR\x04path\x12V\n" +
 	"\n" +
 	"companions\x18\b \x03(\v26.dockwell.resource.v1alpha1.CatalogPin.CompanionsEntryR\n" +
-	"companions\x1a9\n" +
+	"companions\x12&\n" +
+	"\x0fbuilt_in_commit\x18\t \x01(\tR\rbuiltInCommit\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +

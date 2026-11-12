@@ -38,11 +38,7 @@ func testACatalogFollowsItsBranch(t *testing.T, backend store.Backend) {
 	cat := catalogClient(b)
 	source := func() *dockwellv1.CatalogSourceInfo {
 		t.Helper()
-		res, err := cat.ListCatalogSources(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogSourcesRequest{}))
-		if err != nil || len(res.Msg.GetSources()) != 1 {
-			t.Fatalf("ListCatalogSources: %v, %v", res, err)
-		}
-		return res.Msg.GetSources()[0]
+		return communitySource(t, cat)
 	}
 	check := func() *dockwellv1.CheckCatalogSourceResponse {
 		t.Helper()
@@ -157,11 +153,7 @@ func TestACatalogFollowsOnItsOwn(t *testing.T) {
 	cat := catalogClient(b)
 	source := func() *dockwellv1.CatalogSourceInfo {
 		t.Helper()
-		res, err := cat.ListCatalogSources(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogSourcesRequest{}))
-		if err != nil || len(res.Msg.GetSources()) != 1 {
-			t.Fatalf("ListCatalogSources: %v, %v", res, err)
-		}
-		return res.Msg.GetSources()[0]
+		return communitySource(t, cat)
 	}
 	res, err := cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "community", Repository: repo.URL, Follow: "main"}))
 	if err != nil {
@@ -248,4 +240,20 @@ func TestACatalogSourcesImagesAreServed(t *testing.T) {
 	if status, _, _, _ := fetch(signedOut.client); status != http.StatusUnauthorized {
 		t.Errorf("signed out: %d", status)
 	}
+}
+
+// communitySource is the source a test adds, community, beside Dockwell's own.
+func communitySource(t *testing.T, cat dockwellv1connect.CatalogServiceClient) *dockwellv1.CatalogSourceInfo {
+	t.Helper()
+	res, err := cat.ListCatalogSources(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogSourcesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range res.Msg.GetSources() {
+		if s.GetName() == "community" {
+			return s
+		}
+	}
+	t.Fatalf("no source community in %v", res.Msg.GetSources())
+	return nil
 }

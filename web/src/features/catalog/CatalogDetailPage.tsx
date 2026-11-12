@@ -36,9 +36,11 @@ export function CatalogDetailPage({
   // Where the entry comes from decides which installs are its own, as another catalog's app of this ID is another app.
   const origins = useOrigins();
   const named = useSourceNames();
-  const from = search.catalog
+  const listed = search.catalog
     ? (origins.data?.sources.find((source) => source.name === search.catalog) ?? origins.origins.get(id))
     : origins.origins.get(id);
+  // Dockwell's own catalog, which a source reads too (ADR 0077), is no other catalog's.
+  const from = listed && !listed.own ? listed : undefined;
   const installs = (useInstalls().data?.installs ?? []).filter((install) =>
     installOf(install, id, origins.origins, origins.also),
   );
