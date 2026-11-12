@@ -6628,6 +6628,81 @@ components:
             description: |-
                 AutomaticUpdates is whether a server installs updates by itself, as the
                  distribution's own tool for that is set.
+        AvailableUpdate:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - UPDATE_KIND_UNSPECIFIED
+                        - UPDATE_KIND_PATCH
+                        - UPDATE_KIND_MINOR
+                        - UPDATE_KIND_MAJOR
+                        - UPDATE_KIND_DIGEST
+                        - UPDATE_KIND_RELEASE
+                        - UPDATE_KIND_COMMIT
+                    type: string
+                    description: What kind of step it is.
+                    format: enum
+                fromVersion:
+                    type: string
+                    description: |-
+                        The version it runs, as people read it: the tag, such as "16.3" or
+                         "latest"; a catalog entry's version, such as "17.11"; or a short commit.
+                toVersion:
+                    type: string
+                    description: |-
+                        The version it would run, such as "16.4". For a digest, the same tag as
+                         from_version.
+                fromImage:
+                    type: string
+                    description: |-
+                        The image it runs, as its spec writes it, such as "postgres:16.3". Empty for
+                         a catalog install, whose images its entry names, and an app built from Git.
+                toImage:
+                    type: string
+                    description: |-
+                        The image it would run, such as "postgres:16.4". For a digest, the same
+                         reference as from_image, which pulled again gets to_digest.
+                fromDigest:
+                    type: string
+                    description: The digest of what runs, such as "sha256:ab12…", where it's known.
+                toDigest:
+                    type: string
+                    description: |-
+                        The digest to_image pointed at when it was checked, where it's known. A tag
+                         can move after: an update reads it again as it plans.
+                releaseTime:
+                    type: string
+                    description: |-
+                        When to_version came out, or its image was pushed, where its registry or
+                         catalog says. Unset where they don't.
+                    format: date-time
+                foundTime:
+                    type: string
+                    description: When Dockwell first found it.
+                    format: date-time
+                notesUrl:
+                    type: string
+                    description: |-
+                        Where its release notes or changelog are, an https address, where they're
+                         known.
+                catalogRelease:
+                    type: integer
+                    description: |-
+                        For a catalog install, the release of its entry it moves to, which
+                         UpgradeCatalogInstall plans. 0 for any other.
+                    format: uint32
+                toCommit:
+                    type: string
+                    description: |-
+                        For an app built from Git, the branch's newer commit, in full. Empty for any
+                         other.
+                skipped:
+                    type: boolean
+                    description: |-
+                        True when a person skipped this very version for this service. It counts
+                         nowhere and sends no alert, and a newer one still shows.
+            description: AvailableUpdate is one newer version a service can move to.
         Backup:
             type: object
             properties:
@@ -17105,6 +17180,14 @@ components:
                          of its image or a limit, asks for a passkey, which an editor can say before
                          it plans; one that takes it away asks for none. Empty when it reaches
                          nothing, or its spec can't be read.
+                update:
+                    allOf:
+                        - $ref: '#/components/schemas/ServiceUpdate'
+                    description: |-
+                        What Dockwell last found newer than what it runs, and how its check stands.
+                         Unset before its first check. See
+                         docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md. Numbered apart,
+                         as open work adds to this message.
             description: |-
                 ServiceInfo is what a service runs now and how that went, as its latest
                  revision has it.
@@ -17175,6 +17258,79 @@ components:
                          the image an earlier revision built. Numbered apart, as open work adds to
                          this message.
             description: ServiceRevision is one immutable revision of a service.
+        ServiceUpdate:
+            type: object
+            properties:
+                check:
+                    enum:
+                        - UPDATE_CHECK_UNSPECIFIED
+                        - UPDATE_CHECK_UP_TO_DATE
+                        - UPDATE_CHECK_AVAILABLE
+                        - UPDATE_CHECK_FAILED
+                        - UPDATE_CHECK_NOT_CHECKED
+                    type: string
+                    description: How its last check came out. Unspecified before the first check.
+                    format: enum
+                available:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/AvailableUpdate'
+                    description: |-
+                        What it can move to, at most one of each kind, smallest step first:
+                         digest, release or commit, then patch, minor and major. A client offers the
+                         first that isn't skipped, and the rest one step away. Empty when it's up
+                         to date, or couldn't be checked.
+                checkTime:
+                    type: string
+                    description: When it was last checked with an answer. Unset before that.
+                    format: date-time
+                nextCheckTime:
+                    type: string
+                    description: When it's checked next, as things stand.
+                    format: date-time
+                problem:
+                    enum:
+                        - UPDATE_PROBLEM_UNSPECIFIED
+                        - UPDATE_PROBLEM_PRIVATE_OR_NOT_FOUND
+                        - UPDATE_PROBLEM_UNREACHABLE
+                        - UPDATE_PROBLEM_RATE_LIMITED
+                        - UPDATE_PROBLEM_SERVER_OFFLINE
+                        - UPDATE_PROBLEM_AGENT_OUTDATED
+                        - UPDATE_PROBLEM_NOT_RUNNING
+                        - UPDATE_PROBLEM_LOCAL_IMAGE
+                    type: string
+                    description: |-
+                        Why it couldn't be checked, or isn't, when check is failed or not checked.
+                         What available holds is then from the last check that answered.
+                    format: enum
+                problemDetail:
+                    type: string
+                    description: |-
+                        The registry's, the server's or the repository's own words on why, in a
+                         line, where they said something.
+                source:
+                    enum:
+                        - UPDATE_SOURCE_UNSPECIFIED
+                        - UPDATE_SOURCE_IMAGE
+                        - UPDATE_SOURCE_CATALOG
+                        - UPDATE_SOURCE_GIT
+                        - UPDATE_SOURCE_RUNTIME
+                    type: string
+                    description: Where what it runs comes from, which says what's checked.
+                    format: enum
+                snoozeTime:
+                    type: string
+                    description: |-
+                        Until when a person set its updates aside, which then count nowhere and
+                         send no alert, but still show on its page. Unset when they aren't.
+                    format: date-time
+            description: |-
+                ServiceUpdate is what Dockwell last found newer than what a service runs:
+                 another version of its image, a new image for the tag it runs, a higher
+                 release of its catalog entry, or a newer commit of the branch it builds. The
+                 control plane keeps it, so it stands across restarts, and checks again every
+                 6 hours. Nothing runs differently for it: updating is a plan a person
+                 applies. See docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
         Session:
             type: object
             properties:

@@ -1,0 +1,148 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/options.proto";
+import "google/protobuf/timestamp.proto";
+
+// ServiceUpdate is what Dockwell last found newer than what a service runs:
+// another version of its image, a new image for the tag it runs, a higher
+// release of its catalog entry, or a newer commit of the branch it builds. The
+// control plane keeps it, so it stands across restarts, and checks again every
+// 6 hours. Nothing runs differently for it: updating is a plan a person
+// applies. See docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
+message ServiceUpdate {
+  // How its last check came out. Unspecified before the first check.
+  UpdateCheck check = 1;
+  // What it can move to, at most one of each kind, smallest step first:
+  // digest, release or commit, then patch, minor and major. A client offers the
+  // first that isn't skipped, and the rest one step away. Empty when it's up
+  // to date, or couldn't be checked.
+  repeated AvailableUpdate available = 2;
+  // When it was last checked with an answer. Unset before that.
+  google.protobuf.Timestamp check_time = 3;
+  // When it's checked next, as things stand.
+  google.protobuf.Timestamp next_check_time = 4;
+  // Why it couldn't be checked, or isn't, when check is failed or not checked.
+  // What available holds is then from the last check that answered.
+  UpdateProblem problem = 5;
+  // The registry's, the server's or the repository's own words on why, in a
+  // line, where they said something.
+  string problem_detail = 6;
+  // Where what it runs comes from, which says what's checked.
+  UpdateSource source = 7;
+  // Until when a person set its updates aside, which then count nowhere and
+  // send no alert, but still show on its page. Unset when they aren't.
+  google.protobuf.Timestamp snooze_time = 8;
+}
+
+// AvailableUpdate is one newer version a service can move to.
+message AvailableUpdate {
+  // What kind of step it is.
+  UpdateKind kind = 1;
+  // The version it runs, as people read it: the tag, such as "16.3" or
+  // "latest"; a catalog entry's version, such as "17.11"; or a short commit.
+  string from_version = 2;
+  // The version it would run, such as "16.4". For a digest, the same tag as
+  // from_version.
+  string to_version = 3;
+  // The image it runs, as its spec writes it, such as "postgres:16.3". Empty for
+  // a catalog install, whose images its entry names, and an app built from Git.
+  string from_image = 4;
+  // The image it would run, such as "postgres:16.4". For a digest, the same
+  // reference as from_image, which pulled again gets to_digest.
+  string to_image = 5;
+  // The digest of what runs, such as "sha256:ab12…", where it's known.
+  string from_digest = 6;
+  // The digest to_image pointed at when it was checked, where it's known. A tag
+  // can move after: an update reads it again as it plans.
+  string to_digest = 7;
+  // When to_version came out, or its image was pushed, where its registry or
+  // catalog says. Unset where they don't.
+  google.protobuf.Timestamp release_time = 8;
+  // When Dockwell first found it.
+  google.protobuf.Timestamp found_time = 9;
+  // Where its release notes or changelog are, an https address, where they're
+  // known.
+  string notes_url = 10;
+  // For a catalog install, the release of its entry it moves to, which
+  // UpgradeCatalogInstall plans. 0 for any other.
+  uint32 catalog_release = 11;
+  // For an app built from Git, the branch's newer commit, in full. Empty for any
+  // other.
+  string to_commit = 12;
+  // True when a person skipped this very version for this service. It counts
+  // nowhere and sends no alert, and a newer one still shows.
+  bool skipped = 13;
+}
+
+// UpdateKind is the size of a step from what runs to a newer version.
+enum UpdateKind {
+  UPDATE_KIND_UNSPECIFIED = 0;
+  // The version's last number moved: 16.3 to 16.4 where versions have two
+  // numbers, as PostgreSQL's do, or 1.27.3 to 1.27.4.
+  UPDATE_KIND_PATCH = 1 [(dockwell.v1.word) = "patch"];
+  // With three numbers or more, the second moved: 1.27.3 to 1.28.0.
+  UPDATE_KIND_MINOR = 2 [(dockwell.v1.word) = "minor"];
+  // The first number moved: 16.4 to 17.0.
+  UPDATE_KIND_MAJOR = 3 [(dockwell.v1.word) = "major"];
+  // The tag it runs, such as latest or 16, points at a new image: a new build of
+  // the same tag.
+  UPDATE_KIND_DIGEST = 4 [(dockwell.v1.word) = "new build"];
+  // A catalog release that changes how the same version of the app runs.
+  UPDATE_KIND_RELEASE = 5 [(dockwell.v1.word) = "release"];
+  // The branch an app builds from has a newer commit than the one that runs.
+  UPDATE_KIND_COMMIT = 6 [(dockwell.v1.word) = "commit"];
+}
+
+// UpdateCheck is how a service's last check came out.
+enum UpdateCheck {
+  UPDATE_CHECK_UNSPECIFIED = 0;
+  // Nothing newer than what runs, or nothing that isn't skipped.
+  UPDATE_CHECK_UP_TO_DATE = 1 [(dockwell.v1.word) = "up to date"];
+  // Something newer that a person hasn't skipped.
+  UPDATE_CHECK_AVAILABLE = 2 [(dockwell.v1.word) = "available"];
+  // The last check couldn't be made, as problem says.
+  UPDATE_CHECK_FAILED = 3 [(dockwell.v1.word) = "failed"];
+  // Dockwell doesn't check this service, as problem says, such as an image
+  // built on its server.
+  UPDATE_CHECK_NOT_CHECKED = 4 [(dockwell.v1.word) = "not checked"];
+}
+
+// UpdateProblem is why a service couldn't be checked, for a client to word.
+enum UpdateProblem {
+  UPDATE_PROBLEM_UNSPECIFIED = 0;
+  // Its registry hasn't got the image, or keeps it private, which a registry
+  // answers alike to a client that doesn't sign in.
+  UPDATE_PROBLEM_PRIVATE_OR_NOT_FOUND = 1 [(dockwell.v1.word) = "private_or_not_found"];
+  // Its registry or repository couldn't be reached from its server.
+  UPDATE_PROBLEM_UNREACHABLE = 2 [(dockwell.v1.word) = "unreachable"];
+  // Its registry is limiting how often it's asked: it's asked again later, as
+  // next_check_time says.
+  UPDATE_PROBLEM_RATE_LIMITED = 3 [(dockwell.v1.word) = "rate_limited"];
+  // None of the servers it runs on is connected: it's checked when one is.
+  UPDATE_PROBLEM_SERVER_OFFLINE = 4 [(dockwell.v1.word) = "server_offline"];
+  // Its server's agent is too old to check: update the agent.
+  UPDATE_PROBLEM_AGENT_OUTDATED = 5 [(dockwell.v1.word) = "agent_outdated"];
+  // It doesn't run anywhere yet, so there's nothing to compare with.
+  UPDATE_PROBLEM_NOT_RUNNING = 6 [(dockwell.v1.word) = "not_running"];
+  // Its image was built or loaded on its server, so no registry has it.
+  UPDATE_PROBLEM_LOCAL_IMAGE = 7 [(dockwell.v1.word) = "local_image"];
+}
+
+// UpdateSource is where what a service runs comes from, which says what's
+// checked for it.
+enum UpdateSource {
+  UPDATE_SOURCE_UNSPECIFIED = 0;
+  // An image from a registry: newer version tags, and a new image for its tag.
+  UPDATE_SOURCE_IMAGE = 1 [(dockwell.v1.word) = "image"];
+  // A catalog install: a higher release of its entry, in the catalog it came
+  // from.
+  UPDATE_SOURCE_CATALOG = 2 [(dockwell.v1.word) = "catalog"];
+  // A build from Git: a newer commit of the branch it builds.
+  UPDATE_SOURCE_GIT = 3 [(dockwell.v1.word) = "git"];
+  // An app from a folder on its server: a new build of its language's image.
+  UPDATE_SOURCE_RUNTIME = 4 [(dockwell.v1.word) = "runtime"];
+}
