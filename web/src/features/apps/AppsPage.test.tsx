@@ -89,6 +89,17 @@ describe("the apps list", () => {
     await expectAccessible(container);
   });
 
+  it("stands fewer than a row of the catalog's apps in the middle of the lead", async () => {
+    const entries = ["wordpress", "postgres", "gitea"].map((id) => ({ id, name: id, icon: "" }));
+    renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: () => ({ entries }) } });
+    const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
+    const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
+    await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(3));
+    const apps = lead.querySelector(".start-apps") as HTMLElement;
+    expect(apps.style.getPropertyValue("--start-cols")).toBe("3");
+    expect(within(lead).queryByText(/more$/)).toBeNull();
+  });
+
   it("leads with the catalog, its apps by name in two rows of four, the last saying how many more", async () => {
     const ids = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "a", "b", "c"];
     const entries = ids.map((id) => ({ id, name: id, icon: "" }));
