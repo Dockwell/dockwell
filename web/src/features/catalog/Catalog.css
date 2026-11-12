@@ -856,6 +856,63 @@
   }
 }
 
+/* An action inside a line of words, such as a taken name's "Use mysql-2" and "Open mysql". */
+.catalog-inline-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.catalog-inline-action:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* A person's own value for a generated secret: the field, with "Use generated" at the end
+   of its label's line, where a default line's Change would be, and a rule under it. */
+.catalog-own {
+  position: relative;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.catalog-own-back {
+  position: absolute;
+  top: 0;
+  right: 0;
+  line-height: 20px;
+}
+
+@media (pointer: coarse) {
+  .catalog-own-back {
+    top: -12px;
+  }
+}
+
+.catalog-own-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 4px;
+}
+
+.catalog-own-takes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.catalog-own-takes.is-met {
+  color: var(--healthy);
+}
+
 /* On a phone the label sits over its value, as a phone's form does. */
 .catalog-sheet.is-phone .catalog-chosen {
   grid-template-columns: minmax(0, 1fr);

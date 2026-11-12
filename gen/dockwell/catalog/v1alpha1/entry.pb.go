@@ -29,6 +29,57 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Characters are what a value a person gives may hold.
+type Characters int32
+
+const (
+	// Any printable character, on one line.
+	Characters_CHARACTERS_UNSPECIFIED Characters = 0
+	// Letters, digits and - . _ ~ alone, which a URL carries as they are, for a
+	// secret the app writes into one, as Umami writes its database's password
+	// into DATABASE_URL.
+	Characters_CHARACTERS_URL_SAFE Characters = 1
+)
+
+// Enum value maps for Characters.
+var (
+	Characters_name = map[int32]string{
+		0: "CHARACTERS_UNSPECIFIED",
+		1: "CHARACTERS_URL_SAFE",
+	}
+	Characters_value = map[string]int32{
+		"CHARACTERS_UNSPECIFIED": 0,
+		"CHARACTERS_URL_SAFE":    1,
+	}
+)
+
+func (x Characters) Enum() *Characters {
+	p := new(Characters)
+	*p = x
+	return p
+}
+
+func (x Characters) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Characters) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0].Descriptor()
+}
+
+func (Characters) Type() protoreflect.EnumType {
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0]
+}
+
+func (x Characters) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Characters.Descriptor instead.
+func (Characters) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{0}
+}
+
 // GenerateAs is how a generated secret is written.
 type GenerateAs int32
 
@@ -68,11 +119,11 @@ func (x GenerateAs) String() string {
 }
 
 func (GenerateAs) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1].Descriptor()
 }
 
 func (GenerateAs) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[0]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1]
 }
 
 func (x GenerateAs) Number() protoreflect.EnumNumber {
@@ -81,7 +132,7 @@ func (x GenerateAs) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GenerateAs.Descriptor instead.
 func (GenerateAs) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
 }
 
 // InputType is what an input takes.
@@ -134,11 +185,11 @@ func (x InputType) String() string {
 }
 
 func (InputType) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1].Descriptor()
+	return file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[2].Descriptor()
 }
 
 func (InputType) Type() protoreflect.EnumType {
-	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[1]
+	return &file_dockwell_catalog_v1alpha1_entry_proto_enumTypes[2]
 }
 
 func (x InputType) Number() protoreflect.EnumNumber {
@@ -147,7 +198,7 @@ func (x InputType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use InputType.Descriptor instead.
 func (InputType) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP(), []int{2}
 }
 
 // Entry is one app a catalog offers, at one version. It installs through the
@@ -818,7 +869,8 @@ type Input struct {
 	Optional bool `protobuf:"varint,6,opt,name=optional,proto3" json:"optional,omitempty"`
 	// How many characters to generate for a secret that no one types, such as 32.
 	// The value is sealed as it's made, and nothing shows it but a reveal. 0 asks
-	// a person for it.
+	// a person for it. A person may still give one of their own, which is sealed
+	// the same way, and must be what min_length, characters and generate_as say.
 	Generate uint32 `protobuf:"varint,7,opt,name=generate,proto3" json:"generate,omitempty"`
 	// The app writes this secret in its own log, as Nginx Proxy Manager does with
 	// its first password. Reading a log takes no passkey, so nothing may call it
@@ -827,6 +879,17 @@ type Input struct {
 	// How a generated secret is written, for an app that reads it as a key: letters
 	// and digits unless set.
 	GenerateAs GenerateAs `protobuf:"varint,80,opt,name=generate_as,json=generateAs,proto3,enum=dockwell.catalog.v1alpha1.GenerateAs" json:"generate_as,omitempty"`
+	// The fewest characters a value a person gives may have, where the app takes
+	// no shorter one, such as 64 for a key it signs with. Unset, a person's own
+	// value for a secret Dockwell generates takes at least 8, and anything else
+	// any value. A secret the app decodes, by generate_as, takes exactly the form
+	// it generates instead. Never more than generate, which Dockwell's own value
+	// must meet.
+	MinLength uint32 `protobuf:"varint,81,opt,name=min_length,json=minLength,proto3" json:"min_length,omitempty"`
+	// The characters a value a person gives may hold, where the app writes it into
+	// something that reads some as its own, such as a URL. Unset is any printable
+	// character on one line.
+	Characters Characters `protobuf:"varint,82,opt,name=characters,proto3,enum=dockwell.catalog.v1alpha1.Characters" json:"characters,omitempty"`
 	// The app reads this secret on its first start alone, or encrypts what it
 	// keeps with it, so setting the secret anew changes nothing or loses what it
 	// encrypted. The panel marks it, and says where to change it, if anywhere.
@@ -926,6 +989,20 @@ func (x *Input) GetGenerateAs() GenerateAs {
 		return x.GenerateAs
 	}
 	return GenerateAs_GENERATE_AS_UNSPECIFIED
+}
+
+func (x *Input) GetMinLength() uint32 {
+	if x != nil {
+		return x.MinLength
+	}
+	return 0
+}
+
+func (x *Input) GetCharacters() Characters {
+	if x != nil {
+		return x.Characters
+	}
+	return Characters_CHARACTERS_UNSPECIFIED
 }
 
 func (x *Input) GetSetOnce() bool {
@@ -1045,7 +1122,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xd7\x02\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xbd\x03\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -1056,10 +1133,19 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\bgenerate\x18\a \x01(\rR\bgenerate\x12\x16\n" +
 	"\x06logged\x18\b \x01(\bR\x06logged\x12F\n" +
 	"\vgenerate_as\x18P \x01(\x0e2%.dockwell.catalog.v1alpha1.GenerateAsR\n" +
-	"generateAs\x12\x19\n" +
+	"generateAs\x12\x1d\n" +
+	"\n" +
+	"min_length\x18Q \x01(\rR\tminLength\x12E\n" +
+	"\n" +
+	"characters\x18R \x01(\x0e2%.dockwell.catalog.v1alpha1.CharactersR\n" +
+	"characters\x12\x19\n" +
 	"\bset_once\x18\t \x01(\bR\asetOnce\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
-	"\aservice\x18\x01 \x01(\tR\aservice*V\n" +
+	"\aservice\x18\x01 \x01(\tR\aservice*A\n" +
+	"\n" +
+	"Characters\x12\x1a\n" +
+	"\x16CHARACTERS_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13CHARACTERS_URL_SAFE\x10\x01*V\n" +
 	"\n" +
 	"GenerateAs\x12\x1b\n" +
 	"\x17GENERATE_AS_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -1086,35 +1172,37 @@ func file_dockwell_catalog_v1alpha1_entry_proto_rawDescGZIP() []byte {
 	return file_dockwell_catalog_v1alpha1_entry_proto_rawDescData
 }
 
-var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_catalog_v1alpha1_entry_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_dockwell_catalog_v1alpha1_entry_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_catalog_v1alpha1_entry_proto_goTypes = []any{
-	(GenerateAs)(0),         // 0: dockwell.catalog.v1alpha1.GenerateAs
-	(InputType)(0),          // 1: dockwell.catalog.v1alpha1.InputType
-	(*Entry)(nil),           // 2: dockwell.catalog.v1alpha1.Entry
-	(*SignIn)(nil),          // 3: dockwell.catalog.v1alpha1.SignIn
-	(*Signups)(nil),         // 4: dockwell.catalog.v1alpha1.Signups
-	(*AddressVariable)(nil), // 5: dockwell.catalog.v1alpha1.AddressVariable
-	(*Screenshot)(nil),      // 6: dockwell.catalog.v1alpha1.Screenshot
-	(*Source)(nil),          // 7: dockwell.catalog.v1alpha1.Source
-	(*Input)(nil),           // 8: dockwell.catalog.v1alpha1.Input
-	(*Web)(nil),             // 9: dockwell.catalog.v1alpha1.Web
+	(Characters)(0),         // 0: dockwell.catalog.v1alpha1.Characters
+	(GenerateAs)(0),         // 1: dockwell.catalog.v1alpha1.GenerateAs
+	(InputType)(0),          // 2: dockwell.catalog.v1alpha1.InputType
+	(*Entry)(nil),           // 3: dockwell.catalog.v1alpha1.Entry
+	(*SignIn)(nil),          // 4: dockwell.catalog.v1alpha1.SignIn
+	(*Signups)(nil),         // 5: dockwell.catalog.v1alpha1.Signups
+	(*AddressVariable)(nil), // 6: dockwell.catalog.v1alpha1.AddressVariable
+	(*Screenshot)(nil),      // 7: dockwell.catalog.v1alpha1.Screenshot
+	(*Source)(nil),          // 8: dockwell.catalog.v1alpha1.Source
+	(*Input)(nil),           // 9: dockwell.catalog.v1alpha1.Input
+	(*Web)(nil),             // 10: dockwell.catalog.v1alpha1.Web
 }
 var file_dockwell_catalog_v1alpha1_entry_proto_depIdxs = []int32{
-	7, // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
-	8, // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
-	9, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
-	6, // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
-	3, // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
-	4, // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
-	5, // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
-	1, // 7: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
-	0, // 8: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	8,  // 0: dockwell.catalog.v1alpha1.Entry.source:type_name -> dockwell.catalog.v1alpha1.Source
+	9,  // 1: dockwell.catalog.v1alpha1.Entry.inputs:type_name -> dockwell.catalog.v1alpha1.Input
+	10, // 2: dockwell.catalog.v1alpha1.Entry.web:type_name -> dockwell.catalog.v1alpha1.Web
+	7,  // 3: dockwell.catalog.v1alpha1.Entry.screenshots:type_name -> dockwell.catalog.v1alpha1.Screenshot
+	4,  // 4: dockwell.catalog.v1alpha1.Entry.sign_in:type_name -> dockwell.catalog.v1alpha1.SignIn
+	5,  // 5: dockwell.catalog.v1alpha1.Entry.signups:type_name -> dockwell.catalog.v1alpha1.Signups
+	6,  // 6: dockwell.catalog.v1alpha1.Entry.address_variables:type_name -> dockwell.catalog.v1alpha1.AddressVariable
+	2,  // 7: dockwell.catalog.v1alpha1.Input.type:type_name -> dockwell.catalog.v1alpha1.InputType
+	1,  // 8: dockwell.catalog.v1alpha1.Input.generate_as:type_name -> dockwell.catalog.v1alpha1.GenerateAs
+	0,  // 9: dockwell.catalog.v1alpha1.Input.characters:type_name -> dockwell.catalog.v1alpha1.Characters
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_catalog_v1alpha1_entry_proto_init() }
@@ -1127,7 +1215,7 @@ func file_dockwell_catalog_v1alpha1_entry_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc), len(file_dockwell_catalog_v1alpha1_entry_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,

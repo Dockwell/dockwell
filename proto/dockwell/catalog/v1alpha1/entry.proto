@@ -170,7 +170,8 @@ message Input {
   bool optional = 6;
   // How many characters to generate for a secret that no one types, such as 32.
   // The value is sealed as it's made, and nothing shows it but a reveal. 0 asks
-  // a person for it.
+  // a person for it. A person may still give one of their own, which is sealed
+  // the same way, and must be what min_length, characters and generate_as say.
   uint32 generate = 7;
   // The app writes this secret in its own log, as Nginx Proxy Manager does with
   // its first password. Reading a log takes no passkey, so nothing may call it
@@ -179,10 +180,31 @@ message Input {
   // How a generated secret is written, for an app that reads it as a key: letters
   // and digits unless set.
   GenerateAs generate_as = 80;
+  // The fewest characters a value a person gives may have, where the app takes
+  // no shorter one, such as 64 for a key it signs with. Unset, a person's own
+  // value for a secret Dockwell generates takes at least 8, and anything else
+  // any value. A secret the app decodes, by generate_as, takes exactly the form
+  // it generates instead. Never more than generate, which Dockwell's own value
+  // must meet.
+  uint32 min_length = 81;
+  // The characters a value a person gives may hold, where the app writes it into
+  // something that reads some as its own, such as a URL. Unset is any printable
+  // character on one line.
+  Characters characters = 82;
   // The app reads this secret on its first start alone, or encrypts what it
   // keeps with it, so setting the secret anew changes nothing or loses what it
   // encrypted. The panel marks it, and says where to change it, if anywhere.
   bool set_once = 9;
+}
+
+// Characters are what a value a person gives may hold.
+enum Characters {
+  // Any printable character, on one line.
+  CHARACTERS_UNSPECIFIED = 0;
+  // Letters, digits and - . _ ~ alone, which a URL carries as they are, for a
+  // secret the app writes into one, as Umami writes its database's password
+  // into DATABASE_URL.
+  CHARACTERS_URL_SAFE = 1;
 }
 
 // GenerateAs is how a generated secret is written.

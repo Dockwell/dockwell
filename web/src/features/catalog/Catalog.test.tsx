@@ -20,7 +20,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { anApp, ENV, places, SERVER } from "../../test/apps";
+import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -671,6 +671,132 @@ describe("Installing from the catalog", () => {
     });
     const sheet = await screen.findByRole("dialog", { name: "Install pgAdmin" });
     expect(await within(sheet).findByRole("group", { name: "Admin email" })).toHaveTextContent("mira@example.com");
+  });
+
+  it("takes a secret of your own in place of the generated one, checked as it's typed, sealed in the plan", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_own", summary: "Install PostgreSQL", state: ChangeState.PLANNED });
+    const { container } = renderAt("/catalog/postgres/install", {
+      ...api({
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+      containers: { listContainers: () => ({ containers: [] }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await waitFor(() =>
+      expect(within(sheet).getByRole("group", { name: "Adminer port" })).toHaveTextContent("8085Free"),
+    );
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    // Generated is the default, and your own is one step away.
+    const line = within(sheet).getByRole("group", { name: "Database password" });
+    expect(line).toHaveTextContent("Generated and sealed");
+    await user.click(within(line).getByRole("button", { name: "Set my own database password" }));
+    const field = within(sheet).getByLabelText("Database password");
+    expect(field).toHaveAttribute("type", "password");
+    expect(field).toHaveFocus();
+    expect(field).toHaveAccessibleDescription("At least 8 characters");
+    const review = within(sheet).getByRole("button", { name: /Review plan/ });
+    expect(review).toBeDisabled();
+    expect(within(sheet).getByText("Give Database password a value to review the plan")).toBeVisible();
+    // Checked as it's typed, against what the entry says the app takes.
+    await user.type(field, "short");
+    expect(field).toHaveAccessibleDescription("Use at least 8 characters.");
+    expect(within(sheet).getByText("Fix Database password to review the plan")).toBeVisible();
+    expect(review).toBeDisabled();
+    await user.type(field, " but long enough");
+    expect(field).toHaveAccessibleDescription("At least 8 characters");
+    expect(review).toBeEnabled();
+    await user.click(within(sheet).getByRole("button", { name: "Show database password" }));
+    expect(field).toHaveAttribute("type", "text");
+    // The CLI takes it from your environment, never the command line.
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenLastCalledWith("dockwell catalog install postgres --values POSTGRES_PASSWORD");
+    await expectAccessible(container);
+    // Closed, Advanced says so, beside what it generates.
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(/1 secret of your own/);
+    await user.click(review);
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.values).toEqual({ ADMIN_PORT: "8085", POSTGRES_PASSWORD: "short but long enough" });
+  });
+
+  it("generates a strong value of your own to copy, and goes back to a generated one", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    renderAt("/catalog/postgres/install", api());
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await user.click(await within(sheet).findByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("button", { name: "Set my own database password" }));
+    await user.click(within(sheet).getByRole("button", { name: "Generate" }));
+    const field = within(sheet).getByLabelText("Database password");
+    expect(field).toHaveAttribute("type", "text");
+    const made = (field as HTMLInputElement).value;
+    expect(made).toMatch(/^[A-Za-z0-9]{32}$/);
+    await user.click(within(sheet).getByRole("button", { name: "Copy database password" }));
+    expect(writeText).toHaveBeenCalledWith(made);
+    await user.click(within(sheet).getByRole("button", { name: "Use a generated database password" }));
+    expect(within(sheet).getByRole("group", { name: "Database password" })).toHaveTextContent("Generated and sealed");
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveAccessibleDescription(/1 secret generated/);
+  });
+
+  it("checks a name as it's typed, and offers the next free one and what has it", async () => {
+    const user = userEvent.setup();
+    // postgres is here, old was here before, and the control plane says what's free from each.
+    const free: Record<string, string> = { "": "postgres-2", postgres: "postgres-2", old: "old-2", shop: "shop" };
+    const base = api();
+    const { container } = renderAt("/catalog/postgres/install", {
+      ...base,
+      catalog: {
+        ...base.catalog,
+        getCatalogEntry: (req) => ({
+          entry: postgres,
+          project: free[req.project] ?? req.project,
+          values: { ADMIN_PORT: "8085" },
+          parts: [],
+        }),
+      },
+      resources: projectPlaces("postgres"),
+      services: {
+        listServices: () => ({
+          services: [
+            anApp("db", "postgres:17.11", {}, { resource: { kind: "service", scope: "env_postgres", name: "db" } }),
+          ],
+        }),
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    // It starts on a name that's free.
+    const name = await within(sheet).findByRole("group", { name: "Name" });
+    await waitFor(() => expect(name).toHaveTextContent("postgres-2"));
+    await user.click(within(name).getByRole("button", { name: "Change name" }));
+    const field = within(sheet).getByRole("textbox", { name: "Name" });
+    expect(field).toHaveAccessibleDescription(/Free/);
+    // A name here already says so at once, with the next free one and a way to what has it.
+    await user.clear(field);
+    await user.type(field, "postgres");
+    expect(await within(sheet).findByText(/A project named postgres is here already/)).toBeVisible();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(within(sheet).getByRole("link", { name: "Open postgres" })).toHaveAttribute("href", "/databases/svc_db");
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await user.click(within(sheet).getByRole("button", { name: "Use postgres-2" }));
+    expect(field).toHaveValue("postgres-2");
+    expect(field).toHaveAccessibleDescription(/Free/);
+    // A name used before only the control plane knows, which it says once asked.
+    await user.clear(field);
+    await user.type(field, "old");
+    expect(await within(sheet).findByText(/A project named old was here before/)).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Use old-2" })).toBeVisible();
+    await user.clear(field);
+    await user.type(field, "shop");
+    await waitFor(() => expect(field).toHaveAccessibleDescription(/Free/));
+    expect(field).not.toHaveAttribute("aria-invalid", "true");
+    await expectAccessible(container);
   });
 
   it("shows a taken name at its field", async () => {

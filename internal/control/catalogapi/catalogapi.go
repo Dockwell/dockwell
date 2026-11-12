@@ -75,7 +75,7 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 	if err != nil {
 		return nil, err
 	}
-	free, err := h.whatsFree(ctx, entry)
+	free, err := h.whatsFree(ctx, entry, req.Msg.GetProject())
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -193,7 +193,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	free, err := h.whatsFree(ctx, entry)
+	free, err := h.whatsFree(ctx, entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -212,6 +212,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		File:       []byte(entry.GetCompose()),
 		Variables:  filled.Variables,
 		Secrets:    filled.Secrets,
+		Stands:     filled.Stands(),
 		Servers:    m.GetServers(),
 		FirstSteps: catalog.FirstWords(entry),
 		Pin:        pinTo(entry, from, filled),
@@ -364,7 +365,7 @@ func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Reques
 	case len(pin.GetFile()) == 0:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so an upgrade can't tell that from what you changed, and it stays on %s. To move on, install the new version under another name and bring its data across", install.GetProject(), pin.GetVersion()), "no_record")
 	}
-	free, err := h.whatsFree(ctx, entry)
+	free, err := h.whatsFree(ctx, entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -435,10 +436,11 @@ type free struct {
 	values  map[string]string
 }
 
-// whatsFree finds a name for an entry's project, and ports nothing Dockwell runs
-// has taken, on any server, so a default needn't depend on where it lands. What
-// else is on a server only its agent knows, so the plan refuses that by name.
-func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry) (free, error) {
+// whatsFree finds a name for an entry's project, from the one asked for or else the
+// entry's ID, and ports nothing Dockwell runs has taken, on any server, so a default
+// needn't depend on where it lands. What else is on a server only its agent knows, so
+// the plan refuses that by name.
+func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry, asked string) (free, error) {
 	taken := map[uint32]bool{}
 	var out free
 	err := h.db.View(ctx, func(tx *store.Tx) error {
@@ -454,8 +456,11 @@ func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry) (free, erro
 			}
 		}
 		// A name used before isn't free, as PlanInstall says of it.
-		out.project = e.GetId()
-		for n := 2; ; n++ {
+		if (scope.ProjectType{}).CheckName(asked) != nil {
+			asked = e.GetId()
+		}
+		stem, n := numbered(asked)
+		for out.project = asked; ; n++ {
 			_, err := tx.GetResource(ctx, string(scope.ProjectKind), tree.Organization.ID, out.project)
 			if errors.Is(err, store.ErrNotFound) {
 				return nil
@@ -463,11 +468,23 @@ func (h *Handler) whatsFree(ctx context.Context, e *catalogv1.Entry) (free, erro
 			if err != nil {
 				return err
 			}
-			out.project = e.GetId() + "-" + strconv.Itoa(n)
+			out.project = stem + "-" + strconv.Itoa(n)
 		}
 	})
 	out.values = catalog.Suggest(e, taken)
 	return out, err
+}
+
+// numbered splits a name that ends in a number, such as mysql-2, into what comes
+// before it and the number after, so the next to try is mysql-3. Any other name is a
+// stem of its own, whose next is the name with -2.
+func numbered(name string) (string, int) {
+	if i := strings.LastIndex(name, "-"); i > 0 {
+		if n, err := strconv.Atoi(name[i+1:]); err == nil && n >= 1 && name[i+1:] == strconv.Itoa(n) {
+			return name[:i], n + 1
+		}
+	}
+	return name, 2
 }
 
 func (h *Handler) addPorts(ctx context.Context, tx *store.Tx, env string, taken map[uint32]bool) error {

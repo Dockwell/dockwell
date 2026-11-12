@@ -6009,11 +6009,28 @@ msgstr "{count} installed"
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>, read-only"
 
+msgid "A project named {name} is here already"
+msgstr "A project named {name} is here already"
+
+msgid "A project named {name} was here before, and its data may come back"
+msgstr "A project named {name} was here before, and its data may come back"
+
 msgid "App you open"
 msgstr "App you open"
 
+#. placeholder {0}: rule.min
+msgid "At least {0} characters"
+msgstr "At least {0} characters"
+
+#. placeholder {0}: rule.min
+msgid "At least {0} characters: letters, digits and - . _ ~"
+msgstr "At least {0} characters: letters, digits and - . _ ~"
+
 msgid "Change {what}"
 msgstr "Change {what}"
+
+msgid "Copy {label}"
+msgstr "Copy {label}"
 
 msgid "Database"
 msgstr "Database"
@@ -6032,6 +6049,12 @@ msgstr "Entry's: {0}"
 msgid "Fix the limits of {badService} to review the plan"
 msgstr "Fix the limits of {badService} to review the plan"
 
+msgid "Fix {wrongLabel} to review the plan"
+msgstr "Fix {wrongLabel} to review the plan"
+
+msgid "Generate"
+msgstr "Generate"
+
 msgid "Generated and sealed"
 msgstr "Generated and sealed"
 
@@ -6040,6 +6063,9 @@ msgstr "Generated, in {app}'s log"
 
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "Give {missingLabel} a value to review the plan"
+
+msgid "Hide {label}"
+msgstr "Hide {label}"
 
 msgid "Its site"
 msgstr "Its site"
@@ -6063,8 +6089,48 @@ msgstr "Reading the sources"
 msgid "Restarts {0}"
 msgstr "Restarts {0}"
 
+msgid "Set my own"
+msgstr "Set my own"
+
+#. placeholder {0}: inSentence(input.label)
+msgid "Set my own {0}"
+msgstr "Set my own {0}"
+
+msgid "Show {label}"
+msgstr "Show {label}"
+
 msgid "Such as 512M or 2G."
 msgstr "Such as 512M or 2G."
+
+msgid "Take away the space at its start or end."
+msgstr "Take away the space at its start or end."
+
+msgid "Use a generated {label}"
+msgstr "Use a generated {label}"
+
+#. placeholder {0}: rule.form === "text" ? rule.min : 0
+msgid "Use at least {0} characters."
+msgstr "Use at least {0} characters."
+
+msgid "Use generated"
+msgstr "Use generated"
+
+msgid "Use letters, digits and - . _ ~ alone, as it goes in a URL."
+msgstr "Use letters, digits and - . _ ~ alone, as it goes in a URL."
+
+msgid "Use printable characters alone."
+msgstr "Use printable characters alone."
+
+#. placeholder {0}: input.generate
+msgid "Use {0} bytes in base64."
+msgstr "Use {0} bytes in base64."
+
+#. placeholder {0}: input.generate
+msgid "Use {0} hex digits."
+msgstr "Use {0} hex digits."
+
+msgid "Use {next}"
+msgstr "Use {next}"
 
 msgid "What it installs"
 msgstr "What it installs"
@@ -6087,15 +6153,26 @@ msgstr "server's network"
 msgid "the server's own"
 msgstr "the server's own"
 
-#. placeholder {0}: generated.length
+#. placeholder {0}: generated.length - ownCount
 msgid "{0, plural, one {# secret generated} other {# secrets generated}}"
 msgstr "{0, plural, one {# secret generated} other {# secrets generated}}"
+
+#. placeholder {0}: rule.size
+msgid "{0} bytes in base64"
+msgstr "{0} bytes in base64"
+
+#. placeholder {0}: rule.size
+msgid "{0} hex digits"
+msgstr "{0} hex digits"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
+
+msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
+msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 
 msgid "{source} · Not tested by Dockwell"
 msgstr "{source} · Not tested by Dockwell"

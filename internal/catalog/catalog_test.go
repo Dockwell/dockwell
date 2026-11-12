@@ -277,7 +277,7 @@ func TestADatabasesSharedPasswordFollowsItsSecret(t *testing.T) {
 	keepsItsOwn := map[string]bool{"nextcloud": true}
 	for _, e := range c.All() {
 		stack, filled := read(t, e)
-		for name, value := range filled.Secrets {
+		for name, value := range filled.Stands() {
 			for _, s := range stack.Services {
 				if !keepsItsOwn[e.GetId()] && databases.MatchString(s.Spec.GetApp().GetImage()) && slices.Contains(slices.Collect(maps.Values(s.Spec.GetApp().GetEnv())), value) &&
 					strings.Contains(e.GetFirstSteps(), "Leave the "+name+" secret as it is") {
@@ -312,7 +312,7 @@ func TestAnEncryptionKeyIsGeneratedAndLeftAlone(t *testing.T) {
 			t.Errorf("%s doesn't generate %s, of 40 characters or more", id, key.input)
 		}
 		stack, filled := read(t, e)
-		if got := stack.Services[0].Spec.GetApp().GetEnv()[key.env]; got == "" || got != filled.Secrets[key.input] {
+		if got := stack.Services[0].Spec.GetApp().GetEnv()[key.env]; got == "" || got != filled.Stands()[key.input] || len(filled.Secrets[key.input]) < 40 {
 			t.Errorf("%s's %s isn't its generated key", id, key.env)
 		}
 		if !e.GetInputs()[i].GetSetOnce() {
@@ -533,7 +533,7 @@ func TestCoderStaysOnThisServer(t *testing.T) {
 	if url := app.GetEnv()["CODER_PG_CONNECTION_URL"]; strings.Contains(url, ":@") || strings.Count(url, ":") > 2 {
 		t.Errorf("its database's URL holds a password: %q", url)
 	}
-	if got := app.GetEnv()["PGPASSWORD"]; got == "" || got != filled.Secrets["POSTGRES_PASSWORD"] {
+	if got := app.GetEnv()["PGPASSWORD"]; got == "" || got != filled.Stands()["POSTGRES_PASSWORD"] {
 		t.Error("PGPASSWORD isn't the database's password, as a whole value")
 	}
 }
@@ -747,7 +747,16 @@ func TestCheckRefuses(t *testing.T) {
 		"an address that names more than its domain": {func(e *catalogv1.Entry) {
 			e.AddressVariables = []*catalogv1.AddressVariable{{Service: "adminer", Variable: "URL", Value: "https://{domain}:{port}"}}
 		}, "names something other than {domain}"},
-		"a note of two lines": {func(e *catalogv1.Entry) { e.Notes = []string{"One.\nTwo."} }, "isn't one line"},
+		"a note of two lines":             {func(e *catalogv1.Entry) { e.Notes = []string{"One.\nTwo."} }, "isn't one line"},
+		"a port with a length":            {func(e *catalogv1.Entry) { e.Inputs[0].MinLength = 4 }, "only text and a secret do"},
+		"a port of characters":            {func(e *catalogv1.Entry) { e.Inputs[0].Characters = catalogv1.Characters_CHARACTERS_URL_SAFE }, "only text and a secret do"},
+		"a length past what it generates": {func(e *catalogv1.Entry) { e.Inputs[1].MinLength = 40 }, "Generate at least 40"},
+		"a length beside a form": {func(e *catalogv1.Entry) {
+			e.Inputs[1].MinLength, e.Inputs[1].GenerateAs = 16, catalogv1.GenerateAs_GENERATE_AS_HEX
+		}, "generate_as says what it takes already"},
+		"base64 in a URL": {func(e *catalogv1.Entry) {
+			e.Inputs[1].Characters, e.Inputs[1].GenerateAs = catalogv1.Characters_CHARACTERS_URL_SAFE, catalogv1.GenerateAs_GENERATE_AS_BASE64
+		}, "which has + / and ="},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := proto.CloneOf(base)
@@ -830,6 +839,41 @@ func TestASecretIsGeneratedAsItsAppReadsIt(t *testing.T) {
 	}
 }
 
+// A person's own value for a secret Dockwell generates is what the app takes, as its
+// input says: long enough, of the characters a URL carries where it goes into one, and
+// in the form a key it decodes is written in. A refusal never quotes the value.
+func TestAnOwnValueIsWhatTheAppTakes(t *testing.T) {
+	for name, tc := range map[string]struct {
+		input      *catalogv1.Input
+		ok, refuse string
+		want       string
+	}{
+		"the floor":          {&catalogv1.Input{Generate: 32}, "eight ch", "seven c", "at least 8 characters"},
+		"its length":         {&catalogv1.Input{Generate: 64, MinLength: 64}, strings.Repeat("k", 64), strings.Repeat("k", 63), "at least 64 characters"},
+		"a URL":              {&catalogv1.Input{Generate: 32, Characters: catalogv1.Characters_CHARACTERS_URL_SAFE}, "Abc-12.3_~xyz", "p@ss/w0rd#1", "letters, digits and - . _ ~ alone"},
+		"spaces and symbols": {&catalogv1.Input{Generate: 32}, "correct horse $battery 'staple\"", "tab\there!", "printable characters alone"},
+		"hex":                {&catalogv1.Input{Generate: 8, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_HEX}, "0aF19bC2", "0aF19bCz", "8 hex digits"},
+		"short hex":          {&catalogv1.Input{Generate: 8, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_HEX}, "deadbeef", "dead", "8 hex digits"},
+		"base64":             {&catalogv1.Input{Generate: 4, GenerateAs: catalogv1.GenerateAs_GENERATE_AS_BASE64}, "AAECAw==", "AAEC", "4 bytes written in base64"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc.input.Name, tc.input.Label, tc.input.Type = "KEY", "Key", catalogv1.InputType_INPUT_TYPE_SECRET
+			e := &catalogv1.Entry{Name: "Thing", Inputs: []*catalogv1.Input{tc.input}}
+			filled, err := catalog.Fill(e, map[string]string{"KEY": tc.ok}, nil)
+			if err != nil || filled.Secrets["KEY"] != tc.ok {
+				t.Errorf("Fill(%q) = %v, %v", tc.ok, filled, err)
+			}
+			_, err = catalog.Fill(e, map[string]string{"KEY": tc.refuse}, nil)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Fill(%q) = %v, want %q", tc.refuse, err, tc.want)
+			}
+			if strings.Contains(err.Error(), tc.refuse) {
+				t.Errorf("a refusal quotes the value: %v", err)
+			}
+		})
+	}
+}
+
 // Generated secrets differ each time, stay in the secrets, and aren't in what the
 // pin keeps. What a person gives is checked by its type, and a refusal never
 // quotes a value.
@@ -865,6 +909,22 @@ func TestFill(t *testing.T) {
 	if one.Variables["PORT"] != "8081" || one.Plain["PORT"] != "8081" || one.Secrets["TOKEN"] != "t0ken" {
 		t.Errorf("Fill = %+v", one)
 	}
+	// What the file reads for a secret is a stand-in, which a service then uses by
+	// reference, so a typed value can't be mistaken for another that's the same.
+	for name, secret := range one.Secrets {
+		if stand := one.Variables[name]; len(stand) != 32 || stand == secret || one.Stands()[name] != stand {
+			t.Errorf("%s reads as %q in the file, beside the secret %q", name, stand, secret)
+		}
+	}
+	// A person may give their own value for a secret Dockwell would generate, which is
+	// kept as it is, and sealed as a generated one is.
+	mine, err := catalog.Fill(e, given(map[string]string{"KEY": "my own key"}), catalog.Suggest(e, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mine.Secrets["KEY"] != "my own key" || mine.Variables["KEY"] == "my own key" || mine.Plain["KEY"] != "" {
+		t.Errorf("an own value fills %+v", mine)
+	}
 	for name, tc := range map[string]struct {
 		over map[string]string
 		want string
@@ -875,7 +935,8 @@ func TestFill(t *testing.T) {
 		"no value":   {map[string]string{"TOKEN": " "}, "Token needs a value"},
 		"two lines":  {map[string]string{"NOTE": "a\nb"}, "Note takes one line"},
 		"no such":    {map[string]string{"OTHER": "x"}, "takes no input OTHER"},
-		"generated":  {map[string]string{"KEY": "mine"}, "takes no value for KEY"},
+		"short own":  {map[string]string{"KEY": "mine"}, "Key takes at least 8 characters"},
+		"control":    {map[string]string{"KEY": "my\x00own key"}, "Key takes printable characters alone"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := catalog.Fill(e, given(tc.over), catalog.Suggest(e, nil))
@@ -921,6 +982,15 @@ func TestCarry(t *testing.T) {
 	}
 	if _, err := catalog.Carry(e, pin, nil, catalog.Suggest(e, nil), map[string]bool{"KEPT": true}); err == nil || !strings.Contains(err.Error(), "Typed needs a value") {
 		t.Errorf("a secret this release adds with no value = %v", err)
+	}
+	// What Dockwell generated an upgrade keeps, and a secret the release adds may take
+	// a person's own value, as an install's may.
+	held := map[string]bool{"KEPT": true, "TYPED": true}
+	if _, err := catalog.Carry(e, pin, map[string]string{"KEPT": "a new value"}, catalog.Suggest(e, nil), held); err == nil || !strings.Contains(err.Error(), "an upgrade keeps the KEPT") {
+		t.Errorf("a new value for a generated secret it has = %v", err)
+	}
+	if filled, err := catalog.Carry(e, pin, map[string]string{"NEW": "my own value"}, catalog.Suggest(e, nil), held); err != nil || filled.Secrets["NEW"] != "my own value" {
+		t.Errorf("an own value for a secret the release adds = %v, %v", filled, err)
 	}
 }
 

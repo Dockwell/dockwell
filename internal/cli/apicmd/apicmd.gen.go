@@ -514,6 +514,7 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The entry's ID, such as \"postgres\".", Arg: true},
+				{Path: "project", Help: "A name for its project to start from, such as one a person typed. Left out, or not a name a project can have, it's the entry's ID."},
 			},
 			Call: apicli.Unary[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse](dockwellv1connect.CatalogServiceGetCatalogEntryProcedure),
 		},

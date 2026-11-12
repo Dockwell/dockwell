@@ -20,7 +20,7 @@ screenshots:
     source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/.github/plausible-analytics-dashboard.webp
 category: analytics
 version: "3.2.1"
-release: 4
+release: 5
 homepage: https://plausible.io/self-hosted-web-analytics
 license: AGPL-3.0-only
 appLicense: AGPL-3.0-only
@@ -44,10 +44,12 @@ inputs:
     label: Secret key
     type: INPUT_TYPE_SECRET
     generate: 64
+    minLength: 64
   - name: POSTGRES_PASSWORD
     label: Database password
     type: INPUT_TYPE_SECRET
     generate: 32
+    characters: CHARACTERS_URL_SAFE
 databases: [db, events]
 compose: |
   services:

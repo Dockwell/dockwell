@@ -236,6 +236,16 @@ Most of what the first steps said was something the panel could show or do: wher
 - What the panel can tell from the entry or the server says nothing in words: a port on loopback answers only on this server, and the panel says so beside it; how to reach it before a domain is the panel's to offer (ADR 0061), not a tunnel command in a note.
 - `Check` refuses a field that names no input or service of the entry's own, and a note that isn't one line of 120 characters at most. The built-in entries keep their first steps to one sentence of 140 characters, and each field's hint to one line, which their tests check. The converters write no first steps: how an app is reached is the app's page's to show, and one on the server's own network gets a note saying it answers on every address. An overlay sets `sign_in`, `first_visitor_owns`, `signups`, `address_variables`, `notes` and an input's `set_once`, as a built-in entry does, and its notes take the place of the converter's.
 
+### A person's own values, and a name that's free
+
+*Added with #519, as the install sheet said "Generated and sealed" with no way to set a password, and could land on a name the plan refused.*
+
+- **A secret Dockwell generates takes a person's own value in its place.** `InstallCatalogEntryRequest.values` takes one by the input's name, as it takes a typed secret, and the CLI takes it from the environment alone, as `--values NAME`. Generated stays the default. The install sheet offers Set my own under Advanced, with Show, Copy and Generate, which makes a strong value in the browser for a person to keep.
+- **It's sealed as a generated one is.** No secret's value reaches the Compose file's reading any more: each is read as a stand-in of 32 random letters and digits, which the plan then has the service use by reference, as an upgrade already did for the secrets an install holds. So a typed value never shows in a plan, and one that's the same text as another value in the file can't take that value's place.
+- **An entry says what its app takes,** where that's more than printable characters on one line: `min_length`, and `characters`, which is URL-safe for a password the app writes into a URL, as Umami's and Plausible's starts do. A key the app decodes takes its `generate_as` form exactly. A person's own value for a generated secret has at least 8 characters unless its input says more, the floor NIST SP 800-63B sets for a memorised secret. The panel checks it as it's typed, and the control plane again.
+- **An upgrade keeps a secret Dockwell generated.** A value for one the install holds is refused, saying to set it on the secret's page. A secret a release adds takes a person's own value, as an install's does.
+- **A name is checked as it's typed.** `GetCatalogEntryRequest.project` names one to start from, and the answer is it when it's free, or the next that is, past the names used before, which only the control plane knows: mysql-2 from mysql, and mysql-3 from mysql-2. The sheet says a taken name is taken beside the field, with the next free one in a click and a link to what has it, so it never plans a name the plan would refuse.
+
 ### What we turned down
 
 - **Running 1Panel's format directly.** It would tie the product to a format that can't express plans, secrets or backups, and it would run scripts on the host.

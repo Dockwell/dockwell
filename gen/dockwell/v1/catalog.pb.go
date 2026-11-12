@@ -113,7 +113,10 @@ func (x *ListCatalogEntriesResponse) GetEntries() []*v1alpha1.Entry {
 type GetCatalogEntryRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The entry's ID, such as "postgres".
-	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// A name for its project to start from, such as one a person typed. Left
+	// out, or not a name a project can have, it's the entry's ID.
+	Project       string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -155,13 +158,21 @@ func (x *GetCatalogEntryRequest) GetId() string {
 	return ""
 }
 
+func (x *GetCatalogEntryRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
 // GetCatalogEntryResponse is an entry, with what installing it would use.
 type GetCatalogEntryResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The entry.
 	Entry *v1alpha1.Entry `protobuf:"bytes,1,opt,name=entry,proto3" json:"entry,omitempty"`
-	// A name for its project that's free, such as "postgres", or "postgres-2"
-	// once that's taken.
+	// A name for its project that's free: the one asked for, or the entry's ID,
+	// such as "mysql", or once that's taken or was used before, the next that
+	// isn't, such as "mysql-2", and "mysql-3" for "mysql-2".
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// What each input takes if you give it nothing, by name. A port is one that
 	// nothing Dockwell runs has taken. A secret isn't here.
@@ -1492,9 +1503,10 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x19dockwell/v1/catalog.proto\x12\vdockwell.v1\x1a%dockwell/catalog/v1alpha1/entry.proto\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\"\x1b\n" +
 	"\x19ListCatalogEntriesRequest\"X\n" +
 	"\x1aListCatalogEntriesResponse\x12:\n" +
-	"\aentries\x18\x01 \x03(\v2 .dockwell.catalog.v1alpha1.EntryR\aentries\"(\n" +
+	"\aentries\x18\x01 \x03(\v2 .dockwell.catalog.v1alpha1.EntryR\aentries\"B\n" +
 	"\x16GetCatalogEntryRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\xa0\x02\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\"\xa0\x02\n" +
 	"\x17GetCatalogEntryResponse\x126\n" +
 	"\x05entry\x18\x01 \x01(\v2 .dockwell.catalog.v1alpha1.EntryR\x05entry\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12H\n" +

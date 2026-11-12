@@ -940,6 +940,13 @@ paths:
                   required: true
                   schema:
                     type: string
+                - name: project
+                  in: query
+                  description: |-
+                    A name for its project to start from, such as one a person typed. Left
+                     out, or not a name a project can have, it's the entry's ID.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -11002,8 +11009,9 @@ components:
                 project:
                     type: string
                     description: |-
-                        A name for its project that's free, such as "postgres", or "postgres-2"
-                         once that's taken.
+                        A name for its project that's free: the one asked for, or the entry's ID,
+                         such as "mysql", or once that's taken or was used before, the next that
+                         isn't, such as "mysql-2", and "mysql-3" for "mysql-2".
                 values:
                     type: object
                     additionalProperties:
@@ -11939,7 +11947,8 @@ components:
                     description: |-
                         How many characters to generate for a secret that no one types, such as 32.
                          The value is sealed as it's made, and nothing shows it but a reveal. 0 asks
-                         a person for it.
+                         a person for it. A person may still give one of their own, which is sealed
+                         the same way, and must be what min_length, characters and generate_as say.
                     format: uint32
                 logged:
                     type: boolean
@@ -11956,6 +11965,26 @@ components:
                     description: |-
                         How a generated secret is written, for an app that reads it as a key: letters
                          and digits unless set.
+                    format: enum
+                minLength:
+                    type: integer
+                    description: |-
+                        The fewest characters a value a person gives may have, where the app takes
+                         no shorter one, such as 64 for a key it signs with. Unset, a person's own
+                         value for a secret Dockwell generates takes at least 8, and anything else
+                         any value. A secret the app decodes, by generate_as, takes exactly the form
+                         it generates instead. Never more than generate, which Dockwell's own value
+                         must meet.
+                    format: uint32
+                characters:
+                    enum:
+                        - CHARACTERS_UNSPECIFIED
+                        - CHARACTERS_URL_SAFE
+                    type: string
+                    description: |-
+                        The characters a value a person gives may hold, where the app writes it into
+                         something that reads some as its own, such as a URL. Unset is any printable
+                         character on one line.
                     format: enum
                 setOnce:
                     type: boolean

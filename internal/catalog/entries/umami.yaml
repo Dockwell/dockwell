@@ -20,7 +20,7 @@ screenshots:
     source: https://umami.is/_next/static/immutable/media/screenshot-dashboard.3vmc7t3hapnqk.jpg
 category: analytics
 version: "3.4.1"
-release: 4
+release: 5
 homepage: https://umami.is
 license: AGPL-3.0-only
 appLicense: MIT
@@ -43,6 +43,7 @@ inputs:
     label: Database password
     type: INPUT_TYPE_SECRET
     generate: 32
+    characters: CHARACTERS_URL_SAFE
 databases: [db]
 compose: |
   services:

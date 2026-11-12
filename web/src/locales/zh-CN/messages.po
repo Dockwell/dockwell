@@ -6009,11 +6009,28 @@ msgstr "已安装 {count} 个"
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>，只读"
 
+msgid "A project named {name} is here already"
+msgstr "已有名为 {name} 的项目"
+
+msgid "A project named {name} was here before, and its data may come back"
+msgstr "之前有过名为 {name} 的项目，它的数据可能会回来"
+
 msgid "App you open"
 msgstr "你打开的应用"
 
+#. placeholder {0}: rule.min
+msgid "At least {0} characters"
+msgstr "至少 {0} 个字符"
+
+#. placeholder {0}: rule.min
+msgid "At least {0} characters: letters, digits and - . _ ~"
+msgstr "至少 {0} 个字符：字母、数字和 - . _ ~"
+
 msgid "Change {what}"
 msgstr "更改{what}"
+
+msgid "Copy {label}"
+msgstr "复制 {label}"
 
 msgid "Database"
 msgstr "数据库"
@@ -6032,6 +6049,12 @@ msgstr "条目默认：{0}"
 msgid "Fix the limits of {badService} to review the plan"
 msgstr "修正 {badService} 的限制后即可查看计划"
 
+msgid "Fix {wrongLabel} to review the plan"
+msgstr "修正 {wrongLabel} 后即可审阅计划"
+
+msgid "Generate"
+msgstr "生成"
+
 msgid "Generated and sealed"
 msgstr "已生成，加密保存"
 
@@ -6040,6 +6063,9 @@ msgstr "已生成，写在 {app} 的日志里"
 
 msgid "Give {missingLabel} a value to review the plan"
 msgstr "请填写{missingLabel}，然后审阅计划"
+
+msgid "Hide {label}"
+msgstr "隐藏 {label}"
 
 msgid "Its site"
 msgstr "官网"
@@ -6063,8 +6089,48 @@ msgstr "正在读取来源"
 msgid "Restarts {0}"
 msgstr "重启：{0}"
 
+msgid "Set my own"
+msgstr "自己设置"
+
+#. placeholder {0}: inSentence(input.label)
+msgid "Set my own {0}"
+msgstr "自己设置 {0}"
+
+msgid "Show {label}"
+msgstr "显示 {label}"
+
 msgid "Such as 512M or 2G."
 msgstr "例如 512M 或 2G。"
+
+msgid "Take away the space at its start or end."
+msgstr "请去掉开头或结尾的空格。"
+
+msgid "Use a generated {label}"
+msgstr "改用生成的 {label}"
+
+#. placeholder {0}: rule.form === "text" ? rule.min : 0
+msgid "Use at least {0} characters."
+msgstr "请至少使用 {0} 个字符。"
+
+msgid "Use generated"
+msgstr "改用生成的"
+
+msgid "Use letters, digits and - . _ ~ alone, as it goes in a URL."
+msgstr "它会写进 URL，请只使用字母、数字和 - . _ ~。"
+
+msgid "Use printable characters alone."
+msgstr "请只使用可打印字符。"
+
+#. placeholder {0}: input.generate
+msgid "Use {0} bytes in base64."
+msgstr "请使用 base64 编码的 {0} 个字节。"
+
+#. placeholder {0}: input.generate
+msgid "Use {0} hex digits."
+msgstr "请使用 {0} 位十六进制数字。"
+
+msgid "Use {next}"
+msgstr "使用 {next}"
 
 msgid "What it installs"
 msgstr "安装内容"
@@ -6087,15 +6153,26 @@ msgstr "服务器网络"
 msgid "the server's own"
 msgstr "服务器自身的"
 
-#. placeholder {0}: generated.length
+#. placeholder {0}: generated.length - ownCount
 msgid "{0, plural, one {# secret generated} other {# secrets generated}}"
 msgstr "{0, plural, other {已生成 # 个密钥}}"
+
+#. placeholder {0}: rule.size
+msgid "{0} bytes in base64"
+msgstr "base64 编码的 {0} 个字节"
+
+#. placeholder {0}: rule.size
+msgid "{0} hex digits"
+msgstr "{0} 位十六进制数字"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
+
+msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
+msgstr "{ownCount, plural, other {# 个自己设置的密钥}}"
 
 msgid "{source} · Not tested by Dockwell"
 msgstr "{source} · 未经 Dockwell 测试"

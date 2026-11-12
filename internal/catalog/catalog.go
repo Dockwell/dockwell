@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v4"
 	"golang.org/x/text/runes"
@@ -260,6 +261,14 @@ func Check(e *catalogv1.Entry) error {
 			return fmt.Errorf("the input %s says how to write what it generates, and generates nothing. Set generate, or take generate_as away", name)
 		case in.GetSetOnce() && in.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET:
 			return fmt.Errorf("the input %s is set once, which only a secret is. Take set_once away", name)
+		case (in.GetMinLength() > 0 || in.GetCharacters() != catalogv1.Characters_CHARACTERS_UNSPECIFIED) && !typed(in):
+			return fmt.Errorf("the input %s says how long it is or what characters it takes, which only text and a secret do. Take min_length and characters away", name)
+		case in.GetMinLength() > 0 && in.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED:
+			return fmt.Errorf("the input %s sets min_length, and its generate_as says what it takes already. Take min_length away", name)
+		case in.GetGenerate() > 0 && in.GetMinLength() > in.GetGenerate():
+			return fmt.Errorf("the input %s takes at least %d characters, and generates %d. Generate at least %d", name, in.GetMinLength(), in.GetGenerate(), in.GetMinLength())
+		case in.GetCharacters() == catalogv1.Characters_CHARACTERS_URL_SAFE && in.GetGenerateAs() == catalogv1.GenerateAs_GENERATE_AS_BASE64:
+			return fmt.Errorf("the input %s takes what a URL carries, and generates base64, which has + / and =. Take characters or generate_as away", name)
 		}
 		seen[name] = true
 		if Secret(in) {
@@ -391,8 +400,40 @@ func standsAlone(file, name string) error {
 	return walk(tree)
 }
 
-// Asks reports an input a person gives: one Dockwell generates isn't.
+// typed reports an input whose value is text a person may type, which can say how
+// long it is and what characters it takes: a port and an email address say that by
+// their type.
+func typed(in *catalogv1.Input) bool {
+	switch in.GetType() {
+	case catalogv1.InputType_INPUT_TYPE_UNSPECIFIED, catalogv1.InputType_INPUT_TYPE_TEXT, catalogv1.InputType_INPUT_TYPE_SECRET:
+		return true
+	case catalogv1.InputType_INPUT_TYPE_PORT, catalogv1.InputType_INPUT_TYPE_EMAIL:
+	}
+	return false
+}
+
+// Asks reports an input a person gives: one Dockwell generates isn't, though a person
+// may give their own value for it.
 func Asks(in *catalogv1.Input) bool { return in.GetGenerate() == 0 }
+
+// OwnFloor is how many characters a person's own value for a secret Dockwell
+// generates has at least, where its input says no more.
+const OwnFloor = 8
+
+// MinLength is how many characters a value a person gives an input must have at
+// least: what the input says, or OwnFloor for a secret Dockwell generates, or 0 for
+// any. A secret the app decodes, by its generate_as, takes its own form instead.
+func MinLength(in *catalogv1.Input) int {
+	switch {
+	case in.GetGenerateAs() != catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED:
+		return 0
+	case in.GetMinLength() > 0:
+		return int(in.GetMinLength())
+	case in.GetGenerate() > 0:
+		return OwnFloor
+	}
+	return 0
+}
 
 // Secret reports an input kept as a secret.
 func Secret(in *catalogv1.Input) bool { return in.GetType() == catalogv1.InputType_INPUT_TYPE_SECRET }
@@ -428,9 +469,12 @@ func Suggest(e *catalogv1.Entry, taken map[uint32]bool) map[string]string {
 
 // Filled is an entry's inputs, filled in for an install.
 type Filled struct {
-	// Variables are the values of what its Compose file uses, secrets among them.
+	// Variables are the values of what its Compose file uses, with a value of no
+	// meaning standing for each secret, which a service then uses by reference
+	// (Stands). So no secret's value reaches the file's reading, or a plan, and a
+	// value a person typed can't be mistaken for another that's the same.
 	Variables map[string]string
-	// Secrets are those kept as secrets, by name.
+	// Secrets are those kept as secrets, by name, with their values.
 	Secrets map[string]string
 	// Plain are the others, which the install's pin keeps.
 	Plain map[string]string
@@ -473,10 +517,13 @@ func Given(pin *resourcev1.CatalogPin) (variables, stands map[string]string, err
 	return variables, stands, nil
 }
 
-// Stands is every value that stands for a secret, for what has services use them by
-// reference.
+// Stands is every value that stands for a secret among Variables, by the secret's
+// name, for what has services use them by reference.
 func (f *Filled) Stands() map[string]string {
-	out := maps.Clone(f.Secrets)
+	out := make(map[string]string, len(f.Secrets)+len(f.Held))
+	for name := range f.Secrets {
+		out[name] = f.Variables[name]
+	}
 	maps.Copy(out, f.Held)
 	return out
 }
@@ -485,15 +532,18 @@ func (f *Filled) Stands() map[string]string {
 const longest = 4 << 10
 
 // Fill gives every input its value: what's given, or what's suggested, or for a
-// secret no one types, one made here. It refuses a value that isn't what its
-// input takes, by the input's label, and a value for no input.
+// secret Dockwell generates that no one gave a value of their own, one made here.
+// It refuses a value that isn't what its input takes, by the input's label, and a
+// value for no input.
 func Fill(e *catalogv1.Entry, given, suggested map[string]string) (*Filled, error) {
 	return fill(e, given, suggested, nil)
 }
 
 // Carry fills an entry's inputs for an upgrade: what's given, then what the install
 // was given, then what's suggested for an input this release adds. A secret in held,
-// which the install has already, stays as it is, unless a new value is given.
+// which the install has already, stays as it is, unless a new value is given for a
+// secret a person gave. One Dockwell generated keeps its value: an upgrade isn't
+// what sets it anew.
 func Carry(e *catalogv1.Entry, pin *resourcev1.CatalogPin, given, suggested map[string]string, held map[string]bool) (*Filled, error) {
 	values := maps.Clone(given)
 	if values == nil {
@@ -514,8 +564,8 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 		if i < 0 {
 			return nil, fmt.Errorf("%s takes no input %s. It takes %s", e.GetName(), name, names(e))
 		}
-		if !Asks(e.GetInputs()[i]) {
-			return nil, fmt.Errorf("%s takes no value for %s, as Dockwell generates it", e.GetName(), name)
+		if in := e.GetInputs()[i]; !Asks(in) && held[name] && strings.TrimSpace(given[name]) != "" {
+			return nil, fmt.Errorf("an upgrade keeps the %s that Dockwell generated for %s. Leave %s out, and set a new value on the secret's page", name, e.GetName(), name)
 		}
 	}
 	for _, in := range e.GetInputs() {
@@ -529,29 +579,37 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 			out.Variables[name], out.Held[name] = stands, stands
 			continue
 		}
-		if in.GetGenerate() > 0 {
+		// A person's own value, where Dockwell would generate one, takes its place.
+		own := value != ""
+		if in.GetGenerate() > 0 && !own {
 			var err error
 			if value, err = generateAs(int(in.GetGenerate()), in.GetGenerateAs()); err != nil {
 				return nil, err
 			}
 		}
-		if err := checkValue(in, value); err != nil {
+		if err := checkValue(in, value, own); err != nil {
 			return nil, err
 		}
-		out.Variables[name] = value
 		switch {
 		case !Secret(in):
-			out.Plain[name] = value
+			out.Variables[name], out.Plain[name] = value, value
 		case value != "":
-			out.Secrets[name] = value
+			stands, err := generate(32)
+			if err != nil {
+				return nil, err
+			}
+			out.Variables[name], out.Secrets[name] = stands, value
+		default:
+			out.Variables[name] = ""
 		}
 	}
 	return out, nil
 }
 
-// checkValue refuses a value that isn't what its input takes. It never quotes one,
-// as it may be a secret.
-func checkValue(in *catalogv1.Input, value string) error {
+// checkValue refuses a value that isn't what its input takes, and one a person gave
+// that isn't what the app takes, as its input says. It never quotes one, as it may
+// be a secret.
+func checkValue(in *catalogv1.Input, value string, own bool) error {
 	label := in.GetLabel()
 	switch {
 	case value == "" && in.GetOptional():
@@ -574,7 +632,48 @@ func checkValue(in *catalogv1.Input, value string) error {
 		}
 	case catalogv1.InputType_INPUT_TYPE_UNSPECIFIED, catalogv1.InputType_INPUT_TYPE_TEXT, catalogv1.InputType_INPUT_TYPE_SECRET:
 	}
+	if own {
+		return CheckOwn(in, value)
+	}
 	return nil
+}
+
+// CheckOwn refuses a value a person gave that the app won't take, as its input says:
+// a key it decodes in another form, a value too short, or a character it reads as its
+// own, such as an @ in a password it writes into a URL. A secret takes printable
+// characters alone. It never quotes the value.
+func CheckOwn(in *catalogv1.Input, value string) error {
+	label := in.GetLabel()
+	switch in.GetGenerateAs() {
+	case catalogv1.GenerateAs_GENERATE_AS_HEX:
+		if len(value) != int(in.GetGenerate()) || strings.Trim(value, "0123456789abcdefABCDEF") != "" {
+			return fmt.Errorf("%s takes %d hex digits, as the app decodes it", label, in.GetGenerate())
+		}
+		return nil
+	case catalogv1.GenerateAs_GENERATE_AS_BASE64:
+		if b, err := base64.StdEncoding.DecodeString(value); err != nil || len(b) != int(in.GetGenerate()) {
+			return fmt.Errorf("%s takes %d bytes written in base64, as the app decodes it", label, in.GetGenerate())
+		}
+		return nil
+	case catalogv1.GenerateAs_GENERATE_AS_UNSPECIFIED:
+	}
+	if n := MinLength(in); utf8.RuneCountInString(value) < n {
+		return fmt.Errorf("%s takes at least %d characters", label, n)
+	}
+	for _, r := range value {
+		switch {
+		case Secret(in) && !unicode.IsPrint(r):
+			return fmt.Errorf("%s takes printable characters alone", label)
+		case in.GetCharacters() == catalogv1.Characters_CHARACTERS_URL_SAFE && !urlSafe(r):
+			return fmt.Errorf("%s takes letters, digits and - . _ ~ alone, as the app writes it into a URL", label)
+		}
+	}
+	return nil
+}
+
+// urlSafe reports a character a URL carries as it is: RFC 3986's unreserved.
+func urlSafe(r rune) bool {
+	return 'a' <= r && r <= 'z' || 'A' <= r && r <= 'Z' || '0' <= r && r <= '9' || strings.ContainsRune("-._~", r)
 }
 
 func names(e *catalogv1.Entry) string {
