@@ -455,25 +455,26 @@
   scroll-snap-type: x proximity;
 }
 
+/*
+ * Each screenshot is as wide as the column (the next one peeking in when there are several), at its own aspect ratio.
+ * Only a tall one stops at 560px, whole and centred in its frame, so no screenshot sits narrow in a wide column.
+ */
 .catalog-screenshots figure {
   display: flex;
-  flex: none;
+  flex: 0 0 90%;
   flex-direction: column;
-  align-items: flex-start;
   min-width: 0;
-  max-width: 90%;
   margin: 0;
   scroll-snap-align: start;
 }
 
 .catalog-screenshots figure:only-child {
-  max-width: 100%;
+  flex-basis: 100%;
 }
 
 .catalog-screenshots figure > a {
   position: relative;
   display: block;
-  max-width: 100%;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -482,10 +483,10 @@
 
 .catalog-screenshots img {
   display: block;
-  width: auto;
-  max-width: 100%;
+  width: 100%;
   height: auto;
   max-height: 560px;
+  object-fit: contain;
 }
 
 .catalog-preview-open {
@@ -515,10 +516,11 @@
   color: var(--link);
 }
 
+/* As wide as a screenshot would be, and no taller than one may be. */
 .catalog-preview-missing {
   display: flex;
-  width: 480px;
-  max-width: 100%;
+  width: 100%;
+  max-height: 560px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
