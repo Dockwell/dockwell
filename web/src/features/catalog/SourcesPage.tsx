@@ -27,7 +27,7 @@ import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
-import { converted, FormatLine, LeftOut, SourcePresets, useFormatWords } from "./SourceFormats";
+import { converted, FormatLine, LeftOut, PRESETS, SourcePresets, useFormatWords } from "./SourceFormats";
 import { useCatalog, useSources } from "./useCatalog";
 import "./Sources.css";
 
@@ -112,19 +112,21 @@ export function SourcesPage() {
           icon="branch"
           title={<Trans>Dockwell's own catalog is all it reads</Trans>}
           action={
-            <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
-              <Trans>Add a source</Trans>
-            </Button>
+            <>
+              <SourcePresets
+                sources={[]}
+                off={set.off}
+                onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
+              />
+              <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
+                <Trans>Add a source</Trans>
+              </Button>
+            </>
           }
         >
           <p>
             <Trans>A source adds the apps in a public Git repository.</Trans>
           </p>
-          <SourcePresets
-            sources={[]}
-            off={set.off}
-            onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
-          />
         </EmptyState>
       ) : (
         list.map((source) => (
@@ -371,7 +373,9 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
   // How its default branch reads, as Dockwell tells from its folders: a fact, or a choice where it can't tell.
   const guesses = askable ? (refs.data?.formats ?? []) : [];
   const guess = guesses.find((g) => g.format === format) ?? (guesses.length === 1 ? guesses[0] : undefined);
-  const suggested = editing.suggested && !taken.includes(editing.suggested) ? editing.suggested : undefined;
+  // A preset's name, or the one a store's own link would get from its preset, before one made from the link.
+  const presetName = editing.suggested ?? PRESETS.find((p) => p.repository === url.replace(/\/+$/, ""))?.id;
+  const suggested = presetName && !taken.includes(presetName) ? presetName : undefined;
   const name = named ?? suggested ?? nameFor(url, taken);
   // The repository's default branch, unless another is chosen; main or master where it names none.
   const head = askable ? (refs.data?.head ?? "") : "";
