@@ -835,3 +835,14 @@ a.plan-reach-at:focus-visible {
 .plan-stops-others {
   color: var(--ink-muted);
 }
+
+/* What can't be undone and that the passkey is asked, side by side, where nothing is typed. */
+.plan-foot-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+}
+
+.plan-view .dw-sheet-foot .plan-foot-notes > .dw-sheet-note {
+  margin: 0;
+}
