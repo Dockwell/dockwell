@@ -113,7 +113,7 @@ export function useDeleteApp(
   });
   const withProject = (of: Resource, summary: string, choice?: PlanChoice): Opening => ({
     kind: "plan",
-    make: () => planDeletingProject(transport, of, environments, summary),
+    make: () => planDeletingProject(transport, of, summary),
     onClose,
     ...(choice ? { choice } : {}),
   });

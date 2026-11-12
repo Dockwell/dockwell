@@ -360,8 +360,22 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			t.Fatalf("variables create = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		r = run(t, env, "projects", "delete", "attic", "--yes")
-		if r.code == exitOK || !strings.Contains(r.err, "project attic still holds variable KEPT in production, so it stays. Delete it first, with dockwell variables delete KEPT --project attic, or in the same change") {
+		if r.code == exitOK || !strings.Contains(r.err, "project attic still holds variable KEPT in production, so it stays. Delete it first, with dockwell variables delete KEPT --project attic, or in the same change, or take it with it: dockwell projects delete attic --with-contents") {
 			t.Errorf("deleting a project that holds a variable = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		// With what's in it, in one change whose plan lists each, which undo brings back (ADR 0074).
+		r = run(t, env, "projects", "delete", "attic", "--with-contents", "--yes")
+		if r.code != exitOK {
+			t.Fatalf("projects delete --with-contents = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		for _, want := range []string{"- variable KEPT", "- project attic", "- environment production", "3 to delete", "Applied chg_"} {
+			if !strings.Contains(r.out, want) {
+				t.Errorf("projects delete --with-contents didn't print %q:\n%s", want, r.out)
+			}
+		}
+		r = run(t, env, "changes", "undo", changeRE.FindString(r.out), "--yes")
+		if r.code != exitOK || !strings.Contains(r.out, "3 to create") {
+			t.Fatalf("undoing projects delete --with-contents = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		r = run(t, env, "variables", "delete", "KEPT", "--project", "attic", "--yes")
 		if r.code != exitOK {
@@ -370,6 +384,10 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 		r = run(t, env, "projects", "delete", "attic", "--yes")
 		if r.code != exitOK {
 			t.Errorf("deleting the project once it holds nothing = %d:\n%s%s", r.code, r.out, r.err)
+		}
+		// Only a project's or an environment's delete takes it.
+		if r = run(t, env, "variables", "delete", "X", "--with-contents"); r.code != exitUsage || !strings.Contains(r.err, "unknown flag: --with-contents") {
+			t.Errorf("variables delete --with-contents = %d %q", r.code, r.err)
 		}
 	})
 

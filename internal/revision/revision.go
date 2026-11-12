@@ -249,6 +249,11 @@ type Edit struct {
 	// KeepEnv names a service's own environment variables to keep as they are,
 	// for a client that can't read their values back (resource.EnvKeeper).
 	KeepEnv []string
+	// WithContents, with a deletion of a project or an environment, deletes
+	// everything that lives in it too, in the same change (ADR 0074), so its
+	// plan lists each item, each is checked as any edit is, and undoing the
+	// change brings them all back.
+	WithContents bool
 	// Pull asks the server for the resource's image again as this applies, as a
 	// deploy of the tag it already names does: the plan can't know what the tag
 	// points at now, so a revision comes only if it finds a newer image.
@@ -536,6 +541,8 @@ type item struct {
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
+	// withContents says this deletion of a scope takes what lives in it (Edit.WithContents).
+	withContents bool
 	// observed says its spec is what a server has (Edit.Observed).
 	observed bool
 	ref      resource.Ref
@@ -1291,6 +1298,10 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				return err
 			}
 			it.pull, it.run, it.adopt, it.adoptName, it.reverses, it.observed = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses, ed.Observed
+			if ed.WithContents && (ed.Spec != nil || (ed.Ref.Kind != scope.ProjectKind && ed.Ref.Kind != scope.EnvironmentKind)) {
+				return fault.New(ErrInvalid, "%s asks to take what lives in it, which only deleting a project or an environment can. Leave with_contents out", ed.Ref)
+			}
+			it.withContents = ed.WithContents
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
@@ -1354,6 +1365,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			return err
 		}
 		if items, err = e.withEnvironmentsGoing(ctx, tx, items, seen); err != nil {
+			return err
+		}
+		if items, err = e.withContentsGoing(ctx, tx, items, seen); err != nil {
 			return err
 		}
 		if items, err = e.withUsers(ctx, tx, items); err != nil {
@@ -2005,6 +2019,53 @@ func (e *Engine) withEnvironmentsGoing(ctx context.Context, tx *store.Tx, items 
 	return items, nil
 }
 
+// withContentsGoing takes what lives in a project's or an environment's
+// environments when an edit deletes it with its contents (Edit.WithContents): each
+// resource there, deleted in the same change, so the plan lists it, the checks
+// after this see it as any edit, and the engine orders it by what uses what, as
+// it orders edits a person names one by one (ADR 0074).
+func (e *Engine) withContentsGoing(ctx context.Context, tx *store.Tx, items []item, named map[resource.Ref]bool) ([]item, error) {
+	n := len(items)
+	for i := range n {
+		if !items[i].withContents || items[i].spec != nil || items[i].current == nil {
+			continue
+		}
+		environments := []string{items[i].id}
+		if items[i].ref.Kind == scope.ProjectKind {
+			envs, err := tx.ListResources(ctx, items[i].id, string(scope.EnvironmentKind))
+			if err != nil {
+				return items, err
+			}
+			environments = environments[:0]
+			for j := range envs {
+				environments = append(environments, envs[j].ID)
+			}
+		}
+		for _, env := range environments {
+			inside, err := tx.ListResources(ctx, env, "")
+			if err != nil {
+				return items, err
+			}
+			for j := range inside {
+				ref := resource.Ref{Kind: resource.Kind(inside[j].Kind), Scope: env, Name: inside[j].Name}
+				if named[ref] {
+					continue
+				}
+				named[ref] = true
+				it, err := e.load(ctx, tx, ref)
+				if err != nil {
+					return items, err
+				}
+				if it.servers, err = e.place(ctx, tx, it, nil); err != nil {
+					return items, err
+				}
+				items = append(items, it)
+			}
+		}
+	}
+	return items, nil
+}
+
 // refuseWhatsHeld refuses deleting a project while something would stay in it: what
 // stays in it, and what stays in each environment going with it, and where. Each is
 // named by its kind, and with the command that deletes it, as that's what differs.
@@ -2056,8 +2117,8 @@ func refuseWhatsHeld(ctx context.Context, tx *store.Tx, items []item, project *i
 	if len(commands) == 0 {
 		return nil
 	}
-	return fault.New(ErrInvalid, "project %s still holds %s, so it stays. Delete %s first, with %s, or in the same change",
-		project.ref.Name, human.List(words), itOrThem(len(commands)), human.List(commands))
+	return fault.New(ErrInvalid, "project %s still holds %s, so it stays. Delete %s first, with %s, or in the same change, or take %s with it: dockwell projects delete %s --with-contents",
+		project.ref.Name, human.List(words), itOrThem(len(commands)), human.List(commands), itOrThem(len(commands)), project.ref.Name)
 }
 
 func itOrThem(n int) string {

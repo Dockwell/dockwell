@@ -89,7 +89,7 @@ function api(more: Api = {}, proposals: ProposeChangeRequest[] = []): Api {
 }
 
 const edits = (req: ProposeChangeRequest | undefined) =>
-  req?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete]) ?? [];
+  req?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete, e.withContents]) ?? [];
 
 describe("the projects", () => {
   it("list what's in each, and mark the one with nothing running, with Delete beside it", async () => {
@@ -116,11 +116,8 @@ describe("the projects", () => {
     await user.click(within(rows[3] as HTMLElement).getByRole("button", { name: "Delete the project old-shop" }));
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.summary).toBe("Delete the project old-shop");
-    expect(edits(proposals[0])).toEqual([
-      ["secret", "STRIPE_KEY", true],
-      ["variable", "SHOP_MODE", true],
-      ["project", "old-shop", true],
-    ]);
+    // One edit, which the engine fills with what's in the project as it plans (ADR 0074).
+    expect(edits(proposals[0])).toEqual([["project", "old-shop", true, true]]);
   });
 
   it("show only those with nothing running, when asked", async () => {
@@ -208,13 +205,7 @@ describe("a project's page", () => {
     expect(danger).toHaveTextContent("Takes 1 app, 1 variable, 1 secret and 1 volume in one plan");
     await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
     await screen.findByRole("dialog", { name: "Review plan" });
-    expect(edits(proposals[0])).toEqual([
-      ["service", "ghost", true],
-      ["volume", "content", true],
-      ["variable", "SITE_TITLE", true],
-      ["secret", "MAIL_PASSWORD", true],
-      ["project", "blog", true],
-    ]);
+    expect(edits(proposals[0])).toEqual([["project", "blog", true, true]]);
   });
 
   it("keeps the default project, where apps with no project go", async () => {

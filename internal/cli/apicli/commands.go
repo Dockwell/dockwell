@@ -273,6 +273,12 @@ func carriesChange(md protoreflect.MessageDescriptor) bool {
 	return false
 }
 
+// holdsOthers says whether a kind is a scope that other resources live in, which
+// can be deleted with them (Edit.with_contents): a project or an environment.
+func holdsOthers(kind resource.Kind) bool {
+	return kind == "project" || kind == "environment"
+}
+
 // kindVerbs are the commands for a kind of resource.
 var kindVerbs = []struct{ verb, short, long string }{
 	{"create", "Create %s", "Proposes a change that creates %s %s, shows its plan and asks before applying it."},
@@ -335,12 +341,18 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 				return nil, fmt.Errorf("%s: %w", k.Noun, err)
 			}
 		}
+		// A project or an environment can go with what lives in it, in one change (ADR 0074).
+		var contents bool
+		if v.verb == "delete" && holdsOthers(kind) {
+			cmd.Flags().BoolVar(&contents, "with-contents", false,
+				"delete what lives in it too, in the same change: its apps, routes, volumes, variables and secrets. The plan lists each")
+		}
 		verb := v.verb
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			edit := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Name: name}}
 			if verb == "delete" {
-				edit.Resource.Kind, edit.Delete = string(kind), true
+				edit.Resource.Kind, edit.Delete, edit.WithContents = string(kind), true, contents
 			} else {
 				spec := &resourcev1.Spec{}
 				m := spec.ProtoReflect().Mutable(specField).Message()

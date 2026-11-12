@@ -171,30 +171,14 @@ describe("the command bar", () => {
     expect(proposals[0]?.edits[0]?.delete).toBe(true);
   });
 
-  it("deletes everything a project still has, in the one plan", async () => {
+  it("deletes a project with everything it still has, in one edit the engine fills", async () => {
     const proposals: ProposeChangeRequest[] = [];
-    const shopProduction = resource("env_shop", "environment", "prj_shop", "production");
-    const asked: string[] = [];
     const { user, bar } = await openBar({
       resources: {
-        listResources: (req) => {
-          if (req.scope) asked.push(req.scope);
-          return {
-            resources:
-              req.kind === "project"
-                ? [defaultProject, shopProject]
-                : req.kind === "environment"
-                  ? [production, shopProduction]
-                  : req.scope === "env_shop"
-                    ? [
-                        resource("vol_data", "volume", "env_shop", "data"),
-                        resource("net_default", "network", "env_shop", "default"),
-                        resource("sec_db", "secret", "env_shop", "DB_PASSWORD"),
-                        resource("var_mode", "variable", "env_shop", "MODE"),
-                      ]
-                    : [],
-          };
-        },
+        listResources: (req) => ({
+          resources:
+            req.kind === "project" ? [defaultProject, shopProject] : req.kind === "environment" ? [production] : [],
+        }),
       },
       changes: {
         proposeChange: (req) => {
@@ -211,16 +195,11 @@ describe("the command bar", () => {
       }),
     );
     expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
-    // Only the project's own environments are read, never another project's.
-    expect(asked).toEqual(["env_shop"]);
     expect(proposals).toHaveLength(1);
     expect(proposals[0]?.summary).toBe("Delete the project shop");
-    expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.scope, e.resource?.name, e.delete])).toEqual([
-      ["volume", "env_shop", "data", true],
-      ["network", "env_shop", "default", true],
-      ["secret", "env_shop", "DB_PASSWORD", true],
-      ["variable", "env_shop", "MODE", true],
-      ["project", "", "shop", true],
+    // The engine lists what's in it as it plans, as the CLI's --with-contents has it (ADR 0074).
+    expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete, e.withContents])).toEqual([
+      ["project", "shop", true, true],
     ]);
   });
 

@@ -37,13 +37,7 @@ export function useProjectDelete(count: number): {
   const open = (view: ProjectView, after?: () => void) =>
     sheet.open({
       kind: "plan",
-      make: () =>
-        planDeletingProject(
-          transport,
-          view.project,
-          view.environments.map((e) => e.id),
-          t`Delete the project ${view.label}`,
-        ),
+      make: () => planDeletingProject(transport, view.project, t`Delete the project ${view.label}`),
       onClose: (change: Change | undefined) => {
         if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
           if (after) after();

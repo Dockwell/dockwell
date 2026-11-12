@@ -3516,7 +3516,7 @@ describe("an app's overview", () => {
       });
     }
     const edits = (req: ProposeChangeRequest | undefined) =>
-      req?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete]) ?? [];
+      req?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete, e.withContents]) ?? [];
 
     it("takes the project when the app is the last thing in it, behind a switch that's on", async () => {
       const user = userEvent.setup();
@@ -3530,12 +3530,8 @@ describe("an app's overview", () => {
       await user.click(screen.getByRole("button", { name: "Delete web" }));
       const sheet = await screen.findByRole("dialog", { name: "Review plan" });
       expect(proposals[0]?.summary).toBe("Delete web and the project shop");
-      expect(edits(proposals[0])).toEqual([
-        ["service", "web", true],
-        ["secret", "DB_PASSWORD", true],
-        ["volume", "data", true],
-        ["project", "shop", true],
-      ]);
+      // One edit, which the engine fills with what's in the project as it plans (ADR 0074).
+      expect(edits(proposals[0])).toEqual([["project", "shop", true, true]]);
       const toggle = within(sheet).getByRole("switch", { name: "Also delete the project shop" });
       expect(toggle).toBeChecked();
       expect(sheet).toHaveTextContent("Takes 1 secret and 1 volume with it");
@@ -3545,7 +3541,7 @@ describe("an app's overview", () => {
       await user.click(toggle);
       await waitFor(() => expect(proposals).toHaveLength(2));
       expect(proposals[1]?.summary).toBe("Delete web");
-      expect(edits(proposals[1])).toEqual([["service", "web", true]]);
+      expect(edits(proposals[1])).toEqual([["service", "web", true, false]]);
       const again = await screen.findByRole("switch", { name: "Also delete the project shop" });
       expect(again).not.toBeChecked();
       expect(screen.getByRole("dialog", { name: "Review plan" })).toHaveTextContent(
@@ -3565,19 +3561,13 @@ describe("an app's overview", () => {
       await user.click(within(danger).getByRole("button", { name: "Delete web" }));
       const sheet = await screen.findByRole("dialog", { name: "Review plan" });
       expect(within(sheet).queryByRole("switch")).toBeNull();
-      expect(edits(proposals[0])).toEqual([["service", "web", true]]);
+      expect(edits(proposals[0])).toEqual([["service", "web", true, false]]);
       await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
 
       await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
       await waitFor(() => expect(proposals).toHaveLength(2));
       expect(proposals[1]?.summary).toBe("Delete the project shop");
-      expect(edits(proposals[1])).toEqual([
-        ["service", "web", true],
-        ["secret", "DB_PASSWORD", true],
-        ["volume", "data", true],
-        ["service", "adminer", true],
-        ["project", "shop", true],
-      ]);
+      expect(edits(proposals[1])).toEqual([["project", "shop", true, true]]);
     });
 
     it("leaves the switch off, with why, for someone who can't delete a project", async () => {
@@ -3602,7 +3592,7 @@ describe("an app's overview", () => {
       expect(toggle).not.toBeChecked();
       expect(toggle).toBeDisabled();
       expect(sheet).toHaveTextContent("Only an admin or the owner can do this. Ask one of them.");
-      expect(edits(proposals[0])).toEqual([["service", "web", true]]);
+      expect(edits(proposals[0])).toEqual([["service", "web", true, false]]);
     });
 
     it("never offers the default project, where the next app goes", async () => {
@@ -3626,7 +3616,7 @@ describe("an app's overview", () => {
       const sheet = await screen.findByRole("dialog", { name: "Review plan" });
       expect(within(sheet).queryByRole("switch")).toBeNull();
       expect(screen.queryByText(/Delete the project/)).toBeNull();
-      expect(edits(proposals[0])).toEqual([["service", "web", true]]);
+      expect(edits(proposals[0])).toEqual([["service", "web", true, false]]);
     });
   });
 
