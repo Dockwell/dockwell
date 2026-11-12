@@ -42,6 +42,7 @@ const MARK: Partial<Record<Condition, IconName>> = {
   [Condition.RESTORE_DRILL_FAILED]: "archive",
   [Condition.RESTORE_DRILL_LATE]: "archive",
   [Condition.UPDATE_AVAILABLE]: "arrow-up",
+  [Condition.CATALOG_SOURCE_STUCK]: "branch",
 };
 
 const ms = (a: { seconds: bigint } | undefined) => (a ? Number(a.seconds) * 1000 : undefined);
@@ -307,6 +308,12 @@ function Inspect({ alert, title }: { alert: Alert; title: string }) {
     case Condition.RESTORE_DRILL_LATE:
       return (
         <RouterButtonLink to="/backups" {...small}>
+          {words}
+        </RouterButtonLink>
+      );
+    case Condition.CATALOG_SOURCE_STUCK:
+      return (
+        <RouterButtonLink to="/catalog/sources" {...small}>
           {words}
         </RouterButtonLink>
       );

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { CatalogFormat, CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
@@ -12,6 +13,7 @@ import {
   PHONE_QUERY,
   SelectField,
   Sheet,
+  Switch,
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
@@ -22,6 +24,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
+import { useTickingNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
@@ -31,8 +34,11 @@ import { converted, FormatLine, LeftOut, PRESETS, SourcePresets, useFormatWords 
 import { useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
-/** What the source form starts from: nothing for a new source, or the one it moves. */
-interface Editing {
+/**
+ * What the source form starts from: nothing for a new source, the one it changes, or
+ * a repository filled in for a person, as a preset of a known catalog would.
+ */
+export interface Editing {
   name?: string;
   repository?: string;
   path?: string;
@@ -40,6 +46,8 @@ interface Editing {
   format?: CatalogFormat;
   /** The name a new source starts from, as a preset gives it. */
   suggested?: string;
+  /** The branch it follows, or follows to start with: empty pins it. */
+  follow?: string;
 }
 
 /**
@@ -61,6 +69,7 @@ export function SourcesPage() {
   const may = useMay();
   const set = may(CatalogService.method.setCatalogSource, { install: true });
   const remove = may(CatalogService.method.removeCatalogSource, { install: true });
+  const check = may(CatalogService.method.checkCatalogSource, { install: true });
   return (
     <Page
       title={t`Catalog sources`}
@@ -136,11 +145,14 @@ export function SourcesPage() {
             names={names}
             moveOff={set.off}
             removeOff={remove.off}
+            checkOff={check.off}
+            onRead={() => void sources.refetch()}
             onMove={() =>
               setEditing({
                 name: source.name,
                 repository: source.source?.repository ?? "",
                 path: source.source?.path ?? "",
+                follow: source.source?.follow ?? "",
               })
             }
           />
@@ -163,13 +175,18 @@ function SourcePanel({
   names,
   moveOff,
   removeOff,
+  checkOff,
+  onRead,
   onMove,
 }: {
   source: CatalogSourceInfo;
   names: ReadonlyMap<string, string>;
-  /** Spread onto Move and Remove: off, with why, for whoever may not. */
+  /** Spread onto Change, Pin, Check now and Remove: off, with why, for whoever may not. */
   moveOff: { off?: string; disabled?: true };
   removeOff: { off?: string; disabled?: true };
+  checkOff: { off?: string; disabled?: true };
+  /** Reads the sources again, once a look may have moved this one. */
+  onRead: () => void;
   onMove: () => void;
 }) {
   const { t } = useLingui();
@@ -180,6 +197,7 @@ function SourcePanel({
   const said = useSourceNames()(name);
   const commit = source.source?.commit ?? "";
   const path = source.source?.path ?? "";
+  const follow = source.source?.follow ?? "";
   const count = source.entries.length;
   const formatWords = useFormatWords();
   return (
@@ -188,8 +206,8 @@ function SourcePanel({
       className="sources-panel"
       actions={
         <>
-          <Button size="sm" variant="ghost" icon="commit" {...moveOff} onClick={onMove}>
-            <Trans context="catalog source">Move</Trans>
+          <Button size="sm" variant="ghost" icon="branch" aria-label={t`Change ${said}`} {...moveOff} onClick={onMove}>
+            <Trans context="catalog source">Change</Trans>
           </Button>
           <Button
             size="sm"
@@ -241,6 +259,31 @@ function SourcePanel({
           </dd>
         </div>
       </dl>
+      {follow !== "" ? (
+        <FollowLine
+          source={source}
+          checkOff={checkOff}
+          pinOff={moveOff}
+          onChecked={(changeId) => {
+            onRead();
+            // What Dockwell moved it to, applied, with its undo one step away.
+            if (changeId) sheet.open({ kind: "change", id: changeId, witnessed: true });
+          }}
+          onPin={() =>
+            sheet.open({
+              kind: "plan",
+              make: () =>
+                client.setCatalogSource({
+                  name,
+                  repository: source.source?.repository ?? "",
+                  path,
+                  commit,
+                  follow: "",
+                }),
+            })
+          }
+        />
+      ) : null}
       {source.unread !== "" ? (
         <Callout
           tone="warning"
@@ -273,6 +316,78 @@ function SourcePanel({
         </>
       )}
     </Panel>
+  );
+}
+
+/**
+ * What following a branch comes to now: when Dockwell last looked and the way to
+ * look now, the way to stop at this commit, and why the source isn't where its
+ * branch is, when it isn't.
+ */
+function FollowLine({
+  source,
+  checkOff,
+  pinOff,
+  onChecked,
+  onPin,
+}: {
+  source: CatalogSourceInfo;
+  checkOff: { off?: string; disabled?: true };
+  pinOff: { off?: string; disabled?: true };
+  onChecked: (changeId?: string) => void;
+  onPin: () => void;
+}) {
+  const { t } = useLingui();
+  const time = useTimeWords();
+  const transport = useTransport();
+  const client = useMemo(() => createClient(CatalogService, transport), [transport]);
+  const [checking, setChecking] = useState(false);
+  const [failed, setFailed] = useState<string>();
+  const branch = source.source?.follow ?? "";
+  const checked = source.checked ? timestampDate(source.checked) : undefined;
+  const now = useTickingNow(checked?.getTime());
+  const look = async () => {
+    setChecking(true);
+    setFailed(undefined);
+    try {
+      const res = await client.checkCatalogSource({ name: source.name });
+      onChecked(res.change?.id);
+    } catch (err) {
+      setFailed(sentence(err));
+    } finally {
+      setChecking(false);
+    }
+  };
+  const words = checked ? (
+    <Trans>
+      Following {branch} · checked {time.ago(checked, now)}
+    </Trans>
+  ) : (
+    <Trans>Following {branch}</Trans>
+  );
+  return (
+    <>
+      <div className="sources-follow">
+        <span className="sources-follow-words">
+          <Icon name="branch" size={14} />
+          {words}
+        </span>
+        <span className="sources-follow-actions">
+          <Button size="sm" variant="ghost" icon="refresh" loading={checking} {...checkOff} onClick={() => void look()}>
+            <Trans>Check now</Trans>
+          </Button>
+          <Button size="sm" variant="ghost" icon="commit" {...pinOff} onClick={onPin}>
+            <Trans context="catalog source">Pin here</Trans>
+          </Button>
+        </span>
+      </div>
+      {failed ? <Callout tone="critical">{failed}</Callout> : null}
+      {source.problem !== "" ? (
+        <Callout tone="warning" title={t`Didn't follow ${branch}`}>
+          {source.problem}
+        </Callout>
+      ) : null}
+    </>
   );
 }
 
@@ -335,12 +450,21 @@ function refWords(name: string): { short: string; tag: boolean } {
 const TYPED = "";
 
 /**
- * Adds a source, or moves one to another commit. It asks for the repository alone:
- * Dockwell reads it as it's typed, offers its branches and tags, and pins the commit
- * the chosen one is at. Its name and folder start at defaults, one step away, and a
- * commit can still be typed. Then the plan, which says what the commit holds.
+ * Adds a source, or changes one. It asks for the repository alone: Dockwell reads it
+ * as it's typed, offers its branches and tags, and follows the chosen branch, or
+ * pins the commit a tag or a branch left to stand is at. Its name and folder start at
+ * defaults, one step away, and a commit can still be typed. Then the plan, which says
+ * what the commit holds.
  */
-function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: readonly string[]; onClose: () => void }) {
+export function SourceSheet({
+  editing,
+  taken,
+  onClose,
+}: {
+  editing: Editing;
+  taken: readonly string[];
+  onClose: () => void;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
@@ -352,7 +476,9 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
   const [repository, setRepository] = useState(editing.repository ?? "");
   const [path, setPath] = useState(editing.path ?? "");
   const [format, setFormat] = useState(editing.format);
-  const [picked, setPicked] = useState<string>();
+  const [picked, setPicked] = useState<string | undefined>(editing.follow ? `refs/heads/${editing.follow}` : undefined);
+  // A branch is followed unless a person leaves it to stand; a source that's pinned stays so.
+  const [following, setFollowing] = useState(editing.name === undefined || editing.follow !== "");
   const [commit, setCommit] = useState("");
   const [more, setMore] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; repository?: string; commit?: string }>({});
@@ -388,6 +514,8 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
     found.find((r) => r.name === "refs/heads/master");
   const choice = picked ?? (lead ?? found[0])?.name ?? TYPED;
   const chosen = found.find((r) => r.name === choice);
+  const branch = chosen?.name.startsWith("refs/heads/") ? refWords(chosen.name).short : "";
+  const follows = following && branch !== "";
   const typed = commit.trim().toLowerCase();
   const pin = chosen ? chosen.commit : typed;
   const at = found.filter((r) => r.commit === typed).map((r) => refWords(r.name).short);
@@ -430,7 +558,14 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
     }
     // A folder Dockwell found the catalog in, such as entries, where nobody named one.
     const folder = path.trim() === "" && guess ? guess.path : path.trim();
-    const request = { name, repository: url, path: folder, commit: pin, format: format ?? guess?.format };
+    const request = {
+      name,
+      repository: url,
+      path: folder,
+      commit: pin,
+      format: format ?? guess?.format,
+      follow: follows ? branch : "",
+    };
     const opening: Opening = {
       kind: "plan",
       // PlanView owns the request from its start, so leaving mid-fetch discards a late plan too.
@@ -485,8 +620,8 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={first}
-      title={moving ? t`Move ${movingWords} to another commit` : t`Add a catalog source`}
-      subtitle={t`Apps from a public Git repository, pinned at one commit`}
+      title={moving ? t`Change ${movingWords}` : t`Add a catalog source`}
+      subtitle={t`Apps from a public Git repository`}
       onClose={close}
       className={cx("sources-sheet", phone && "is-phone")}
       footer={
@@ -540,9 +675,13 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
         <FormatLine guesses={guesses} chosen={format} onChoose={(g) => setFormat(g.format)} />
         {count > 0 ? (
           <SelectField
-            label={t`Pin to`}
+            label={t`Branch`}
             value={choice}
-            hint={chosen ? t`At ${chosen.commit.slice(0, 12)} now. It stays there until you move it.` : undefined}
+            hint={
+              chosen && !follows
+                ? t`At ${chosen.commit.slice(0, 12)} now. It stays there until you move it.`
+                : undefined
+            }
             options={[
               ...found.map((r) => {
                 const { short, tag } = refWords(r.name);
@@ -554,6 +693,18 @@ function SourceSheet({ editing, taken, onClose }: { editing: Editing; taken: rea
               setPicked(event.target.value);
               setErrors({ ...errors, commit: undefined });
             }}
+          />
+        ) : null}
+        {branch !== "" ? (
+          <Switch
+            label={t`Follow ${branch}`}
+            description={
+              following
+                ? t`Its new commits come in on their own. What's installed stays as it is.`
+                : t`Pinned at ${pin.slice(0, 12)}.`
+            }
+            checked={following}
+            onChange={setFollowing}
           />
         ) : null}
         {/* Typing a commit comes up once the repository is read: when it has no branch to offer, can't be read, or you ask. */}

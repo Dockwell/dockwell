@@ -256,6 +256,8 @@ func Word(c resourcev1.AlertRule_Condition) string {
 		return "a restore check that's late"
 	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
 		return "an app's update"
+	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
+		return "a catalog that can't follow its branch"
 	default:
 		return "that condition"
 	}
@@ -293,6 +295,8 @@ func Title(r *resourcev1.AlertRule) string {
 			return "Major update available"
 		}
 		return "Update available"
+	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
+		return "Catalog stuck"
 	default:
 		return "Unknown condition"
 	}
@@ -331,6 +335,8 @@ func Expression(r *resourcev1.AlertRule) string {
 			return "service.update == major"
 		}
 		return "service.update != none"
+	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
+		return "catalog.source.commit != branch"
 	default:
 		return ""
 	}
@@ -366,6 +372,7 @@ func Defaults() []Default {
 		{"restore-drill-late", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_RESTORE_DRILL_LATE, Severity: warning}},
 		// Off until a person turns it on: an update is news, not trouble (ADR 0079).
 		{"update-available", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE, Severity: warning, Disabled: true}},
+		{"catalog-source-stuck", &resourcev1.AlertRule{Condition: resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK, Duration: "1h", Severity: warning, Repeat: "24h"}},
 	}
 	return slices.Clip(rules)
 }

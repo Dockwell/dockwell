@@ -1,6 +1,6 @@
 # Catalog sources: threat model
 
-What a catalog source can do to the control plane and to what's installed, and what stops it. The design is in [ADR 0055](../adr/0055-catalogs-from-a-git-url.md), and for another store's catalog, which the control plane converts as it reads it, in [ADR 0078](../adr/0078-other-stores-read-on-the-server.md); the code is in `internal/gitfetch`, `internal/netguard`, `internal/catalog/convert` and `internal/control/catalogapi`.
+What a catalog source can do to the control plane and to what's installed, and what stops it. The design is in [ADR 0055](../adr/0055-catalogs-from-a-git-url.md); in [ADR 0077](../adr/0077-dockwells-catalog-in-its-own-repository.md), which lets a source follow a branch and hold images; and for another store's catalog, which the control plane converts as it reads it, in [ADR 0078](../adr/0078-other-stores-read-on-the-server.md). The code is in `internal/gitfetch`, `internal/netguard`, `internal/catalog/folder`, `internal/catalog/convert` and `internal/control/catalogapi`.
 
 ## What there is to protect
 
@@ -9,12 +9,14 @@ What a catalog source can do to the control plane and to what's installed, and w
 | The control plane's disk and memory | The server it runs on, as root | A source is read when a plan is made, before anyone applies anything |
 | What the control plane can reach on its network | This server, its private networks and its cloud's metadata service | A request it makes for a source could reach what no person can |
 | What an install runs | Its project's pin, and the catalog it upgrades from | An upgrade runs whatever image the entry it comes from names |
+| The panel, in a person's browser | The control plane's origin, with a signed-in session | A source's image is served from that origin, so a file a browser ran there could act as the person |
 
 ## Trust boundaries
 
 - **A source's repository, and the host that serves it,** are a stranger's, whoever named them. Everything it sends is checked as if it means harm: its pack, its trees' names, its entries and its words.
 - **An admin** can add, move or remove a source. Adding one reads the network and the disk when the plan is made, outside the revision store, and decides what anyone can install, so `SetCatalogSource` and `RemoveCatalogSource` need an admin's role on the install, checked before anything is read (ADR 0049). The revision engine holds the resource to an admin too, as it belongs to no project. Anyone with a role can list the sources. `ListCatalogSourceRefs`, which a form uses to check a repository as it's typed and to offer its branches, is an admin's too: it reads the network for whoever asks, through the same guarded client, with the same refusals, and answers with names and commit IDs alone.
 - **Whoever applies the plan** chooses to trust the source's entries, as anything they add is theirs. A source's entry is never *tested*, as ADR 0029 says of the reviewed list.
+- **A source that follows a branch** is trusted further: its repository's owner can change what the install offers, by pushing, with no person on the install. Adding it, or having it follow, is that trust, and its plan says so.
 
 ## Threats and mitigations
 
@@ -36,6 +38,17 @@ What a catalog source can do to the control plane and to what's installed, and w
 | A source is added by a plain edit, with no read and no notes | A `catalog.source` changes only through `SetCatalogSource` and `RemoveCatalogSource`. |
 | Plans fill the disk | A commit read for a plan is kept apart, the newest four, and kept for good only once a source applied names it. One no source names is removed. A commit's files are 16 MiB at most, 2,000 of them, 1 MiB each. |
 | A host that's down makes every view of the catalog wait | A source that couldn't be read is taken as unread for five minutes, and the catalog shows the rest. |
+| An image is a page or a script: an SVG with a script in it, or HTML named `logo.png`, opened from the control plane's origin | Only `.webp`, `.png`, `.jpg` and `.jpeg` names are read at all, never SVG. Each is checked by its first bytes, when it's read and again each time it's served, and its extension must say the same. It's served with the type its bytes say, `X-Content-Type-Options: nosniff`, and `Content-Security-Policy: default-src 'none'; sandbox`, so a browser that opens it on its own runs nothing. |
+| A name in the folder media reaches out of it | Only names of lowercase words and one extension are read or kept, through `os.Root`; a folder deeper than `media` is never read. A request's path parts are each checked against a pattern before anything is opened, and an image is opened through `os.Root` from the commit kept for a source applied. |
+| Images fill the disk or the fetch | The folder media is read within limits of its own: 1,000 images, 1 MiB each, 32 MiB together, counted before a byte of one is kept, inside the 64 MiB pack. Over them, the commit is refused. A commit's images are kept beside its entries and go with them. |
+| A stranger learns which sources an install reads by asking for their images | An image is served only to a signed-in person who may read the catalog, as an image request carries the session's cookie. |
+| A source's entry names the images Dockwell ships for its own apps, to pass for one | Still refused: a `/catalog-media/` path in a source's entry is dropped, and the plan says so. A source's own images are its own, beside the name of the catalog it comes from. |
+| A source that follows a branch makes the control plane ask a host over and over | Every source is looked at once an hour, give or take six minutes, and first within five minutes of a start; after a look that failed, the next waits five minutes, then twice as long each time, up to six hours. A look lists the branches through the same guarded client, and a move fetches one commit as a person's plan does, one at a time, within the same bounds. |
+| A pushed commit changes what runs | A move changes only what the catalog offers. An install whose entry has a newer release shows an upgrade, which a person plans and applies, as before. |
+| A source that follows moves with no one seeing it | Each move is Dockwell's own change, on Activity, with the notes a person's plan has: what the commit adds, changes and leaves out, and each install that loses or regains its upgrades. It can be undone. |
+| An undone move comes straight back | Dockwell keeps the commit it last moved each source to, and its hourly look never moves the source back to it: the source stays where the undo put it until the branch moves again. |
+| A broken commit, or one that refuses every entry, empties the catalog | A commit that can't be read, or whose entries all fail when the commit before had some, leaves the source where it is. The Sources page says why, and an alert does too. |
+| A branch is force-pushed to an older or a stranger's commit | It's followed as any move is: the plan says which commit it is, as the branch's, and what it changes. Pinning the source to a commit stops following. |
 
 ### Another store's catalog, converted on the server
 
@@ -72,3 +85,4 @@ A source may be 1Panel's app store, Dokploy's templates or Coolify's (ADR 0078).
 - **A private repository,** with credentials as a secret, and a source on a private network, which an admin would name, as host access, come later.
 - **What a source's entries say in words,** such as a summary, is shown as written. The panel shows it as text, never as markup.
 - **A store's images aren't held back 14 days,** as Dockwell's own catalog's are: the store chose that version, and a tag rebuilt every few weeks would never be installable. The plan shows the digest it installs (ADR 0078).
+- **What an image shows** is the source's to choose, as its words are. A WebP, PNG or JPEG that decodes is drawn by the browser's own decoder, whose flaws are the browser's to fix.

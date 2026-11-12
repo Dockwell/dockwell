@@ -255,8 +255,11 @@ type Entry struct {
 	// What the app does and who it is for, in the catalog's own words. Plain
 	// text, with blank lines between paragraphs; never HTML or Markdown.
 	Description string `protobuf:"bytes,17,opt,name=description,proto3" json:"description,omitempty"`
-	// The app's own logo, used to identify it. A local image path under
-	// /catalog-media/, served with the panel. Empty when no artwork is available.
+	// The app's own logo, used to identify it. In an entry's file, a WebP, PNG or
+	// JPEG image in the folder media beside it, as "media/ghost-icon.webp", or for
+	// an entry built into Dockwell, a path under /catalog-media/. In the API, the
+	// path the control plane serves it at, under /catalog-media/. Empty when no
+	// artwork is available.
 	Icon string `protobuf:"bytes,18,opt,name=icon,proto3" json:"icon,omitempty"`
 	// Genuine previews of the app, with captions identifying what they show.
 	// A command-line service need not have a screenshot.
@@ -833,10 +836,11 @@ func (x *AddressVariable) GetValue() string {
 }
 
 // Screenshot is a preview a person can read before starting an installation.
-// Media ships with the panel; browsing never asks a third-party host for it.
+// Media comes with its catalog, and the control plane serves it; browsing never
+// asks a third-party host for it.
 type Screenshot struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// A local raster image path under /catalog-media/.
+	// A raster image, named as icon is.
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// What the screenshot shows, also used as its accessible description.
 	Caption string `protobuf:"bytes,2,opt,name=caption,proto3" json:"caption,omitempty"`

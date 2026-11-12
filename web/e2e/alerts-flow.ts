@@ -98,16 +98,18 @@ export async function alertsFlow(page: Page, { origin, step, shoot, docker, sock
     await page.getByRole("link", { name: /Rules/ }).click();
     const rules = page.getByRole("table", { name: "Alert rules" });
     await rules.getByRole("row", { name: /server\.connected == false/ }).waitFor();
-    // A header and the thirteen rules an install starts with, the restore checks' two among them (ADR 0068),
-    // and an app's update, which starts off (ADR 0079).
+    // A header and the fourteen rules an install starts with, the restore checks' two among them (ADR 0068),
+    // the one for a catalog that can't follow its branch (ADR 0077), and an app's
+    // update, which starts off (ADR 0079).
     await rules.getByRole("row", { name: /backup\.drill == failed/ }).waitFor();
     await rules.getByRole("row", { name: /backup\.drill\.passed > 2 periods ago/ }).waitFor();
+    await rules.getByRole("row", { name: /catalog\.source\.commit != branch/ }).waitFor();
     await rules
       .getByRole("row", { name: /service\.update != none/ })
       .getByText("Off")
       .waitFor();
-    if ((await rules.getByRole("row").count()) !== 14)
-      fail("Rules doesn't list the thirteen rules an install starts with");
+    if ((await rules.getByRole("row").count()) !== 15)
+      fail("Rules doesn't list the fourteen rules an install starts with");
     if ((await rules.getByRole("row", { name: /check\.state == down/ }).count()) !== 1)
       fail("Rules doesn't list Address down, which tells the channels when a watched address stops answering");
 

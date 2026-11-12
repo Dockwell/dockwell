@@ -18,7 +18,7 @@ func TestItSaysWhatItNeeds(t *testing.T) {
 		args []string
 		want string
 	}{
-		"nothing":                  {nil, "name what to do: convert"},
+		"nothing":                  {nil, "name what to do: convert or check"},
 		"no source":                {[]string{"convert", "--from", "1panel"}, "name the source's checkout with --source"},
 		"a format it doesn't read": {[]string{"convert", "--from", "umbrel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, `not "umbrel"`},
 		"a folder with no apps":    {[]string{"convert", "--from", "1panel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, "github.com/1Panel-dev/appstore"},
@@ -52,5 +52,54 @@ func TestItReadsOverlays(t *testing.T) {
 	}
 	if _, err := convert.ReadOverlays(dir); err == nil || !strings.Contains(err.Error(), "the overlay bad.yaml") {
 		t.Errorf("ReadOverlays read a field the format hasn't: %v", err)
+	}
+}
+
+// check checks a folder as a server reads a catalog source: an entry that names an
+// image the folder has passes, and one that isn't what its name says, or a file
+// that isn't an entry, is named with why, and fails the check.
+func TestItChecksAFolder(t *testing.T) {
+	dir := t.TempDir()
+	own, err := os.ReadFile("../../internal/catalog/entries/memos.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := strings.ReplaceAll(string(own), "/catalog-media/", "media/")
+	write := func(name string, data []byte) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("memos.yaml", []byte(entry))
+	write("README.md", []byte("A catalog.\n"))
+	for _, image := range []string{"memos-icon.webp", "memos-timeline.webp"} {
+		data, err := os.ReadFile("../../web/public/catalog-media/" + image)
+		if err != nil {
+			t.Fatal(err)
+		}
+		write("media/"+image, data)
+	}
+	var out bytes.Buffer
+	if err := run(t.Context(), []string{"check", dir}, &out, &out); err != nil || !strings.Contains(out.String(), "Checked 1 entry and 2 images") {
+		t.Fatalf("a folder that passes: %v\n%s", err, out.String())
+	}
+	write("media/memos-icon.webp", []byte("<svg onload=alert(1)>"))
+	write("broken.yaml", []byte("id: broken\n"))
+	out.Reset()
+	err = run(t.Context(), []string{"check", dir}, &out, &out)
+	if err == nil || !strings.Contains(err.Error(), "a server would leave out or lose 3") {
+		t.Errorf("a folder that fails: %v", err)
+	}
+	for _, want := range []string{"media/memos-icon.webp: by its first bytes it isn't", "broken.yaml: ", "media/memos-icon.webp: memos.yaml names it"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("it doesn't say %q:\n%s", want, out.String())
+		}
+	}
+	if err := run(t.Context(), []string{"check"}, &out, &out); err == nil || !strings.Contains(err.Error(), "name the folder") {
+		t.Errorf("no folder: %v", err)
 	}
 }

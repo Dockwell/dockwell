@@ -39,6 +39,21 @@ type Limits struct {
 	// Total is the most the folder's files may be together, or no more than Files
 	// of File each when 0.
 	Total int64
+	// Sub is a folder in the folder to read too, one level, within limits of its
+	// own. Its files are returned by their names in it after its name and a slash,
+	// as media/logo.png. A commit whose folder has no such folder is no error.
+	Sub *Sub
+}
+
+// Sub is a folder in the folder a fetch reads, read too.
+type Sub struct {
+	// Name is its name, such as "media".
+	Name string
+	// Limits bound what's read of it; its own Sub is never read.
+	Limits Limits
+	// Want says which of its files to read, by name. One it doesn't want is
+	// left out before it's read, and counts against no limit.
+	Want func(name string) bool
 }
 
 // Default are the limits a catalog's source reads within: entries are a few KiB
@@ -49,7 +64,8 @@ var Default = Limits{Pack: 64 << 20, Files: 2000, File: 1 << 20, Total: 16 << 20
 var Commit = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // Fetch reads the regular files in folder dir of the repository at repo, at commit,
-// by their names in it. A file in a folder under dir, and a link, are left out.
+// by their names in it. A file in a folder under dir, and a link, are left out,
+// but for the files lim.Sub names.
 //
 // A nil client is netguard's, which connects only to public addresses, takes no
 // proxy and follows no redirect, as a source's URL is a person's to name. A test
@@ -72,6 +88,9 @@ func Fetch(ctx context.Context, client *http.Client, repo, commit, dir string, l
 	filter := int64(0)
 	if can.filter {
 		filter = lim.File
+		if lim.Sub != nil {
+			filter = max(filter, lim.Sub.Limits.File)
+		}
 	}
 	f, size, err := fetchPack(ctx, via, u, commit, lim.Pack, filter)
 	if err != nil {
@@ -522,15 +541,9 @@ func files(p *pack, commit, dir string, lim Limits) (map[string][]byte, error) {
 	clean := strings.Trim(path.Clean("/"+dir), "/")
 	if clean != "" {
 		for _, part := range strings.Split(clean, "/") {
-			entries, err := readTree(p, tree)
+			next, ok, err := folder(p, tree, part)
 			if err != nil {
 				return nil, err
-			}
-			next, ok := "", false
-			for _, e := range entries {
-				if e.name == part && e.mode == "40000" {
-					next, ok = e.sha, true
-				}
 			}
 			if !ok {
 				return nil, fmt.Errorf("the commit %s has no folder %s. Check the source's folder", commit, clean)
@@ -538,6 +551,42 @@ func files(p *pack, commit, dir string, lim Limits) (map[string][]byte, error) {
 			tree = next
 		}
 	}
+	out, err := readFolder(p, tree, clean, lim, nil, "Keep the catalog's entries alone in its folder")
+	if err != nil || lim.Sub == nil {
+		return out, err
+	}
+	sub, ok, err := folder(p, tree, lim.Sub.Name)
+	if err != nil || !ok {
+		return out, err
+	}
+	more, err := readFolder(p, sub, path.Join(clean, lim.Sub.Name), lim.Sub.Limits, lim.Sub.Want, "Make its images smaller, or keep fewer")
+	if err != nil {
+		return nil, err
+	}
+	for name, b := range more {
+		out[lim.Sub.Name+"/"+name] = b
+	}
+	return out, nil
+}
+
+// folder finds the folder of a name in a tree.
+func folder(p *pack, tree, name string) (string, bool, error) {
+	entries, err := readTree(p, tree)
+	if err != nil {
+		return "", false, err
+	}
+	for _, e := range entries {
+		if e.name == name && e.mode == "40000" {
+			return e.sha, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// readFolder reads the regular files of a tree, named clean in errors, that want
+// takes, or all of them for a nil want, within lim. fix is what an error over the
+// folder's whole size tells a person to do.
+func readFolder(p *pack, tree, clean string, lim Limits, want func(string) bool, fix string) (map[string][]byte, error) {
 	entries, err := readTree(p, tree)
 	if err != nil {
 		return nil, err
@@ -547,7 +596,7 @@ func files(p *pack, commit, dir string, lim Limits) (map[string][]byte, error) {
 	for _, e := range entries {
 		// A regular file, as 100644 or 100755. A link, 120000, and a submodule,
 		// 160000, aren't.
-		if e.mode != "100644" && e.mode != "100755" {
+		if e.mode != "100644" && e.mode != "100755" || want != nil && !want(e.name) {
 			continue
 		}
 		if len(out) == lim.Files {
@@ -564,7 +613,7 @@ func files(p *pack, commit, dir string, lim Limits) (map[string][]byte, error) {
 			return nil, missing(err, path.Join(clean, e.name))
 		}
 		if total += int64(len(b)); lim.Total > 0 && total > lim.Total {
-			return nil, fmt.Errorf("the folder %s holds over %d MiB of files, more than a source reads. Keep the catalog's entries alone in its folder", clean, lim.Total>>20)
+			return nil, fmt.Errorf("the folder %s holds over %d MiB of files, more than a source reads. %s", clean, lim.Total>>20, fix)
 		}
 		out[e.name] = b
 	}

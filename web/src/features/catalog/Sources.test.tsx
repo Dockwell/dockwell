@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CatalogFormat,
@@ -58,6 +59,16 @@ const community = create(CatalogSourceInfoSchema, {
   source: { repository: REPO, path: "entries", commit: COMMIT },
   entries: ["notes-src", "wiki-src"],
   refused: [{ file: "broken.yaml", reason: "its Compose file can't be read" }],
+});
+
+/** The same source, following its main branch, looked at a moment ago. */
+const following = create(CatalogSourceInfoSchema, {
+  name: "community",
+  entries: ["notes-src", "wiki-src"],
+  refused: [{ file: "broken.yaml", reason: "its Compose file can't be read" }],
+  source: { repository: REPO, path: "entries", commit: COMMIT, follow: "main" },
+  checked: timestampFromDate(new Date(Date.now() - 5 * 60_000)),
+  branchCommit: COMMIT,
 });
 
 function api(more: Api["catalog"] = {}): Api {
@@ -121,7 +132,7 @@ describe("Catalog sources", () => {
     expect(await screen.findByText("Can't be read now, so its apps are out of the catalog")).toBeVisible();
     expect(screen.getByText("The host didn't answer.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Move to another commit" }));
-    expect(await screen.findByRole("dialog", { name: "Move example/catalog to another commit" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Change example/catalog" })).toBeVisible();
   });
 
   it("offers Try again when the sources can't be listed", async () => {
@@ -187,17 +198,24 @@ describe("Catalog sources", () => {
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     expect(await within(sheet).findByText("Read. It has 3 branches and tags.")).toBeVisible();
     expect(looked).toEqual([REPO]);
-    const pin = within(sheet).getByLabelText("Pin to");
+    const pin = within(sheet).getByLabelText("Branch");
     expect(pin).toHaveValue("refs/heads/main");
-    expect(within(sheet).getByText(`At ${COMMIT.slice(0, 12)} now. It stays there until you move it.`)).toBeVisible();
+    // It follows the branch it leads with, unless asked to stand.
+    expect(within(sheet).getByRole("switch", { name: "Follow main" })).toBeChecked();
+    expect(
+      within(sheet).getByText("Its new commits come in on their own. What's installed stays as it is."),
+    ).toBeVisible();
     expect(within(sheet).getByText("Named example · entries at its top")).toBeVisible();
     expect(within(sheet).queryByLabelText("Commit")).not.toBeInTheDocument();
     await expectAccessible(container);
 
+    // A tag never moves, so it's pinned, and says so.
     await user.selectOptions(pin, "v1 (tag)");
+    expect(within(sheet).queryByRole("switch")).not.toBeInTheDocument();
+    expect(within(sheet).getByText(`At ${"c".repeat(12)} now. It stays there until you move it.`)).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
-    expect(asked).toMatchObject({ name: "example", repository: REPO, path: "", commit: "c".repeat(40) });
+    expect(asked).toMatchObject({ name: "example", repository: REPO, path: "", commit: "c".repeat(40), follow: "" });
   });
 
   it("waits for the repository's branches when Review plan is pressed before they're read, then goes on", async () => {
@@ -232,7 +250,7 @@ describe("Catalog sources", () => {
     expect(asked).toBeUndefined();
     await act(async () => answer());
     await waitFor(() => expect(asked).toBeDefined());
-    expect(asked).toMatchObject({ repository: "https://github.com/example/apps", commit: COMMIT });
+    expect(asked).toMatchObject({ repository: "https://github.com/example/apps", commit: COMMIT, follow: "main" });
     expect(within(sheet).queryByText(/Use the commit in full/)).not.toBeInTheDocument();
   });
 
@@ -278,7 +296,7 @@ describe("Catalog sources", () => {
     const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     expect(await within(sheet).findByText("Read. It has 500 or more branches and tags.")).toBeVisible();
-    expect(within(sheet).getByLabelText("Pin to")).toHaveValue("refs/heads/trunk");
+    expect(within(sheet).getByLabelText("Branch")).toHaveValue("refs/heads/trunk");
   });
 
   it("says what's wrong with a repository beside it, before any plan", async () => {
@@ -316,7 +334,7 @@ describe("Catalog sources", () => {
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
-    await user.selectOptions(await within(sheet).findByLabelText("Pin to"), "Another commit");
+    await user.selectOptions(await within(sheet).findByLabelText("Branch"), "Another commit");
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     expect(within(sheet).getByText("main is at this commit.")).toBeVisible();
     await user.clear(within(sheet).getByLabelText("Commit"));
@@ -425,8 +443,8 @@ describe("Catalog sources", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
+    await user.click(await screen.findByRole("button", { name: "Change example/catalog" }));
+    const sheet = await screen.findByRole("dialog", { name: "Change example/catalog" });
     expect(within(sheet).getByLabelText("Repository")).toHaveValue(REPO);
     expect(within(sheet).getByText("Entries at entries")).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Change" }));
@@ -458,8 +476,8 @@ describe("Catalog sources", () => {
     const fixture = api({ setCatalogSource: requested });
     fixture.changes = { ...fixture.changes, discardChange: discard };
     const { router } = renderAt("/catalog/sources", fixture);
-    await user.click(await screen.findByRole("button", { name: "Move" }));
-    const form = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
+    await user.click(await screen.findByRole("button", { name: "Change example/catalog" }));
+    const form = await screen.findByRole("dialog", { name: "Change example/catalog" });
     await user.type(await within(form).findByLabelText("Commit"), COMMIT);
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(requested).toHaveBeenCalledTimes(1));
@@ -495,8 +513,8 @@ describe("Catalog sources", () => {
       }),
     ];
     renderAt("/catalog/sources", api({ setCatalogSource: () => ({ change: old }) }));
-    await user.click(await screen.findByRole("button", { name: "Move" }));
-    const form = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
+    await user.click(await screen.findByRole("button", { name: "Change example/catalog" }));
+    const form = await screen.findByRole("dialog", { name: "Change example/catalog" });
     await user.type(await within(form).findByLabelText("Commit"), COMMIT);
     await user.click(within(form).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -512,8 +530,8 @@ describe("Catalog sources", () => {
       "/catalog/sources",
       api({ setCatalogSource: () => ({ change: planned(["catalog_source_refuses", ["broken.yaml"]]) }) }),
     );
-    await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
+    await user.click(await screen.findByRole("button", { name: "Change example/catalog" }));
+    const sheet = await screen.findByRole("dialog", { name: "Change example/catalog" });
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -537,8 +555,8 @@ describe("Catalog sources", () => {
         }),
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Move" }));
-    const sheet = await screen.findByRole("dialog", { name: "Move example/catalog to another commit" });
+    await user.click(await screen.findByRole("button", { name: "Change example/catalog" }));
+    const sheet = await screen.findByRole("dialog", { name: "Change example/catalog" });
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     const plan = await screen.findByRole("dialog", { name: "Review plan" });
@@ -553,9 +571,107 @@ describe("Catalog sources", () => {
   });
 });
 
+describe("Catalog sources that follow a branch", () => {
+  it("says which branch a source follows and when Dockwell looked, and looks now when asked", async () => {
+    const user = userEvent.setup();
+    let looked = "";
+    const moved = create(ChangeSchema, {
+      id: "chg_2",
+      state: ChangeState.APPLIED,
+      summary: "Move the catalog community, as main moved",
+    });
+    const fixture = api({
+      listCatalogSources: () => ({ sources: [following] }),
+      checkCatalogSource: (req) => {
+        looked = req.name;
+        return { source: following, change: moved };
+      },
+    });
+    fixture.changes = { ...fixture.changes, getChange: () => ({ change: moved }) };
+    const { container } = renderAt("/catalog/sources", fixture);
+    const panel = (await screen.findByRole("heading", { name: "example/catalog" })).closest("section") as HTMLElement;
+    expect(within(panel).getByText("Following main · checked 5 min ago")).toBeVisible();
+    await expectAccessible(container);
+    await user.click(within(panel).getByRole("button", { name: "Check now" }));
+    await waitFor(() => expect(looked).toBe("community"));
+    // What Dockwell moved it to opens, applied, with its undo there.
+    expect(await screen.findByText("Move the catalog community, as main moved")).toBeVisible();
+  });
+
+  it("says why a source didn't follow its branch", async () => {
+    const stuck = create(CatalogSourceInfoSchema, {
+      ...following,
+      problem:
+        "None of the entries at 89abcdef0123, where main is now, pass Dockwell's checks. It stays at 0123456789ab.",
+    });
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [stuck] }) }));
+    expect(await screen.findByText("Didn't follow main")).toBeVisible();
+    expect(screen.getByText(/None of the entries at 89abcdef0123/)).toBeVisible();
+  });
+
+  it("pins a following source where it is, through a plan", async () => {
+    const user = userEvent.setup();
+    let asked: SetCatalogSourceRequest | undefined;
+    renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSources: () => ({ sources: [following] }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_pinned", []]) };
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Pin here" }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked).toMatchObject({ name: "community", repository: REPO, path: "entries", commit: COMMIT, follow: "" });
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(
+      await within(plan).findByText("Stops following its branch, and stays at this commit until you move it."),
+    ).toBeVisible();
+  });
+
+  it("changes a following source with its branch chosen and followed, and can leave it to stand", async () => {
+    const user = userEvent.setup();
+    let asked: SetCatalogSourceRequest | undefined;
+    renderAt(
+      "/catalog/sources",
+      api({
+        listCatalogSources: () => ({ sources: [following] }),
+        listCatalogSourceRefs: () => ({
+          refs: [
+            { name: "refs/heads/dev", commit: "b".repeat(40) },
+            { name: "refs/heads/main", commit: COMMIT },
+          ],
+          head: "refs/heads/dev",
+        }),
+        setCatalogSource: (req) => {
+          asked = req;
+          return { change: planned(["catalog_source_follows", ["refs/heads/main"]]) };
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Change example/catalog" }));
+    const sheet = await screen.findByRole("dialog", { name: "Change example/catalog" });
+    expect(await within(sheet).findByLabelText("Branch")).toHaveValue("refs/heads/main");
+    const follow = within(sheet).getByRole("switch", { name: "Follow main" });
+    expect(follow).toBeChecked();
+    await user.click(follow);
+    expect(within(sheet).getByText(`Pinned at ${COMMIT.slice(0, 12)}.`)).toBeVisible();
+    await user.click(follow);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked).toMatchObject({ name: "community", commit: COMMIT, follow: "main" });
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(
+      await within(plan).findByText("Follows main: Dockwell moves the catalog along it, by changes you can undo."),
+    ).toBeVisible();
+  });
+});
+
 describe("Catalog sources, for whoever may not change them", () => {
-  it("leaves Add, Move and Remove where they are for a developer, off, with why", async () => {
-    const fixture = api();
+  it("leaves Add, Change, Check now, Pin and Remove where they are for a developer, off, with why", async () => {
+    const fixture = api({ listCatalogSources: () => ({ sources: [following] }) });
     fixture.auth = {
       getAuthState: () =>
         authState({
@@ -568,8 +684,10 @@ describe("Catalog sources, for whoever may not change them", () => {
     const why = "Only an admin or the owner can do this. Ask one of them.";
     for (const control of [
       screen.getByRole("button", { name: "Add a source" }),
-      screen.getByRole("button", { name: "Move" }),
+      screen.getByRole("button", { name: "Change example/catalog" }),
       screen.getByRole("button", { name: "Remove example/catalog" }),
+      screen.getByRole("button", { name: "Check now" }),
+      screen.getByRole("button", { name: "Pin here" }),
     ]) {
       expect(control).toHaveAttribute("aria-disabled", "true");
       expect(control).toHaveAccessibleDescription(why);
@@ -837,16 +955,20 @@ describe("Other stores' catalogs", () => {
     ],
   });
 
-  it("adds 1Panel's app store, Dokploy's or Coolify's in one click, read as that store, with nothing to type", async () => {
+  it("adds 1Panel's app store, Dokploy's or Coolify's in one click, read as that store and following its default branch, with nothing to type", async () => {
     const user = userEvent.setup();
     let asked: SetCatalogSourceRequest | undefined;
+    const DEV = "d".repeat(40);
     const { container } = renderAt(
       "/catalog/sources",
       api({
         listCatalogSources: () => ({ sources: [] }),
         listCatalogSourceRefs: () => ({
-          refs: [{ name: "refs/heads/main", commit: COMMIT }],
-          head: "refs/heads/main",
+          refs: [
+            { name: "refs/heads/main", commit: COMMIT },
+            { name: "refs/heads/dev", commit: DEV },
+          ],
+          head: "refs/heads/dev",
           formats: [{ format: CatalogFormat.ONEPANEL, path: "", apps: 269 }],
         }),
         setCatalogSource: (req) => {
@@ -867,12 +989,16 @@ describe("Other stores' catalogs", () => {
     expect(within(sheet).getByLabelText("Repository")).toHaveValue(ONEPANEL);
     expect(await within(sheet).findByText("269 apps")).toBeVisible();
     expect(within(sheet).getByText(/Named onepanel/)).toBeVisible();
+    // The store's default branch, followed, so its new apps come in on their own.
+    expect(within(sheet).getByLabelText("Branch")).toHaveValue("refs/heads/dev");
+    expect(within(sheet).getByRole("switch", { name: "Follow dev" })).toBeChecked();
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked).toMatchObject({
       name: "onepanel",
       repository: ONEPANEL,
-      commit: COMMIT,
+      commit: DEV,
+      follow: "dev",
       format: CatalogFormat.ONEPANEL,
     });
   });

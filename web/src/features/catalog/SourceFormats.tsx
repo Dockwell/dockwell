@@ -229,7 +229,8 @@ export function LeftOut({ refused }: { refused: readonly CatalogSourceRefusal[] 
         <summary>{plural(left, { one: "# file left out, and why", other: "# files left out, and why" })}</summary>
         <ul>
           {refused.map((r) => (
-            <li key={r.file}>
+            // An image can be left out, and lost by the entry that names it: one file, two reasons.
+            <li key={`${r.file}\n${r.reason}`}>
               <code>{r.file}</code>
               <span>{r.reason}</span>
             </li>

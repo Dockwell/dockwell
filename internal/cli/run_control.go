@@ -428,6 +428,8 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		Secrets:        keeper,
 		Releases:       releasesURL(stdio),
 		CatalogSources: filepath.Join(dir.Control(), "catalog-sources"),
+		// A test asks no host it doesn't run, so a source moves only when asked.
+		CatalogFollow: !isSet(stdio.Getenv(envTest)),
 	})
 	if err != nil {
 		closeAll()

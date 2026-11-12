@@ -62,8 +62,11 @@ message Entry {
   // What the app does and who it is for, in the catalog's own words. Plain
   // text, with blank lines between paragraphs; never HTML or Markdown.
   string description = 17;
-  // The app's own logo, used to identify it. A local image path under
-  // /catalog-media/, served with the panel. Empty when no artwork is available.
+  // The app's own logo, used to identify it. In an entry's file, a WebP, PNG or
+  // JPEG image in the folder media beside it, as "media/ghost-icon.webp", or for
+  // an entry built into Dockwell, a path under /catalog-media/. In the API, the
+  // path the control plane serves it at, under /catalog-media/. Empty when no
+  // artwork is available.
   string icon = 18;
   // Genuine previews of the app, with captions identifying what they show.
   // A command-line service need not have a screenshot.
@@ -161,9 +164,10 @@ message AddressVariable {
 }
 
 // Screenshot is a preview a person can read before starting an installation.
-// Media ships with the panel; browsing never asks a third-party host for it.
+// Media comes with its catalog, and the control plane serves it; browsing never
+// asks a third-party host for it.
 message Screenshot {
-  // A local raster image path under /catalog-media/.
+  // A raster image, named as icon is.
   string path = 1;
   // What the screenshot shows, also used as its accessible description.
   string caption = 2;

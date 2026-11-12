@@ -88,6 +88,8 @@ func many(r *resourcev1.AlertRule, alerts []store.Alert) string {
 		return fmt.Sprintf("%d schedules haven't passed a restore check lately", n)
 	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
 		return fmt.Sprintf("%d apps have an update", n)
+	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
+		return fmt.Sprintf("%d catalogs can't follow their branches", n)
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return fmt.Sprintf("%s holds for %d", cmp.Or(alert.Title(r), alerts[0].RuleName), n)

@@ -1020,6 +1020,9 @@ msgstr "The backup of {volume} didn't reach {destination}"
 msgid "The backup of {volume} failed"
 msgstr "The backup of {volume} failed"
 
+msgid "The catalog {subject} can't follow its branch"
+msgstr "The catalog {subject} can't follow its branch"
+
 msgid "The health of {name} changed on {server}"
 msgstr "The health of {name} changed on {server}"
 
@@ -6702,8 +6705,8 @@ msgstr "Add a source"
 msgid "Another commit"
 msgstr "Another commit"
 
-msgid "Apps from a public Git repository, pinned at one commit"
-msgstr "Apps from a public Git repository, pinned at one commit"
+msgid "Apps from a public Git repository"
+msgstr "Apps from a public Git repository"
 
 #. placeholder {0}: chosen.commit.slice(0, 12)
 msgid "At {0} now. It stays there until you move it."
@@ -6718,11 +6721,24 @@ msgstr "Catalog sources"
 msgid "Catalogs Dockwell reads apps from beside its own"
 msgstr "Catalogs Dockwell reads apps from beside its own"
 
+msgctxt "catalog source"
+msgid "Change"
+msgstr "Change"
+
+msgid "Change {movingWords}"
+msgstr "Change {movingWords}"
+
+msgid "Change {said}"
+msgstr "Change {said}"
+
 msgid "Commit copied"
 msgstr "Commit copied"
 
 msgid "Copy the commit"
 msgstr "Copy the commit"
+
+msgid "Didn't follow {branch}"
+msgstr "Didn't follow {branch}"
 
 #. placeholder {0}: sentence(err)
 msgid "Dockwell can't read that commit: {0}"
@@ -6734,18 +6750,24 @@ msgstr "Dockwell's own catalog is all it reads"
 msgid "Entries at {folderWords}"
 msgstr "Entries at {folderWords}"
 
+msgid "Follow {branch}"
+msgstr "Follow {branch}"
+
+msgid "Following {branch}"
+msgstr "Following {branch}"
+
+#. placeholder {0}: time.ago(checked, now)
+msgid "Following {branch} · checked {0}"
+msgstr "Following {branch} · checked {0}"
+
+msgid "Its new commits come in on their own. What's installed stays as it is."
+msgstr "Its new commits come in on their own. What's installed stays as it is."
+
 msgid "Its top"
 msgstr "Its top"
 
-msgctxt "catalog source"
-msgid "Move"
-msgstr "Move"
-
 msgid "Move to another commit"
 msgstr "Move to another commit"
-
-msgid "Move {movingWords} to another commit"
-msgstr "Move {movingWords} to another commit"
 
 msgid "Named {name} · entries at {folderWords}"
 msgstr "Named {name} · entries at {folderWords}"
@@ -6753,8 +6775,13 @@ msgstr "Named {name} · entries at {folderWords}"
 msgid "No branch or tag is at this commit."
 msgstr "No branch or tag is at this commit."
 
-msgid "Pin to"
-msgstr "Pin to"
+msgctxt "catalog source"
+msgid "Pin here"
+msgstr "Pin here"
+
+#. placeholder {0}: pin.slice(0, 12)
+msgid "Pinned at {0}."
+msgstr "Pinned at {0}."
 
 msgid "Read. It has {count} or more branches and tags."
 msgstr "Read. It has {count} or more branches and tags."
@@ -7911,6 +7938,9 @@ msgstr "Dockwell didn't make that network. Whatever else is on it, other project
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 
+msgid "Dockwell moves it as {branch} moved."
+msgstr "Dockwell moves it as {branch} moved."
+
 msgid "Don't start its Compose project again."
 msgstr "Don't start its Compose project again."
 
@@ -7932,6 +7962,9 @@ msgstr "Everything in {name} on {server} is replaced with the dump from {taken}"
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 
+msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
+msgstr "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
+
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 
@@ -7949,6 +7982,9 @@ msgstr "If your address isn't one of these, or stops being one, SSH closes to yo
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
+
+msgid "Installed apps don't change. An upgrade is a plan you apply."
+msgstr "Installed apps don't change. An upgrade is a plan you apply."
 
 msgid "Installs of them keep running, with no upgrades."
 msgstr "Installs of them keep running, with no upgrades."
@@ -8130,6 +8166,9 @@ msgstr "SSH on {0} stays open only from {from}"
 
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
+
+msgid "Stops following its branch, and stays at this commit until you move it."
+msgstr "Stops following its branch, and stays at this commit until you move it."
 
 msgid "Take out the range that covers everything for it to ban anyone."
 msgstr "Take out the range that covers everything for it to ban anyone."

@@ -193,6 +193,10 @@ type Config struct {
 	// CatalogClient is what catalog sources are read with: netguard's, which reads
 	// only public addresses, unless a test passes one that reaches its own server.
 	CatalogClient *http.Client
+	// CatalogFollow looks at the branch each catalog source follows every hour,
+	// and moves the source along it (ADR 0077). Off, a source moves only when a
+	// person asks Dockwell to look, as a test asks no host it doesn't run.
+	CatalogFollow bool
 }
 
 // DefaultStepGrace is how long the steps under way get to finish when the
@@ -229,7 +233,10 @@ type Server struct {
 	public  https.Source
 	changes *revision.Engine
 	// hosts gives each server its host (ADR 0064), once its agent runs the kind.
-	hosts     *Hosts
+	hosts *Hosts
+	// follower moves the catalog sources that follow a branch along it (ADR 0077),
+	// when Config.CatalogFollow asks it to.
+	follower  *catalogapi.Follower
 	store     *store.DB
 	stepGrace time.Duration
 	ports     *PublicPorts
@@ -261,7 +268,8 @@ func New(cfg Config) (*Server, error) {
 	var evaluator *alerts.Evaluator
 	var updateKeeper *serviceupdates.Keeper
 	var autoupdates *autoupdate.Runner
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates)
+	var follower *catalogapi.Follower
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +279,9 @@ func New(cfg Config) (*Server, error) {
 		cfg.Changes.RequireRoles()
 	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates}
+	if cfg.CatalogFollow {
+		s.follower = follower
+	}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -311,7 +322,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -390,11 +401,18 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
 		catalogHandler := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
+		*followOut = catalogHandler.Follow(cfg.Changes)
+		follower := *followOut
 		if cfg.Fleet != nil {
 			// Another store's entry pins its images through the agent it goes on.
 			catalogHandler.PinWith(images.New(cfg.Fleet, cfg.Agents))
 		}
 		handle(dockwellv1connect.NewCatalogServiceHandler(catalogHandler, opts...))
+		// A source's images, for whoever may read the catalog, as an image's request
+		// carries the session's cookie (ADR 0077).
+		mux.Handle(catalogapi.MediaRoute, catalogSources.Media(func(r *http.Request) error {
+			return authapi.Authorizer(cfg.Auth, cfg.Logger)(r.Context(), dockwellv1connect.CatalogServiceListCatalogEntriesProcedure)
+		}))
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
@@ -519,6 +537,13 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		if keeper := *updatesOut; keeper != nil {
 			(*alertsOut).Updates = appUpdates(keeper)
+		}
+		(*alertsOut).Catalogs = func(ctx context.Context) []alerts.Following {
+			var out []alerts.Following
+			for _, s := range follower.Standings(ctx) {
+				out = append(out, alerts.Following{Name: s.Name, Branch: s.Branch, Looked: s.Looked, Problem: s.Problem, Since: s.Since})
+			}
+			return out
 		}
 		handle(dockwellv1connect.NewAlertServiceHandler(alerts.New(*alertsOut, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
@@ -820,6 +845,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
+	}
+	if s.follower != nil {
+		api.Go(func() { s.follower.Run(apiCtx) })
 	}
 	if s.history != nil {
 		api.Go(func() { s.history.Run(apiCtx) })

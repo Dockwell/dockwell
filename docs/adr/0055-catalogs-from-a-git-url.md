@@ -1,6 +1,6 @@
 # 0055. Catalogs from a Git URL
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0077](0077-dockwells-catalog-in-its-own-repository.md): a source may follow a branch, moved by Dockwell's own change, and holds the images its entries name. What runs still waits for a person.
 - Date: 2026-11-08
 
 ## Context

@@ -109,19 +109,19 @@ func TestAStaleConversionStaysUntilANewOneSucceeds(t *testing.T) {
 	spec := &resourcev1.CatalogSource{Repository: "https://catalog.example.com:1/gone", Commit: strings.Repeat("0", 40), Format: resourcev1.CatalogFormat_CATALOG_FORMAT_ONEPANEL}
 	s := &Sources{Dir: dir, Client: gitfetchtest.Client()}
 	kept, plan := s.folders(spec)
-	old := map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: []byte(`{"format":"1panel","version":0}`)}
-	keep(kept, old)
+	old := commitFiles{entries: map[string][]byte{"memos.yaml": []byte("id: memos\n")}, leftOut: []byte(`{"format":"1panel","version":0}`)}
+	keep(kept, old, nil)
 	files, err := s.files(t.Context(), spec)
-	if err != nil || string(files["memos.yaml"]) != "id: memos\n" {
-		t.Fatalf("a commit that can't be converted again reads %v, %v", files, err)
+	if err != nil || string(files.entries["memos.yaml"]) != "id: memos\n" {
+		t.Fatalf("a commit that can't be converted again reads %v, %v", files.entries, err)
 	}
 	if _, err := os.Stat(kept); err != nil {
 		t.Fatalf("what an older converter kept went before a new conversion succeeded: %v", err)
 	}
-	keep(plan, map[string][]byte{"memos.yaml": []byte("id: memos\nname: Memos\n"), leftOutFile: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)})
+	keep(plan, commitFiles{entries: map[string][]byte{"memos.yaml": []byte("id: memos\nname: Memos\n")}, leftOut: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)}, nil)
 	s.tidy([]stored{{name: "onepanel", spec: spec}})
-	if got, err := readKept(kept); err != nil || string(got["memos.yaml"]) != "id: memos\nname: Memos\n" {
-		t.Errorf("what's converted now didn't take the older one's place where a source keeps it: %v, %v", got, err)
+	if got, err := readKept(kept); err != nil || string(got.entries["memos.yaml"]) != "id: memos\nname: Memos\n" {
+		t.Errorf("what's converted now didn't take the older one's place where a source keeps it: %v, %v", got.entries, err)
 	}
 }
 

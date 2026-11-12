@@ -918,8 +918,12 @@ message Route {
 
 // CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
 // entries in its format in a public Git repository, or another store's, at one
-// commit. Moving it to another commit is a change, so what anyone can install from it
-// moves only with a plan. See docs/adr/0055-catalogs-from-a-git-url.md and
+// commit, with the images its entries name in the folder media inside it. Moving it
+// to another commit is a change, so what anyone can install from it moves only with
+// a plan: a person's, or for one that follows a branch, Dockwell's own, which can be
+// undone. Nothing installed changes with it. See
+// docs/adr/0055-catalogs-from-a-git-url.md,
+// docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
 // docs/adr/0078-other-stores-read-on-the-server.md.
 message CatalogSource {
   // The repository's URL, over HTTPS, such as
@@ -931,6 +935,10 @@ message CatalogSource {
   string path = 2;
   // The commit it's read at, in full, as 40 hex digits.
   string commit = 3;
+  // The branch it follows, such as "main": when the branch moves, Dockwell moves
+  // the source to its new commit by a change of its own. Empty stays at commit
+  // until a person moves it.
+  string follow = 4;
   // How its folder is laid out: Dockwell's own entries, or another store's, which
   // Dockwell converts as it reads them. Unspecified is Dockwell's own, as a source
   // made before formats has it.
@@ -1115,6 +1123,11 @@ message AlertRule {
     // A policy that drills has gone two of its periods without a drill that
     // passed, whether its drills weren't checked or never ran (ADR 0068).
     CONDITION_RESTORE_DRILL_LATE = 21;
+    // A catalog source that follows a branch couldn't move to the branch's
+    // commit: the branch or its commit can't be read, or all of that commit's
+    // entries fail Dockwell's checks (ADR 0077). Numbered apart, as open work
+    // adds conditions.
+    CONDITION_CATALOG_SOURCE_STUCK = 30;
     // An app has an update that counts: newer than what it runs, not skipped,
     // and not snoozed (ADR 0079). threshold 3 fires for a major alone; 0, for
     // any. Numbered apart, as open work adds to this enum.

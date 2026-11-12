@@ -3,8 +3,10 @@
 package alerts
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -61,5 +63,34 @@ func TestWhatEachStateOfACheckSaysOfItsAlert(t *testing.T) {
 		if got := s.checksDown(); len(got) != 1 || got[0].verdict != tc.verdict {
 			t.Errorf("%s: %+v, want %v", tc.name, got, tc.verdict)
 		}
+	}
+}
+
+// A catalog source that follows a branch holds its alert while the last look left
+// it short of the branch's commit, from the first look that failed; one at its
+// branch's commit clears it, and one not looked at since a start keeps what's open
+// (ADR 0077).
+func TestWhatAFollowingCatalogSaysOfItsAlert(t *testing.T) {
+	since := time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC)
+	s := &signals{e: &Evaluator{Catalogs: func(context.Context) []Following {
+		return []Following{
+			{Name: "community", Branch: "main", Looked: true, Problem: "None of the entries at 89abcdef0123 pass Dockwell's checks. It stays at 0123456789ab.", Since: since},
+			{Name: "dockwell", Branch: "main", Looked: true},
+			{Name: "fresh", Branch: "main"},
+		}
+	}}}
+	got := s.catalogsStuck(t.Context())
+	if len(got) != 3 {
+		t.Fatalf("findings: %+v", got)
+	}
+	if got[0].verdict != holds || !got[0].since.Equal(since) || got[0].title != "The catalog community can't follow main" ||
+		!strings.Contains(got[0].detail, "It stays at 0123456789ab. What it offers stays as it was") || got[0].path != "/catalog/sources" {
+		t.Errorf("a stuck catalog: %+v", got[0])
+	}
+	if got[1].verdict != fine || got[2].verdict != unknown {
+		t.Errorf("a catalog at its branch: %v; one not looked at: %v", got[1].verdict, got[2].verdict)
+	}
+	if (&signals{e: &Evaluator{}}).catalogsStuck(t.Context()) != nil {
+		t.Error("with no follower, it watched something")
 	}
 }

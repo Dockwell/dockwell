@@ -1020,6 +1020,9 @@ msgstr "{volume} 的备份未能送达 {destination}"
 msgid "The backup of {volume} failed"
 msgstr "{volume} 的备份失败了"
 
+msgid "The catalog {subject} can't follow its branch"
+msgstr "目录 {subject} 无法跟随它的分支"
+
 msgid "The health of {name} changed on {server}"
 msgstr "{name} 在 {server} 上的健康状态发生了变化"
 
@@ -6702,8 +6705,8 @@ msgstr "添加来源"
 msgid "Another commit"
 msgstr "其他提交"
 
-msgid "Apps from a public Git repository, pinned at one commit"
-msgstr "来自公开 Git 仓库的应用，固定在一个提交"
+msgid "Apps from a public Git repository"
+msgstr "来自公开 Git 仓库的应用"
 
 #. placeholder {0}: chosen.commit.slice(0, 12)
 msgid "At {0} now. It stays there until you move it."
@@ -6718,11 +6721,24 @@ msgstr "目录来源"
 msgid "Catalogs Dockwell reads apps from beside its own"
 msgstr "除自带目录外，Dockwell 读取应用的目录"
 
+msgctxt "catalog source"
+msgid "Change"
+msgstr "更改"
+
+msgid "Change {movingWords}"
+msgstr "更改 {movingWords}"
+
+msgid "Change {said}"
+msgstr "更改 {said}"
+
 msgid "Commit copied"
 msgstr "已复制提交"
 
 msgid "Copy the commit"
 msgstr "复制提交"
+
+msgid "Didn't follow {branch}"
+msgstr "未能跟随 {branch}"
 
 #. placeholder {0}: sentence(err)
 msgid "Dockwell can't read that commit: {0}"
@@ -6734,18 +6750,24 @@ msgstr "目前只读取 Dockwell 自带的目录"
 msgid "Entries at {folderWords}"
 msgstr "条目位于 {folderWords}"
 
+msgid "Follow {branch}"
+msgstr "跟随 {branch}"
+
+msgid "Following {branch}"
+msgstr "正在跟随 {branch}"
+
+#. placeholder {0}: time.ago(checked, now)
+msgid "Following {branch} · checked {0}"
+msgstr "正在跟随 {branch} · {0}检查"
+
+msgid "Its new commits come in on their own. What's installed stays as it is."
+msgstr "它的新提交会自动进来。已安装的应用保持不变。"
+
 msgid "Its top"
 msgstr "仓库根目录"
 
-msgctxt "catalog source"
-msgid "Move"
-msgstr "切换提交"
-
 msgid "Move to another commit"
 msgstr "切换到其他提交"
-
-msgid "Move {movingWords} to another commit"
-msgstr "将 {movingWords} 切换到其他提交"
 
 msgid "Named {name} · entries at {folderWords}"
 msgstr "名称 {name} · 条目位于 {folderWords}"
@@ -6753,8 +6775,13 @@ msgstr "名称 {name} · 条目位于 {folderWords}"
 msgid "No branch or tag is at this commit."
 msgstr "没有分支或标签位于此提交。"
 
-msgid "Pin to"
-msgstr "固定到"
+msgctxt "catalog source"
+msgid "Pin here"
+msgstr "固定在此"
+
+#. placeholder {0}: pin.slice(0, 12)
+msgid "Pinned at {0}."
+msgstr "固定在 {0}。"
 
 msgid "Read. It has {count} or more branches and tags."
 msgstr "已读取。共有 {count} 个或更多分支和标签。"
@@ -7911,6 +7938,9 @@ msgstr "该网络不是 Dockwell 创建的。网络上的其他内容（包括�
 msgid "Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds."
 msgstr "该卷不是 Dockwell 创建的，Dockwell 也不会删除它。其他挂载它的容器会共享其中的内容。"
 
+msgid "Dockwell moves it as {branch} moved."
+msgstr "{branch} 有了新提交，Dockwell 随之移动了它。"
+
 msgid "Don't start its Compose project again."
 msgstr "不要再次启动它的 Compose 项目。"
 
@@ -7932,6 +7962,9 @@ msgstr "{server} 上 {name} 的全部内容会被替换为 {taken} 的转储"
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "文件在读取时发生了变化，因此可能包含写到一半的内容，应用可能无法从中启动。"
 
+msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
+msgstr "跟随 {branch}：Dockwell 会随它移动目录，每次都是可以撤销的变更。"
+
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"
 
@@ -7949,6 +7982,9 @@ msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH �
 
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
+
+msgid "Installed apps don't change. An upgrade is a plan you apply."
+msgstr "已安装的应用不会变。升级是由你应用的计划。"
 
 msgid "Installs of them keep running, with no upgrades."
 msgstr "已安装的会继续运行，但不再有升级。"
@@ -8130,6 +8166,9 @@ msgstr "{0} 上的 SSH 只对 {from} 开放"
 
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
+
+msgid "Stops following its branch, and stays at this commit until you move it."
+msgstr "不再跟随分支，停留在此提交，直到你移动它。"
 
 msgid "Take out the range that covers everything for it to ban anyone."
 msgstr "去掉覆盖所有地址的范围，它才能封禁任何人。"

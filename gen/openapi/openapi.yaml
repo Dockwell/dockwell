@@ -1129,6 +1129,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/sources/{name}:check:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                CheckCatalogSource looks at the branch a source follows now, rather than at its
+                 next hourly look, and when the branch has moved, moves the source to its new
+                 commit by Dockwell's own change, applied at once, with the notes a person's
+                 move has. What runs doesn't change: an install with a newer release in it
+                 shows an upgrade, which a person plans. A commit Dockwell can't read, or whose
+                 entries all fail its checks, leaves the source where it is, and the answer
+                 says why. An admin's, as it reads the network.
+            operationId: CatalogService_CheckCatalogSource
+            parameters:
+                - name: name
+                  in: path
+                  description: The source's name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckCatalogSourceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckCatalogSourceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/sources/{name}:remove:
         post:
             tags:
@@ -1170,14 +1209,16 @@ paths:
                 - CatalogService
             description: |-
                 SetCatalogSource plans adding a catalog from a public Git repository, or moving
-                 one to another commit, ready to apply or discard: a folder of Dockwell's entries,
-                 or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
-                 from the commit and converts as it reads it, running nothing. Dockwell reads the
-                 commit over Git's own protocol, checking what it reads against its names, and
-                 checks each entry as it checks its own. The plan's notes say what the commit
-                 holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
-                 whose ID another has. A source decides what anyone can install, so setting one
-                 is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+                 one to another commit, or having it follow a branch or stay where it is, ready
+                 to apply or discard: a folder of Dockwell's entries, or 1Panel's app store,
+                 Dokploy's templates or Coolify's, which Dockwell tells from the commit and
+                 converts as it reads it, running nothing. Dockwell reads the commit over Git's
+                 own protocol, checking what it reads against its names, and checks each entry,
+                 and each image an entry names, as it checks its own. The plan's notes say what
+                 the commit holds, and what Dockwell leaves out of it and why: an entry it
+                 refuses, or one whose ID another has. A source decides what anyone can install,
+                 so setting one is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md,
+                 docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
                  docs/adr/0078-other-stores-read-on-the-server.md.
             operationId: CatalogService_SetCatalogSource
             parameters:
@@ -6232,6 +6273,7 @@ components:
                         - CONDITION_CHECK_DOWN
                         - CONDITION_RESTORE_DRILL_FAILED
                         - CONDITION_RESTORE_DRILL_LATE
+                        - CONDITION_CATALOG_SOURCE_STUCK
                         - CONDITION_UPDATE_AVAILABLE
                     type: string
                     description: What the rule watches for, and how much it matters, as it did when it fired.
@@ -6629,6 +6671,7 @@ components:
                         - CONDITION_CHECK_DOWN
                         - CONDITION_RESTORE_DRILL_FAILED
                         - CONDITION_RESTORE_DRILL_LATE
+                        - CONDITION_CATALOG_SOURCE_STUCK
                         - CONDITION_UPDATE_AVAILABLE
                     type: string
                     description: What it watches for.
@@ -8041,6 +8084,12 @@ components:
                 commit:
                     type: string
                     description: The commit it's read at, in full, as 40 hex digits.
+                follow:
+                    type: string
+                    description: |-
+                        The branch it follows, such as "main": when the branch moves, Dockwell moves
+                         the source to its new commit by a change of its own. Empty stays at commit
+                         until a person moves it.
                 format:
                     enum:
                         - CATALOG_FORMAT_UNSPECIFIED
@@ -8057,8 +8106,12 @@ components:
             description: |-
                 CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
                  entries in its format in a public Git repository, or another store's, at one
-                 commit. Moving it to another commit is a change, so what anyone can install from it
-                 moves only with a plan. See docs/adr/0055-catalogs-from-a-git-url.md and
+                 commit, with the images its entries name in the folder media inside it. Moving it
+                 to another commit is a change, so what anyone can install from it moves only with
+                 a plan: a person's, or for one that follows a branch, Dockwell's own, which can be
+                 undone. Nothing installed changes with it. See
+                 docs/adr/0055-catalogs-from-a-git-url.md,
+                 docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
                  docs/adr/0078-other-stores-read-on-the-server.md.
         CatalogSourceGuess:
             type: object
@@ -8108,6 +8161,25 @@ components:
                     description: |-
                         Why its entries can't be read now, such as a host that doesn't answer. Empty
                          when they can.
+                checked:
+                    type: string
+                    description: |-
+                        When Dockwell last looked at the branch it follows. Unset for a source that
+                         doesn't follow one, or one not looked at since the control plane started.
+                    format: date-time
+                problem:
+                    type: string
+                    description: |-
+                        Why it isn't at the branch's commit after that look: the branch can't be
+                         read, or its commit can't, or all of that commit's entries fail Dockwell's
+                         checks. Empty when it's where it should be.
+                branchCommit:
+                    type: string
+                    description: The commit the branch was at when Dockwell last looked.
+                nextCheck:
+                    type: string
+                    description: When Dockwell looks at the branch next, later after each look that failed.
+                    format: date-time
                 also:
                     type: array
                     items:
@@ -8428,6 +8500,27 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ChangeServiceRuntimeResponse carries the planned change.
+        CheckCatalogSourceRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The source's name.
+            description: CheckCatalogSourceRequest names a source that follows a branch.
+        CheckCatalogSourceResponse:
+            type: object
+            properties:
+                source:
+                    allOf:
+                        - $ref: '#/components/schemas/CatalogSourceInfo'
+                    description: The source as it is after the look.
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: |-
+                        The change that moved it, applied. Unset when it was where the branch is, or
+                         couldn't move, as source.problem says.
+            description: CheckCatalogSourceResponse is what the look found.
         CheckClaimRequest:
             type: object
             properties:
@@ -10332,8 +10425,11 @@ components:
                 icon:
                     type: string
                     description: |-
-                        The app's own logo, used to identify it. A local image path under
-                         /catalog-media/, served with the panel. Empty when no artwork is available.
+                        The app's own logo, used to identify it. In an entry's file, a WebP, PNG or
+                         JPEG image in the folder media beside it, as "media/ghost-icon.webp", or for
+                         an entry built into Dockwell, a path under /catalog-media/. In the API, the
+                         path the control plane serves it at, under /catalog-media/. Empty when no
+                         artwork is available.
                 screenshots:
                     type: array
                     items:
@@ -10648,6 +10744,7 @@ components:
                         - CONDITION_CHECK_DOWN
                         - CONDITION_RESTORE_DRILL_FAILED
                         - CONDITION_RESTORE_DRILL_LATE
+                        - CONDITION_CATALOG_SOURCE_STUCK
                         - CONDITION_UPDATE_AVAILABLE
                     type: string
                     description: |-
@@ -16452,7 +16549,7 @@ components:
             properties:
                 path:
                     type: string
-                    description: A local raster image path under /catalog-media/.
+                    description: A raster image, named as icon is.
                 caption:
                     type: string
                     description: What the screenshot shows, also used as its accessible description.
@@ -16461,7 +16558,8 @@ components:
                     description: Where the project published the original, at an HTTPS address.
             description: |-
                 Screenshot is a preview a person can read before starting an installation.
-                 Media ships with the panel; browsing never asks a third-party host for it.
+                 Media comes with its catalog, and the control plane serves it; browsing never
+                 asks a third-party host for it.
         SearchImagesResponse:
             type: object
             properties:
@@ -17902,7 +18000,14 @@ components:
                     description: The folder of entries in it. Empty is its top.
                 commit:
                     type: string
-                    description: The commit to read it at, in full, as 40 hex digits.
+                    description: |-
+                        The commit to read it at, in full, as 40 hex digits. Left out with follow
+                         set, it's the commit the branch is at now.
+                follow:
+                    type: string
+                    description: |-
+                        The branch to follow, such as "main", which Dockwell moves the source along
+                         as it moves, by changes of its own. Empty pins it at commit.
                 format:
                     enum:
                         - CATALOG_FORMAT_UNSPECIFIED

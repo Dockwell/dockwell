@@ -42,3 +42,21 @@ func TestValidate(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// A source follows a branch by its name, written without refs/heads/, and never a
+// name Git wouldn't give a branch.
+func TestValidateBranch(t *testing.T) {
+	commit := strings.Repeat("a", 40)
+	for in, want := range map[string]string{"main": "main", "refs/heads/release/2.x": "release/2.x", "": "", "v1.0-rc+1": "v1.0-rc+1"} {
+		s := &resourcev1.CatalogSource{Repository: "https://example.com/c", Commit: commit, Follow: in}
+		if err := (Type{}).Validate(s); err != nil || s.GetFollow() != want {
+			t.Errorf("%q: %q, %v", in, s.GetFollow(), err)
+		}
+	}
+	for _, bad := range []string{"-x", "a..b", "a b", "a//b", "a/", "a.", ".hidden", "a/.b", "x.lock", "a@{1}", "a~1", "a^", "a:b", "*", "a\\b", strings.Repeat("a", 201)} {
+		s := &resourcev1.CatalogSource{Repository: "https://example.com/c", Commit: commit, Follow: bad}
+		if err := (Type{}).Validate(s); err == nil || !strings.Contains(err.Error(), "follows a branch by its name") {
+			t.Errorf("%q: %v", bad, err)
+		}
+	}
+}

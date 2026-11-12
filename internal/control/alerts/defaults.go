@@ -30,6 +30,7 @@ var later = map[string]string{
 	"restore-drill-failed": "alerts.defaults.restore-drill-failed",
 	"restore-drill-late":   "alerts.defaults.restore-drill-late",
 	"update-available":     "alerts.defaults.update-available",
+	"catalog-source-stuck": "alerts.defaults.catalog-source-stuck",
 }
 
 // MakeDefaults makes an install's first rules, one for each condition, as

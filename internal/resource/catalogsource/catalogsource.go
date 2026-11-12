@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -64,5 +65,29 @@ func (Type) Validate(spec proto.Message) error {
 	if _, ok := resourcev1.CatalogFormat_name[int32(s.GetFormat())]; !ok {
 		return fmt.Errorf("a catalog source's format is one Dockwell reads, and %d isn't one. Leave it out for Dockwell to tell", s.GetFormat())
 	}
+	return CheckBranch(s)
+}
+
+// branch is a name a branch may have, as Git's check-ref-format allows one, made
+// narrower: what a person types, never a pattern.
+var branch = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._/+-]*$`)
+
+// CheckBranch refuses a branch to follow that Git wouldn't name so, and writes one
+// named in full, as refs/heads/main, by its name alone. Empty follows none.
+func CheckBranch(s *resourcev1.CatalogSource) error {
+	name := strings.TrimPrefix(s.GetFollow(), "refs/heads/")
+	if name == "" {
+		s.Follow = ""
+		return nil
+	}
+	bad := len(name) > 200 || !branch.MatchString(name) || strings.Contains(name, "..") || strings.Contains(name, "//") ||
+		strings.HasSuffix(name, "/") || strings.HasSuffix(name, ".") || strings.Contains(name, "@{")
+	for _, part := range strings.Split(name, "/") {
+		bad = bad || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock")
+	}
+	if bad {
+		return fmt.Errorf("a catalog source follows a branch by its name, such as main, and %q isn't one. Name the branch as its repository lists it", s.GetFollow())
+	}
+	s.Follow = name
 	return nil
 }
