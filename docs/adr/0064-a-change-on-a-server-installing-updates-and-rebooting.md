@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-10
-- Amended: 2026-11-11, updating packages one at a time or a selection (#521); 2026-11-12, rebooting as built (#521)
+- Amended: 2026-11-11, updating packages one at a time or a selection (#521); 2026-11-12, rebooting as built (#521); 2026-11-12, an install that restarts nothing asks for the passkey alone (#521 follow-up)
 
 ## Context
 
@@ -46,6 +46,15 @@ A reboot's plan lists everything on the server as going offline, with each servi
 - **The plan is as good as root.** The host driver's plan carries host access `root` for both edits, so `Plan.AsGoodAsRoot()` holds. `ApplyChange` then asks for the passkey, `STEP_UP_ACTION_APPLY_ROOT_CHANGE`, bound to the change's ID, which only a person signed in can give: a token, read-write or not, can't apply a plan for an install or a reboot, whoever planned it.
 - **Only an admin.** `server.host` is an install-wide kind, so `checkRoles` and `CheckApply` ask for an admin to plan or apply it, as for a firewall rule.
 - **A reboot of the control server is flagged as one that stops the panel,** as a plan that destroys data is, so the sheet asks to confirm it as well as the passkey.
+- **What asks for the typed code** is set below, under that heading.
+
+### What asks for the typed code
+
+Added on 2026-11-12, after the panel audit found that updating one security package asked for the plan's typed code as well as the passkey.
+
+- **An install of updates that restarts nothing takes the passkey alone.** ADR 0028's red sheet, with a typed fingerprint and the danger button, is for what grants a workload root or loses data, so that it means something when it comes. An install from the server's own package sources runs as root while it installs, but grants nothing to anything that runs there, and loses nothing a person keeps. The passkey (`STEP_UP_ACTION_APPLY_ROOT_CHANGE`) already guards it as a root change, and ADR 0075's choice of how often a passkey is asked covers it as it covers any root change. So its sheet asks for nothing to type, keeps an ordinary Apply, says it can't be undone, and says the passkey is asked. A kernel among the packages counts as restarting nothing: its reboot is a change of its own.
+- **The typed code stays** for an install that restarts Docker (it stops what runs on the server, whether or not live-restore keeps containers running across a patch release), for every reboot (everything on the server goes offline, and the control server's takes the panel with it), and, as before, for every plan that grants root to a workload, loses data, may cut off access, or reaches the server without saying what it reaches.
+- **The API is unchanged.** `ApplyChange` still needs the plan's fingerprint for a plan that reaches the server, as ADR 0017 sets it: the fingerprint in the request is how a client says which plan it reviewed, and the panel sends it whether or not a person typed it. What changes is only what a person is asked to do by hand, which is the panel's call (`needsConfirming`), as in ADR 0028.
 
 ### Holds
 

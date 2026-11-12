@@ -66,13 +66,30 @@ function accessOf(plan: Plan): HostAccess[] {
  * a signed-in person, and the fingerprint goes with Apply, whatever this says: a
  * folder of the app's own stops at a warning, so that this means something when
  * it comes (ADR 0028). A plan that says it reaches the server and doesn't say what
- * is treated as the worst.
+ * is treated as the worst, but for an install of updates that restarts nothing,
+ * which grants nothing and takes the passkey alone (ADR 0064, "What asks for the
+ * typed code").
  */
 export function needsConfirming(plan: Plan | undefined): boolean {
   if (!plan) return false;
   if (plan.destructive) return true;
   const access = accessOf(plan);
-  return plan.hostAccess && access.length === 0 ? true : access.some(asGoodAsRoot);
+  if (access.some(asGoodAsRoot)) return true;
+  if (quietInstall(plan)) return false;
+  return plan.hostAccess && access.length === 0;
+}
+
+/**
+ * Whether a plan only installs updates from the servers' own package sources and
+ * stops nothing: no Docker restart and no reboot, and nothing else in it. Its
+ * packages run as root, which the passkey guards, but it gives no workload any more
+ * of its server than it had.
+ */
+function quietInstall(plan: Plan): boolean {
+  return (
+    plan.resources.length > 0 &&
+    plan.resources.every((r) => r.install !== undefined && !r.install.dockerRestarts && r.reboot === undefined)
+  );
 }
 
 /** Whether applying a plan asks for a passkey, as the control plane decides it: anything as good as root does. */

@@ -429,8 +429,10 @@ async function main() {
   await shoot(page, "update-one-plan");
 
   step("applied with the passkey, its rows say what they're doing, then what they went to, then leave");
-  const oneCode = await one.locator("#plan-confirm-why code").innerText();
-  await one.getByRole("textbox", { name: /to apply it/ }).fill(oneCode);
+  // It restarts nothing, so the passkey alone applies it: nothing to type (ADR 0064).
+  if (await one.locator("#plan-confirm-why").count())
+    fail("updating openssl asks for its plan's code, which restarts nothing");
+  await one.getByText("Applying this asks for your passkey").waitFor();
   await one.getByRole("button", { name: /^Apply plan/ }).click();
   // The sheet follows it too; closed, the rows carry on saying how it goes.
   await page

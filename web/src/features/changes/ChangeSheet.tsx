@@ -802,6 +802,16 @@ function ChangeSheet({
             <Icon name="key" size={14} />
             <Trans>Applying this approves {change?.proposedBy?.name}'s change, with your passkey</Trans>
           </span>
+        ) : needsPasskey(plan) ? (
+          // Root's to apply with nothing to type, as an install that restarts nothing (ADR 0064): the passkey
+          // is said beside what can't be undone.
+          <span className="dw-sheet-note plan-foot-notes">
+            {undoNote}
+            <span className="dw-sheet-note">
+              <Icon name="key" size={14} />
+              <Trans>Applying this asks for your passkey</Trans>
+            </span>
+          </span>
         ) : (
           undoNote
         )}

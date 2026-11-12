@@ -419,8 +419,10 @@ describe("UpdatesPage", () => {
     // What restarts beyond Docker can't be told ahead, so it says they may.
     expect(sheet).toHaveTextContent("Services these packages run may restart as they're installed.");
     expect(sheet).not.toHaveTextContent("Nothing else restarts");
-    // As good as root, with no undo, and Docker's restart is the server's downtime.
+    // As good as root, with no undo, and Docker's restart is the server's downtime: it stops what runs
+    // there, so the code is typed as well as the passkey.
     expect(within(sheet).getByText("Applying this asks for your passkey")).toBeVisible();
+    expect(within(sheet).getByRole("textbox", { name: /to apply it/ })).toBeVisible();
     expect(within(sheet).getByText("No undo")).toBeVisible();
     expect(within(sheet).queryByText(/Undo for/)).toBeNull();
     expect(within(sheet).getByText(/apps and websites stop while Docker restarts/)).toBeVisible();
@@ -745,6 +747,11 @@ describe("updating packages one by one", () => {
       "libssl3t64 3.0.13-0ubuntu3.4 → 3.0.13-0ubuntu3.5Pulled inSecurity fix",
     ]);
     expect(packages.querySelector(".plan-install-changed")).toHaveTextContent(/^5$/);
+    // It restarts nothing, so the passkey is enough: no code to type, and an ordinary Apply (ADR 0064).
+    expect(within(sheet).getByText("Applying this asks for your passkey")).toBeVisible();
+    expect(within(sheet).getByText("No undo")).toBeVisible();
+    expect(within(sheet).queryByRole("textbox", { name: /to apply it/ })).toBeNull();
+    expect(within(sheet).getByRole("button", { name: /^Apply plan/ })).not.toHaveClass("dw-btn-danger");
     expect(await within(rowOf(table, "openssl")).findByText("In review")).toBeInTheDocument();
     expect(within(rowOf(table, "libssl3t64")).getByText("In review")).toBeInTheDocument();
   });
