@@ -5,6 +5,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   ChangeSchema,
   ChangeState,
+  CompanionSchema,
   EntrySchema,
   HostAccessKind,
   InputType,
@@ -353,6 +354,168 @@ describe("A newer release", () => {
     expect(await within(panel).findByText("Version 17.13 is out.")).toBeVisible();
     await user.click(within(panel).getByRole("button", { name: "Upgrade to 17.13" }));
     await waitFor(() => expect(asked).toBe("prj_1"));
+  });
+});
+
+describe("A database's admin tool", () => {
+  // As the built-in PostgreSQL has it since ADR 0076: Adminer is a companion, off until turned on.
+  const withTools = create(EntrySchema, {
+    ...postgres,
+    id: "postgres",
+    companions: [
+      create(CompanionSchema, {
+        service: "adminer",
+        label: "Adminer",
+        purpose: "Browse and edit tables in your browser",
+        inputs: ["ADMIN_PORT"],
+        notes: ["Choose PostgreSQL as Adminer's system."],
+      }),
+    ],
+  });
+  const tools = (more: Api["catalog"] = {}) =>
+    api({
+      getCatalogEntry: () => ({
+        entry: withTools,
+        project: "postgres",
+        values: { ADMIN_PORT: "8085" },
+        parts: [
+          { service: "adminer", image: "adminer:6.2.0", opens: true },
+          { service: "db", image: "postgres:17.11", database: true, volumes: ["data"] },
+        ],
+      }),
+      ...more,
+    });
+
+  it("is left out unless you turn it on, and its port and note show only while it's on", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_tools", summary: "Install PostgreSQL", state: ChangeState.PLANNED });
+    const { container } = renderAt("/catalog/postgres/install", {
+      ...tools({
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+      containers: { listContainers: () => ({ containers: [] }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    const toggle = await within(sheet).findByRole("switch", { name: "Adminer" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    expect(toggle).toHaveAccessibleDescription("Browse and edit tables in your browser");
+    expect(within(sheet).queryByRole("group", { name: "Adminer port" })).not.toBeInTheDocument();
+    expect(within(sheet).queryByText("Choose PostgreSQL as Adminer's system.")).not.toBeInTheDocument();
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    const parts = within(sheet).getByRole("region", { name: "What it installs" });
+    expect(within(parts).queryByText("adminer:6.2.0")).not.toBeInTheDocument();
+    await expectAccessible(container);
+
+    // On, its port is a default line with whether it's free, its note says itself, and it's among what it installs.
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    const port = await within(sheet).findByRole("group", { name: "Adminer port" });
+    await waitFor(() => expect(port).toHaveTextContent("8085Free"));
+    expect(within(sheet).getByText("Choose PostgreSQL as Adminer's system.")).toBeVisible();
+    expect(within(parts).getByText("adminer:6.2.0")).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Copy as CLI command" }));
+    expect(writeText).toHaveBeenLastCalledWith("dockwell catalog install postgres --companions adminer=true");
+    await expectAccessible(container);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.companions).toEqual({ adminer: true });
+    expect(asked?.values).toEqual({ ADMIN_PORT: "8085" });
+  });
+
+  it("reads as optional among what the app's page says it includes", async () => {
+    renderAt("/catalog/postgres", tools({ listCatalogEntries: () => ({ entries: [withTools] }) }));
+    const includes = await screen.findByRole("region", { name: "Included in this install" });
+    const adminer = (await within(includes).findByText("adminer")).closest("li");
+    expect(adminer).toHaveTextContent("Optional, a switch when you install");
+    const db = within(includes).getByText("db").closest("li");
+    expect(db).not.toHaveTextContent("Optional");
+  });
+
+  it("installs the database alone by default, asking nothing of the tool", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_alone", summary: "Install PostgreSQL", state: ChangeState.PLANNED });
+    renderAt(
+      "/catalog/postgres/install",
+      tools({
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install PostgreSQL" });
+    await within(sheet).findByRole("switch", { name: "Adminer" });
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.companions).toEqual({ adminer: false });
+    expect(asked?.values).toEqual({});
+  });
+
+  const installed = (on: boolean) => ({
+    installs: [
+      {
+        project: "postgres",
+        projectId: "prj_1",
+        environmentId: ENV,
+        pin: { entry: "postgres", version: "17.11", release: 5 },
+        webServiceId: on ? "svc_adminer" : "svc_db",
+        name: "PostgreSQL",
+        companions: { adminer: on },
+      },
+    ],
+  });
+
+  it("is added later from the app's page, as a plan, by the project", async () => {
+    const user = userEvent.setup();
+    let asked: { id: string; service: string; on: boolean } | undefined;
+    const { container } = renderAt("/apps/svc_db", {
+      ...tools({
+        listCatalogInstalls: () => installed(false),
+        setCatalogCompanion: (req) => {
+          asked = { id: req.id, service: req.service, on: req.on };
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const tool = await within(panel).findByRole("list", { name: "Tools" });
+    expect(within(tool).getByText("Adminer")).toBeVisible();
+    expect(within(tool).getByText("Not installed")).toBeVisible();
+    // With the tool left out, there's no sign-in to it to show.
+    expect(screen.queryByRole("region", { name: "Sign in" })).not.toBeInTheDocument();
+    await expectAccessible(container);
+    await user.click(within(tool).getByRole("button", { name: "Add Adminer" }));
+    await waitFor(() => expect(asked).toEqual({ id: "prj_1", service: "adminer", on: true }));
+  });
+
+  it("is removed later from the database's page, as a plan", async () => {
+    const user = userEvent.setup();
+    let asked: { service: string; on: boolean } | undefined;
+    renderAt("/apps/svc_adminer", {
+      ...tools({
+        listCatalogInstalls: () => installed(true),
+        setCatalogCompanion: (req) => {
+          asked = { service: req.service, on: req.on };
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const tool = await within(panel).findByRole("list", { name: "Tools" });
+    expect(within(tool).getByText("Installed")).toBeVisible();
+    expect(within(panel).getByText("Choose PostgreSQL as Adminer's system.")).toBeVisible();
+    await user.click(within(tool).getByRole("button", { name: "Remove Adminer" }));
+    await waitFor(() => expect(asked).toEqual({ service: "adminer", on: false }));
   });
 });
 

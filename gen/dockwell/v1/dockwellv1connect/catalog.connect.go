@@ -47,6 +47,9 @@ const (
 	// CatalogServiceUpgradeCatalogInstallProcedure is the fully-qualified name of the CatalogService's
 	// UpgradeCatalogInstall RPC.
 	CatalogServiceUpgradeCatalogInstallProcedure = "/dockwell.v1.CatalogService/UpgradeCatalogInstall"
+	// CatalogServiceSetCatalogCompanionProcedure is the fully-qualified name of the CatalogService's
+	// SetCatalogCompanion RPC.
+	CatalogServiceSetCatalogCompanionProcedure = "/dockwell.v1.CatalogService/SetCatalogCompanion"
 	// CatalogServiceInstallCatalogEntryProcedure is the fully-qualified name of the CatalogService's
 	// InstallCatalogEntry RPC.
 	CatalogServiceInstallCatalogEntryProcedure = "/dockwell.v1.CatalogService/InstallCatalogEntry"
@@ -87,6 +90,14 @@ type CatalogServiceClient interface {
 	// when there's nothing newer, and no_record for an install from before Dockwell
 	// kept what its file gave.
 	UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error)
+	// SetCatalogCompanion plans adding one of an install's companions, or taking
+	// it away, ready to apply or discard, at the release the install is on. Adding
+	// one publishes it on a port that's free unless values names one. Taking one
+	// away keeps any volume it had, as an upgrade does. The pin records the choice
+	// in the same change, so an upgrade keeps it and an undo puts both back. It's
+	// refused with the reason unchanged when the companion is as asked already,
+	// and upgrade_first when the release installed has no such service.
+	SetCatalogCompanion(context.Context, *connect.Request[v1.SetCatalogCompanionRequest]) (*connect.Response[v1.SetCatalogCompanionResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -155,6 +166,12 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("UpgradeCatalogInstall")),
 			connect.WithClientOptions(opts...),
 		),
+		setCatalogCompanion: connect.NewClient[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse](
+			httpClient,
+			baseURL+CatalogServiceSetCatalogCompanionProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("SetCatalogCompanion")),
+			connect.WithClientOptions(opts...),
+		),
 		installCatalogEntry: connect.NewClient[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](
 			httpClient,
 			baseURL+CatalogServiceInstallCatalogEntryProcedure,
@@ -195,6 +212,7 @@ type catalogServiceClient struct {
 	getCatalogEntry       *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
 	listCatalogInstalls   *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
 	upgradeCatalogInstall *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
+	setCatalogCompanion   *connect.Client[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse]
 	installCatalogEntry   *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
 	setCatalogSource      *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
 	listCatalogSources    *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
@@ -220,6 +238,11 @@ func (c *catalogServiceClient) ListCatalogInstalls(ctx context.Context, req *con
 // UpgradeCatalogInstall calls dockwell.v1.CatalogService.UpgradeCatalogInstall.
 func (c *catalogServiceClient) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error) {
 	return c.upgradeCatalogInstall.CallUnary(ctx, req)
+}
+
+// SetCatalogCompanion calls dockwell.v1.CatalogService.SetCatalogCompanion.
+func (c *catalogServiceClient) SetCatalogCompanion(ctx context.Context, req *connect.Request[v1.SetCatalogCompanionRequest]) (*connect.Response[v1.SetCatalogCompanionResponse], error) {
+	return c.setCatalogCompanion.CallUnary(ctx, req)
 }
 
 // InstallCatalogEntry calls dockwell.v1.CatalogService.InstallCatalogEntry.
@@ -270,6 +293,14 @@ type CatalogServiceHandler interface {
 	// when there's nothing newer, and no_record for an install from before Dockwell
 	// kept what its file gave.
 	UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error)
+	// SetCatalogCompanion plans adding one of an install's companions, or taking
+	// it away, ready to apply or discard, at the release the install is on. Adding
+	// one publishes it on a port that's free unless values names one. Taking one
+	// away keeps any volume it had, as an upgrade does. The pin records the choice
+	// in the same change, so an upgrade keeps it and an undo puts both back. It's
+	// refused with the reason unchanged when the companion is as asked already,
+	// and upgrade_first when the release installed has no such service.
+	SetCatalogCompanion(context.Context, *connect.Request[v1.SetCatalogCompanionRequest]) (*connect.Response[v1.SetCatalogCompanionResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -334,6 +365,12 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("UpgradeCatalogInstall")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceSetCatalogCompanionHandler := connect.NewUnaryHandler(
+		CatalogServiceSetCatalogCompanionProcedure,
+		svc.SetCatalogCompanion,
+		connect.WithSchema(catalogServiceMethods.ByName("SetCatalogCompanion")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceInstallCatalogEntryHandler := connect.NewUnaryHandler(
 		CatalogServiceInstallCatalogEntryProcedure,
 		svc.InstallCatalogEntry,
@@ -375,6 +412,8 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceListCatalogInstallsHandler.ServeHTTP(w, r)
 		case CatalogServiceUpgradeCatalogInstallProcedure:
 			catalogServiceUpgradeCatalogInstallHandler.ServeHTTP(w, r)
+		case CatalogServiceSetCatalogCompanionProcedure:
+			catalogServiceSetCatalogCompanionHandler.ServeHTTP(w, r)
 		case CatalogServiceInstallCatalogEntryProcedure:
 			catalogServiceInstallCatalogEntryHandler.ServeHTTP(w, r)
 		case CatalogServiceSetCatalogSourceProcedure:
@@ -408,6 +447,10 @@ func (UnimplementedCatalogServiceHandler) ListCatalogInstalls(context.Context, *
 
 func (UnimplementedCatalogServiceHandler) UpgradeCatalogInstall(context.Context, *connect.Request[v1.UpgradeCatalogInstallRequest]) (*connect.Response[v1.UpgradeCatalogInstallResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.UpgradeCatalogInstall is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) SetCatalogCompanion(context.Context, *connect.Request[v1.SetCatalogCompanionRequest]) (*connect.Response[v1.SetCatalogCompanionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SetCatalogCompanion is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error) {

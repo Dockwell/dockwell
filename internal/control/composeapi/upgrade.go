@@ -43,6 +43,9 @@ type Upgrade struct {
 	Pin    *resourcev1.CatalogPin
 	// SkipBackup leaves out the backup of its volumes that comes first.
 	SkipBackup bool
+	// Companion says it changes which of the install's companions run, at the
+	// release it's on: no data moves, so it takes no backup and says nothing of one.
+	Companion bool
 	// Old is the file the install has now, with what it used and what stood for its
 	// secrets, which nothing but reading it needs.
 	Old          []byte
@@ -96,6 +99,8 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		Ref:     project,
 	}
 	switch {
+	case in.Companion:
+		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
 	case in.SkipBackup:
 		backUp = nil
 		say = revision.Note{

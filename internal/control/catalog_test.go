@@ -90,7 +90,7 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 		}
 	}
 
-	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres"})
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Companions: map[string]bool{"adminer": true}})
 	if want := "Install PostgreSQL 17.11 as postgres"; planned.GetSummary() != want {
 		t.Errorf("summary %q, want %q", planned.GetSummary(), want)
 	}
@@ -380,7 +380,9 @@ func testInstallRefusalsAndHostAccess(t *testing.T, backend store.Backend) {
 	}{
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "nothing"}, connect.CodeNotFound, "the catalog has no app nothing"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "cloudflared"}, connect.CodeInvalidArgument, "Tunnel token needs a value"},
-		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"ADMIN_PORT": "99999"}}, connect.CodeInvalidArgument, "Adminer port takes a port"},
+		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"ADMIN_PORT": "99999"}, Companions: map[string]bool{"adminer": true}}, connect.CodeInvalidArgument, "Adminer port takes a port"},
+		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"ADMIN_PORT": "9000"}}, connect.CodeInvalidArgument, "ADMIN_PORT is Adminer's, which this install leaves out"},
+		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Companions: map[string]bool{"pgweb": true}}, connect.CodeInvalidArgument, "PostgreSQL has no companion pgweb"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Values: map[string]string{"POSTGRES_PASSWORD": "mine"}}, connect.CodeInvalidArgument, "Database password takes at least 8 characters"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "umami", Values: map[string]string{"POSTGRES_PASSWORD": "p@ss/word#12"}}, connect.CodeInvalidArgument, "as the app writes it into a URL"},
 		{&dockwellv1.InstallCatalogEntryRequest{Id: "postgres", Project: "Not A Name"}, connect.CodeInvalidArgument, "project"},
@@ -1272,4 +1274,208 @@ func mustList(t *testing.T, b *browser) *dockwellv1.ListResourcesResponse {
 	}
 	t.Fatal("no project thing")
 	return nil
+}
+
+// A database's admin tool is left out unless a person turns it on: the install runs
+// the database alone, the pin says so, and the tool comes and goes later as a plan,
+// each with an undo, at the release it's on.
+func TestAnInstallsCompanionsComeAndGo(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "postgres"})
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetName() == "adminer" {
+			t.Errorf("left out, the plan still makes %s %s", r.GetResource().GetKind(), r.GetResource().GetName())
+		}
+	}
+	if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	project := docker.Project(env)
+	installed := func() *dockwellv1.CatalogInstall {
+		t.Helper()
+		res, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+		if err != nil || len(res.Msg.GetInstalls()) != 1 {
+			t.Fatalf("installs: %v, %v", res, err)
+		}
+		return res.Msg.GetInstalls()[0]
+	}
+	if got := installed(); got.GetCompanions()["adminer"] || got.GetPin().GetCompanions()["adminer"] ||
+		len(got.GetPin().GetCompanions()) != 1 || got.GetPin().GetValues()["ADMIN_PORT"] != "" || strings.Contains(got.GetFirstSteps(), "dminer") {
+		t.Errorf("left out, the install reads %v", got)
+	}
+	if e.Container(project+"-adminer-1") != nil {
+		t.Error("left out, Adminer runs")
+	}
+	set := func(on bool, values map[string]string) (*dockwellv1.Change, error) {
+		res, err := cat.SetCatalogCompanion(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogCompanionRequest{Id: "postgres", Service: "adminer", On: on, Values: values}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetChange(), nil
+	}
+	if _, err := set(false, nil); connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "unchanged" {
+		t.Errorf("taking away what isn't there = %v", err)
+	}
+	if _, err := cat.SetCatalogCompanion(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogCompanionRequest{Id: "postgres", Service: "pgweb", On: true})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("a companion it hasn't = %v", err)
+	}
+
+	// Added, it takes the port it's given, and nothing else changes.
+	add, err := set(true, map[string]string{"ADMIN_PORT": "18081"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if add.GetSummary() != "Add Adminer to postgres" {
+		t.Errorf("adding reads %q", add.GetSummary())
+	}
+	for _, r := range add.GetPlan().GetResources() {
+		switch name := r.GetResource().GetKind() + " " + r.GetResource().GetName(); {
+		case name == "service adminer" && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_CREATE:
+			t.Errorf("adding plans %v for Adminer", r.GetAction())
+		case name != "service adminer" && name != "project postgres" && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE:
+			t.Errorf("adding Adminer also plans %v for %s", r.GetAction(), name)
+		}
+	}
+	for _, n := range add.GetPlan().GetNotes() {
+		if n.GetReason() == "backup_first" || n.GetReason() == "no_backup" {
+			t.Errorf("adding a companion talks of a backup: %v", n)
+		}
+	}
+	if got := apply(t, c, add); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("adding Adminer ended %v: %s", got.GetState(), got.GetError())
+	}
+	adminer := e.Container(project + "-adminer-1")
+	if adminer == nil {
+		t.Fatalf("added, Adminer doesn't run: %v", e.Containers())
+	}
+	if got := adminer.HostConfig.PortBindings["8080/tcp"]; len(got) != 1 || got[0].HostPort != "18081" {
+		t.Errorf("added, Adminer publishes %+v", got)
+	}
+	if got := installed(); !got.GetCompanions()["adminer"] || !got.GetPin().GetCompanions()["adminer"] || got.GetPin().GetValues()["ADMIN_PORT"] != "18081" {
+		t.Errorf("added, the install reads %v", got)
+	}
+	if _, err := set(true, nil); reasonOf(err) != "unchanged" {
+		t.Errorf("adding what's there = %v", err)
+	}
+
+	// Taken away, it goes, and the database stays as it was.
+	db := e.Newest(project, "db")
+	remove, err := set(false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remove.GetSummary() != "Remove Adminer from postgres" {
+		t.Errorf("taking it away reads %q", remove.GetSummary())
+	}
+	applyConfirmed(t, c, remove)
+	if e.Container(project+"-adminer-1") != nil {
+		t.Error("taken away, Adminer still runs")
+	}
+	if got := e.Newest(project, "db"); got == nil || got.ID != db.ID {
+		t.Error("taking Adminer away replaced the database's container")
+	}
+	if got := installed(); got.GetCompanions()["adminer"] || got.GetPin().GetValues()["ADMIN_PORT"] != "" {
+		t.Errorf("taken away, the install reads %v", got)
+	}
+}
+
+// An install from before companions keeps what it ran through an upgrade to a release
+// that marks one; a new install of that release leaves it out, and keeps it out.
+func TestAnUpgradeKeepsTheCompanionsChosen(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	tool := "    tool:\n      image: tool:1@sha256:" + digest1 + "\n      ports:\n        - \"${TOOL_PORT}:80\"\n"
+	write := func(release int, image string, companion bool) {
+		t.Helper()
+		entry := testEntry(release, fmt.Sprintf("%d.0", release), image, tool)
+		entry = strings.Replace(entry, "inputs:\n", "inputs:\n  - name: TOOL_PORT\n    label: Tool port\n    type: INPUT_TYPE_PORT\n    defaultValue: \"18300\"\n", 1)
+		if companion {
+			entry = strings.Replace(entry, "compose: |\n", "companions:\n  - service: tool\n    label: Tool\n    purpose: Something beside it\n    inputs: [TOOL_PORT]\ncompose: |\n", 1)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "thing.yaml"), []byte(entry), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(1, "thing:1@sha256:"+digest1, false)
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	install := func(project string) string {
+		t.Helper()
+		planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "thing", Project: project})
+		if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("installing %s ended %v: %s", project, got.GetState(), got.GetError())
+		}
+		for _, r := range planned.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "service" {
+				return docker.Project(r.GetResource().GetScope())
+			}
+		}
+		t.Fatal("the install planned no service")
+		return ""
+	}
+	upgrade := func(project string) *dockwellv1.Change {
+		t.Helper()
+		res, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: project, SkipBackup: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res.Msg.GetChange()
+	}
+	before := install("before")
+	if e.Newest(before, "tool") == nil {
+		t.Fatal("an entry with no companions doesn't run every service")
+	}
+
+	write(2, "thing:2@sha256:"+digest2, true)
+	planned := upgrade("before")
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetName() == "tool" && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_DELETE {
+			t.Error("an upgrade takes away a companion an install from before companions ran")
+		}
+	}
+	apply(t, c, planned)
+	if e.Newest(before, "tool") == nil {
+		t.Error("after the upgrade, the tool it ran is gone")
+	}
+
+	after := install("after")
+	if e.Newest(after, "tool") != nil {
+		t.Error("a new install runs a companion that's off by default")
+	}
+	write(3, "thing:1@sha256:"+digest1, true)
+	planned = upgrade("after")
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetName() == "tool" {
+			t.Errorf("an upgrade of an install that left the tool out plans %v for it", r.GetAction())
+		}
+	}
+	apply(t, c, planned)
+	if e.Newest(after, "tool") != nil {
+		t.Error("after its upgrade, an install that left the tool out runs it")
+	}
+	res, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, in := range res.Msg.GetInstalls() {
+		if want := in.GetProject() == "before"; in.GetCompanions()["tool"] != want || in.GetPin().GetCompanions()["tool"] != want {
+			t.Errorf("%s reads tool as %v, pinned %v", in.GetProject(), in.GetCompanions(), in.GetPin().GetCompanions())
+		}
+	}
 }

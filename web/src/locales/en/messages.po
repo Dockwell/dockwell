@@ -5977,6 +5977,14 @@ msgstr "Open app"
 msgid "Open app: {0}"
 msgstr "Open app: {0}"
 
+msgctxt "companion"
+msgid "Optional, a switch when you install"
+msgstr "Optional, a switch when you install"
+
+msgctxt "companion"
+msgid "Optional, on unless you turn it off"
+msgstr "Optional, on unless you turn it off"
+
 msgid "Persistent storage"
 msgstr "Persistent storage"
 
@@ -6074,6 +6082,24 @@ msgstr "{count, plural, one {Installed} other {# installed}}"
 
 msgid "{count} installed"
 msgstr "{count} installed"
+
+msgid "Add {label}"
+msgstr "Add {label}"
+
+msgctxt "companion"
+msgid "Installed"
+msgstr "Installed"
+
+msgctxt "companion"
+msgid "Not installed"
+msgstr "Not installed"
+
+msgid "Remove {label}"
+msgstr "Remove {label}"
+
+msgctxt "companions"
+msgid "Tools"
+msgstr "Tools"
 
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>, read-only"

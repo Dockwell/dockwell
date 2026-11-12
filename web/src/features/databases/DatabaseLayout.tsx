@@ -18,6 +18,7 @@ import { useHealth } from "../apps/health";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useSignedIn } from "../auth/useAuthState";
 import { OpenAppButton } from "../catalog/access";
+import { useServiceLabel } from "../catalog/Companions";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
@@ -130,6 +131,8 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const sheet = useChangeSheet();
   const transport = useTransport();
   const install = useOwnInstall(db);
+  // A tool beside it goes by its own name, such as Adminer, rather than its service's (ADR 0076).
+  const label = useServiceLabel(install);
   // The admin tool a catalog install runs beside it opens through the panel (ADR 0061).
   const onLocalhost = useSignedIn()?.rpId === "localhost";
   const tool = useServices().data?.find((s) => s.id === install?.webServiceId && s.id !== db.id);
@@ -157,7 +160,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const place = places.place(db.resource?.scope ?? "");
   const users = read?.users.filter((u) => !u.system).length ?? 0;
   const placeName = place?.label ?? "";
-  const others = db.beside.join(", ");
+  const others = db.beside.map(label).join(", ");
   const ago = newest ? time.ago(newest, now) : "";
   const lead = [
     engineAndVersion(db, read),
@@ -179,7 +182,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       actions={
         <>
           {tool && onLocalhost ? (
-            <OpenAppButton serviceId={tool.id} environment={environmentOf(tool)} app={nameOf(tool)} />
+            <OpenAppButton serviceId={tool.id} environment={environmentOf(tool)} app={label(nameOf(tool))} />
           ) : null}
           <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service">
             <Trans>Open as an app</Trans>

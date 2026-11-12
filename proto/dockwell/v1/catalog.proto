@@ -73,6 +73,25 @@ service CatalogService {
     };
   }
 
+  // SetCatalogCompanion plans adding one of an install's companions, or taking
+  // it away, ready to apply or discard, at the release the install is on. Adding
+  // one publishes it on a port that's free unless values names one. Taking one
+  // away keeps any volume it had, as an upgrade does. The pin records the choice
+  // in the same change, so an upgrade keeps it and an undo puts both back. It's
+  // refused with the reason unchanged when the companion is as asked already,
+  // and upgrade_first when the release installed has no such service.
+  rpc SetCatalogCompanion(SetCatalogCompanionRequest) returns (SetCatalogCompanionResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "set-companion"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:set-companion"
+      body: "*"
+    };
+  }
+
   // InstallCatalogEntry plans installing an app as a project of its own, ready
   // to apply or discard, as ImportCompose does with a file. The plan makes the
   // project, its secrets and what its Compose file runs, and pins the project to
@@ -250,6 +269,9 @@ message CatalogInstall {
   // it's up to date, when a release changes only an entry's words, when the catalog
   // no longer has its entry, or when the install has no record of its file.
   CatalogUpgrade upgrade = 8;
+  // Whether each of its entry's companions runs, by service, such as adminer:
+  // false. Empty when the catalog no longer has its entry, or it has none.
+  map<string, bool> companions = 9;
 }
 
 // CatalogUpgrade is a newer release of an install's entry.
@@ -285,6 +307,10 @@ message InstallCatalogEntryRequest {
   // When Docker restarts a service's container, by its name, such as always for
   // db.
   map<string, dockwell.resource.v1alpha1.RestartPolicy> restart = 7;
+  // Which of the entry's companions to install, by service, such as adminer:
+  // true. One left out is as its entry says. An input only a companion left out
+  // uses is refused.
+  map<string, bool> companions = 8;
 }
 
 // InstallCatalogEntryResponse carries the planned change.
@@ -306,6 +332,25 @@ message UpgradeCatalogInstallRequest {
 
 // UpgradeCatalogInstallResponse carries the planned change.
 message UpgradeCatalogInstallResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// SetCatalogCompanionRequest names an install's companion, and whether it runs.
+message SetCatalogCompanionRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The companion, by its service's name in the entry, such as "adminer".
+  string service = 2;
+  // Whether it runs: true adds it, false takes it away.
+  bool on = 3;
+  // A value for each input it uses, by name, such as ADMIN_PORT. Left out, a
+  // port is one that nothing Dockwell runs has taken.
+  map<string, string> values = 4;
+}
+
+// SetCatalogCompanionResponse carries the planned change.
+message SetCatalogCompanionResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

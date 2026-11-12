@@ -3959,7 +3959,7 @@ said=$(grep -c -e "$s3_secret" -e "$passphrase" "$log" 2>/dev/null || true)
 docker rm --force e2e-s3 >/dev/null || true
 
 step "Catalog: PostgreSQL installs by digest with a password no one typed, and Adminer signs in with it"
-catalog_install postgres
+catalog_install postgres --companions adminer=true
 postgres_db=$(catalog_container db)
 adminer=$(catalog_container adminer)
 catalog_pinned "$postgres_db"
@@ -4176,7 +4176,7 @@ for name in rotate-e2e psql-e2e ping-e2e fails-e2e; do
 done
 
 step "Catalog: MySQL runs with a password of its own, and phpMyAdmin signs in with it"
-catalog_install mysql
+catalog_install mysql --companions phpmyadmin=true
 mysql_db=$(catalog_container db)
 phpmyadmin=$(catalog_container phpmyadmin)
 catalog_pinned "$mysql_db"

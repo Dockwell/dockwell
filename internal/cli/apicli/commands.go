@@ -228,6 +228,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.ComposeService.AdoptCompose":            true,
 	"dockwell.v1.CatalogService.InstallCatalogEntry":     true,
 	"dockwell.v1.CatalogService.UpgradeCatalogInstall":   true,
+	"dockwell.v1.CatalogService.SetCatalogCompanion":     true,
 	"dockwell.v1.CatalogService.SetCatalogSource":        true,
 	"dockwell.v1.CatalogService.RemoveCatalogSource":     true,
 	"dockwell.v1.ContainerService.AdoptContainer":        true,

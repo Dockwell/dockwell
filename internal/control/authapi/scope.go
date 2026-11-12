@@ -52,6 +52,7 @@ var idNames = map[string]string{
 	dockwellv1connect.LogServiceReadLogsProcedure:                    "service",
 	dockwellv1connect.LogServiceWatchLogsProcedure:                   "service",
 	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure:   "project",
+	dockwellv1connect.CatalogServiceSetCatalogCompanionProcedure:     "project",
 	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:            "service",
 	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:     "service",
 	dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure: "service",
