@@ -23,7 +23,7 @@ import { splitVersion } from "../../lib/versions";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
-import { intentOf, isFleet, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
+import { intentOf, isFleet, keepsData, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
 import { RebootPlan } from "./RebootPlan";
 import { type ChangeWords, type Tense, useChangeWords } from "./words";
 
@@ -216,6 +216,8 @@ function StepRow({
           {stepHealthy > stepDown ? <span>{t`Up to ${stepBound} until healthy`}</span> : null}
           {step.keptPaths.length > 0 ? (
             <span className="plan-step-warn">{t`Takes out of use what its image keeps at ${kept}, which the server keeps for 7 days`}</span>
+          ) : keepsData(step) ? (
+            <span className="plan-step-warn">{t`Keeps its data for 7 days, then deletes it`}</span>
           ) : step.destroysData ? (
             <span className="plan-step-warn">{t`Destroys data`}</span>
           ) : null}

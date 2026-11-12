@@ -44,11 +44,21 @@ export interface AppProject {
  * (ADR 0074): the default project, where the next app goes, is never offered. Once it applies, the
  * app's pages have nothing to show, so the list comes next.
  */
-export function useDeleteApp(service: ServiceInfo): {
+export function useDeleteApp(
+  service: ServiceInfo,
+  options: {
+    /** Where to go once it's deleted: the list it was on. */
+    after?: "/apps" | "/databases";
+    /** What goes with it, as a database's users go with its service. */
+    alongside?: readonly Resource[];
+  } = {},
+): {
   routes: number;
   open: () => void;
   project: AppProject | undefined;
 } {
+  const after = options.after ?? "/apps";
+  const alongside = options.alongside ?? [];
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const navigate = useNavigate();
@@ -69,7 +79,8 @@ export function useDeleteApp(service: ServiceInfo): {
   const mine = new Set(routes.map((route) => route.name));
   const isMine = (r: Resource) =>
     (r.resource?.kind === "service" && r.resource.name === name) ||
-    (r.resource?.kind === "route" && mine.has(r.resource.name));
+    (r.resource?.kind === "route" && mine.has(r.resource.name)) ||
+    alongside.some((a) => a.id === r.id);
   const left = (inside ?? []).filter((r) => !isMine(r));
   const last =
     project !== undefined &&
@@ -83,7 +94,7 @@ export function useDeleteApp(service: ServiceInfo): {
 
   const onClose = (change: Change | undefined) => {
     if (change && change.state !== ChangeState.PLANNED && change.state !== ChangeState.FAILED) {
-      void navigate({ to: "/apps" });
+      void navigate({ to: after });
     }
   };
   const appOnly = (choice?: PlanChoice): Opening => ({
@@ -94,6 +105,7 @@ export function useDeleteApp(service: ServiceInfo): {
         resource: { kind: "route", scope: resource?.scope ?? "", name: route.name },
         delete: true,
       })),
+      ...alongside.flatMap((a) => (a.resource ? [{ resource: a.resource, delete: true }] : [])),
       { resource: { kind: "service", scope: resource?.scope ?? "", name }, delete: true },
     ],
     onClose,

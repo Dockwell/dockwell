@@ -201,13 +201,20 @@ describe("the variables and secrets page", () => {
     expect(await screen.findByText(/No variables or secrets in Staging yet/)).toBeVisible();
   });
 
-  it("says an environment has nothing yet, and puts you in the key's field to add the first", async () => {
+  it("says an environment has nothing yet, and opens the form to add the first, saying nothing twice", async () => {
     const user = userEvent.setup();
     renderAt("/variables?environment=env_staging", api([production, staging]));
     const empty = await screen.findByRole("heading", { name: "No variables or secrets in Staging yet" });
     expect(empty).toBeVisible();
+    // The empty state is the way in; the form waits for it.
+    expect(screen.queryByRole("form", { name: "Add a variable or secret to Staging" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Add the first" }));
+    expect(await screen.findByRole("form", { name: "Add a variable or secret to Staging" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Key" })).toHaveFocus();
+    expect(screen.queryByRole("heading", { name: "No variables or secrets in Staging yet" })).toBeNull();
+    // Another environment that holds some shows its form at once.
+    await user.click(screen.getByRole("radio", { name: "production" }));
+    expect(await screen.findByRole("form", { name: "Add a variable or secret to production" })).toBeVisible();
   });
 
   it("clears a filter that matches nothing, from where it says so", async () => {

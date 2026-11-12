@@ -5,10 +5,12 @@ import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   BackupService,
+  ChangeService,
   type Database,
   DatabaseEngine,
   type DatabaseReading,
   DatabaseService,
+  ResourceService,
   VariableService,
 } from "@dockwell/api";
 import {
@@ -33,6 +35,7 @@ import { formatBytes, formatDateTime, formatFixed } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { appOf } from "../apps/app";
+import { DangerZone } from "../apps/DangerZone";
 import { usePlaces, useServices } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
@@ -43,6 +46,7 @@ import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
 import { useThisDatabase } from "./DatabaseLayout";
 import "../servers/ServerMetrics.css";
+import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { SchemasSection, UsersSection } from "./DatabaseUsers";
 import {
@@ -54,6 +58,7 @@ import {
   readOf,
   speaksSQL,
   useBackupHow,
+  useDatabases,
   useOwnInstall,
 } from "./useDatabases";
 
@@ -85,7 +90,47 @@ export function DatabaseOverview() {
           <SchemasSection db={db} read={read} />
         </>
       ) : null}
+      <DatabaseDanger db={db} />
     </div>
+  );
+}
+
+/**
+ * Deleting the database, as an app's danger zone has it: the last thing in its project takes the
+ * project too, behind a switch that's on (ADR 0074). The users Dockwell made in it go with it, as
+ * nothing else can hold them, and its service goes first, so their databases stay in its volume.
+ */
+function DatabaseDanger({ db }: { db: Database }) {
+  const { t } = useLingui();
+  const may = useMay();
+  const service = useServices().data?.find((s) => s.id === db.id);
+  const scope = db.resource?.scope ?? "";
+  const users = useQuery(
+    ResourceService.method.listResources,
+    { kind: "database.user", scope },
+    { enabled: scope !== "" },
+  ).data?.resources;
+  // Its users are those its server says Dockwell made, or, with one database here, every user here,
+  // as a server that isn't answering says none.
+  const only = (useDatabases().data?.databases ?? []).filter((d) => d.resource?.scope === scope).length === 1;
+  const made = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)).filter((id) => id !== ""));
+  const alongside = (users ?? []).filter((u) => only || made.has(u.id));
+  if (!service) return null;
+  return (
+    <MayEdit offer={may(ChangeService.method.proposeChange, { environment: scope })}>
+      <DangerZone
+        service={service}
+        title={t`Danger zone`}
+        after="/databases"
+        alongside={alongside}
+        stays={
+          <Trans>
+            Stops it and removes its container. Its volume stays, with every database and user in it. You review a plan
+            first.
+          </Trans>
+        }
+      />
+    </MayEdit>
   );
 }
 

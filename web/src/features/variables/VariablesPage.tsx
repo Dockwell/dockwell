@@ -193,6 +193,9 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
   const reveals = useReveals(chosen?.id);
   const may = useMay();
   const keyRef = useRef<HTMLInputElement>(null);
+  // An empty environment shows its empty state, and the form only once Add the first opens it, for this
+  // environment alone, so nothing is said twice.
+  const [adding, setAdding] = useState<string>();
   const envName = chosen ? environmentLabel(chosen, projects, environments) : "";
   const all = list.data?.variables ?? [];
   const q = (query ?? "").trim().toLowerCase();
@@ -204,6 +207,12 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
     plural(secrets, { one: "# secret", other: "# secrets" }),
   ].join(" · ");
   const failed = envs.error ?? list.error;
+  const empty = list.data !== undefined && all.length === 0;
+  const opened = chosen !== undefined && adding === chosen.id;
+  const showForm = chosen !== undefined && list.data !== undefined && (!empty || opened || editing !== undefined);
+  useEffect(() => {
+    if (opened) keyRef.current?.focus();
+  }, [opened]);
 
   return (
     <Page
@@ -275,7 +284,7 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
             </div>
           ) : null}
 
-          {chosen ? (
+          {chosen && showForm ? (
             // For someone who may not plan here, the form is there to read, with why (ADR 0059).
             <MayEdit offer={may(ChangeService.method.proposeChange, { environment: chosen.id })}>
               <ValueForm
@@ -308,20 +317,22 @@ export function VariablesPage({ environment, query, onEnvironment }: VariablesPa
               }
             />
           ) : variables.length === 0 && chosen ? (
-            <EmptyState
-              icon="key"
-              title={t`No variables or secrets in ${envName} yet`}
-              action={
-                // The form above takes it; this puts you there, or says why you can't.
-                <Button
-                  icon="plus"
-                  onClick={() => keyRef.current?.focus()}
-                  off={may(ChangeService.method.proposeChange, { environment: chosen.id }).reason || undefined}
-                >
-                  <Trans>Add the first</Trans>
-                </Button>
-              }
-            />
+            opened ? null : (
+              <EmptyState
+                icon="key"
+                title={t`No variables or secrets in ${envName} yet`}
+                action={
+                  // Opens the form, with the cursor in its key, or says why you can't.
+                  <Button
+                    icon="plus"
+                    onClick={() => setAdding(chosen.id)}
+                    off={may(ChangeService.method.proposeChange, { environment: chosen.id }).reason || undefined}
+                  >
+                    <Trans>Add the first</Trans>
+                  </Button>
+                }
+              />
+            )
           ) : phone ? (
             <ul className="variables-list" aria-label={t`Variables and secrets in ${envName}`}>
               {variables.map((v) => (

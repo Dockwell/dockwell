@@ -124,6 +124,29 @@ func TestAJailsPlanSaysItCanBanYou(t *testing.T) {
 	}
 }
 
+// A deleted volume's plan says the server keeps its data for 7 days, as it does, and
+// a dropped database user's says its data doesn't come back.
+func TestAPlanSaysWhichDataComesBack(t *testing.T) {
+	plan := func(kind string) string {
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{
+			ServerId: "srv_1", ServerName: "hz-1",
+			Steps: []*dockwellv1.PlanStep{{
+				ResourceId: "res_1", Resource: &dockwellv1.ResourceRef{Kind: kind, Name: "data"},
+				Action: dockwellv1.PlanAction_PLAN_ACTION_DELETE, DestroysData: true,
+			}},
+		}}})
+		return buf.String()
+	}
+	if got := plan("volume"); !strings.Contains(got, "The server keeps its data for 7 days, and undoing this brings it back.") ||
+		strings.Contains(got, "can't bring back") {
+		t.Errorf("a deleted volume's plan:\n%s", got)
+	}
+	if got := plan("database.user"); !strings.Contains(got, "Destroys data its spec can't bring back.") {
+		t.Errorf("a dropped database user's plan:\n%s", got)
+	}
+}
+
 // A jail's plan names whom it never bans, which address signed in over SSH it
 // could ban as it applies, and that undo lifts no ban.
 func TestAJailsPlanNamesWhomItCouldBan(t *testing.T) {

@@ -752,6 +752,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			case len(st.GetKeptPaths()) > 0:
 				fmt.Fprintf(tw, "      Takes out of use the data its image keeps at %s. The server keeps it for 7 days, and undoing this mounts it again.\n",
 					human.List(st.GetKeptPaths()))
+			case st.GetDestroysData() && st.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_DELETE && st.GetResource().GetKind() == "volume":
+				// A deleted volume stays on its server for 7 days (volume.KeepFor, ADR 0036).
+				fmt.Fprintln(tw, "      The server keeps its data for 7 days, and undoing this brings it back. After that it's deleted.")
 			case st.GetDestroysData():
 				fmt.Fprintln(tw, "      Destroys data its spec can't bring back.")
 			}
