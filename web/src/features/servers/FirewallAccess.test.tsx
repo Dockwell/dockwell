@@ -4,11 +4,14 @@ import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { durationFromMs, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code } from "@connectrpc/connect";
 import {
+  ChangeSchema,
+  ChangeState,
   Fail2banState,
   type GetServerFail2banResponseSchema,
   type GetServerSshResponseSchema,
   JailSchema,
   ListenerReach,
+  PlanAction,
   type ProposeChangeRequest,
   SshAnswer,
   SshLoaded,
@@ -16,13 +19,14 @@ import {
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { authError } from "../../test/auth";
+import { applied, moved, watched } from "../../test/changes";
 import { feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -84,13 +88,18 @@ async function renderAccess({
   fail2ban = running,
   firewall = true,
   proposeChange,
+  applyChange,
+  watchChange = feed<WatchChangeResponse>().stream,
   yourAddress = "",
 }: {
   ssh?: Ssh | Error;
-  fail2ban?: Fail2ban | Error;
+  /** What fail2ban reads as, or what says so at each read. */
+  fail2ban?: Fail2ban | Error | (() => Fail2ban);
   /** False makes the firewall's own read fail, which leaves SSH and fail2ban to say what they read. */
   firewall?: boolean;
   proposeChange?: (req: ProposeChangeRequest) => object;
+  applyChange?: () => object;
+  watchChange?: ReturnType<typeof feed<WatchChangeResponse>>["stream"];
   /** The address the control plane sees this browser at. */
   yourAddress?: string;
 }) {
@@ -102,11 +111,12 @@ async function renderAccess({
   });
   const getServerFail2ban = vi.fn(() => {
     if (fail2ban instanceof Error) throw fail2ban;
-    return { fail2ban: { time: timestampFromDate(new Date()), ...fail2ban }, yourAddress };
+    const now = typeof fail2ban === "function" ? fail2ban() : fail2ban;
+    return { fail2ban: { time: timestampFromDate(new Date()), ...now }, yourAddress };
   });
   const rendered = renderAt("/servers/srv_1/firewall", {
     servers: { watchServers: watch.stream },
-    ...(proposeChange ? { changes: { proposeChange, watchChange: feed<WatchChangeResponse>().stream } } : {}),
+    ...(proposeChange ? { changes: { proposeChange, watchChange, ...(applyChange ? { applyChange } : {}) } } : {}),
     firewall: {
       getServerFirewall: () => {
         if (!firewall) throw authError(Code.Unavailable, "unavailable", "hz-1 can't say what filters its traffic now");
@@ -592,6 +602,63 @@ describe("fail2ban on a server's Firewall tab", () => {
       summary: "Stop writing the sshd jail on hz-1",
       edits: [{ resource: { kind: "fail2ban.jail", scope: "srv_1", name: "sshd" }, delete: true }],
     });
+  });
+
+  it("reads fail2ban again once a jail's change is on the server, when its sheet closed as it applied", async () => {
+    const user = userEvent.setup();
+    const sshd = { kind: "fail2ban.jail", scope: "srv_1", name: "sshd" };
+    const planned = create(ChangeSchema, {
+      id: "chg_jail",
+      summary: "Protect SSH on hz-1 with fail2ban",
+      state: ChangeState.PLANNED,
+      createTime: timestampFromDate(new Date()),
+      plan: {
+        fingerprint: "5d41402abc4b2a76b9719d911017c592",
+        summary: { create: 1 },
+        undoWindow: durationFromMs(7 * 86_400_000),
+        resources: [{ id: "res_jail", resource: sshd, action: PlanAction.CREATE, servers: ["srv_1"] }],
+        servers: [
+          {
+            serverId: "srv_1",
+            serverName: "hz-1",
+            steps: [{ resourceId: "res_jail", resource: sshd, action: PlanAction.CREATE }],
+          },
+        ],
+      },
+    });
+    // fail2ban reads the jail as Dockwell's once the change's step has written it on the server.
+    let written = false;
+    const ours: Fail2ban = {
+      ...running,
+      jails: running?.jails?.map((j) => (j.name === "sshd" ? { ...j, maxRetry: 3, dockwell: true } : j)),
+    };
+    const watch = feed<WatchChangeResponse>();
+    const { getServerFail2ban } = await renderAccess({
+      fail2ban: () => (written ? ours : running),
+      proposeChange: () => ({ change: planned }),
+      applyChange: () => ({ change: moved(planned, { state: ChangeState.APPLYING }) }),
+      watchChange: watch.stream,
+    });
+    const card = await screen.findByRole("region", { name: "Fail2ban" });
+    await user.click(await within(card).findByRole("button", { name: "Edit the sshd jail" }));
+    const sheet = await screen.findByRole("dialog", { name: "Protect SSH on hz-1" });
+    await user.clear(within(sheet).getByLabelText("Failed sign-ins that ban an address"));
+    await user.type(within(sheet).getByLabelText("Failed sign-ins that ban an address"), "3");
+    await user.click(within(sheet).getByRole("button", { name: "Plan it" }));
+    const plan = await screen.findByRole("dialog", { name: "Review plan" });
+    await user.click(within(plan).getByRole("button", { name: /Apply plan/ }));
+    await screen.findByRole("heading", { name: "Applying" });
+    // Its × closes it as it applies, before the step reaches the server: the read as it closes is from before.
+    const reads = getServerFail2ban.mock.calls.length;
+    const close = within(plan).getAllByRole("button", { name: "Close" })[0];
+    if (!close) throw new Error("the plan sheet has no Close");
+    await user.click(close);
+    await waitFor(() => expect(getServerFail2ban).toHaveBeenCalledTimes(reads + 1));
+    expect(card).not.toHaveTextContent("Dockwell writes this jail.");
+    written = true;
+    act(() => watch.push(watched(applied(planned))));
+    expect(await within(card).findByText("Dockwell writes this jail.")).toBeVisible();
+    expect(card).toHaveTextContent("3 failed sign-ins in 10 min");
   });
 
   it("offers nothing to change where fail2ban isn't running", async () => {

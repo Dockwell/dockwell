@@ -180,6 +180,7 @@ export async function firewallFlow(page: Page, { origin, step, shoot, env }: Fir
   const jailPlan = page.getByRole("dialog", { name: "Review plan" });
   await jailPlan.getByRole("button", { name: /Apply plan/ }).click();
   // The browser's virtual authenticator gives the passkey a jail takes; no timer follows.
+  // The first of these is the sheet's ×, which closes it as it applies, so the card reads again as it ends.
   await page
     .getByRole("button", { name: /^(Done|Close)$/ })
     .first()
