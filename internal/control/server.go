@@ -72,6 +72,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
+	"github.com/dockwell/dockwell/internal/control/serviceupdates"
 	"github.com/dockwell/dockwell/internal/control/settings"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/control/tasks"
@@ -214,7 +215,9 @@ type Server struct {
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
 	// tasks reads scheduled tasks' runs from the agents that run them.
-	tasks   *tasks.Handler
+	tasks *tasks.Handler
+	// updates checks what's newer than what each service runs (ADR 0079).
+	updates *serviceupdates.Keeper
 	public  https.Source
 	changes *revision.Engine
 	// hosts gives each server its host (ADR 0064), once its agent runs the kind.
@@ -248,7 +251,8 @@ func New(cfg Config) (*Server, error) {
 	// Made first, so the settings can ask it who holds the public ports now.
 	ports := &PublicPorts{ready: make(chan struct{})}
 	var evaluator *alerts.Evaluator
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator)
+	var updateKeeper *serviceupdates.Keeper
+	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +261,7 @@ func New(cfg Config) (*Server, error) {
 		// refuses a person's that comes without (ADR 0049).
 		cfg.Changes.RequireRoles()
 	}
-	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace}
+	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace}
 	ports.server = s
 	s.ports = ports
 	if s.stepGrace <= 0 {
@@ -298,7 +302,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -376,12 +380,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
-		catalogs := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
+		catalogHandler := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)
 		if cfg.Fleet != nil {
 			// Another store's entry pins its images through the agent it goes on.
-			catalogs.PinWith(images.New(cfg.Fleet, cfg.Agents))
+			catalogHandler.PinWith(images.New(cfg.Fleet, cfg.Agents))
 		}
-		handle(dockwellv1connect.NewCatalogServiceHandler(catalogs, opts...))
+		handle(dockwellv1connect.NewCatalogServiceHandler(catalogHandler, opts...))
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
@@ -448,6 +452,27 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			}
 			serviceHandler.Opener = appOpener
 			serviceHandler.Auth = cfg.Auth
+		}
+		// What's newer than what each service runs, checked through its server's
+		// agent, and a catalog install's read from its catalog (ADR 0079).
+		if cfg.Agents != nil && cfg.Fleet != nil && cfg.Secrets != nil {
+			keeper := &serviceupdates.Keeper{
+				DB: cfg.Store, Secrets: cfg.Secrets, Agents: serviceupdates.FromAgents(cfg.Agents), Sources: sources, Logger: cfg.Logger,
+				Catalog: func(ctx context.Context) (map[string]serviceupdates.CatalogInstall, error) {
+					upgrades, err := catalogHandler.InstallUpgrades(ctx)
+					if err != nil {
+						return nil, err
+					}
+					out := make(map[string]serviceupdates.CatalogInstall, len(upgrades))
+					for project, u := range upgrades {
+						out[project] = serviceupdates.CatalogInstall{FromVersion: u.FromVersion, ToVersion: u.ToVersion, ToRelease: u.ToRelease, Notes: serviceupdates.NotesOf(u.AppSource)}
+					}
+					return out, nil
+				},
+			}
+			serviceHandler.UpdateChecks = keeper
+			handle(dockwellv1connect.NewServiceUpdateServiceHandler(serviceupdates.NewHandler(keeper, serviceHandler, serverID(cfg.Fleet), cfg.Logger), opts...))
+			*updatesOut = keeper
 		}
 		handle(dockwellv1connect.NewServiceServiceHandler(serviceHandler, opts...))
 		logs := logapi.New(cfg.Agents, ch, cfg.Store, cfg.Logger, cfg.Logs)
@@ -775,6 +800,9 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	if s.tasks != nil {
 		s.tasks.Start(apiCtx)
 	}
+	if s.updates != nil {
+		api.Go(func() { s.updates.Run(apiCtx) })
+	}
 	if ls.Ingress != nil {
 		run(func() error {
 			return serve.Serve(apiCtx, ls.Ingress, authapi.ViaIngress(s.api), serve.Options{Name: "panel behind the ingress", Logger: s.logger})
@@ -888,5 +916,20 @@ func fleetIDs(hub *fleet.Hub) func() []string {
 			ids = append(ids, srv.GetId())
 		}
 		return ids
+	}
+}
+
+// serverID finds a server a request names, by ID or name.
+func serverID(hub *fleet.Hub) func(named string) (string, error) {
+	return func(named string) (string, error) {
+		if srv, err := hub.Get(named); err == nil {
+			return srv.GetId(), nil
+		}
+		for _, srv := range hub.List() {
+			if srv.GetName() == named {
+				return srv.GetId(), nil
+			}
+		}
+		return "", connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", named))
 	}
 }

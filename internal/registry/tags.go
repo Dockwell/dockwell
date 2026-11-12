@@ -33,7 +33,7 @@ type Tag struct {
 // HEAD each, to tell which point where "latest" does.
 func (c *Client) Tags(ctx context.Context, r Ref) ([]Tag, error) {
 	if r.Registry == Hub {
-		return c.hubTags(ctx, r)
+		return c.hubTags(ctx, r, "", true)
 	}
 	names, err := c.tagNames(ctx, r)
 	if err != nil {
@@ -165,12 +165,37 @@ func nextPage(link string) string {
 	return ""
 }
 
+// TagList lists a repository's tags for what's newer than one of them, asking
+// as little as it can (ADR 0079): Docker Hub's 100 most recently pushed, with
+// their digests and push times, from its own API, holding filter where it's
+// set, such as "alpine"; any other registry's names, as its list gives them,
+// with nothing more asked of each.
+func (c *Client) TagList(ctx context.Context, r Ref, filter string) ([]Tag, error) {
+	if r.Registry == Hub {
+		return c.hubTags(ctx, r, filter, false)
+	}
+	names, err := c.tagNames(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Tag, len(names))
+	for i, n := range names {
+		out[i] = Tag{Name: n}
+	}
+	return out, nil
+}
+
 // hubTags reads Docker Hub's tags of a repository, newest pushed first, with
-// their digests, from its own API, which isn't a pull.
-func (c *Client) hubTags(ctx context.Context, r Ref) ([]Tag, error) {
+// their digests, from its own API, which isn't a pull: those whose names hold
+// filter, where it's set, and marked where they point where latest does, where
+// mark says.
+func (c *Client) hubTags(ctx context.Context, r Ref, filter string, mark bool) ([]Tag, error) {
 	namespace, name, _ := strings.Cut(r.Repository, "/")
 	target := fmt.Sprintf("%s/v2/namespaces/%s/repositories/%s/tags?page_size=100&ordering=last_updated",
 		c.hubAPI(), url.PathEscape(namespace), url.PathEscape(name))
+	if filter != "" {
+		target += "&name=" + url.QueryEscape(filter)
+	}
 	resp, err := c.do(ctx, http.MethodGet, target, "application/json", "", false)
 	if err != nil {
 		return nil, err
@@ -210,6 +235,9 @@ func (c *Client) hubTags(ctx context.Context, r Ref) ([]Tag, error) {
 		}
 	}
 	slices.SortStableFunc(out, func(a, b Tag) int { return b.Pushed.Compare(a.Pushed) })
+	if !mark {
+		return out, nil
+	}
 	if latest == "" {
 		// Its newest hundred don't hold latest, so ask where it points: a HEAD.
 		latest, _ = c.Head(ctx, Ref{Registry: r.Registry, Repository: r.Repository, Tag: "latest"})

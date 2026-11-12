@@ -3874,6 +3874,151 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/service-updates:
+        get:
+            tags:
+                - ServiceUpdateService
+            description: |-
+                ListServiceUpdates returns each service with what's newer than what it
+                 runs and how its check stands, by name.
+            operationId: ServiceUpdateService_ListServiceUpdates
+            parameters:
+                - name: project
+                  in: query
+                  description: |-
+                    The project of the environment, by name or ID, when environment is a name
+                     and there are several projects.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    Only the services of this environment, by name or ID. Empty means every
+                     environment.
+                  schema:
+                    type: string
+                - name: available
+                  in: query
+                  description: |-
+                    Only the services with something newer that a person hasn't skipped or
+                     snoozed.
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListServiceUpdatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/service-updates/{id}:skip:
+        post:
+            tags:
+                - ServiceUpdateService
+            description: |-
+                SkipServiceUpdate sets one version of a service's updates aside, or takes
+                 that back: a skipped 2.0 counts nowhere and sends no alert, and 2.0.1 still
+                 shows. Automatic updates never take a skipped version.
+            operationId: ServiceUpdateService_SkipServiceUpdate
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SkipServiceUpdateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SkipServiceUpdateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/service-updates/{id}:snooze:
+        post:
+            tags:
+                - ServiceUpdateService
+            description: |-
+                SnoozeServiceUpdates sets all of a service's updates aside for a while, or
+                 ends that: they still show on its page, and count nowhere else, send no
+                 alert, and aren't applied by automatic updates until then.
+            operationId: ServiceUpdateService_SnoozeServiceUpdates
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SnoozeServiceUpdatesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SnoozeServiceUpdatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/service-updates:check:
+        post:
+            tags:
+                - ServiceUpdateService
+            description: |-
+                CheckServiceUpdates checks a service now, or every service on a server,
+                 and answers with what it found, within half a minute. A service or a
+                 server is checked this way at most once a minute: asking again sooner
+                 answers with the last check. It reads registries from the server, gently:
+                 a registry that limits how often it's asked is left alone until it lets
+                 Dockwell ask again, and the answer says so. A server's check answers with
+                 the services in your projects alone.
+            operationId: ServiceUpdateService_CheckServiceUpdates
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckServiceUpdatesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckServiceUpdatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/services:
         get:
             tags:
@@ -8356,6 +8501,37 @@ components:
                         - $ref: '#/components/schemas/ServerUpdates'
                     description: The server's package updates as they stood, with checking set.
             description: CheckServerUpdatesResponse is what's known as the refresh starts.
+        CheckServiceUpdatesRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+                         Leave it out to check every service on server.
+                project:
+                    type: string
+                    description: |-
+                        The project of a service named by name, by name or ID, when more than one
+                         has a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a service named by name, by name or ID, when its
+                         project has more than one.
+                server:
+                    type: string
+                    description: Every service on this server, by ID or name, in place of id.
+            description: CheckServiceUpdatesRequest names a service, or a server.
+        CheckServiceUpdatesResponse:
+            type: object
+            properties:
+                services:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServiceUpdates'
+                    description: Each service checked, with what's newer.
+            description: CheckServiceUpdatesResponse is what the check found.
         CloseTerminalRequest:
             type: object
             properties:
@@ -13157,6 +13333,15 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListServiceRevisionsResponse is a page of a service's revisions.
+        ListServiceUpdatesResponse:
+            type: object
+            properties:
+                services:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServiceUpdates'
+                    description: The services, by environment, then name.
+            description: ListServiceUpdatesResponse is each service with its updates.
         ListServicesResponse:
             type: object
             properties:
@@ -17392,6 +17577,24 @@ components:
                  control plane keeps it, so it stands across restarts, and checks again every
                  6 hours. Nothing runs differently for it: updating is a plan a person
                  applies. See docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
+        ServiceUpdates:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service's ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: Its kind, its environment's ID, and its name.
+                image:
+                    type: string
+                    description: The image it runs, as its spec names it. Empty for an app built from Git.
+                update:
+                    allOf:
+                        - $ref: '#/components/schemas/ServiceUpdate'
+                    description: What's newer, and how its check stands.
+            description: ServiceUpdates is one service and what's newer than what it runs.
         Session:
             type: object
             properties:
@@ -17764,6 +17967,57 @@ components:
                     type: string
                     description: What closes them, such as "false".
             description: Signups is the variable that closes an app's sign-ups.
+        SkipServiceUpdateRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or name.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+                version:
+                    type: string
+                    description: |-
+                        The version, as an AvailableUpdate's to_version says it, such as "17.2", or
+                         its to_digest, for a new build, or its to_commit.
+                unskip:
+                    type: boolean
+                    description: Takes the skip back, so the version shows again.
+            description: SkipServiceUpdateRequest names a service and a version of its updates.
+        SkipServiceUpdateResponse:
+            type: object
+            properties:
+                update:
+                    $ref: '#/components/schemas/ServiceUpdate'
+            description: SkipServiceUpdateResponse is the service's updates as they now stand.
+        SnoozeServiceUpdatesRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service, by ID or name.
+                project:
+                    type: string
+                    description: The project of a service named by name, by name or ID.
+                environment:
+                    type: string
+                    description: The environment of a service named by name, by name or ID.
+                duration:
+                    type: string
+                    description: |-
+                        How long: "1d", "7d" or "30d", or a duration such as "12h", 90 days at
+                         most. Empty ends a snooze now.
+            description: SnoozeServiceUpdatesRequest names a service, and for how long.
+        SnoozeServiceUpdatesResponse:
+            type: object
+            properties:
+                update:
+                    $ref: '#/components/schemas/ServiceUpdate'
+            description: SnoozeServiceUpdatesResponse is the service's updates as they now stand.
         Source:
             type: object
             properties:
@@ -19429,6 +19683,15 @@ tags:
          names of the values it uses in it (Container.references). A Compose file that
          writes a variable's value in a label has it read back from there, which
          importing the file says (ExposedVariable).
+    - name: ServiceUpdateService
+      description: |-
+        ServiceUpdateService says what's newer than what each service runs, checks
+         again now, and sets a version, or all of a service's updates for a while,
+         aside. The control plane checks every service every 6 hours, through the
+         agent of a server it runs on, and keeps what it found; ListServices carries
+         the same on each service. Nothing here changes what runs: updating is a plan.
+         Skipping and snoozing are a person's, on the audit log, as an alert's mute
+         is. See docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
     - name: SettingsService
       description: |-
         SettingsService reads and changes the install's own settings: what it's

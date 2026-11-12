@@ -4,8 +4,182 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+
+// ServiceUpdateService says what's newer than what each service runs, checks
+// again now, and sets a version, or all of a service's updates for a while,
+// aside. The control plane checks every service every 6 hours, through the
+// agent of a server it runs on, and keeps what it found; ListServices carries
+// the same on each service. Nothing here changes what runs: updating is a plan.
+// Skipping and snoozing are a person's, on the audit log, as an alert's mute
+// is. See docs/adr/0079-knowing-a-newer-version-of-an-app-is-out.md.
+service ServiceUpdateService {
+  // ListServiceUpdates returns each service with what's newer than what it
+  // runs and how its check stands, by name.
+  rpc ListServiceUpdates(ListServiceUpdatesRequest) returns (ListServiceUpdatesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "app-updates"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/service-updates"};
+  }
+
+  // CheckServiceUpdates checks a service now, or every service on a server,
+  // and answers with what it found, within half a minute. A service or a
+  // server is checked this way at most once a minute: asking again sooner
+  // answers with the last check. It reads registries from the server, gently:
+  // a registry that limits how often it's asked is left alone until it lets
+  // Dockwell ask again, and the answer says so. A server's check answers with
+  // the services in your projects alone.
+  rpc CheckServiceUpdates(CheckServiceUpdatesRequest) returns (CheckServiceUpdatesResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "app-updates"
+      verb: "check"
+    };
+    option (google.api.http) = {
+      post: "/v1/service-updates:check"
+      body: "*"
+    };
+  }
+
+  // SkipServiceUpdate sets one version of a service's updates aside, or takes
+  // that back: a skipped 2.0 counts nowhere and sends no alert, and 2.0.1 still
+  // shows. Automatic updates never take a skipped version.
+  rpc SkipServiceUpdate(SkipServiceUpdateRequest) returns (SkipServiceUpdateResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "app-updates"
+      verb: "skip"
+    };
+    option (google.api.http) = {
+      post: "/v1/service-updates/{id}:skip"
+      body: "*"
+    };
+  }
+
+  // SnoozeServiceUpdates sets all of a service's updates aside for a while, or
+  // ends that: they still show on its page, and count nowhere else, send no
+  // alert, and aren't applied by automatic updates until then.
+  rpc SnoozeServiceUpdates(SnoozeServiceUpdatesRequest) returns (SnoozeServiceUpdatesResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "app-updates"
+      verb: "snooze"
+    };
+    option (google.api.http) = {
+      post: "/v1/service-updates/{id}:snooze"
+      body: "*"
+    };
+  }
+}
+
+// ListServiceUpdatesRequest says which services to list.
+message ListServiceUpdatesRequest {
+  // The project of the environment, by name or ID, when environment is a name
+  // and there are several projects.
+  string project = 1;
+  // Only the services of this environment, by name or ID. Empty means every
+  // environment.
+  string environment = 2;
+  // Only the services with something newer that a person hasn't skipped or
+  // snoozed.
+  bool available = 3;
+}
+
+// ListServiceUpdatesResponse is each service with its updates.
+message ListServiceUpdatesResponse {
+  // The services, by environment, then name.
+  repeated ServiceUpdates services = 1;
+}
+
+// ServiceUpdates is one service and what's newer than what it runs.
+message ServiceUpdates {
+  // The service's ID.
+  string id = 1;
+  // Its kind, its environment's ID, and its name.
+  ResourceRef resource = 2;
+  // The image it runs, as its spec names it. Empty for an app built from Git.
+  string image = 3;
+  // What's newer, and how its check stands.
+  ServiceUpdate update = 4;
+}
+
+// CheckServiceUpdatesRequest names a service, or a server.
+message CheckServiceUpdatesRequest {
+  // The service, by ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or by name.
+  // Leave it out to check every service on server.
+  string id = 1;
+  // The project of a service named by name, by name or ID, when more than one
+  // has a service of that name.
+  string project = 2;
+  // The environment of a service named by name, by name or ID, when its
+  // project has more than one.
+  string environment = 3;
+  // Every service on this server, by ID or name, in place of id.
+  string server = 4;
+}
+
+// CheckServiceUpdatesResponse is what the check found.
+message CheckServiceUpdatesResponse {
+  // Each service checked, with what's newer.
+  repeated ServiceUpdates services = 1;
+}
+
+// SkipServiceUpdateRequest names a service and a version of its updates.
+message SkipServiceUpdateRequest {
+  // The service, by ID or name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+  // The version, as an AvailableUpdate's to_version says it, such as "17.2", or
+  // its to_digest, for a new build, or its to_commit.
+  string version = 4;
+  // Takes the skip back, so the version shows again.
+  bool unskip = 5;
+}
+
+// SkipServiceUpdateResponse is the service's updates as they now stand.
+message SkipServiceUpdateResponse {
+  ServiceUpdate update = 1;
+}
+
+// SnoozeServiceUpdatesRequest names a service, and for how long.
+message SnoozeServiceUpdatesRequest {
+  // The service, by ID or name.
+  string id = 1;
+  // The project of a service named by name, by name or ID.
+  string project = 2;
+  // The environment of a service named by name, by name or ID.
+  string environment = 3;
+  // How long: "1d", "7d" or "30d", or a duration such as "12h", 90 days at
+  // most. Empty ends a snooze now.
+  string duration = 4;
+}
+
+// SnoozeServiceUpdatesResponse is the service's updates as they now stand.
+message SnoozeServiceUpdatesResponse {
+  ServiceUpdate update = 1;
+}
 
 // ServiceUpdate is what Dockwell last found newer than what a service runs:
 // another version of its image, a new image for the tag it runs, a higher

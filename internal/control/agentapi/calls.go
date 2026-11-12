@@ -822,6 +822,26 @@ func (s *Session) Image(ctx context.Context, call *agentv1.ImageCall) (*agentv1.
 	return r.GetImage(), nil
 }
 
+// ImageUpdatesTimeout bounds checking what's newer than one image: the agent's
+// 20 s, and room for its answer to come back (ADR 0079).
+const ImageUpdatesTimeout = 25 * time.Second
+
+// ImageUpdates asks the agent what's newer than an image its server runs. An
+// agent from before asking says ErrOlderAgent.
+func (s *Session) ImageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCall) (*agentv1.ImageUpdatesResult, error) {
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ImageUpdates{ImageUpdates: call}}, ImageUpdatesTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrOlderAgent
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetImageUpdates() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetImageUpdates(), nil
+}
+
 // Processes asks the agent what runs on its server.
 func (s *Session) Processes(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Processes{Processes: &agentv1.ProcessesCall{}}}, ObserveTimeout, nil)

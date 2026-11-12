@@ -21,6 +21,7 @@ func Commands() []string {
 		"alert-rules",
 		"alerts",
 		"api-tokens",
+		"app-updates",
 		"audit-events",
 		"auth-state",
 		"backup-destinations",
