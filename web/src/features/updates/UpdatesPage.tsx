@@ -35,6 +35,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { ReadFailed, RoleRefused } from "../shell/ReadFailed";
 import { CopyButton as CopyAction } from "../system/CopyCommand";
 import { type Install, type InstallAsk, type RowState, useInstall } from "./install";
+import { RebootButton } from "./reboot";
 import {
   installCommand,
   isDockerEngine,
@@ -295,12 +296,15 @@ function Lead({
         tone="warning"
         title={t`${name} needs a reboot`}
         actions={
-          <CopyAction
-            text="sudo reboot"
-            label={t`Copy the reboot command`}
-            copiedLabel={t`Reboot command copied`}
-            variant="secondary"
-          />
+          <>
+            <RebootButton server={server} />
+            <CopyAction
+              text="sudo reboot"
+              label={t`Copy the reboot command`}
+              copiedLabel={t`Reboot command copied`}
+              variant="secondary"
+            />
+          </>
         }
       >
         {what

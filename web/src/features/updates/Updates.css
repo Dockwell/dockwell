@@ -596,3 +596,9 @@
 .dw-callout .updates-command {
   margin-top: var(--space-1);
 }
+
+.updates-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

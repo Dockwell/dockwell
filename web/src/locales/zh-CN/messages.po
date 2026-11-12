@@ -6665,6 +6665,12 @@ msgstr "正在计划"
 msgid "Planning: asking each server what this would take"
 msgstr "正在计划：询问每台服务器需要做什么"
 
+msgid "Rebooting {server}"
+msgstr "正在重启 {server}"
+
+msgid "Rebooting {server} failed"
+msgstr "重启 {server} 失败"
+
 msgid "Recorded and applied. Nothing had to run on a server."
 msgstr "已记录并应用。无需在服务器上运行任何内容。"
 
@@ -6740,6 +6746,9 @@ msgstr "如有更新的镜像，约中断 {span}"
 msgid "apps and websites stop while Docker restarts"
 msgstr "Docker 重启期间应用和网站会停止"
 
+msgid "everything there is offline until it's back"
+msgstr "恢复前其上的一切都会离线"
+
 msgid "no downtime expected"
 msgstr "预计不会停机"
 
@@ -6807,6 +6816,9 @@ msgstr "{name} 已运行完毕"
 
 msgid "{same} stays as it is"
 msgstr "{same} 保持不变"
+
+msgid "{server} is back after its reboot"
+msgstr "{server} 重启后已恢复"
 
 msgid "{server} went offline during this change"
 msgstr "{server} 在此次变更期间离线"
@@ -6923,6 +6935,12 @@ msgctxt "what stops while Docker restarts"
 msgid "Website"
 msgstr "网站"
 
+msgid "What goes offline on {server}"
+msgstr "{server} 上会离线的内容"
+
+msgid "What goes offline on {server} until it's back"
+msgstr "{server} 恢复前会离线的内容"
+
 msgid "What stops on {server}"
 msgstr "{server} 上会停止的内容"
 
@@ -6999,6 +7017,9 @@ msgstr "随附安装"
 msgid "Reaches {reach} on {server}"
 msgstr "可访问 {server} 上的 {reach}"
 
+msgid "Reboot <0>{server}</0>"
+msgstr "重启 <0>{server}</0>"
+
 msgctxt "a package update"
 msgid "Security fix"
 msgstr "安全修复"
@@ -7026,6 +7047,24 @@ msgstr "{n, plural, other {安装 # 个软件包到}}"
 
 msgid "{server} needs a reboot for this to take effect, which is a change of its own"
 msgstr "{server} 需要重启才能生效，重启是另一项单独的变更"
+
+msgid "Backed up only on {server}"
+msgstr "只在 {server} 上有备份"
+
+msgid "Backups a reboot of {server} puts at risk"
+msgstr "重启 {server} 会让这些备份面临风险"
+
+msgid "Its last reboot took {took}"
+msgstr "上次重启用时 {took}"
+
+msgid "Its newest backup off {server} is from {ago}"
+msgstr "{server} 之外最新的备份来自{ago}"
+
+msgid "The panel and the API stop with {server} and come back on their own"
+msgstr "面板和 API 会随 {server} 一起停止并自行恢复"
+
+msgid "The panel and the API stop with {server} and come back on their own; the other servers keep serving"
+msgstr "面板和 API 会随 {server} 一起停止并自行恢复；其他服务器继续提供服务"
 
 msgid "<0>{name}</0> is back as it was"
 msgstr "<0>{name}</0> 已恢复原样"

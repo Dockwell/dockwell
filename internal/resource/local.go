@@ -45,6 +45,8 @@ type Desired struct {
 	// Install installs the server's updates as a step of this change. Its kind is
 	// an Installer.
 	Install *InstallAsked
+	// Reboot reboots the server as a step of this change. Its kind is a Rebooter.
+	Reboot *RebootAsked
 }
 
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
@@ -284,7 +286,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Install: want.Install}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Install: want.Install, Reboot: want.Reboot}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -343,6 +345,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
 					return nil, err
 				}
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Reboot != nil {
+			r, ok := d.(Rebooter)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't reboot its server for a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := r.JudgeReboot(ctx, want.Ref, *want.Reboot)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
 			}
 			steps = append(steps, step)
 			continue
@@ -590,6 +607,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		if err := b.ApplyBackup(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't back up %s, so nothing else in this change ran: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't back up %s: %w", step.Ref, err))
+		}
+		return nil
+	}
+	if step.Reboot != nil {
+		r, ok := d.(Rebooter)
+		if !ok {
+			return cantApply(step, fmt.Errorf("this agent can't reboot its server for a %s", step.Ref.Kind))
+		}
+		if err := r.ApplyReboot(ctx, step); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't reboot the server: %s. Reboot it over SSH, or plan the reboot again.", clause(err)), fmt.Errorf("can't reboot the server: %w", err))
 		}
 		return nil
 	}

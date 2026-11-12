@@ -105,7 +105,7 @@ case "$*" in
 *" upgrade") pick 0 ;;
 *"--simulate"*" install "*) pick 0 ;;
 *"--download-only"*) pick 1 > /dev/null ;;
-*"--no-download"*) pick 1 | while read -r n a v; do echo "Unpacking $n ($v) ..."; sleep 0.3; echo "Setting up $n ($v) ..."; printf '%s\t%s\t%s\tii \n' "$n" "$a" "$v" >> "$ROOT/installed"; done ;;
+*"--no-download"*) pick 1 | while read -r n a v; do echo "Unpacking $n ($v) ..."; sleep 0.3; echo "Setting up $n ($v) ..."; printf '%s\t%s\t%s\tii \n' "$n" "$a" "$v" >> "$ROOT/installed"; case "$n" in linux-image-*) mkdir -p "$ROOT/run"; : > "$ROOT/run/reboot-required"; echo "$n" >> "$ROOT/run/reboot-required.pkgs" ;; esac; done ;;
 esac
 `;
 
@@ -119,6 +119,8 @@ function makeStand() {
   const old = new Date(Date.now() - 30 * 3600_000);
   utimesSync(join(stand, lists), old, old);
   put("usr/bin/unattended-upgrade", "", 0o755);
+  // This boot of the server, which a reboot changes (ADR 0064).
+  put("proc/sys/kernel/random/boot_id", "e2e-boot-1\n");
   put("etc/apt/apt.conf.d/20auto-upgrades", 'APT::Periodic::Unattended-Upgrade "1";\n');
   const head = `#!/bin/sh\nFIX='${fixtures}'\nROOT='${stand}'\necho "$(basename "$0") $*" >> "$ROOT/calls"\n`;
   put(
@@ -146,7 +148,7 @@ function makeStand() {
   );
   put(
     "usr/bin/systemctl",
-    `${head}for u; do :; done\ncase "$*" in\n*"ActiveState"*) if [ -e "$ROOT/units/$u.active" ]; then echo active; else echo inactive; fi ;;\n*"ExecMainStatus"*) cat "$ROOT/units/$u.status" 2>/dev/null || echo 0 ;;\nesac\n`,
+    `${head}for u; do :; done\ncase "$*" in\n*"ActiveState"*) if [ -e "$ROOT/units/$u.active" ]; then echo active; else echo inactive; fi ;;\n*"ExecMainStatus"*) cat "$ROOT/units/$u.status" 2>/dev/null || echo 0 ;;\nreboot) touch "$ROOT/reboot-asked" ;;\nesac\n`,
     0o755,
   );
 }
@@ -191,7 +193,17 @@ function env(): NodeJS.ProcessEnv {
   };
 }
 
+/** Stops dockwell run, as the server going down does, and waits for it to end. */
+async function stop(): Promise<void> {
+  const was = server;
+  if (!was || was.exitCode !== null) return;
+  const ended = new Promise<void>((done) => was.once("exit", () => done()));
+  was.kill("SIGTERM");
+  await ended;
+}
+
 async function start(): Promise<void> {
+  serverLog.length = 0;
   server = spawn(
     bin,
     ["run", "--listen", `127.0.0.1:${port}`, "--agent-listen", "127.0.0.1:0", "--log-format", "json"],
@@ -509,6 +521,43 @@ async function main() {
     .first()
     .waitFor({ timeout: 30_000 });
   await page.getByRole("link", { name: "Updates", exact: true }).waitFor();
+  step("a kernel installed, the tab says it needs a reboot, with Reboot beside it");
+  const needs = page.locator(".dw-callout", { hasText: "needs a reboot" });
+  await needs.waitFor({ timeout: 30_000 });
+  await needs.getByRole("button", { name: "Reboot", exact: true }).click();
+
+  step("the reboot's plan says what goes offline, and that the panel stops with the control server");
+  const rebootPlan = page.getByRole("dialog", { name: "Review plan" });
+  await rebootPlan.locator(".plan-step-line", { hasText: /^Reboot / }).waitFor({ timeout: 30_000 });
+  await rebootPlan.getByText(/^The panel and the API stop with \S+ and come back on their own/).waitFor();
+  await rebootPlan.getByText(/everything there is offline until it's back/).waitFor();
+  await rebootPlan.getByText("Applying this asks for your passkey").waitFor();
+  await shoot(page, "reboot-plan");
+  const rebootCode = await rebootPlan.locator("#plan-confirm-why code").innerText();
+  await rebootPlan.getByRole("textbox", { name: /to apply it/ }).fill(rebootCode);
+  await rebootPlan.getByRole("button", { name: /^Apply plan/ }).click();
+
+  step("asked once, the server goes down: dockwell run stops, and starts again on another boot");
+  await until("the server to be asked to reboot", () => existsSync(join(stand, "reboot-asked")), 30_000);
+  const rebooting = page.getByRole("dialog", { name: /^Rebooting / });
+  await rebooting.getByText(/is restarting; this passes once it's back$/).waitFor({ timeout: 30_000 });
+  await shoot(page, "rebooting");
+  await stop();
+  put("proc/sys/kernel/random/boot_id", "e2e-boot-2\n");
+  rmSync(join(stand, "run", "reboot-required"), { force: true });
+  rmSync(join(stand, "run", "reboot-required.pkgs"), { force: true });
+  await start();
+
+  step("back on its new boot, the step passes with how long it took, and the tab no longer asks for one");
+  const back = page.getByRole("dialog", { name: /is back after its reboot$/ });
+  await back.waitFor({ timeout: 90_000 });
+  const took = await back.locator(".plan-step-time").first().innerText();
+  if (!/\d+ s|min/.test(took)) fail(`the reboot's step says it took "${took}"`);
+  if (called("systemctl reboot") !== 1)
+    fail(`the server was asked to reboot ${called("systemctl reboot")} times, want once`);
+  await shoot(page, "rebooted");
+  await back.getByRole("button", { name: "Done" }).click();
+  await needs.waitFor({ state: "detached", timeout: 60_000 });
   step("all good");
 }
 

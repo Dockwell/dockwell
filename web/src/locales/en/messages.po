@@ -6665,6 +6665,12 @@ msgstr "Planning"
 msgid "Planning: asking each server what this would take"
 msgstr "Planning: asking each server what this would take"
 
+msgid "Rebooting {server}"
+msgstr "Rebooting {server}"
+
+msgid "Rebooting {server} failed"
+msgstr "Rebooting {server} failed"
+
 msgid "Recorded and applied. Nothing had to run on a server."
 msgstr "Recorded and applied. Nothing had to run on a server."
 
@@ -6740,6 +6746,9 @@ msgstr "about {span} down, if there is a newer image"
 msgid "apps and websites stop while Docker restarts"
 msgstr "apps and websites stop while Docker restarts"
 
+msgid "everything there is offline until it's back"
+msgstr "everything there is offline until it's back"
+
 msgid "no downtime expected"
 msgstr "no downtime expected"
 
@@ -6807,6 +6816,9 @@ msgstr "{name} ran to its end"
 
 msgid "{same} stays as it is"
 msgstr "{same} stays as it is"
+
+msgid "{server} is back after its reboot"
+msgstr "{server} is back after its reboot"
 
 msgid "{server} went offline during this change"
 msgstr "{server} went offline during this change"
@@ -6923,6 +6935,12 @@ msgctxt "what stops while Docker restarts"
 msgid "Website"
 msgstr "Website"
 
+msgid "What goes offline on {server}"
+msgstr "What goes offline on {server}"
+
+msgid "What goes offline on {server} until it's back"
+msgstr "What goes offline on {server} until it's back"
+
 msgid "What stops on {server}"
 msgstr "What stops on {server}"
 
@@ -6999,6 +7017,9 @@ msgstr "Pulled in"
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
 
+msgid "Reboot <0>{server}</0>"
+msgstr "Reboot <0>{server}</0>"
+
 msgctxt "a package update"
 msgid "Security fix"
 msgstr "Security fix"
@@ -7026,6 +7047,24 @@ msgstr "{n, plural, one {Install # package on} other {Install # packages on}}"
 
 msgid "{server} needs a reboot for this to take effect, which is a change of its own"
 msgstr "{server} needs a reboot for this to take effect, which is a change of its own"
+
+msgid "Backed up only on {server}"
+msgstr "Backed up only on {server}"
+
+msgid "Backups a reboot of {server} puts at risk"
+msgstr "Backups a reboot of {server} puts at risk"
+
+msgid "Its last reboot took {took}"
+msgstr "Its last reboot took {took}"
+
+msgid "Its newest backup off {server} is from {ago}"
+msgstr "Its newest backup off {server} is from {ago}"
+
+msgid "The panel and the API stop with {server} and come back on their own"
+msgstr "The panel and the API stop with {server} and come back on their own"
+
+msgid "The panel and the API stop with {server} and come back on their own; the other servers keep serving"
+msgstr "The panel and the API stop with {server} and come back on their own; the other servers keep serving"
 
 msgid "<0>{name}</0> is back as it was"
 msgstr "<0>{name}</0> is back as it was"

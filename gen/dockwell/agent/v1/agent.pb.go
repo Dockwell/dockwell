@@ -1914,6 +1914,10 @@ type Hello struct {
 	// match (ListFilesCall's match and page). The control plane sends neither to one
 	// that doesn't. The servers area takes 230 to 239 in agent messages.
 	PagesListings bool `protobuf:"varint,230,opt,name=pages_listings,json=pagesListings,proto3" json:"pages_listings,omitempty"`
+	// This boot of the server, as /proc/sys/kernel/random/boot_id names it, so a
+	// reboot's step passes once the agent connects from another (ADR 0064). Empty
+	// from an agent that doesn't reboot, which the control plane sends none.
+	BootId string `protobuf:"bytes,231,opt,name=boot_id,json=bootId,proto3" json:"boot_id,omitempty"`
 	// True when the agent changes a database's first user's password in the
 	// database as its service restarts with a new one (ADR 0038), so the control
 	// plane plans a new one only through an agent that does. Catalog and
@@ -2082,6 +2086,13 @@ func (x *Hello) GetPagesListings() bool {
 		return x.PagesListings
 	}
 	return false
+}
+
+func (x *Hello) GetBootId() string {
+	if x != nil {
+		return x.BootId
+	}
+	return ""
 }
 
 func (x *Hello) GetFirstPasswords() bool {
@@ -9812,8 +9823,12 @@ type DesiredResource struct {
 	// Installs updates on the server, for its host (ADR 0064). Numbered in the
 	// servers area's block, 230 to 239.
 	InstallUpdates *InstallUpdates `protobuf:"bytes,232,opt,name=install_updates,json=installUpdates,proto3" json:"install_updates,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Names a reboot of the server, for its host: the change's ID (ADR 0064). The
+	// agent reboots at most once for that change, as a mark it keeps says, and
+	// plans nothing once it runs on another boot.
+	Reboot        string `protobuf:"bytes,233,opt,name=reboot,proto3" json:"reboot,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DesiredResource) Reset() {
@@ -9921,6 +9936,13 @@ func (x *DesiredResource) GetInstallUpdates() *InstallUpdates {
 		return x.InstallUpdates
 	}
 	return nil
+}
+
+func (x *DesiredResource) GetReboot() string {
+	if x != nil {
+		return x.Reboot
+	}
+	return ""
 }
 
 // InstallUpdates asks a server's host to install its updates.
@@ -12471,7 +12493,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xd4\x06\n" +
+	"\bDraining\"\xee\x06\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -12489,7 +12511,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0ereads_onepanel\x18\xb4\x01 \x01(\bR\rreadsOnepanel\x12#\n" +
 	"\rmanages_files\x18x \x01(\bR\fmanagesFiles\x12'\n" +
 	"\x0ftransfers_files\x18y \x01(\bR\x0etransfersFiles\x12&\n" +
-	"\x0epages_listings\x18\xe6\x01 \x01(\bR\rpagesListings\x12(\n" +
+	"\x0epages_listings\x18\xe6\x01 \x01(\bR\rpagesListings\x12\x18\n" +
+	"\aboot_id\x18\xe7\x01 \x01(\tR\x06bootId\x12(\n" +
 	"\x0ffirst_passwords\x18\xc8\x01 \x01(\bR\x0efirstPasswords\x12\x17\n" +
 	"\x06drills\x18\xdd\x01 \x01(\bR\x06drills\x12\x1b\n" +
 	"\bforwards\x18\xca\x01 \x01(\bR\bforwards\x129\n" +
@@ -12978,7 +13001,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xa0\x03\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xb9\x03\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -12992,7 +13015,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"scope_name\x18\t \x01(\tR\tscopeName\x12\x1b\n" +
 	"\tbackup_id\x18\n" +
 	" \x01(\tR\bbackupId\x12K\n" +
-	"\x0finstall_updates\x18\xe8\x01 \x01(\v2!.dockwell.agent.v1.InstallUpdatesR\x0einstallUpdatesB\a\n" +
+	"\x0finstall_updates\x18\xe8\x01 \x01(\v2!.dockwell.agent.v1.InstallUpdatesR\x0einstallUpdates\x12\x17\n" +
+	"\x06reboot\x18\xe9\x01 \x01(\tR\x06rebootB\a\n" +
 	"\x05_spec\"\x8d\x01\n" +
 	"\x0eInstallUpdates\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12\x10\n" +

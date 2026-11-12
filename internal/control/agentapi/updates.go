@@ -42,6 +42,10 @@ func (a *Agents) installStarts(server, change string) func() {
 	}
 }
 
+// BootID is the boot the agent said it's on, or "" from an agent that doesn't
+// reboot its server.
+func (s *Session) BootID() string { return s.bootID }
+
 // ReadsUpdates reports an agent that reads its server's package updates.
 func (s *Session) ReadsUpdates() bool { return s.readsUpdates }
 

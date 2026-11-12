@@ -11,6 +11,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { RebootButton } from "./reboot";
 import { distributionOf, managerName, plainVersion, releaseStanding, summarize, useServerUpdates } from "./updates";
 import { useWhyNot } from "./why";
 import "./Updates.css";
@@ -23,7 +24,9 @@ interface Line {
 }
 
 /** What the card says of a server's updates, and of Dockwell's version. */
-function useLines(server: Server): { updates: Line; dockwell: Line | undefined; checked: string } | undefined {
+function useLines(
+  server: Server,
+): { updates: Line; dockwell: Line | undefined; checked: string; needsReboot: boolean } | undefined {
   const { t } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow();
@@ -60,7 +63,7 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
     const updates: Line = why
       ? { shape: why.shape, tone: why.tone === "warning" ? "warning" : "unknown", title: why.title, sub: why.short }
       : { shape: "dashed-ring", tone: "unknown", title: t`Checking for updates`, sub: t`Asking ${server.name}` };
-    return { updates, dockwell, checked };
+    return { updates, dockwell, checked, needsReboot: false };
   }
   const s = summarize(u);
   const distro = distributionOf(server.inventory?.osName);
@@ -107,7 +110,7 @@ function useLines(server: Server): { updates: Line; dockwell: Line | undefined; 
   } else {
     updates = { shape: "circle", tone: "healthy", title: t`Up to date`, sub: t`Nothing waits in its package lists` };
   }
-  return { updates, dockwell, checked };
+  return { updates, dockwell, checked, needsReboot: u.rebootRequired };
 }
 
 /** The overview's Updates panel, on a desktop. */
@@ -131,7 +134,9 @@ export function UpdatesCard({ server }: { server: Server }) {
             </div>
           ) : null,
         )}
-        <div>
+        <div className="updates-card-actions">
+          {/* A reboot the server needs is one step away, from where it says so. */}
+          {lines.needsReboot ? <RebootButton server={server} /> : null}
           <RouterButtonLink to="/servers/$serverId/updates" params={{ serverId: server.id }} size="sm" icon="commit">
             <Trans>Review updates</Trans>
           </RouterButtonLink>

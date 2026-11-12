@@ -261,6 +261,9 @@ type Installer struct {
 	Dir string
 	// Now is the clock. Nil is time.Now.
 	Now func() time.Time
+	// RebootAfter is how long a reboot waits once asked, for its answer to be on
+	// its way. Zero is 2 seconds.
+	RebootAfter time.Duration
 }
 
 // unit is the change's install unit.

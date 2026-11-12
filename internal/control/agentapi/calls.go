@@ -120,6 +120,8 @@ type Agents struct {
 	// its updates before one ended is read again (ADR 0064).
 	installing    map[string]string
 	installsEnded map[string]uint64
+	// boots is the boot each server's agent last said it was on.
+	boots map[string]string
 	// terminalHearer hears how each terminal ended.
 	terminalHearer func(server string, ended *agentv1.TerminalEnded)
 	// reconciledHearer hears what agents did on their own (OnReconciled).
@@ -132,7 +134,7 @@ func NewAgents(kinds *resource.Registry, logger *slog.Logger) *Agents {
 	return &Agents{
 		kinds: kinds, logger: logger, sessions: map[string]*Session{}, uploads: map[uint64]*upload{}, links: map[uint64]*TerminalLink{}, forwards: map[uint64]*forwardLink{}, transfers: map[uint64]*transfer{}, opened: make(chan struct{}), moved: map[string]time.Time{},
 		domains: map[string][]*dockwellv1.DomainStatus{}, ingress: map[string]*dockwellv1.IngressStatus{}, health: map[string]health.Report{},
-		installing: map[string]string{}, installsEnded: map[string]uint64{},
+		installing: map[string]string{}, installsEnded: map[string]uint64{}, boots: map[string]string{},
 		applyTimeout: ApplyTimeout,
 	}
 }
@@ -472,8 +474,8 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		followsPace: hello.GetFollowsPace(),
-		pending:     map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(),
+		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(string){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	if d := hello.GetDesired(); d != nil {
@@ -483,6 +485,14 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 		}
 	}
 	a.mu.Lock()
+	// A server back from another boot has moved what was read of its updates, as a
+	// reboot finishes what an install left for it.
+	if boot := hello.GetBootId(); boot != "" {
+		if was := a.boots[server]; was != "" && was != boot {
+			a.installsEnded[server]++
+		}
+		a.boots[server] = boot
+	}
 	a.sessions[server] = s
 	delete(a.moved, server)
 	close(a.opened)
@@ -547,6 +557,8 @@ type Session struct {
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
 	readsUpdates bool
+	// bootID is the boot the agent said it's on; empty from one that doesn't reboot.
+	bootID string
 	// followsPace says the agent sends stats at the pace each Pace says. One
 	// that doesn't is never told one.
 	followsPace bool
@@ -1128,6 +1140,13 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		if in := d.Install; in != nil {
 			dr.InstallUpdates = &agentv1.InstallUpdates{ChangeId: in.Change, All: in.All, Packages: resourcepb.Packages(in.Packages), Names: in.Names}
+		}
+		if r := d.Reboot; r != nil {
+			if s.bootID == "" {
+				return nil, fault.New(ErrOlderAgent, "%s's agent doesn't say which boot it's on, so Dockwell can't tell when a reboot is done. "+
+					"Update its agent by running the install script on the server again", s.name)
+			}
+			dr.Reboot = r.Change
 		}
 		call.Desired = append(call.Desired, dr)
 	}

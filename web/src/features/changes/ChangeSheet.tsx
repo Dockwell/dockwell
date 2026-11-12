@@ -105,6 +105,7 @@ import {
   madeProject,
   onlyDeletes,
   onlyIfNewer,
+  reboots,
   replacesIfNewer,
   restarts,
   routeDomain,
@@ -683,7 +684,7 @@ function ChangeSheet({
   const undoNote = (
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
-      {restarts(plan) || installs(plan) ? (
+      {restarts(plan) || installs(plan) || reboots(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -950,6 +951,13 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   const words = useChangeWords();
   const intent = intentOf(plan);
   const health = useHealth();
+  // A reboot says what it does, and that the server came back.
+  if (reboots(plan)) {
+    const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
+    if (phase === "applying") return t`Rebooting ${server}`;
+    if (phase === "failed") return t`Rebooting ${server} failed`;
+    if (phase === "history" || phase === "arrived") return t`${server} is back after its reboot`;
+  }
   // An install says what it does, not that its server's host is changed.
   if (installs(plan)) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
@@ -1161,8 +1169,9 @@ function PlanBody({
   const steps = change?.steps ?? [];
   // Steps sit under the diff, in the room it leaves, so nothing moves as they appear. With one server they
   // say nothing more once it has landed, and a person reading a plan has the plan.
-  // An install's packages are its plan (ADR 0064): its step lists them as it's reviewed.
-  const installs = plan?.servers.some((s) => s.steps.some((st) => st.install)) ?? false;
+  // An install's packages are its plan (ADR 0064): its step lists them as it's reviewed. So is what a
+  // reboot takes offline.
+  const installs = plan?.servers.some((s) => s.steps.some((st) => st.install || st.reboot)) ?? false;
   const showSteps =
     phase === "applying" ||
     ((fleet || installs) && (ran || phase === "review")) ||
@@ -1545,28 +1554,31 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const dockerStops = servers
     .flatMap((s) => s.steps)
     .some((s) => s.install?.dockerRestarts === true && !s.install.keepsRunning);
-  const running =
-    going.length > 1 ? (
-      <Trans>visitors lose {going.length} addresses</Trans>
-    ) : going.length === 1 ? (
-      <Trans>visitors lose {lost}</Trans>
-    ) : dockerStops ? (
-      <Trans>apps and websites stop while Docker restarts</Trans>
-    ) : down === 0 ? (
-      rolling ? (
-        <Trans>rolling, with nothing stopped</Trans>
-      ) : (
-        <Trans>no downtime expected</Trans>
-      )
-    ) : ifNewer ? (
-      <Trans>about {span} down, if there is a newer image</Trans>
-    ) : healthy > down ? (
-      <Trans>
-        about {span} down, and up to {bound} until healthy
-      </Trans>
+  // A reboot takes down everything on its server until it's back (ADR 0064).
+  const rebooting = servers.flatMap((s) => s.steps).some((s) => s.reboot !== undefined);
+  const running = rebooting ? (
+    <Trans>everything there is offline until it's back</Trans>
+  ) : going.length > 1 ? (
+    <Trans>visitors lose {going.length} addresses</Trans>
+  ) : going.length === 1 ? (
+    <Trans>visitors lose {lost}</Trans>
+  ) : dockerStops ? (
+    <Trans>apps and websites stop while Docker restarts</Trans>
+  ) : down === 0 ? (
+    rolling ? (
+      <Trans>rolling, with nothing stopped</Trans>
     ) : (
-      <Trans>about {span} down</Trans>
-    );
+      <Trans>no downtime expected</Trans>
+    )
+  ) : ifNewer ? (
+    <Trans>about {span} down, if there is a newer image</Trans>
+  ) : healthy > down ? (
+    <Trans>
+      about {span} down, and up to {bound} until healthy
+    </Trans>
+  ) : (
+    <Trans>about {span} down</Trans>
+  );
   // What stops, what stays, and until when it can come back, once, and in agreement with the footer.
   const windowMs = Number(plan?.undoWindow?.seconds ?? 0n) * 1000;
   const deadline = formatDay(new Date(now + windowMs), i18n.locale, now);

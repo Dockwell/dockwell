@@ -113,7 +113,16 @@ export function stoppingOn(
  * Docker starts it again; then how many containers it didn't make stop too, whose
  * own restart policies decide.
  */
-export function DockerStops({ serverId, server }: { serverId: string; server: string }) {
+export function DockerStops({
+  serverId,
+  server,
+  until = "docker",
+}: {
+  serverId: string;
+  server: string;
+  /** What brings them back: Docker restarting for an install, or the server's reboot, after which Docker starts by the same rules. */
+  until?: "docker" | "reboot";
+}) {
   const { t } = useLingui();
   const services = useServices();
   const websites = useWebsites();
@@ -132,6 +141,10 @@ export function DockerStops({ serverId, server }: { serverId: string; server: st
   const others = (containers.data?.containers ?? []).filter(
     (c) => c.state === ContainerState.RUNNING && !c.oneOff,
   ).length;
+  const head =
+    until === "reboot"
+      ? t`What goes offline on ${server} until it's back`
+      : t`What stops on ${server} until Docker is back`;
   const staying = stopping.filter((s) => s.back === "no").length;
   const unsure = stopping.filter((s) => s.back === "maybe").length;
   if (stopping.length === 0 && others === 0) {
@@ -173,14 +186,17 @@ export function DockerStops({ serverId, server }: { serverId: string; server: st
     <div className="plan-stops">
       <span className="plan-stops-head">
         {[
-          t`What stops on ${server} until Docker is back`,
+          head,
           ...(staying > 0 ? [plural(staying, { one: "# stays stopped after", other: "# stay stopped after" })] : []),
           ...(unsure > 0 ? [plural(unsure, { one: "# may stay stopped", other: "# may stay stopped" })] : []),
           ...(staying + unsure === 0 ? [t`all of it starts again`] : []),
         ].join(" · ")}
       </span>
       {stopping.length > 0 ? (
-        <ul className="plan-stops-list" aria-label={t`What stops on ${server}`}>
+        <ul
+          className="plan-stops-list"
+          aria-label={until === "reboot" ? t`What goes offline on ${server}` : t`What stops on ${server}`}
+        >
           {stopping.map((s) => (
             <li key={s.key}>
               {link(s)} <Tag words>{kinds[s.kind]}</Tag>{" "}

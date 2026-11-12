@@ -33,7 +33,30 @@ type Backend interface {
 	Left(ctx context.Context, change string, planned []resource.InstallPackage) (left []resource.InstallPackage, running bool, err error)
 	// Install installs the planned packages for the change, saying each line.
 	Install(ctx context.Context, change string, planned []resource.InstallPackage, say func(string)) error
+	// Rebooted says where the change's reboot is, by the mark the agent keeps of it.
+	Rebooted(ctx context.Context, change string) (RebootState, error)
+	// Reboot marks the change's reboot with this boot, and asks the server to
+	// reboot once the answer is on its way. Asked again on the same boot, or on
+	// another, it does nothing.
+	Reboot(ctx context.Context, change string) error
 }
+
+// RebootState is where a change's reboot of a server is.
+type RebootState int
+
+// Where a reboot is.
+const (
+	// RebootNone is a reboot never asked of this server, as a call that never got
+	// there.
+	RebootNone RebootState = iota
+	// RebootAsked is one asked on this boot: the server hasn't gone down yet.
+	RebootAsked
+	// RebootDone is one asked on another boot: the server rebooted.
+	RebootDone
+	// RebootFailed is one whose command failed on this boot: the server is still
+	// up, and applying the step again says what the command said.
+	RebootFailed
+)
 
 // Driver is a server's host.
 type Driver struct {
@@ -43,6 +66,7 @@ type Driver struct {
 var (
 	_ resource.Driver    = (*Driver)(nil)
 	_ resource.Installer = (*Driver)(nil)
+	_ resource.Rebooter  = (*Driver)(nil)
 )
 
 // Kind returns "server.host".
@@ -132,3 +156,35 @@ func (d *Driver) ApplyInstall(ctx context.Context, step resource.Step) error {
 	}
 	return d.Backend.Install(ctx, change, step.Install.Packages, func(line string) { resource.Progress(ctx, line) })
 }
+
+// JudgeReboot plans a reboot of the server, and nothing once the change's reboot
+// took it to another boot. One asked on this boot still plans, and applying it
+// again does nothing, so a resume waits for the server rather than reboot it twice;
+// one whose command failed plans too, and applying it fails with the command's words.
+func (d *Driver) JudgeReboot(ctx context.Context, _ resource.Ref, ask resource.RebootAsked) (resource.Decision, bool, error) {
+	if d.Backend == nil {
+		return resource.Decision{}, false, errCantReboot
+	}
+	state, err := d.Backend.Rebooted(ctx, ask.Change)
+	if err != nil {
+		return resource.Decision{}, false, err
+	}
+	if state == RebootDone {
+		return resource.Decision{}, false, nil
+	}
+	return resource.Decision{Action: resource.ActionUpdate, Effect: resource.EffectRestart, Reboot: &resource.Reboot{}}, true, nil
+}
+
+// ApplyReboot asks the server to reboot, for the change applying the step.
+func (d *Driver) ApplyReboot(ctx context.Context, _ resource.Step) error {
+	if d.Backend == nil {
+		return errCantReboot
+	}
+	change := resource.DeployOf(ctx).Change
+	if change == "" {
+		return errors.New("a reboot needs its change, which its mark names")
+	}
+	return d.Backend.Reboot(ctx, change)
+}
+
+var errCantReboot = errors.New("this agent can't reboot its server")

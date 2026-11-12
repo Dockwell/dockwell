@@ -106,6 +106,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ChangeService.listDrift": "unused",
   "ChangeService.proposeChange": "may",
   "ChangeService.planInstallUpdates": "may",
+  "ChangeService.planReboot": "may",
   "ChangeService.restartService": "may",
   "ChangeService.revertDrift": "unused",
   "ChangeService.undoChange": "may",

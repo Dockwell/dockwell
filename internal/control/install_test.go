@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
@@ -42,6 +44,54 @@ type packages struct {
 	older bool
 	// asked are the names each plan asked for.
 	asked [][]string
+	// boot is the boot the server is on, marked the change and boot a reboot was
+	// asked on, and reboots how many it was asked for.
+	boot           string
+	marked, onBoot string
+	reboots        int
+	// failed is what a reboot command that failed said, while the server stays up.
+	failed string
+}
+
+func (p *packages) Rebooted(_ context.Context, change string) (host.RebootState, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	switch {
+	case p.marked != change:
+		return host.RebootNone, nil
+	case p.onBoot != p.boot:
+		return host.RebootDone, nil
+	case p.failed != "":
+		return host.RebootFailed, nil
+	}
+	return host.RebootAsked, nil
+}
+
+func (p *packages) Reboot(_ context.Context, change string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.marked == change {
+		if p.onBoot == p.boot && p.failed != "" {
+			said := p.failed
+			p.marked, p.failed = "", ""
+			return errors.New("the reboot command failed: " + said)
+		}
+		return nil
+	}
+	p.marked, p.onBoot = change, p.boot
+	p.reboots++
+	return nil
+}
+
+// reboot stands in for the server coming back on another boot: its agent goes,
+// and connects again saying the new boot.
+func (p *packages) reboot(t *testing.T, f *fullServer, s *testServer, boot string) {
+	t.Helper()
+	s.stop()
+	p.mu.Lock()
+	p.boot = boot
+	p.mu.Unlock()
+	s.connect(t, f)
 }
 
 func (p *packages) Plan(_ context.Context, _ bool, names []string) (*resource.Install, error) {
@@ -144,6 +194,12 @@ func (f *fullServer) addHostServerReading(t *testing.T, p *packages, root string
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 		drivers: resource.NewRegistry(&host.Driver{Backend: p}),
 		dataDir: t.TempDir(),
+		// Its agent says the boot the packages say it's on, so a test can reboot it.
+		hello: func(h *agentv1.Hello) {
+			p.mu.Lock()
+			defer p.mu.Unlock()
+			h.BootId = p.boot
+		},
 	}
 	if root != "" {
 		s.updates = agentupdates.New(agentupdates.Options{Root: root})

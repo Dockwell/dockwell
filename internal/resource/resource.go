@@ -276,6 +276,8 @@ type Decision struct {
 	// agent simulated the exact command (ADR 0064). Its fingerprint covers it, so
 	// a person never applies a list they didn't see.
 	Install *Install `json:",omitempty"`
+	// Reboot says a step reboots its server, for a server's host (ADR 0064).
+	Reboot *Reboot `json:",omitempty"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
@@ -785,6 +787,36 @@ type InstallAsked struct {
 	// Packages are what the plan fixed: none at planning; on a resume, what it
 	// checks against.
 	Packages []InstallPackage `json:",omitempty"`
+}
+
+// Reboot is what rebooting a server does, for its host (ADR 0064): everything on
+// it goes offline until it's back. The agent plans an empty one; the control plane
+// says the rest.
+type Reboot struct {
+	// ControlServer says it's the server the control plane runs on, so the panel
+	// and the API stop with it, and come back on their own.
+	ControlServer bool `json:",omitempty"`
+	// LastTook is how long the server's last reboot took, from its step's start
+	// until its agent connected from the new boot, once Dockwell has seen one.
+	LastTook time.Duration `json:",omitempty"`
+}
+
+// RebootAsked is a reboot a change asks of a server's host.
+type RebootAsked struct {
+	// Change is the change's ID, which the agent's mark of the reboot names, so it
+	// reboots at most once for it.
+	Change string
+}
+
+// Rebooter is a kind that reboots its server as a step of a change: the server's
+// host (ADR 0064).
+type Rebooter interface {
+	// JudgeReboot plans the reboot, and reports false once there's none left to
+	// take: the agent runs on another boot than the one the change's reboot left.
+	JudgeReboot(ctx context.Context, ref Ref, ask RebootAsked) (Decision, bool, error)
+	// ApplyReboot asks the server to reboot, for the change DeployOf says, at most
+	// once: applied again on the same boot, or once on another, it does nothing.
+	ApplyReboot(ctx context.Context, step Step) error
 }
 
 // Installer is a kind that installs its server's updates as a step of a change:

@@ -179,6 +179,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		}
 	}
 	p.Install = Install(s.Install)
+	p.Reboot = Reboot(s.Reboot)
 	if b := s.BackupFirst; b != nil {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
 	}
@@ -521,6 +522,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		}
 	}
 	s.Install = InstallFrom(p.GetInstall())
+	s.Reboot = RebootFrom(p.GetReboot())
 	if b := p.GetBackupFirst(); b != nil {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
 	}
@@ -555,6 +557,22 @@ func InstallFrom(p *dockwellv1.PackageInstall) *resource.Install {
 		return nil
 	}
 	return &resource.Install{Packages: PackagesFrom(p.GetPackages()), Reboot: p.GetReboot(), DockerRestarts: p.GetDockerRestarts(), KeepsRunning: p.GetKeepsRunning(), Asked: p.GetAsked()}
+}
+
+// Reboot is a reboot's plan as the API says it; nil for none.
+func Reboot(r *resource.Reboot) *dockwellv1.HostReboot {
+	if r == nil {
+		return nil
+	}
+	return &dockwellv1.HostReboot{ControlServer: r.ControlServer, LastTook: Duration(r.LastTook)}
+}
+
+// RebootFrom reads a reboot's plan as the API says it; nil for none.
+func RebootFrom(p *dockwellv1.HostReboot) *resource.Reboot {
+	if p == nil {
+		return nil
+	}
+	return &resource.Reboot{ControlServer: p.GetControlServer(), LastTook: p.GetLastTook().AsDuration()}
 }
 
 // Packages are an install's packages as the API says them.

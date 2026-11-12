@@ -258,7 +258,8 @@ func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
 	servers := serversOf(plan)
 	var docker []string
 	for i := range plan.Resources {
-		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts {
+		// A reboot takes down everything on its server, as Docker restarting does.
+		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts || plan.Resources[i].Reboot != nil {
 			docker = append(docker, plan.Resources[i].Ref.Scope)
 		}
 	}
@@ -525,7 +526,13 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 			p.Steps = append(p.Steps, *st)
 			i = len(p.Steps) - 1
 		} else {
+			was := p.Steps[i]
 			p.Steps[i] = *st
+			// A reboot's step waiting for its server keeps when it started and what it
+			// says, so its time is the reboot's once the server is back.
+			if was.State == StepWaiting && !was.Started.IsZero() && reboots(items, st.ResourceID) {
+				p.Steps[i].State, p.Steps[i].Message, p.Steps[i].Started = was.State, was.Message, was.Started
+			}
 		}
 		todo[i] = true
 	}
@@ -536,6 +543,11 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 		}
 	}
 	return p
+}
+
+// reboots reports the item with this ID asks its server's host to reboot.
+func reboots(items []item, id string) bool {
+	return slices.ContainsFunc(items, func(it item) bool { return it.id == id && it.reboot != "" })
 }
 
 // alreadyHasIt ends a step that found the server as it was to leave it.
@@ -598,6 +610,19 @@ func stepMessage(state StepState, st *resource.Step, server string) string {
 		case StepDone:
 			return "Restored " + what
 		case StepFailed, StepSkipped, StepWaiting:
+		}
+	}
+	if st.Reboot != nil {
+		switch state {
+		case StepQueued:
+			return "Waiting to reboot " + server
+		case StepRunning:
+			return "Rebooting " + server
+		case StepWaiting:
+			return server + " is restarting; this passes once it's back"
+		case StepDone:
+			return server + " is back after its reboot"
+		case StepFailed, StepSkipped:
 		}
 	}
 	if st.Restart != "" {

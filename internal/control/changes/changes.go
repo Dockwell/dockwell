@@ -1185,7 +1185,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
-			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install),
+			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot),
 		})
 	}
 	for i := range p.Servers {

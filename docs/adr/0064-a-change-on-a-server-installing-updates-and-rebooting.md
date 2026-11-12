@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-10
-- Amended: 2026-11-11, updating packages one at a time or a selection (#521)
+- Amended: 2026-11-11, updating packages one at a time or a selection (#521); 2026-11-12, rebooting as built (#521)
 
 ## Context
 
@@ -104,10 +104,24 @@ Added on 2026-11-11 (#521), after the owner asked for an Update button on every 
 - **What's read is current after an install.** No read starts while an install runs, as it would race dpkg, and a refresh would wait on its lock. Once one ends, the next look reads again, whatever the read's age, so the counts and the summary move without a reload, rather than after the 10 minutes ADR 0043 keeps a read.
 - **A failure stays on its rows,** with dpkg's or apt's last line, Retry (the same request again) and the change one step away. More than three rows failing say it once, above the list.
 
+### Rebooting, as built
+
+Built on 2026-11-12 (#521), slice 2 above, with what it leaves for later said here.
+
+- **`ChangeService.PlanReboot`,** not `ServerService`, beside `PlanInstallUpdates`, as the change handler holds the engine: `EFFECT_PLAN`, `needs_session`, `NEEDS_ADMIN`, `REACH_INSTALL`, and `dockwell servers reboot` in the CLI. It makes one host edit with `Reboot` for each server named.
+- **The plan.** The agent plans the reboot unless its mark says the change's reboot already took the server to another boot. The control plane adds `HostReboot`: whether it's the control server, and how long the server's last reboot took, read from the newest 200 changes' steps (start until it passed). The plan is as good as root, so the sheet asks for the passkey and the typed confirmation that comes with it, on every server. What goes offline is read in the panel from what the API gives: each app, database and website on the server, and whether Docker starts each again at boot by its restart policy (the same rules as when Docker restarts for an install: on-failure may stay stopped), and how many containers Dockwell didn't make run there. What it puts at risk is each volume whose newest backup off the server is missing or more than a day old, from the list of backups. On the control server, the sheet says that the panel and the API stop with it and come back on their own.
+- **The mark.** `<data>/agent/reboot` holds the change and the boot it was asked on, written and synced before the agent answers; the reboot itself (`systemctl reboot` under systemd, `reboot` otherwise) starts 2 seconds after the answer. The agent refuses to reboot a server whose boot ID it can't read, as nobody could tell when it was done, and with `DOCKWELL_TEST=1` and no stand-ins it reboots nothing. `DesiredResource.reboot` is the change's ID, as `restart` is, so a plan can read the mark.
+- **The step.** It runs the call, then waits for its server, as a rollback waits for a reconnect, saying the server is restarting; the panel counts its time while it waits. Every connect resumes it: on the same boot the agent finds its mark and does nothing again, so nothing reboots twice; on another boot nothing is left to plan, and the step finishes, keeping when it started, so its time is the reboot's. A reboot command that fails (`systemctl reboot` or `reboot` exiting with an error) is noted in the mark, with what it said and when, and the agent's next answer for the step fails it with those words, at once rather than at the deadline. Something asks soon: every 30 seconds (`RebootCheckEvery`) `dockwell run` resumes a change whose reboot step waits on a server that's still connected, which on the boot the reboot left asks the agent again, keeping the step's start. The same tick runs `FailLostReboots`, which fails a reboot's step that has waited 15 minutes (`RebootLimit`) by its recorded start, so a control plane that starts again doesn't reset it.
+- **Holds.** A reboot holds its server as an install that restarts Docker does: no other change runs steps there meanwhile. A change can't be undone once it rebooted (nothing to put back), and the automatic rollback has nothing to do for it.
+- **What's read again.** An agent that connects from another boot than the one it last said has its server's updates read again on the next look, so "needs a reboot" leaves the tab without waiting the 10 minutes a read stands.
+- **Reboot, one step away:** in the Updates tab's "needs a reboot" callout, beside the command to copy; on the server's page as a callout of its own; and on the single server's Overview card.
+- **Left for later:** the durable busy mark and the alert mute while a step runs; waiting for each service to be healthy after the reboot; the control server waiting for every other applying change to end; mounts on filesystems neither `/etc/fstab` nor a mount unit names; volumes that were never backed up at all (only those with a backup are listed); a set of servers in order, with the control server last.
+
 ### Methods and numbers
 
 - `UpdateService.PlanInstallUpdates`, taking the servers and which updates (the security ones, or all), and `ServerService.PlanReboot`, taking the servers, each make the host edits and answer a planned change, applied with `ChangeService.ApplyChange`, as `RestartService` does. Both are `EFFECT_PLAN`, `needs_session`, `NEEDS_ADMIN`, `REACH_INSTALL`, with lines in the panel's `methods.ts`, and the CLI's `dockwell updates install` and `dockwell servers reboot`. `Edit` gains `install_updates` and `reboot` at its next free numbers.
 - The agent protocol takes this area's block: `Hello.boot_id` 231, and `DesiredResource.install_updates` 232 and `DesiredResource.reboot` 233, which `PlanCall` and `ApplyCall` carry as they carry `restart`.
+- Rebooting (2026-11-12) adds `ChangeService.PlanReboot` with `PlanRebootRequest` and `PlanRebootResponse`, `HostReboot` on `ResourcePlan.reboot` 10 and `PlanStep.reboot` 46, and in the agent protocol `Hello.boot_id` 231 and `DesiredResource.reboot` 233, as above.
 - Picking packages (2026-11-11) adds `PlanInstallUpdatesRequest.packages` 4, `PackageInstall.asked` 5, `ServerUpdates.install_change_id` 18, and `InstallUpdates.names` 4 in the agent protocol, a field of a message this area owns. The CLI's `dockwell updates install` takes `--packages`.
 
 ### PRD principle 2
