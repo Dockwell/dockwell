@@ -18,6 +18,7 @@ import {
   RestartPolicy,
   type ServiceInfo,
   ServiceService,
+  UpdateSource,
 } from "@dockwell/api";
 import {
   Button,
@@ -95,6 +96,8 @@ const RECENT = 5;
  */
 export function AppOverview() {
   const { service } = useApp();
+  // A catalog install's update is its catalog panel's, with its plan, as it has been (ADR 0079).
+  const update = service.update?.source === UpdateSource.CATALOG ? undefined : service.update;
   return (
     <div className="app-overview">
       <div className="app-main">
@@ -102,14 +105,14 @@ export function AppOverview() {
         <AppNotice />
         <RunningPanel />
         {/* What's newer takes room in the main column when there's something to take (ADR 0079). */}
-        {offered(service.update) ? <UpdateCard service={service} /> : null}
+        {update && offered(update) ? <UpdateCard service={service} /> : null}
         <InstalledPanel service={service} />
         <RecentHealth />
         <RecentDeployments />
       </div>
       <div className="app-aside">
         <ConfigurationPanel />
-        {offered(service.update) ? null : <UpdateCard service={service} />}
+        {update && !offered(update) ? <UpdateCard service={service} /> : null}
         <HealthCheckPanel />
         <VolumesPanel app={appOf(service)} />
         <AppBackups service={service} app={appOf(service)} />
