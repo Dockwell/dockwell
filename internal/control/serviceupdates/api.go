@@ -282,21 +282,19 @@ func record(ctx context.Context, tx *store.Tx, action string, r store.Resource, 
 // rows are the services keep holds, each with its updates, by environment and
 // name.
 func (k *Keeper) rows(ctx context.Context, keep func(subject) bool) ([]*dockwellv1.ServiceUpdates, error) {
-	return k.rowsWith(ctx, keep, nil)
+	out, _, err := k.rowsWith(ctx, keep)
+	return out, err
 }
 
-// rowsWith is rows, and fills homes, where it's given, with the server each
-// is checked through, by service ID.
-func (k *Keeper) rowsWith(ctx context.Context, keep func(subject) bool, homes *map[string]string) ([]*dockwellv1.ServiceUpdates, error) {
+// rowsWith is rows, with the server each service is checked through, by its ID.
+func (k *Keeper) rowsWith(ctx context.Context, keep func(subject) bool) ([]*dockwellv1.ServiceUpdates, map[string]string, error) {
 	subjects, _, err := k.load(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if homes != nil {
-		*homes = make(map[string]string, len(subjects))
-		for i := range subjects {
-			(*homes)[subjects[i].ID] = subjects[i].home
-		}
+	homes := make(map[string]string, len(subjects))
+	for i := range subjects {
+		homes[subjects[i].ID] = subjects[i].home
 	}
 	var picked []subject
 	for i := range subjects {
@@ -310,7 +308,7 @@ func (k *Keeper) rowsWith(ctx context.Context, keep func(subject) bool, homes *m
 	}
 	described, err := k.Describe(ctx, plain)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make([]*dockwellv1.ServiceUpdates, 0, len(picked))
 	for i := range picked {
@@ -325,7 +323,7 @@ func (k *Keeper) rowsWith(ctx context.Context, keep func(subject) bool, homes *m
 	slices.SortFunc(out, func(a, b *dockwellv1.ServiceUpdates) int {
 		return cmp.Or(cmp.Compare(a.GetResource().GetScope(), b.GetResource().GetScope()), cmp.Compare(a.GetResource().GetName(), b.GetResource().GetName()))
 	})
-	return out, nil
+	return out, homes, nil
 }
 
 // one is a service's updates as they stand.
@@ -498,8 +496,7 @@ func (k *Keeper) Counting(ctx context.Context) ([]Counted, error) {
 	}
 	k.mu.Unlock()
 	now := k.now()
-	var homes map[string]string
-	rows, err := k.rowsWith(ctx, func(subject) bool { return true }, &homes)
+	rows, homes, err := k.rowsWith(ctx, func(subject) bool { return true })
 	if err != nil {
 		return nil, err
 	}
