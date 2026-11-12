@@ -27,6 +27,7 @@ import {
   changing,
   factAndRest,
   installs,
+  keepsData,
   onlyIfNewer,
   reboots,
   reloadsProxy,
@@ -564,6 +565,14 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
           key: `data-${key}`,
           title: t`${name} loses what its image keeps at ${paths}`,
           more: t`The server keeps that data for 7 days, and undoing this brings it back. After that it is gone.`,
+        });
+      } else if (keepsData(step)) {
+        // A deleted volume stays on its server for 7 days, so undo brings it back until then.
+        out.push({
+          key: `data-${key}`,
+          amber: true,
+          title: t`${server.serverName} keeps ${name}'s data for 7 days, then deletes it`,
+          detail: t`Undoing this brings it back until then.`,
         });
       } else if (step.destroysData) {
         out.push({

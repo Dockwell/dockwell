@@ -2928,17 +2928,6 @@ msgstr "Command"
 msgid "Danger zone"
 msgstr "Danger zone"
 
-msgid "Delete the project"
-msgstr "Delete the project"
-
-#. placeholder {0}: project.label
-#. placeholder {0}: view.label
-msgid "Delete the project {0}"
-msgstr "Delete the project {0}"
-
-msgid "Delete {name}"
-msgstr "Delete {name}"
-
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker changes a limit on the running container, except to lift one, which replaces it."
 
@@ -3103,27 +3092,8 @@ msgstr "Say what to run, such as curl -f http://localhost/."
 msgid "Settings sections"
 msgstr "Settings sections"
 
-msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
-msgstr "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
-
-#. placeholder {0}: project.label
-#. placeholder {1}: project.left
-msgid "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
-msgstr "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
-
-#. placeholder {0}: project.label
-msgid "Stops it and removes its container. Its project {0} goes too. You review a plan first."
-msgstr "Stops it and removes its container. Its project {0} goes too. You review a plan first."
-
-msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
-msgstr "Stops it and removes its container. Its volumes stay, and you review a plan first."
-
 msgid "TCP"
 msgstr "TCP"
-
-#. placeholder {0}: project.holds
-msgid "Takes {0} in one plan, to review first."
-msgstr "Takes {0} in one plan, to review first."
 
 msgid "The image has none, so Running only means it started"
 msgstr "The image has none, so Running only means it started"
@@ -3377,6 +3347,36 @@ msgstr "{0} went away during the build, so how it ended isn't known."
 
 msgid "{count} lines left out"
 msgstr "{count} lines left out"
+
+msgid "Delete the project"
+msgstr "Delete the project"
+
+#. placeholder {0}: project.label
+#. placeholder {0}: view.label
+msgid "Delete the project {0}"
+msgstr "Delete the project {0}"
+
+msgid "Delete {name}"
+msgstr "Delete {name}"
+
+msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+msgstr "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+
+#. placeholder {0}: project.label
+#. placeholder {1}: project.left
+msgid "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
+msgstr "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
+
+#. placeholder {0}: project.label
+msgid "Stops it and removes its container. Its project {0} goes too. You review a plan first."
+msgstr "Stops it and removes its container. Its project {0} goes too. You review a plan first."
+
+msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
+msgstr "Stops it and removes its container. Its volumes stay, and you review a plan first."
+
+#. placeholder {0}: project.holds
+msgid "Takes {0} in one plan, to review first."
+msgstr "Takes {0} in one plan, to review first."
 
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> is still deploying. You can review this plan once that ends."
@@ -6999,6 +6999,9 @@ msgstr "Docker restarts: every app and website on {server} stops until it's back
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 
+msgid "Keeps its data for 7 days, then deletes it"
+msgstr "Keeps its data for 7 days, then deletes it"
+
 msgid "May cut off access to {server}"
 msgstr "May cut off access to {server}"
 
@@ -7278,6 +7281,9 @@ msgstr "health check timeout"
 
 msgid "internal"
 msgstr "internal"
+
+msgid "kept 7 days, then deleted"
+msgstr "kept 7 days, then deleted"
 
 msgid "label"
 msgstr "label"
@@ -7834,6 +7840,9 @@ msgstr "Two containers may write to {shared}, which can corrupt a database"
 msgid "Undo may not bring everything back."
 msgstr "Undo may not bring everything back."
 
+msgid "Undoing this brings it back until then."
+msgstr "Undoing this brings it back until then."
+
 msgid "Undoing this puts back {from}. The release before it can't run the data."
 msgstr "Undoing this puts back {from}. The release before it can't run the data."
 
@@ -7915,6 +7924,10 @@ msgstr "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
+
+#. placeholder {0}: server.serverName
+msgid "{0} keeps {name}'s data for 7 days, then deletes it"
+msgstr "{0} keeps {name}'s data for 7 days, then deletes it"
 
 msgid "{by} writes there as a user by name, which only its image can say is root or not."
 msgstr "{by} writes there as a user by name, which only its image can say is root or not."
@@ -8861,6 +8874,9 @@ msgstr "Since {started}"
 msgctxt "how much data"
 msgid "Size"
 msgstr "Size"
+
+msgid "Stops it and removes its container. Its volume stays, with every database and user in it. You review a plan first."
+msgstr "Stops it and removes its container. Its volume stays, with every database and user in it. You review a plan first."
 
 msgid "The last one failed: {latestError}"
 msgstr "The last one failed: {latestError}"

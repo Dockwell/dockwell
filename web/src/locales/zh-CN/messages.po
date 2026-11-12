@@ -2928,17 +2928,6 @@ msgstr "命令"
 msgid "Danger zone"
 msgstr "危险操作"
 
-msgid "Delete the project"
-msgstr "删除项目"
-
-#. placeholder {0}: project.label
-#. placeholder {0}: view.label
-msgid "Delete the project {0}"
-msgstr "删除项目 {0}"
-
-msgid "Delete {name}"
-msgstr "删除 {name}"
-
 msgid "Docker changes a limit on the running container, except to lift one, which replaces it."
 msgstr "Docker 会在运行中的容器上直接修改限制；取消限制则会替换容器。"
 
@@ -3103,27 +3092,8 @@ msgstr "填写要运行的命令，例如 curl -f http://localhost/。"
 msgid "Settings sections"
 msgstr "设置分区"
 
-msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
-msgstr "会停止它并移除它的容器，它的域名也会一并移除。它的卷会保留，并且你会先审查一个计划。"
-
-#. placeholder {0}: project.label
-#. placeholder {1}: project.left
-msgid "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
-msgstr "会停止它并移除它的容器。它的项目 {0} 也会一并删除，连同 {1}。你会先审查一个计划。"
-
-#. placeholder {0}: project.label
-msgid "Stops it and removes its container. Its project {0} goes too. You review a plan first."
-msgstr "会停止它并移除它的容器。它的项目 {0} 也会一并删除。你会先审查一个计划。"
-
-msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
-msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先审查一个计划。"
-
 msgid "TCP"
 msgstr "TCP"
-
-#. placeholder {0}: project.holds
-msgid "Takes {0} in one plan, to review first."
-msgstr "在一个计划中删除 {0}，你会先审查它。"
 
 msgid "The image has none, so Running only means it started"
 msgstr "镜像没有健康检查，因此“运行中”只表示它已启动"
@@ -3377,6 +3347,36 @@ msgstr "{0} 在构建期间离线，因此无法得知构建结果。"
 
 msgid "{count} lines left out"
 msgstr "省略了 {count} 行"
+
+msgid "Delete the project"
+msgstr "删除项目"
+
+#. placeholder {0}: project.label
+#. placeholder {0}: view.label
+msgid "Delete the project {0}"
+msgstr "删除项目 {0}"
+
+msgid "Delete {name}"
+msgstr "删除 {name}"
+
+msgid "Stops it and removes its container, and its domains go with it. Its volumes stay, and you review a plan first."
+msgstr "会停止它并移除它的容器，它的域名也会一并移除。它的卷会保留，并且你会先审查一个计划。"
+
+#. placeholder {0}: project.label
+#. placeholder {1}: project.left
+msgid "Stops it and removes its container. Its project {0} goes too, with {1}. You review a plan first."
+msgstr "会停止它并移除它的容器。它的项目 {0} 也会一并删除，连同 {1}。你会先审查一个计划。"
+
+#. placeholder {0}: project.label
+msgid "Stops it and removes its container. Its project {0} goes too. You review a plan first."
+msgstr "会停止它并移除它的容器。它的项目 {0} 也会一并删除。你会先审查一个计划。"
+
+msgid "Stops it and removes its container. Its volumes stay, and you review a plan first."
+msgstr "会停止它并移除它的容器。它的卷会保留，并且你会先审查一个计划。"
+
+#. placeholder {0}: project.holds
+msgid "Takes {0} in one plan, to review first."
+msgstr "在一个计划中删除 {0}，你会先审查它。"
 
 msgid "<0>{current}</0> is still deploying. You can review this plan once that ends."
 msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计划。"
@@ -6999,6 +6999,9 @@ msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，�
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
 
+msgid "Keeps its data for 7 days, then deletes it"
+msgstr "保留其数据 7 天，然后删除"
+
 msgid "May cut off access to {server}"
 msgstr "可能切断对 {server} 的访问"
 
@@ -7278,6 +7281,9 @@ msgstr "健康检查超时"
 
 msgid "internal"
 msgstr "内部"
+
+msgid "kept 7 days, then deleted"
+msgstr "保留 7 天，然后删除"
 
 msgid "label"
 msgstr "标签"
@@ -7834,6 +7840,9 @@ msgstr "两个容器可能同时写入 {shared}，这可能损坏数据库"
 msgid "Undo may not bring everything back."
 msgstr "撤销可能无法恢复所有内容。"
 
+msgid "Undoing this brings it back until then."
+msgstr "在此之前撤销即可恢复。"
+
 msgid "Undoing this puts back {from}. The release before it can't run the data."
 msgstr "撤销会放回 {from}。更早的版本无法运行这些数据。"
 
@@ -7915,6 +7924,10 @@ msgstr "{0, plural, other {这是 {at} 所在的提交。}}"
 #. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, other {{list} 会在此期间停止}}"
+
+#. placeholder {0}: server.serverName
+msgid "{0} keeps {name}'s data for 7 days, then deletes it"
+msgstr "{0} 会将 {name} 的数据保留 7 天，然后删除"
 
 msgid "{by} writes there as a user by name, which only its image can say is root or not."
 msgstr "{by} 以按名称指定的用户在那里写入，只有它的镜像能确定该用户是不是 root。"
@@ -8861,6 +8874,9 @@ msgstr "自 {started} 起"
 msgctxt "how much data"
 msgid "Size"
 msgstr "规格"
+
+msgid "Stops it and removes its container. Its volume stays, with every database and user in it. You review a plan first."
+msgstr "会停止它并移除它的容器。它的卷会保留，其中的每个数据库和用户也都保留。你会先审查一个计划。"
 
 msgid "The last one failed: {latestError}"
 msgstr "最近一次失败：{latestError}"

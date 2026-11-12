@@ -18,6 +18,8 @@ export interface FieldSource {
   keptPaths?: readonly string[];
   /** The change removes data its spec can't bring back. */
   destroysData?: boolean;
+  /** The change deletes data the server keeps for 7 days, so undoing it brings the data back. */
+  keepsData?: boolean;
   /** The change replaces data with a backup, and undoing it puts back what was there. */
   restores?: boolean;
 }
@@ -266,6 +268,7 @@ export function useFieldRows(): FieldRows {
       hostAccess = [],
       keptPaths = [],
       destroysData = false,
+      keepsData = false,
       restores = false,
     }: FieldSource): PlanChange[] => {
       const fields = changes.map((change) => ({ path: change.path.replace(/^app\./, ""), change }));
@@ -282,6 +285,8 @@ export function useFieldRows(): FieldRows {
         });
       } else if (destroysData) {
         rows.push({ path: "data", label: t`data`, to: <Trans>doesn't come back</Trans>, tone: "critical" });
+      } else if (keepsData) {
+        rows.push({ path: "data", label: t`data`, to: <Trans>kept 7 days, then deleted</Trans>, tone: "warning" });
       }
 
       // A kind that reads best as one row, when all of it comes or goes.

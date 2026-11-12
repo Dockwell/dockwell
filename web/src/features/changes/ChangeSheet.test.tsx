@@ -2750,6 +2750,56 @@ describe("the plan sheet, once it runs", () => {
     expect(done).not.toHaveTextContent(/destroy/i);
   });
 
+  describe("deleting data", () => {
+    function deletingData(kind: string, name: string): Change {
+      const change = aServicePlan();
+      const plan = change.plan;
+      const resource = plan?.resources[0];
+      const server = plan?.servers[0];
+      const step = server?.steps[0];
+      if (!plan || !resource?.resource || !server || !step?.resource) throw new Error("no step");
+      plan.summary = create(PlanSummarySchema, { destroy: 1 });
+      resource.resource.kind = kind;
+      resource.resource.name = name;
+      resource.action = PlanAction.DELETE;
+      step.resource.kind = kind;
+      step.resource.name = name;
+      step.action = PlanAction.DELETE;
+      step.destroysData = true;
+      step.downtime = undefined;
+      server.downtime = undefined;
+      change.summary = `Delete ${name}`;
+      return change;
+    }
+
+    it("says a deleted volume's data is kept for 7 days, as the server keeps it, and undo brings it back", async () => {
+      const change = deletingData("volume", "data");
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(await within(sheet).findByText("hz-1 keeps data's data for 7 days, then deletes it")).toBeVisible();
+      expect(sheet).toHaveTextContent("Undoing this brings it back until then.");
+      expect(sheet).toHaveTextContent("kept 7 days, then deleted");
+      expect(sheet).toHaveTextContent("Undo for 7 days");
+      expect(sheet).not.toHaveTextContent("doesn't come back");
+      expect(sheet).not.toHaveTextContent("may not bring it back");
+    });
+
+    it("says a dropped database's data doesn't come back, as nothing keeps it", async () => {
+      const change = deletingData("database.user", "shop");
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(await within(sheet).findByText("shop loses its data on hz-1")).toBeVisible();
+      expect(sheet).toHaveTextContent("doesn't come back");
+      expect(sheet).not.toHaveTextContent("kept 7 days");
+    });
+  });
+
   describe("an upgrade that backs up first", () => {
     const upgrade = (reason: string, names: string[] = []) => {
       const change = moved(aServicePlan(), { state: ChangeState.FAILED, error: "It stopped." });

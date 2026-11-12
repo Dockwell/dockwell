@@ -102,6 +102,7 @@ import {
   isFleet,
   longestDowntime,
   longestUntilHealthy,
+  losesData,
   madeProject,
   onlyDeletes,
   onlyIfNewer,
@@ -1582,7 +1583,8 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   // What stops, what stays, and until when it can come back, once, and in agreement with the footer.
   const windowMs = Number(plan?.undoWindow?.seconds ?? 0n) * 1000;
   const deadline = formatDay(new Date(now + windowMs), i18n.locale, now);
-  const gone = servers.flatMap((s) => s.steps).some((s) => s.destroysData);
+  // A deleted volume's data stays on its server for the undo's 7 days; anything else that destroys data doesn't.
+  const gone = servers.flatMap((s) => s.steps).some(losesData);
   const undoable = windowMs > 0 && !gone;
   const stays = [
     ...new Set(

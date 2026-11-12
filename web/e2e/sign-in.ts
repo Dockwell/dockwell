@@ -765,6 +765,10 @@ async function main() {
   await expectPage(page, "Variables and secrets");
   // By now there are several projects, so the environment goes by its project's name.
   const valueForm = page.getByRole("form", { name: /^Add a variable or secret to (default|production)$/ });
+  // An environment with nothing yet shows its empty state, whose Add the first opens the form.
+  const addFirst = page.getByRole("button", { name: "Add the first" });
+  await valueForm.or(addFirst).first().waitFor();
+  if (await addFirst.isVisible()) await addFirst.click();
   await valueForm.getByRole("textbox", { name: "Key" }).fill("DB_PASSWORD");
   await valueForm.getByRole("switch", { name: "Secret" }).click();
   const secretValue = "e2e-s3cret-correct-horse";

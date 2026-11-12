@@ -121,6 +121,20 @@ export function shownName(planned: PlannedResource | undefined): string {
   return planned.resource?.name ?? "";
 }
 
+/**
+ * Whether the server keeps the data a step removes, so undoing it brings the data back: a deleted
+ * volume stays on its server for 7 days before it goes (the volume kind's KeepFor, ADR 0036).
+ * Anything else that destroys data, as a database dropped with its user, is gone at once.
+ */
+export function keepsData(step: Pick<PlanStep, "destroysData" | "action" | "resource">): boolean {
+  return step.destroysData && step.action === PlanAction.DELETE && step.resource?.kind === "volume";
+}
+
+/** Whether a step removes data that nothing brings back. */
+export function losesData(step: Pick<PlanStep, "destroysData" | "action" | "resource">): boolean {
+  return step.destroysData && !keepsData(step);
+}
+
 export function changing(plan: Plan | undefined): PlannedResource[] {
   return (plan?.resources ?? []).filter((r) => r.action !== PlanAction.NONE);
 }
@@ -168,7 +182,8 @@ export function diffResources(
       changes: resource.changes,
       hostAccess: resource.hostAccess,
       keptPaths: [...new Set(steps.flatMap((s) => s.keptPaths))],
-      destroysData: steps.some((s) => s.destroysData),
+      destroysData: steps.some(losesData),
+      keepsData: steps.some(keepsData),
       restores: steps.some((s) => s.restore !== undefined),
     });
     const out: PlanResource = {

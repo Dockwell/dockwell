@@ -21,6 +21,9 @@ import {
   EntrySchema,
   EventKind,
   type ListBackupsRequest,
+  type ProposeChangeRequest,
+  type Resource,
+  ResourceSchema,
   type RestoreBackupRequest,
   Role,
   type SetCatalogCompanionRequest,
@@ -34,8 +37,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { ENV, places, running, SERVER } from "../../test/apps";
+import { anApp, ENV, places, running, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
+import { webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { gist } from "./DatabaseOverview";
@@ -1223,5 +1227,108 @@ describe("changing a password", () => {
     await waitFor(() =>
       expect(asked).toHaveBeenCalledWith(expect.objectContaining({ user: "orders" }), expect.anything()),
     );
+  });
+});
+
+describe("deleting a database", () => {
+  const withUser = () => {
+    const db = aDatabase();
+    const users = db.readings[0]?.users ?? [];
+    const shop = users.find((u) => u.name === "shop");
+    if (shop) shop.resourceId = "dbu_shop";
+    return db;
+  };
+  const shopUser = create(ResourceSchema, {
+    id: "dbu_shop",
+    resource: { kind: "database.user", scope: ENV, name: "shop" },
+  });
+  const service = anApp(
+    "db",
+    "postgres:17",
+    {},
+    { id: "svc_db", resource: { kind: "service", scope: ENV, name: "db" } },
+  );
+
+  function deleting(proposals: ProposeChangeRequest[], resources?: Api["resources"]): Api {
+    const base = places();
+    return api([withUser()], {
+      resources: resources ?? {
+        listResources: (req) =>
+          req.kind === "database.user" ? { resources: [shopUser] } : base.listResources(req as { kind: string }),
+      },
+      services: { listServices: () => ({ services: [service] }) },
+      changes: {
+        proposeChange: (req) => {
+          proposals.push(req);
+          return { change: webPlanned() };
+        },
+        watchChange: feed<WatchChangeResponse>().stream,
+        discardChange: () => ({}),
+      },
+    });
+  }
+  const edits = (req: ProposeChangeRequest | undefined) =>
+    req?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete]) ?? [];
+
+  it("takes the users Dockwell made in it, and keeps its volume with what's in it", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/databases/svc_db", deleting(proposals));
+    const danger = await screen.findByRole("region", { name: "Danger zone" });
+    expect(danger).toHaveTextContent("Its volume stays, with every database and user in it.");
+    await user.click(within(danger).getByRole("button", { name: "Delete db" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits(proposals[0])).toEqual([
+      ["database.user", "shop", true],
+      ["service", "db", true],
+    ]);
+  });
+
+  it("takes its project with it when it's the last thing there, behind a switch that's on", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const project = create(ResourceSchema, { id: "prj_pg", resource: { kind: "project", scope: "org_1", name: "pg" } });
+    const others = create(ResourceSchema, {
+      id: "prj_1",
+      resource: { kind: "project", scope: "org_1", name: "default" },
+    });
+    const env = create(ResourceSchema, {
+      id: ENV,
+      resource: { kind: "environment", scope: "prj_pg", name: "production" },
+    });
+    const inside: Resource[] = [
+      create(ResourceSchema, { id: "svc_db", resource: { kind: "service", scope: ENV, name: "db" } }),
+      shopUser,
+      create(ResourceSchema, { id: "vol_data", resource: { kind: "volume", scope: ENV, name: "data" } }),
+    ];
+    renderAt(
+      "/databases/svc_db",
+      deleting(proposals, {
+        listResources: (req) => ({
+          resources:
+            req.kind === "project"
+              ? [others, project]
+              : req.kind === "environment"
+                ? [env]
+                : req.kind === "database.user"
+                  ? [shopUser]
+                  : req.scope === ENV
+                    ? inside
+                    : [],
+        }),
+      }),
+    );
+    const danger = await screen.findByRole("region", { name: "Danger zone" });
+    // Its users go with it, as the database's own delete takes them, so what else goes is the volume.
+    await waitFor(() => expect(danger).toHaveTextContent("Its project pg goes too, with 1 volume."));
+    await user.click(within(danger).getByRole("button", { name: "Delete db" }));
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(within(sheet).getByRole("switch", { name: "Also delete the project pg" })).toBeChecked();
+    expect(edits(proposals[0])).toEqual([
+      ["service", "db", true],
+      ["database.user", "shop", true],
+      ["volume", "data", true],
+      ["project", "pg", true],
+    ]);
   });
 });
