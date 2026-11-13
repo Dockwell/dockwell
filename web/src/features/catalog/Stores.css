@@ -1,0 +1,121 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A store's mark, or a source's, on the light tile logos are drawn for (ADR 0083). */
+.store-mark {
+  display: grid;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.store-mark.has-art {
+  padding: 6px;
+  background: var(--art-ground);
+}
+
+.store-mark.is-small {
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  font-size: 12px;
+}
+
+.store-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The stores Dockwell reads, each a tile with what it brings and Add, in a row that wraps. */
+.store-gallery {
+  margin: 0 0 var(--space-6);
+}
+
+.store-gallery-heading,
+.sources-list-heading {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+/* Every tile in a row as wide and as tall as the others, the row filled, however many stores there are. */
+.store-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Its mark, its name on a line of its own and what it brings under it, and one action at the end. */
+.store-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.store-tile-words {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.store-tile-name {
+  font-weight: 550;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.store-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--space-2);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.store-licence {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.store-added {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  color: var(--healthy);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.store-tile-action {
+  display: inline-flex;
+  flex: none;
+  justify-self: end;
+}

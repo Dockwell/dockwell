@@ -6,57 +6,24 @@ import {
   type CatalogSourceInfo,
   type CatalogSourceRefusal,
 } from "@dockwell/api";
-import { Button, SegmentedControl } from "@dockwell/ui";
+import { SegmentedControl } from "@dockwell/ui";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { storeLabel } from "./storeMarks";
+
 /**
  * Other stores' catalogs, read on the server (ADR 0078): a source may be 1Panel's
  * app store, Dokploy's templates or Coolify's, which Dockwell tells from the
  * repository and converts as it reads it. None of that is a step a person takes:
- * the link is the form, a preset is one click, and the format shows only as a fact,
- * or as a choice where Dockwell can't tell.
+ * the link is the form, a store is one click (Stores.tsx), and the format shows only
+ * as a fact, or as a choice where Dockwell can't tell.
  */
 
-/** A store a person adds in one click, with its upstream filled in. */
-export interface Preset {
-  id: string;
-  name: MessageDescriptor;
-  /** What a person calls the store, as a source of it reads. */
-  label: string;
-  repository: string;
-  format: CatalogFormat;
-}
-
-/** The stores Dockwell reads directly, as presets. */
-export const PRESETS: readonly Preset[] = [
-  {
-    id: "onepanel",
-    name: msg`1Panel's app store`,
-    label: "1Panel",
-    repository: "https://github.com/1Panel-dev/appstore",
-    format: CatalogFormat.ONEPANEL,
-  },
-  {
-    id: "dokploy",
-    name: msg`Dokploy's templates`,
-    label: "Dokploy",
-    repository: "https://github.com/Dokploy/templates",
-    format: CatalogFormat.DOKPLOY,
-  },
-  {
-    id: "coolify",
-    name: msg`Coolify's templates`,
-    label: "Coolify",
-    repository: "https://github.com/coollabsio/coolify",
-    format: CatalogFormat.COOLIFY,
-  },
-];
-
 /** A repository's address as it compares: lowercase, with no trailing slash or .git. */
-function repositoryKey(url: string): string {
+export function repositoryKey(url: string): string {
   return url
     .trim()
     .toLowerCase()
@@ -72,9 +39,9 @@ function repositoryKey(url: string): string {
  */
 export function sourceWords(source: CatalogSourceInfo): string {
   const repository = source.source?.repository ?? "";
-  const format = source.source?.format ?? CatalogFormat.UNSPECIFIED;
-  const preset = PRESETS.find((p) => p.format === format && repositoryKey(p.repository) === repositoryKey(repository));
-  if (preset) return preset.label;
+  // The control plane says which store a source reads, at the store's own repository alone (ADR 0083).
+  const store = storeLabel(source.store);
+  if (store) return store;
   try {
     const u = new URL(repositoryKey(repository));
     const parts = u.pathname.split("/").filter(Boolean);
@@ -110,6 +77,15 @@ const FORMATS: Readonly<Partial<Record<CatalogFormat, MessageDescriptor>>> = {
   [CatalogFormat.COOLIFY]: msg`Coolify's templates`,
 };
 
+/** Says another store's format in the reader's words, or nothing for one the panel has no words for. */
+export function useStoreFormatWords(): (format: CatalogFormat) => string | undefined {
+  const { i18n } = useLingui();
+  return (format) =>
+    format === CatalogFormat.UNSPECIFIED || format === CatalogFormat.DOCKWELL || !FORMATS[format]
+      ? undefined
+      : i18n._(FORMATS[format]);
+}
+
 /** Says a format in the reader's words. */
 export function useFormatWords(): (format: CatalogFormat) => string {
   const { i18n } = useLingui();
@@ -120,34 +96,6 @@ export function useFormatWords(): (format: CatalogFormat) => string {
 export function converted(source: CatalogSourceInfo): boolean {
   const format = source.source?.format ?? CatalogFormat.UNSPECIFIED;
   return format !== CatalogFormat.UNSPECIFIED && format !== CatalogFormat.DOCKWELL;
-}
-
-/**
- * The stores a person can add in one click: those no source reads yet. Each opens
- * the source form with its link filled in, and the plan follows from there.
- */
-export function SourcePresets({
-  sources,
-  off,
-  onPick,
-}: {
-  sources: readonly CatalogSourceInfo[];
-  /** Spread onto each button: off, with why, for whoever may not add a source. */
-  off: { off?: string; disabled?: true };
-  onPick: (preset: Preset) => void;
-}) {
-  const { t, i18n } = useLingui();
-  const left = PRESETS.filter((p) => !sources.some((s) => s.source?.repository === p.repository));
-  if (left.length === 0) return null;
-  return (
-    <fieldset className="sources-presets" aria-label={t`Add another store's apps`}>
-      {left.map((preset) => (
-        <Button key={preset.id} size="sm" icon="plus" {...off} onClick={() => onPick(preset)}>
-          {i18n._(preset.name)}
-        </Button>
-      ))}
-    </fieldset>
-  );
 }
 
 /**
@@ -210,24 +158,46 @@ const KINDS: Readonly<Record<string, MessageDescriptor>> = {
 };
 
 /**
- * What a source leaves out, one step away: by file for Dockwell's own entries, and
- * for another store's, counted by why, each kind opening to its apps and their
- * reasons, the most first.
+ * What would make the apps of a kind install, in a line, where it isn't plain from
+ * the kind itself: what Dockwell would have to do, never what a person should.
+ */
+const NEEDS: Readonly<Record<string, MessageDescriptor>> = {
+  scripts: msg`Install once Dockwell runs their setup steps itself`,
+  shipped: msg`Install once Dockwell carries their files along`,
+  "another-app": msg`Install once Dockwell connects them to a database`,
+  "no-version": msg`Install once Dockwell pins their moving tag by digest`,
+  arch: msg`Install once Dockwell offers them for amd64 servers`,
+  platform: msg`Install once Dockwell fills in what their store does`,
+  skipped: msg`Their store keeps them out of its own list`,
+};
+
+/** A group of what's left out: its kind, and the apps or files in it. */
+interface Group {
+  kind: string;
+  items: CatalogSourceRefusal[];
+}
+
+/**
+ * What a source leaves out, one step away: for another store's, counted by why, the
+ * most first, each kind with what would make it install, opening to its apps and the
+ * reason for each; for Dockwell's own entries, by file.
  */
 export function LeftOut({ refused }: { refused: readonly CatalogSourceRefusal[] }) {
   const { i18n } = useLingui();
   const groups = useMemo(() => {
     const out = new Map<string, CatalogSourceRefusal[]>();
     for (const r of refused) out.set(r.kind, [...(out.get(r.kind) ?? []), r]);
-    return [...out].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    return [...out]
+      .map(([kind, items]): Group => ({ kind, items }))
+      .sort((a, b) => b.items.length - a.items.length || a.kind.localeCompare(b.kind));
   }, [refused]);
   const left = refused.length;
   if (left === 0) return null;
-  if (groups.every(([kind]) => kind === "")) {
+  if (groups.every(({ kind }) => kind === "")) {
     return (
       <details className="sources-left">
         <summary>{plural(left, { one: "# file left out, and why", other: "# files left out, and why" })}</summary>
-        <ul>
+        <ul className="sources-left-list">
           {refused.map((r) => (
             // An image can be left out, and lost by the entry that names it: one file, two reasons.
             <li key={`${r.file}\n${r.reason}`}>
@@ -241,23 +211,28 @@ export function LeftOut({ refused }: { refused: readonly CatalogSourceRefusal[] 
   }
   return (
     <details className="sources-left">
-      <summary>{plural(left, { one: "# app left out, and why", other: "# apps left out, and why" })}</summary>
-      {groups.map(([kind, apps]) => (
-        <details key={kind} className="sources-left-kind">
-          <summary>
-            <span>{KINDS[kind] ? i18n._(KINDS[kind]) : kind || <Trans>Other reasons</Trans>}</span>
-            <span className="sources-left-count">{apps.length}</span>
-          </summary>
-          <ul>
-            {apps.map((r) => (
-              <li key={`${r.id}:${r.file}`}>
-                <code>{r.id || r.file}</code>
-                <span>{r.reason}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ))}
+      <summary>{plural(left, { one: "# app left out, by why", other: "# apps left out, by why" })}</summary>
+      <div className="sources-left-kinds">
+        {groups.map(({ kind, items }) => (
+          <details key={kind} className="sources-left-kind">
+            <summary>
+              <span className="sources-left-why">
+                <span>{KINDS[kind] ? i18n._(KINDS[kind]) : kind || <Trans>Other reasons</Trans>}</span>
+                {NEEDS[kind] ? <span className="sources-left-needs">{i18n._(NEEDS[kind])}</span> : null}
+              </span>
+              <span className="sources-left-count">{items.length}</span>
+            </summary>
+            <ul className="sources-left-list">
+              {items.map((r) => (
+                <li key={`${r.id}:${r.file}`}>
+                  <code title={r.file}>{r.id || r.file}</code>
+                  <span>{r.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
     </details>
   );
 }

@@ -4,6 +4,7 @@ import { clone, create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CatalogFormat,
+  CatalogSourceInfoSchema,
   ChangeSchema,
   ChangeState,
   CompanionSchema,
@@ -22,6 +23,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
@@ -1042,6 +1044,8 @@ describe("The same app in several catalogs", () => {
           {
             name: "coolify",
             source: { repository: "https://github.com/coollabsio/coolify", format: CatalogFormat.COOLIFY },
+            // The control plane says which store a source reads (ADR 0083).
+            store: "coolify",
             also: ["ghost"],
           },
         ],
@@ -1083,5 +1087,81 @@ describe("The same app in several catalogs", () => {
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked?.id).toBe("ghost");
     expect(asked?.catalog).toBe("coolify");
+  });
+});
+
+describe("A store's apps, in its own words", () => {
+  const STORE = "0123456789abcdef0123456789abcdef01234567";
+  const memo = create(EntrySchema, {
+    id: "memo-store",
+    name: "Memo",
+    summary: "A memo hub",
+    category: "notes",
+    version: "1.0",
+    icon: `/catalog-media/0123456789abcdef/${STORE}/memo-store.svg`,
+    readme: "## Introduction\n\n**Memo** keeps memos. See [the docs](https://example.com/docs).\n\n- Fast\n- Small",
+    translations: { "zh-CN": { summary: "备忘录中心", readme: "## 介绍\n\n**Memo** 保存备忘录。" } },
+  });
+  const onepanel = create(CatalogSourceInfoSchema, {
+    name: "onepanel",
+    store: "onepanel",
+    source: { repository: "https://github.com/1Panel-dev/appstore", format: CatalogFormat.ONEPANEL, commit: STORE },
+    entries: ["memo-store"],
+  });
+  const own = create(CatalogSourceInfoSchema, {
+    name: "dockwell",
+    own: true,
+    source: { repository: "https://github.com/Dockwell/catalog", path: "entries", commit: STORE },
+    entries: ["postgres"],
+  });
+  const stores = (): Api =>
+    api({
+      listCatalogEntries: () => ({ entries: [memo, postgres] }),
+      listCatalogSources: () => ({ sources: [own, onepanel] }),
+      getCatalogEntry: () => ({ entry: memo, project: "memo-store", catalogs: ["onepanel"] }),
+    });
+
+  it("narrows the catalog to one source, with the way back to every catalog", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt("/catalog?catalog=onepanel", stores());
+    await screen.findByText("From 1Panel");
+    expect(screen.getByText("1 app")).toBeVisible();
+    expect(document.querySelector('a.catalog-card[href^="/catalog/memo-store"]')).not.toBeNull();
+    expect(document.querySelector('a.catalog-card[href^="/catalog/postgres"]')).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Catalog" })).toHaveValue("onepanel");
+    await expectAccessible(container);
+    await user.click(screen.getByRole("button", { name: "Show every catalog" }));
+    await waitFor(() => expect(document.querySelector('a.catalog-card[href^="/catalog/postgres"]')).not.toBeNull());
+    await user.selectOptions(screen.getByRole("combobox", { name: "Catalog" }), "dockwell");
+    await screen.findByText("From Dockwell's own");
+    expect(document.querySelector('a.catalog-card[href^="/catalog/memo-store"]')).toBeNull();
+  });
+
+  it("shows the store's README on the app's page as text it can read, with its links opening safely", async () => {
+    renderAt("/catalog/memo-store", stores());
+    const about = (await screen.findByRole("heading", { name: "About Memo" })).closest("section") as HTMLElement;
+    expect(within(about).getByText("In 1Panel's words")).toBeVisible();
+    expect(within(about).getByRole("heading", { name: "Introduction", level: 3 })).toBeVisible();
+    expect(within(about).getByText("Memo", { selector: "strong" })).toBeVisible();
+    expect(within(about).getByRole("link", { name: "the docs" })).toHaveAttribute(
+      "rel",
+      "noreferrer noopener nofollow",
+    );
+    expect(
+      within(about)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["Fast", "Small"]);
+  });
+
+  it("reads in Chinese where the store writes it", async () => {
+    activateLocale("zh-CN");
+    try {
+      renderAt("/catalog/memo-store", stores());
+      expect(await screen.findByRole("heading", { name: "介绍", level: 3 })).toBeVisible();
+      expect(screen.getAllByText("备忘录中心").length).toBeGreaterThan(0);
+    } finally {
+      activateLocale("en");
+    }
   });
 });

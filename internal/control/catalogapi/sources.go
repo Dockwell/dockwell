@@ -26,6 +26,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/catalog/convert"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -75,6 +76,15 @@ type Sources struct {
 	read     map[string]sourceRead
 	unread   map[string]unread
 	fetching map[string]*fetching
+	// checking are the checks of sources' entries under way, by what they read, which
+	// a read of the same waits for, so readers at once share one check.
+	checking map[string]*checkingRead
+	// beforeCheck, where a test sets it, runs as a check starts, before it reads.
+	beforeCheck func()
+	// images are images as served, by what each file holds, and imageBytes what they
+	// come to (served).
+	images     map[[32]byte]servedImage
+	imageBytes int
 	// guessed are the layouts read of commits, by repository, folder and commit, as a
 	// form asks again and again of the one a person is typing, and detecting is the
 	// one read of a commit's folders that's made at a time for it.
@@ -83,6 +93,31 @@ type Sources struct {
 	// slot holds the one fetch the control plane makes at a time, as a pack's index
 	// and what's made of it take memory while it's read, and reads at once add up.
 	slot chan struct{}
+}
+
+// checkWait is the most checking a commit's entries may take, each read as an install
+// would read it, apart from whoever asked: a commit of a store's 2,000 apps checks in
+// well under it. A test shortens it.
+var checkWait = 3 * time.Minute
+
+// settled says why a check's read can't be kept, if it can't: the check ran out of
+// its time, cut, or an entry's Compose file wasn't read as the reader was busy.
+func settled(got sourceRead, cut error) error {
+	switch {
+	case cut != nil:
+		return fmt.Errorf("checking its entries took over %s, so Dockwell checks them again at the next read: %w", checkWait, cut)
+	case got.unsettled:
+		return errors.New("Dockwell was too busy reading other Compose files to check all of its apps, so it checks them again at the next read") //nolint:staticcheck // it starts with a name
+	}
+	return nil
+}
+
+// checkingRead is a check of a source's entries under way, which a read of the same
+// commit and IDs before it waits for.
+type checkingRead struct {
+	done chan struct{}
+	got  sourceRead
+	err  error
 }
 
 // fetching is a fetch under way, which a read of the same commit waits for.
@@ -157,6 +192,9 @@ type sourceRead struct {
 	// licence its repository says, for a source converted as it's read.
 	apps    int
 	license string
+	// unsettled says an entry's Compose file wasn't read for a reason of the server's
+	// (folder.Result.Unsettled), so the read is kept for nobody.
+	unsettled bool
 }
 
 // files returns a commit's files in a source's folder: as kept, or fetched and kept
@@ -260,7 +298,7 @@ func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *res
 	}
 	_, plan := s.folders(spec)
 	if converted(spec) {
-		out, err := s.convertOne(parent, spec)
+		out, images, err := s.convertOne(parent, spec)
 		if err != nil {
 			// Converted by an older converter, it still reads, until this one can.
 			if old, ok := s.staleKept(spec); ok {
@@ -274,8 +312,12 @@ func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *res
 				files.entries[name] = data
 			}
 		}
+		// Each logo is kept as folder.Prepare wrote it, which passed its checks.
+		for name := range images {
+			files.media[name] = nil
+		}
 		if plan != "" {
-			keep(plan, files, nil)
+			keep(plan, files, images)
 			s.prunePlans()
 		}
 		return files, nil
@@ -297,8 +339,14 @@ func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *res
 		if entryFile(name) {
 			files.entries[name] = data
 		} else if image, ok := mediaName(name); ok {
-			images[image] = data
-			_, files.media[image] = folder.Image(image, data)
+			// Kept as it's served: an SVG image as svgclean writes it anew. One that
+			// fails its checks is kept as it came, to say why each time it's read,
+			// and is never served.
+			prepared, err := folder.Prepare(image, data)
+			if files.media[image] = err; err != nil {
+				prepared = data
+			}
+			images[image] = prepared
 		}
 	}
 	if plan != "" {
@@ -538,6 +586,10 @@ func readKept(dir string) (commitFiles, error) {
 			return commitFiles{}, err
 		}
 		_, out.media[e.Name()] = folder.Image(e.Name(), head)
+		if folder.Vector(e.Name()) {
+			// An SVG image is told by the whole of it, as svgclean wrote it.
+			out.media[e.Name()] = vectorKept(filepath.Join(dir, folder.Media, e.Name()), e.Name())
+		}
 	}
 	return out, nil
 }
@@ -589,13 +641,17 @@ var readSnapshot = sync.OnceValues(func() (commitFiles, bool) {
 		if err != nil {
 			return commitFiles{}, false
 		}
-		head := make([]byte, folder.Sniffed)
-		n, err := io.ReadFull(f, head)
+		// A raster image is told by its first bytes, an SVG image by the whole of it.
+		most := int64(folder.Sniffed)
+		if folder.Vector(e.Name()) {
+			most = folder.MediaLimits.File
+		}
+		head, err := io.ReadAll(io.LimitReader(f, most))
 		_ = f.Close()
-		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		if err != nil {
 			return commitFiles{}, false
 		}
-		_, out.media[e.Name()] = folder.Image(e.Name(), head[:n])
+		_, out.media[e.Name()] = folder.Image(e.Name(), head)
 	}
 	return out, true
 })
@@ -612,6 +668,25 @@ var checkedSnapshot = sync.OnceValue(func() sourceRead {
 	files, _ := readSnapshot()
 	return checkFiles(context.Background(), DefaultName, snapshotSpec(), files, claims{}, true)
 })
+
+// vectorKept says whether an SVG image kept is one folder.Image takes, reading the
+// whole of it, within the most an image may be.
+func vectorKept(file, name string) error {
+	f, err := os.Open(file) //nolint:gosec // what this kept, under the control plane's own folder
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, folder.MediaLimits.File+1))
+	switch {
+	case err != nil:
+		return err
+	case int64(len(data)) > folder.MediaLimits.File:
+		return fmt.Errorf("it's over %d MiB, more than an image may be", folder.MediaLimits.File>>20)
+	}
+	_, err = folder.Image(name, data)
+	return err
+}
 
 // readHead reads the first bytes of a file, as many as folder.Image looks at.
 func readHead(file string) ([]byte, error) {
@@ -658,16 +733,59 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 		return sourceRead{}, err
 	}
 	s.forget(spec)
-	got = checkSource(ctx, name, spec, files, taken)
+	return s.check(ctx, key, name, spec, files, taken)
+}
+
+// check checks a source's entries once for every reader of the same commit and IDs
+// before it: a read that comes while one is under way waits for it, as reads of a
+// commit wait for its fetch. The check is every reader's, so one who leaves the page
+// doesn't cut it short, within checkWait of its own. A check cut short, or one where
+// an entry's Compose file wasn't read as the reader was busy, is kept for nobody, and
+// the next read checks again.
+func (s *Sources) check(ctx context.Context, key, name string, spec *resourcev1.CatalogSource, files commitFiles, taken claims) (sourceRead, error) {
 	s.mu.Lock()
-	// What's read is kept for each commit and the IDs before it, which moves as
-	// sources do, so it's let go of whole once it holds mostReads.
-	if s.read == nil || len(s.read) >= mostReads {
-		s.read = map[string]sourceRead{}
+	if got, ok := s.read[key]; ok {
+		s.mu.Unlock()
+		return got, nil
 	}
-	s.read[key] = got
+	if c, ok := s.checking[key]; ok {
+		s.mu.Unlock()
+		select {
+		case <-c.done:
+			return c.got, c.err
+		case <-ctx.Done():
+			return sourceRead{}, ctx.Err()
+		}
+	}
+	if s.checking == nil {
+		s.checking = map[string]*checkingRead{}
+	}
+	c := &checkingRead{done: make(chan struct{})}
+	s.checking[key] = c
+	hook := s.beforeCheck
 	s.mu.Unlock()
-	return got, nil
+	if hook != nil {
+		hook()
+	}
+	checking, done := context.WithTimeout(context.WithoutCancel(ctx), checkWait)
+	c.got = checkSource(checking, name, spec, files, taken)
+	if c.err = settled(c.got, checking.Err()); c.err != nil {
+		c.got = sourceRead{}
+	}
+	done()
+	s.mu.Lock()
+	delete(s.checking, key)
+	if c.err == nil {
+		// What's read is kept for each commit and the IDs before it, which moves as
+		// sources do, so it's let go of whole once it holds mostReads.
+		if s.read == nil || len(s.read) >= mostReads {
+			s.read = map[string]sourceRead{}
+		}
+		s.read[key] = c.got
+	}
+	s.mu.Unlock()
+	close(c.done)
+	return c.got, c.err
 }
 
 // checkSource checks each entry of a source as Dockwell's own are, through package
@@ -730,7 +848,7 @@ func checkFiles(ctx context.Context, name string, spec *resourcev1.CatalogSource
 			shot.Path = at(shot.GetPath())
 		}
 	}
-	out.entries, out.also = got.Entries, got.Also
+	out.entries, out.also, out.unsettled = got.Entries, got.Also, got.Unsettled
 	return out
 }
 
@@ -1308,7 +1426,7 @@ func (h *Handler) sourceInfos(ctx context.Context) ([]*dockwellv1.CatalogSourceI
 	reads, unread := s.reads, s.unread
 	var out []*dockwellv1.CatalogSourceInfo
 	for _, s := range list {
-		info := &dockwellv1.CatalogSourceInfo{Name: s.name, Source: s.spec, Own: isOwn(s.spec)}
+		info := &dockwellv1.CatalogSourceInfo{Name: s.name, Source: s.spec, Own: isOwn(s.spec), Store: storeOf(s.spec).ID}
 		if err := unread[s.name]; err != nil {
 			info.Unread = err.Error()
 		}
@@ -1319,6 +1437,53 @@ func (h *Handler) sourceInfos(ctx context.Context) ([]*dockwellv1.CatalogSourceI
 		out = append(out, info)
 	}
 	return out, nil
+}
+
+// storeOf is the store a source reads, at the store's own repository and in its
+// format, if it reads one.
+func storeOf(spec *resourcev1.CatalogSource) convert.Store {
+	known, ok := convert.StoreOf(formatOf(spec))
+	if !ok || !known.At(spec.GetRepository()) || spec.GetPath() != "" {
+		return convert.Store{}
+	}
+	return known
+}
+
+// ListCatalogStores lists the stores Dockwell reads directly, each with what this
+// build measured of it, or once a source reads it, what that source's read found,
+// and the source's name: the one with the most apps that install first.
+func (h *Handler) ListCatalogStores(ctx context.Context, _ *connect.Request[dockwellv1.ListCatalogStoresRequest]) (*connect.Response[dockwellv1.ListCatalogStoresResponse], error) {
+	list, err := h.storedSources(ctx)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	read, err := h.withSources(ctx, nil)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	var out []*dockwellv1.CatalogStore
+	for i := range convert.Stores {
+		st := &convert.Stores[i]
+		info := &dockwellv1.CatalogStore{
+			Id: st.ID, Name: st.Name, Label: st.Label, Repository: st.Upstream, Format: formatEnum(st.Format),
+			Branch: st.Branch, License: st.License, Homepage: st.Homepage,
+			Apps: st.Measured.Apps, Installs: st.Measured.Installs, Commit: st.Measured.Commit,
+		}
+		for _, src := range list {
+			if storeOf(src.spec).ID != st.ID {
+				continue
+			}
+			info.Source = src.name
+			if got, ok := read.reads[src.name]; ok && got.apps > 0 {
+				info.Apps, info.Installs = uint32(min(got.apps, convert.MaxApps)), uint32(min(len(got.entries)+len(got.also), convert.MaxApps))
+				info.Commit, info.Live = src.spec.GetCommit(), true
+			}
+			break
+		}
+		out = append(out, info)
+	}
+	slices.SortStableFunc(out, func(a, b *dockwellv1.CatalogStore) int { return cmp.Compare(b.GetInstalls(), a.GetInstalls()) })
+	return connect.NewResponse(&dockwellv1.ListCatalogStoresResponse{Stores: out}), nil
 }
 
 // mostRefs is how many branches and tags a listing answers with: a form offers

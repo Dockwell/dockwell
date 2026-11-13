@@ -20,6 +20,38 @@
   min-width: 220px;
 }
 
+.catalog-from-pick {
+  flex: 0 1 200px;
+  min-width: 160px;
+}
+
+/* The grid narrowed to one catalog: its mark and name, how many apps, and the way back to every catalog. */
+.catalog-from {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-4) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.catalog-from-words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-width: 0;
+}
+
+.catalog-from-words span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
 .catalog-chips {
   display: flex;
   flex-wrap: wrap;
@@ -92,6 +124,11 @@
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+/* A logo sits on the light tile it was drawn for, in both themes, as many draw in black (ADR 0083). */
+.catalog-icon.has-art {
+  background: var(--art-ground);
 }
 
 .catalog-icon img {
@@ -541,6 +578,130 @@
 
 .catalog-description p {
   margin: 0 0 var(--space-4);
+}
+
+/* A catalog's README, as the subset of Markdown the panel shows, in the page's own type (ADR 0083). */
+.catalog-readme {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 23px;
+  overflow-wrap: anywhere;
+}
+
+.catalog-readme > :first-child {
+  margin-top: 0;
+}
+
+.catalog-readme p,
+.catalog-readme ul,
+.catalog-readme ol,
+.catalog-readme blockquote,
+.catalog-readme pre,
+.catalog-readme .dw-markdown-table {
+  margin: 0 0 var(--space-4);
+}
+
+.catalog-readme h3,
+.catalog-readme h4 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.catalog-readme h4 {
+  font-size: 14px;
+}
+
+.catalog-readme ul,
+.catalog-readme ol {
+  padding-left: var(--space-5);
+}
+
+.catalog-readme li + li {
+  margin-top: var(--space-1);
+}
+
+.catalog-readme li > ul {
+  margin: var(--space-1) 0 0;
+}
+
+.catalog-readme strong {
+  font-weight: 600;
+}
+
+/* The interface never sets italics, so emphasis reads by weight. */
+.catalog-readme em {
+  font-style: normal;
+  font-weight: 550;
+}
+
+.catalog-readme code {
+  padding: 1px 4px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.catalog-readme pre {
+  overflow-x: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.catalog-readme pre code {
+  padding: 0;
+  background: none;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.catalog-readme blockquote {
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-muted);
+}
+
+.catalog-readme a {
+  color: var(--cobalt);
+}
+
+/* Where a link really goes, where its words name another host. */
+.catalog-readme .dw-markdown-host {
+  color: var(--ink-muted);
+}
+
+.catalog-readme a:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.catalog-readme .dw-markdown-table {
+  overflow-x: auto;
+}
+
+.catalog-readme table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.catalog-readme th,
+.catalog-readme td {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.catalog-readme th {
+  background: var(--surface-sunken);
+  font-weight: 550;
+}
+
+.catalog-words-from {
+  white-space: nowrap;
 }
 
 .catalog-features {

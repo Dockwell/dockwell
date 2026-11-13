@@ -6388,6 +6388,10 @@ msgstr "From the catalog {name}"
 msgid "Good to know"
 msgstr "Good to know"
 
+#. placeholder {0}: named(from.name)
+msgid "In {0}'s words"
+msgstr "In {0}'s words"
+
 msgid "Included in this install"
 msgstr "Included in this install"
 
@@ -6477,6 +6481,9 @@ msgstr "Couldn't read the catalog"
 msgid "Couldn't read the sources, so apps from them aren't marked"
 msgstr "Couldn't read the sources, so apps from them aren't marked"
 
+msgid "Every catalog"
+msgstr "Every catalog"
+
 msgid "Find an app for your server. Explore what it does before you install."
 msgstr "Find an app for your server. Explore what it does before you install."
 
@@ -6486,6 +6493,11 @@ msgstr "From the catalog {source}"
 #. placeholder {0}: list([source ?? "", ...also].filter(Boolean))
 msgid "From the catalogs {0}"
 msgstr "From the catalogs {0}"
+
+#. placeholder {0}: from[0]
+#. placeholder {0}: named(from.name)
+msgid "From {0}"
+msgstr "From {0}"
 
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "No app here has <0>{typed}</0> in its name or what it does."
@@ -6508,6 +6520,9 @@ msgstr "Search apps"
 msgid "Search every category"
 msgstr "Search every category"
 
+msgid "Show every catalog"
+msgstr "Show every catalog"
+
 msgid "Sources"
 msgstr "Sources"
 
@@ -6523,6 +6538,12 @@ msgstr "View app"
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "also in {0}"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: count.apps
+#. placeholder {0}: entries?.length ?? 0
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, one {# app} other {# apps}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, one {Installed} other {# installed}}"
@@ -6741,9 +6762,6 @@ msgstr "{name} {version}"
 msgid "1Panel's app store"
 msgstr "1Panel's app store"
 
-msgid "Add another store's apps"
-msgstr "Add another store's apps"
-
 msgid "Ask for a value Dockwell doesn't make yet"
 msgstr "Ask for a value Dockwell doesn't make yet"
 
@@ -6774,6 +6792,24 @@ msgstr "Have an ID a catalog before it has"
 msgid "Have files that can't be read"
 msgstr "Have files that can't be read"
 
+msgid "Install once Dockwell carries their files along"
+msgstr "Install once Dockwell carries their files along"
+
+msgid "Install once Dockwell connects them to a database"
+msgstr "Install once Dockwell connects them to a database"
+
+msgid "Install once Dockwell fills in what their store does"
+msgstr "Install once Dockwell fills in what their store does"
+
+msgid "Install once Dockwell offers them for amd64 servers"
+msgstr "Install once Dockwell offers them for amd64 servers"
+
+msgid "Install once Dockwell pins their moving tag by digest"
+msgstr "Install once Dockwell pins their moving tag by digest"
+
+msgid "Install once Dockwell runs their setup steps itself"
+msgstr "Install once Dockwell runs their setup steps itself"
+
 msgid "Marked by their store to leave out"
 msgstr "Marked by their store to leave out"
 
@@ -6798,26 +6834,27 @@ msgstr "Run scripts on the server"
 msgid "Ship files beside their Compose file"
 msgstr "Ship files beside their Compose file"
 
+msgid "Their store keeps them out of its own list"
+msgstr "Their store keeps them out of its own list"
+
 msgid "Use a value their store fills in"
 msgstr "Use a value their store fills in"
 
 msgid "Use another app's database"
 msgstr "Use another app's database"
 
-#. placeholder {0}: apps.length
-#. placeholder {0}: count.apps
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, one {# app} other {# apps}}"
-
-msgid "{left, plural, one {# app left out, and why} other {# apps left out, and why}}"
-msgstr "{left, plural, one {# app left out, and why} other {# apps left out, and why}}"
+msgid "{left, plural, one {# app left out, by why} other {# apps left out, by why}}"
+msgstr "{left, plural, one {# app left out, by why} other {# apps left out, by why}}"
 
 msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
 msgstr "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
 
 msgid "A source is already named {name}. Use another name."
 msgstr "A source is already named {name}. Use another name."
+
+msgctxt "catalog store"
+msgid "Add"
+msgstr "Add"
 
 msgid "Add Dockwell's catalog"
 msgstr "Add Dockwell's catalog"
@@ -6831,8 +6868,19 @@ msgstr "Add a source"
 msgid "Add another source"
 msgstr "Add another source"
 
+#. placeholder {0}: named(store)
+#. placeholder {0}: storeName(store)
+msgid "Add {0}"
+msgstr "Add {0}"
+
+msgid "An app store, or any public Git repository"
+msgstr "An app store, or any public Git repository"
+
 msgid "Another commit"
 msgstr "Another commit"
+
+msgid "App stores"
+msgstr "App stores"
 
 msgid "Apps from a public Git repository"
 msgstr "Apps from a public Git repository"
@@ -6840,6 +6888,12 @@ msgstr "Apps from a public Git repository"
 #. placeholder {0}: chosen.commit.slice(0, 12)
 msgid "At {0} now. It stays there until you move it."
 msgstr "At {0} now. It stays there until you move it."
+
+msgid "Browse the apps from {said}"
+msgstr "Browse the apps from {said}"
+
+msgid "Browse these apps"
+msgstr "Browse these apps"
 
 msgid "Can't be read now, so its apps are out of the catalog"
 msgstr "Can't be read now, so its apps are out of the catalog"
@@ -6889,9 +6943,6 @@ msgstr "Following {branch} · checked {0}"
 msgid "Its new commits come in on their own. What's installed stays as it is."
 msgstr "Its new commits come in on their own. What's installed stays as it is."
 
-msgid "Its top"
-msgstr "Its top"
-
 msgid "Move to another commit"
 msgstr "Move to another commit"
 
@@ -6903,6 +6954,9 @@ msgstr "No branch or tag is at this commit."
 
 msgid "No catalogs to install from"
 msgstr "No catalogs to install from"
+
+msgid "Or any public Git repository"
+msgstr "Or any public Git repository"
 
 msgctxt "catalog source"
 msgid "Pin here"
@@ -6917,10 +6971,6 @@ msgstr "Read. It has {count} or more branches and tags."
 
 msgid "Remove {said}"
 msgstr "Remove {said}"
-
-msgctxt "catalog source"
-msgid "Store"
-msgstr "Store"
 
 msgid "The catalogs Dockwell installs apps from"
 msgstr "The catalogs Dockwell installs apps from"
@@ -6940,6 +6990,10 @@ msgstr "Where its entries are. Empty is its top."
 msgid "its top"
 msgstr "its top"
 
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# catalog you read} other {# catalogs you read}}"
+msgstr "{0, plural, one {# catalog you read} other {# catalogs you read}}"
+
 #. placeholder {0}: at.join(", ")
 msgid "{0} is at this commit."
 msgstr "{0} is at this commit."
@@ -6952,6 +7006,36 @@ msgstr "{count, plural, one {Read. It has # branch or tag.} other {Read. It has 
 
 msgid "{short} (tag)"
 msgstr "{short} (tag)"
+
+msgctxt "catalog store"
+msgid "Added"
+msgstr "Added"
+
+msgid "As counted at {at}"
+msgstr "As counted at {at}"
+
+msgid "As read at {at}"
+msgstr "As read at {at}"
+
+msgctxt "catalog store"
+msgid "Go to it"
+msgstr "Go to it"
+
+#. placeholder {0}: store.label
+msgid "Go to {0}"
+msgstr "Go to {0}"
+
+#. placeholder {0}: store.apps
+#. placeholder {1}: store.installs
+#. placeholder {2}: store.installs
+msgid "{0, plural, one {About {1} of # app installs} other {About {2} of # apps install}}"
+msgstr "{0, plural, one {About {1} of # app installs} other {About {2} of # apps install}}"
+
+#. placeholder {0}: store.apps
+#. placeholder {1}: store.installs
+#. placeholder {2}: store.installs
+msgid "{0, plural, one {{1} of # app installs} other {{2} of # apps install}}"
+msgstr "{0, plural, one {{1} of # app installs} other {{2} of # apps install}}"
 
 msgid "Answers on this server alone, on port {port}, until it has a domain"
 msgstr "Answers on this server alone, on port {port}, until it has a domain"
@@ -7051,6 +7135,10 @@ msgstr "Networking"
 
 msgid "Notes"
 msgstr "Notes"
+
+msgctxt "catalog category"
+msgid "Other"
+msgstr "Other"
 
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
 msgstr "<0>{name}</0> has stopped on <1>{names}</1>"
@@ -15280,10 +15368,6 @@ msgstr "Downloading"
 
 msgid "Downloading the packages"
 msgstr "Downloading the packages"
-
-#. placeholder {0}: from[0]
-msgid "From {0}"
-msgstr "From {0}"
 
 #. placeholder {0}: from.length
 msgid "From {0} sources"

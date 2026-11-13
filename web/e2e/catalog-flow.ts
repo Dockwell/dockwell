@@ -5,7 +5,8 @@
 // a way to reach it, what to do first and where its secrets are. Then an app that
 // needs a token and reaches past its containers, and a newer release of an app, which
 // the panel says is out, through its plan and its undo. scripts/docker-e2e.sh runs
-// these apps on real Docker. Last, its sources: none, and one refused for its address.
+// these apps on real Docker. Last, its sources: Dockwell's own, the stores one click away, its apps filtered,
+// and a repository refused for its address.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -362,20 +363,50 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   step("catalog: its sources start with Dockwell's own, following main, which a test leaves where the build put it");
   await page.goto(`${origin}/catalog`);
   await page.getByRole("link", { name: "Sources", exact: true }).first().click();
-  const dockwells = page.locator("section.sources-panel", {
+  const dockwells = page.locator("section.source-card", {
     has: page.getByRole("heading", { name: "Dockwell's own" }),
   });
   await dockwells.getByTitle("From the catalog dockwell").waitFor();
   await dockwells.getByText("Following main").waitFor();
-  if ((await dockwells.locator(".sources-apps li").count()) < 30)
-    fail("Dockwell's own catalog shows fewer than 30 apps");
+  // A count and the way into the catalog, never a chip for each app (#568).
+  const count = Number((await dockwells.locator(".source-card-count").textContent())?.match(/\d+/)?.[0] ?? 0);
+  if (count < 30) fail(`Dockwell's own catalog shows ${count} apps, fewer than 30`);
+
+  // The stores Dockwell reads, each one click from its plan, which this flow doesn't open: a plan reads the network.
+  step("catalog: the stores Dockwell reads are listed with what each brings, each with Add");
+  const gallery = page.locator("section.store-gallery");
+  for (const store of ["1Panel's app store", "Dokploy's templates", "Coolify's templates"]) {
+    await gallery.getByRole("button", { name: `Add ${store}` }).waitFor();
+  }
+  if (
+    !(await gallery
+      .getByText(/^About \d+ of \d+ apps install$/)
+      .first()
+      .isVisible())
+  )
+    fail("a store doesn't say how many of its apps install");
   await shoot(page, "catalog-sources");
+
+  step("catalog: a source's apps open in the catalog, filtered to it, with the way back to every catalog");
+  await dockwells.getByRole("link", { name: "Browse the apps from Dockwell's own" }).click();
+  await page.getByText("From Dockwell's own").waitFor();
+  await page.locator("a.catalog-card").first().waitFor();
+  await shoot(page, "catalog-from-source");
+  await page.getByRole("button", { name: "Show every catalog" }).click();
+  await page.getByText("From Dockwell's own").waitFor({ state: "detached" });
+  await page.getByRole("link", { name: "Sources", exact: true }).first().click();
+  await dockwells.waitFor();
 
   // The form reads a repository as it's typed. An address of this server is refused
   // beside the field, before anything is asked of it, so this asks nothing of the network.
   step("catalog: a source's repository is checked as it's typed, and one that isn't public is refused, saying why");
   await page.getByRole("button", { name: "Add a source" }).click();
   const adding = page.getByRole("dialog", { name: "Add a catalog source" });
+  // The stores come first, one click each, then a link for anything else.
+  await adding
+    .getByRole("group", { name: "App stores" })
+    .getByRole("button", { name: "Add Coolify's templates" })
+    .waitFor();
   await adding.getByLabel("Repository").fill("https://127.0.0.1/catalog");
   await adding
     .locator("form")

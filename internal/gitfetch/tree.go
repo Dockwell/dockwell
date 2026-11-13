@@ -249,14 +249,28 @@ func cmpOr(a, b string) string {
 // over the limit of one is left out of what's returned, and named in big, so whoever
 // reads it can say why, file by file. Entries that are folders are ignored.
 func (s *Snapshot) Read(ctx context.Context, files []Entry) (out map[string][]byte, big []string, err error) {
+	return s.ReadWithin(ctx, files, ReadLimits{Files: s.lim.Files, File: s.lim.File, Total: s.lim.Total})
+}
+
+// ReadLimits bound one Read: how many files it asks for, how large each may be, and
+// all of them together.
+type ReadLimits struct {
+	Files       int
+	File, Total int64
+}
+
+// ReadWithin is Read within limits of its own, such as a catalog's images', which
+// count apart from the files an adapter reads. The pack it fetches is held to the
+// snapshot's Pack, as Read's is.
+func (s *Snapshot) ReadWithin(ctx context.Context, files []Entry, lim ReadLimits) (out map[string][]byte, big []string, err error) {
 	var wanted []Entry
 	for _, e := range files {
 		if !e.Dir {
 			wanted = append(wanted, e)
 		}
 	}
-	if len(wanted) > s.lim.Files {
-		return nil, nil, fmt.Errorf("it asks for %d files of the commit %s, more than the %d a source reads", len(wanted), s.Commit, s.lim.Files)
+	if len(wanted) > lim.Files {
+		return nil, nil, fmt.Errorf("it asks for %d files of the commit %s, more than the %d a source reads", len(wanted), s.Commit, lim.Files)
 	}
 	from := s.trees
 	if !s.whole {
@@ -284,7 +298,7 @@ func (s *Snapshot) Read(ctx context.Context, files []Entry) (out map[string][]by
 	for _, e := range wanted {
 		b, err := s.trees.object(e.sha, "blob", 0)
 		if err != nil {
-			b, err = from.object(e.sha, "blob", s.lim.File)
+			b, err = from.object(e.sha, "blob", lim.File)
 		}
 		var tb tooBig
 		switch {
@@ -294,8 +308,8 @@ func (s *Snapshot) Read(ctx context.Context, files []Entry) (out map[string][]by
 		case err != nil:
 			return nil, nil, fmt.Errorf("reading what %s sent: %w", s.u.Host, missing(err, e.Path))
 		}
-		if total += int64(len(b)); total > s.lim.Total {
-			return nil, nil, fmt.Errorf("the files read of the commit %s come to over %s, more than a source reads", s.Commit, sizeWords(s.lim.Total))
+		if total += int64(len(b)); total > lim.Total {
+			return nil, nil, fmt.Errorf("the files read of the commit %s come to over %s, more than a source reads", s.Commit, sizeWords(lim.Total))
 		}
 		out[e.Path] = b
 	}

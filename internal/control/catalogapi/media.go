@@ -4,6 +4,7 @@ package catalogapi
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"io"
 	"io/fs"
 	"net/http"
@@ -26,9 +27,9 @@ var (
 
 // Media serves an image of a source's commit from where the control plane keeps the
 // commits of the sources applied, never from a plan's, at MediaPath. An image is a
-// stranger's file, so it's served as what its first bytes say it is, a WebP, PNG or
-// JPEG image alone, which no browser may take for anything else, and as nothing a
-// browser would run if it's opened on its own. authorize refuses whoever may not read
+// stranger's file, so it's served as what its bytes say it is, a WebP, PNG or JPEG
+// image, or an SVG image as svgclean writes it anew, which no browser may take for
+// anything else, and as nothing a browser would run if it's opened on its own. authorize refuses whoever may not read
 // the catalog, as a request reaches the control plane with a session's cookie.
 func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +49,10 @@ func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		kind, err := folder.Image(image, data)
+		// An SVG image is served as svgclean writes it, whoever kept it, as the
+		// snapshot's are read as the build holds them: once a file, as what's kept of a
+		// commit never changes.
+		data, kind, err := s.served(image, data)
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -56,7 +60,17 @@ func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 		h := w.Header()
 		h.Set("Content-Type", kind)
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		if folder.Vector(image) {
+			// Drawn as an image, an SVG runs nothing and loads nothing. Opened on its
+			// own, it's a download, and were it shown, it would be a sandboxed page
+			// that runs no script and loads nothing but its own styles and the raster
+			// images written into it (ADR 0083).
+			h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
+			h.Set("Content-Disposition", "attachment")
+		} else {
+			h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		}
 		// The path names the commit, whose files never change.
 		h.Set("Cache-Control", "private, max-age=31536000, immutable")
 		http.ServeContent(w, r, "", at, bytes.NewReader(data))
@@ -93,4 +107,41 @@ func (s *Sources) readImage(key, commit, image string) ([]byte, time.Time, error
 		return nil, time.Time{}, os.ErrNotExist
 	}
 	return data, info.ModTime(), nil
+}
+
+// mostServed is how many bytes of images served the control plane keeps ready, let
+// go of whole past it: a commit's images are 32 MiB at most, and most are logos of a
+// few KiB.
+const mostServed = 16 << 20
+
+// servedImage is an image as it was served: its bytes and its type.
+type servedImage struct {
+	data []byte
+	kind string
+}
+
+// served is an image as folder.Served makes it, kept by what the file holds, so an
+// SVG image is cleaned once however often it's asked for. What's kept is by the
+// file's bytes, never its path, so a commit that's no longer kept still serves
+// nothing.
+func (s *Sources) served(name string, raw []byte) ([]byte, string, error) {
+	key := sha256.Sum256(append([]byte(name+"\x00"), raw...))
+	s.mu.Lock()
+	got, ok := s.images[key]
+	s.mu.Unlock()
+	if ok {
+		return got.data, got.kind, nil
+	}
+	data, kind, err := folder.Served(name, raw)
+	if err != nil {
+		return nil, "", err
+	}
+	s.mu.Lock()
+	if s.images == nil || s.imageBytes+len(data) > mostServed {
+		s.images, s.imageBytes = map[[32]byte]servedImage{}, 0
+	}
+	s.images[key] = servedImage{data: data, kind: kind}
+	s.imageBytes += len(data)
+	s.mu.Unlock()
+	return data, kind, nil
 }

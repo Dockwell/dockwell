@@ -66,6 +66,7 @@ CatalogService.ListCatalogEntries              read         viewer     viewer   
 CatalogService.ListCatalogInstalls             read         viewer     viewer     project
 CatalogService.ListCatalogSourceRefs           read         admin      admin      install
 CatalogService.ListCatalogSources              read         viewer     viewer     shared
+CatalogService.ListCatalogStores               read         viewer     viewer     shared
 CatalogService.RemoveCatalogSource             plan         admin      admin      install
 CatalogService.SetCatalogCompanion             plan         developer  developer  project
 CatalogService.SetCatalogSource                plan         admin      admin      install

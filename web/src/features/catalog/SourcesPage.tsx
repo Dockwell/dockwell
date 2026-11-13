@@ -3,13 +3,12 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { CatalogFormat, CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
+import { CatalogFormat, CatalogService, type CatalogSourceInfo, type CatalogStore, ChangeState } from "@dockwell/api";
 import {
   Button,
   Callout,
   cx,
   Icon,
-  Panel,
   PHONE_QUERY,
   SelectField,
   Sheet,
@@ -19,10 +18,10 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { RouterButtonLink } from "../../lib/links";
 import { onApple } from "../../lib/platform";
 import { useTickingNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
@@ -30,8 +29,10 @@ import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
-import { converted, FormatLine, LeftOut, PRESETS, SourcePresets, useFormatWords } from "./SourceFormats";
-import { useCatalog, useSourceNames, useSources } from "./useCatalog";
+import { AppIcon } from "./media";
+import { converted, FormatLine, LeftOut, repositoryKey, useFormatWords } from "./SourceFormats";
+import { StoreGallery, StoreMark, StoreTile, storeSourceName, useStoreName, useStores } from "./Stores";
+import { monogram, useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
 /**
@@ -63,8 +64,19 @@ export function SourcesPage() {
   const sources = useSources();
   const catalog = useCatalog();
   const [editing, setEditing] = useState<Editing>();
-  const names = useMemo(() => new Map((catalog.data?.entries ?? []).map((e) => [e.id, e.name])), [catalog.data]);
+  // Each app's name and icon, by its ID, for a source's few icons, whichever catalog lists it.
+  const icons = useMemo(() => {
+    const out = new Map<string, { name: string; icon: string }>();
+    for (const e of catalog.data?.entries ?? []) out.set(e.id, { name: e.name, icon: e.icon });
+    return out;
+  }, [catalog.data]);
   const list = sources.data?.sources;
+  // To a source's card, from the store that it reads, with its name read out as it lands.
+  const go = (name: string) => {
+    const card = document.getElementById(sourceAnchor(name));
+    card?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    card?.querySelector<HTMLElement>("h3")?.focus({ preventScroll: true });
+  };
   // A source decides what anyone can install, so adding, moving and removing one are an admin's.
   const may = useMay();
   const set = may(CatalogService.method.setCatalogSource, { install: true });
@@ -111,13 +123,6 @@ export function SourcesPage() {
           </Button>
         </div>
       ) : null}
-      {list?.length ? (
-        <SourcePresets
-          sources={list}
-          off={set.off}
-          onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
-        />
-      ) : null}
       {sources.error ? (
         <Callout
           tone="critical"
@@ -135,49 +140,55 @@ export function SourcesPage() {
           <Trans>Reading the sources</Trans>
         </p>
       ) : list.length === 0 ? (
-        <EmptyState
-          icon="branch"
-          title={<Trans>No catalogs to install from</Trans>}
-          action={
-            <>
-              <SourcePresets
-                sources={[]}
-                off={set.off}
-                onPick={(p) => setEditing({ repository: p.repository, path: "", format: p.format, suggested: p.id })}
-              />
-              <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={addOwn}>
-                <Trans>Add Dockwell's catalog</Trans>
-              </Button>
-              <Button size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
-                <Trans>Add another source</Trans>
-              </Button>
-            </>
-          }
-        >
-          <p>
-            <Trans>Dockwell's own apps, kept up to date, or any public Git repository.</Trans>
-          </p>
-        </EmptyState>
-      ) : (
-        list.map((source) => (
-          <SourcePanel
-            key={source.name}
-            source={source}
-            names={names}
-            moveOff={set.off}
-            removeOff={remove.off}
-            checkOff={check.off}
-            onRead={() => void sources.refetch()}
-            onMove={() =>
-              setEditing({
-                name: source.name,
-                repository: source.source?.repository ?? "",
-                path: source.source?.path ?? "",
-                follow: source.source?.follow ?? "",
-              })
+        <>
+          <EmptyState
+            icon="branch"
+            title={<Trans>No catalogs to install from</Trans>}
+            action={
+              <>
+                <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={addOwn}>
+                  <Trans>Add Dockwell's catalog</Trans>
+                </Button>
+                <Button size="lg" icon="plus" {...set.off} onClick={() => setEditing({})}>
+                  <Trans>Add another source</Trans>
+                </Button>
+              </>
             }
-          />
-        ))
+          >
+            <p>
+              <Trans>Dockwell's own apps, kept up to date, or any public Git repository.</Trans>
+            </p>
+          </EmptyState>
+          <StoreGallery sources={list} off={set.off} onGo={go} />
+        </>
+      ) : (
+        <>
+          <StoreGallery sources={list} off={set.off} onGo={go} />
+          <section className="sources-list" aria-labelledby="sources-list-heading">
+            <h2 id="sources-list-heading" className="sources-list-heading">
+              {plural(list.length, { one: "# catalog you read", other: "# catalogs you read" })}
+            </h2>
+            {list.map((source) => (
+              <SourceCard
+                key={source.name}
+                source={source}
+                icons={icons}
+                moveOff={set.off}
+                removeOff={remove.off}
+                checkOff={check.off}
+                onRead={() => void sources.refetch()}
+                onMove={() =>
+                  setEditing({
+                    name: source.name,
+                    repository: source.source?.repository ?? "",
+                    path: source.source?.path ?? "",
+                    follow: source.source?.follow ?? "",
+                  })
+                }
+              />
+            ))}
+          </section>
+        </>
       )}
       {editing ? (
         <SourceSheet
@@ -190,10 +201,23 @@ export function SourcesPage() {
   );
 }
 
-/** One source: where it reads from, the apps it gives, and what it leaves out. */
-function SourcePanel({
+/** Where a source's card is on the page, by the source's name. */
+function sourceAnchor(name: string): string {
+  return `source-${name}`;
+}
+
+/** How many of a source's apps its card shows the icons of, before the count. */
+const FEW = 6;
+
+/**
+ * One source, in a card that stays short however many apps it brings: what it is and
+ * where it reads, following and Check now, how many apps it brings with a few of their
+ * icons and the way into the catalog filtered to it, and what it leaves out, grouped
+ * by why, one step away.
+ */
+function SourceCard({
   source,
-  names,
+  icons,
   moveOff,
   removeOff,
   checkOff,
@@ -201,7 +225,7 @@ function SourcePanel({
   onMove,
 }: {
   source: CatalogSourceInfo;
-  names: ReadonlyMap<string, string>;
+  icons: ReadonlyMap<string, { name: string; icon: string }>;
   /** Spread onto Change, Pin, Check now and Remove: off, with why, for whoever may not. */
   moveOff: { off?: string; disabled?: true };
   removeOff: { off?: string; disabled?: true };
@@ -219,14 +243,56 @@ function SourcePanel({
   const commit = source.source?.commit ?? "";
   const path = source.source?.path ?? "";
   const follow = source.source?.follow ?? "";
-  const count = source.entries.length;
+  const repository = source.source?.repository ?? "";
   const formatWords = useFormatWords();
+  // Every app it brings, those listed from a catalog before it included, which it offers as another choice.
+  const apps = [...source.entries, ...source.also];
+  const count = apps.length;
+  const few = apps.filter((id) => icons.get(id)?.icon).slice(0, FEW);
+  // Where it reads, as its link writes it, without the scheme or a trailing .git.
+  const where =
+    repository
+      .trim()
+      .replace(/^https:\/\//, "")
+      .replace(/\/+$/, "")
+      .replace(/\.git$/, "") + (path ? `/${path}` : "");
+  const heading = `${sourceAnchor(name)}-heading`;
   return (
-    <Panel
-      title={<span title={t`From the catalog ${name}`}>{said}</span>}
-      className="sources-panel"
-      actions={
-        <>
+    <section className="dw-panel source-card" id={sourceAnchor(name)} aria-labelledby={heading}>
+      <div className="source-card-head">
+        {source.own ? (
+          <span className="store-mark has-art" aria-hidden="true">
+            <img src="/favicon.svg" alt="" width={40} height={40} />
+          </span>
+        ) : source.store ? (
+          <StoreMark id={source.store} name={said} />
+        ) : (
+          <span className="store-mark" aria-hidden="true">
+            {monogram(said)}
+          </span>
+        )}
+        <div className="source-card-title">
+          <h3 id={heading} tabIndex={-1} title={t`From the catalog ${name}`}>
+            {said}
+          </h3>
+          <p className="source-card-where">
+            <span title={repository}>{where}</span>
+            {converted(source) && !source.store ? (
+              <span>{formatWords(source.source?.format ?? CatalogFormat.UNSPECIFIED)}</span>
+            ) : null}
+            <span className="source-card-commit">
+              <code title={commit}>{commit.slice(0, 12)}</code>
+              <CopyButton
+                text={commit}
+                iconOnly
+                variant="ghost"
+                label={t`Copy the commit`}
+                copiedLabel={t`Commit copied`}
+              />
+            </span>
+          </p>
+        </div>
+        <div className="source-card-actions">
           <Button size="sm" variant="ghost" icon="branch" aria-label={t`Change ${said}`} {...moveOff} onClick={onMove}>
             <Trans context="catalog source">Change</Trans>
           </Button>
@@ -238,48 +304,8 @@ function SourcePanel({
             {...removeOff}
             onClick={() => sheet.open({ kind: "plan", make: () => client.removeCatalogSource({ name }) })}
           />
-        </>
-      }
-    >
-      <dl className="sources-facts">
-        <div>
-          <dt>
-            <Trans>Repository</Trans>
-          </dt>
-          <dd>
-            <code>{source.source?.repository}</code>
-          </dd>
         </div>
-        {converted(source) ? (
-          <div>
-            <dt>
-              <Trans context="catalog source">Store</Trans>
-            </dt>
-            <dd>{formatWords(source.source?.format ?? CatalogFormat.UNSPECIFIED)}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>
-            <Trans>Folder</Trans>
-          </dt>
-          <dd>{path === "" ? <Trans>Its top</Trans> : <code>{path}</code>}</dd>
-        </div>
-        <div>
-          <dt>
-            <Trans>Commit</Trans>
-          </dt>
-          <dd className="sources-commit">
-            <code title={commit}>{commit.slice(0, 12)}</code>
-            <CopyButton
-              text={commit}
-              iconOnly
-              variant="ghost"
-              label={t`Copy the commit`}
-              copiedLabel={t`Commit copied`}
-            />
-          </dd>
-        </div>
-      </dl>
+      </div>
       {follow !== "" ? (
         <FollowLine
           source={source}
@@ -293,14 +319,7 @@ function SourcePanel({
           onPin={() =>
             sheet.open({
               kind: "plan",
-              make: () =>
-                client.setCatalogSource({
-                  name,
-                  repository: source.source?.repository ?? "",
-                  path,
-                  commit,
-                  follow: "",
-                }),
+              make: () => client.setCatalogSource({ name, repository, path, commit, follow: "" }),
             })
           }
         />
@@ -319,24 +338,34 @@ function SourcePanel({
         </Callout>
       ) : (
         <>
-          <h3 className="sources-heading">
-            {plural(count, { 0: "No apps from here", one: "# app from here", other: "# apps from here" })}
-          </h3>
-          {count > 0 ? (
-            <ul className="sources-apps">
-              {source.entries.map((id) => (
-                <li key={id}>
-                  <Link to="/catalog/$entryId" params={{ entryId: id }} className="sources-app">
-                    {names.get(id) ?? id}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <div className="source-card-apps">
+            {few.length > 0 ? (
+              <span className="source-card-icons" aria-hidden="true">
+                {few.map((id) => (
+                  <AppIcon key={id} name={icons.get(id)?.name ?? id} path={icons.get(id)?.icon ?? ""} />
+                ))}
+              </span>
+            ) : null}
+            <span className="source-card-count">
+              {plural(count, { 0: "No apps from here", one: "# app from here", other: "# apps from here" })}
+            </span>
+            {count > 0 ? (
+              <RouterButtonLink
+                to="/catalog"
+                search={{ catalog: name }}
+                size="sm"
+                variant="secondary"
+                icon="arrow-right"
+                aria-label={t`Browse the apps from ${said}`}
+              >
+                <Trans>Browse these apps</Trans>
+              </RouterButtonLink>
+            ) : null}
+          </div>
           <LeftOut refused={source.refused} />
         </>
       )}
-    </Panel>
+    </section>
   );
 }
 
@@ -526,9 +555,11 @@ export function SourceSheet({
   // How its default branch reads, as Dockwell tells from its folders: a fact, or a choice where it can't tell.
   const guesses = askable ? (refs.data?.formats ?? []) : [];
   const guess = guesses.find((g) => g.format === format) ?? (guesses.length === 1 ? guesses[0] : undefined);
-  // A preset's name, or the one a store's own link would get from its preset, before one made from the link.
-  const presetName = editing.suggested ?? PRESETS.find((p) => p.repository === url.replace(/\/+$/, ""))?.id;
-  const suggested = presetName && !taken.includes(presetName) ? presetName : undefined;
+  // A store's own link is named by the store's ID, before one made from the link.
+  const stores = useStores().data?.stores ?? [];
+  const storeName = useStoreName();
+  const storeID = editing.suggested ?? stores.find((s) => repositoryKey(s.repository) === repositoryKey(url))?.id;
+  const suggested = storeID && !taken.includes(storeID) ? storeID : undefined;
   const name = named ?? suggested ?? nameFor(url, taken);
   // The repository's default branch, unless another is chosen; main or master where it names none.
   const head = askable ? (refs.data?.head ?? "") : "";
@@ -619,6 +650,32 @@ export function SourceSheet({
     setPlan(opening);
   };
 
+  // A store, picked in the sheet: its plan, at once, over the sheet, which Cancel comes back to.
+  const addStore = (store: CatalogStore) => {
+    if (current.current) return;
+    const opening: Opening = {
+      kind: "plan",
+      make: () =>
+        client.setCatalogSource({
+          name: storeSourceName(store, taken),
+          repository: store.repository,
+          path: "",
+          follow: store.branch,
+          format: store.format,
+        }),
+      onDone: close,
+      onClose: (after) => {
+        current.current = undefined;
+        if (!after || after.state === ChangeState.PLANNED || after.state === ChangeState.DISCARDED) setPlan(undefined);
+        else close();
+      },
+    };
+    current.current = opening;
+    setPlan(opening);
+  };
+  // The stores come first in a new, empty form: one click each, and a link for anything else.
+  const picking = !moving && editing.repository === undefined && url === "" && stores.length > 0;
+
   // Once the branches are in, a press that waited for them goes on: with the branch chosen, or to the commit field.
   // biome-ignore lint/correctness/useExhaustiveDependencies: submit reads the state this runs on, and is new each render
   useEffect(() => {
@@ -645,7 +702,7 @@ export function SourceSheet({
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={first}
       title={moving ? t`Change ${movingWords}` : t`Add a catalog source`}
-      subtitle={t`Apps from a public Git repository`}
+      subtitle={picking ? t`An app store, or any public Git repository` : t`Apps from a public Git repository`}
       onClose={close}
       className={cx("sources-sheet", phone && "is-phone")}
       footer={
@@ -678,6 +735,40 @@ export function SourceSheet({
       >
         <button type="submit" hidden />
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
+        {picking ? (
+          <fieldset className="sources-pick">
+            <legend>
+              <Trans>App stores</Trans>
+            </legend>
+            <ul className="sources-pick-list">
+              {stores.map((store) => (
+                <StoreTile
+                  key={store.id}
+                  store={store}
+                  small
+                  // An added store says so in its line; the page's card is the way to it.
+                  action={
+                    store.source ? undefined : (
+                      <Button
+                        size="sm"
+                        icon="plus"
+                        aria-label={t`Add ${storeName(store)}`}
+                        onClick={() => addStore(store)}
+                      >
+                        <Trans context="catalog store">Add</Trans>
+                      </Button>
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          </fieldset>
+        ) : null}
+        {picking ? (
+          <p className="sources-or">
+            <Trans>Or any public Git repository</Trans>
+          </p>
+        ) : null}
         <TextField
           ref={first}
           label={t`Repository`}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { CatalogInstall, Entry } from "@dockwell/api";
-import { Button, Callout, cx, Icon, TextField } from "@dockwell/ui";
+import type { CatalogInstall, CatalogSourceInfo, Entry } from "@dockwell/api";
+import { Button, Callout, cx, Icon, SelectField, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -12,13 +12,17 @@ import { RouterButtonLink } from "../../lib/links";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
+import { StoreMark } from "./Stores";
 import type { CatalogSearch } from "./search";
 import {
   categoryLabel,
+  type EntryWords,
   installOf,
+  monogram,
   stranger,
   useAlso,
   useCatalog,
+  useEntryWords,
   useInstalls,
   useOrigins,
   useSourceNames,
@@ -49,7 +53,23 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
     void origins.refetch();
   };
   const installs = useInstalls().data?.installs;
-  const entries = catalog.data?.entries;
+  const said = useEntryWords();
+  const sources = origins.data?.sources ?? [];
+  // The catalog the grid is narrowed to, by its source's name, as a source's card links to it.
+  const from = search.catalog ? sources.find((source) => source.name === search.catalog) : undefined;
+  // Each app as the chosen catalog has it, where it isn't the one the app is listed from.
+  const theirs = useMemo(() => {
+    const out = new Map<string, Entry>();
+    for (const a of catalog.data?.also ?? []) if (a.catalog === from?.name && a.entry) out.set(a.id, a.entry);
+    return out;
+  }, [catalog.data, from]);
+  const entries = useMemo(() => {
+    const all = catalog.data?.entries;
+    if (!all || !from) return all;
+    return all
+      .filter((e) => origins.origins.get(e.id)?.name === from.name || theirs.has(e.id))
+      .map((e) => theirs.get(e.id) ?? e);
+  }, [catalog.data, from, origins.origins, theirs]);
   const words = (category: string) => {
     const label = categoryLabel(category);
     return typeof label === "string" ? label : i18n._(label);
@@ -81,11 +101,11 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
   }, [measure]);
   const query = (search.q ?? "").trim().toLowerCase();
   const shown = (entries ?? []).filter(
-    (e) => (!search.category || e.category === search.category) && matches(e, query, words),
+    (e) => (!search.category || e.category === search.category) && matches(e, said(e), query, words),
   );
   const typed = (search.q ?? "").trim();
   // Whether the words find an app in a category other than the chosen one.
-  const elsewhere = (entries ?? []).some((e) => e.category !== search.category && matches(e, query, words));
+  const elsewhere = (entries ?? []).some((e) => e.category !== search.category && matches(e, said(e), query, words));
   const count = new Set((installs ?? []).map((install) => install.project)).size;
   return (
     <Page
@@ -148,6 +168,21 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               onChange={(event) => onSearch?.({ ...search, q: event.target.value })}
             />
           </div>
+          {sources.length > 1 ? (
+            <div className="catalog-from-pick">
+              <SelectField
+                aria-label={t`Catalog`}
+                value={from?.name ?? ""}
+                options={[
+                  { value: "", label: t`Every catalog` },
+                  ...sources.map((source) => ({ value: source.name, label: named(source.name) })),
+                ]}
+                onChange={(event) =>
+                  onSearch?.({ ...search, catalog: event.target.value || undefined, category: undefined })
+                }
+              />
+            </div>
+          ) : null}
           {categories.length > 1 ? (
             <fieldset
               ref={chips}
@@ -170,6 +205,23 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
             </fieldset>
           ) : null}
         </div>
+        {from ? (
+          <div className="catalog-from">
+            <SourceMark source={from} said={named(from.name)} />
+            <span className="catalog-from-words">
+              <strong>{t`From ${named(from.name)}`}</strong>
+              <span>{plural(entries?.length ?? 0, { one: "# app", other: "# apps" })}</span>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="x"
+              onClick={() => onSearch?.({ ...search, catalog: undefined, category: undefined })}
+            >
+              <Trans>Show every catalog</Trans>
+            </Button>
+          </div>
+        ) : null}
         {catalog.error ? null : !entries || (!origins.data && !origins.error) ? (
           <p className="catalog-note" aria-busy="true">
             <Trans>Reading the catalog</Trans>
@@ -203,10 +255,18 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
               <Card
                 key={entry.id}
                 entry={entry}
+                words={said(entry)}
                 category={words(entry.category)}
                 search={search}
-                source={stranger(origins.origins, entry.id)?.name}
-                also={also.get(entry.id)}
+                source={from ? (from.own ? undefined : from.name) : stranger(origins.origins, entry.id)?.name}
+                also={
+                  // Narrowed to one catalog, the others that have the app, the one it's listed from among them.
+                  from
+                    ? [origins.origins.get(entry.id)?.name ?? "", ...(also.get(entry.id) ?? [])].filter(
+                        (name) => name !== from.name,
+                      )
+                    : also.get(entry.id)
+                }
                 named={named}
                 installs={(installs ?? []).filter((i) => installOf(i, entry.id, origins.origins, origins.also))}
               />
@@ -247,8 +307,26 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /** One app: its own logo, what it does, its version and any existing installations. */
+/** A catalog's mark: Dockwell's own, a store's, or its initials. */
+function SourceMark({ source, said }: { source: CatalogSourceInfo; said: string }) {
+  if (source.own) {
+    return (
+      <span className="store-mark has-art is-small" aria-hidden="true">
+        <img src="/favicon.svg" alt="" width={32} height={32} />
+      </span>
+    );
+  }
+  if (source.store) return <StoreMark id={source.store} name={said} size={32} />;
+  return (
+    <span className="store-mark is-small" aria-hidden="true">
+      {monogram(said)}
+    </span>
+  );
+}
+
 function Card({
   entry,
+  words,
   category,
   source,
   also,
@@ -257,6 +335,8 @@ function Card({
   search,
 }: {
   entry: Entry;
+  /** What it says, in the reader's language where its catalog writes it there. */
+  words: EntryWords;
   /** Its category, in words, under its name as Catalog has it. */
   category: string;
   /** The catalog source it comes from, if it isn't Dockwell's own. */
@@ -292,7 +372,7 @@ function Card({
           </span>
         ) : null}
       </span>
-      <span className="catalog-card-summary">{entry.summary}</span>
+      <span className="catalog-card-summary">{words.summary}</span>
       <span className="catalog-card-foot">
         <span className="catalog-card-about">
           <code>{entry.version}</code>
@@ -327,10 +407,15 @@ function Card({
   );
 }
 
-/** Whether an entry has the words, lowercased, in its name, what it does, its category or its features. */
-function matches(e: Entry, query: string, words: (category: string) => string): boolean {
+/**
+ * Whether an entry has the words, lowercased, in its name, what it does in its own
+ * language or the reader's, its category or its features.
+ */
+function matches(e: Entry, said: EntryWords, query: string, words: (category: string) => string): boolean {
   return (
     query === "" ||
-    `${e.name} ${e.summary} ${e.category} ${words(e.category)} ${e.features.join(" ")}`.toLowerCase().includes(query)
+    `${e.name} ${e.summary} ${said.summary} ${e.category} ${words(e.category)} ${e.features.join(" ")}`
+      .toLowerCase()
+      .includes(query)
   );
 }

@@ -2,6 +2,7 @@
 # slogan: A stand-in app for the converter's tests.
 # category: productivity
 # tags: board
+# logo: svgs/board.svg
 # port: 8080
 
 services:
