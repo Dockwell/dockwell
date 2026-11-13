@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
+	"slices"
 	"strings"
+	"sync"
 
 	"connectrpc.com/connect"
 
@@ -20,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/revision"
 )
 
@@ -33,11 +37,14 @@ type panel struct {
 	proxy string
 	// known is the version this import was written from.
 	known string
+	// autoDeploy and basicAuth are its settings for deploying on a push and for a
+	// password in front of an app, as its own screens name them.
+	autoDeploy, basicAuth string
 }
 
 var panels = map[dockwellv1.PanelKind]panel{
-	dockwellv1.PanelKind_PANEL_KIND_COOLIFY: {name: "Coolify", from: "coolify", proxy: "coolify-proxy", known: "4.7"},
-	dockwellv1.PanelKind_PANEL_KIND_DOKPLOY: {name: "Dokploy", from: "dokploy", proxy: "dokploy-traefik", known: "0.31"},
+	dockwellv1.PanelKind_PANEL_KIND_COOLIFY: {name: "Coolify", from: "coolify", proxy: "coolify-proxy", known: "4.7", autoDeploy: "Auto deploy", basicAuth: "HTTP Basic Authentication"},
+	dockwellv1.PanelKind_PANEL_KIND_DOKPLOY: {name: "Dokploy", from: "dokploy", proxy: "dokploy-traefik", known: "0.31", autoDeploy: "Autodeploy", basicAuth: "basic auth"},
 }
 
 // ImportCoolify reads what Coolify runs on a server, and says what an import would
@@ -79,6 +86,10 @@ func (h *Handler) importPanel(ctx context.Context, server string, skipPlan bool,
 	if !ok {
 		return nil, authapi.ReasonError(connect.CodeUnavailable,
 			fmt.Errorf("%s's agent isn't connected, so Dockwell can't read what %s runs there. Try again once it reconnects", srv.GetName(), w.name), "server_offline")
+	}
+	if !session.ReadsPanels() && !session.Forwards() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent doesn't reach Docker, so it can't read what %s runs, which it reads from Docker. Check that Docker runs on %s, then try again", srv.GetName(), w.name, srv.GetName()), "no_docker")
 	}
 	if !session.ReadsPanels() {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
@@ -224,6 +235,76 @@ func domainsReason(w panel, a *dockwellv1.PanelApp) string {
 	}
 }
 
+// credentialFix says how to take on an app whose labels hold a credential, which
+// a plan would show: a panel puts a password hash on what it runs where its basic
+// auth is on, so turning that off clears it. "" where none does.
+func credentialFix(w panel, a *dockwellv1.PanelApp, refusals []string) string {
+	var labels []string
+	for _, r := range refusals {
+		if strings.Contains(r, container.CredentialIn) {
+			labels = append(labels, r)
+		}
+	}
+	switch {
+	case len(labels) == 0:
+		return ""
+	case slices.ContainsFunc(labels, func(r string) bool { return basicAuth().MatchString(r) }):
+		return fmt.Sprintf("Turn off %s for %s in %s first, then import again.", w.basicAuth, a.GetName(), w.name)
+	default:
+		return fmt.Sprintf("Take that label off %s in %s first, then import again.", a.GetName(), w.name)
+	}
+}
+
+// basicAuth is a proxy's basic auth in a label's key, as credentialFix reads one.
+var basicAuth = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`(?i)(basic|digest)_?auth`) })
+
+// autoDeploy says what to do before taking on an app the panel deploys from Git:
+// both panels deploy again on a push by default, which replaces what was taken on
+// or starts a second copy beside it. "" for one that isn't.
+func autoDeploy(w panel, a *dockwellv1.PanelApp) string {
+	if !a.GetFromGit() {
+		return ""
+	}
+	return fmt.Sprintf("Turn off %s for %s in %s before you apply, or a push to its repository can replace it or start a second copy", w.autoDeploy, a.GetName(), w.name)
+}
+
+// asRoot says what of an app's reach is as good as root on its server, in a few
+// words, such as "With Docker's socket, it's as good as root on web-1", or "".
+// The plan says it in full, and asks for a passkey; a step says it first.
+func asRoot(edits []*dockwellv1.Edit, server string) string {
+	var with []string
+	for _, e := range edits {
+		reach := container.ServiceAccess(e.GetSpec().GetService().GetApp())
+		for i := range reach {
+			a := &reach[i]
+			if !a.AsGoodAsRoot() {
+				continue
+			}
+			switch a.Kind {
+			case resource.AccessDocker:
+				with = append(with, "Docker's socket")
+			case resource.AccessNetwork, resource.AccessNetworkDriver:
+				with = append(with, "the server's own network")
+			case resource.AccessPrivileged:
+				with = append(with, "privileged mode")
+			case resource.AccessPath:
+				with = append(with, "the server path "+a.Path)
+			case resource.AccessCapability:
+				with = append(with, "the capability "+a.Path)
+			case resource.AccessGroup:
+				with = append(with, "the group "+a.Path)
+			default:
+				with = append(with, resource.AccessWords(*a))
+			}
+		}
+	}
+	if len(with) == 0 {
+		return ""
+	}
+	slices.Sort(with)
+	return fmt.Sprintf("With %s, it's as good as root on %s", human.List(slices.Compact(with)), server)
+}
+
 // planPanel reads what taking on each app that runs as a Compose project would be,
 // and plans the ones nothing stands in the way of, in one change, as plan does for
 // 1Panel's. Without propose, each step says what the plan would do, and nothing is
@@ -276,13 +357,14 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 			leave(step, sentences([]string{message(err)})+fmt.Sprintf(" It stays as it is, in %s.", w.name))
 			continue
 		case len(t.Refusals) > 0:
-			leave(step, sentences(actionable(t.Refusals))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with.", w.name))
+			leave(step, strings.TrimSpace(sentences(actionable(t.Refusals))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with. ", w.name)+credentialFix(w, a, t.Refusals)))
 			continue
 		}
 		step.Becomes = fmt.Sprintf("the project %s, taken on as it runs, with no restart, its volumes where they are", t.Project)
 		if t.Project != want {
 			step.Becomes += fmt.Sprintf(", as Dockwell has a project %s already", want)
 		}
+		step.Reason = sentences([]string{asRoot(t.Edits, srv.GetName()), autoDeploy(w, a), step.GetReason()})
 		takings = append(takings, t)
 		taken = append(taken, step.GetName())
 	}

@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-11-13
+- Amended: 2026-11-13, after the security review of #608: a label that holds a credential is refused for every take-on; auto deploy, root access and Coolify's backups said in each step and note; folder words and Traefik's file checked as they're read; stopping the panel comes next
 
 ## Context
 
@@ -41,7 +42,8 @@ What it runs carries `dokploy.project`, `dokploy.environment` and `dokploy.appli
 One agent call, `ReadPanel`, reads what a panel runs, for Coolify or Dokploy, and returns what was found with nothing secret in it. The control plane decides what Dockwell would do with each.
 
 - **It reads Docker and the panel's folders, never its database or its API.** Everything the import needs is in what Docker runs, the labels the panel gave it, and the files in its folders: names, kinds, Compose projects, domains, and which containers are the panel's own. So no password to the panel's database is read, nothing is asked of its API, and a person gives no token. What only the panel's database knows, such as which of its templates a service came from, a Git source's branch, or its scheduled tasks and backups, is said to stay with the panel, and reading it waits for a step of its own (below).
-- **Read-only.** Docker is listed and inspected, and the panel's files are read from fixed paths under its folder, refused where their last part is a link, as ADR 0056 reads 1Panel's.
+- **Read-only.** Docker is listed and inspected, and the panel's files are read from fixed paths under its folder, refused where their last part is a link, as ADR 0056 reads 1Panel's. A folder is named only from plain words of a label, `^[a-z0-9-]+$`, and only under the panel's folder, as anyone who runs a container can write its labels. Dokploy's Traefik file opens with `O_NOFOLLOW|O_NONBLOCK` and is read only where the open file is a regular one, so a link is never followed and a pipe never waited on.
+- **An agent with no Docker reads no panel,** and the import says to check Docker there rather than to update the agent.
 - **What it sends is what a plan shows.** Names, kinds, Compose projects, container names, images, domains and paths. Never an app's environment, a label's value beyond a domain, or a file's contents. The values taking something on needs travel later, sealed, with the plan that takes it on, as ADR 0031 says.
 - **Versions.** It's written from Coolify 4.7 and Dokploy 0.31. Another version is read the same way, by labels and folders, and the answer says it wasn't one read for this record.
 
@@ -53,6 +55,10 @@ As in ADR 0056: every import is a plan a person reviews and applies; one thing t
 
 - **Each of Coolify's applications, services and databases.** A service's containers come as one project, its services named as Coolify named them. An application built from Git keeps the image Coolify built on the server; building it again from Git in Dockwell is set up from the app's page, as for any app.
 - **Each of Dokploy's Compose apps of the type `docker-compose`.**
+- **A label that holds a credential is refused, for every take-on.** A plan shows a container's labels as they are, and a panel's basic auth puts each user's password hash on its proxy's labels: Traefik's `basicauth.users` and `digestauth.users`, Caddy's `basic_auth` and `basicauth`. So a label counts as shown, as a value of the environment elsewhere in a spec does (ADR 0031), by its key (those, an `Authorization` header, or a key named for a token, secret, password or key) or by its value (a crypt, bcrypt, Argon2 or htpasswd SHA hash, a `Bearer` or `Basic` header value, or a token in its issuer's form). The agent says so, and the control plane looks again, for an agent from before. The refusal names the label and never its value, and an import's step says how: turn off Coolify's HTTP Basic Authentication, or Dokploy's basic auth, then import again. A sealed form for such a label, as an environment's values have, would let one come as it is, and is a step of its own.
+- **What deploys again on a push says so.** Coolify's Auto deploy and Dokploy's Autodeploy are on by default, and a push then replaces what was taken on or starts a second copy on its volumes. The agent reads which app comes from Git by what the panel leaves: an image Coolify tagged with a commit, or built with docker compose under the app's project, or an app of more than one container; a Git checkout in Dokploy's code folder. Each such step says to turn it off before applying, and so does the plan's note. Stopping the panel (below) ends it for every app at once.
+- **What is as good as root says so first.** A step whose app reaches Docker's socket, the server's own network, a system path or privileged mode says it, such as "With Docker's socket, it's as good as root on web-1", before the plan asks for a passkey.
+- **Coolify's backups of a database stop** at Dockwell's first image change, as they run in its container by name. The plan's note says so, and to back it up with Dockwell's backups.
 - **Their volumes stay where they are,** named volumes by name and folders by path, as taking on never moves data. A plan's note says what the panel's delete would do to them: Coolify's removes the resource's volumes unless that box is cleared, and its folder; Dokploy's runs `docker compose down`, with `--volumes` when that box is ticked, and removes the app's folder. So neither is deleted in the panel.
 
 **Left as it is, with the reason:**
@@ -65,7 +71,7 @@ As in ADR 0056: every import is a plan a person reviews and applies; one thing t
 
 ### Stopping the panel after
 
-Once its apps are taken on, the panel goes on running beside Dockwell until a person stops it. A later step gives that one step: a change that stops the panel's own containers, Coolify's six or Dokploy's three services and its proxy, planned as an action on the server's host is ([ADR 0082](0082-acting-on-a-servers-system-services.md)), with no revision, whose undo starts them again. Nothing of the panel is deleted: its database and folders stay, so starting it again brings it back as it was.
+Once its apps are taken on, the panel goes on running beside Dockwell until a person stops it. The next step, brought ahead of the screen and the domains after the security review, gives that one step, as stopping the panel also ends its auto deploys and its scheduled tasks: a change that stops the panel's own containers, Coolify's six or Dokploy's three services and its proxy, planned as an action on the server's host is ([ADR 0082](0082-acting-on-a-servers-system-services.md)), with no revision, whose undo starts them again. Nothing of the panel is deleted: its database and folders stay, so starting it again brings it back as it was.
 
 ### A token, where one is needed
 

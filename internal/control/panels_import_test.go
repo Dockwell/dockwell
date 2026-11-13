@@ -3,6 +3,7 @@
 package control
 
 import (
+	"cmp"
 	"maps"
 	"net/http"
 	"os"
@@ -12,7 +13,9 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -70,25 +73,34 @@ func TestImportingFromCoolifyTakesOnWhatRuns(t *testing.T) {
 			}
 		})
 	}
+	image := map[string]string{}
 	coolify := func(uuid, kind, name, service, container string, more map[string]string) string {
 		return composeContainer(t, e, uuid, service, container, func(r *docker.CreateRequest) {
+			r.Image = cmp.Or(image[uuid], r.Image)
 			maps.Copy(r.Labels, map[string]string{
 				"coolify.managed": "true", "coolify.type": kind, "coolify." + kind + "Uuid": uuid, "coolify.resourceName": name,
 				"coolify.projectName": "personal", "coolify.environmentName": "production", "coolify.pullRequestId": "0",
 				docker.LabelWorkingDir: "/data/coolify/" + kind + "s/" + uuid,
-				// A label's value beyond a domain isn't part of what the read sends.
-				"traefik.http.middlewares.auth.basicauth.users": "admin:$apr1$hash-7f3k",
 			})
 			maps.Copy(r.Labels, more)
 		})
 	}
-	for _, uuid := range []string{"k4s9", "p2q7", "w8x1"} {
+	for _, uuid := range []string{"k4s9", "p2q7", "w8x1", "m3n5", "a7b2"} {
 		e.AddNetwork(docker.Network{ID: uuid + "net", Name: uuid + "_default", Driver: "bridge"})
 	}
 	ghost := coolify("k4s9", "service", "blog", "ghost", "ghost-k4s9", map[string]string{"traefik.http.routers.http-0-k4s9-ghost.rule": "Host(`blog.example.com`) && PathPrefix(`/`)"})
 	mysql := coolify("k4s9", "service", "blog", "mysql", "mysql-k4s9", nil)
 	pg := coolify("p2q7", "database", "reports", "p2q7", "p2q7", map[string]string{"coolify.database.subType": "standalone-postgresql"})
 	coolify("w8x1", "application", "site", "w8x1", "w8x1-pr-3", map[string]string{"coolify.pullRequestId": "3"})
+	// An application Coolify built from a commit deploys again on a push.
+	e.AddLocalImage("m3n5:0f3c2a9d1e", dockertest.Image{Config: docker.Config{Cmd: []string{"node"}}})
+	image["m3n5"] = "m3n5:0f3c2a9d1e"
+	shop := coolify("m3n5", "application", "shop", "m3n5", "m3n5-153012", nil)
+	// Its basic auth puts a user's password hash on its proxy's label, which a plan
+	// would show, and the read never sends.
+	coolify("a7b2", "application", "admin", "a7b2", "a7b2-153012", map[string]string{
+		"traefik.http.middlewares.http-basic-auth-a7b2.basicauth.users": "admin:$apr1$hash-7f3k$Xl1R5uYbVj8mWqT0pNc4e/",
+	})
 	id := f.lastDocker.id.ServerID
 	seen := len(e.Seen())
 
@@ -108,7 +120,12 @@ func TestImportingFromCoolifyTakesOnWhatRuns(t *testing.T) {
 		"IMPORT_KIND_APP blog":                {take, []string{"the project blog, taken on as it runs", "its volumes where they are", "blog.example.com", "coolify-proxy"}},
 		"IMPORT_KIND_DATABASE_SERVER reports": {take, []string{"the project reports, taken on as it runs"}},
 		"IMPORT_KIND_APP site":                {leave, []string{"a pull request's preview"}},
-		"IMPORT_KIND_PANEL Coolify":           {leave, []string{"4.7.5", "coolify-db", "neither its database nor its API"}},
+		"IMPORT_KIND_APP shop":                {take, []string{"the project shop, taken on as it runs", "Turn off Auto deploy for shop in Coolify before you apply, or a push to its repository can replace it or start a second copy."}},
+		"IMPORT_KIND_APP admin": {leave, []string{
+			"holds a credential in its label traefik.http.middlewares.http-basic-auth-a7b2.basicauth.users, so a plan would show it",
+			"Turn off HTTP Basic Authentication for admin in Coolify first, then import again.",
+		}},
+		"IMPORT_KIND_PANEL Coolify": {leave, []string{"4.7.5", "coolify-db", "neither its database nor its API"}},
 	} {
 		s := steps[key]
 		text := s.GetSummary() + " | " + s.GetBecomes() + " | " + s.GetReason()
@@ -125,14 +142,17 @@ func TestImportingFromCoolifyTakesOnWhatRuns(t *testing.T) {
 	if planned.GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
 		t.Fatalf("change = %v", planned)
 	}
-	if took := adoptedIn(planned); !took[ghost] || !took[mysql] || !took[pg] || len(took) != 3 {
-		t.Fatalf("the plan takes on %v, want blog's two containers and reports'", took)
+	if took := adoptedIn(planned); !took[ghost] || !took[mysql] || !took[pg] || !took[shop] || len(took) != 4 {
+		t.Fatalf("the plan takes on %v, want blog's two containers, reports' and shop's", took)
 	}
 	if !noteSays(planned, "imports_coolify", "Their volumes stay where they are") || !noteSays(planned, "managed_elsewhere", "Don't delete it in Coolify") {
 		t.Errorf("the plan's notes are %v", planned.GetPlan().GetNotes())
 	}
-	if strings.Contains(planned.String(), secretValue) {
-		t.Fatal("the plan shows a value of an environment")
+	if strings.Contains(planned.String(), secretValue) || strings.Contains(planned.String(), "hash-7f3k") {
+		t.Fatal("the plan shows a value of an environment, or a password hash")
+	}
+	if s := protojson.Format(res.Msg); strings.Contains(s, "hash-7f3k") {
+		t.Fatalf("the import shows a password hash: %s", s)
 	}
 	applyConfirmed(t, changeClient(b, b.origin), planned)
 	if got := mutations(e, seen); len(got) != 0 {
@@ -175,6 +195,10 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dynamic, "shop-k2m4.yml"), []byte("http:\n  routers:\n    shop-k2m4-router-1:\n      rule: Host(`shop.example.com`)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Dokploy clones an app from Git into its code folder.
+	if err := os.MkdirAll(filepath.Join(root, "etc", "dokploy", "compose", "wiki-ab12", "code", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	f.panelsRoot = root
 	e := f.addDockerServer(t)
 	labels := func(app string) map[string]string {
@@ -192,6 +216,13 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 		maps.Copy(r.Labels, labels("wiki"))
 		r.Labels[docker.LabelWorkingDir] = "/etc/dokploy/compose/wiki-ab12/code"
 		r.Labels["traefik.http.routers.wiki-ab12-1-web.rule"] = "Host(`wiki.example.com`)"
+	})
+	// What reaches Docker's socket is as good as root, which its step says first.
+	e.AddNetwork(docker.Network{ID: "watchnet", Name: "watch-c3d4_default", Driver: "bridge"})
+	watch := composeContainer(t, e, "watch-c3d4", "watch", "watch-c3d4-watch-1", func(r *docker.CreateRequest) {
+		maps.Copy(r.Labels, labels("watch"))
+		r.Labels[docker.LabelWorkingDir] = "/etc/dokploy/compose/watch-c3d4/code"
+		r.HostConfig.Binds = []string{"/var/run/docker.sock:/var/run/docker.sock"}
 	})
 	id := f.lastDocker.id.ServerID
 
@@ -215,6 +246,7 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 		says   string
 	}{
 		"IMPORT_KIND_APP wiki":                {take, "the project wiki, taken on as it runs"},
+		"IMPORT_KIND_APP watch":               {take, "With Docker's socket, it's as good as root on "},
 		"IMPORT_KIND_APP shop":                {leave, "runs it as a Swarm service"},
 		"IMPORT_KIND_DATABASE_SERVER shop-db": {leave, "runs it as a Swarm service"},
 		"IMPORT_KIND_PANEL Dokploy":           {leave, "dokploy-traefik"},
@@ -225,12 +257,15 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 			t.Errorf("%s = %v %q, want %v saying %q", key, s.GetAction(), text, want.action, want.says)
 		}
 	}
-	if !strings.Contains(steps["IMPORT_KIND_APP wiki"].GetReason(), "wiki.example.com") {
-		t.Errorf("wiki's step says nothing of its domain: %q", steps["IMPORT_KIND_APP wiki"].GetReason())
+	if r := steps["IMPORT_KIND_APP wiki"].GetReason(); !strings.Contains(r, "wiki.example.com") || !strings.Contains(r, "Turn off Autodeploy for wiki in Dokploy before you apply") {
+		t.Errorf("wiki's step says nothing of its domain, or of Autodeploy: %q", r)
+	}
+	if r := steps["IMPORT_KIND_APP watch"].GetReason(); strings.Contains(r, "Autodeploy") {
+		t.Errorf("an app Dokploy doesn't deploy from Git says %q", r)
 	}
 	planned := res.Msg.GetChange()
-	if took := adoptedIn(planned); !took[wiki] || len(took) != 1 {
-		t.Fatalf("the plan takes on %v, want wiki's container alone", took)
+	if took := adoptedIn(planned); !took[wiki] || !took[watch] || len(took) != 2 {
+		t.Fatalf("the plan takes on %v, want wiki's container and watch's", took)
 	}
 	if !noteSays(planned, "managed_elsewhere", "Don't delete it in Dokploy") {
 		t.Errorf("the plan's notes are %v", planned.GetPlan().GetNotes())
@@ -244,8 +279,9 @@ func swarmService(name, image string, labels map[string]string) docker.ServiceSp
 	return s
 }
 
-// A server where the panel doesn't run says so, and an agent from before the import
-// says to update it.
+// A server where the panel doesn't run says so, an agent from before the import
+// says to update it, and one that reaches no Docker says to check Docker, as no
+// update would help.
 func TestNoPanelOrAnOldAgentSaysSo(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -255,9 +291,14 @@ func TestNoPanelOrAnOldAgentSaysSo(t *testing.T) {
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "panel_not_found" || !strings.Contains(err.Error(), "doesn't run Coolify: Docker runs none of its containers") {
 		t.Errorf("an import where Coolify doesn't run = %v", err)
 	}
-	old := f.addOnePanelServer(t, t.TempDir(), nil).id.ServerID
+	old := f.addOnePanelServer(t, t.TempDir(), func(h *agentv1.Hello) { h.Forwards = true }).id.ServerID
 	_, err = importClient(b).ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: old}))
-	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "agent_outdated" {
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "agent_outdated" || !strings.Contains(err.Error(), "Update the agent on") {
 		t.Errorf("an import through an agent from before = %v", err)
+	}
+	bare := f.addOnePanelServer(t, t.TempDir(), nil).id.ServerID
+	_, err = importClient(b).ImportCoolify(t.Context(), connect.NewRequest(&dockwellv1.ImportCoolifyRequest{ServerId: bare}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || reasonOf(err) != "no_docker" || !strings.Contains(err.Error(), "Check that Docker runs on") {
+		t.Errorf("an import through an agent with no Docker = %v", err)
 	}
 }

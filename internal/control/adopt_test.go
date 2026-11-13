@@ -570,6 +570,25 @@ func TestAValueOfTheEnvironmentShowsNowhere(t *testing.T) {
 		}
 	}
 
+	// A label can hold a credential of its own, with no variable behind it: a proxy's
+	// basic auth, as a panel puts on what it runs, holds each user's password hash. A
+	// plan would show it, so it's refused by its key, and the refusal doesn't say it.
+	for name, label := range map[string][2]string{
+		"basic-auth":   {"traefik.http.middlewares.auth.basicauth.users", "admin:$apr1$Ab3xQ9zK$Xl1R5uYbVj8mWqT0pNc4e/"},
+		"caddy-auth":   {"caddy.basic_auth.admin", "$2y$05$abcdefghijklmnopqrstuuJ0fK3zP9wQx7vB1nM5cR8tY2uI4oE6a"},
+		"bearer":       {"traefik.http.middlewares.h.headers.customrequestheaders.Authorization", "Bearer abcdefghijklmnop0123"},
+		"hash-by-name": {"backup.users", "admin:$apr1$Zz9yXw8V$Qq1R5uYbVj8mWqT0pNc4e/"},
+	} {
+		runByHand(t, e, name, plainly(func(r *docker.CreateRequest) { r.Labels = map[string]string{label[0]: label[1]} }))
+		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
+		if err == nil || !strings.Contains(err.Error(), "a credential in its label "+label[0]) || !strings.Contains(err.Error(), "a plan would show") {
+			t.Errorf("taking on %s: %v, want it refused for its label %s", name, err, label[0])
+		}
+		if err != nil && strings.Contains(err.Error(), label[1]) {
+			t.Errorf("the refusal for %s shows the credential: %v", name, err)
+		}
+	}
+
 	// Its whole spec holds no value, on a container that passes. A short value whose
 	// name says nothing could be anywhere by chance, and an image's own isn't a secret.
 	runByHand(t, e, "with-zone", plainly(func(r *docker.CreateRequest) {
@@ -668,15 +687,21 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 	}
 
 	// Coolify's delete is read from its source (ADR 0089): it removes what the
-	// resource mounts, so it isn't to be used.
+	// resource mounts, so it isn't to be used. It deploys again on a push unless
+	// that's turned off, and its backups of a database run in the container by name.
 	runByHand(t, e, "coolify-web", func(r *docker.CreateRequest) {
 		compose("web", "/data/coolify/applications/x")(r)
 		r.Labels["coolify.managed"] = "true"
 	})
 	n = managed(adopt(t, cc, "coolify-web", "web"))
-	if n == nil || n.GetNames()[0] != "Coolify" || !strings.Contains(n.GetMessage(), "Don't delete it in Coolify") ||
-		!strings.Contains(n.GetMessage(), "/data/coolify/applications/x, which holds what this service binds") {
-		t.Errorf("taking on what Coolify made says %v", n)
+	for _, says := range []string{
+		"Don't delete it in Coolify", "/data/coolify/applications/x, which holds what this service binds",
+		"turn off Auto deploy for it in Coolify first, or a push can replace it or start a second copy",
+		"Coolify's scheduled backups of a database stop at that first image change", "Dockwell's backups",
+	} {
+		if n == nil || n.GetNames()[0] != "Coolify" || !strings.Contains(n.GetMessage(), says) {
+			t.Errorf("taking on what Coolify made says %v, not %q", n, says)
+		}
 	}
 
 	// With no way to tell, it says what to look for, and asks nothing of a project

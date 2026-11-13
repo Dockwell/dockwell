@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -121,5 +123,111 @@ func TestDokploysStackIsOneApp(t *testing.T) {
 	apps := got.GetFound().GetApps()
 	if len(apps) != 1 || apps[0].GetKind() != "stack" || !apps[0].GetSwarm() || !slices.Equal(apps[0].GetContainers(), []string{"forum-q1_db", "forum-q1_web"}) {
 		t.Errorf("the apps are %v", apps)
+	}
+}
+
+// A label names a folder only as a plain word: one that leads anywhere else, or out
+// of the panel's folder, names none, and neither does a link.
+func TestAFolderStaysUnderThePanels(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{"data/coolify/services/k4s9", "data/coolify/x", "etc/secret"} {
+		if err := os.MkdirAll(filepath.Join(root, p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(root, "etc"), filepath.Join(root, "data", "coolify", "services", "l1nk")); err != nil {
+		t.Fatal(err)
+	}
+	r := Reader{Root: root}
+	if got := r.folder(coolifyFolder, "services", "k4s9"); got != "/data/coolify/services/k4s9" {
+		t.Errorf("a plain word's folder = %q", got)
+	}
+	for _, parts := range [][]string{
+		{"services", ".."},
+		{"services", "../x"},
+		{"..", "..", "etc", "secret"},
+		{"services", "/etc/secret"},
+		{"services", "K4S9"},
+		{"services", "k4s9/"},
+		{"services", ""},
+		{"services", "l1nk"},
+	} {
+		if got := r.folder(coolifyFolder, parts...); got != "" {
+			t.Errorf("%q names the folder %q", parts, got)
+		}
+	}
+}
+
+// Dokploy's Traefik file is read only where it's a file: a link is never followed,
+// and a pipe is never waited on.
+func TestOnlyAFileOfDokploysIsRead(t *testing.T) {
+	root := t.TempDir()
+	dynamic := filepath.Join(root, "etc", "dokploy", "traefik", "dynamic")
+	if err := os.MkdirAll(dynamic, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	rule := []byte("    rule: Host(`shop.example.com`)\n")
+	if err := os.WriteFile(filepath.Join(root, "elsewhere.yml"), rule, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dynamic, "shop-k2m4.yml"), rule, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "elsewhere.yml"), filepath.Join(dynamic, "linked-k2m4.yml")); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(filepath.Join(dynamic, "piped-k2m4.yml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := Reader{Root: root}
+	if got := r.dynamicDomains("shop-k2m4"); !slices.Equal(got, []string{"shop.example.com"}) {
+		t.Errorf("a file's domains = %q", got)
+	}
+	done := make(chan []string, 1)
+	go func() { done <- append(r.dynamicDomains("linked-k2m4"), r.dynamicDomains("piped-k2m4")...) }()
+	select {
+	case got := <-done:
+		if len(got) > 0 {
+			t.Errorf("a link or a pipe gives %q", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("reading a pipe waited for a writer")
+	}
+}
+
+// What a panel deploys from Git is read from what it leaves: Coolify tags an image
+// it built with the commit, or docker compose names it for the project, and Dokploy
+// clones into the app's code folder.
+func TestWhatComesFromGit(t *testing.T) {
+	for image, want := range map[string]bool{
+		"m3n5:0f3c2a9d1e": true, "registry.example.com/shop:" + strings.Repeat("ab", 20): true, "m3n5-web:latest": true, "m3n5_web": true,
+		"m3n5:latest": false, "m3n5:build": false, "ghost:5": false, "nginx:1.27@sha256:00": false, "sha256:" + strings.Repeat("ab", 32): false,
+	} {
+		if got := builtFromGit(image, "m3n5"); got != want {
+			t.Errorf("builtFromGit(%q) = %v, want %v", image, got, want)
+		}
+	}
+
+	e := dockertest.New(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "etc", "dokploy", "compose", "wiki-ab12", "code", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "etc", "dokploy", "compose", "raw-cd34", "code"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, app := range []string{"wiki-ab12", "raw-cd34"} {
+		e.AddContainer(docker.Container{Name: "/" + app + "-web-1", Config: docker.Config{Image: "nginx:1.27", Labels: map[string]string{
+			"com.docker.compose.project": app, "com.docker.compose.project.working_dir": "/etc/dokploy/compose/" + app + "/code",
+		}}})
+	}
+	got, err := Reader{Docker: e.Client(), Root: root}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range got.GetFound().GetApps() {
+		if a.GetFromGit() != (a.GetId() == "wiki-ab12") {
+			t.Errorf("%s reads as from Git: %v", a.GetId(), a.GetFromGit())
+		}
 	}
 }

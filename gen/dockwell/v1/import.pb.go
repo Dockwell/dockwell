@@ -652,7 +652,11 @@ type PanelApp struct {
 	// True for a pull request's preview, which the panel makes and removes itself.
 	Preview bool `protobuf:"varint,11,opt,name=preview,proto3" json:"preview,omitempty"`
 	// The image it runs, where it's one: a Swarm service's, or a database's.
-	Image         string `protobuf:"bytes,12,opt,name=image,proto3" json:"image,omitempty"`
+	Image string `protobuf:"bytes,12,opt,name=image,proto3" json:"image,omitempty"`
+	// True when the panel deploys it from a Git repository, where a push can deploy
+	// it again: Coolify's application built from a commit, or Dokploy's app whose
+	// code folder is a Git checkout. Both panels deploy on a push by default.
+	FromGit       bool `protobuf:"varint,13,opt,name=from_git,json=fromGit,proto3" json:"from_git,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -769,6 +773,13 @@ func (x *PanelApp) GetImage() string {
 		return x.Image
 	}
 	return ""
+}
+
+func (x *PanelApp) GetFromGit() bool {
+	if x != nil {
+		return x.FromGit
+	}
+	return false
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.
@@ -2198,7 +2209,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\rknown_version\x18\x03 \x01(\bR\fknownVersion\x12\x16\n" +
 	"\x06folder\x18\x04 \x01(\tR\x06folder\x12)\n" +
 	"\x04apps\x18\x05 \x03(\v2\x15.dockwell.v1.PanelAppR\x04apps\x12-\n" +
-	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\"\xbf\x02\n" +
+	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\"\xda\x02\n" +
 	"\bPanelApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x18\n" +
@@ -2214,7 +2225,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x05swarm\x18\n" +
 	" \x01(\bR\x05swarm\x12\x18\n" +
 	"\apreview\x18\v \x01(\bR\apreview\x12\x14\n" +
-	"\x05image\x18\f \x01(\tR\x05image\"P\n" +
+	"\x05image\x18\f \x01(\tR\x05image\x12\x19\n" +
+	"\bfrom_git\x18\r \x01(\bR\afromGit\"P\n" +
 	"\x0ePanelContainer\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x14\n" +

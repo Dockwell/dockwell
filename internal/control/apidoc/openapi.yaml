@@ -16618,6 +16618,12 @@ components:
                 image:
                     type: string
                     description: 'The image it runs, where it''s one: a Swarm service''s, or a database''s.'
+                fromGit:
+                    type: boolean
+                    description: |-
+                        True when the panel deploys it from a Git repository, where a push can deploy
+                         it again: Coolify's application built from a commit, or Dokploy's app whose
+                         code folder is a Git checkout. Both panels deploy on a push by default.
             description: |-
                 PanelApp is something a panel runs for people: an app, a service from its
                  templates, or a database.

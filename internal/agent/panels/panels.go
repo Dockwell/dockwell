@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -112,7 +113,7 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 				Name: cmp.Or(l["coolify.resourceName"], l["coolify.name"], id), Kind: kind,
 				Project: l["coolify.projectName"], Environment: l["coolify.environmentName"], Id: id,
 				ComposeProject: l[labelProject], Preview: preview(l["coolify.pullRequestId"]),
-				Folder: r.folder(path.Join(coolifyFolder, kind+"s", id)),
+				Folder: r.folder(coolifyFolder, kind+"s", id),
 			}
 			if kind == "database" && !strings.HasPrefix(c.Image, "sha256:") {
 				a.Image = c.Image
@@ -121,6 +122,7 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 		}
 		a.Containers = append(a.Containers, name)
 		a.Domains = append(a.Domains, domainsOf(l)...)
+		a.FromGit = a.GetFromGit() || kind == "application" && (builtFromGit(c.Image, id) || len(a.GetContainers()) > 1)
 	}
 	p.Apps = sorted(apps)
 	p.KnownVersion = coolifyKnown().MatchString(p.Version)
@@ -194,16 +196,32 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 	return &agentv1.ReadPanelResult{Found: p}
 }
 
-// dokployApp is what Dokploy's labels say of an app called id, its appName.
+// dokployApp is what Dokploy's labels say of an app called id, its appName. Its
+// code folder is a Git checkout where Dokploy deploys it from a repository: it
+// clones there, and writes a Compose file of its own there for one it doesn't.
 func (r Reader) dokployApp(id, kind string, l map[string]string) *dockwellv1.PanelApp {
-	folder := path.Join(dokployFolder, "applications", id)
+	in := "applications"
 	if kind == "compose" || kind == "stack" {
-		folder = path.Join(dokployFolder, "compose", id)
+		in = "compose"
 	}
 	return &dockwellv1.PanelApp{
 		Name: cmp.Or(l["dokploy.application"], id), Kind: kind, Project: l["dokploy.project"], Environment: l["dokploy.environment"],
-		Id: id, Folder: r.folder(folder),
+		Id: id, Folder: r.folder(dokployFolder, in, id), FromGit: r.folder(dokployFolder, in, id, "code", ".git") != "",
 	}
+}
+
+// commit is a Git commit, as Coolify tags an image it built from one.
+var commit = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[0-9a-f]{7,40}$`) })
+
+// builtFromGit reports an image Coolify built from an application's repository:
+// tagged with the commit, as <uuid>:<commit> or the registry name it was given, or
+// built by docker compose under its project, <uuid>-<service>. One it pulled keeps
+// its own name, and one built from a Dockerfile written in Coolify is <uuid>:latest.
+func builtFromGit(image, id string) bool {
+	repo, _, _ := strings.Cut(image, "@")
+	tag := tagOf(repo)
+	repo = strings.TrimSuffix(repo, ":"+tag)
+	return commit().MatchString(tag) || strings.HasPrefix(repo, id+"-") || strings.HasPrefix(repo, id+"_")
 }
 
 // engines are the database images Dokploy runs, by their repository.
@@ -300,16 +318,17 @@ func (r Reader) dynamicDomains(app string) []string {
 	if r.Root == "" || strings.ContainsAny(app, `/\`) || app == "." || app == ".." {
 		return nil
 	}
+	// A link, a pipe or a device there is refused as it opens, never followed or
+	// waited on: what's read is a file Dokploy wrote.
 	p := filepath.Join(r.Root, dokployFolder, "traefik", "dynamic", app+".yml")
-	fi, err := os.Lstat(p)
-	if err != nil || !fi.Mode().IsRegular() {
-		return nil
-	}
-	f, err := os.Open(p) //nolint:gosec // a fixed path under Dokploy's folder, refused where it's a link
+	f, err := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0) //nolint:gosec // a fixed path under Dokploy's folder, refused where it's a link
 	if err != nil {
 		return nil
 	}
 	defer f.Close()
+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		return nil
+	}
 	b, err := io.ReadAll(io.LimitReader(f, maxDynamic))
 	if err != nil {
 		return nil
@@ -323,9 +342,26 @@ func (r Reader) dynamicDomains(app string) []string {
 	return out
 }
 
-// folder is p where it's a folder on the server, or "".
-func (r Reader) folder(p string) string {
+// part is a word of a label that names a folder, such as Coolify's UUID or
+// Dokploy's appName: nothing that could lead out of the panel's folder.
+var part = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[a-z0-9-]+$`) })
+
+// folder is the folder under the panel's, base, that parts name, such as
+// /data/coolify/services/<uuid>, where it's one on the server, or "". Each part
+// comes from a label, which anyone who runs a container can write, so each must
+// be a plain word, and the folder must stay under base. It's read with Lstat: a
+// link there is no folder of the panel's.
+func (r Reader) folder(base string, parts ...string) string {
 	if r.Root == "" {
+		return ""
+	}
+	for _, p := range parts {
+		if p != ".git" && !part().MatchString(p) {
+			return ""
+		}
+	}
+	p := path.Join(append([]string{base}, parts...)...)
+	if !strings.HasPrefix(p, base+"/") {
 		return ""
 	}
 	if fi, err := os.Lstat(filepath.Join(r.Root, p)); err == nil && fi.IsDir() {
