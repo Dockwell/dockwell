@@ -27,7 +27,7 @@ import (
 // lands in plain sight (Exposed).
 func interpolate(ctx context.Context, raw map[string]any, variables map[string]string) (map[string]any, *interpolated, error) {
 	in := &interpolator{
-		ctx: ctx, variables: variables, missing: map[string]bool{}, exposure: &exposure{},
+		ctx: ctx, variables: variables, missing: map[string]bool{}, exposure: &exposure{configUsers: configUsers(raw)},
 		kept: map[string]*keptReferences{}, listed: listedUses(raw),
 	}
 	out, err := in.walk(place{owner: fileOwner}, raw)
@@ -171,6 +171,8 @@ func (in *interpolator) walk(at place, v any) (any, error) {
 					next = place{owner: "the volume " + k}
 				case "networks":
 					next = place{owner: "the network " + k}
+				case "configs":
+					next = place{owner: "the config " + k}
 				}
 			}
 			var e any

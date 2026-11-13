@@ -217,6 +217,41 @@ func onePanelVersion(t *tree, app App, appDir, version string) App {
 		delete(shipped, own)
 	}
 	app.Shipped = func(rel string) bool { return shipped[rel] }
+	// What it ships it mounts as files Dockwell writes, as they are, read once a
+	// container mounts them (ADR 0085). A file under scripts/ is never one.
+	app.LiteralFiles = true
+	// A checkout closes once its store is read, so what it ships is read with it; a
+	// commit in memory reads, or asks for, a file as a container mounts it.
+	var read map[string][]byte
+	if t.mem == nil {
+		read = map[string][]byte{}
+		for rel := range shipped {
+			if b, err := t.readFile(path.Join(versionDir, rel)); err == nil && len(b) <= maxShipped {
+				read[rel] = b
+			}
+		}
+	}
+	app.ReadShipped = func(rel string) ([]byte, error) {
+		switch {
+		case !shipped[rel] || strings.HasPrefix(rel, "scripts/"):
+			return nil, fmt.Errorf("%s isn't a file it ships", rel)
+		case read != nil && read[rel] == nil:
+			return nil, fmt.Errorf("it ships %s, which is a folder, or over %d KiB", rel, maxShipped>>10)
+		case read != nil:
+			return read[rel], nil
+		}
+		return t.readFile(path.Join(versionDir, rel))
+	}
+	app.ShippedUnder = func(rel string) []string {
+		var out []string
+		for p := range shipped {
+			if strings.HasPrefix(p, rel+"/") && t.isFile(path.Join(versionDir, p)) {
+				out = append(out, p)
+			}
+		}
+		slices.Sort(out)
+		return out
+	}
 	var form struct {
 		More struct {
 			Fields []onePanelField `yaml:"formFields"`

@@ -54,6 +54,9 @@ var (
 		// What a container asks of itself: a name, a switch, a signal, a count or an
 		// address, and two that go in no spec (ADR 0085).
 		"hostname", "init", "tty", "stdin_open", "read_only", "stop_signal", "pids_limit", "ulimits", "dns", "pull_policy", "security_opt",
+		// A config's name and where it's mounted; what it holds is the config's, and
+		// warns on each service that mounts it.
+		"configs",
 		"healthcheck.start_interval",
 		// Paths.
 		"volumes", "tmpfs", "working_dir",
@@ -96,6 +99,29 @@ const maxExposed = 100
 type exposure struct {
 	seen map[Exposed]bool
 	more bool
+	// configUsers are the services that mount each config, whose plan shows what a
+	// variable writes in the config's content.
+	configUsers map[string][]string
+}
+
+// configUsers are the services that mount each config of a file, by the config's
+// name, as a file names them before its variables are read.
+func configUsers(raw map[string]any) map[string][]string {
+	out := map[string][]string{}
+	services, _ := raw["services"].(map[string]any)
+	for _, name := range slices.Sorted(maps.Keys(services)) {
+		svc, _ := services[name].(map[string]any)
+		for _, c := range list(svc["configs"]) {
+			source, _ := c.(string)
+			if m, ok := c.(map[string]any); ok {
+				source, _ = m["source"].(string)
+			}
+			if source != "" && !slices.Contains(out[source], name) {
+				out[source] = append(out[source], name)
+			}
+		}
+	}
+	return out
 }
 
 // note records that name's value lands at at. naming says it lands in the name of
@@ -110,6 +136,13 @@ func (x *exposure) note(at place, name string, naming bool) { x.record(at, name,
 func (x *exposure) noteText(at place, name string, whole bool) { x.record(at, name, false, whole) }
 
 func (x *exposure) record(at place, name string, naming, whole bool) {
+	// What a config holds is free text, which each service that mounts it shows.
+	if config, ok := strings.CutPrefix(at.owner, "the config "); ok {
+		for _, svc := range x.configUsers[config] {
+			x.add(Exposed{Variable: name, Kind: "service", Owner: svc, Field: "configs", Whole: whole})
+		}
+		return
+	}
 	var e Exposed
 	var quiet map[string]bool
 	for _, section := range []struct {
@@ -128,6 +161,11 @@ func (x *exposure) record(at place, name string, naming, whole bool) {
 	if isQuiet && !naming {
 		return
 	}
+	x.add(e)
+}
+
+// add records one place a value lands, up to maxExposed.
+func (x *exposure) add(e Exposed) {
 	if !x.seen[e] && len(x.seen) == maxExposed {
 		x.more = true
 		return
@@ -196,6 +234,15 @@ func exposedIn(ctx context.Context, raw map[string]any) (found []Exposed, more b
 					}
 				}
 			}
+		}
+	}
+	// What a config holds, for each service that mounts it.
+	configs, _ := raw["configs"].(map[string]any)
+	users := configUsers(raw)
+	for _, name := range slices.Sorted(maps.Keys(configs)) {
+		cfg, _ := configs[name].(map[string]any)
+		for _, svc := range users[name] {
+			x.value(Exposed{Kind: "service", Owner: svc, Field: "configs"}, cfg["content"])
 		}
 	}
 	out := slices.Collect(maps.Keys(x.seen))

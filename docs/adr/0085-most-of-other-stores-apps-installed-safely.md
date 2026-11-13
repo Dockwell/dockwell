@@ -90,17 +90,32 @@ In a shell's script, the word `sh -c` or a `CMD-SHELL` test reads, a name isn't 
 
 A secret inside an environment's value, over 100 of the stores' apps and most of them a companion database's URL, is left for the need that writes it (ADR 0084), or a mechanism that writes an environment's value as a command's words are.
 
+### Files beside the Compose file, as data
+
+*Added with the third slice of #570.*
+
+Many stores' apps mount a config file their store ships: 1Panel's beside the Compose file in the version's folder (`./conf/my.cnf:/etc/mysql/my.cnf`), Dokploy's as a template's `[[config.mounts]]`, which its Compose file mounts from `../files`, and Coolify's written into the Compose file, as a volume's `content:`. A file is text a container reads, which Dockwell can carry as data, never running it:
+
+- **A container mounts a file Dockwell writes, as a `Mount` of the kind `file`** (`MountFile`, 90 in `Mount`'s source): its content and its mode. It's 256 KiB at most, a container mounts 64 at most and 1 MiB of them together, its mode has read and execute bits alone, and it's always read-only, with no `external`, `make_owner` or `relabel`. It isn't a secret, and a plan shows what it holds.
+- **The agent keeps each file in a folder of its own,** `/var/lib/dockwell/agent/files`, which only root writes, named by its mode and the SHA-256 of its mode and content, and binds it into the container read-only. Two containers with one file share it, a new version is a new file that no running container sees change under it, and nothing the file says chooses where it's written. A file is read back for a container only from that folder, by a name its bytes still match, so drift is a container that mounts something else. A file nothing has mounted for an hour is removed.
+- **An agent says it writes them, in its `Hello` (`writes_files`, 301).** The control plane plans no file mount on an agent that doesn't, which would mount nothing: "the agent on hz-2 is from before Dockwell wrote the files a container mounts, which web does, so it would run without them. Update the agent on hz-2."
+- **The Compose importer reads Compose's own `configs:` with `content:`,** each as a file of every service that names it, at its `target` (or `/<name>`), with its `mode`. A config from a server's `file:`, the importer's `environment:`, or Docker's `external:` reaches outside the file, and is refused, as is a `uid` or `gid` other than root's. A variable inside a config's content lands as text in a file a plan shows, so the exposure warnings name each service that mounts it. An export writes each file back as a config.
+- **The converter writes each store's files as configs.** It reads the files an app's Compose file binds, in a third round of the fetch, 500 at most a commit, each within ADR 0078's bounds; each must be text (UTF-8, with no NUL), and an app's come to 128 KiB at most. A file whose first line is `#!` gets mode 0555, so a container can run it, as 1Panel's `run.sh` for its language runtimes is: it runs inside that container, as its image does, never on the server. A shipped folder bound read-only becomes a file for each file in it. A shipped folder the app writes to is left out, saying Dockwell would copy it into the app's volume as it installs, and doesn't yet. A Dokploy file is worked out as its template's values are, each variable within 4 KiB and the file within 128 KiB, and a file that holds a value the template makes up is left out, as an upgrade couldn't reach it.
+- **The catalog refuses a secret anywhere in a config,** even as all it holds: a file is what a plan shows.
+- **The panel shows a file in Volumes and mounts** as "A file Dockwell writes, 12 lines", opening to what it holds, and editing the volumes and mounts keeps each file as it is.
+- **The sample on real Docker takes 1Panel's Glance,** which won't start without the config file its store ships.
+
 ### Numbers
 
-ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99 and the agent's `Hello.own_settings` (300); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
+ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300) and `Hello.writes_files` (301); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
-### As built, 12 Nov 2026
+### As built, 13 Nov 2026
 
-| Store | Apps | Moving tags | With a container's own settings and secrets in commands | Rate |
-| --- | ---: | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 112 | 41% |
-| Dokploy's templates | 612 | 299 | 331 | 54% |
-| Coolify's templates | 384 | 199 | 224 | 58% |
+| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | Rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1Panel's app store | 269 | 99 | 112 | 123 | 45% |
+| Dokploy's templates | 612 | 299 | 331 | 374 | 61% |
+| Coolify's templates | 384 | 199 | 224 | 240 | 62% |
 
 ## What we turned down
 
@@ -116,4 +131,4 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 - Over 250 more apps from Dokploy and Coolify install, with each new build offered as an update.
 - Each store's pinned commit is a person's to move. Until it moves, what upstream adds is measured only by a server reading the store.
 - CI reaches GitHub, and the registries of the sample's images.
-- Still to come in #570: files beside the Compose file, carried as data within bounds; 1Panel's scripts as steps Dockwell runs itself; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).
+- Still to come in #570: a shipped folder the app writes to, copied into its volume; 1Panel's scripts as steps Dockwell runs itself; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).

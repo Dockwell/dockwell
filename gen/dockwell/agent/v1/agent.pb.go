@@ -1993,7 +1993,11 @@ type Hello struct {
 	// 0084), so the control plane links an app to a database of another project
 	// only on a server whose agent does. Connectable apps take 290 to 299 in agent
 	// messages.
-	Links         bool `protobuf:"varint,290,opt,name=links,proto3" json:"links,omitempty"`
+	Links bool `protobuf:"varint,290,opt,name=links,proto3" json:"links,omitempty"`
+	// True when the agent writes the files a container mounts (Mount.file), and
+	// binds them in, read-only (ADR 0085). The control plane plans no such mount on
+	// an agent that doesn't say so.
+	WritesFiles   bool `protobuf:"varint,301,opt,name=writes_files,json=writesFiles,proto3" json:"writes_files,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2213,6 +2217,13 @@ func (x *Hello) GetOwnSettings() bool {
 func (x *Hello) GetLinks() bool {
 	if x != nil {
 		return x.Links
+	}
+	return false
+}
+
+func (x *Hello) GetWritesFiles() bool {
+	if x != nil {
+		return x.WritesFiles
 	}
 	return false
 }
@@ -13779,7 +13790,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\x9c\b\n" +
+	"\bDraining\"\xc0\b\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -13807,7 +13818,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
-	"\x05links\x18\xa2\x02 \x01(\bR\x05links\"r\n" +
+	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +
+	"\fwrites_files\x18\xad\x02 \x01(\bR\vwritesFiles\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
 	"\adamaged\x18\x02 \x01(\rR\adamaged\x12\x14\n" +

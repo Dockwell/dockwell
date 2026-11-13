@@ -518,6 +518,10 @@ message Hello {
   // only on a server whose agent does. Connectable apps take 290 to 299 in agent
   // messages.
   bool links = 290;
+  // True when the agent writes the files a container mounts (Mount.file), and
+  // binds them in, read-only (ADR 0085). The control plane plans no such mount on
+  // an agent that doesn't say so.
+  bool writes_files = 301;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.

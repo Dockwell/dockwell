@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v4"
 
@@ -35,6 +36,9 @@ type rewritten struct {
 	// typed are the volumes and networks whose driver or options a person types, as
 	// "volume data", which a reading of the file with stand-ins can't speak for.
 	typed map[string]bool
+	// unread are the shipped files the app mounts that weren't fetched, by their
+	// paths relative to its Compose file.
+	unread []string
 }
 
 // rewrite turns a source's Compose file into what an entry may say, and its form
@@ -62,6 +66,16 @@ func rewrite(app App) (rewritten, error) {
 	// A source's comments are its own, and what follows moves the lines they sat on.
 	dropComments(doc)
 	root := doc.Content[0]
+	// What a file a volume writes out holds is the app's own: a bare $, as nginx's
+	// $host, is its own, and only ${NAME} is a variable.
+	for _, name := range serviceNames(doc) {
+		vols := mapGet(service(doc, name), "volumes")
+		for i := 0; vols != nil && i < len(vols.Content); i++ {
+			if c := mapGet(vols.Content[i], "content"); c != nil {
+				c.Value = ownDollars(c.Value)
+			}
+		}
+	}
 	// Compose reads $NAME as ${NAME}, and the rest of this reads the second.
 	walkScalars(root, func(n *yaml.Node) { n.Value = braceVars(n.Value) })
 	externals := map[string]bool{}
@@ -143,6 +157,12 @@ func rewrite(app App) (rewritten, error) {
 					return out, fmt.Errorf("its service %s's volume %s: %w", name, nodeText(v), err)
 				}
 				switch {
+				case len(vol.unread) > 0:
+					out.unread = append(out.unread, vol.unread...)
+					continue
+				case len(vol.files) > 0:
+					addConfigs(root, svc, name, vol.files)
+					continue
 				case vol.dropped != "":
 					out.notes = append(out.notes, vol.dropped)
 					continue
@@ -164,6 +184,10 @@ func rewrite(app App) (rewritten, error) {
 				mapDel(svc, "volumes")
 			}
 		}
+	}
+	if len(out.unread) > 0 {
+		slices.Sort(out.unread)
+		return out, unreadError(slices.Compact(out.unread))
 	}
 	if err := nested(folders); err != nil {
 		return out, err
@@ -733,6 +757,10 @@ func splitPort(s string) []string {
 
 // mounted is what came of one of a service's volumes.
 type mounted struct {
+	// files are the files a source ships or writes out that it mounts, each a file
+	// Dockwell writes (ADR 0085), and unread the shipped ones that weren't fetched.
+	files  []shippedFile
+	unread []string
 	// named is the volume a folder became, which the file declares.
 	named string
 	// dropped says what the converter took away, and why.
@@ -748,8 +776,12 @@ type mounted struct {
 // more. A folder a person names reaches the server, whatever its default.
 func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	if v.Kind == yaml.MappingNode {
-		if mapGet(v, "content") != nil {
-			return mounted{}, leave(ClassShipped, "it writes a file of its own into the container, which an entry can't declare yet")
+		if c := mapGet(v, "content"); c != nil {
+			target := mapGet(v, "target")
+			if target == nil || !strings.HasPrefix(target.Value, "/") {
+				return mounted{}, leave(ClassShipped, "it writes a file of its own into the container with no place for it")
+			}
+			return mounted{files: []shippedFile{{target: path.Clean(target.Value), content: c.Value}}}, nil
 		}
 		// Coolify's own, which makes the folder first, as Docker does for a volume.
 		mapDel(v, "is_directory")
@@ -790,7 +822,7 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	case strings.HasPrefix(rel, ".."):
 		return mounted{}, leave(ClassCantSay, "it binds %s, outside the app's own folder", source)
 	case app.Shipped != nil && app.Shipped(rel):
-		return mounted{}, leave(ClassShipped, "it ships %s beside its Compose file, which an entry can't declare yet", rel)
+		return shippedMount(app, v, rel)
 	}
 	named := volumeName(rel)
 	if named == "" {
@@ -1256,4 +1288,151 @@ func unlimitedMemlock(n *yaml.Node) bool {
 		return unlimitedMemlock(mapGet(n, "soft")) || unlimitedMemlock(mapGet(n, "hard"))
 	}
 	return false
+}
+
+// A shippedFile is one file a container mounts that its source ships beside its
+// Compose file, or writes out in it, which an entry carries as a Compose config,
+// read-only (ADR 0085).
+type shippedFile struct {
+	target, content string
+}
+
+// unreadError says the shipped files an app mounts weren't fetched, for the control
+// plane to fetch and convert it again.
+type unreadError []string
+
+func (e unreadError) Error() string {
+	return "it ships " + strings.Join(e, ", ") + " beside its Compose file, which wasn't read"
+}
+
+// errUnread is what an adapter's ReadShipped says of a file it didn't fetch.
+var errUnread = errors.New("not fetched")
+
+// maxShipped bounds what one app's shipped files may come to, in all, as they're
+// written into its Compose file, which a server reads up to 256 KiB of.
+const maxShipped = 128 << 10
+
+// shippedMount mounts a file the source ships, or each file of a folder it ships
+// that's mounted read-only, as files Dockwell writes. A folder the app writes to
+// would need its files copied into a volume as it's installed, which stays out.
+func shippedMount(app App, v *yaml.Node, rel string) (mounted, error) {
+	if app.ReadShipped == nil {
+		return mounted{}, leave(ClassShipped, "it ships %s beside its Compose file, which an entry can't declare yet", rel)
+	}
+	target, ok := mountTarget(v)
+	if !ok {
+		return mounted{}, leave(ClassShipped, "it ships %s beside its Compose file, with no place for it in the container", rel)
+	}
+	var paths []string
+	if app.ShippedUnder != nil {
+		paths = app.ShippedUnder(rel)
+	}
+	folder := len(paths) > 0
+	switch {
+	case !folder:
+		paths = []string{rel}
+	case !readOnly(v):
+		return mounted{}, leave(ClassShipped, "it ships files into %s, a folder the app writes to, which Dockwell would copy into its volume as it installs. It doesn't yet", rel)
+	}
+	var out mounted
+	size := 0
+	for _, p := range paths {
+		b, err := app.ReadShipped(p)
+		switch {
+		case errors.Is(err, errUnread):
+			out.unread = append(out.unread, p)
+			continue
+		case err != nil:
+			return mounted{}, leave(ClassFile, "%s", err)
+		case !utf8.Valid(b) || bytes.IndexByte(b, 0) >= 0:
+			return mounted{}, leave(ClassShipped, "it ships %s beside its Compose file, which isn't text, and Dockwell writes a text file alone", p)
+		}
+		if size += len(b); size > maxShipped {
+			return mounted{}, leave(ClassShipped, "the files it ships beside its Compose file come to over %d KiB, more than Dockwell writes into an entry", maxShipped>>10)
+		}
+		at := target
+		if folder {
+			at = path.Join(target, strings.TrimPrefix(p, rel+"/"))
+		}
+		content := string(b)
+		if app.LiteralFiles {
+			content = strings.ReplaceAll(content, "$", "$$")
+		}
+		out.files = append(out.files, shippedFile{target: at, content: content})
+	}
+	return out, nil
+}
+
+// mountTarget is where a volume mounts in its container.
+func mountTarget(v *yaml.Node) (string, bool) {
+	switch v.Kind {
+	case yaml.ScalarNode:
+		parts := splitPort(v.Value)
+		if len(parts) < 2 || !strings.HasPrefix(parts[1], "/") {
+			return "", false
+		}
+		return path.Clean(parts[1]), true
+	case yaml.MappingNode:
+		if t := mapGet(v, "target"); t != nil && strings.HasPrefix(t.Value, "/") {
+			return path.Clean(t.Value), true
+		}
+	default:
+	}
+	return "", false
+}
+
+// ownDollars writes each bare $ in what a file holds as $$, a $ of its own to
+// Compose, leaving ${NAME}, a variable, and $$ as they are.
+func ownDollars(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		switch {
+		case s[i] != '$':
+			b.WriteByte(s[i])
+		case i+1 < len(s) && s[i+1] == '$':
+			b.WriteString("$$")
+			i++
+		case i+1 < len(s) && s[i+1] == '{':
+			b.WriteByte('$')
+		default:
+			b.WriteString("$$")
+		}
+	}
+	return b.String()
+}
+
+// addConfigs writes each file a service mounts as a Compose config: one of the
+// file's own, by a name of its service and place, and a reference to it on the
+// service, read-only, and executable where it's a script.
+func addConfigs(root, svc *yaml.Node, service string, files []shippedFile) {
+	configs := mapGet(root, "configs")
+	if configs == nil {
+		configs = &yaml.Node{Kind: yaml.MappingNode}
+		root.Content = append(root.Content, scalar("configs"), configs)
+	}
+	refs := mapGet(svc, "configs")
+	if refs == nil {
+		refs = &yaml.Node{Kind: yaml.SequenceNode}
+		svc.Content = append(svc.Content, scalar("configs"), refs)
+	}
+	for _, f := range files {
+		name := volumeName(service + "-" + f.target)
+		for base, i := name, 2; mapGet(configs, name) != nil; i++ {
+			name = base + "-" + strconv.Itoa(i)
+		}
+		content := &yaml.Node{Kind: yaml.ScalarNode, Value: f.content}
+		if strings.Contains(f.content, "\n") {
+			content.Style = yaml.LiteralStyle
+		}
+		configs.Content = append(configs.Content, scalar(name), &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalar("content"), content}})
+		mode := "0444"
+		if strings.HasPrefix(f.content, "#!") {
+			mode = "0555"
+		}
+		refs.Content = append(refs.Content, &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
+			scalar("source"), scalar(name), scalar("target"), scalar(f.target),
+			scalar("mode"),
+			{Kind: yaml.ScalarNode, Value: mode, Style: yaml.DoubleQuotedStyle},
+		}})
+	}
 }

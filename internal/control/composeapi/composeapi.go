@@ -1108,6 +1108,8 @@ func exposedMessage(e compose.Exposed, given map[string]string) string {
 		field = "driver options"
 	case "environment":
 		field = "environment variable names"
+	case "configs":
+		field = "config files"
 	}
 	fact := fmt.Sprintf("%s from %s is in %s %s, so anyone who can read this change or export this environment can read it", e.Variable, from, owner, field)
 	switch e.Field {

@@ -147,11 +147,8 @@ func dokployRead(t *tree, name string) App {
 			"A person reads them before anything of it is converted", terms), ClassTerms
 		return app
 	}
-	if n := len(tmpl.Config.Mounts); n > 0 {
-		app.LeftOut, app.Class = fmt.Sprintf("it ships %d files beside its Compose file, which an entry can't declare yet", n), ClassShipped
-		return app
-	}
-	app.Compose, app.Fields, err = dokployCompose(file, &tmpl)
+	var files map[string]string
+	app.Compose, app.Fields, files, err = dokployCompose(file, &tmpl)
 	if err != nil {
 		app.LeftOut, app.Class = err.Error(), classOf(err, ClassCantSay)
 		return app
@@ -163,23 +160,33 @@ func dokployRead(t *tree, name string) App {
 	for _, own := range []string{"docker-compose.yml", "template.toml", "meta.json"} {
 		delete(shipped, own)
 	}
-	app.Shipped = func(rel string) bool { return shipped[rel] }
+	// What its template writes into its files folder, the container mounts as files
+	// Dockwell writes, as they are (ADR 0085).
+	app.Shipped = func(rel string) bool { _, file := files[rel]; return shipped[rel] || file }
+	app.LiteralFiles = true
+	app.ReadShipped = func(rel string) ([]byte, error) {
+		if content, ok := files[rel]; ok {
+			return []byte(content), nil
+		}
+		return nil, fmt.Errorf("it ships %s beside its Compose file, which its template doesn't write", rel)
+	}
 	return app
 }
 
 // dokployCompose writes what Dokploy does at an install into the file: the port each
 // domain routes, published, and the environment its template makes, with each value
-// it makes up as a field.
-func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
+// it makes up as a field. It also says what the template writes into each file it
+// mounts, by its path in its files folder.
+func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[string]string, error) {
 	doc, err := parseFile(file)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	walkScalars(doc.Content[0], func(n *yaml.Node) { n.Value = braceVars(n.Value) })
 	ev := &dokployEval{vars: t.Variables, hosts: map[string]string{}}
 	env, err := envPairs(t.Config.Env)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// A routed port's input takes a name nothing in the template or its file has, so
 	// a template's own PORT stays the app's.
@@ -194,7 +201,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 	for i, d := range t.Config.Domains {
 		port := fmt.Sprint(d.Port)
 		if _, err := strconv.ParseUint(port, 10, 16); err != nil {
-			return nil, nil, leave(ClassCantSay, "its domain routes to %s's port %q, which isn't a port", d.ServiceName, port)
+			return nil, nil, nil, leave(ClassCantSay, "its domain routes to %s's port %q, which isn't a port", d.ServiceName, port)
 		}
 		base := "PORT"
 		if i > 0 {
@@ -203,7 +210,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		name := freeName(base, taken, "HOST_"+base)
 		published, err := publish(doc, d.ServiceName, name, port)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		// A service on the server's own network answers on its own port there.
 		address := "localhost:" + port
@@ -226,7 +233,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		key, value := kv[0], kv[1]
 		text, made, err := ev.value(value)
 		if err != nil {
-			return nil, nil, fmt.Errorf("its template's %s %w", key, err)
+			return nil, nil, nil, fmt.Errorf("its template's %s %w", key, err)
 		}
 		switch {
 		case made == nil && strings.TrimSpace(text) == "" && inputLike.MatchString(key):
@@ -239,12 +246,12 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 			fields = append(fields, f)
 		case made == nil:
 			if literal[key], err = writtenOut(key, localHTTP(text)); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		case claimed[made.id] != "":
 			literal[key] = "${" + claimed[made.id] + "}"
 		case !inputLike.MatchString(key):
-			return nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", key)
+			return nil, nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", key)
 		default:
 			claimed[made.id] = key
 			f := made.field
@@ -253,7 +260,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		}
 	}
 	if err := envFile(doc, keys); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// A variable of the template's own that the file uses directly, which Dokploy
 	// writes into the file too: what it comes to, or the field it makes.
@@ -269,17 +276,17 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		text, made, err := ev.expand("${"+name+"}", name, 0)
 		switch {
 		case err != nil:
-			return nil, nil, fmt.Errorf("its template's %s %w", name, err)
+			return nil, nil, nil, fmt.Errorf("its template's %s %w", name, err)
 		case made == nil:
 			if literal[name], err = writtenOut(name, localHTTP(text)); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		case claimed[made.id] != "":
 			literal[name] = "${" + claimed[made.id] + "}"
 		default:
 			input := strings.ToUpper(name)
 			if !inputLike.MatchString(input) {
-				return nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", name)
+				return nil, nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", name)
 			}
 			claimed[made.id] = input
 			literal[name] = "${" + input + "}"
@@ -322,8 +329,39 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, error) {
 		}
 	})
 	fields = append(fields, asked...)
+	files := map[string]string{}
+	for _, m := range t.Mounts() {
+		text, made, err := ev.file(m.content)
+		switch {
+		case err != nil:
+			return nil, nil, nil, fmt.Errorf("its template's file %s: %w", m.path, err)
+		case made != nil:
+			return nil, nil, nil, leave(ClassInside, "its template writes a value it makes up into its file %s, which an upgrade and a rotation couldn't reach", m.path)
+		}
+		files[m.path] = text
+	}
 	out, err := encodeFile(doc)
-	return out, fields, err
+	return out, fields, files, err
+}
+
+// A dokployMount is a file a template writes into its files folder, which its
+// Compose file mounts from ../files.
+type dokployMount struct {
+	path, content string
+}
+
+// Mounts are the files a template writes, by their paths in its files folder.
+func (t *dokployTemplate) Mounts() []dokployMount {
+	var out []dokployMount
+	for _, m := range t.Config.Mounts {
+		p, _ := m["filePath"].(string)
+		content, _ := m["content"].(string)
+		// A path is in the files folder, written with or without a leading / or ./.
+		if p = path.Clean("/" + strings.TrimSpace(p))[1:]; p != "" && !strings.HasPrefix(p, "..") {
+			out = append(out, dokployMount{path: p, content: content})
+		}
+	}
+	return out
 }
 
 // ownTerms names what in a template's folder puts it under terms of its own: a
@@ -435,7 +473,18 @@ func (ev *dokployEval) value(expr string) (string, *made, error) {
 	return ev.expand(expr, "", 0)
 }
 
+// file works out what a file the template writes holds: up to maxShipped, as a
+// config file is larger than a value, with each variable in it held to maxValue as
+// any is.
+func (ev *dokployEval) file(expr string) (string, *made, error) {
+	return ev.expandWithin(expr, "", 0, maxShipped)
+}
+
 func (ev *dokployEval) expand(expr, holder string, depth int) (string, *made, error) {
+	return ev.expandWithin(expr, holder, depth, maxValue)
+}
+
+func (ev *dokployEval) expandWithin(expr, holder string, depth, limit int) (string, *made, error) {
 	if depth > 8 {
 		return "", nil, leave(ClassCantSay, "uses variables that use each other")
 	}
@@ -447,8 +496,10 @@ func (ev *dokployEval) expand(expr, holder string, depth int) (string, *made, er
 	switch {
 	case err != nil:
 		return "", nil, err
-	case len(text) > maxValue:
+	case len(text) > limit && limit == maxValue:
 		return "", nil, leave(ClassFile, "a value of its template comes to over %d KiB, more than any value a template sets", maxValue>>10)
+	case len(text) > limit:
+		return "", nil, leave(ClassShipped, "it holds over %d KiB, more than Dockwell writes into an entry", limit>>10)
 	}
 	if ev.written += len(text); ev.written > maxValueBytes {
 		return "", nil, leave(ClassFile, "its template's values come to over %d KiB, more than any template's do", maxValueBytes>>10)

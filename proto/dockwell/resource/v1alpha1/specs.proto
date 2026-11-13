@@ -232,6 +232,11 @@ message Mount {
     string volume = 1;
     // An absolute path on the server, such as "/srv/uploads".
     string host_path = 2;
+    // A file Dockwell writes for it, such as a config file an app ships beside
+    // its Compose file, mounted read-only at target, as Compose's configs. It
+    // reaches nothing on the server. Numbered in other stores' block, 90 to 99
+    // (ADR 0085).
+    MountFile file = 90;
   }
   // Where it appears in the container, as an absolute path.
   string target = 3;
@@ -252,6 +257,17 @@ message Mount {
   // as "82:82", with mode 0755. Docker would make it root's. A folder that's there
   // keeps its owner. Numbered apart, as open work adds to this message.
   string make_owner = 60;
+}
+
+// MountFile is a file Dockwell writes for a container: what it holds, and who
+// may read it.
+message MountFile {
+  // What it holds, 256 KiB at most, as text: a config file, never a secret,
+  // which a plan shows.
+  string content = 1;
+  // Its permissions, such as 0444 (292), the default when 0. It's always
+  // read-only in the container, whatever these say.
+  uint32 mode = 2;
 }
 
 // Relabel is how Docker labels a server path for SELinux when it mounts

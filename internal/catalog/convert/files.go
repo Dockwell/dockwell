@@ -3,6 +3,7 @@
 package convert
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -144,6 +145,10 @@ type Listing struct {
 	Read map[string][]byte
 	// Big are the files left unread as they're over the most a file may be.
 	Big map[string]bool
+	// ReadMore reads more of the commit's files, by their paths, as the shipped
+	// files an app mounts, which no adapter reads before it knows (ADR 0085). Nil
+	// reads none.
+	ReadMore func(ctx context.Context, paths []string) (map[string][]byte, error)
 
 	children map[string][]string
 }
@@ -170,7 +175,7 @@ func (l *Listing) read(name string) ([]byte, error) {
 	if l.Big[name] {
 		return nil, fmt.Errorf("%s is over %d KiB, more than any file the converter reads", name, MaxFile>>10)
 	}
-	return nil, fmt.Errorf("%s wasn't read", name)
+	return nil, fmt.Errorf("%s: %w", name, errUnread)
 }
 
 func (l *Listing) readDir(name string) ([]fs.DirEntry, error) {

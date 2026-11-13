@@ -77,6 +77,9 @@ type Docker struct {
 	// the mount gives. Nil makes none, and leaves it to Docker, which makes it
 	// root's.
 	Folders FolderMaker
+	// Files keeps the files containers mount, which Dockwell writes (ADR 0085). Nil
+	// writes none, and a container that mounts one can't be made.
+	Files *Files
 	// Paths finds what no container may mount on this server, and follows
 	// symlinks there. Nil checks only what Validate does.
 	Paths *Paths
@@ -696,6 +699,10 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 			})
 		case *resourcev1.Mount_HostPath:
 			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
+		case *resourcev1.Mount_File:
+			if d.Files != nil {
+				req.HostConfig.Binds = append(req.HostConfig.Binds, d.Files.Path(src.File.GetContent(), fileMode(src.File))+":"+m.GetTarget()+":ro")
+			}
 		}
 	}
 	from := imageVolumes(old)
@@ -1416,7 +1423,37 @@ func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (
 	case !docker.IsNotFound(err):
 		return nil, err
 	}
-	return Project(c, defaults, t), nil
+	out := Project(c, defaults, t)
+	d.readFiles(out)
+	return out, nil
+}
+
+// readFiles reads back each file a container mounts that this server keeps, from
+// its bind, as the file mount the spec said (ADR 0085).
+func (d *Docker) readFiles(c *resourcev1.Container) {
+	for _, m := range c.GetMounts() {
+		if f, ok := d.Files.Read(m.GetHostPath()); ok {
+			m.Source = &resourcev1.Mount_File{File: f}
+		}
+	}
+	sortMounts(c)
+}
+
+// writeFiles keeps each file a container mounts, before it's made.
+func (d *Docker) writeFiles(spec *resourcev1.Container) error {
+	for _, m := range spec.GetMounts() {
+		f := m.GetFile()
+		if f == nil {
+			continue
+		}
+		if d.Files == nil {
+			return fmt.Errorf("this agent keeps no files for containers, and the mount at %s is one. Update the agent", m.GetTarget())
+		}
+		if _, err := d.Files.Write(f.GetContent(), fileMode(f)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ensureImage pulls an image that isn't on the server yet. One that is

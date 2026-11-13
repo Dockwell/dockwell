@@ -131,6 +131,12 @@ var fileShape = sync.OnceValue(func() *shape {
 		"dns":             {kinds: aString | aList, item: str("dns: [1.1.1.1]"), example: "dns: [1.1.1.1]"},
 		"pull_policy":     str("pull_policy: always"),
 		"security_opt":    {kinds: aList, item: str("security_opt: [no-new-privileges:true]"), example: "security_opt: [no-new-privileges:true]"},
+		"configs": {kinds: aList, example: "configs: [{source: nginx, target: /etc/nginx/nginx.conf}]", item: &shape{
+			kinds: aString | aMapping, example: "configs: [{source: nginx, target: /etc/nginx/nginx.conf}]", fields: map[string]*shape{
+				"source": str("source: nginx"), "target": str("target: /etc/nginx/nginx.conf"), "mode": number("mode: 0444"),
+				"uid": shaped(aString|aNumber, `uid: "0"`), "gid": shaped(aString|aNumber, `gid: "0"`),
+			},
+		}},
 		"ulimits": {kinds: aMapping, example: "ulimits: {nofile: {soft: 20000, hard: 40000}}", value: &shape{
 			kinds: aNumber | aMapping, example: "ulimits: {nofile: {soft: 20000, hard: 40000}}", fields: map[string]*shape{
 				"soft": number("soft: 20000"), "hard": number("hard: 40000"),
@@ -174,6 +180,10 @@ var fileShape = sync.OnceValue(func() *shape {
 		"labels": listOrMapping("labels: {team: web}"), "name": str("name: edge"),
 		"external": {kinds: aBool | aString | aMapping, example: "external: true", fields: map[string]*shape{"name": str("name: edge")}},
 	}}
+	config := &shape{kinds: aMapping, example: "nginx: {content: \"events {}\"}", fields: map[string]*shape{
+		"content": str("content: |"), "file": str("file: ./nginx.conf"), "environment": str("environment: NGINX_CONF"),
+		"external": {kinds: aBool | aMapping, example: "external: true"},
+	}}
 	named := func(what string, entry *shape, example string) *shape {
 		return &shape{
 			kinds: aMapping | nothing, value: entry, example: example,
@@ -186,6 +196,7 @@ var fileShape = sync.OnceValue(func() *shape {
 		"services": named("service", service, "services: {web: {image: nginx:1.27}}"),
 		"volumes":  named("volume", volume, "volumes: {data: {}}"),
 		"networks": named("network", network, "networks: {back: {}}"),
+		"configs":  named("config", config, "configs: {nginx: {content: \"events {}\"}}"),
 	})
 })
 

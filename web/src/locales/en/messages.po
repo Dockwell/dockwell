@@ -2654,6 +2654,9 @@ msgstr "{runsOn} from <0>{0}</0>"
 msgid "A connection to port {0}"
 msgstr "A connection to port {0}"
 
+msgid "A file Dockwell writes"
+msgstr "A file Dockwell writes"
+
 msgid "Add a port"
 msgstr "Add a port"
 
@@ -3273,6 +3276,9 @@ msgstr "Say what to run, such as curl -f http://localhost/."
 msgid "Settings sections"
 msgstr "Settings sections"
 
+msgid "Stays as it is"
+msgstr "Stays as it is"
+
 msgid "Stop updating {name} on its own"
 msgstr "Stop updating {name} on its own"
 
@@ -3386,6 +3392,9 @@ msgstr "{c} vCPU"
 
 msgid "{hours} h"
 msgstr "{hours} h"
+
+msgid "{lines, plural, one {A file Dockwell writes, # line} other {A file Dockwell writes, # lines}}"
+msgstr "{lines, plural, one {A file Dockwell writes, # line} other {A file Dockwell writes, # lines}}"
 
 msgid "{name} changed after you started, so the form shows it as it is now. Make your change again."
 msgstr "{name} changed after you started, so the form shows it as it is now. Make your change again."

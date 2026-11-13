@@ -74,9 +74,7 @@ var fetchStore = func(ctx context.Context, store convert.Store, repo, commit str
 			case <-time.After(time.Duration(try) * 3 * time.Second):
 			}
 		}
-		fetching, cancel := context.WithTimeout(ctx, 2*time.Minute)
-		got, err = convert.Fetch(fetching, nil, store, repo, commit, "")
-		cancel()
+		got, err = convert.Fetch(ctx, nil, store, repo, commit, "")
 		if err == nil {
 			break
 		}
@@ -85,7 +83,7 @@ var fetchStore = func(ctx context.Context, store convert.Store, repo, commit str
 		return convert.Run{}, err
 	}
 	defer got.Close()
-	converting, cancel := context.WithTimeout(ctx, time.Minute)
+	converting, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	return convert.OnServer(converting, store, got.Listing, got.Source, got.Time)
 }

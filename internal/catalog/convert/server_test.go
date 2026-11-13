@@ -3,6 +3,7 @@
 package convert
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -493,5 +494,49 @@ func TestOnServerLeavesOutAnAppThatPanics(t *testing.T) {
 	})
 	if r.Entry != nil || r.Class != ClassFile || !strings.Contains(r.LeftOut, "a stranger's file") {
 		t.Errorf("an app that panics = %+v", r)
+	}
+}
+
+// On the server, the files an app mounts of what its folder ships aren't in the
+// rounds an adapter reads, so a round of their own reads exactly those, and the app
+// converts with them; with no such round, it stays out, saying they weren't read
+// (ADR 0085).
+func TestOnServerReadsTheFilesAnAppMounts(t *testing.T) {
+	store := storeOf(t, FormatOnePanel)
+	src := Source{Name: store.Name, Repository: "https://example.com/appstore", Commit: strings.Repeat("d", 40), License: "GPL-3.0-only"}
+	l := listingOf(t, store, "testdata/onepanel", nil)
+	if _, read := l.Read["apps/shipped/2.0.0/conf/app.conf"]; read {
+		t.Fatal("the adapter's own rounds read the shipped file, so this proves nothing")
+	}
+	run, err := OnServer(t.Context(), store, l, src, committed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := resultsByID(run)["shipped"]; r.Entry != nil || r.Class != ClassShipped || !strings.Contains(r.LeftOut, "wasn't read") {
+		t.Errorf("with no round for it: %s, %q", r.Class, r.LeftOut)
+	}
+	var asked []string
+	l = listingOf(t, store, "testdata/onepanel", nil)
+	l.ReadMore = func(_ context.Context, paths []string) (map[string][]byte, error) {
+		asked = append(asked, paths...)
+		out := map[string][]byte{}
+		for _, p := range paths {
+			b, err := os.ReadFile(filepath.Join("testdata", "onepanel", p))
+			if err != nil {
+				return nil, err
+			}
+			out[p] = b
+		}
+		return out, nil
+	}
+	run, err = OnServer(t.Context(), store, l, src, committed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(asked, []string{"apps/shipped/2.0.0/conf/app.conf"}) {
+		t.Errorf("the round asked for %v", asked)
+	}
+	if r := resultsByID(run)["shipped"]; r.Entry == nil || !strings.Contains(r.Entry.GetCompose(), "listen = 80") {
+		t.Errorf("with a round for it: %v, %q", r.Entry, r.LeftOut)
 	}
 }

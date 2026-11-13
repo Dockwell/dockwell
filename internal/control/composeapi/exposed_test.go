@@ -41,6 +41,10 @@ func TestExposedMessage(t *testing.T) {
 			"V from your .env is in web's environment variable names" + anyone + ", as only a variable's value is hidden. Don't write a secret in a variable's name",
 		},
 		{
+			compose.Exposed{Variable: "V", Kind: "service", Owner: "web", Field: "configs"},
+			"V from your .env is in web's config files" + anyone + ". " + notThere,
+		},
+		{
 			compose.Exposed{Variable: "V", Kind: "network", Owner: "back", Field: "labels"},
 			"V from your .env is in the network back's labels" + anyone + ". " + notThere,
 		},
