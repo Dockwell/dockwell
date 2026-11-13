@@ -99,6 +99,30 @@ message Entry {
   // removes one later as a plan. Empty installs every service, as before. See
   // docs/adr/0076-optional-companions-in-a-catalog-entry.md.
   repeated Companion companions = 28;
+  // What the app's catalog writes of it at length, as its README has it, in
+  // Markdown: the panel shows its headings, paragraphs, lists, emphasis, code and
+  // HTTPS links as text, and nothing else, never HTML or an image. 32 KiB at most.
+  // Empty when its catalog keeps none. ListCatalogEntries leaves it out, as
+  // GetCatalogEntry has it. Numbered in the block catalog sources' presentation
+  // holds (ADR 0083).
+  string readme = 30;
+  // What it says in other languages, by the language's tag, such as "zh-CN", where
+  // its catalog writes them: what a panel in that language shows in place of the
+  // entry's own words, field by field, with an empty field reading as the entry's
+  // own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
+  // each one's description and readme, as GetCatalogEntry has them.
+  map<string, Translation> translations = 31;
+}
+
+// Translation is what an entry says in another language than its own, as its
+// catalog writes it (ADR 0083).
+message Translation {
+  // What the app is for, in one line, as Entry.summary.
+  string summary = 1;
+  // What the app does and who it is for, as Entry.description: plain text.
+  string description = 2;
+  // Its README, in Markdown, as Entry.readme.
+  string readme = 3;
 }
 
 // Companion is a service an app runs without, such as a database's admin tool,

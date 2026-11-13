@@ -26,9 +26,9 @@ var (
 
 // Media serves an image of a source's commit from where the control plane keeps the
 // commits of the sources applied, never from a plan's, at MediaPath. An image is a
-// stranger's file, so it's served as what its first bytes say it is, a WebP, PNG or
-// JPEG image alone, which no browser may take for anything else, and as nothing a
-// browser would run if it's opened on its own. authorize refuses whoever may not read
+// stranger's file, so it's served as what its bytes say it is, a WebP, PNG or JPEG
+// image, or an SVG image as svgclean writes it anew, which no browser may take for
+// anything else, and as nothing a browser would run if it's opened on its own. authorize refuses whoever may not read
 // the catalog, as a request reaches the control plane with a session's cookie.
 func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,10 +53,26 @@ func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
+		// An SVG image is served as svgclean writes it, whoever kept it, as the
+		// snapshot's are read as the build holds them.
+		if data, err = folder.Prepare(image, data); err != nil {
+			http.NotFound(w, r)
+			return
+		}
 		h := w.Header()
 		h.Set("Content-Type", kind)
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
+		if folder.Vector(image) {
+			// Drawn as an image, an SVG runs nothing and loads nothing. Opened on its
+			// own, it's a download, and were it shown, it would be a sandboxed page
+			// that runs no script and loads nothing but its own styles and the raster
+			// images written into it (ADR 0083).
+			h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src data:; sandbox")
+			h.Set("Content-Disposition", "attachment")
+		} else {
+			h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+		}
 		// The path names the commit, whose files never change.
 		h.Set("Cache-Control", "private, max-age=31536000, immutable")
 		http.ServeContent(w, r, "", at, bytes.NewReader(data))

@@ -51,7 +51,29 @@ func TestPresentationIsOptionalAndConstrained(t *testing.T) {
 		{"svg screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Path = "/catalog-media/example.svg" }, false},
 		{"its own catalog's icon", func(e *catalogv1.Entry) { e.Icon = "media/example-icon.webp" }, true},
 		{"its own catalog's screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Path = "media/example-screen.png" }, true},
-		{"its own catalog's svg", func(e *catalogv1.Entry) { e.Icon = "media/example.svg" }, false},
+		{"its own catalog's svg icon", func(e *catalogv1.Entry) { e.Icon = "media/example.svg" }, true},
+		{"its own catalog's svg screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Path = "media/example.svg" }, false},
+		{"a README", func(e *catalogv1.Entry) { e.Readme = "## About\n\nIt keeps notes." }, true},
+		{"a long README", func(e *catalogv1.Entry) { e.Readme = strings.Repeat("a", catalog.MaxReadme+1) }, false},
+		{"a README of bytes", func(e *catalogv1.Entry) { e.Readme = "a\xffb" }, false},
+		{"words in Chinese", func(e *catalogv1.Entry) {
+			e.Translations = map[string]*catalogv1.Translation{"zh-CN": {Summary: "笔记", Readme: "## 介绍"}}
+		}, true},
+		{"words in no language", func(e *catalogv1.Entry) {
+			e.Translations = map[string]*catalogv1.Translation{"chinese": {Summary: "笔记"}}
+		}, false},
+		{"a summary of two lines", func(e *catalogv1.Entry) {
+			e.Translations = map[string]*catalogv1.Translation{"zh-CN": {Summary: "笔记\n应用"}}
+		}, false},
+		{"a long summary", func(e *catalogv1.Entry) {
+			e.Translations = map[string]*catalogv1.Translation{"zh-CN": {Summary: strings.Repeat("字", catalog.MaxSummary+1)}}
+		}, false},
+		{"too many languages", func(e *catalogv1.Entry) {
+			e.Translations = map[string]*catalogv1.Translation{}
+			for _, tag := range []string{"de", "fr", "es", "it", "ja", "ko", "pt-BR", "ru", "zh-CN"} {
+				e.Translations[tag] = &catalogv1.Translation{Summary: "x"}
+			}
+		}, false},
 		{"its own catalog's folder below", func(e *catalogv1.Entry) { e.Icon = "media/deeper/example.png" }, false},
 		{"out of its own catalog", func(e *catalogv1.Entry) { e.Icon = "media/../secrets.png" }, false},
 		{"its own catalog, uppercase", func(e *catalogv1.Entry) { e.Icon = "media/Example.png" }, false},

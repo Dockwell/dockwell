@@ -39,8 +39,9 @@ const (
 	// entry's summary keeps.
 	maxSummary = 160
 	// Version is the converter's version, which goes up whenever what it writes
-	// changes, so a commit converted by an older one is converted again.
-	Version = 1
+	// changes, so a commit converted by an older one is converted again. 2 reads a
+	// store's logos and words (ADR 0083).
+	Version = 2
 	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
 	// entries reads 16 MiB of a commit at most.
 	MaxConverted = 16 << 20
@@ -58,8 +59,18 @@ const (
 // out, what of it an adapter reads, and the adapter.
 type Store struct {
 	Format string
+	// ID is what a source of it is named, unless that's taken, such as "onepanel",
+	// and Label how a person says a source of it, short, such as "1Panel".
+	ID, Label string
 	// Name is how its entries say where they come from, such as "1Panel's app store".
 	Name string
+	// Homepage is the store's own project site, and Branch the branch a source of it
+	// follows, its repository's default.
+	Homepage, Branch string
+	// Measured is how many apps it held, and how many of them converted, at a commit,
+	// as this build's converter read it, for a person to weigh it before adding it
+	// (ADR 0083). Measure again when the converter reads more of it.
+	Measured Measured
 	// License is what its upstream publishes under.
 	License string
 	// Root is the folder it keeps its apps in, such as apps.
@@ -76,18 +87,26 @@ type Store struct {
 	read func(ctx context.Context, t *tree, root string) ([]App, error)
 }
 
+// Measured is what a store held at a commit, as the converter read it.
+type Measured struct {
+	Commit         string
+	Apps, Installs uint32
+}
+
 // Stores are the formats the control plane converts.
 var Stores = []Store{
 	{
-		Format: FormatOnePanel, Name: "1Panel's app store", License: "GPL-3.0-only", Root: "apps",
+		Format: FormatOnePanel, ID: "onepanel", Label: "1Panel", Name: "1Panel's app store", License: "GPL-3.0-only", Root: "apps",
 		Upstream: "https://github.com/1Panel-dev/appstore", Layout: "1Panel's format",
+		Homepage: "https://1panel.pro", Branch: "dev",
+		Measured: Measured{Commit: "55061b992f663dcf670f01ff7013f186b4d2aeda", Apps: 269, Installs: 93},
 		// apps/<key>/<version>/..., where a version's own folders are read for what
 		// they hold, as a script or a shipped file leaves its app out.
 		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 6 },
 		Want: func(p string) bool {
 			parts := strings.Split(p, "/")
 			switch {
-			case len(parts) == 3 && parts[0] == "apps" && parts[2] == "data.yml":
+			case len(parts) == 3 && parts[0] == "apps" && slices.Contains([]string{"data.yml", "README.md", "README_en.md"}, parts[2]):
 				return true
 			case len(parts) == 4 && parts[0] == "apps" && (parts[3] == "data.yml" || parts[3] == "docker-compose.yml"):
 				return true
@@ -97,9 +116,11 @@ var Stores = []Store{
 		read: onePanelApps,
 	},
 	{
-		Format: FormatDokploy, Name: "Dokploy's templates", License: "MIT", Root: "blueprints",
+		Format: FormatDokploy, ID: "dokploy", Label: "Dokploy", Name: "Dokploy's templates", License: "MIT", Root: "blueprints",
 		Upstream: "https://github.com/Dokploy/templates", Layout: "Dokploy's format",
-		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "blueprints/") && depth <= 6 },
+		Homepage: "https://dokploy.com", Branch: "canary",
+		Measured: Measured{Commit: "4f0ddfb507c721a8925891b70f50714660f8ee54", Apps: 612, Installs: 169},
+		Descend:  func(p string, depth int) bool { return strings.HasPrefix(p+"/", "blueprints/") && depth <= 6 },
 		Want: func(p string) bool {
 			parts := strings.Split(p, "/")
 			return len(parts) == 3 && parts[0] == "blueprints" && slices.Contains([]string{"docker-compose.yml", "template.toml", "meta.json"}, parts[2])
@@ -107,9 +128,14 @@ var Stores = []Store{
 		read: dokployApps,
 	},
 	{
-		Format: FormatCoolify, Name: "Coolify's templates", License: "Apache-2.0", Root: "templates/compose",
+		Format: FormatCoolify, ID: "coolify", Label: "Coolify", Name: "Coolify's templates", License: "Apache-2.0", Root: "templates/compose",
 		Upstream: "https://github.com/coollabsio/coolify", Layout: "Coolify's format",
-		Descend: func(p string, depth int) bool { return p == "templates" || p == "templates/compose" },
+		Homepage: "https://coolify.io", Branch: "main",
+		Measured: Measured{Commit: "93c7e53e9f07bfdb1c776899cb2e559e5a49aa34", Apps: 384, Installs: 78},
+		// Its templates, and the folder of logos they name, as # logo: svgs/<name>.
+		Descend: func(p string, depth int) bool {
+			return p == "templates" || p == "templates/compose" || p == "public" || p == "public/svgs"
+		},
 		Want: func(p string) bool {
 			dir, file := path.Split(p)
 			return dir == "templates/compose/" && strings.HasSuffix(file, ".yaml")
@@ -122,22 +148,30 @@ var Stores = []Store{
 // repository, and for any other, the repository and the store's format, such as
 // "github.com/acme/appstore, in 1Panel's format".
 func (s Store) SourceName(repository string) string {
+	if s.At(repository) {
+		return s.Name
+	}
+	clean := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(repository)), "/")
+	clean = strings.TrimSuffix(strings.TrimSuffix(clean, ".git"), "/")
+	where := strings.TrimPrefix(strings.TrimPrefix(clean, "https://"), "http://")
+	return CommentText(where) + ", in " + s.Layout
+}
+
+// At says a repository is the store's own, as a source names it: the same URL, in
+// any case, with or without a trailing slash or .git.
+func (s Store) At(repository string) bool {
 	clean := func(u string) string {
 		u = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(u)), "/")
 		return strings.TrimSuffix(strings.TrimSuffix(u, ".git"), "/")
 	}
-	if clean(repository) == clean(s.Upstream) {
-		return s.Name
-	}
-	where := strings.TrimPrefix(strings.TrimPrefix(clean(repository), "https://"), "http://")
-	return CommentText(where) + ", in " + s.Layout
+	return clean(repository) == clean(s.Upstream)
 }
 
 // StoreOf is the store of a format, if the control plane converts it.
 func StoreOf(format string) (Store, bool) {
-	for _, s := range Stores {
-		if s.Format == format {
-			return s, true
+	for i := range Stores {
+		if Stores[i].Format == format {
+			return Stores[i], true
 		}
 	}
 	return Store{}, false
@@ -305,6 +339,7 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		}
 		r := c.Convert(ctx, apps[i])
 		if r.Entry != nil {
+			r.Icon = apps[i].Icon
 			if size += proto.Size(r.Entry); size > MaxConverted {
 				return Run{}, fmt.Errorf("what it converts to comes to over %d MiB, more than a source keeps of one commit", MaxConverted>>20)
 			}
@@ -421,6 +456,7 @@ func privateRegistry(r ref) string {
 // as the plan is where they do.
 func (c *Converter) serverWords(ctx context.Context, e *catalogv1.Entry, app App, overlay *Overlay, rw rewritten) error {
 	e.Summary = serverSummary(app.Summary, c.Source.Name)
+	storeWords(e, app)
 	if e.GetCategory() == "" {
 		e.Category = "other"
 	}

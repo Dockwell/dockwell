@@ -21,6 +21,7 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/catalog/svgclean"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/gitfetch"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -43,8 +44,9 @@ var Limits = func() gitfetch.Limits {
 var MediaLimits = gitfetch.Limits{Files: 1000, File: 1 << 20, Total: 32 << 20}
 
 // imageName is what an image's file may be called: lowercase words, then the
-// extension of a raster format the panel shows. No SVG, which can hold a script.
-var imageName = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*\.(png|jpg|jpeg|webp)$`)
+// extension of a raster format the panel shows, or of SVG, which is only ever kept as
+// svgclean writes it anew (ADR 0083).
+var imageName = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*\.(png|jpg|jpeg|webp|svg)$`)
 
 // ImageName says a name is one an image in the folder media may have.
 func ImageName(name string) bool { return imageName.MatchString(name) }
@@ -56,23 +58,35 @@ func MediaFile(path string) (string, bool) {
 	return name, ok && ImageName(name)
 }
 
-// Sniffed is how many of an image's first bytes Image needs.
+// Vector says an image's name is an SVG image's, which Image reads whole, where a
+// raster image is told by its first bytes.
+func Vector(name string) bool { return strings.HasSuffix(name, ".svg") }
+
+// Sniffed is how many of a raster image's first bytes Image needs. An SVG image it
+// reads whole.
 const Sniffed = 12
 
-// Image says what an image is by its first bytes, as its content type: WebP, PNG or
-// JPEG, and that its name's extension says the same. Anything else is refused, as
-// a stranger's file could be a page a browser runs, whatever it's called.
-func Image(name string, head []byte) (string, error) {
+// Image says what an image is by its bytes, as its content type: WebP, PNG or JPEG
+// by its first bytes, or an SVG image svgclean takes, by the whole file, and that its
+// name's extension says the same. Anything else is refused, as a stranger's file
+// could be a page a browser runs, whatever it's called.
+func Image(name string, data []byte) (string, error) {
+	if Vector(name) {
+		if _, err := svgclean.Clean(data); err != nil {
+			return "", fmt.Errorf("it can't be shown as an SVG image: %w. Save it as a plain SVG, WebP, PNG or JPEG", err)
+		}
+		return "image/svg+xml", nil
+	}
 	var kind, ext string
 	switch {
-	case len(head) >= 12 && bytes.Equal(head[:4], []byte("RIFF")) && bytes.Equal(head[8:12], []byte("WEBP")):
+	case len(data) >= 12 && bytes.Equal(data[:4], []byte("RIFF")) && bytes.Equal(data[8:12], []byte("WEBP")):
 		kind, ext = "image/webp", "webp"
-	case bytes.HasPrefix(head, []byte("\x89PNG\r\n\x1a\n")):
+	case bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")):
 		kind, ext = "image/png", "png"
-	case bytes.HasPrefix(head, []byte{0xff, 0xd8, 0xff}):
+	case bytes.HasPrefix(data, []byte{0xff, 0xd8, 0xff}):
 		kind, ext = "image/jpeg", "jpeg"
 	default:
-		return "", errors.New("by its first bytes it isn't a WebP, PNG or JPEG image, the images a catalog may hold. Save it as one")
+		return "", errors.New("by its first bytes it isn't a WebP, PNG or JPEG image, the raster images a catalog may hold. Save it as one")
 	}
 	got := name[strings.LastIndexByte(name, '.')+1:]
 	if got == "jpg" {
@@ -82,6 +96,23 @@ func Image(name string, head []byte) (string, error) {
 		return "", fmt.Errorf("by its first bytes it's a %s image, named as a %s one. Name it .%s", strings.ToUpper(ext), strings.ToUpper(got), ext)
 	}
 	return kind, nil
+}
+
+// Prepare is an image as the control plane keeps and serves it: a raster image as
+// it is, once Image takes it, and an SVG image as svgclean writes it anew, so
+// nothing of the file but what draws is ever kept.
+func Prepare(name string, data []byte) ([]byte, error) {
+	if Vector(name) {
+		clean, err := svgclean.Clean(data)
+		if err != nil {
+			return nil, fmt.Errorf("it can't be shown as an SVG image: %w. Save it as a plain SVG, WebP, PNG or JPEG", err)
+		}
+		return clean, nil
+	}
+	if _, err := Image(name, data); err != nil {
+		return nil, err
+	}
+	return data, nil
 }
 
 // Refusal is a file the catalog leaves out, or an image an entry loses, and why.

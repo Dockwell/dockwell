@@ -59,6 +59,9 @@ const (
 	// CatalogServiceListCatalogSourcesProcedure is the fully-qualified name of the CatalogService's
 	// ListCatalogSources RPC.
 	CatalogServiceListCatalogSourcesProcedure = "/dockwell.v1.CatalogService/ListCatalogSources"
+	// CatalogServiceListCatalogStoresProcedure is the fully-qualified name of the CatalogService's
+	// ListCatalogStores RPC.
+	CatalogServiceListCatalogStoresProcedure = "/dockwell.v1.CatalogService/ListCatalogStores"
 	// CatalogServiceListCatalogSourceRefsProcedure is the fully-qualified name of the CatalogService's
 	// ListCatalogSourceRefs RPC.
 	CatalogServiceListCatalogSourceRefsProcedure = "/dockwell.v1.CatalogService/ListCatalogSourceRefs"
@@ -124,6 +127,12 @@ type CatalogServiceClient interface {
 	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
 	// how many of each one's entries it shows, and why it leaves out the rest.
 	ListCatalogSources(context.Context, *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error)
+	// ListCatalogStores returns the other stores Dockwell reads directly, each one
+	// click from being a catalog source: what it is, its repository, format, branch
+	// and licence, how many of its apps install, as this build measured or as its
+	// source reads it now, and the source that reads it, if one does. See
+	// docs/adr/0083-a-stores-own-logos-and-words-and-stores-one-click-away.md.
+	ListCatalogStores(context.Context, *connect.Request[v1.ListCatalogStoresRequest]) (*connect.Response[v1.ListCatalogStoresResponse], error)
 	// ListCatalogSourceRefs lists the branches and tags of a public Git repository,
 	// each with the commit it's at now, so a form can check a repository as it's
 	// typed and offer its branches to pin a source to. It reads the repository as
@@ -207,6 +216,13 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listCatalogStores: connect.NewClient[v1.ListCatalogStoresRequest, v1.ListCatalogStoresResponse](
+			httpClient,
+			baseURL+CatalogServiceListCatalogStoresProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("ListCatalogStores")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		listCatalogSourceRefs: connect.NewClient[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse](
 			httpClient,
 			baseURL+CatalogServiceListCatalogSourceRefsProcedure,
@@ -238,6 +254,7 @@ type catalogServiceClient struct {
 	installCatalogEntry   *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
 	setCatalogSource      *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
 	listCatalogSources    *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
+	listCatalogStores     *connect.Client[v1.ListCatalogStoresRequest, v1.ListCatalogStoresResponse]
 	listCatalogSourceRefs *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
 	checkCatalogSource    *connect.Client[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse]
 	removeCatalogSource   *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
@@ -281,6 +298,11 @@ func (c *catalogServiceClient) SetCatalogSource(ctx context.Context, req *connec
 // ListCatalogSources calls dockwell.v1.CatalogService.ListCatalogSources.
 func (c *catalogServiceClient) ListCatalogSources(ctx context.Context, req *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error) {
 	return c.listCatalogSources.CallUnary(ctx, req)
+}
+
+// ListCatalogStores calls dockwell.v1.CatalogService.ListCatalogStores.
+func (c *catalogServiceClient) ListCatalogStores(ctx context.Context, req *connect.Request[v1.ListCatalogStoresRequest]) (*connect.Response[v1.ListCatalogStoresResponse], error) {
+	return c.listCatalogStores.CallUnary(ctx, req)
 }
 
 // ListCatalogSourceRefs calls dockwell.v1.CatalogService.ListCatalogSourceRefs.
@@ -352,6 +374,12 @@ type CatalogServiceHandler interface {
 	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
 	// how many of each one's entries it shows, and why it leaves out the rest.
 	ListCatalogSources(context.Context, *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error)
+	// ListCatalogStores returns the other stores Dockwell reads directly, each one
+	// click from being a catalog source: what it is, its repository, format, branch
+	// and licence, how many of its apps install, as this build measured or as its
+	// source reads it now, and the source that reads it, if one does. See
+	// docs/adr/0083-a-stores-own-logos-and-words-and-stores-one-click-away.md.
+	ListCatalogStores(context.Context, *connect.Request[v1.ListCatalogStoresRequest]) (*connect.Response[v1.ListCatalogStoresResponse], error)
 	// ListCatalogSourceRefs lists the branches and tags of a public Git repository,
 	// each with the commit it's at now, so a form can check a repository as it's
 	// typed and offer its branches to pin a source to. It reads the repository as
@@ -431,6 +459,13 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceListCatalogStoresHandler := connect.NewUnaryHandler(
+		CatalogServiceListCatalogStoresProcedure,
+		svc.ListCatalogStores,
+		connect.WithSchema(catalogServiceMethods.ByName("ListCatalogStores")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceListCatalogSourceRefsHandler := connect.NewUnaryHandler(
 		CatalogServiceListCatalogSourceRefsProcedure,
 		svc.ListCatalogSourceRefs,
@@ -467,6 +502,8 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceSetCatalogSourceHandler.ServeHTTP(w, r)
 		case CatalogServiceListCatalogSourcesProcedure:
 			catalogServiceListCatalogSourcesHandler.ServeHTTP(w, r)
+		case CatalogServiceListCatalogStoresProcedure:
+			catalogServiceListCatalogStoresHandler.ServeHTTP(w, r)
 		case CatalogServiceListCatalogSourceRefsProcedure:
 			catalogServiceListCatalogSourceRefsHandler.ServeHTTP(w, r)
 		case CatalogServiceCheckCatalogSourceProcedure:
@@ -512,6 +549,10 @@ func (UnimplementedCatalogServiceHandler) SetCatalogSource(context.Context, *con
 
 func (UnimplementedCatalogServiceHandler) ListCatalogSources(context.Context, *connect.Request[v1.ListCatalogSourcesRequest]) (*connect.Response[v1.ListCatalogSourcesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogSources is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) ListCatalogStores(context.Context, *connect.Request[v1.ListCatalogStoresRequest]) (*connect.Response[v1.ListCatalogStoresResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogStores is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error) {

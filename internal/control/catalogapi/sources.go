@@ -26,6 +26,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/catalog/convert"
 	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/catalog/snapshot"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -260,7 +261,7 @@ func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *res
 	}
 	_, plan := s.folders(spec)
 	if converted(spec) {
-		out, err := s.convertOne(parent, spec)
+		out, images, err := s.convertOne(parent, spec)
 		if err != nil {
 			// Converted by an older converter, it still reads, until this one can.
 			if old, ok := s.staleKept(spec); ok {
@@ -274,8 +275,12 @@ func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *res
 				files.entries[name] = data
 			}
 		}
+		// Each logo is kept as folder.Prepare wrote it, which passed its checks.
+		for name := range images {
+			files.media[name] = nil
+		}
 		if plan != "" {
-			keep(plan, files, nil)
+			keep(plan, files, images)
 			s.prunePlans()
 		}
 		return files, nil
@@ -297,8 +302,14 @@ func (s *Sources) fetchOne(parent context.Context, slot chan struct{}, spec *res
 		if entryFile(name) {
 			files.entries[name] = data
 		} else if image, ok := mediaName(name); ok {
-			images[image] = data
-			_, files.media[image] = folder.Image(image, data)
+			// Kept as it's served: an SVG image as svgclean writes it anew. One that
+			// fails its checks is kept as it came, to say why each time it's read,
+			// and is never served.
+			prepared, err := folder.Prepare(image, data)
+			if files.media[image] = err; err != nil {
+				prepared = data
+			}
+			images[image] = prepared
 		}
 	}
 	if plan != "" {
@@ -538,6 +549,10 @@ func readKept(dir string) (commitFiles, error) {
 			return commitFiles{}, err
 		}
 		_, out.media[e.Name()] = folder.Image(e.Name(), head)
+		if folder.Vector(e.Name()) {
+			// An SVG image is told by the whole of it, as svgclean wrote it.
+			out.media[e.Name()] = vectorKept(filepath.Join(dir, folder.Media, e.Name()), e.Name())
+		}
 	}
 	return out, nil
 }
@@ -589,13 +604,17 @@ var readSnapshot = sync.OnceValues(func() (commitFiles, bool) {
 		if err != nil {
 			return commitFiles{}, false
 		}
-		head := make([]byte, folder.Sniffed)
-		n, err := io.ReadFull(f, head)
+		// A raster image is told by its first bytes, an SVG image by the whole of it.
+		most := int64(folder.Sniffed)
+		if folder.Vector(e.Name()) {
+			most = folder.MediaLimits.File
+		}
+		head, err := io.ReadAll(io.LimitReader(f, most))
 		_ = f.Close()
-		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		if err != nil {
 			return commitFiles{}, false
 		}
-		_, out.media[e.Name()] = folder.Image(e.Name(), head[:n])
+		_, out.media[e.Name()] = folder.Image(e.Name(), head)
 	}
 	return out, true
 })
@@ -612,6 +631,25 @@ var checkedSnapshot = sync.OnceValue(func() sourceRead {
 	files, _ := readSnapshot()
 	return checkFiles(context.Background(), DefaultName, snapshotSpec(), files, claims{}, true)
 })
+
+// vectorKept says whether an SVG image kept is one folder.Image takes, reading the
+// whole of it, within the most an image may be.
+func vectorKept(file, name string) error {
+	f, err := os.Open(file) //nolint:gosec // what this kept, under the control plane's own folder
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, folder.MediaLimits.File+1))
+	switch {
+	case err != nil:
+		return err
+	case int64(len(data)) > folder.MediaLimits.File:
+		return fmt.Errorf("it's over %d MiB, more than an image may be", folder.MediaLimits.File>>20)
+	}
+	_, err = folder.Image(name, data)
+	return err
+}
 
 // readHead reads the first bytes of a file, as many as folder.Image looks at.
 func readHead(file string) ([]byte, error) {
@@ -1308,7 +1346,7 @@ func (h *Handler) sourceInfos(ctx context.Context) ([]*dockwellv1.CatalogSourceI
 	reads, unread := s.reads, s.unread
 	var out []*dockwellv1.CatalogSourceInfo
 	for _, s := range list {
-		info := &dockwellv1.CatalogSourceInfo{Name: s.name, Source: s.spec, Own: isOwn(s.spec)}
+		info := &dockwellv1.CatalogSourceInfo{Name: s.name, Source: s.spec, Own: isOwn(s.spec), Store: storeOf(s.spec).ID}
 		if err := unread[s.name]; err != nil {
 			info.Unread = err.Error()
 		}
@@ -1319,6 +1357,53 @@ func (h *Handler) sourceInfos(ctx context.Context) ([]*dockwellv1.CatalogSourceI
 		out = append(out, info)
 	}
 	return out, nil
+}
+
+// storeOf is the store a source reads, at the store's own repository and in its
+// format, if it reads one.
+func storeOf(spec *resourcev1.CatalogSource) convert.Store {
+	known, ok := convert.StoreOf(formatOf(spec))
+	if !ok || !known.At(spec.GetRepository()) || spec.GetPath() != "" {
+		return convert.Store{}
+	}
+	return known
+}
+
+// ListCatalogStores lists the stores Dockwell reads directly, each with what this
+// build measured of it, or once a source reads it, what that source's read found,
+// and the source's name: the one with the most apps that install first.
+func (h *Handler) ListCatalogStores(ctx context.Context, _ *connect.Request[dockwellv1.ListCatalogStoresRequest]) (*connect.Response[dockwellv1.ListCatalogStoresResponse], error) {
+	list, err := h.storedSources(ctx)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	read, err := h.withSources(ctx, nil)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	var out []*dockwellv1.CatalogStore
+	for i := range convert.Stores {
+		st := &convert.Stores[i]
+		info := &dockwellv1.CatalogStore{
+			Id: st.ID, Name: st.Name, Label: st.Label, Repository: st.Upstream, Format: formatEnum(st.Format),
+			Branch: st.Branch, License: st.License, Homepage: st.Homepage,
+			Apps: st.Measured.Apps, Installs: st.Measured.Installs, Commit: st.Measured.Commit,
+		}
+		for _, src := range list {
+			if storeOf(src.spec).ID != st.ID {
+				continue
+			}
+			info.Source = src.name
+			if got, ok := read.reads[src.name]; ok && got.apps > 0 {
+				info.Apps, info.Installs = uint32(min(got.apps, convert.MaxApps)), uint32(min(len(got.entries)+len(got.also), convert.MaxApps))
+				info.Commit, info.Live = src.spec.GetCommit(), true
+			}
+			break
+		}
+		out = append(out, info)
+	}
+	slices.SortStableFunc(out, func(a, b *dockwellv1.CatalogStore) int { return cmp.Compare(b.GetInstalls(), a.GetInstalls()) })
+	return connect.NewResponse(&dockwellv1.ListCatalogStoresResponse{Stores: out}), nil
 }
 
 // mostRefs is how many branches and tags a listing answers with: a form offers

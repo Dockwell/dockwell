@@ -143,6 +143,20 @@ service CatalogService {
     option (dockwell.v1.command) = {verb: "sources"};
     option (google.api.http) = {get: "/v1/catalog/sources"};
   }
+  // ListCatalogStores returns the other stores Dockwell reads directly, each one
+  // click from being a catalog source: what it is, its repository, format, branch
+  // and licence, how many of its apps install, as this build measured or as its
+  // source reads it now, and the source that reads it, if one does. See
+  // docs/adr/0083-a-stores-own-logos-and-words-and-stores-one-click-away.md.
+  rpc ListCatalogStores(ListCatalogStoresRequest) returns (ListCatalogStoresResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SHARED;
+    option (dockwell.v1.command) = {verb: "stores"};
+    option (google.api.http) = {get: "/v1/catalog/stores"};
+  }
   // ListCatalogSourceRefs lists the branches and tags of a public Git repository,
   // each with the commit it's at now, so a form can check a repository as it's
   // typed and offer its branches to pin a source to. It reads the repository as
@@ -471,6 +485,11 @@ message CatalogSourceInfo {
   // The IDs of the apps it has that the catalog lists from a catalog before it,
   // whose entries in it are another choice of the same app, sorted.
   repeated string also = 20;
+  // The store it reads, by the ID ListCatalogStores gives it, such as "onepanel",
+  // where it reads one at that store's own repository, in its format. Empty for
+  // any other source. Numbered in the block catalog sources' presentation holds
+  // (ADR 0083).
+  string store = 30;
 }
 
 // CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
@@ -486,6 +505,51 @@ message CatalogSourceRefusal {
   string kind = 20;
   // For another store's app, its ID as an entry would have it, such as "memos".
   string id = 21;
+}
+
+// ListCatalogStoresRequest asks for every store Dockwell reads directly.
+message ListCatalogStoresRequest {}
+
+// ListCatalogStoresResponse is every store Dockwell reads directly.
+message ListCatalogStoresResponse {
+  // Each store, the one with the most apps that install first.
+  repeated CatalogStore stores = 1;
+}
+
+// CatalogStore is another store's catalog that Dockwell reads directly and
+// converts as it reads it (ADR 0078), as a person adds it in one click.
+message CatalogStore {
+  // Its ID, such as "onepanel", which a source of it is named by unless that's
+  // taken.
+  string id = 1;
+  // What it's called, such as "1Panel's app store".
+  string name = 2;
+  // How a source of it reads, short, such as "1Panel".
+  string label = 3;
+  // Its repository's URL, over HTTPS.
+  string repository = 4;
+  // How its folder is laid out.
+  dockwell.resource.v1alpha1.CatalogFormat format = 5;
+  // The branch a source of it follows, as the repository names its default, such
+  // as "dev".
+  string branch = 6;
+  // The licence its entries come under, as an SPDX identifier, such as
+  // "GPL-3.0-only".
+  string license = 7;
+  // The store's own project site, at an HTTPS address.
+  string homepage = 8;
+  // How many apps it holds.
+  uint32 apps = 9;
+  // How many of them install: those Dockwell converts into entries.
+  uint32 installs = 10;
+  // The commit apps and installs were counted at, in full: the one its source reads
+  // now, or the one this build measured.
+  string commit = 11;
+  // apps and installs are its source's, as Dockwell read it, rather than what this
+  // build measured.
+  bool live = 12;
+  // The source that reads it, by name. Empty when none does.
+  string source = 13;
 }
 
 // ListCatalogSourceRefsRequest names a repository.

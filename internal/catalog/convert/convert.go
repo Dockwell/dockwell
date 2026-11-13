@@ -112,6 +112,15 @@ type App struct {
 	// Older is the version before, where the source keeps one, which converts in
 	// this one's place while this one is too young, within its major version.
 	Older *App
+	// Icon is where the source keeps the app's logo, from the source's folder, such
+	// as apps/memos/logo.png, which the control plane reads beside what converts.
+	// Description and Readme are what the source writes of the app at length, as
+	// plain text and as Markdown, and Words the same in other languages, by their
+	// tags. The control plane keeps them as the source's words (ADR 0083).
+	Icon        string
+	Description string
+	Readme      string
+	Words       map[string]Words
 }
 
 // Kind is what a field asks for.
@@ -169,6 +178,9 @@ type Result struct {
 	Young bool
 	// Notes are what the converter changed beyond the rules every entry follows.
 	Notes []string
+	// Icon is where the source keeps the app's logo, as App.Icon, for the control
+	// plane to read for an app that converts. Empty when it keeps none.
+	Icon string
 }
 
 // Pinned is what the converter keeps of an image's tag between runs. Entries pin
