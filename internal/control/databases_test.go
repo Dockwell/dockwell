@@ -206,6 +206,7 @@ var (
 	createDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
 	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	askOwner   = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 	askRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 )
 
@@ -216,7 +217,7 @@ func (s *pgState) image() dockertest.Image {
 		Exec: func(x dockertest.Exec) int {
 			// Anyone signing in from another host needs a password, as the official
 			// image's pg_hba.conf has it.
-			if script := strings.Join(x.Cmd, " "); strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1") && x.Cmd[len(x.Cmd)-1] != "127.0.0.1" {
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1") && x.Cmd[len(x.Cmd)-2] != "127.0.0.1" {
 				_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
 				return 2
 			}
@@ -225,6 +226,10 @@ func (s *pgState) image() dockertest.Image {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.said = append(s.said, strings.Join(x.Cmd, " ")+"\n"+sql)
+			if m := askOwner.FindStringSubmatch(sql); m != nil {
+				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q}`+"\n", s.databases[m[1]])
+				return 0
+			}
 			if m := askRole.FindStringSubmatch(sql); m != nil {
 				_, has := s.roles[m[1]]
 				_, _ = fmt.Fprintf(x.Stdout, `{"user":%t,"owner":%q}`+"\n", has, s.databases[m[2]])

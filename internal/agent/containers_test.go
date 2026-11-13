@@ -31,6 +31,11 @@ func TestAListHoldsNoneOfWhatAContainerKeepsToItself(t *testing.T) {
 			Labels: map[string]string{"backup.password": "hunter2", docker.LabelProject: "shopstack", docker.LabelService: "shop", docker.LabelOneoff: "True"},
 		},
 	})
+	// What loads a database copy is Dockwell's own, for a moment, and nobody's to look at.
+	e.AddContainer(docker.Container{
+		ID: "c1", Name: "/" + docker.CopyPrefix + "blog-1",
+		Config: docker.Config{Image: "acme/shop:1", Labels: map[string]string{docker.LabelOneoff: "True", docker.LabelCopy: "blog"}},
+	})
 	found, err := containers(t.Context(), e.Client(), &agentv1.ContainersCall{})
 	if err != nil {
 		t.Fatal(err)

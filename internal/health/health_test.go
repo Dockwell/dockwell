@@ -291,6 +291,12 @@ func TestWhereAContainerIsReached(t *testing.T) {
 	if got := Address(map[string]*docker.EndpointSettings{"bridge": {}}); got != "" {
 		t.Errorf("a stopped container is at %q", got)
 	}
+	// A database copy's network, which a server is on while a copy loads into it, is
+	// internal, and the agent can't reach the server there (#595).
+	n[docker.CopyPrefix+"blog-1"] = &docker.EndpointSettings{IPAddress: "172.19.0.2"}
+	if got := Address(n); got != "172.21.0.2" {
+		t.Errorf("while a copy loads, it is reached at %s", got)
+	}
 }
 
 // A check goes to the container, whatever the agent's environment says. This reads

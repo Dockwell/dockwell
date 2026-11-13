@@ -237,7 +237,8 @@ func Address(networks map[string]*docker.EndpointSettings) string {
 	}
 	best, bestName := "", ""
 	for name, ep := range networks {
-		if ep == nil || ep.IPAddress == "" {
+		// A database copy's network is internal, and the server can't reach it.
+		if ep == nil || ep.IPAddress == "" || strings.HasPrefix(name, docker.CopyPrefix) {
 			continue
 		}
 		if best == "" || name < bestName {
