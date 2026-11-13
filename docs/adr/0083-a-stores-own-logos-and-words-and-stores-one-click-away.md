@@ -33,8 +33,8 @@ Half of Dokploy's logos and two thirds of Coolify's are SVG. Seven of their 567 
 | 1Panel's app store, Dokploy's templates, Coolify's templates | GPL-3.0, MIT, Apache-2.0 | Read today | Listed |
 | Runtipi's app store, runtipi/runtipi-appstore | GPL-3.0 | An adapter (below): `config.json` with its form, a Compose file with versioned images and Runtipi's variables, its `metadata/logo.jpg` and `metadata/description.md` | Listed, with the third pull request |
 | CapRover's one-click apps | Apache-2.0 | An adapter for `captainVersion: 4` files and `$$cap_` variables; logos in the repository | After Runtipi |
-| CasaOS's app store | Apache-2.0 | An adapter for `x-casaos`; its icons and screenshots are links to other hosts, which Dockwell doesn't fetch | Later, without artwork |
-| Umbrel's apps | None stated | Its apps lean on `app_proxy` and `exports.sh` scripts | Not listed |
+| CasaOS's app store, IceWhaleTech/CasaOS-AppStore | Apache-2.0 | An adapter for `x-casaos` (below); its logos and screenshots are links through jsDelivr to files in its own repository, which Dockwell reads from the commit | Listed, the fifth |
+| Umbrel's apps, getumbrel/umbrel-apps | None stated | An adapter (below); `app_proxy`, and hooks and `exports.sh` scripts, which leave their apps out; its logos and screenshots live in another repository | Read from a pasted link, not in the gallery: whether Dockwell offers a store that states no licence is the owner's to decide |
 | Portainer's templates | None stated | Its stacks name files in other repositories | Not listed |
 
 ### Runtipi's app store, the fourth format
@@ -45,6 +45,20 @@ Half of Dokploy's logos and two thirds of Coolify's are SVG. Seven of their 567 
 - **Left out, saying why:** an app Runtipi marks unavailable or deprecated, one on amd64 alone, one whose data folder Runtipi gives to another user by running chown on the server, one it makes keys for at install, and one that uses any other value of Runtipi's.
 - **Bounds:** ADR 0078's, as for every store: each file read on the server within its size and nesting, its aliases expanded within their bounds, 2,000 apps, and the time checked once an app. Its logos are JPEG, read as the others' are.
 - **At `e88c4a72`, 141 of its 267 apps convert,** the most of the four by share: 31 use a value only Runtipi fills in, 28 ask for what Dockwell can't run yet, 21 name a moving tag, 16 run on amd64 alone, 10 have their folder given to another user.
+
+### CasaOS's app store, the fifth format
+
+- **Laid out as `Apps/<name>/docker-compose.yml`,** whose `x-casaos` says the rest: its title, tagline and description by language (`en_US`, and `zh_CN` as the panel's zh-CN), category, architectures, the service a person opens and the port it's published on, version and links.
+- **What CasaOS fills in is said in an entry's own terms:** `/DATA/AppData/$AppID/<folder>` is the app's own folder, which becomes a named volume, where `$AppID` or the folder names the app itself; `/DATA/Media` and `/DATA/Downloads` are `MEDIA_DIR` and `DOWNLOADS_DIR`, folders a person names, which the plan shows as paths on the server to approve; `$TZ`, `$PUID` and `$PGID` read UTC, 1000 and 1000 unless set; the published `port_map` is the port input. `x-casaos`, the project's `name` and `network_mode: bridge`, Docker's default, go.
+- **Left out, saying why:** an app on amd64 alone, one that binds another app's data folder, one that binds CasaOS's own `/DATA` beyond those, and what the rewrite leaves out for every store.
+- **Its logo and screenshots** are written as addresses, `https://cdn.jsdelivr.net/gh/<owner>/<repo>@<ref>/Apps/<name>/<file>` or GitHub's raw files of the same. Dockwell takes the path from such an address, reads the file at that path in the commit it fetched, only inside the app's own folder, and never fetches the address. Any other address is left out.
+- **At `07178f6d`, 95 of its 183 apps convert:** 27 run on amd64 alone, 25 ask for what Dockwell can't run yet, 12 name a moving tag.
+
+### Umbrel's app store, readable but not listed
+
+- **Laid out as `<id>/umbrel-app.yml`** beside its Compose file, at the repository's top. Its proxy, `app_proxy`, goes, and the service and port it reached (`APP_HOST`, `APP_PORT`) are published on a port input; `${APP_DATA_DIR}` becomes named volumes and `${UMBREL_ROOT}/data/storage/downloads` `DOWNLOADS_DIR`; `${APP_SEED}` and `${APP_PASSWORD}`, which Umbrel makes for each app, are generated secrets of 64 hex and 32 characters; `${DEVICE_DOMAIN_NAME}` is `localhost`; a container its services reach by Umbrel's name for it, as `planka_db_1`, they reach by its service's name. Its images are pinned by digest already.
+- **Left out:** an app with hooks or an `exports.sh`, which are scripts Umbrel runs on the server, one that needs another app installed, and one that uses any other value of Umbrel's. At `1d9cd0b7`, 155 of its 403 apps convert; 147 have scripts.
+- **Not in the gallery:** its repository has no licence file and its README states none, so its entries read `NOASSERTION`, and the plan says Dockwell can't tell their licence (ADR 0078). Dockwell reads it from a link a person pastes, as any repository laid out as a store's, and doesn't offer it in one click until the owner decides. Its logos and screenshots are in another repository, getumbrel/umbrel-apps-gallery, which a source of the store doesn't read.
 
 ### A store's logo is read for each app that converts
 
@@ -72,7 +86,9 @@ Half of Dokploy's logos and two thirds of Coolify's are SVG. Seven of their 567 
 
 ### Screenshots
 
-A store's screenshots are read only where the store keeps them in its repository, as its logos are. None of the three does: 1Panel's two READMEs that show screenshots link them from other hosts, which Dockwell doesn't fetch (ADR 0077). Their pages say so by showing none.
+- **A store's screenshots are read only where the store keeps them in its own repository,** as its logos are, and never from another host (ADR 0077). Of the six stores, CasaOS does: its `screenshot_link` names files beside each app's Compose file. 1Panel's two READMEs that show screenshots link them from other hosts; Runtipi keeps none in its repository, and Umbrel keeps them in another.
+- **They're read after the logos, in what's left of a commit's image limits** (1,000 images, 1 MiB each, 32 MiB together): three an app at most, each app's first before any app's second, so a store of many apps gives each a picture before the budget ends. A commit's objects come with no sizes, so they're asked for 16 at a time, in 12 rounds at most, each pack held to the snapshot's bound. CasaOS's screenshots come to 210 MiB, so most of its apps show one or two.
+- **A screenshot is a raster image,** never an SVG one, kept as `media/<id>-<n>.<ext>`, with the store's address as its source and "<app>, screen <n>" as its caption, where the store gives no words.
 
 ### A store's apps are checked once for every reader
 

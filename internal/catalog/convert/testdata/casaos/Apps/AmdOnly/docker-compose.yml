@@ -1,0 +1,10 @@
+name: amdonly
+services:
+  only:
+    image: example/only:1.0.0
+x-casaos:
+  architectures:
+    - amd64
+  main: only
+  title:
+    en_US: Only

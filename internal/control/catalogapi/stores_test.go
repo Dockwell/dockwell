@@ -28,6 +28,8 @@ func TestStoreOf(t *testing.T) {
 		{"https://github.com/coollabsio/coolify", "", resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY, "coolify"},
 		{"https://github.com/Dokploy/templates", "", resourcev1.CatalogFormat_CATALOG_FORMAT_DOKPLOY, "dokploy"},
 		{"https://github.com/runtipi/runtipi-appstore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_RUNTIPI, "runtipi"},
+		{"https://github.com/IceWhaleTech/CasaOS-AppStore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_CASAOS, "casaos"},
+		{"https://github.com/getumbrel/umbrel-apps", "", resourcev1.CatalogFormat_CATALOG_FORMAT_UMBREL, "umbrel"},
 		{"https://github.com/Dockwell/catalog", "entries", resourcev1.CatalogFormat_CATALOG_FORMAT_UNSPECIFIED, ""},
 	} {
 		spec := &resourcev1.CatalogSource{Repository: c.repository, Path: c.path, Format: c.format}

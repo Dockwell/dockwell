@@ -76,6 +76,8 @@ const FORMATS: Readonly<Partial<Record<CatalogFormat, MessageDescriptor>>> = {
   [CatalogFormat.DOKPLOY]: msg`Dokploy's templates`,
   [CatalogFormat.COOLIFY]: msg`Coolify's templates`,
   [CatalogFormat.RUNTIPI]: msg`Runtipi's app store`,
+  [CatalogFormat.CASAOS]: msg`CasaOS's app store`,
+  [CatalogFormat.UMBREL]: msg`Umbrel's app store`,
 };
 
 /** Says another store's format in the reader's words, or nothing for one the panel has no words for. */

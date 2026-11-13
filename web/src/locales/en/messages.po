@@ -6827,6 +6827,9 @@ msgstr "Ask for what Dockwell can't run yet"
 msgid "Ask for what an entry can't say yet"
 msgstr "Ask for what an entry can't say yet"
 
+msgid "CasaOS's app store"
+msgstr "CasaOS's app store"
+
 msgid "Come under terms of their own"
 msgstr "Come under terms of their own"
 
@@ -6895,6 +6898,9 @@ msgstr "Ship files beside their Compose file"
 
 msgid "Their store keeps them out of its own list"
 msgstr "Their store keeps them out of its own list"
+
+msgid "Umbrel's app store"
+msgstr "Umbrel's app store"
 
 msgid "Use a value their store fills in"
 msgstr "Use a value their store fills in"

@@ -1,0 +1,22 @@
+version: "3.7"
+services:
+  app_proxy:
+    environment:
+      APP_HOST: needs_app_1
+      APP_PORT: 1337
+  app:
+    image: example/needs:2.3.1@sha256:f767ab97b878265ea1fff826867718d6ffa95dac04cd979fb5db82489806fb51
+    environment:
+      BASE_URL: http://${DEVICE_DOMAIN_NAME}:8546
+      DATABASE_URL: postgresql://postgres@needs_db_1/needs
+      ADMIN_PASSWORD: ${APP_PASSWORD}
+      SECRET_KEY: ${APP_SEED}
+    volumes:
+      - ${APP_DATA_DIR}/data/uploads:/uploads
+      - ${UMBREL_ROOT}/data/storage/downloads:/downloads
+  db:
+    image: postgres:16.13@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - ${APP_DATA_DIR}/data/db:/var/lib/postgresql/data

@@ -49,6 +49,8 @@ var formats = map[resourcev1.CatalogFormat]string{
 	resourcev1.CatalogFormat_CATALOG_FORMAT_DOKPLOY:     convert.FormatDokploy,
 	resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY:     convert.FormatCoolify,
 	resourcev1.CatalogFormat_CATALOG_FORMAT_RUNTIPI:     convert.FormatRuntipi,
+	resourcev1.CatalogFormat_CATALOG_FORMAT_CASAOS:      convert.FormatCasaOS,
+	resourcev1.CatalogFormat_CATALOG_FORMAT_UMBREL:      convert.FormatUmbrel,
 }
 
 // formatOf is how a source's folder is laid out, in the converter's word.
@@ -215,7 +217,79 @@ func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, l
 			r.Entry.Icon = folder.Media + "/" + name
 		}
 	}
+	storeShots(ctx, snap, run, listed, images)
 	return images
+}
+
+// Screenshots a store keeps are read after its logos, in what's left of the limits of
+// a catalog's images, at most shotsAnApp an app, each app's first before any app's
+// second, so a store of many apps gives each one a picture before the budget ends.
+// They're asked for shotsARound at a time, as a commit's objects come with no sizes,
+// and a pack of them is held to the snapshot's own bound. A screenshot is a raster
+// image, never an SVG one.
+const (
+	shotsAnApp  = 3
+	shotsARound = 16
+	shotRounds  = 12
+)
+
+// storeShots reads the screenshots of the apps that convert into images, beside the
+// logos already there, and names each in its entry, with a caption and the address
+// the store gives it.
+func storeShots(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry, images map[string][]byte) {
+	lim := folder.MediaLimits
+	var kept int64
+	for _, data := range images {
+		kept += int64(len(data))
+	}
+	type want struct {
+		result, n int
+		entry     gitfetch.Entry
+		source    string
+	}
+	var queue []want
+	for n := range shotsAnApp {
+		for i := range run.Results {
+			r := &run.Results[i]
+			if r.Entry == nil || n >= len(r.Screenshots) || folder.Vector(r.Screenshots[n].Path) {
+				continue
+			}
+			if e, ok := listed[r.Screenshots[n].Path]; ok {
+				queue = append(queue, want{result: i, n: n + 1, entry: e, source: r.Screenshots[n].Source})
+			}
+		}
+	}
+	for round := 0; round < shotRounds && len(queue) > 0 && kept < lim.Total && len(images) < lim.Files; round++ {
+		batch := queue[:min(shotsARound, len(queue))]
+		queue = queue[len(batch):]
+		entries := make([]gitfetch.Entry, len(batch))
+		for i, w := range batch {
+			entries[i] = w.entry
+		}
+		read, _, err := snap.ReadWithin(ctx, entries, gitfetch.ReadLimits{Files: shotsARound, File: lim.File, Total: lim.Total - kept})
+		if err != nil {
+			return
+		}
+		for _, w := range batch {
+			data, ok := read[w.entry.Path]
+			r := &run.Results[w.result]
+			name := convert.ShotName(r.ID, w.n, w.entry.Path)
+			if !ok || !folder.ImageName(name) {
+				continue
+			}
+			prepared, err := folder.Prepare(name, data)
+			if err != nil || len(images) == lim.Files || kept+int64(len(prepared)) > lim.Total {
+				continue
+			}
+			kept += int64(len(prepared))
+			images[name] = prepared
+			r.Entry.Screenshots = append(r.Entry.Screenshots, &catalogv1.Screenshot{
+				Path:    folder.Media + "/" + name,
+				Caption: convert.ShotCaption(r.Entry.GetName(), w.n),
+				Source:  w.source,
+			})
+		}
+	}
 }
 
 // What a converted commit keeps of each app it leaves out: its ID and folder, and a

@@ -54,6 +54,8 @@ const (
 	FormatDokploy  = "dokploy"
 	FormatCoolify  = "coolify"
 	FormatRuntipi  = "runtipi"
+	FormatCasaOS   = "casaos"
+	FormatUmbrel   = "umbrel"
 	FormatDockwell = "dockwell"
 )
 
@@ -69,6 +71,10 @@ type Store struct {
 	// Homepage is the store's own project site, and Branch the branch a source of it
 	// follows, its repository's default.
 	Homepage, Branch string
+	// Unlisted keeps it out of the stores a person adds in one click, though a link to
+	// it reads as it: Umbrel's repository states no licence, so whether Dockwell
+	// offers it is the owner's to decide (ADR 0083).
+	Unlisted bool
 	// License is what its upstream publishes under.
 	License string
 	// Root is the folder it keeps its apps in, such as apps.
@@ -135,7 +141,6 @@ var Stores = []Store{
 		Format: FormatRuntipi, ID: "runtipi", Label: "Runtipi", Name: "Runtipi's app store", License: "GPL-3.0-only", Root: "apps",
 		Upstream: "https://github.com/runtipi/runtipi-appstore", Layout: "Runtipi's format",
 		Homepage: "https://runtipi.io", Branch: "master",
-		Measured: Measured{Commit: "e88c4a725816e2dd366c9590441b2f11e470fd48", Apps: 267, Installs: 141},
 		// apps/<id>/ with its config.json, its Compose file, and metadata/ with its
 		// logo and description.
 		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 3 },
@@ -150,6 +155,32 @@ var Stores = []Store{
 			return false
 		},
 		read: runtipiApps,
+	},
+	{
+		Format: FormatCasaOS, ID: "casaos", Label: "CasaOS", Name: "CasaOS's app store", License: "Apache-2.0", Root: "Apps",
+		Upstream: "https://github.com/IceWhaleTech/CasaOS-AppStore", Layout: "CasaOS's format",
+		Homepage: "https://casaos.zimaspace.com", Branch: "main",
+		// Apps/<name>/ with its docker-compose.yml, whose x-casaos says the rest, and the
+		// logo and screenshots beside it that it links to.
+		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "Apps/") && depth <= 2 },
+		Want: func(p string) bool {
+			parts := strings.Split(p, "/")
+			return len(parts) == 3 && parts[0] == "Apps" && parts[2] == "docker-compose.yml"
+		},
+		read: casaosApps,
+	},
+	{
+		Format: FormatUmbrel, ID: "umbrel", Label: "Umbrel", Name: "Umbrel's app store", License: "NOASSERTION", Root: ".",
+		Upstream: "https://github.com/getumbrel/umbrel-apps", Layout: "Umbrel's format",
+		Homepage: "https://umbrel.com", Branch: "master", Unlisted: true,
+		// <id>/ at its top, with umbrel-app.yml and its Compose file, and whether it has
+		// hooks or exports.sh, which leave it out.
+		Descend: func(_ string, depth int) bool { return depth <= 2 },
+		Want: func(p string) bool {
+			parts := strings.Split(p, "/")
+			return len(parts) == 2 && (parts[1] == "umbrel-app.yml" || parts[1] == "docker-compose.yml")
+		},
+		read: umbrelApps,
 	},
 }
 
@@ -201,7 +232,7 @@ func DetectDescend(p string, depth int) bool {
 		return true
 	case 2:
 		top, _, _ := strings.Cut(p, "/")
-		return slices.Contains([]string{"apps", "blueprints", "templates", "entries"}, top)
+		return slices.Contains([]string{"apps", "Apps", "blueprints", "templates", "entries"}, top)
 	}
 	return false
 }
@@ -220,6 +251,10 @@ func Detect(files []string) ([]Guess, map[Guess]int) {
 			counts[Guess{FormatOnePanel, ""}]++
 		case len(parts) == 3 && parts[0] == "apps" && parts[2] == "config.json":
 			counts[Guess{FormatRuntipi, ""}]++
+		case len(parts) == 3 && parts[0] == "Apps" && parts[2] == "docker-compose.yml":
+			counts[Guess{FormatCasaOS, ""}]++
+		case len(parts) == 2 && parts[1] == "umbrel-app.yml":
+			counts[Guess{FormatUmbrel, ""}]++
 		case len(parts) == 3 && parts[0] == "blueprints" && parts[2] == "template.toml":
 			counts[Guess{FormatDokploy, ""}]++
 		case len(parts) == 3 && parts[0] == "templates" && parts[1] == "compose" && strings.HasSuffix(parts[2], ".yaml"):
@@ -350,7 +385,7 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		}
 		r := c.convertSafely(ctx, apps[i])
 		if r.Entry != nil {
-			r.Icon = apps[i].Icon
+			r.Icon, r.Screenshots = apps[i].Icon, apps[i].Screenshots
 			if size += proto.Size(r.Entry); size > MaxConverted {
 				return Run{}, fmt.Errorf("what it converts to comes to over %d MiB, more than a source keeps of one commit", MaxConverted>>20)
 			}

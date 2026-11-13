@@ -11,6 +11,9 @@ export const STORE_MARKS: Readonly<Record<string, { label: string; mark: string 
   dokploy: { label: "Dokploy", mark: "/stores/dokploy.svg" },
   coolify: { label: "Coolify", mark: "/stores/coolify.svg" },
   runtipi: { label: "Runtipi", mark: "/stores/runtipi.png" },
+  casaos: { label: "CasaOS", mark: "/stores/casaos.png" },
+  // Not in the gallery (ADR 0083), so no mark: a source of it reads by its name, with initials.
+  umbrel: { label: "Umbrel", mark: "" },
 };
 
 /** How a person says a store a source reads, short, by the store's ID, such as "1Panel". */

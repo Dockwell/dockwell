@@ -8396,6 +8396,8 @@ components:
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
                         - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: |-
                         How its folder is laid out: Dockwell's own entries, or another store's, which
@@ -8423,6 +8425,8 @@ components:
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
                         - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: The format.
                     format: enum
@@ -8557,6 +8561,8 @@ components:
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
                         - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: How its folder is laid out.
                     format: enum
@@ -19226,6 +19232,8 @@ components:
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
                         - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: |-
                         How its folder is laid out. Left out, Dockwell tells from the commit, and the

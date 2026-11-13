@@ -1464,6 +1464,9 @@ func (h *Handler) ListCatalogStores(ctx context.Context, _ *connect.Request[dock
 	var out []*dockwellv1.CatalogStore
 	for i := range convert.Stores {
 		st := &convert.Stores[i]
+		if st.Unlisted {
+			continue
+		}
 		info := &dockwellv1.CatalogStore{
 			Id: st.ID, Name: st.Name, Label: st.Label, Repository: st.Upstream, Format: formatEnum(st.Format),
 			Branch: st.Branch, License: st.License, Homepage: st.Homepage,

@@ -6827,6 +6827,9 @@ msgstr "需要 Dockwell 尚不能运行的配置"
 msgid "Ask for what an entry can't say yet"
 msgstr "需要条目尚不能表达的配置"
 
+msgid "CasaOS's app store"
+msgstr "CasaOS 应用商店"
+
 msgid "Come under terms of their own"
 msgstr "附带自有条款"
 
@@ -6895,6 +6898,9 @@ msgstr "在 Compose 文件旁附带文件"
 
 msgid "Their store keeps them out of its own list"
 msgstr "其商店未在自身列表中提供"
+
+msgid "Umbrel's app store"
+msgstr "Umbrel 应用商店"
 
 msgid "Use a value their store fills in"
 msgstr "使用其商店自动填写的值"

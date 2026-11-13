@@ -121,6 +121,17 @@ type App struct {
 	Description string
 	Readme      string
 	Words       map[string]Words
+	// Screenshots are the pictures of the app the source keeps in its own repository,
+	// each by its path from the source's folder and the address the source gives it,
+	// in the source's order (ADR 0083).
+	Screenshots []Shot
+}
+
+// Shot is a picture of an app a source keeps in its repository: where, from the
+// source's folder, and the HTTPS address the source names it by, which is never
+// fetched.
+type Shot struct {
+	Path, Source string
 }
 
 // Kind is what a field asks for.
@@ -179,8 +190,10 @@ type Result struct {
 	// Notes are what the converter changed beyond the rules every entry follows.
 	Notes []string
 	// Icon is where the source keeps the app's logo, as App.Icon, for the control
-	// plane to read for an app that converts. Empty when it keeps none.
-	Icon string
+	// plane to read for an app that converts. Empty when it keeps none. Screenshots
+	// are App.Screenshots, the same way.
+	Icon        string
+	Screenshots []Shot
 }
 
 // Pinned is what the converter keeps of an image's tag between runs. Entries pin
