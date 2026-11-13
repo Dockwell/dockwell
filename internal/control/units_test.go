@@ -303,3 +303,32 @@ func TestTheSystemLogIsReadOnRecordAndAFailureSaysWhy(t *testing.T) {
 		t.Errorf("the journal was read %d times: twice for the page and once for why, want 3", journals)
 	}
 }
+
+// Acting on a unit and reading the system log are an admin's: a developer is
+// refused planning an action, applying one an admin planned, and reading the log
+// (ADR 0082, ADR 0049).
+func TestADeveloperCantActOnAUnit(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	stand := systemtest.New(t, systemtest.Unit{Props: systemtest.Running("nginx.service")})
+	s := f.addUnitServer(t, stand, nil)
+	c := changeClient(b, b.origin)
+	planned, _, err := planUnit(t, c, s, "nginx.service", dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_RESTART)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold := aMember(t, f)
+	hold(onInstall(store.RoleDeveloper))
+	_, err = c.PlanSystemServiceAction(t.Context(), connect.NewRequest(&dockwellv1.PlanSystemServiceActionRequest{
+		ServerIds: []string{s.id.ServerID}, Name: "nginx.service", Action: dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_RESTART,
+	}))
+	needsRole(t, "a developer planning a restart of a unit", err)
+	_, err = c.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: planned.GetId(), Fingerprint: planned.GetPlan().GetFingerprint()}))
+	needsRole(t, "a developer applying a restart an admin planned", err)
+	sc := dockwellv1connect.NewServerServiceClient(b, b.origin, connect.WithProtoJSON())
+	_, err = sc.ReadSystemLog(t.Context(), connect.NewRequest(&dockwellv1.ReadSystemLogRequest{ServerId: s.id.ServerID}))
+	needsRole(t, "a developer reading the system log", err)
+	if slices.ContainsFunc(stand.Calls(), func(c string) bool { return strings.HasPrefix(c, "systemctl restart") }) {
+		t.Errorf("a developer restarted a unit: %q", stand.Calls())
+	}
+}

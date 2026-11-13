@@ -5,6 +5,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 // UnitAction is what a change does to one of a server's system services, its
@@ -79,6 +80,9 @@ const (
 	GuardSSH
 	GuardNetwork
 	GuardFirewall
+	// GuardSystem is what the server's other services and sign-ins talk through:
+	// D-Bus and systemd-logind.
+	GuardSystem
 )
 
 // GuardedUnits names the units each guard covers, by systemd's names and OpenRC's.
@@ -86,12 +90,37 @@ const (
 var GuardedUnits = map[string]UnitGuard{
 	"dockwell.service": GuardDockwell, "dockwell-access.service": GuardDockwell, "dockwell": GuardDockwell,
 	"docker.service": GuardDocker, "docker.socket": GuardDocker, "containerd.service": GuardDocker, "docker": GuardDocker, "containerd": GuardDocker,
-	"ssh.service": GuardSSH, "sshd.service": GuardSSH, "ssh.socket": GuardSSH, "sshd": GuardSSH,
-	"systemd-networkd.service": GuardNetwork, "NetworkManager.service": GuardNetwork, "networking.service": GuardNetwork,
-	"systemd-resolved.service": GuardNetwork, "networking": GuardNetwork,
+	"snap.docker.dockerd.service": GuardDocker,
+	"ssh.service":                 GuardSSH, "sshd.service": GuardSSH, "ssh.socket": GuardSSH, "sshd.socket": GuardSSH, "sshd": GuardSSH,
+	"dropbear.service": GuardSSH, "dropbear.socket": GuardSSH, "dropbear": GuardSSH,
+	"systemd-networkd.service": GuardNetwork, "systemd-networkd.socket": GuardNetwork, "NetworkManager.service": GuardNetwork,
+	"networking.service": GuardNetwork, "network.service": GuardNetwork, "systemd-resolved.service": GuardNetwork,
+	"dhcpcd.service": GuardNetwork, "wicked.service": GuardNetwork, "wickedd.service": GuardNetwork,
+	"networking": GuardNetwork, "dhcpcd": GuardNetwork,
 	"nftables.service": GuardFirewall, "ufw.service": GuardFirewall, "firewalld.service": GuardFirewall,
 	"netfilter-persistent.service": GuardFirewall, "iptables.service": GuardFirewall, "ip6tables.service": GuardFirewall,
 	"iptables": GuardFirewall, "ip6tables": GuardFirewall, "nftables": GuardFirewall,
+	"dbus.service": GuardSystem, "dbus.socket": GuardSystem, "dbus-broker.service": GuardSystem, "systemd-logind.service": GuardSystem,
+	"dbus": GuardSystem,
+}
+
+// guardOfName is one name's guard: from GuardedUnits, or by its pattern, as
+// Debian's ifup@eth0.service brings a network interface up, OpenRC's net.eth0 does
+// the same, and socket-activated SSH runs sshd@<connection>.service for each one.
+func guardOfName(n string) UnitGuard {
+	if g, ok := GuardedUnits[n]; ok {
+		return g
+	}
+	service := strings.HasSuffix(n, ".service")
+	switch {
+	case strings.HasPrefix(n, "ifup@") && service:
+		return GuardNetwork
+	case strings.HasPrefix(n, "net.") && !strings.Contains(n, "@") && !strings.HasSuffix(n, ".socket") && !service:
+		return GuardNetwork
+	case (strings.HasPrefix(n, "sshd@") || strings.HasPrefix(n, "ssh@") || strings.HasPrefix(n, "dropbear@")) && service:
+		return GuardSSH
+	}
+	return GuardNone
 }
 
 // GuardOf is the guard of a unit that goes by these names, the strictest that any
@@ -99,11 +128,19 @@ var GuardedUnits = map[string]UnitGuard{
 func GuardOf(names ...string) UnitGuard {
 	g := GuardNone
 	for _, n := range names {
-		if h, ok := GuardedUnits[n]; ok && (g == GuardNone || h < g) {
+		if h := guardOfName(n); h != GuardNone && (g == GuardNone || h < g) {
 			g = h
 		}
 	}
 	return g
+}
+
+// Stricter is the stricter of two guards.
+func Stricter(a, b UnitGuard) UnitGuard {
+	if a == GuardNone || b != GuardNone && b < a {
+		return b
+	}
+	return a
 }
 
 // cuts reports an action that leaves a unit stopped, or kept from starting.
@@ -114,7 +151,7 @@ func (g UnitGuard) Refuses(a UnitAction) bool {
 	switch g {
 	case GuardDockwell:
 		return true
-	case GuardDocker, GuardSSH, GuardNetwork:
+	case GuardDocker, GuardSSH, GuardNetwork, GuardSystem:
 		return cuts(a)
 	case GuardNone, GuardFirewall:
 	}
@@ -135,6 +172,8 @@ func (g UnitGuard) Refusal(name, server string, a UnitAction) string {
 		return fmt.Sprintf("%s is how you reach %s over SSH, so Dockwell won't %s it", name, server, a)
 	case GuardNetwork:
 		return fmt.Sprintf("%s reaches the network through %s, so Dockwell won't %s it", server, name, a)
+	case GuardSystem:
+		return fmt.Sprintf("%s's services and sign-ins go through %s, so Dockwell won't %s it", server, name, a)
 	case GuardNone, GuardFirewall:
 	}
 	return ""
@@ -147,10 +186,12 @@ func (g UnitGuard) Passkey(a UnitAction) bool {
 		return false
 	}
 	switch g {
-	case GuardDocker, GuardSSH, GuardNetwork:
+	case GuardDocker, GuardSSH, GuardNetwork, GuardSystem:
 		return a == UnitRestart || a == UnitReload
 	case GuardFirewall:
-		return a != UnitStart && a != UnitEnable && a != UnitUnmask
+		// Starting a firewall loads its own rules, which can replace Docker's and
+		// Dockwell's, as Debian's nftables.conf starts with flush ruleset.
+		return a != UnitUnmask
 	case GuardNone, GuardDockwell:
 	}
 	return false
@@ -164,13 +205,20 @@ func (g UnitGuard) Confirm(a UnitAction) bool {
 		return false
 	}
 	switch g {
-	case GuardDocker, GuardNetwork:
+	case GuardDocker, GuardNetwork, GuardSystem:
 		return a == UnitRestart
 	case GuardFirewall:
-		return cuts(a)
+		return cuts(a) || ReplacesRules(g, a)
 	case GuardNone, GuardDockwell, GuardSSH:
 	}
 	return false
+}
+
+// ReplacesRules reports an action that has the server's firewall load its own
+// rules, which can replace Docker's and Dockwell's table: starting, restarting or
+// reloading one.
+func ReplacesRules(g UnitGuard, a UnitAction) bool {
+	return g == GuardFirewall && (a == UnitStart || a == UnitRestart || a == UnitReload)
 }
 
 // UnitAsked is an action a change asks of one of a server's system services, for
@@ -259,6 +307,11 @@ func (u Unit) Passkey() bool { return u.guard().Passkey(u.Action) }
 
 // Confirm reports a unit's action that takes the plan's typed code.
 func (u Unit) Confirm() bool { return u.guard().Confirm(u.Action) }
+
+// ReplacesRules reports a unit's action that has the server's firewall load its own
+// rules, which can replace Docker's and Dockwell's: it holds the server while it
+// runs, as a Docker restart does.
+func (u Unit) ReplacesRules() bool { return ReplacesRules(u.guard(), u.Action) }
 
 // UnitActor is a kind that acts on its server's system services as a step of a
 // change: the server's host (ADR 0082).

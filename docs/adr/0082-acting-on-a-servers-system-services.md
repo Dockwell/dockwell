@@ -2,6 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-12
+- Amended: 2026-11-12, after the security review of #578: guards by pattern, the agent's own unit, sockets and what goes with a unit; a firewall start; checks before SSH and network restarts; no journal lines in a step's error
 
 ## Context
 
@@ -63,23 +64,29 @@ Every unit falls in one guard. The agent decides it from the unit's `Id` and its
 
 | Guard | Units | Refused | Passkey | Typed code |
 | --- | --- | --- | --- | --- |
-| Dockwell | `dockwell.service`, `dockwell-access.service`; OpenRC's `dockwell` | every action: "Dockwell runs as this service on web-1" | | |
-| Docker | `docker.service`, `docker.socket`, `containerd.service`; `docker`, `containerd` | stop, disable, mask: "Every app on web-1 runs in Docker" | restart, reload | restart |
-| SSH | `ssh.service`, `sshd.service`, `ssh.socket`; `sshd` | stop, disable, mask: "It's how you reach web-1 over SSH" | restart, reload | |
-| Network | `systemd-networkd.service`, `NetworkManager.service`, `networking.service`, `systemd-resolved.service`; `networking` | stop, disable, mask: "web-1 reaches the network through it" | restart, reload | restart |
-| Firewall | `nftables.service`, `ufw.service`, `firewalld.service`, `netfilter-persistent.service`, `iptables.service`, `ip6tables.service`; `iptables`, `ip6tables` | | stop, disable, mask, restart, reload | stop, disable, mask |
+| Dockwell | `dockwell.service`, `dockwell-access.service`, the unit the agent runs in by its cgroup; OpenRC's `dockwell` | every action: "Dockwell runs as this service on web-1" | | |
+| Docker | `docker.service`, `docker.socket`, `containerd.service`, `snap.docker.dockerd.service`; `docker`, `containerd` | stop, disable, mask: "Every app on web-1 runs in Docker" | restart, reload | restart |
+| SSH | `ssh.service`, `sshd.service`, `ssh.socket`, `sshd.socket`, `sshd@*` and `ssh@*` (socket-activated connections), `dropbear.service`; `sshd`, `dropbear` | stop, disable, mask: "It's how you reach web-1 over SSH" | restart, reload | |
+| Network | `systemd-networkd.service` and `.socket`, `NetworkManager.service`, `networking.service`, `network.service` (RHEL 7), `systemd-resolved.service`, `dhcpcd.service`, `wicked.service`, `ifup@*` (Debian's hotplug interfaces); `networking`, `dhcpcd`, `net.*` | stop, disable, mask: "web-1 reaches the network through it" | restart, reload | restart |
+| Firewall | `nftables.service`, `ufw.service`, `firewalld.service`, `netfilter-persistent.service`, `iptables.service`, `ip6tables.service`; `iptables`, `ip6tables`, `nftables` | | every action but unmask | stop, disable, mask, start, restart, reload |
+| System | `dbus.service`, `dbus.socket`, `dbus-broker.service`, `systemd-logind.service` | stop, disable, mask: "web-1's services and sign-ins go through it" | restart, reload | restart |
 | Others | everything else | | | |
 
+- **By name and by pattern.** A unit is guarded by its `Id`, every alias in `Names`, and the patterns in the table. A socket takes the guard of each service its `Triggers` names, so a socket called anything that starts `ssh.service` is SSH's. The agent reads the unit it runs in from `/proc/self/cgroup`, so an install that named it otherwise is still Dockwell's.
+- **What goes with it meets its guard.** A stop whose `RequiredBy`, `BoundBy` or `ConsistsOf` holds a running guarded unit is refused with both names ("stopping storage.service stops docker.service with it, and …"), and a restart that restarts one asks what restarting that one asks.
+- **Checked again at apply.** The agent reads the unit's names and what it triggers again as the step runs, refuses what the guard refuses now, and refuses a step that asks less of a person than the unit's guard now asks ("Plan it again"); an OpenRC disable takes the service out only of a runlevel under `/etc/runlevels`.
+
 - **A passkey** makes the plan as good as root (`Plan.AsGoodAsRoot`), so `ApplyChange` asks for `STEP_UP_ACTION_APPLY_ROOT_CHANGE`, bound to the change, which ADR 0075's window can stand in for. No new step-up action is needed. Starting, stopping or restarting any other unit takes no passkey: it runs what root installed, as root configured it, and grants nothing new, as restarting an app takes none.
-- **The typed code** is ADR 0028's red sheet: for what stops everything on the server (Docker restarting), may cut the agent off (the network restarting), or opens every port the firewall closes (stopping or disabling it, as Debian's `nftables.service` flushes the ruleset when it stops). The plan flags it, and the panel's `needsConfirming` follows the flag.
-- **SSH restarts only with a config that passes.** Before restarting or reloading an SSH unit, the agent runs `sshd -t`, as ADR 0052 does before it changes SSH, and refuses with sshd's own line when it fails ("sshd's config doesn't pass its own check, so restarting it would leave web-1 without SSH: …"). Sessions already open stay open across a restart.
-- **The network restarts without waiting.** The agent runs `systemctl restart --no-block`, so its answer is sent before the network moves, and the step passes once systemd has the job. The list says how it came back.
+- **The typed code** is ADR 0028's red sheet: for what stops everything on the server (Docker restarting), may cut the agent off (the network restarting), opens every port the firewall closes (stopping or disabling it, as Debian's `nftables.service` flushes the ruleset when it stops), or loads the firewall's own rules (below). The plan flags it, and the panel's `needsConfirming` follows the flag.
+- **A firewall that starts loads its own rules.** Starting, restarting or reloading a firewall unit runs its own file, as Debian's `/etc/nftables.conf` begins with `flush ruleset`: Docker's chains (published ports and outbound NAT) and Dockwell's own table (ADR 0052) can go with it. So it takes the passkey and the typed code, the plan says what's replaced, and it holds the server as a Docker restart does. As the step ends, whatever came of it, the agent loads Dockwell's confirmed table again, and the step says Docker's rules come back when Docker restarts, which is a plan of its own.
+- **SSH restarts only with a config that passes.** Before restarting or reloading an SSH unit, the agent runs `sshd -t`, as ADR 0052 does before it changes SSH, and refuses with sshd's own line when it fails ("sshd's config doesn't pass its own check, so restarting it would leave web-1 without SSH: …"). Where sshd isn't at a path the agent knows, or the unit is dropbear, which has no check, it refuses rather than restart unchecked. Sessions already open stay open across a restart.
+- **The network restarts after a check, without waiting.** Where the server has a tool that checks its settings, the agent runs it first and refuses with its line: `ifup --no-act` for ifupdown's units, `netplan get` where `/etc/netplan` holds settings. Where it has neither (plain systemd-networkd, NetworkManager, wicked), the plan's typed code stands alone. Then it runs `systemctl restart --no-block`, so its answer is sent before the network moves, and the step passes once systemd has the job. The list says how it came back.
 - **What isn't detected:** a store in Postgres run by a unit on the control server, a VPN unit a person reaches the server through. These are "Others", and the plan names what goes with them.
 
 ### Applying, and after
 
 - **It runs on the reader's own runner,** not the agent's shared one, with a deadline of 2 minutes: systemd's own start timeout is 90 s by default, and `systemctl` waits for the job.
-- **The step checks what came of it.** After a start or a restart, the agent reads the unit again: a unit left `failed`, or not running, fails the step with the last lines its own process wrote to the journal (below), so the change says why without opening anything. A stop that left it running, or an enable that left it disabled, fails likewise.
+- **The step checks what came of it.** After a start or a restart, the agent reads the unit again: a unit left `failed` fails the step with its result, and says its own lines in the system log say why. A change's steps are read by more people than an admin, and the journal is an admin's (ADR 0067), so the step never quotes it; the unit's row and its sheet, which only an admin sees, show those lines. A stop that left it running, or an enable that left it disabled, fails likewise.
 - **Resume runs it again.** Each action stands as asked once done, so a resume plans nothing for one that finished: started is started. A restart or a reload interrupted after the call went out runs once more, which is harmless, as an app's restart is.
 - **The list reads again at once.** As a unit's step ends, passed or failed, the control plane reads that server's system services again for every watch open (`Engine.OnUnit`), so the row shows how the unit came out within a second, not at the next 10 s read.
 - **On Activity** as every change: `change.planned`, then `change.applied` or `change.failed`, with who planned and applied it, on the server's timeline, under the change's summary, such as "Restart nginx.service on web-1".

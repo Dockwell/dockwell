@@ -124,10 +124,15 @@ const (
 	// How the server reaches the network: a stop, a disable and a mask are
 	// refused, and a restart takes the passkey and the plan's typed code.
 	SystemServiceGuard_SYSTEM_SERVICE_GUARD_NETWORK SystemServiceGuard = 4
-	// The server's firewall: every action but a start, an enable and an unmask
-	// takes the passkey, and a stop, a disable or a mask the typed code too, as
-	// every port it closes opens.
+	// The server's firewall: every action but an unmask takes the passkey; a
+	// stop, a disable or a mask the typed code too, as every port it closes opens;
+	// and a start, a restart or a reload the typed code too, as it loads its own
+	// rules, which can replace Docker's and Dockwell's.
 	SystemServiceGuard_SYSTEM_SERVICE_GUARD_FIREWALL SystemServiceGuard = 5
+	// What the server's other services and sign-ins go through, D-Bus and
+	// systemd-logind: a stop, a disable and a mask are refused, and a restart
+	// takes the passkey and the typed code.
+	SystemServiceGuard_SYSTEM_SERVICE_GUARD_SYSTEM SystemServiceGuard = 6
 )
 
 // Enum value maps for SystemServiceGuard.
@@ -139,6 +144,7 @@ var (
 		3: "SYSTEM_SERVICE_GUARD_SSH",
 		4: "SYSTEM_SERVICE_GUARD_NETWORK",
 		5: "SYSTEM_SERVICE_GUARD_FIREWALL",
+		6: "SYSTEM_SERVICE_GUARD_SYSTEM",
 	}
 	SystemServiceGuard_value = map[string]int32{
 		"SYSTEM_SERVICE_GUARD_UNSPECIFIED": 0,
@@ -147,6 +153,7 @@ var (
 		"SYSTEM_SERVICE_GUARD_SSH":         3,
 		"SYSTEM_SERVICE_GUARD_NETWORK":     4,
 		"SYSTEM_SERVICE_GUARD_FIREWALL":    5,
+		"SYSTEM_SERVICE_GUARD_SYSTEM":      6,
 	}
 )
 
@@ -3162,7 +3169,12 @@ type HostUnit struct {
 	Openrc bool `protobuf:"varint,11,opt,name=openrc,proto3" json:"openrc,omitempty"`
 	// True when applying it takes a person's passkey, as it's as good as root:
 	// restarting SSH, Docker or the network, or stopping the firewall.
-	Passkey       bool `protobuf:"varint,12,opt,name=passkey,proto3" json:"passkey,omitempty"`
+	Passkey bool `protobuf:"varint,12,opt,name=passkey,proto3" json:"passkey,omitempty"`
+	// True when it has the server's firewall load its own rules, which can
+	// replace Docker's and Dockwell's table: Dockwell puts its table back after,
+	// and Docker's rules come back only when Docker restarts. It holds the server
+	// while it runs, as a Docker restart does.
+	ReplacesRules bool `protobuf:"varint,13,opt,name=replaces_rules,json=replacesRules,proto3" json:"replaces_rules,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3277,6 +3289,13 @@ func (x *HostUnit) GetOpenrc() bool {
 func (x *HostUnit) GetPasskey() bool {
 	if x != nil {
 		return x.Passkey
+	}
+	return false
+}
+
+func (x *HostUnit) GetReplacesRules() bool {
+	if x != nil {
+		return x.ReplacesRules
 	}
 	return false
 }
@@ -8132,7 +8151,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x06action\x18\x03 \x01(\x0e2 .dockwell.v1.SystemServiceActionR\x06action\x12\x18\n" +
 	"\asummary\x18\x04 \x01(\tR\asummary\"N\n" +
 	"\x1fPlanSystemServiceActionResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x92\x03\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xb9\x03\n" +
 	"\bHostUnit\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x128\n" +
 	"\x06action\x18\x02 \x01(\x0e2 .dockwell.v1.SystemServiceActionR\x06action\x12\x1f\n" +
@@ -8147,7 +8166,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0fdocker_restarts\x18\n" +
 	" \x01(\bR\x0edockerRestarts\x12\x16\n" +
 	"\x06openrc\x18\v \x01(\bR\x06openrc\x12\x18\n" +
-	"\apasskey\x18\f \x01(\bR\apasskey\"k\n" +
+	"\apasskey\x18\f \x01(\bR\apasskey\x12%\n" +
+	"\x0ereplaces_rules\x18\r \x01(\bR\rreplacesRules\"k\n" +
 	"\n" +
 	"HostReboot\x12%\n" +
 	"\x0econtrol_server\x18\x01 \x01(\bR\rcontrolServer\x126\n" +
@@ -8583,7 +8603,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1dSYSTEM_SERVICE_ACTION_DISABLE\x10\x06\x1a\v\xa2\xbb\x18\aDisable\x12(\n" +
 	"\x1aSYSTEM_SERVICE_ACTION_MASK\x10\a\x1a\b\xa2\xbb\x18\x04Mask\x12,\n" +
 	"\x1cSYSTEM_SERVICE_ACTION_UNMASK\x10\b\x1a\n" +
-	"\xa2\xbb\x18\x06Unmask*\x9f\x02\n" +
+	"\xa2\xbb\x18\x06Unmask*\xcc\x02\n" +
 	"\x12SystemServiceGuard\x12$\n" +
 	" SYSTEM_SERVICE_GUARD_UNSPECIFIED\x10\x00\x12/\n" +
 	"\x1dSYSTEM_SERVICE_GUARD_DOCKWELL\x10\x01\x1a\f\xa2\xbb\x18\bDockwell\x12+\n" +
@@ -8591,7 +8611,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\xa2\xbb\x18\x06Docker\x12%\n" +
 	"\x18SYSTEM_SERVICE_GUARD_SSH\x10\x03\x1a\a\xa2\xbb\x18\x03SSH\x12-\n" +
 	"\x1cSYSTEM_SERVICE_GUARD_NETWORK\x10\x04\x1a\v\xa2\xbb\x18\aNetwork\x12/\n" +
-	"\x1dSYSTEM_SERVICE_GUARD_FIREWALL\x10\x05\x1a\f\xa2\xbb\x18\bFirewall*\x9f\x01\n" +
+	"\x1dSYSTEM_SERVICE_GUARD_FIREWALL\x10\x05\x1a\f\xa2\xbb\x18\bFirewall\x12+\n" +
+	"\x1bSYSTEM_SERVICE_GUARD_SYSTEM\x10\x06\x1a\n" +
+	"\xa2\xbb\x18\x06System*\x9f\x01\n" +
 	"\rRollbackState\x12\x1e\n" +
 	"\x1aROLLBACK_STATE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17ROLLBACK_STATE_APPLYING\x10\x01\x12\x1a\n" +

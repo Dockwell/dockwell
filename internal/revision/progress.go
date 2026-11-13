@@ -268,7 +268,7 @@ func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
 		// A reboot takes down everything on its server, as Docker restarting does.
 		// So does restarting Docker as a system service (ADR 0082).
 		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts || plan.Resources[i].Reboot != nil ||
-			plan.Resources[i].Unit != nil && plan.Resources[i].Unit.DockerRestarts {
+			plan.Resources[i].Unit != nil && (plan.Resources[i].Unit.DockerRestarts || plan.Resources[i].Unit.ReplacesRules()) {
 			docker = append(docker, plan.Resources[i].Ref.Scope)
 		}
 	}

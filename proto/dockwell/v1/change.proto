@@ -660,10 +660,15 @@ enum SystemServiceGuard {
   // How the server reaches the network: a stop, a disable and a mask are
   // refused, and a restart takes the passkey and the plan's typed code.
   SYSTEM_SERVICE_GUARD_NETWORK = 4 [(dockwell.v1.word) = "Network"];
-  // The server's firewall: every action but a start, an enable and an unmask
-  // takes the passkey, and a stop, a disable or a mask the typed code too, as
-  // every port it closes opens.
+  // The server's firewall: every action but an unmask takes the passkey; a
+  // stop, a disable or a mask the typed code too, as every port it closes opens;
+  // and a start, a restart or a reload the typed code too, as it loads its own
+  // rules, which can replace Docker's and Dockwell's.
   SYSTEM_SERVICE_GUARD_FIREWALL = 5 [(dockwell.v1.word) = "Firewall"];
+  // What the server's other services and sign-ins go through, D-Bus and
+  // systemd-logind: a stop, a disable and a mask are refused, and a restart
+  // takes the passkey and the typed code.
+  SYSTEM_SERVICE_GUARD_SYSTEM = 6 [(dockwell.v1.word) = "System"];
 }
 
 // HostUnit is what an action on one of a server's system services does, as its
@@ -702,6 +707,11 @@ message HostUnit {
   // True when applying it takes a person's passkey, as it's as good as root:
   // restarting SSH, Docker or the network, or stopping the firewall.
   bool passkey = 12;
+  // True when it has the server's firewall load its own rules, which can
+  // replace Docker's and Dockwell's table: Dockwell puts its table back after,
+  // and Docker's rules come back only when Docker restarts. It holds the server
+  // while it runs, as a Docker restart does.
+  bool replaces_rules = 13;
 }
 
 // HostReboot is what rebooting a server does (ADR 0064): everything on it goes

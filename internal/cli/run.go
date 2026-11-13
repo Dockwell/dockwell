@@ -391,6 +391,9 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
 	// The same reader lists the server's system services and acts on them (ADR 0082).
 	units := serverSystem(stdio)
+	// A firewall unit that loads its own rules can take Dockwell's table with them,
+	// which goes back at once.
+	units.AfterFirewall = firewalls.Reload
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},

@@ -303,6 +303,9 @@ function useWhyNot(server: Server, list: SystemServiceList | undefined, acts: Un
       case SystemServiceGuard.NETWORK:
         if (cuts) return t`${name} reaches the network through it`;
         break;
+      case SystemServiceGuard.SYSTEM:
+        if (cuts) return t`${name}'s services and sign-ins go through it`;
+        break;
     }
     const starts = a === SystemServiceAction.START || a === SystemServiceAction.RESTART;
     if (starts && s.startRefused) return t`It starts when another unit needs it`;
@@ -364,7 +367,9 @@ function RowAction({
 function Name({ service, acts }: { service: SystemServiceInfo; acts?: UnitActions }) {
   const { t } = useLingui();
   const failure = acts?.failure?.name === service.name ? acts.failure.why : "";
-  const why = failure || (service.state === SystemServiceState.FAILED ? whyLine(service.why) : "");
+  // The unit's own words first, which only an admin reads, then what the action said.
+  const own = service.state === SystemServiceState.FAILED ? whyLine(service.why) : "";
+  const why = own || failure;
   return (
     <div className="dw-cell procs-cell">
       <span className="sys-name">
@@ -373,7 +378,7 @@ function Name({ service, acts }: { service: SystemServiceInfo; acts?: UnitAction
       </span>
       {service.description ? <span className="procs-sub">{service.description}</span> : null}
       {why ? (
-        <span className={failure ? "sys-why-line sys-failed" : "sys-why-line"} title={why}>
+        <span className={own ? "sys-why-line" : "sys-why-line sys-failed"} title={why}>
           {why}
         </span>
       ) : null}

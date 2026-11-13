@@ -32,14 +32,61 @@ const ActDeadline = 2 * time.Minute
 var planProperties = []string{
 	"Id", "Names", "LoadState", "ActiveState", "SubState", "UnitFileState",
 	"CanStart", "CanStop", "CanReload", "RefuseManualStart", "RefuseManualStop",
-	"RequiredBy", "BoundBy", "ConsistsOf", "TriggeredBy",
+	"RequiredBy", "BoundBy", "ConsistsOf", "TriggeredBy", "Triggers",
 }
 
 var (
 	rcService = hosttool.Tool{Name: "rc-service", Paths: []string{"/sbin/rc-service", "/usr/sbin/rc-service", "/bin/rc-service", "/usr/bin/rc-service"}}
 	rcUpdate  = hosttool.Tool{Name: "rc-update", Paths: []string{"/sbin/rc-update", "/usr/sbin/rc-update", "/bin/rc-update", "/usr/bin/rc-update"}}
-	sshd      = hosttool.Tool{Name: "sshd", Paths: []string{"/usr/sbin/sshd", "/sbin/sshd"}}
+	sshd      = hosttool.Tool{Name: "sshd", Paths: []string{
+		"/usr/sbin/sshd", "/sbin/sshd", "/usr/local/sbin/sshd", "/usr/bin/sshd", "/run/current-system/sw/bin/sshd",
+	}}
+	ifup    = hosttool.Tool{Name: "ifup", Paths: []string{"/sbin/ifup", "/usr/sbin/ifup"}}
+	netplan = hosttool.Tool{Name: "netplan", Paths: []string{"/usr/sbin/netplan", "/usr/bin/netplan", "/sbin/netplan"}}
 )
+
+// runlevel is an OpenRC runlevel's name, as /etc/runlevels holds it.
+var runlevel = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[a-z0-9_-]+$`) })
+
+// ownUnit is the unit the agent runs in, from its cgroup, such as dockwell.service,
+// or a name an install gave it: it's guarded as Dockwell's own whatever it's called.
+func (r *Reader) ownUnit() string {
+	r.ownOnce.Do(func() {
+		root := r.Root
+		if root == "" {
+			root = "/"
+		}
+		b, err := os.ReadFile(filepath.Join(root, "proc", "self", "cgroup")) //nolint:gosec // G304: the agent's own cgroup, below the stand's root in a test
+		if err != nil {
+			return
+		}
+		for _, line := range strings.Split(string(b), "\n") {
+			parts := strings.Split(strings.TrimSpace(line), "/")
+			for i := len(parts) - 1; i >= 0; i-- {
+				if strings.HasSuffix(parts[i], ".service") && unitName().MatchString(parts[i]) {
+					r.own = parts[i]
+					return
+				}
+			}
+		}
+	})
+	return r.own
+}
+
+// guardOf is a unit's guard by every name it goes by, the agent's own unit as
+// Dockwell's, and for a socket, the guard of what it starts, as stopping ssh.socket
+// stops new SSH logins as surely as stopping ssh.service.
+func (r *Reader) guardOf(u unitState) resource.UnitGuard {
+	names := u.names()
+	g := resource.GuardOf(names...)
+	if own := r.ownUnit(); own != "" && slices.Contains(names, own) {
+		g = resource.Stricter(g, resource.GuardDockwell)
+	}
+	if strings.HasSuffix(u["Id"], ".socket") {
+		g = resource.Stricter(g, resource.GuardOf(strings.Fields(u["Triggers"])...))
+	}
+	return g
+}
 
 // rcName is an OpenRC service's name, as its script in /etc/init.d is called.
 var rcName = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.@-]*$`) })
@@ -125,7 +172,7 @@ func (r *Reader) planSystemd(ctx context.Context, name string, action resource.U
 		return nil, false, err
 	}
 	id := u["Id"]
-	guard := resource.GuardOf(u.names()...)
+	guard := r.guardOf(u)
 	if why := guard.Refusal(id, "this server", action); why != "" {
 		return nil, false, errors.New(why)
 	}
@@ -198,8 +245,29 @@ func (r *Reader) planSystemd(ctx context.Context, name string, action resource.U
 		plan.With = slices.DeleteFunc(with, func(n string) bool { return !active[n] })
 		plan.Triggers = slices.DeleteFunc(triggers, func(n string) bool { return !active[n] })
 	}
+	// What goes with it meets its own guard: a stop that would stop Docker or SSH
+	// through Requires= or BindsTo= is refused, and a restart that restarts one asks
+	// what restarting that one asks.
+	for _, w := range plan.With {
+		g := resource.GuardOf(w)
+		if own := r.ownUnit(); own != "" && w == own {
+			g = resource.GuardDockwell
+		}
+		if why := g.Refusal(w, "this server", action); why != "" {
+			return nil, false, fmt.Errorf("%s with it, and %s", verbed(action, id, w), why)
+		}
+		plan.Guard = resource.Stricter(plan.Guard, g)
+	}
 	plan.DockerRestarts = action == resource.UnitRestart && (id == "docker.service" || id == "docker.socket" || slices.Contains(plan.With, "docker.service"))
 	return plan, true, nil
+}
+
+// verbed says what an action on a unit does to one that goes with it.
+func verbed(a resource.UnitAction, unit, with string) string {
+	if a == resource.UnitStop {
+		return "stopping " + unit + " stops " + with
+	}
+	return "restarting " + unit + " restarts " + with
 }
 
 // fieldsOf is the unit names in the unit's properties, each once, in order.
@@ -276,25 +344,39 @@ func (r *Reader) ApplyUnit(ctx context.Context, u resource.Unit, say func(string
 	if r.Unavailable != "" {
 		return errors.New(r.Unavailable)
 	}
-	// What a plan says the agent checks again: a plan from elsewhere can't take
-	// what the unit's guard refuses.
-	if why := resource.GuardOf(u.Name).Refusal(u.Name, "this server", u.Action); why != "" {
+	if !u.Action.Valid() {
+		return fmt.Errorf("%q isn't an action Dockwell takes on a system service", u.Action)
+	}
+	// The agent checks again what the plan says, against the unit as it is now: a
+	// plan from elsewhere, or one made before the unit moved, can't take what its
+	// guard refuses, nor ask less of a person than its guard asks.
+	guard, err := r.guardNow(ctx, u)
+	if err != nil {
+		return err
+	}
+	if why := guard.Refusal(u.Name, "this server", u.Action); why != "" {
 		return errors.New(why)
 	}
-	if u.Guard == resource.GuardSSH && (u.Action == resource.UnitRestart || u.Action == resource.UnitReload) {
-		if err := r.sshdChecks(ctx); err != nil {
+	if now := (resource.Unit{Name: u.Name, Action: u.Action, Guard: guard}); now.Passkey() && !u.Passkey() || now.Confirm() && !u.Confirm() {
+		return fmt.Errorf("%s asks more of a person than when this was planned. Plan it again", u.Name)
+	}
+	restarts := u.Action == resource.UnitRestart || u.Action == resource.UnitReload
+	switch {
+	case guard == resource.GuardSSH && restarts:
+		if err := r.sshdChecks(ctx, u.Name); err != nil {
+			return err
+		}
+	case guard == resource.GuardNetwork && restarts:
+		if err := r.networkChecks(ctx, u.Name); err != nil {
 			return err
 		}
 	}
 	if u.OpenRC {
 		return r.applyOpenRC(ctx, u, say)
 	}
-	if !unitName().MatchString(u.Name) {
-		return fmt.Errorf("%q isn't a unit's name", u.Name)
-	}
 	args := []string{string(u.Action)}
 	// The network moves under the agent's own connection: its answer goes first.
-	noBlock := u.Guard == resource.GuardNetwork && (u.Action == resource.UnitRestart || u.Action == resource.UnitReload)
+	noBlock := guard == resource.GuardNetwork && restarts
 	if noBlock {
 		args = append(args, "--no-block")
 	}
@@ -309,8 +391,16 @@ func (r *Reader) ApplyUnit(ctx context.Context, u resource.Unit, say func(string
 			say(line)
 		}
 	}
+	// A firewall that loaded its own rules may have taken Dockwell's table and
+	// Docker's chains with them: the table goes back at once, whatever the unit
+	// came to, and Docker's chains come back as Docker restarts.
+	if resource.ReplacesRules(guard, u.Action) {
+		if err := r.putTableBack(ctx, u, say); err != nil {
+			return err
+		}
+	}
 	if res.Code != 0 {
-		return r.failed(ctx, u, hosttool.Fail("systemctl", res))
+		return failed(u, hosttool.Fail("systemctl", res))
 	}
 	if noBlock {
 		return nil
@@ -319,16 +409,51 @@ func (r *Reader) ApplyUnit(ctx context.Context, u resource.Unit, say func(string
 	if err != nil {
 		return err
 	}
-	return r.stands(ctx, u, now)
+	return stands(u, now)
+}
+
+// guardNow reads a unit's guard as it is now: every name it goes by, what a
+// socket starts, the agent's own unit.
+func (r *Reader) guardNow(ctx context.Context, u resource.Unit) (resource.UnitGuard, error) {
+	if u.OpenRC {
+		if !rcName().MatchString(u.Name) || !r.script(u.Name) {
+			return 0, fmt.Errorf("there's no service %s in /etc/init.d on this server", u.Name)
+		}
+		return resource.GuardOf(u.Name), nil
+	}
+	if !unitName().MatchString(u.Name) {
+		return 0, fmt.Errorf("%q isn't a unit's name", u.Name)
+	}
+	now, err := r.unit(ctx, []string{"Id", "Names", "LoadState", "Triggers"}, u.Name)
+	if err != nil {
+		return 0, err
+	}
+	if now["Id"] != u.Name {
+		return 0, fmt.Errorf("%s goes by %s now. Plan it again", u.Name, now["Id"])
+	}
+	return r.guardOf(now), nil
+}
+
+// putTableBack loads Dockwell's own firewall table again after the server's
+// firewall loaded its rules, and says Docker's rules come back as it restarts.
+func (r *Reader) putTableBack(ctx context.Context, u resource.Unit, say func(string)) error {
+	if r.AfterFirewall != nil {
+		if err := r.AfterFirewall(ctx); err != nil {
+			return fmt.Errorf("%s loaded its rules, and Dockwell couldn't load its own firewall table again after: %w. Check the Firewall tab", u.Name, err)
+		}
+		say("Dockwell's own firewall table is back")
+	}
+	say("Docker's own rules may have gone with the firewall's: restart docker.service to put them back")
+	return nil
 }
 
 // stands checks a unit stands as its action asked, as systemd says now.
-func (r *Reader) stands(ctx context.Context, u resource.Unit, now unitState) error {
+func stands(u resource.Unit, now unitState) error {
 	switch u.Action {
 	case resource.UnitStart, resource.UnitRestart, resource.UnitReload:
 		// A one-shot unit goes back to inactive once it's done well; only failed fails.
 		if now["ActiveState"] == "failed" {
-			return r.failed(ctx, u, fmt.Errorf("it failed (%s)", cmpOr(now["Result"], now["SubState"])))
+			return failed(u, fmt.Errorf("it failed (%s)", cmpOr(now["Result"], now["SubState"])))
 		}
 	case resource.UnitStop:
 		if now.active() {
@@ -361,22 +486,23 @@ func cmpOr(a, b string) string {
 	return b
 }
 
-// failed is an action that failed, with the last lines the unit's own process wrote
-// to the journal, which say why where systemd's own lines only say that it did.
-func (r *Reader) failed(ctx context.Context, u resource.Unit, err error) error {
-	why := r.Why(ctx, u.Name)
-	if len(why) == 0 {
-		return fmt.Errorf("can't %s %s: %w", u.Action, u.Name, err)
-	}
-	return fmt.Errorf("can't %s %s: %w. It said: %s", u.Action, u.Name, err, strings.Join(why, " / "))
+// failed is an action that failed. What the unit's own process wrote stays in the
+// system log, which only an admin reads (ADR 0067): a change's steps are read by
+// more people than that, so the error points there rather than quotes it.
+func failed(u resource.Unit, err error) error {
+	return fmt.Errorf("can't %s %s: %w. Its own lines in the system log say why", u.Action, u.Name, err)
 }
 
 // sshdChecks runs sshd -t, as ADR 0052 does before it changes SSH, so a restart
-// never leaves the server without SSH for a config that doesn't load.
-func (r *Reader) sshdChecks(ctx context.Context) error {
+// never leaves the server without SSH for a config that doesn't load. Where sshd
+// can't be found, or the server runs dropbear, which has no check, it refuses.
+func (r *Reader) sshdChecks(ctx context.Context, name string) error {
+	if strings.HasPrefix(name, "dropbear") {
+		return fmt.Errorf("dropbear can't check its settings before it starts, so Dockwell won't restart %s: if they don't load, the server has no SSH", name)
+	}
 	res, err := r.Tools.Run(ctx, sshd, Deadline, nil, "-t")
 	if errors.Is(err, hosttool.ErrMissing) {
-		return nil
+		return fmt.Errorf("sshd isn't where Dockwell looks for it, so its config can't be checked first, and Dockwell won't restart %s: a config that doesn't load would leave the server without SSH", name)
 	}
 	if err != nil {
 		return fmt.Errorf("can't check sshd's config: %w", err)
@@ -391,6 +517,48 @@ func (r *Reader) sshdChecks(ctx context.Context) error {
 	return nil
 }
 
+// networkChecks checks the server's network settings load before a network unit
+// restarts, where the server has a tool that checks them: ifupdown's
+// ifup --no-act, and netplan get, which reads every file of netplan's. Where it
+// has neither, the restart goes ahead with the plan's typed code, as before.
+func (r *Reader) networkChecks(ctx context.Context, name string) error {
+	if iface, ok := strings.CutPrefix(name, "ifup@"); ok || name == "networking.service" || name == "networking" {
+		args := []string{"--no-act", "-a"}
+		if ok {
+			args = []string{"--no-act", strings.TrimSuffix(iface, ".service")}
+		}
+		res, err := r.Tools.Run(ctx, ifup, Deadline, nil, args...)
+		switch {
+		case errors.Is(err, hosttool.ErrMissing):
+		case err != nil:
+			return fmt.Errorf("can't check the network's settings: %w", err)
+		case res.Code != 0:
+			return fmt.Errorf("the network's settings don't pass ifup's own check, so restarting %s could leave this server off the network: %s. Fix /etc/network/interfaces, then try again",
+				name, firstLine(res.Errs))
+		}
+	}
+	if r.exists(filepath.Join("etc", "netplan")) {
+		res, err := r.Tools.Run(ctx, netplan, Deadline, nil, "get")
+		switch {
+		case errors.Is(err, hosttool.ErrMissing):
+		case err != nil:
+			return fmt.Errorf("can't check netplan's settings: %w", err)
+		case res.Code != 0:
+			return fmt.Errorf("netplan's settings don't read, so restarting %s could leave this server off the network: %s. Fix /etc/netplan, then try again",
+				name, firstLine(res.Errs))
+		}
+	}
+	return nil
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
 func (r *Reader) applyOpenRC(ctx context.Context, u resource.Unit, say func(string)) error {
 	if !rcName().MatchString(u.Name) {
 		return fmt.Errorf("%q isn't a service's name", u.Name)
@@ -400,7 +568,11 @@ func (r *Reader) applyOpenRC(ctx context.Context, u resource.Unit, say func(stri
 	case resource.UnitEnable:
 		tool, args = rcUpdate, []string{"add", u.Name, "default"}
 	case resource.UnitDisable:
-		tool, args = rcUpdate, []string{"del", u.Name, cmpOr(u.WasAtBoot, "default")}
+		level := cmpOr(u.WasAtBoot, "default")
+		if !runlevel().MatchString(level) || !r.exists(filepath.Join("etc", "runlevels", level)) {
+			return fmt.Errorf("%q isn't one of this server's runlevels, so Dockwell won't take %s out of it. Plan it again", level, u.Name)
+		}
+		tool, args = rcUpdate, []string{"del", u.Name, level}
 	case resource.UnitReload, resource.UnitMask, resource.UnitUnmask:
 		return fmt.Errorf("OpenRC has no %s for a service", u.Action)
 	case resource.UnitStart, resource.UnitStop, resource.UnitRestart:
@@ -416,7 +588,7 @@ func (r *Reader) applyOpenRC(ctx context.Context, u resource.Unit, say func(stri
 		}
 	}
 	if res.Code != 0 {
-		return r.failed(ctx, u, hosttool.Fail(tool.Name, res))
+		return failed(u, hosttool.Fail(tool.Name, res))
 	}
 	return nil
 }

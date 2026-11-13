@@ -47,6 +47,8 @@ var Properties = []string{
 	// What the panel offers (ADR 0082): the names a unit goes by, for its guard,
 	// and what systemd lets a person do to it by hand.
 	"Names", "CanStart", "CanStop", "CanReload", "RefuseManualStart", "RefuseManualStop",
+	// What a socket starts, which guards it as what it starts is guarded.
+	"Triggers",
 }
 
 // Needed are the units Dockwell needs on a server, by systemd's names and
@@ -75,6 +77,14 @@ type Reader struct {
 	// Unavailable, when set, is why nothing is read, as in a test without
 	// stand-ins, which reads nothing of the machine it runs on.
 	Unavailable string
+	// AfterFirewall puts Dockwell's own firewall table back, after the server's
+	// firewall loaded its own rules, which can replace it (ADR 0082). Nil puts
+	// nothing back.
+	AfterFirewall func(context.Context) error
+
+	// own is the unit the agent runs in, read once.
+	ownOnce sync.Once
+	own     string
 }
 
 // Services reads the server's system services now.
@@ -159,7 +169,26 @@ func (r *Reader) systemd(ctx context.Context) ([]*dockwellv1.SystemServiceInfo, 
 	if err != nil {
 		return nil, err
 	}
-	return parseShow(out), nil
+	services := parseShow(out)
+	// The agent's own unit is Dockwell's, whatever an install called it.
+	if own := r.ownUnit(); own != "" {
+		for _, s := range services {
+			if s.GetName() == own {
+				s.Guard = dockwellv1.SystemServiceGuard_SYSTEM_SERVICE_GUARD_DOCKWELL
+			}
+		}
+	}
+	return services, nil
+}
+
+// guardOfProps is a unit's guard by every name it goes by, and a socket's by what
+// it starts too.
+func guardOfProps(props map[string]string) resource.UnitGuard {
+	g := resource.GuardOf(append(strings.Fields(props["Names"]), props["Id"])...)
+	if strings.HasSuffix(props["Id"], ".socket") {
+		g = resource.Stricter(g, resource.GuardOf(strings.Fields(props["Triggers"])...))
+	}
+	return g
 }
 
 // firstColumn is the first word of each line, which a plain list without a
@@ -221,7 +250,7 @@ func parseShow(out []byte) []*dockwellv1.SystemServiceInfo {
 			Detail:      props["SubState"],
 			AtBoot:      props["UnitFileState"],
 			Needed:      slices.Contains(Needed, props["Id"]),
-			Guard:       dockwellv1.SystemServiceGuard(resource.GuardOf(append(strings.Fields(props["Names"]), props["Id"])...)),
+			Guard:       dockwellv1.SystemServiceGuard(guardOfProps(props)),
 			// An older systemd that doesn't say reads as one that lets a person.
 			StartRefused: props["CanStart"] == "no" || props["RefuseManualStart"] == "yes",
 			StopRefused:  props["CanStop"] == "no" || props["RefuseManualStop"] == "yes",

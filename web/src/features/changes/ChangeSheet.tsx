@@ -1659,6 +1659,8 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const unit = servers.flatMap((s) => s.steps).find((s) => s.unit !== undefined)?.unit;
   const running = rebooting ? (
     <Trans>everything there is offline until it's back</Trans>
+  ) : unit?.replacesRules ? (
+    <Trans>published ports may stop answering until Docker restarts</Trans>
   ) : unit && !unit.dockerRestarts ? (
     unit.action === SystemServiceAction.RESTART ? (
       <Trans>what it serves pauses while it restarts</Trans>

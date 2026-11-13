@@ -3,6 +3,7 @@
 package system_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -85,7 +86,17 @@ func TestGuardsAndTheInitRefuseWhatTheyWont(t *testing.T) {
 		systemtest.Unit{Props: systemtest.Stopped("apt-daily.service", "UnitFileState", "static")},
 		systemtest.Unit{Props: systemtest.Stopped("old.service", "UnitFileState", "masked", "LoadState", "masked")},
 		systemtest.Unit{Props: systemtest.Running("nginx.service")},
+		// What carries the network or SSH outside the fixed names (review H1).
+		systemtest.Unit{Props: systemtest.Running("ifup@eth0.service")},
+		systemtest.Unit{Props: systemtest.Running("sshd.socket", "Triggers", "sshd@.service")},
+		systemtest.Unit{Props: systemtest.Running("ssh-alt.socket", "Triggers", "ssh.service")},
+		systemtest.Unit{Props: systemtest.Running("dockwell-agent.service")},
+		// A stop that drags what Dockwell needs along, and what sign-ins go through (review L4).
+		systemtest.Unit{Props: systemtest.Running("storage.service", "RequiredBy", "docker.service")},
+		systemtest.Unit{Props: systemtest.Running("docker.service")},
+		systemtest.Unit{Props: systemtest.Running("dbus.service")},
 	)
+	s.Own(t, "dockwell-agent.service")
 	r := reader(s)
 	for _, c := range []struct {
 		name   string
@@ -101,6 +112,12 @@ func TestGuardsAndTheInitRefuseWhatTheyWont(t *testing.T) {
 		{"nginx.service", resource.UnitReload, "Restart it instead"},
 		{"missing.service", resource.UnitStart, "there's no unit missing.service"},
 		{"../etc.service", resource.UnitStart, "isn't a unit's name"},
+		{"ifup@eth0.service", resource.UnitStop, "reaches the network through ifup@eth0.service"},
+		{"sshd.socket", resource.UnitStop, "how you reach"},
+		{"ssh-alt.socket", resource.UnitMask, "how you reach"},
+		{"dockwell-agent.service", resource.UnitRestart, "Dockwell runs as dockwell-agent.service"},
+		{"storage.service", resource.UnitStop, "stopping storage.service stops docker.service with it"},
+		{"dbus.service", resource.UnitStop, "services and sign-ins go through dbus.service"},
 	} {
 		_, _, err := r.PlanUnit(t.Context(), c.name, c.action)
 		if err == nil || !strings.Contains(err.Error(), c.want) {
@@ -153,8 +170,13 @@ func TestAFailedStartSaysWhatTheUnitSaid(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = r.ApplyUnit(t.Context(), *u, func(string) {})
-	if err == nil || !strings.Contains(err.Error(), `unknown directive "foo"`) || strings.Contains(err.Error(), "Failed with result") {
+	// A change's steps are read below an admin, so the error points at the log
+	// rather than quote it (review L1); the list says why, to an admin.
+	if err == nil || strings.Contains(err.Error(), "unknown directive") || !strings.Contains(err.Error(), "say why") {
 		t.Fatalf("a failed start = %v", err)
+	}
+	if got := r.Why(t.Context(), "nginx.service"); !slices.ContainsFunc(got, func(l string) bool { return strings.Contains(l, `unknown directive "foo"`) }) {
+		t.Errorf("why reads %q", got)
 	}
 }
 
@@ -225,11 +247,12 @@ func TestOpenRCActsWithItsOwnTools(t *testing.T) {
 	root := t.TempDir()
 	calls := filepath.Join(root, "calls")
 	for p, content := range map[string]string{
-		"run/openrc/softlevel": "default\n",
-		"etc/init.d/nginx":     "#!/sbin/openrc-run\n",
-		"sbin/rc-status":       "#!/bin/sh\nprintf 'Runlevel: default\\n nginx    [  started  ]\\n'\n",
-		"sbin/rc-service":      "#!/bin/sh\necho \"rc-service $*\" >> '" + calls + "'\n",
-		"sbin/rc-update":       "#!/bin/sh\necho \"rc-update $*\" >> '" + calls + "'\n",
+		"run/openrc/softlevel":        "default\n",
+		"etc/init.d/nginx":            "#!/sbin/openrc-run\n",
+		"etc/runlevels/default/nginx": "",
+		"sbin/rc-status":              "#!/bin/sh\nprintf 'Runlevel: default\\n nginx    [  started  ]\\n'\n",
+		"sbin/rc-service":             "#!/bin/sh\necho \"rc-service $*\" >> '" + calls + "'\n",
+		"sbin/rc-update":              "#!/bin/sh\necho \"rc-update $*\" >> '" + calls + "'\n",
 	} {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
 			t.Fatal(err)
@@ -288,5 +311,118 @@ func TestTheListSaysGuardsAndWhatCanBeDone(t *testing.T) {
 	}
 	if u := by["nftables.service"]; u.GetGuard() != dockwellv1.SystemServiceGuard_SYSTEM_SERVICE_GUARD_FIREWALL {
 		t.Errorf("nftables.service reads %v", u)
+	}
+}
+
+// sshd that can't be found, or dropbear, which has nothing to check, refuses a
+// restart rather than risk a server without SSH (review L2).
+func TestAnSSHRestartThatCantBeCheckedIsRefused(t *testing.T) {
+	s := systemtest.New(t,
+		systemtest.Unit{Props: systemtest.Running("ssh.service")},
+		systemtest.Unit{Props: systemtest.Running("dropbear.service")},
+	)
+	s.NoSSHD(t)
+	r := reader(s)
+	for _, name := range []string{"ssh.service", "dropbear.service"} {
+		u, _, err := r.PlanUnit(t.Context(), name, resource.UnitRestart)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = r.ApplyUnit(t.Context(), *u, func(string) {})
+		if err == nil || !strings.Contains(err.Error(), "won't restart "+name) {
+			t.Errorf("restarting %s unchecked = %v", name, err)
+		}
+	}
+	if slices.ContainsFunc(s.Calls(), func(c string) bool { return strings.HasPrefix(c, "systemctl restart") }) {
+		t.Errorf("SSH restarted unchecked: %q", s.Calls())
+	}
+}
+
+// What a step says is checked again on the server as it stands: a step that
+// claims no guard for SSH, or no passkey for what an alias makes Docker, is
+// refused, as is a runlevel that isn't one (review L3).
+func TestApplyingChecksTheUnitAgain(t *testing.T) {
+	s := systemtest.New(t,
+		systemtest.Unit{Props: systemtest.Running("ssh.service", "Names", "ssh.service sshd.service")},
+		systemtest.Unit{Props: systemtest.Running("moby.service", "Names", "moby.service docker.service")},
+	)
+	r := reader(s)
+	if err := r.ApplyUnit(t.Context(), resource.Unit{Name: "ssh.service", Action: resource.UnitStop}, func(string) {}); err == nil || !strings.Contains(err.Error(), "how you reach") {
+		t.Errorf("a stop of SSH said to have no guard = %v", err)
+	}
+	if err := r.ApplyUnit(t.Context(), resource.Unit{Name: "moby.service", Action: resource.UnitRestart}, func(string) {}); err == nil || !strings.Contains(err.Error(), "Plan it again") {
+		t.Errorf("a restart of Docker by another name with no passkey = %v", err)
+	}
+	if slices.ContainsFunc(s.Calls(), func(c string) bool { return !strings.HasPrefix(c, "systemctl show") }) {
+		t.Errorf("a refused step ran %q", s.Calls())
+	}
+	root := t.TempDir()
+	for p, content := range map[string]string{
+		"run/openrc/softlevel":     "default\n",
+		"etc/init.d/nginx":         "#!/sbin/openrc-run\n",
+		"etc/runlevels/default/.k": "",
+		"sbin/rc-update":           "#!/bin/sh\nexit 0\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, p), []byte(content), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	o := &system.Reader{Tools: &hosttool.Runner{Root: root}, Root: root}
+	err := o.ApplyUnit(t.Context(), resource.Unit{Name: "nginx", Action: resource.UnitDisable, OpenRC: true, WasAtBoot: "../../../tmp"}, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "isn't one of this server's runlevels") {
+		t.Errorf("a runlevel that isn't one = %v", err)
+	}
+	if err := o.ApplyUnit(t.Context(), resource.Unit{Name: "nginx", Action: resource.UnitDisable, OpenRC: true, WasAtBoot: "default"}, func(string) {}); err != nil {
+		t.Errorf("taking nginx out of default = %v", err)
+	}
+}
+
+// Starting a firewall loads its own rules: the plan asks for the passkey and the
+// typed code and holds the server, and after it Dockwell's table goes back and the
+// step says Docker's rules come back as Docker restarts (review M1).
+func TestStartingAFirewallPutsDockwellsTableBack(t *testing.T) {
+	s := systemtest.New(t, systemtest.Unit{Props: systemtest.Stopped("nftables.service")})
+	r := reader(s)
+	reloads := 0
+	r.AfterFirewall = func(context.Context) error { reloads++; return nil }
+	u, _, err := r.PlanUnit(t.Context(), "nftables.service", resource.UnitStart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !u.Passkey() || !u.Confirm() || !u.ReplacesRules() {
+		t.Errorf("starting nftables takes passkey %t, typed %t, replaces rules %t", u.Passkey(), u.Confirm(), u.ReplacesRules())
+	}
+	var lines []string
+	if err := r.ApplyUnit(t.Context(), *u, say(&lines)); err != nil {
+		t.Fatal(err)
+	}
+	if reloads != 1 || !slices.ContainsFunc(lines, func(l string) bool { return strings.Contains(l, "restart docker.service") }) {
+		t.Errorf("after the start: %d reloads, the step said %q", reloads, lines)
+	}
+}
+
+// A network restart checks the settings load first, where ifupdown can say
+// (review L5).
+func TestANetworkRestartChecksItsSettingsFirst(t *testing.T) {
+	s := systemtest.New(t, systemtest.Unit{Props: systemtest.Running("ifup@eth0.service")})
+	s.IfUp(t, "/etc/network/interfaces:12: misplaced option")
+	r := reader(s)
+	u, _, err := r.PlanUnit(t.Context(), "ifup@eth0.service", resource.UnitRestart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = r.ApplyUnit(t.Context(), *u, func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "misplaced option") {
+		t.Fatalf("restarting with settings that don't load = %v", err)
+	}
+	if !slices.Contains(s.Calls(), "ifup --no-act eth0") || slices.ContainsFunc(s.Calls(), func(c string) bool { return strings.HasPrefix(c, "systemctl restart") }) {
+		t.Errorf("ran %q", s.Calls())
+	}
+	s.IfUp(t, "")
+	if err := r.ApplyUnit(t.Context(), *u, func(string) {}); err != nil {
+		t.Fatalf("restarting with settings that load = %v", err)
 	}
 }

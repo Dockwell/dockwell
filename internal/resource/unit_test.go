@@ -16,7 +16,8 @@ func TestUnitGuardsFollowTheTable(t *testing.T) {
 		GuardDocker:   {"TDM", "RL", "R"},
 		GuardSSH:      {"TDM", "RL", ""},
 		GuardNetwork:  {"TDM", "RL", "R"},
-		GuardFirewall: {"", "TRLDM", "TDM"},
+		GuardFirewall: {"", "STRLEDM", "STRLDM"},
+		GuardSystem:   {"TDM", "RL", "R"},
 	}
 	letter := map[UnitAction]byte{UnitStart: 'S', UnitStop: 'T', UnitRestart: 'R', UnitReload: 'L', UnitEnable: 'E', UnitDisable: 'D', UnitMask: 'M', UnitUnmask: 'U'}
 	has := func(s string, b byte) bool {
@@ -40,6 +41,18 @@ func TestUnitGuardsFollowTheTable(t *testing.T) {
 	}
 	if GuardOf("sshd.service") != GuardSSH || GuardOf("nginx.service", "docker.service") != GuardDocker || GuardOf("nginx.service") != GuardNone {
 		t.Error("GuardOf reads a unit's names wrong")
+	}
+	// What carries the network or SSH outside the fixed names, by its pattern.
+	for name, want := range map[string]UnitGuard{
+		"ifup@ens3.service": GuardNetwork, "net.eth0": GuardNetwork, "dhcpcd.service": GuardNetwork, "wicked.service": GuardNetwork,
+		"network.service": GuardNetwork, "sshd.socket": GuardSSH, "dropbear": GuardSSH, "dropbear.service": GuardSSH,
+		"sshd@3-10.0.0.5:22-203.0.113.9:51544.service": GuardSSH, "snap.docker.dockerd.service": GuardDocker,
+		"dbus.service": GuardSystem, "systemd-logind.service": GuardSystem,
+		"network-online.target": GuardNone, "netdata.service": GuardNone, "net.eth0.service": GuardNone,
+	} {
+		if got := GuardOf(name); got != want {
+			t.Errorf("GuardOf(%q) = %d, want %d", name, got, want)
+		}
 	}
 }
 

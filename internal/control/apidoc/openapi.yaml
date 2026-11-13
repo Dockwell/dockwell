@@ -12502,6 +12502,7 @@ components:
                         - SYSTEM_SERVICE_GUARD_SSH
                         - SYSTEM_SERVICE_GUARD_NETWORK
                         - SYSTEM_SERVICE_GUARD_FIREWALL
+                        - SYSTEM_SERVICE_GUARD_SYSTEM
                     type: string
                     description: How Dockwell guards it.
                     format: enum
@@ -12522,6 +12523,13 @@ components:
                     description: |-
                         True when applying it takes a person's passkey, as it's as good as root:
                          restarting SSH, Docker or the network, or stopping the firewall.
+                replacesRules:
+                    type: boolean
+                    description: |-
+                        True when it has the server's firewall load its own rules, which can
+                         replace Docker's and Dockwell's table: Dockwell puts its table back after,
+                         and Docker's rules come back only when Docker restarts. It holds the server
+                         while it runs, as a Docker restart does.
             description: |-
                 HostUnit is what an action on one of a server's system services does, as its
                  agent planned it (ADR 0082).

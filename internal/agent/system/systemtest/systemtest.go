@@ -51,6 +51,30 @@ func (s *Stand) Prop(t *testing.T, id, key string) string {
 	return ""
 }
 
+// Own says the agent runs in unit, as /proc/self/cgroup says it.
+func (s *Stand) Own(t *testing.T, unit string) {
+	t.Helper()
+	write(t, filepath.Join(s.Root, "proc", "self", "cgroup"), "0::/system.slice/"+unit+"\n", 0o644)
+}
+
+// NoSSHD takes the stand's sshd away, as on a server where it's somewhere else.
+func (s *Stand) NoSSHD(t *testing.T) {
+	t.Helper()
+	if err := os.Remove(filepath.Join(s.Root, "usr", "sbin", "sshd")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// IfUp puts a stand-in ifup on the stand, whose --no-act fails with line unless it's empty.
+func (s *Stand) IfUp(t *testing.T, line string) {
+	t.Helper()
+	script := "#!/bin/sh\necho \"ifup $*\" >> '" + filepath.Join(s.Root, "calls") + "'\n"
+	if line != "" {
+		script += "echo '" + line + "' >&2\nexit 1\n"
+	}
+	write(t, filepath.Join(s.Root, "sbin", "ifup"), script, 0o755)
+}
+
 // SSHDFails has the stand's sshd -t fail with line.
 func (s *Stand) SSHDFails(t *testing.T, line string) {
 	t.Helper()

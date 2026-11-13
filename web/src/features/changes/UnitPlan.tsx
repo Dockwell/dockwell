@@ -98,7 +98,17 @@ export function UnitPlan({ unit, server, serverId }: { unit: HostUnit; server: s
   if (unit.action === SystemServiceAction.ENABLE || unit.action === SystemServiceAction.DISABLE) {
     if (atBoot) lines.push({ key: "was", text: t`At boot it reads ${atBoot} now` });
   }
-  if (unit.confirm && unit.guard === SystemServiceGuard.FIREWALL) {
+  if (unit.replacesRules) {
+    lines.push({
+      key: "rules",
+      text: t`Its own rules load, and can replace Docker's and Dockwell's on ${server}`,
+      warn: true,
+    });
+    lines.push({
+      key: "back",
+      text: t`Dockwell puts its own table back after; Docker's rules come back when Docker restarts`,
+    });
+  } else if (unit.confirm && unit.guard === SystemServiceGuard.FIREWALL) {
     lines.push({
       key: "firewall",
       text: t`Every port the firewall closes on ${server} opens while it's stopped`,

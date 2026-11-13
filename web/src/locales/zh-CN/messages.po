@@ -7300,6 +7300,9 @@ msgstr "不会停止任何东西"
 msgid "nothing stops now; it counts at the next boot"
 msgstr "现在不会停止任何东西，下次开机时生效"
 
+msgid "published ports may stop answering until Docker restarts"
+msgstr "在 Docker 重启前，发布的端口可能无法访问"
+
 msgid "rolling, with nothing stopped"
 msgstr "滚动发布，不停止任何内容"
 
@@ -7796,8 +7799,14 @@ msgstr "依赖它的其他单元仍可启动它"
 msgid "At boot it reads {atBoot} now"
 msgstr "当前开机状态为 {atBoot}"
 
+msgid "Dockwell puts its own table back after; Docker's rules come back when Docker restarts"
+msgstr "之后 Dockwell 会恢复自己的规则表；Docker 的规则会在 Docker 重启时恢复"
+
 msgid "Every port the firewall closes on {server} opens while it's stopped"
 msgstr "停止期间，防火墙在 {server} 上关闭的所有端口都会打开"
+
+msgid "Its own rules load, and can replace Docker's and Dockwell's on {server}"
+msgstr "它会加载自己的规则，可能替换 {server} 上 Docker 和 Dockwell 的规则"
 
 msgid "Mask <0>{name}</0> on {server}"
 msgstr "在 {server} 上屏蔽 <0>{name}</0>"
@@ -12978,6 +12987,9 @@ msgstr "{0}，状态 {1}"
 
 msgid "{name} reaches the network through it"
 msgstr "{name} 通过它连接网络"
+
+msgid "{name}'s services and sign-ins go through it"
+msgstr "{name} 的服务和登录都依赖它"
 
 msgid "Being removed"
 msgstr "正在移除"

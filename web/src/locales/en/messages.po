@@ -7300,6 +7300,9 @@ msgstr "nothing stops"
 msgid "nothing stops now; it counts at the next boot"
 msgstr "nothing stops now; it counts at the next boot"
 
+msgid "published ports may stop answering until Docker restarts"
+msgstr "published ports may stop answering until Docker restarts"
+
 msgid "rolling, with nothing stopped"
 msgstr "rolling, with nothing stopped"
 
@@ -7796,8 +7799,14 @@ msgstr "Another unit that needs it can still start it"
 msgid "At boot it reads {atBoot} now"
 msgstr "At boot it reads {atBoot} now"
 
+msgid "Dockwell puts its own table back after; Docker's rules come back when Docker restarts"
+msgstr "Dockwell puts its own table back after; Docker's rules come back when Docker restarts"
+
 msgid "Every port the firewall closes on {server} opens while it's stopped"
 msgstr "Every port the firewall closes on {server} opens while it's stopped"
+
+msgid "Its own rules load, and can replace Docker's and Dockwell's on {server}"
+msgstr "Its own rules load, and can replace Docker's and Dockwell's on {server}"
 
 msgid "Mask <0>{name}</0> on {server}"
 msgstr "Mask <0>{name}</0> on {server}"
@@ -12978,6 +12987,9 @@ msgstr "{0}, status {1}"
 
 msgid "{name} reaches the network through it"
 msgstr "{name} reaches the network through it"
+
+msgid "{name}'s services and sign-ins go through it"
+msgstr "{name}'s services and sign-ins go through it"
 
 msgid "Being removed"
 msgstr "Being removed"

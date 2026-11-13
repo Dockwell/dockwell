@@ -623,7 +623,7 @@ func Unit(u *resource.Unit) *dockwellv1.HostUnit {
 	}
 	return &dockwellv1.HostUnit{
 		Name: u.Name, Action: UnitAction(u.Action), WasRunning: u.WasRunning, WasState: u.WasState, WasAtBoot: u.WasAtBoot,
-		With: u.With, Triggers: u.Triggers, Guard: dockwellv1.SystemServiceGuard(u.Guard), Confirm: u.Confirm(), DockerRestarts: u.DockerRestarts, Openrc: u.OpenRC, Passkey: u.Passkey(),
+		With: u.With, Triggers: u.Triggers, Guard: dockwellv1.SystemServiceGuard(u.Guard), Confirm: u.Confirm(), DockerRestarts: u.DockerRestarts, Openrc: u.OpenRC, Passkey: u.Passkey(), ReplacesRules: u.ReplacesRules(),
 	}
 }
 
