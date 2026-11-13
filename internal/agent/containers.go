@@ -60,6 +60,9 @@ func containers(ctx context.Context, client *docker.Client, call *agentv1.Contai
 		if _, ok := s.Labels[docker.LabelDrill]; ok {
 			return nil
 		}
+		if _, ok := s.Labels[docker.LabelCopy]; ok {
+			return nil
+		}
 		c := serverContainer(s)
 		if size += proto.Size(c); size > listBytes {
 			out.Unlisted++

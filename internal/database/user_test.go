@@ -46,7 +46,11 @@ type fakePostgres struct {
 	// it always does, as the official image's pg_hba.conf has it. superuser and shell
 	// say a load became the administrator, or ran a shell, as a \connect or a \! it
 	// was given would have it; onLoad runs as each load starts.
-	psql      string
+	psql     string
+	dumpedAs []string
+	// probeSays is what a sign-in with no password says, where it says something
+	// other than that a password is needed.
+	probeSays string
 	trusts    bool
 	superuser bool
 	shell     bool
@@ -65,6 +69,7 @@ var (
 	fakeAsk        = regexp.MustCompile(`'user', EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 	fakeDropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	fakeDropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	fakeOwner      = regexp.MustCompile(`json_build_object\('owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 )
 
 func (f *fakePostgres) exec(x dockertest.Exec) int {
@@ -73,7 +78,9 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 	case strings.Contains(script, "pg_dump"):
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		_, _ = io.WriteString(x.Stdout, f.dump[x.Cmd[len(x.Cmd)-1]])
+		// pg_dump's arguments are the database, then who it runs as.
+		f.dumpedAs = append(f.dumpedAs, x.Cmd[len(x.Cmd)-1])
+		_, _ = io.WriteString(x.Stdout, f.dump[x.Cmd[len(x.Cmd)-2]])
 		return 0
 	case slices.Equal(x.Cmd, []string{"psql", "-V"}):
 		f.mu.Lock()
@@ -83,7 +90,12 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 	case strings.Contains(script, "psql") && strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1"):
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		if f.trusts || x.Cmd[len(x.Cmd)-1] == "127.0.0.1" {
+		// Its arguments end with the address it dials, then the database.
+		if f.probeSays != "" {
+			_, _ = io.WriteString(x.Stderr, f.probeSays+"\n")
+			return 2
+		}
+		if f.trusts || x.Cmd[len(x.Cmd)-2] == "127.0.0.1" {
 			return 0
 		}
 		_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
@@ -142,6 +154,10 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 		f.starting--
 		_, _ = io.WriteString(x.Stderr, "psql: error: connection to server on socket \"/var/run/postgresql/.s.PGSQL.5432\" failed: FATAL:  the database system is shutting down\n")
 		return 2
+	}
+	if m := fakeOwner.FindStringSubmatch(sql); m != nil {
+		_, _ = io.WriteString(x.Stdout, `{"owner":"`+f.databases[m[1]]+`"}`+"\n")
+		return 0
 	}
 	if m := fakeAsk.FindStringSubmatch(sql); m != nil {
 		_, _ = io.WriteString(x.Stdout, `{"user":`+map[bool]string{true: "true", false: "false"}[f.roles[m[1]]]+`,"owner":"`+f.databases[m[2]]+`"}`+"\n")
@@ -330,7 +346,7 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 			if _, ok := n.Labels[LabelCopy]; !ok {
 				continue
 			}
-			internal = n.Internal
+			internal = n.Internal && n.Options["com.docker.network.bridge.inhibit_ipv4"] == "true"
 			for _, c := range n.Containers {
 				onNet = append(onNet, c.Name)
 			}
@@ -345,7 +361,7 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 	pg.onLoad = nil
 	slices.Sort(onNet)
 	if !internal || len(onNet) != 2 || !strings.HasPrefix(onNet[0], "dockwell-copy-blog-") || onNet[1] != "env_1-db-1" || serverAddr == "" || serverAddr == "127.0.0.1" {
-		t.Errorf("the load's network is internal %v, with %v, the server at %q", internal, onNet, serverAddr)
+		t.Errorf("the load's network is internal with no address of the server's own %v, with %v, the server at %q", internal, onNet, serverAddr)
 	}
 	if got := pg.loaded["blog"]; got != "CREATE TABLE posts (id int);\nINSERT INTO posts VALUES (1);\n" {
 		t.Errorf("the new server loaded %q", got)
@@ -376,6 +392,10 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 	if g.Copying || !slices.Equal(g.CopiedFrom, []string{"env_2", "db", "blog"}) {
 		t.Errorf("a whole copy is kept as %+v", g)
 	}
+	// It dumped as the database's owner, never the old server's administrator (#595).
+	if !slices.Equal(old.dumpedAs, []string{"blog"}) {
+		t.Errorf("the dump ran as %v", old.dumpedAs)
+	}
 	if err := copying("wiki", "env_9"); err == nil || !strings.Contains(err.Error(), "has no container on this server") {
 		t.Errorf("a copy from nowhere: %v", err)
 	}
@@ -400,10 +420,15 @@ func TestACopyRefusesClientCommands(t *testing.T) {
 		{"shell, restricted", "", "\\! id > /tmp/owned\n", "backslash commands are restricted", false},
 		{"a server that trusts its networks", "", "CREATE TABLE posts (id int);\n", "lets anyone on its networks sign in as its administrator with no password", true},
 		{"a newer pg_dump's own restrict", "", "--\n\\restrict abc123\n\nCREATE TABLE posts (id int);\n\\unrestrict abc123\n", "", false},
+		// A check that says nothing of a password is no answer, and nothing is copied.
+		{"a check that can't tell", "", "CREATE TABLE posts (id int);\n", "can't tell whether db asks for a password on the copy's network", false},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			d, pg, e := userStand(t)
 			pg.psql, pg.trusts = c.psql, c.trusts
+			if c.name == "a check that can't tell" {
+				pg.probeSays = "psql: error: connection to server at \"172.18.0.4\", port 5432 failed: Connection refused"
+			}
 			old := &fakePostgres{roles: map[string]bool{"postgres": true}, databases: map[string]string{"postgres": "postgres", "blog": "blog"}, dump: map[string]string{"blog": c.dump}}
 			e.AddLocalImage("postgres:16", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}, Exec: old.exec})
 			client := e.Client()
@@ -431,13 +456,55 @@ func TestACopyRefusesClientCommands(t *testing.T) {
 			if pg.superuser || pg.shell {
 				t.Errorf("the load became the administrator %v, ran a shell %v", pg.superuser, pg.shell)
 			}
-			if c.trusts && len(pg.loads) != 0 {
-				t.Errorf("a server that trusts its networks was loaded into: %v", pg.loads)
+			if (c.trusts || pg.probeSays != "") && len(pg.loads) != 0 {
+				t.Errorf("a server that may trust its networks was loaded into: %v", pg.loads)
 			}
 			if pg.roles["blog"] {
 				t.Error("a copy that was refused left its user behind")
 			}
 		})
+	}
+}
+
+// What a copy an agent's crash cut short left goes as the agent starts again: its
+// throwaway containers, and its network, with the server taken off it first (#595).
+func TestWhatACopyLeftIsSweptAway(t *testing.T) {
+	d, _, e := userStand(t)
+	client := e.Client()
+	server := e.Container("env_1-db-1").ID
+	if _, err := client.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: docker.CopyPrefix + "blog-1", Internal: true, Labels: map[string]string{LabelCopy: "blog"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ConnectNetwork(t.Context(), docker.CopyPrefix+"blog-1", server, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.CreateContainer(t.Context(), docker.CopyPrefix+"blog-2", &docker.CreateRequest{
+		Config:     docker.Config{Image: "postgres:17", Labels: map[string]string{docker.LabelOneoff: "True", LabelCopy: "blog"}},
+		HostConfig: docker.HostConfig{NetworkMode: docker.CopyPrefix + "blog-1"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Someone's own network stays.
+	if _, err := client.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: "dockwell-copy-of-mine"}); err != nil {
+		t.Fatal(err)
+	}
+	d.Clean(t.Context())
+	if left, err := client.ListContainers(t.Context(), map[string][]string{"label": {LabelCopy}}); err != nil || len(left) != 0 {
+		t.Errorf("containers left: %v, %v", left, err)
+	}
+	nets, err := client.ListNetworks(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := []string{}
+	for _, n := range nets {
+		names = append(names, n.Name)
+	}
+	if slices.Contains(names, docker.CopyPrefix+"blog-1") || !slices.Contains(names, "dockwell-copy-of-mine") {
+		t.Errorf("networks left: %v", names)
+	}
+	if c, err := client.InspectContainer(t.Context(), server); err != nil || c.NetworkSettings.Networks[docker.CopyPrefix+"blog-1"] != nil || !c.State.Running {
+		t.Errorf("the server after the sweep: %v, %v", c, err)
 	}
 }
 

@@ -205,9 +205,11 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 	// The ingress network is the ingress's to give and take, and no spec names
 	// it, so being on it isn't drift (ADR 0024). Nor is another environment's
 	// network: a service is on one only as a link's member, which that network
-	// records (ADR 0084).
+	// records (ADR 0084). Nor a database copy's, which a server is on while a copy
+	// loads into it.
 	networks := slices.DeleteFunc(slices.Sorted(maps.Keys(c.NetworkSettings.Networks)), func(n string) bool {
-		return n == docker.IngressNetwork || t.Scoped && strings.HasPrefix(n, serviceForm) && !strings.HasPrefix(n, t.Project+"_")
+		return n == docker.IngressNetwork || strings.HasPrefix(n, docker.CopyPrefix) ||
+			t.Scoped && strings.HasPrefix(n, serviceForm) && !strings.HasPrefix(n, t.Project+"_")
 	})
 	if slices.Equal(networks, []string{bridge}) {
 		return

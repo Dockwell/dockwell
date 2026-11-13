@@ -64,6 +64,15 @@ const LabelVolumeTool = OwnPrefix + "volume-tool"
 // it throws away whatever comes of it (ADR 0068).
 const LabelDrill = OwnPrefix + "drill"
 
+// LabelCopy marks the network a database copy loads on and the throwaway containers
+// on it, with the user it loads for (ADR 0084), and CopyPrefix starts their names.
+// A server joins such a network for the copy alone, so it's no one's to see, nor
+// drift.
+const (
+	LabelCopy  = OwnPrefix + "database-copy"
+	CopyPrefix = "dockwell-copy-"
+)
+
 // IsOwnLabel reports a label Dockwell or Compose sets, which a spec can't.
 func IsOwnLabel(key string) bool {
 	return strings.HasPrefix(key, ComposePrefix) || strings.HasPrefix(key, OwnPrefix)

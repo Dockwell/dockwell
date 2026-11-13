@@ -436,6 +436,8 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go builder.Clean(ctx)
 	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
 	go tasks.Keep(ctx)
+	users := &database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
+	go users.Clean(ctx)
 	var reserved string
 	if panel != nil {
 		reserved = panel.Domain
@@ -464,7 +466,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
-			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
+			users, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units}),
 		Updates:   packages,

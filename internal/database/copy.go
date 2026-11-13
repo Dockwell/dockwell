@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -43,9 +44,12 @@ import (
 // database names go as arguments of the shell, never inside its script.
 
 // dumpOne writes one database's schema and data to stdout, owned by no one, so what
-// loads it makes them its own.
+// loads it makes them its own. PostgreSQL's runs as the database's owner, the shell's
+// second argument, not the server's administrator: on a server other apps share, a
+// user of it could otherwise turn a dump that runs as the administrator against it
+// (CVE-2024-7348, fixed in 16.4, 15.8, 14.13, 13.16 and 12.20).
 var dumpOne = map[dockwellv1.DatabaseEngine][]string{
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dump -U "${POSTGRES_USER:-postgres}" --no-owner --no-acl -d "$1"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dump -U "$2" --no-owner --no-acl -d "$1"`, "sh"},
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", `export MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}"; exec mysqldump -uroot --single-transaction --routines --triggers --events --hex-blob --no-create-db --set-gtid-purged=OFF "$1"`, "sh"},
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; c=mysqldump; command -v mariadb-dump >/dev/null 2>&1 && c=mariadb-dump; exec "$c" -uroot --single-transaction --routines --triggers --events --hex-blob --no-create-db "$1"`, "sh"},
 }
@@ -61,12 +65,13 @@ var loadOne = map[dockwellv1.DatabaseEngine][]string{
 }
 
 // trustsAnyone signs in to a server as its administrator with no password, from
-// another host: the administrator, the port and the address are its arguments.
+// another host, to the database the copy goes into: the administrator, the port, the
+// address and the database are its arguments.
 // One that lets it in trusts its networks, and a copy loaded into it could take it.
 var trustsAnyone = map[dockwellv1.DatabaseEngine][]string{
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `unset PGPASSWORD; exec psql -X -w -h "$3" -p "$2" -U "$1" -d postgres -c 'SELECT 1'`, "sh"},
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", `unset MYSQL_PWD; exec mysql --protocol=TCP -h "$3" -P "$2" -u "$1" --password= -e 'SELECT 1'`, "sh"},
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `unset MYSQL_PWD; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec "$c" --protocol=TCP -h "$3" -P "$2" -u "$1" --password= -e 'SELECT 1'`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `unset PGPASSWORD; exec psql -X -w -h "$3" -p "$2" -U "$1" -d "$4" -c 'SELECT 1'`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", `unset MYSQL_PWD; exec mysql --protocol=TCP -h "$3" -P "$2" -u "$1" --password= -e 'SELECT 1' "$4"`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `unset MYSQL_PWD; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec "$c" --protocol=TCP -h "$3" -P "$2" -u "$1" --password= -e 'SELECT 1' "$4"`, "sh"},
 }
 
 // clientSays is what the new server's client says of itself, from its own
@@ -85,9 +90,9 @@ var copyPassword = map[dockwellv1.DatabaseEngine]string{
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    "MYSQL_PWD",
 }
 
-// LabelCopy marks the throwaway container that loads a copy, with the user it loads
-// for, so nothing lists it as an app's.
-const LabelCopy = docker.OwnPrefix + "database-copy"
+// LabelCopy marks the copy's network and throwaway containers, so nothing lists them
+// as an app's, and an agent that starts again removes what a crash left.
+const LabelCopy = docker.LabelCopy
 
 // Copies reports an engine Dockwell copies one database of across.
 func Copies(e dockwellv1.DatabaseEngine) bool { _, ok := dumpOne[e]; return ok }
@@ -130,6 +135,13 @@ func (d *UserDriver) copyInto(ctx context.Context, to *docker.Container, e *Engi
 	ctx, cancel := context.WithTimeout(ctx, cmp.Or(d.CopyWait, copyWait))
 	defer cancel()
 	dump = append(withPort("PGPORT", PortOf(e, src.Config.Cmd), dump), from.GetDatabase())
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+		owner, err := d.ownerOf(ctx, src, e, from.GetDatabase())
+		if err != nil {
+			return fmt.Errorf("can't read who owns %s on %s, so nothing was copied: %w", from.GetDatabase(), from.GetService(), err)
+		}
+		dump = append(dump, owner)
+	}
 	port := strconv.FormatUint(uint64(cmp.Or(PortOf(e, to.Config.Cmd), e.Port)), 10)
 
 	// The load's own network, with the new server alone on it.
@@ -138,7 +150,11 @@ func (d *UserDriver) copyInto(ctx context.Context, to *docker.Container, e *Engi
 		return err
 	}
 	defer leave()
-	if d.trusted(ctx, to, e, network, port, addr) {
+	trusts, err := d.trusted(ctx, to, e, network, port, addr, db)
+	if err != nil {
+		return err
+	}
+	if trusts {
 		return fmt.Errorf("%s lets anyone on its networks sign in as its administrator with no password, so a copy loaded into it could take the whole server, and nothing was copied. "+
 			"Have it ask for passwords, as POSTGRES_HOST_AUTH_METHOD=scram-sha-256 or a root password does, then try again", serviceOf(to))
 	}
@@ -192,6 +208,26 @@ func (d *UserDriver) copyInto(ctx context.Context, to *docker.Container, e *Engi
 	return nil
 }
 
+// ownerOf is who owns a PostgreSQL database, which its dump runs as.
+func (d *UserDriver) ownerOf(ctx context.Context, c *docker.Container, e *Engine, db string) (string, error) {
+	if err := CheckSQLName("database", db); err != nil {
+		return "", err
+	}
+	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
+	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd,
+		"SELECT json_build_object('owner', r.rolname) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '"+db+"';\n")
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		Owner string `json:"owner"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(string(said))), &out); err != nil || out.Owner == "" {
+		return "", fmt.Errorf("it has no database %s", db)
+	}
+	return out.Owner, nil
+}
+
 // serviceOf is the service a container runs, as Compose labels it.
 func serviceOf(c *docker.Container) string {
 	return cmp.Or(c.Config.Labels[docker.LabelService], strings.TrimPrefix(c.Name, "/"))
@@ -201,8 +237,13 @@ func serviceOf(c *docker.Container) string {
 // it, and says its name and the server's address there; leave takes the server
 // off it and removes it, whatever became of the copy.
 func (d *UserDriver) copyNetwork(ctx context.Context, to *docker.Container, user string) (network, addr string, leave func(), err error) {
-	network = "dockwell-copy-" + user + "-" + randomHex(6)
-	if _, err := d.Client.CreateNetwork(ctx, &docker.NetworkCreate{Name: network, Internal: true, CheckDuplicate: true, Labels: map[string]string{LabelCopy: user}}); err != nil {
+	network = docker.CopyPrefix + user + "-" + randomHex(6)
+	// Internal, and with no address of the server's own on its bridge, so what's on
+	// it reaches neither the internet nor the server itself, only the new database.
+	if _, err := d.Client.CreateNetwork(ctx, &docker.NetworkCreate{
+		Name: network, Internal: true, CheckDuplicate: true, Labels: map[string]string{LabelCopy: user},
+		Options: map[string]string{inhibitIPv4: "true"},
+	}); err != nil {
 		return "", "", nil, fmt.Errorf("docker can't make the network the copy loads on: %w", err)
 	}
 	joined := false
@@ -232,16 +273,57 @@ func (d *UserDriver) copyNetwork(ctx context.Context, to *docker.Container, user
 	return network, addr, leave, nil
 }
 
-// trusted reports a server that lets its administrator in with no password from
-// another host on the copy's network.
-func (d *UserDriver) trusted(ctx context.Context, to *docker.Container, e *Engine, network, port, addr string) bool {
+// inhibitIPv4 has Docker give a bridge network's own device no address on the
+// server, so a container on it has no gateway to the server's own ports.
+const inhibitIPv4 = "com.docker.network.bridge.inhibit_ipv4"
+
+// trusted says whether a server lets its administrator into the copy's database with
+// no password from another host on the copy's network. Only the server's refusal to
+// let it in says it doesn't: anything else, such as a connection that fails, is no
+// answer, and the copy doesn't go on.
+func (d *UserDriver) trusted(ctx context.Context, to *docker.Container, e *Engine, network, port, addr, db string) (bool, error) {
 	admin := "root"
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
 		admin = cmp.Or(envOf(to.Config.Env, "POSTGRES_USER"), "postgres")
 	}
-	cmd := append(slices.Clone(trustsAnyone[e.Kind]), admin, port, addr)
-	code, err := d.throwaway(ctx, to.Config.Image, network, "check", nil, cmd, nil, io.Discard)
-	return err == nil && code == 0
+	cmd := append(slices.Clone(trustsAnyone[e.Kind]), admin, port, addr, db)
+	said := &capped{max: 4 << 10}
+	code, err := d.throwaway(ctx, to.Config.Image, network, "check", nil, cmd, nil, said)
+	switch {
+	case err != nil:
+		return false, fmt.Errorf("can't tell whether %s asks for a password on the copy's network, so nothing was copied: %w", serviceOf(to), err)
+	case code == 0:
+		return true, nil
+	case refusedSignIn(said.String()):
+		return false, nil
+	}
+	return false, fmt.Errorf("can't tell whether %s asks for a password on the copy's network, so nothing was copied: %s. Try again", serviceOf(to), cmp.Or(scrubbed(said.String()), fmt.Sprintf("its check stopped with code %d", code)))
+}
+
+// Clean removes what a copy an agent's crash cut short left: the throwaway
+// containers and the network, each server taken off it first. Nothing copies while
+// the agent starts.
+func (d *UserDriver) Clean(ctx context.Context) {
+	if d.Client == nil {
+		return
+	}
+	if _, err := d.Client.RemoveContainersLabelled(ctx, LabelCopy); err != nil {
+		return
+	}
+	nets, err := d.Client.ListNetworks(ctx)
+	if err != nil {
+		return
+	}
+	for i := range nets {
+		n := &nets[i]
+		if _, ok := n.Labels[LabelCopy]; !ok {
+			continue
+		}
+		for id := range n.Containers {
+			_ = d.Client.DisconnectNetwork(ctx, n.Name, id)
+		}
+		_ = d.Client.RemoveNetwork(ctx, n.Name)
+	}
 }
 
 // envOf is a variable's value in a container's environment.
@@ -313,7 +395,7 @@ func (d *UserDriver) throwaway(ctx context.Context, image, network, user string,
 			LogConfig: &docker.LogConfig{Type: "none"},
 		},
 	}
-	id, err := d.Client.CreateContainer(ctx, "dockwell-copy-"+user+"-"+randomHex(6), req)
+	id, err := d.Client.CreateContainer(ctx, docker.CopyPrefix+user+"-"+randomHex(6), req)
 	if err != nil {
 		return 0, fmt.Errorf("docker can't make the container that loads the copy: %w", err)
 	}

@@ -863,3 +863,22 @@ func TestAHeldPortListensOnTheServerAlone(t *testing.T) {
 	}
 	unchanged(t, l, web, spec)
 }
+
+// A server is on a database copy's network while a copy loads into it, which isn't
+// drift (#595).
+func TestACopysNetworkIsntDrift(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	db := resource.Ref{Kind: service.Kind, Scope: env, Name: "db"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17"}}}
+	apply(t, l, db, spec)
+	client := e.Client()
+	if _, err := client.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: docker.CopyPrefix + "blog-1", Internal: true}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ConnectNetwork(t.Context(), docker.CopyPrefix+"blog-1", service.ContainerName(db), nil); err != nil {
+		t.Fatal(err)
+	}
+	unchanged(t, l, db, spec)
+}

@@ -319,6 +319,10 @@ func TestMakingAUserKeepsThePasswordOutOfWhatServersLog(t *testing.T) {
 		"SELECT 'CREATE ROLE \"shop\" LOGIN' WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'shop')\n\\gexec\n",
 		"SELECT 'CREATE DATABASE \"shop\" OWNER \"shop\"' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'shop')\n\\gexec\n",
 		"REVOKE ALL ON DATABASE \"shop\" FROM PUBLIC;\n",
+		// No one else connects to template1, which every later database is made from,
+		// and before 15 no one makes anything in its public schema (#595).
+		"WHERE (NOT datistemplate OR datname = 'template1') AND datname <> 'shop'\n\\gexec\n",
+		"\\if :dw_old_public\n\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Errorf("PostgreSQL is given %q, without %q", sql, want)
