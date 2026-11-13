@@ -23,10 +23,13 @@ const (
 	cacheMount   = "/var/lib/buildkit"
 	secretsMount = "/run/dockwell-secrets" //nolint:gosec // a path, not a credential
 	// planMount holds the plan Railpack wrote when it read the commit, read-only.
-	planMount    = "/run/dockwell-plan"
-	planFile     = "railpack-plan.json"
-	sourceDir    = "/src"
-	buildkitSock = "unix:///run/buildkit/buildkitd.sock"
+	planMount = "/run/dockwell-plan"
+	planFile  = "railpack-plan.json"
+	// registriesMount holds the registry logins a build's base images pull with, as
+	// Docker's config.json, read-only (ADR 0086).
+	registriesMount = "/run/dockwell-registries"
+	sourceDir       = "/src"
+	buildkitSock    = "unix:///run/buildkit/buildkitd.sock"
 )
 
 // fetchScript fetches the branch or tag the build names, by its full name, and checks
@@ -120,6 +123,7 @@ mkdir -p /etc/buildkit
   printf '[worker.oci]\n  gc = true\n  maxUsedSpace = "%s"\n' "$DW_KEEP"
   if [ -n "$aa" ]; then printf '  apparmor-profile = "%s"\n' "$aa"; fi
   printf '[worker.containerd]\n  enabled = false\n'
+  if [ -n "${DW_PLAIN_REGISTRY:-}" ]; then printf '[registry."%s"]\n  http = true\n' "$DW_PLAIN_REGISTRY"; fi
 } >/etc/buildkit/buildkitd.toml
 /usr/bin/buildkitd-entrypoint --addr ` + buildkitSock + ` --config /etc/buildkit/buildkitd.toml >/tmp/buildkitd.log 2>&1 &
 bk=$!
@@ -181,9 +185,16 @@ func dockerfile(p string) string {
 }
 
 // args are buildctl's arguments for a build, after what the script gives it:
-// each build argument, the target, and each secret, by the file it is in.
+// each build argument, the target, and each secret, by the file it is in. A build
+// with registry logins sets the Dockerfile frontend's cmdline, which keeps it from
+// handing the build to a frontend a syntax directive or BUILDKIT_SYNTAX names, and
+// does nothing else (BuildKit v0.34.1, frontend/dockerfile/builder): it reads the
+// Dockerfile itself, and only Docker's own frontend sees the logins (ADR 0086).
 func args(req service.BuildRequest) []string {
 	var out []string
+	if len(req.Logins) > 0 {
+		out = append(out, "--opt", "cmdline=")
+	}
 	for _, k := range slices.Sorted(mapsKeys(req.Args)) {
 		out = append(out, "--opt", "build-arg:"+k+"="+req.Args[k])
 	}

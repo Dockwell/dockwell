@@ -32,3 +32,4 @@ coverage/
 /.ingress-tools/
 /fakedocker
 /gitserve
+/htpasswd

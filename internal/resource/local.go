@@ -863,3 +863,9 @@ func PathBack() {
 func LoginRef(ref Ref) Ref {
 	return Ref{Kind: "registry.login", Scope: ref.Scope, Name: string(ref.Kind) + "/" + ref.Name}
 }
+
+// BuildLoginRef is what the registry logins sent with ref's build are sealed to,
+// apart from its pull's login and its values (ADR 0086).
+func BuildLoginRef(ref Ref) Ref {
+	return Ref{Kind: "registry.login", Scope: ref.Scope, Name: "build/" + string(ref.Kind) + "/" + ref.Name}
+}

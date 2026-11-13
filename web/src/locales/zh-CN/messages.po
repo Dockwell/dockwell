@@ -4283,6 +4283,9 @@ msgstr "位于该文件夹中。"
 msgid "It writes more variables in plain sight. Check before you pass one a secret."
 msgstr "它还明文写入了更多变量。传入密钥前请先检查。"
 
+msgid "Its Dockerfile can read any image the login can."
+msgstr "其 Dockerfile 能读取该登录可读取的任何镜像。"
+
 msgid "Its apps show as one row with this name."
 msgstr "其应用以此名称显示为一行。"
 
@@ -4317,6 +4320,9 @@ msgstr "无健康检查"
 
 msgid "No limits"
 msgstr "不限制资源"
+
+msgid "No login"
+msgstr "不使用登录"
 
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "在发布端口之前，服务器外部无法访问它。"
@@ -4359,6 +4365,9 @@ msgstr "项目"
 
 msgid "Project name"
 msgstr "项目名称"
+
+msgid "Pull {host} images with"
+msgstr "拉取 {host} 镜像时使用"
 
 msgid "Railpack"
 msgstr "Railpack"
@@ -7554,6 +7563,9 @@ msgstr "Docker 重启期间应用和网站会停止"
 msgid "everything there is offline until it's back"
 msgstr "恢复前其上的一切都会离线"
 
+msgid "its Dockerfile can read any image <0>{buildLogins}</0> can read"
+msgstr "其 Dockerfile 能读取 <0>{buildLogins}</0> 可读取的任何镜像"
+
 msgid "no downtime expected"
 msgstr "预计不会停机"
 
@@ -7847,6 +7859,9 @@ msgstr "Docker 会重启，期间容器保持运行：这是补丁版本，且�
 
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，直到它恢复，Caddy 在那里提供的域名也一样"
+
+msgid "Its Dockerfile can read any image {buildLogins} can read"
+msgstr "其 Dockerfile 能读取 {buildLogins} 可读取的任何镜像"
 
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"

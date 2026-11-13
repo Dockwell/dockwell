@@ -19,6 +19,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"slices"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -44,6 +46,15 @@ const (
 	Digest     = "sha256:99368f3e46177c6405b9740e4461d91cee004128daeecca78d4ceac50ec1da5c"
 	Image      = Repository + "@" + Digest
 )
+
+// maxDockerfileText is as much of a Dockerfile as a build with registry logins reads
+// for what it pulls: one longer is refused. The reading says a byte more, 1048577
+// in detectScript, so it says when there's more.
+const maxDockerfileText = 1 << 20
+
+// plainRegistry is a host:port BuildKit's configuration may name, and nothing that
+// could end its line or its quotes.
+var plainRegistry = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^[A-Za-z0-9.-]+(:\d{1,5})?$`) })
 
 // CacheVolume is the volume BuildKit keeps its layer cache in, which every build on
 // the server shares.
@@ -94,6 +105,10 @@ type Builder struct {
 	LookupIP func(ctx context.Context, host string) ([]net.IP, error)
 	// InMemory says whether path is in memory, as a tmpfs: statfs unless set.
 	InMemory func(path string) bool
+	// PlainRegistry, in a test, is the one registry BuildKit reaches over plain
+	// HTTP, as host:port: the test's own, as a registry on a test's machine has no
+	// certificate BuildKit trusts. No server sets it.
+	PlainRegistry string
 	// Now is the clock.
 	Now func() time.Time
 	// StateDir is where the agent keeps its own files: when each build cache was
@@ -228,12 +243,23 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	}
 	defer func() { <-b.slot }()
 
+	// What a registry said of a login before the build waited may have changed
+	// since: it's asked again now (ADR 0086).
+	if len(req.Logins) > 0 && req.Recheck != nil {
+		logins, err := req.Recheck(ctx, req.Logins)
+		if err != nil {
+			return b.ended(ctx, req, facts{}, err)
+		}
+		req.Logins = logins
+	}
 	if err := checkRef(req.Ref); err != nil {
 		return b.ended(ctx, req, facts{}, err)
 	}
 	if err := b.checkPlain(ctx, req.URL); err != nil {
 		return b.ended(ctx, req, facts{}, err)
 	}
+	// Its cache follows the logins it was given, before its Dockerfile is read for
+	// which it hands BuildKit, so one build keeps to one cache.
 	root, volume := b.dockerRoot(ctx), cacheVolume(req)
 	if err := b.checkDisk(root); err != nil {
 		// What a build that stopped wrote is in its cache, which its next build
@@ -250,11 +276,17 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	builder, plan := req.Builder, []byte(nil)
 	var f facts
 	var err error
-	if builder != resource.BuilderDockerfile {
-		builder, plan, err = b.readFor(ctx, req, rep)
+	var read *resource.BuildDetection
+	// A build with registry logins reads its Dockerfile first, whatever builds it,
+	// for what it pulls (ADR 0086).
+	if builder != resource.BuilderDockerfile || len(req.Logins) > 0 {
+		builder, plan, read, err = b.readFor(ctx, req, rep)
+	}
+	if err == nil && len(req.Logins) > 0 {
+		req.Logins, err = b.loginsFor(req, builder, read)
 	}
 	if err == nil {
-		f, err = b.run(ctx, req, rep, builder, plan)
+		f, err = b.run(ctx, req, rep, builder, plan, volume)
 	} else {
 		// What the reading said is in the log too.
 		rep.send()
@@ -310,7 +342,7 @@ func (b *Builder) ended(ctx context.Context, req service.BuildRequest, f facts, 
 	u := resource.BuildUpdate{State: resource.BuildDone, End: b.now(), Steps: f.steps, Cached: f.cached, Image: req.Image}
 	// What a step printed reaches the error only masked, as it goes to the build's
 	// record and the change's.
-	err = hideIn(err, secretForms(req.Secrets))
+	err = hideIn(err, hiddenForms(req))
 	if err != nil {
 		u.State = resource.BuildFailed
 		if resource.ReasonOf(err) == resource.ReasonCancelled {
@@ -374,34 +406,81 @@ func (b *Builder) Cancel(change string, svc resource.Ref, by string) bool {
 // wrote, unprivileged, for the builder to build. The builder never runs Railpack,
 // nor mounts what it runs from (ADR 0046). The reading has the build's secrets'
 // names, and none of their values.
-func (b *Builder) readFor(ctx context.Context, req service.BuildRequest, rep *report) (string, []byte, error) {
+func (b *Builder) readFor(ctx context.Context, req service.BuildRequest, rep *report) (string, []byte, *resource.BuildDetection, error) {
 	rep.reading()
 	read := req
-	read.Secrets, read.SecretIDs = nil, slices.Sorted(mapsKeys(req.Secrets))
+	read.Secrets, read.SecretIDs, read.Logins = nil, slices.Sorted(mapsKeys(req.Secrets)), nil
 	// It holds the build slot already, so it takes no reading's place.
 	d, plan, err := b.read(ctx, read, true)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	if d == nil {
-		return "", nil, errors.New("the reading said nothing of how the commit builds")
+		return "", nil, nil, errors.New("the reading said nothing of how the commit builds")
 	}
 	if d.Builder == resource.BuilderDockerfile {
 		rep.detectedAs(d)
-		return resource.BuilderDockerfile, nil, nil
+		return resource.BuilderDockerfile, nil, d, nil
 	}
 	if err := service.RailpackNames(req.Args, read.SecretIDs); err != nil {
-		return "", nil, resource.PlainlyBecause(resource.ReasonBuild, sentence(err.Error()), err)
+		return "", nil, nil, resource.PlainlyBecause(resource.ReasonBuild, sentence(err.Error()), err)
 	}
 	rep.detectedAs(d)
 	if d.Error != "" {
-		return "", nil, railpackFailure(req, d)
+		return "", nil, nil, railpackFailure(req, d)
 	}
 	if len(plan) == 0 {
-		return "", nil, resource.PlainlyBecause(resource.ReasonBuild, "Railpack read the commit and wrote no plan, so there's nothing to build. Deploy again, and report it if it happens again",
+		return "", nil, nil, resource.PlainlyBecause(resource.ReasonBuild, "Railpack read the commit and wrote no plan, so there's nothing to build. Deploy again, and report it if it happens again",
 			errors.New("the reading wrote no plan"))
 	}
-	return resource.BuilderRailpack, plan, nil
+	return resource.BuilderRailpack, plan, d, nil
+}
+
+// loginsFor are the registry logins a build hands BuildKit (ADR 0086): none for one
+// Railpack makes, whose images are Railpack's; for a Dockerfile, those it was given
+// for registries the Dockerfile pulls from, by its FROM lines, COPY and ADD --from and
+// RUN --mount from=, and none for a registry on the loopback, which a build's steps
+// share. A Dockerfile that picks its own frontend, other than Docker's own, or names
+// an image by a build argument it isn't given, could ask for any image, so a build
+// with logins refuses it; so does a BUILDKIT_SYNTAX build argument.
+func (b *Builder) loginsFor(req service.BuildRequest, builder string, read *resource.BuildDetection) ([]registry.Auth, error) {
+	if builder == resource.BuilderRailpack {
+		return nil, nil
+	}
+	refuse := func(why string, err error) ([]registry.Auth, error) {
+		return nil, resource.PlainlyBecause(resource.ReasonBuild, why, err)
+	}
+	if _, ok := req.Args["BUILDKIT_SYNTAX"]; ok {
+		return refuse("The build sets BUILDKIT_SYNTAX, which picks the frontend that reads its Dockerfile, and a build with registry logins reads it with Docker's own. Take the build argument out, or the registry logins",
+			errors.New("a build with registry logins sets BUILDKIT_SYNTAX"))
+	}
+	if read == nil || read.Text == "" {
+		return refuse("Dockwell couldn't read the Dockerfile for what it pulls, so a build with registry logins doesn't run. Deploy again",
+			errors.New("the reading gave no Dockerfile to check a build's logins against"))
+	}
+	if len(read.Text) > maxDockerfileText {
+		return refuse(fmt.Sprintf("The Dockerfile is over %s, more than Dockwell reads for what a build with registry logins pulls. Make it smaller, or take out the registry logins", human.Size(maxDockerfileText)),
+			errors.New("a build with registry logins has a Dockerfile larger than Dockwell reads"))
+	}
+	images, err := readDockerfileImages(read.Text, req.Args)
+	if err != nil {
+		return refuse(fmt.Sprintf("The Dockerfile %s, so nothing says what a build with registry logins would pull. Name the image itself, or give the build argument", strings.TrimPrefix(err.Error(), "its Dockerfile ")), err)
+	}
+	if !officialFrontend(images.syntax) {
+		return refuse(fmt.Sprintf("The Dockerfile picks its own frontend, %s, which could ask for any image, and a build with registry logins reads it with Docker's own. Take out its # syntax line, or name docker/dockerfile", images.syntax),
+			fmt.Errorf("a build with registry logins names the frontend %s", images.syntax))
+	}
+	pulls, err := images.registries()
+	if err != nil {
+		return refuse(sentence(err.Error()), err)
+	}
+	var out []registry.Auth
+	for _, a := range req.Logins {
+		if pulls[a.Registry] && !registry.OnLoopback(a.Registry) {
+			out = append(out, a)
+		}
+	}
+	return out, nil
 }
 
 // railpackFailure is a build Railpack can't make, in words chosen by what it said.
@@ -423,7 +502,7 @@ func sentence(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte) (facts, error) {
+func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte, volume string) (facts, error) {
 	if err := b.ensureImage(ctx); err != nil {
 		return facts{}, err
 	}
@@ -431,7 +510,6 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	if err != nil {
 		return facts{}, err
 	}
-	volume := cacheVolume(req)
 	keep, err := b.cacheShare(ctx, volume, b.cacheBound(ctx))
 	if err != nil {
 		return facts{}, err
@@ -475,6 +553,27 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	if railpack {
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: planDir, Target: planMount, ReadOnly: true})
 		environment = append(environment, "DW_SECRETS_HASH="+b.secretsHash(req), "DW_CACHE_KEY="+b.cacheKey(req))
+	}
+	// The registry logins its base images pull with, as Docker's config.json, in
+	// memory, read-only, for BuildKit's client, which answers the builder's ask for
+	// the login of each registry it pulls from (ADR 0086). Only a Dockerfile's base
+	// images are its own: Railpack's builder and runtime images are Railpack's.
+	if len(req.Logins) > 0 && !railpack {
+		config, err := registry.DockerConfig(req.Logins)
+		if err != nil {
+			return facts{}, err
+		}
+		dir, loginsCleanup, err := b.writeSecrets(map[string]string{"config.json": string(config)}, true)
+		clear(config)
+		if err != nil {
+			return facts{}, err
+		}
+		defer loginsCleanup()
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: dir, Target: registriesMount, ReadOnly: true})
+		environment = append(environment, "DOCKER_CONFIG="+registriesMount)
+	}
+	if b.PlainRegistry != "" && plainRegistry().MatchString(b.PlainRegistry) {
+		environment = append(environment, "DW_PLAIN_REGISTRY="+b.PlainRegistry)
 	}
 	create := &docker.CreateRequest{
 		Config: docker.Config{

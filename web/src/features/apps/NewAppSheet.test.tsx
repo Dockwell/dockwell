@@ -191,6 +191,149 @@ describe("New app, from Git", () => {
     );
   });
 
+  it("picks the login a private base image pulls with, which the build can do without", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    const asked: string[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.DOCKERFILE,
+              dockerfile: "Dockerfile",
+              baseImage: "ghcr.io/acme/base:1.0",
+            },
+          }),
+        },
+        images: {
+          getImage: (req) => {
+            asked.push(`${req.reference}${req.anonymous ? " as anyone" : ""}`);
+            return { answer: ImageAnswer.NOT_FOUND };
+          },
+          listRegistryLogins: () => ({
+            logins: [
+              { name: "ghcr-ci", registry: "ghcr.io" },
+              { name: "hub", registry: "docker.io" },
+            ],
+          }),
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: planned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    // The only login for its registry is picked, and the field says what that gives.
+    const pick = await within(sheet).findByRole("combobox", { name: "Pull ghcr.io images with" }, { timeout: 3000 });
+    await waitFor(() => expect(pick).toHaveValue("ghcr-ci"));
+    expect(asked).toContain("ghcr.io/acme/base:1.0 as anyone");
+    expect(
+      within(pick)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["No login", "ghcr-ci"]);
+    expect(sheet).toHaveTextContent("Its Dockerfile can read any image the login can.");
+    const loginsOf = () => {
+      const spec = proposed.at(-1)?.edits[0]?.spec?.kind;
+      return spec?.case === "service" ? spec.value.build?.registryLogins : undefined;
+    };
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    expect(loginsOf()).toEqual(["ghcr-ci"]);
+  });
+
+  it("builds with no login once you pick none", async () => {
+    const user = userEvent.setup();
+    const proposed: ProposeChangeRequest[] = [];
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.DOCKERFILE,
+              dockerfile: "Dockerfile",
+              baseImage: "ghcr.io/acme/base:1.0",
+            },
+          }),
+        },
+        images: {
+          getImage: () => ({ answer: ImageAnswer.NOT_FOUND }),
+          listRegistryLogins: () => ({ logins: [{ name: "ghcr-ci", registry: "ghcr.io" }] }),
+        },
+        changes: {
+          proposeChange: (req) => {
+            proposed.push(req);
+            return { change: planned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    const pick = await within(sheet).findByRole("combobox", { name: "Pull ghcr.io images with" }, { timeout: 3000 });
+    await waitFor(() => expect(pick).toHaveValue("ghcr-ci"));
+    await user.selectOptions(pick, "");
+    // Left as you left it: the only login isn't picked again.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(pick).toHaveValue("");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed.length).toBe(1));
+    const spec = proposed[0]?.edits[0]?.spec?.kind;
+    expect(spec?.case === "service" ? spec.value.build?.registryLogins : undefined).toEqual([]);
+  });
+
+  it("offers no login for a base image anyone can pull", async () => {
+    const user = userEvent.setup();
+    let listed = 0;
+    renderAt(
+      "/apps/new?source=git",
+      api({
+        builds: {
+          detectBuild: () => ({
+            commit: "8be41d2c3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c",
+            ref: "main",
+            serverName: "hz-1",
+            detection: {
+              builder: ImageBuild_Builder.DOCKERFILE,
+              dockerfile: "Dockerfile",
+              baseImage: "node:22-alpine",
+            },
+          }),
+        },
+        images: {
+          getImage: () => ({ answer: ImageAnswer.FOUND, digest: `sha256:${"2".repeat(64)}` }),
+          listRegistryLogins: () => {
+            listed++;
+            return { logins: [{ name: "hub", registry: "docker.io" }] };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/search-ui");
+    await waitFor(
+      () =>
+        expect(within(sheet).getByRole("status", { name: "Build" })).toHaveTextContent("Dockerfile · node:22-alpine"),
+      { timeout: 3000 },
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(within(sheet).queryByRole("combobox", { name: /images with$/ })).toBeNull();
+    expect(listed).toBe(0);
+  });
+
   it("checks the repository as you type, offers its branches to choose, and takes its port from what the build exposes", async () => {
     const user = userEvent.setup();
     const proposed: ProposeChangeRequest[] = [];

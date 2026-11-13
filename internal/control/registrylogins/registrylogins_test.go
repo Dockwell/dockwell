@@ -175,3 +175,62 @@ func TestECRIsAskedInARegionAlone(t *testing.T) {
 		t.Error("a token was got")
 	}
 }
+
+// A build gets the logins it names, and no other: naming none gives it none, as its
+// Dockerfile can read any image a login it's given can. One the project may not use,
+// two for one registry, or one for a registry on the loopback, which a build's steps
+// share, refuses the plan. (Security review of #591, H1 and H2.)
+func TestABuildGetsTheLoginsItNamesAlone(t *testing.T) {
+	all := []Saved{
+		saved("ghcr-ci", "ghcr.io"),
+		saved("ghcr-shop", "ghcr.io", "prj_shop"),
+		saved("hub", "docker.io", "prj_shop"),
+		saved("lab", "registry.example.com", "prj_lab"),
+		saved("local", "localhost:5000"),
+		saved("loop4", "127.0.0.1:5000"),
+		saved("loop6", "[::1]:5000"),
+	}
+	names := func(s []Saved) string {
+		var out []string
+		for _, x := range s {
+			out = append(out, x.Name)
+		}
+		return strings.Join(out, ",")
+	}
+	if got, err := pickBuild(all, "prj_shop", nil, false); err != nil || len(got) != 0 {
+		t.Errorf("naming none, shop builds with %v, %v", names(got), err)
+	}
+	if got, err := pickBuild(all, "prj_shop", []string{"ghcr-shop", "hub"}, false); err != nil || names(got) != "ghcr-shop,hub" {
+		t.Errorf("naming two, shop builds with %v, %v", names(got), err)
+	}
+	if _, err := pickBuild(all, "prj_shop", []string{"ghcr-ci", "ghcr-shop"}, false); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("naming two logins for one registry = %v", err)
+	}
+	if _, err := pickBuild(all, "prj_blog", []string{"lab"}, false); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("naming another project's login = %v", err)
+	}
+	for _, loop := range []string{"local", "loop4", "loop6"} {
+		_, err := pickBuild(all, "prj_shop", []string{loop}, false)
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "loopback") {
+			t.Errorf("naming %s, on the loopback = %v", loop, err)
+		}
+	}
+	if _, err := pickBuild(all, "prj_blog", []string{"hub"}, true); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("applying a login the project may no longer use = %v", err)
+	}
+}
+
+// An apply builds with the revision of each login its plan saw, and refuses one
+// saved again since. (Security review of #591, L4.)
+func TestABuildsApplyHoldsToThePlannedRevisions(t *testing.T) {
+	ghcr := saved("ghcr-ci", "ghcr.io")
+	ghcr.Revision = 3
+	if err := samePlanned([]Saved{ghcr}, []string{"ghcr-ci"}, []string{"rgl_ghcr-ci@3"}); err != nil {
+		t.Errorf("the planned revision = %v", err)
+	}
+	for what, versions := range map[string][]string{"another revision": {"rgl_ghcr-ci@2"}, "none": nil, "another login's": {"rgl_other@3"}} {
+		if err := samePlanned([]Saved{ghcr}, []string{"ghcr-ci"}, versions); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Errorf("%s = %v", what, err)
+		}
+	}
+}

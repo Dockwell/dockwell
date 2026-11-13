@@ -172,6 +172,9 @@ type builtFrom struct {
 	Builder    string            `json:"builder,omitempty"`
 	Build      string            `json:"build_command,omitempty"`
 	Start      string            `json:"start_command,omitempty"`
+	// Logins are the names of the registry logins its base images pulled with,
+	// never what they hold (ADR 0086).
+	Logins []string `json:"registry_logins,omitempty"`
 }
 
 // builders are what builds an image, as a label names them.
@@ -186,6 +189,7 @@ func buildLabel(b *resourcev1.ImageBuild) string {
 	out, _ := json.Marshal(builtFrom{
 		URL: g.GetUrl(), Ref: g.GetRef(), Commit: g.GetCommit(), Context: b.GetContext(), Dockerfile: b.GetDockerfile(), Args: b.GetArgs(), Target: b.GetTarget(),
 		Builder: builders[b.GetBuilder()], Build: b.GetBuildCommand(), Start: b.GetStartCommand(),
+		Logins: b.GetRegistryLogins(),
 	})
 	return string(out)
 }
@@ -199,7 +203,7 @@ func readBuildLabel(label string) (*resourcev1.ImageBuild, error) {
 	b := &resourcev1.ImageBuild{
 		Source:  &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: f.URL, Ref: f.Ref, Commit: f.Commit}},
 		Context: f.Context, Dockerfile: f.Dockerfile, Args: f.Args, Target: f.Target,
-		BuildCommand: f.Build, StartCommand: f.Start,
+		BuildCommand: f.Build, StartCommand: f.Start, RegistryLogins: f.Logins,
 	}
 	for k, v := range builders {
 		if v == f.Builder {

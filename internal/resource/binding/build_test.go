@@ -23,6 +23,7 @@ func TestABuildsSecretsAndSettingsRoundTrip(t *testing.T) {
 		Build: &resourcev1.ImageBuild{
 			Source:     &resourcev1.ImageBuild_Git{Git: &resourcev1.GitSource{Url: "https://github.com/acme/web", Ref: "main", Commit: strings.Repeat("a", 40)}},
 			Dockerfile: "deploy/Dockerfile", Args: map[string]string{"NODE_ENV": "production"}, Secrets: map[string]string{"NPM_TOKEN": "NPM"},
+			RegistryLogins: []string{"ghcr-ci"},
 		},
 		Secrets:   map[string]string{"DATABASE_URL": "DATABASE_URL"},
 		Revisions: map[string]int64{"DATABASE_URL": 2, "build:NPM_TOKEN": 3},

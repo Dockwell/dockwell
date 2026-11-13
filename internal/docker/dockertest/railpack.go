@@ -136,6 +136,7 @@ func (e *Engine) fakeDetect(c *container, stdout, stderr io.Writer) int {
 			}
 		}
 		say("from " + base64.StdEncoding.EncodeToString([]byte(strings.Join(from, "\n")+"\n")))
+		say("dockerfile-text " + base64.StdEncoding.EncodeToString(b))
 		return 0
 	}
 	if !e.hasRailpack(c) {

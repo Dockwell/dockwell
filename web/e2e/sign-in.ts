@@ -43,6 +43,8 @@ import { describePages, watchBrowser } from "./report.ts";
 
 // A real binary asks nothing beyond this machine in a test.
 process.env["DOCKWELL_TEST"] = "1";
+// Its builds keep secrets and registry logins in a folder of the test's, as /run is root's.
+process.env["DOCKWELL_TEST_BUILD_SECRETS"] ??= mkdtempSync(join(tmpdir(), "dockwell-build-secrets-"));
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,

@@ -61,6 +61,10 @@ const (
 	// tools, such as nft, laid out as the paths they stand in for. Without it, a
 	// test runs none of them.
 	envTestTools = "DOCKWELL_TEST_TOOLS"
+	// envTestBuildSecrets names, in a test, a folder a build keeps its secrets and
+	// registry logins in, as if it were in memory, for a machine whose /run a test
+	// can't write (ADR 0086).
+	envTestBuildSecrets = "DOCKWELL_TEST_BUILD_SECRETS" //nolint:gosec // a variable's name, not a credential
 	// envTestOnePanel names a folder laid out as a server's root with 1Panel on it,
 	// which the agent reads 1Panel's records from under DOCKWELL_TEST, and only then
 	// (ADR 0056).

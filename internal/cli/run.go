@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -80,6 +82,11 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 		build := buildinfo.Read()
 		logger.Info("starting dockwell", "version", build.Version, "build", string(build.Edition),
 			"commit", build.ShortCommit(), "data_dir", dir.Root)
+		// DOCKWELL_TEST turns off what a server needs, and a service has it only by
+		// someone's mistake, outside a test's own install.
+		if testUnderService(stdio.Getenv) {
+			logger.Warn("DOCKWELL_TEST is set for this service, which turns off checks a server needs, such as where a build keeps its secrets. Unless this is a test, remove it from the service's systemd drop-in or /etc/conf.d/dockwell")
+		}
 		err = start(cmd.Context(), logger, dir, build)
 		// Asked to stop while still starting: every write so far was a
 		// transaction, so stopping now is clean, not a failure.
@@ -372,6 +379,13 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
 	builder := &imagebuild.Builder{Client: client, Logger: logger, StateDir: dir.Root}
+	if dir := testBuildSecrets(stdio.Getenv); dir != "" {
+		// A test's machine may have nowhere in memory a test may write, as /run is
+		// root's: its builds keep their secrets and registry logins in the folder it
+		// names, as no server's do.
+		builder.SecretsDir, builder.InMemory = dir, func(string) bool { return true }
+	}
+	builder.PlainRegistry = testPlainRegistry(stdio.Getenv)
 	go builder.Clean(ctx)
 	tasks := &task.Driver{Dir: dir.Agent(), Client: client, Logger: logger}
 	go tasks.Keep(ctx)
@@ -483,4 +497,35 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return !errors.Is(err, fs.ErrNotExist)
+}
+
+// testBuildSecrets is the folder a test's builds keep their secrets and registry
+// logins in, as if it were in memory: DOCKWELL_TEST_BUILD_SECRETS, and only with
+// DOCKWELL_TEST, so neither alone takes a server's builds out of memory.
+func testBuildSecrets(getenv func(string) string) string {
+	if dir := getenv(envTestBuildSecrets); dir != "" && isSet(getenv(envTest)) {
+		return dir
+	}
+	return ""
+}
+
+// testUnderService says DOCKWELL_TEST is set for a service systemd or OpenRC runs,
+// which each tell a service it is one.
+func testUnderService(getenv func(string) string) bool {
+	return isSet(getenv(envTest)) && (getenv("INVOCATION_ID") != "" || getenv("RC_SVCNAME") != "")
+}
+
+// testPlainRegistry is the host of the registry a test names in
+// DOCKWELL_TEST_REGISTRY, where that's reached over plain HTTP, and only under
+// DOCKWELL_TEST: a test's builds reach it over plain HTTP too, as it has no
+// certificate BuildKit trusts.
+func testPlainRegistry(getenv func(string) string) string {
+	if !isSet(getenv(envTest)) {
+		return ""
+	}
+	u, err := url.Parse(getenv(envTestRegistry))
+	if err != nil || u.Scheme != "http" || u.Host == "" || strings.Trim(u.Path, "/") != "" {
+		return ""
+	}
+	return u.Host
 }

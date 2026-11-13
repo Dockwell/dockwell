@@ -496,6 +496,11 @@ message Hello {
   // doesn't, which would pull without it. Numbered in the block registry logins
   // hold, 310 to 319.
   bool registry_logins = 314;
+  // True when the agent hands a build's BuildKit the registry logins it's sent
+  // (DesiredResource.build_registry_auths), so its base images pull with them
+  // (ADR 0086). The control plane sends a build none through one that doesn't.
+  // Numbered in the block registry logins hold, 310 to 319.
+  bool build_logins = 316;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.
@@ -2034,6 +2039,10 @@ message DesiredResource {
   // stream's delivery key as a step's values are, for a plan's ask and a step's
   // pull (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
   bytes registry_auth = 310;
+  // The registry logins a step's build may pull its base images with, one for
+  // each registry, sealed to this stream's delivery key as a step's values are
+  // (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
+  bytes build_registry_auths = 315;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.

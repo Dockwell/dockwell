@@ -1526,6 +1526,14 @@ message PlanStep {
   // The registry login the step's pull signs in with, by name, where it pulls with
   // one (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
   string registry_login = 100;
+  // The registry logins the step's build may pull its base images with, by name:
+  // BuildKit signs in with the one for each registry its Dockerfile pulls from
+  // (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
+  repeated string build_logins = 101;
+  // Which revision of which saved login each of build_logins is, as the plan saw
+  // them: an apply refuses one saved again since (ADR 0086). Numbered in the block
+  // registry logins hold, 100 to 109.
+  repeated string build_login_versions = 102;
   // What a step that moves a database to a newer release does beside replacing
   // its container, by a dump into a new volume (ADR 0080). Numbered in the
   // updates area's block, 260 to 269.

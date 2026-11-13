@@ -213,7 +213,8 @@ forwards-load: build-go build-agent ## Measure an agent's memory while four apps
 .PHONY: docker-e2e
 docker-e2e: build-go build-agent ## Run, change, undo and export a service through the CLI on this machine's Docker, import a Compose file, build from Git, and run a container through the agent build
 	go build -o bin/gitserve ./scripts/gitserve
-	GITSERVE=bin/gitserve scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
+	go build -o bin/htpasswd ./scripts/htpasswd
+	GITSERVE=bin/gitserve HTPASSWD=bin/htpasswd scripts/docker-e2e.sh $(BIN) $(AGENT_BIN)
 
 .PHONY: catalog-e2e
 catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this machine's Docker, as APPS="pgadmin redis" names them

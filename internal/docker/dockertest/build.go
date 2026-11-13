@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/registry"
 )
 
 // BuildKitRepository is BuildKit's image, whose containers the fake engine runs as
@@ -172,6 +173,12 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 			default:
 				meta = append(meta, st)
 			}
+		}
+		// A base image its registry keeps private pulls only with its login, which
+		// BuildKit's client reads from Docker's config.json (ADR 0086).
+		if image := e.privateBase(c, envs, steps); image != "" {
+			_, _ = fmt.Fprintf(stderr, "error: failed to solve: %s: failed to resolve source metadata for docker.io/%s: pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed\n", image, image)
+			return 1
 		}
 	}
 	say("phase start")
@@ -567,4 +574,82 @@ func checkout(envs map[string]string, stderr io.Writer, says ...func(string)) (c
 		}
 	}
 	return co, 0
+}
+
+// privateBase is the first base image a build's FROM lines name that its registry
+// keeps to a login the builder wasn't given in Docker's config.json, empty when there's
+// none. It logs each login a base image pulled with.
+func (e *Engine) privateBase(c *container, envs map[string]string, steps []step) string {
+	given := map[string]string{}
+	if dir := envs["DOCKER_CONFIG"]; dir != "" {
+		if path := e.hostPathOf(c, dir+"/config.json"); path != "" {
+			var cfg struct {
+				Auths map[string]struct {
+					Auth string `json:"auth"`
+				} `json:"auths"`
+			}
+			if raw, err := os.ReadFile(path); err == nil && json.Unmarshal(raw, &cfg) == nil { //nolint:gosec // a test's own file
+				for server, a := range cfg.Auths {
+					b, err := base64.StdEncoding.DecodeString(a.Auth)
+					if err != nil {
+						continue
+					}
+					given[server] = string(b)
+					name := server
+					if server == "https://index.docker.io/v1/" {
+						name = registry.Hub
+					}
+					e.mu.Lock()
+					e.BuilderLogins = append(e.BuilderLogins, name+" as "+string(b))
+					e.mu.Unlock()
+				}
+			}
+		}
+	}
+	stages := map[string]bool{}
+	for _, st := range steps {
+		if st.instr != "FROM" {
+			continue
+		}
+		f := strings.Fields(st.args)
+		for len(f) > 0 && strings.HasPrefix(f[0], "--") {
+			f = f[1:]
+		}
+		if len(f) == 0 {
+			continue
+		}
+		image := f[0]
+		earlier := stages[strings.ToLower(image)]
+		if len(f) >= 3 && strings.EqualFold(f[1], "AS") {
+			stages[strings.ToLower(f[2])] = true
+		}
+		if earlier {
+			// An earlier stage, which pulls nothing.
+			continue
+		}
+		e.mu.Lock()
+		src, ok := e.Registry[image]
+		e.mu.Unlock()
+		if !ok && e.Find != nil {
+			src, ok = e.Find(image)
+		}
+		if !ok || src.Login == "" {
+			continue
+		}
+		ref, err := registry.Parse(image)
+		if err != nil {
+			return image
+		}
+		server := ref.Registry
+		if server == registry.Hub {
+			server = "https://index.docker.io/v1/"
+		}
+		if given[server] != src.Login {
+			return image
+		}
+		e.mu.Lock()
+		e.Logins = append(e.Logins, image+" as "+given[server])
+		e.mu.Unlock()
+	}
+	return ""
 }

@@ -8,9 +8,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -112,7 +114,24 @@ type report struct {
 }
 
 func newReport(ctx context.Context, req service.BuildRequest, now func() time.Time) *report {
-	return &report{ctx: ctx, req: req, now: now, vertices: map[string]*vertex{}, secrets: secretForms(req.Secrets)}
+	return &report{ctx: ctx, req: req, now: now, vertices: map[string]*vertex{}, secrets: hiddenForms(req)}
+}
+
+// hiddenForms are what a build's log hides: its secrets' forms, and the passwords
+// of the registry logins its base images pull with (ADR 0086).
+func hiddenForms(req service.BuildRequest) []string {
+	values := make(map[string]string, len(req.Secrets)+len(req.Logins))
+	maps.Copy(values, req.Secrets)
+	for i, l := range req.Logins {
+		// Its password, and the forms Docker's config.json and a Basic sign-in carry it in.
+		pair := l.Username + ":" + l.Password
+		n := strconv.Itoa(i)
+		values["registry login "+n] = l.Password
+		values["registry login pair "+n] = pair
+		values["registry login base64 "+n] = base64.StdEncoding.EncodeToString([]byte(pair))
+		values["registry login base64url "+n] = base64.URLEncoding.EncodeToString([]byte(pair))
+	}
+	return secretForms(values)
 }
 
 // secretForms are the forms a build's secrets take in its log (binding.Lines).

@@ -479,7 +479,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		ownSettings: hello.GetOwnSettings(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(),
+		ownSettings: hello.GetOwnSettings(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -572,6 +572,8 @@ type Session struct {
 	// registryLogins says the agent signs in to registries with the logins it's
 	// sent (ADR 0086).
 	registryLogins bool
+	// handsBuildLogins says the agent hands a build's registry logins to BuildKit (ADR 0086).
+	handsBuildLogins bool
 	// followsPace says the agent sends stats at the pace each Pace says. One
 	// that doesn't is never told one.
 	followsPace bool
@@ -1273,6 +1275,13 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		// pulls with the login the control plane sent, by name.
 		steps[i].Ref, steps[i].Alongside, steps[i].Via = want, alongside, via
 		steps[i].RegistryLogin, steps[i].RegistryLoginVersion = logins[i].Name, logins[i].Version
+		// A step that builds names the logins its base images may pull with; the
+		// reading takes them off one Railpack builds (revision.detectBuilds).
+		if steps[i].Build != nil {
+			if steps[i].BuildLogins, steps[i].BuildLoginVersions, err = s.buildLoginNames(ctx, want, desired[i].Spec); err != nil {
+				return nil, err
+			}
+		}
 		// An agent from before installs could be picked reads past the names, and
 		// plans the security fixes: it never says them back, so its plan is refused.
 		if in := desired[i].Install; in != nil && len(in.Names) > 0 && len(in.Packages) == 0 && steps[i].Install != nil && len(steps[i].Install.Asked) == 0 {
@@ -1332,19 +1341,24 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	defer clear(values)
-	// A step pulls with the login its plan said, and none where it said none.
+	// A step pulls with the login its plan said, and none where it said none, and
+	// builds with the logins its plan named.
 	var login registry.Auth
 	if step.RegistryLogin != "" {
 		if login, _, err = s.login(ctx, step.Ref, desired, step.RegistryLogin); err != nil {
 			return err
 		}
 	}
+	builds, err := s.buildAuths(ctx, step, desired)
+	if err != nil {
+		return err
+	}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
-	if uses || login.Registry != "" {
+	if uses || login.Registry != "" || len(builds) > 0 {
 		seal = func(on *Session) error {
 			if uses {
 				sealed, err := on.seal(step.Ref, values)
@@ -1359,6 +1373,13 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 					return err
 				}
 				call.Desired.RegistryAuth = sealed
+			}
+			if len(builds) > 0 {
+				sealed, err := on.sealBuildLogins(step.Ref, builds)
+				if err != nil {
+					return err
+				}
+				call.Desired.BuildRegistryAuths = sealed
 			}
 			return nil
 		}
