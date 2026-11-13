@@ -4414,6 +4414,8 @@ pgm() { docker exec "$(pgmove_ledger)" psql -X -q -U postgres -d postgres -tAc "
 backup_healthy "$(pgmove_ledger)"
 # shellcheck disable=SC2016 # $$ quotes text for PostgreSQL.
 pgm 'CREATE TABLE orders (id int PRIMARY KEY, item text); INSERT INTO orders SELECT n, $$item $$ || n FROM generate_series(1, 2000) n' || fail "can't fill the ledger"
+pgm "CREATE ROLE shopper LOGIN PASSWORD 'shopper-password'" || fail "can't make a role"
+pgm 'CREATE DATABASE archive OWNER shopper' || fail "can't make a second database"
 till=$(service_container "$pgmove_project" till)
 till_started=$(docker inspect --format '{{.State.StartedAt}}' "$till") || fail "docker inspect $till failed"
 planned=$(dw services upgrade ledger --project e2e-pgmove --image postgres:17-alpine --plan-only --json) || fail "planning PostgreSQL 17 failed: $planned"
@@ -4428,6 +4430,10 @@ backup_healthy "$(pgmove_ledger)"
 [[ "$(pgm 'SHOW server_version')" == 17.* ]] || fail "after the move the ledger runs PostgreSQL $(pgm 'SHOW server_version')"
 [[ "$(pgm 'SELECT count(*) FROM orders')" == 2000 ]] || fail "the orders didn't move to 17: $(pgm 'SELECT count(*) FROM orders' 2>&1)"
 [[ "$(pgm 'SELECT item FROM orders WHERE id = 42')" == "item 42" ]] || fail "the orders moved wrong"
+[[ "$(pgm "SELECT count(*) FROM pg_roles WHERE rolname = 'shopper'")" == 1 ]] || fail "the role shopper didn't move to 17"
+[[ "$(pgm "SELECT count(*) FROM pg_database WHERE datname = 'archive'")" == 1 ]] || fail "the database archive didn't move to 17"
+[[ "$(docker exec "$(pgmove_ledger)" env PGPASSWORD=shopper-password psql -X -q -h 127.0.0.1 -U shopper -d archive -tAc 'SELECT 1')" == 1 ]] ||
+  fail "shopper can't sign in to PostgreSQL 17 over the network with its password"
 docker volume inspect "${pgmove_project}_pgdata" "${pgmove_project}_pgdata-17" >/dev/null || fail "the move didn't keep pgdata beside pgdata-17: $(docker volume ls)"
 [[ "$(docker inspect --format '{{range .Mounts}}{{.Name}} {{end}}' "$(pgmove_ledger)")" == *"${pgmove_project}_pgdata-17"* ]] || fail "the ledger doesn't run on pgdata-17"
 till=$(service_container "$pgmove_project" till)
@@ -4447,7 +4453,7 @@ step "Updates: MySQL 8.0 moves to 8.4, and MariaDB 10.11 to 11.4, each by a dump
 # $3, and checks what it holds came along. $4 is its client, and $5 its release then.
 sqlmove() {
   local name=$1 from=$2 to=$3 client=$4 release=$5 file db project planned change
-  file=$(printf 'name: e2e-%s\nservices:\n  %s:\n    image: %s\n    environment:\n      MYSQL_ROOT_PASSWORD: e2e-move-password\n    volumes: [data:/var/lib/mysql]\n    healthcheck:\n      test: [CMD-SHELL, %s --protocol=TCP -h127.0.0.1 -uroot -pe2e-move-password -e "SELECT 1"]\n      interval: 2s\n      timeout: 5s\n      retries: 90\nvolumes:\n  data: {}\n' "$name" "$name" "$from" "$client")
+  file=$(printf 'name: e2e-%s\nservices:\n  %s:\n    image: %s\n    environment:\n      MYSQL_ROOT_PASSWORD: e2e-move-password\n      MYSQL_DATABASE: shop\n      MYSQL_USER: shopper\n      MYSQL_PASSWORD: shopper-password\n    volumes: [data:/var/lib/mysql]\n    healthcheck:\n      test: [CMD-SHELL, %s --protocol=TCP -h127.0.0.1 -uroot -pe2e-move-password -e "SELECT 1"]\n      interval: 2s\n      timeout: 5s\n      retries: 90\nvolumes:\n  data: {}\n' "$name" "$name" "$from" "$client")
   dw compose import --compose "$file" --yes || fail "importing e2e-$name failed"
   db=$(docker ps --filter "label=com.docker.compose.service=$name" --format '{{.Names}}') || fail "docker ps failed"
   [[ -n "$db" ]] || fail "e2e-$name runs nothing"
@@ -4455,8 +4461,11 @@ sqlmove() {
   extra_projects+=" $project"
   sql() { docker exec "$(service_container "$project" "$name")" "$client" -uroot -pe2e-move-password -N -B -e "$1" 2>/dev/null; }
   backup_healthy "$db"
-  sql 'CREATE DATABASE shop; CREATE TABLE shop.orders (id int PRIMARY KEY, item text);
-    INSERT INTO shop.orders SELECT * FROM (WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1000) SELECT i, CONCAT("item ", i) FROM n) AS made' ||
+  sql 'CREATE TABLE shop.orders (id int PRIMARY KEY, item text);
+    INSERT INTO shop.orders SELECT * FROM (WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1000) SELECT i, CONCAT("item ", i) FROM n) AS made;
+    CREATE PROCEDURE shop.count_orders() SELECT COUNT(*) FROM shop.orders;
+    CREATE TRIGGER shop.orders_item BEFORE INSERT ON shop.orders FOR EACH ROW SET NEW.item = COALESCE(NEW.item, "none");
+    CREATE EVENT shop.tidy ON SCHEDULE EVERY 1 DAY DO DELETE FROM shop.orders WHERE id < 0' ||
     fail "can't fill $name"
   planned=$(dw services upgrade "$name" --project "e2e-$name" --image "$to" --plan-only --json) || fail "planning $to failed: $planned"
   jq -e '[.change.plan.servers[].steps[] | select(.databaseMove.toVolume == "data-'"$release"'")] | length == 1' <<<"$planned" >/dev/null ||
@@ -4466,6 +4475,13 @@ sqlmove() {
   backup_healthy "$(service_container "$project" "$name")"
   [[ "$(sql 'SELECT VERSION()')" == "$release".* ]] || fail "after the move $name runs $(sql 'SELECT VERSION()')"
   [[ "$(sql 'SELECT count(*) FROM shop.orders')" == 1000 ]] || fail "the orders didn't move to $to: $(sql 'SELECT count(*) FROM shop.orders')"
+  # What --all-databases carries besides rows, and the app's own user, who signs in
+  # over the network with the password it had.
+  [[ "$(sql 'CALL shop.count_orders()')" == 1000 ]] || fail "the procedure count_orders didn't move to $to"
+  [[ "$(sql "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = 'shop' AND trigger_name = 'orders_item'")" == 1 ]] || fail "the trigger orders_item didn't move to $to"
+  [[ "$(sql "SELECT COUNT(*) FROM information_schema.events WHERE event_schema = 'shop' AND event_name = 'tidy'")" == 1 ]] || fail "the event tidy didn't move to $to"
+  [[ "$(docker exec "$(service_container "$project" "$name")" "$client" --protocol=TCP -h127.0.0.1 -ushopper -pshopper-password -N -B -e 'SELECT COUNT(*) FROM shop.orders' 2>/dev/null)" == 1000 ]] ||
+    fail "shopper can't sign in to $to over the network with its password"
   docker volume inspect "${project}_data" >/dev/null || fail "the move didn't keep $name's volume data"
 }
 sqlmove ledger-my mysql:8.0 mysql:8.4 mysql 8.4

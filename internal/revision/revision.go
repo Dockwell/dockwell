@@ -739,6 +739,13 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			backUp = append(backUp, ref)
 		}
 	}
+	// A database whose data goes back to a volume it moved away from is refused
+	// where a later release would take that old data, and said otherwise.
+	back, err := e.goingBack(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	moves = append(moves, back...)
 	// A database that moves by a dump into a new volume takes that dump as its
 	// backup, so its volume isn't backed up again, whatever was asked.
 	dumped, err := e.dumpMoves(ctx, &p, items)
@@ -776,6 +783,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	changeID := id.New(id.Change)
 	for i := range items {
+		if items[i].move != nil {
+			items[i].move.Change = changeID
+		}
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
 			items[i].restart = changeID
 		}
@@ -3272,6 +3282,15 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	if err != nil {
 		return nil, err
 	}
+	// What a move of the failed change stopped, and its dump, the rollback's step of
+	// the database finishes, as nothing else starts what a move stopped.
+	for i := range items {
+		if _, _, move := restoreIn(failed, items[i].ref); move != nil {
+			finish := *move
+			finish.Finish = true
+			items[i].move = &finish
+		}
+	}
 	c := store.Change{
 		ID: id.New(id.Change), Summary: "Roll back " + failed.Summary, Actor: SystemActor, State: store.ChangePlanned, Reverts: failed.ID,
 		CreatedAt: e.now(), ProposedVia: ViaAutomatic,
@@ -4267,6 +4286,12 @@ func (e *Engine) unmoved(ctx context.Context, tx *store.Tx, c store.Change, item
 // it up again.
 func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, cause error, plain string) error {
 	ferr := &FailedError{Change: c.ID, Step: at, Err: cause}
+	// A database the change had moved goes back to its old volume with the rest.
+	if !IsRollback(c) {
+		if moved := afterMove(c, e.progress(c.ID)); moved != "" {
+			plain = strings.TrimRight(strings.TrimSpace(plain), ".") + ". " + moved
+		}
+	}
 	if err := e.finish(ctx, c, store.ChangeFailed, plain, "change.failed", e.progress(c.ID)); err != nil {
 		return errors.Join(ferr, err)
 	}

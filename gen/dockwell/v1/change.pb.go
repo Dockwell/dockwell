@@ -6129,7 +6129,12 @@ type DatabaseMove struct {
 	// About how large the dump will be, in bytes.
 	EstimateBytes int64 `protobuf:"varint,8,opt,name=estimate_bytes,json=estimateBytes,proto3" json:"estimate_bytes,omitempty"`
 	// True when nothing could tell, so the time the step gets is a guess.
-	Unmeasured    bool `protobuf:"varint,9,opt,name=unmeasured,proto3" json:"unmeasured,omitempty"`
+	Unmeasured bool `protobuf:"varint,9,opt,name=unmeasured,proto3" json:"unmeasured,omitempty"`
+	// True for a step that finishes a move a run cut short after its replace: it
+	// starts what the move stopped and records its dump.
+	Finishing bool `protobuf:"varint,10,opt,name=finishing,proto3" json:"finishing,omitempty"`
+	// The change that moves it, which names what the move stopped.
+	ChangeId      string `protobuf:"bytes,11,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6225,6 +6230,20 @@ func (x *DatabaseMove) GetUnmeasured() bool {
 		return x.Unmeasured
 	}
 	return false
+}
+
+func (x *DatabaseMove) GetFinishing() bool {
+	if x != nil {
+		return x.Finishing
+	}
+	return false
+}
+
+func (x *DatabaseMove) GetChangeId() string {
+	if x != nil {
+		return x.ChangeId
+	}
+	return ""
 }
 
 // SharedName is a name more than one container answers to on a network.
@@ -7933,7 +7952,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\x05 \x01(\x03R\restimateBytes\x12\x1e\n" +
 	"\n" +
 	"unmeasured\x18\x06 \x01(\bR\n" +
-	"unmeasured\"\xa0\x02\n" +
+	"unmeasured\"\xdb\x02\n" +
 	"\fDatabaseMove\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1f\n" +
@@ -7947,7 +7966,10 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\b \x01(\x03R\restimateBytes\x12\x1e\n" +
 	"\n" +
 	"unmeasured\x18\t \x01(\bR\n" +
-	"unmeasured\"R\n" +
+	"unmeasured\x12\x1c\n" +
+	"\tfinishing\x18\n" +
+	" \x01(\bR\tfinishing\x12\x1b\n" +
+	"\tchange_id\x18\v \x01(\tR\bchangeId\"R\n" +
 	"\n" +
 	"SharedName\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +

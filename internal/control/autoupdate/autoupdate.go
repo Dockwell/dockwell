@@ -316,9 +316,20 @@ func movesData(d *due, image string) bool {
 
 // needsPerson says a plan asks for a person: one that destroys data, lets two
 // containers write to one place or reaches what a container can reach on its
-// server, or waits for an admin.
+// server, waits for an admin, or moves a database's data to another release, as a
+// catalog release can, whatever its kind (ADR 0080).
 func needsPerson(c *dockwellv1.Change) bool {
-	return c.GetPlan().GetDestructive() || c.GetPlan().GetHostAccess() || c.GetWaits() != ""
+	if c.GetPlan().GetDestructive() || c.GetPlan().GetHostAccess() || c.GetWaits() != "" {
+		return true
+	}
+	for _, s := range c.GetPlan().GetServers() {
+		for _, step := range s.GetSteps() {
+			if step.GetDatabaseMove() != nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (r *Runner) record(ctx context.Context, serviceID string, t tried) error {

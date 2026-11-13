@@ -61,10 +61,19 @@ type BackupAsked struct {
 // of the release it runs, kept as a backup of the volume From under the ID Backup,
 // loaded into the new release on the volume To (ADR 0080). From and To are volumes
 // of the service's environment, by name, and FromID is From's resource ID, which
-// the backup is recorded against.
+// the backup is recorded against. Change is the change that moves it, which names
+// what the move stops, so a resume finds it. Database, FromSeries and ToSeries say
+// what moves, as its tags said, for what a later change says of the old volume.
 type MoveAsked struct {
 	Server, Backup   string
 	From, FromID, To string
+	Change           string `json:",omitempty"`
+	// Finish asks only to start what the move stopped and report its dump, where
+	// it left those, as a rollback of its change does: it never moves anything.
+	Finish     bool   `json:",omitempty"`
+	Database   string `json:",omitempty"`
+	FromSeries string `json:",omitempty"`
+	ToSeries   string `json:",omitempty"`
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -392,8 +401,9 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			steps = append(steps, step)
 			continue
 		}
-		// A move that's done has replaced what runs, so only a replace has one to do.
-		if want.Move != nil && step.Action == ActionReplace {
+		// A move to do replaces what runs. One that's done may have left what it
+		// stopped to start, and its dump to report, which a step finishes.
+		if want.Move != nil && (step.Action == ActionReplace || step.Action == ActionNone) {
 			m, ok := d.(Mover)
 			if !ok {
 				return nil, fmt.Errorf("can't plan %s: this agent can't move a database to a new release", want.Ref)

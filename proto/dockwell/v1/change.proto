@@ -1557,6 +1557,11 @@ message DatabaseMove {
   int64 estimate_bytes = 8;
   // True when nothing could tell, so the time the step gets is a guess.
   bool unmeasured = 9;
+  // True for a step that finishes a move a run cut short after its replace: it
+  // starts what the move stopped and records its dump.
+  bool finishing = 10;
+  // The change that moves it, which names what the move stopped.
+  string change_id = 11;
 }
 
 // SharedName is a name more than one container answers to on a network.

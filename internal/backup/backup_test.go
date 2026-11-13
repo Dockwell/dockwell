@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -45,6 +46,62 @@ type bench struct {
 	dumpShort bool
 	// dropRows has a load lose every row it was given, as a broken restore would.
 	dropRows bool
+	// preflightSays is what a move's preflight prints, and nativeSays what it prints
+	// of mysql_native_password's users where it's asked.
+	preflightSays, nativeSays string
+	// onDump runs as a dump does.
+	onDump func()
+	// MySQL and MariaDB: what the probe of a MariaDB says, how many times an upgrade
+	// ran and whether it fails, and the commands each server was started with.
+	probeSays    string
+	upgrades     int
+	upgradeFails bool
+}
+
+// sql stands in for MySQL's and MariaDB's tools: their data is one file of SQL.
+func (b *bench) sql(x dockertest.Exec) int {
+	file := filepath.Join(x.Volumes["/var/lib/mysql"], "data.sql")
+	script := strings.Join(x.Cmd, " ")
+	switch {
+	case strings.Contains(script, "SYSTEM VERSIONED"):
+		_, _ = io.WriteString(x.Stdout, b.probeSays)
+	case strings.Contains(script, "SHOW REPLICA STATUS"):
+		_, _ = io.WriteString(x.Stdout, b.preflightSays)
+		if strings.Contains(script, "DW_NATIVE=1") {
+			_, _ = io.WriteString(x.Stdout, b.nativeSays)
+		}
+	case strings.Contains(script, "information_schema.schemata"):
+		data, _ := os.ReadFile(file)
+		rows := 0
+		for _, l := range strings.Split(string(data), "\n") {
+			if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "--") {
+				rows++
+			}
+		}
+		_, _ = fmt.Fprintf(x.Stdout, "database fake %d\n", rows)
+	case strings.Contains(script, "upgrade"):
+		b.upgrades++
+		if b.upgradeFails {
+			_, _ = io.WriteString(x.Stderr, "Phase 2/8: Installing used storage engines... failed\n")
+			return 1
+		}
+	case strings.Contains(script, "--all-databases"):
+		if b.onDump != nil {
+			b.onDump()
+		}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return 1
+		}
+		_, _ = x.Stdout.Write(data)
+		_, _ = io.WriteString(x.Stdout, "\n-- Dump completed on 2026-11-12\n")
+	case strings.Contains(script, "--binary-mode"):
+		data, err := io.ReadAll(x.Stdin)
+		if err != nil || os.WriteFile(file, data, 0o600) != nil {
+			return 1
+		}
+	}
+	return 0
 }
 
 func newBench(t *testing.T) *bench {
@@ -69,7 +126,25 @@ func (b *bench) postgres(x dockertest.Exec) int {
 	file := filepath.Join(x.Volumes["/var/lib/postgresql/data"], "data.sql")
 	script := strings.Join(x.Cmd, " ")
 	switch {
+	case strings.Contains(script, "noconnect"):
+		// A move's preflight, which says what it was told to.
+		_, _ = io.WriteString(x.Stdout, b.preflightSays)
+		return 0
+	case strings.Contains(script, "pg_roles"):
+		// A move's census: what it holds, by its one file.
+		data, _ := os.ReadFile(file)
+		rows := 0
+		for _, l := range strings.Split(string(data), "\n") {
+			if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "--") {
+				rows++
+			}
+		}
+		_, _ = fmt.Fprintf(x.Stdout, "database fake %d\n", rows)
+		return 0
 	case strings.Contains(script, "pg_dumpall"):
+		if b.onDump != nil {
+			b.onDump()
+		}
 		if b.dumpFails {
 			_, _ = io.WriteString(x.Stderr, "pg_dumpall: error: connection failed\n")
 			return 1

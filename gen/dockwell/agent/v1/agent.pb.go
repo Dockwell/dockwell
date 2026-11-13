@@ -10449,8 +10449,13 @@ type MoveDatabase struct {
 	BackupId string `protobuf:"bytes,1,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
 	// The volume its data is on now, and the one it moves to, by name, in the
 	// service's environment.
-	FromVolume    string `protobuf:"bytes,2,opt,name=from_volume,json=fromVolume,proto3" json:"from_volume,omitempty"`
-	ToVolume      string `protobuf:"bytes,3,opt,name=to_volume,json=toVolume,proto3" json:"to_volume,omitempty"`
+	FromVolume string `protobuf:"bytes,2,opt,name=from_volume,json=fromVolume,proto3" json:"from_volume,omitempty"`
+	ToVolume   string `protobuf:"bytes,3,opt,name=to_volume,json=toVolume,proto3" json:"to_volume,omitempty"`
+	// The change that moves it, which names what the move stops, so a resume finds it.
+	ChangeId string `protobuf:"bytes,4,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
+	// Asks only to start what the move stopped and report its dump, where it left
+	// those, as a rollback of its change does: it never moves anything.
+	FinishOnly    bool `protobuf:"varint,5,opt,name=finish_only,json=finishOnly,proto3" json:"finish_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10504,6 +10509,20 @@ func (x *MoveDatabase) GetToVolume() string {
 		return x.ToVolume
 	}
 	return ""
+}
+
+func (x *MoveDatabase) GetChangeId() string {
+	if x != nil {
+		return x.ChangeId
+	}
+	return ""
+}
+
+func (x *MoveDatabase) GetFinishOnly() bool {
+	if x != nil {
+		return x.FinishOnly
+	}
+	return false
 }
 
 // InstallUpdates asks a server's host to install its updates.
@@ -13632,12 +13651,15 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0finstall_updates\x18\xe8\x01 \x01(\v2!.dockwell.agent.v1.InstallUpdatesR\x0einstallUpdates\x12\x17\n" +
 	"\x06reboot\x18\xe9\x01 \x01(\tR\x06reboot\x12E\n" +
 	"\rmove_database\x18\x84\x02 \x01(\v2\x1f.dockwell.agent.v1.MoveDatabaseR\fmoveDatabaseB\a\n" +
-	"\x05_spec\"i\n" +
+	"\x05_spec\"\xa7\x01\n" +
 	"\fMoveDatabase\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x1f\n" +
 	"\vfrom_volume\x18\x02 \x01(\tR\n" +
 	"fromVolume\x12\x1b\n" +
-	"\tto_volume\x18\x03 \x01(\tR\btoVolume\"\x8d\x01\n" +
+	"\tto_volume\x18\x03 \x01(\tR\btoVolume\x12\x1b\n" +
+	"\tchange_id\x18\x04 \x01(\tR\bchangeId\x12\x1f\n" +
+	"\vfinish_only\x18\x05 \x01(\bR\n" +
+	"finishOnly\"\x8d\x01\n" +
 	"\x0eInstallUpdates\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12\x10\n" +
 	"\x03all\x18\x02 \x01(\bR\x03all\x126\n" +

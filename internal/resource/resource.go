@@ -874,6 +874,12 @@ type MovePlan struct {
 	// nothing could tell.
 	Estimate   int64 `json:",omitempty"`
 	Unmeasured bool  `json:",omitempty"`
+	// Finishing says the move is done on the server, as a run cut short after the
+	// replace left it, or a rollback of its change finds it: what's left is to
+	// start what it stopped and to report its dump, which this step does.
+	Finishing bool `json:",omitempty"`
+	// Change is the change that moves it, which names what it stopped.
+	Change string `json:",omitempty"`
 }
 
 // BackupTaken is a backup a step took, whole on its server.

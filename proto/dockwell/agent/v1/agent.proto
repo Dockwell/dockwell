@@ -1920,6 +1920,11 @@ message MoveDatabase {
   // service's environment.
   string from_volume = 2;
   string to_volume = 3;
+  // The change that moves it, which names what the move stops, so a resume finds it.
+  string change_id = 4;
+  // Asks only to start what the move stopped and report its dump, where it left
+  // those, as a rollback of its change does: it never moves anything.
+  bool finish_only = 5;
 }
 
 // InstallUpdates asks a server's host to install its updates.

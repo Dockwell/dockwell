@@ -72,6 +72,10 @@ func seriesRefused(name string, e *Engine, repo, from, to string) string {
 		what, repo, from, repo, to)
 }
 
+// Newer says series a is after series b, as "8.4" is after "8.0" and "17" after
+// "9.6".
+func Newer(a, b string) bool { return newer(a, b) }
+
 // newer says series a is after series b, as "8.4" is after "8.0" and "17" after
 // "9.6".
 func newer(a, b string) bool {

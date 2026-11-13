@@ -63,6 +63,10 @@ type Driver struct {
 type Movers interface {
 	JudgeMove(ctx context.Context, mv backup.Move) (resource.MovePlan, time.Duration, error)
 	MoveDatabase(ctx context.Context, mv backup.Move, replace func(context.Context) error) error
+	// MoveFinishes says a move left what it stopped to start, or its dump to
+	// report, which FinishMove does.
+	MoveFinishes(mv backup.Move) (bool, error)
+	FinishMove(ctx context.Context, mv backup.Move) error
 }
 
 // Passwords changes a database's first user's password in what runs of a service, to
@@ -702,9 +706,12 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 			return err
 		}
 	}
-	if step.Move != nil {
+	switch {
+	case step.Move != nil && step.Move.Finishing:
+		err = d.finishMove(ctx, step, app, t)
+	case step.Move != nil:
 		err = d.move(ctx, step, app, t)
-	} else {
+	default:
 		err = d.Containers.ApplyAt(ctx, t, step, app)
 	}
 	if err != nil && undo != nil {
@@ -725,14 +732,55 @@ func (d *Driver) JudgeMove(ctx context.Context, ref resource.Ref, step resource.
 	if d.Movers == nil {
 		return step.Decision, errors.New("this agent can't move a database to a new release")
 	}
-	plan, downtime, err := d.Movers.JudgeMove(ctx, backup.Move{Service: ref, Asked: move, App: planned(desired).(*resourcev1.Container)})
+	mv := backup.Move{Service: ref, Asked: move, App: planned(desired).(*resourcev1.Container)}
+	// A move that's done, or a rollback of its change, may have left what it stopped,
+	// and its dump to report, which a step finishes, beside what else it does.
+	if step.Action == resource.ActionNone || move.Finish {
+		left, err := d.Movers.MoveFinishes(mv)
+		if err != nil || !left {
+			return step.Decision, err
+		}
+		dec := step.Decision
+		if dec.Action == resource.ActionNone {
+			dec.Action = resource.ActionUpdate
+		}
+		dec.Move = &resource.MovePlan{Backup: move.Backup, From: move.From, To: move.To, Change: move.Change, Finishing: true}
+		return dec, nil
+	}
+	plan, downtime, err := d.Movers.JudgeMove(ctx, mv)
 	if err != nil {
 		return step.Decision, err
 	}
+	plan.Change = move.Change
 	dec := step.Decision
 	dec.Move, dec.Effect = &plan, resource.EffectRestart
 	dec.Downtime += downtime
 	return dec, nil
+}
+
+// finishMove finishes what a move left: what the step replaces first, as a
+// rollback's does, healthy before what the move stopped starts again.
+func (d *Driver) finishMove(ctx context.Context, step resource.Step, app *resourcev1.Container, t container.Target) error {
+	if d.Movers == nil {
+		return errors.New("this agent can't finish moving a database")
+	}
+	if step.Action == resource.ActionReplace || step.Action == resource.ActionCreate {
+		if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
+			return err
+		}
+		if err := d.Containers.VerifyAt(ctx, t); err != nil {
+			return err
+		}
+	}
+	return d.Movers.FinishMove(ctx, moveOf(ctx, step, app))
+}
+
+// moveOf is the move a step carries.
+func moveOf(ctx context.Context, step resource.Step, app *resourcev1.Container) backup.Move {
+	return backup.Move{
+		Service: step.Ref, Change: resource.DeployOf(ctx).Change, App: app,
+		Asked: resource.MoveAsked{Backup: step.Move.Backup, From: step.Move.From, To: step.Move.To, Change: step.Move.Change},
+	}
 }
 
 // move replaces a service's container as its step's move says: the database moves
@@ -747,11 +795,7 @@ func (d *Driver) move(ctx context.Context, step resource.Step, app *resourcev1.C
 	if err := d.Containers.PrepareAt(ctx, t, app); err != nil {
 		return err
 	}
-	mv := backup.Move{
-		Service: step.Ref, Change: resource.DeployOf(ctx).Change, App: app,
-		Asked: resource.MoveAsked{Backup: step.Move.Backup, From: step.Move.From, To: step.Move.To},
-	}
-	err := d.Movers.MoveDatabase(ctx, mv, func(ctx context.Context) error {
+	err := d.Movers.MoveDatabase(ctx, moveOf(ctx, step, app), func(ctx context.Context) error {
 		if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
 			return err
 		}

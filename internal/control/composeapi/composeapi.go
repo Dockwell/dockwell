@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/containers"
 	places "github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/services"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -273,6 +274,11 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	moved, err := h.keepMoved(ctx, env, stack)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	also.notes = append(also.notes, moved...)
 	var deleted []string
 	var edits []*dockwellv1.Edit
 	keep := map[string]bool{}
@@ -558,6 +564,56 @@ func (h *Handler) servicesIn(ctx context.Context, env string) ([]string, error) 
 	})
 	slices.Sort(out)
 	return out, err
+}
+
+// keepMoved keeps on its new volume a database whose data a move took there, where
+// the file mounts the volume the move left, which holds what was there before
+// (ADR 0080), and says so.
+func (h *Handler) keepMoved(ctx context.Context, env string, stack *compose.Stack) ([]revision.Note, error) {
+	var notes []revision.Note
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		for i := range stack.Services {
+			s := &stack.Services[i]
+			r, err := tx.GetResource(ctx, string(service.Kind), env, s.Name)
+			if errors.Is(err, store.ErrNotFound) || r.Spec == nil {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			current, _ := spec.(*resourcev1.Service)
+			now, ok := database.FromSpec(current)
+			if !ok || now.Volume == "" || now.External {
+				continue
+			}
+			moves, err := revision.MovesOf(ctx, tx, r.ID)
+			if err != nil {
+				return err
+			}
+			for _, m := range s.Spec.GetApp().GetMounts() {
+				if m.GetExternal() || m.GetVolume() == "" || m.GetVolume() == now.Volume {
+					continue
+				}
+				k := slices.IndexFunc(moves, func(mv revision.MoveRecord) bool { return mv.From == m.GetVolume() })
+				if k < 0 {
+					continue
+				}
+				left := m.GetVolume()
+				m.Source, m.Target = &resourcev1.Mount_Volume{Volume: now.Volume}, now.Target
+				notes = append(notes, revision.Note{
+					Reason: "compose_kept_move", Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: s.Name}, Names: []string{now.Volume, left}, Named: true,
+					Message: fmt.Sprintf("%s stays on %s, where its data moved when it moved to %s %s: the file's %s holds what was there before then",
+						s.Name, now.Volume, moves[k].Database, moves[k].ToSeries, left),
+				})
+			}
+		}
+		return nil
+	})
+	return notes, err
 }
 
 // destination is where a Compose file goes.

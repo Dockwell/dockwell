@@ -12,12 +12,14 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -387,6 +389,157 @@ volumes:
 	_, err := b.s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: b.service(t, "shop", "cache").GetId(), Image: "postgres:17.2"}))
 	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "scratch mounts what its driver or options say") {
 		t.Errorf("moving data on a volume with options = %v", err)
+	}
+}
+
+// movedShop runs PostgreSQL 16 with its data in pgdata, and web beside it, and gives
+// what it needs to move it: the bench and db.
+func movedShop(t *testing.T, extra string) (*bench, *dockwellv1.ServiceInfo) {
+	t.Helper()
+	b := newBench(t, store.SQLite)
+	for tag, major := range map[string]string{"16.4": "16", "17.2": "17"} {
+		b.e.Registry["postgres:"+tag] = pgOf(major)
+	}
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: `name: shop
+services:
+  db:
+    image: postgres:16.4
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  web:
+    image: alpine:latest
+` + extra + `volumes:
+  pgdata: {}
+`})
+	db := b.service(t, "shop", "db")
+	dir := func(name string) string {
+		return b.e.VolumeDir(volume.TargetOf(resource.Ref{Kind: volume.Kind, Scope: db.GetResource().GetScope(), Name: name}).Name)
+	}
+	if err := os.WriteFile(filepath.Join(dir("pgdata"), "data.sql"), []byte("CREATE TABLE orders (id int);\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return b, db
+}
+
+// policyVolume is the volume a backup schedule backs up, as its latest revision says.
+func policyVolume(t *testing.T, b *bench, scope, name string) string {
+	t.Helper()
+	var out string
+	if err := b.f.store.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(backuppolicy.Kind), scope, name)
+		if err != nil {
+			return err
+		}
+		spec, err := b.f.keeper.Decode(t.Context(), tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return err
+		}
+		out = spec.(*resourcev1.BackupPolicy).GetVolume()
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// H1 and M2: a move takes its database's backup schedules along to the new volume,
+// in the same change, so undo puts them back, and undo says what it does to the
+// data written since. Another service on the same volume refuses the move.
+func TestAMoveTakesItsBackupsAlong(t *testing.T) {
+	b, db := movedShop(t, "")
+	scope := db.GetResource().GetScope()
+	made, err := b.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Back up pgdata nightly", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.Kind), Scope: scope, Name: "pgdata-nightly"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_BackupPolicy{BackupPolicy: &resourcev1.BackupPolicy{Volume: "pgdata", Keep: 7, At: "03:00"}}},
+	}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.done(t, made.Msg.GetChange())
+
+	move := b.upgrade(t, &dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:17.2"})
+	if !planHas(move, string(backuppolicy.Kind), "pgdata-nightly") {
+		t.Errorf("the move leaves the schedule on pgdata: %v", move.GetPlan().GetResources())
+	}
+	if n := noteOf(move, "database_move_backups"); n == nil || !strings.Contains(n.GetMessage(), "back up pgdata-17 from now on") {
+		t.Errorf("the plan's notes = %v", move.GetPlan().GetNotes())
+	}
+	b.done(t, move)
+	if got := policyVolume(t, b, scope, "pgdata-nightly"); got != "pgdata-17" {
+		t.Errorf("after the move, the schedule backs up %s", got)
+	}
+	undo, err := b.c.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: move.GetId()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := noteOf(undo.Msg.GetChange(), "database_back"); n == nil ||
+		!strings.Contains(n.GetMessage(), "db goes back to pgdata, which holds its data from before it moved to PostgreSQL 17") ||
+		!strings.Contains(n.GetMessage(), "What was written since is in pgdata-17, which this deletes, and its server keeps for 7 days") {
+		t.Errorf("the undo's notes = %v", undo.Msg.GetChange().GetPlan().GetNotes())
+	}
+	b.done(t, undo.Msg.GetChange())
+	if got := policyVolume(t, b, scope, "pgdata-nightly"); got != "pgdata" {
+		t.Errorf("after the undo, the schedule backs up %s", got)
+	}
+
+	other, otherDB := movedShop(t, `  exporter:
+    image: alpine:latest
+    volumes:
+      - pgdata:/srv/pg:ro
+`)
+	_, err = other.s.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: otherDB.GetId(), Image: "postgres:17.2"}))
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "exporter mounts pgdata too") {
+		t.Errorf("moving data another service mounts = %v", err)
+	}
+}
+
+// H3: once a move took a database's data to a new volume, a change that puts it
+// back on the old one with a later release is refused, as that would take the old
+// data as it is; one with the release it held there goes back, and says so. A
+// Compose file that still names the old volume keeps the database on the new one.
+func TestADatabaseDoesntGoBackOntoTheDataItMovedFrom(t *testing.T) {
+	b, db := movedShop(t, "")
+	scope := db.GetResource().GetScope()
+	b.done(t, b.upgrade(t, &dockwellv1.UpgradeServiceRequest{Id: db.GetId(), Image: "postgres:17.2"}))
+	on := func(image string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: "db"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: image, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "pgdata"}, Target: "/var/lib/postgresql/data"}},
+			}}}}},
+		}
+	}
+	_, err := b.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "17 on pgdata", Edits: []*dockwellv1.Edit{on("postgres:17.2")}}))
+	if reasonOf(err) != "invalid" || !strings.Contains(err.Error(), "so pgdata holds PostgreSQL 16's data from before then, which PostgreSQL 17 would take as it is") {
+		t.Errorf("17 back on pgdata = %v", err)
+	}
+	back, err := b.c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "16 on pgdata", Edits: []*dockwellv1.Edit{on("postgres:16.4")}}))
+	if err != nil {
+		t.Fatalf("16 back on pgdata = %v", err)
+	}
+	if n := noteOf(back.Msg.GetChange(), "database_back"); n == nil || !strings.Contains(n.GetMessage(), "What was written since is in pgdata-17, stays there") {
+		t.Errorf("going back by hand says %v", back.Msg.GetChange().GetPlan().GetNotes())
+	}
+	if _, err := b.c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: back.Msg.GetChange().GetId()})); err != nil {
+		t.Fatal(err)
+	}
+
+	again := b.file(t, &dockwellv1.ImportComposeRequest{Compose: `name: shop
+services:
+  db:
+    image: postgres:17.2
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  web:
+    image: alpine:latest
+volumes:
+  pgdata: {}
+`})
+	if n := noteOf(again, "compose_kept_move"); n == nil || !strings.Contains(n.GetMessage(), "db stays on pgdata-17") {
+		t.Errorf("importing the file again says %v", again.GetPlan().GetNotes())
+	}
+	if planHas(again, "service", "db") {
+		t.Errorf("importing the file again changes db: %v", again.GetPlan().GetResources())
 	}
 }
 

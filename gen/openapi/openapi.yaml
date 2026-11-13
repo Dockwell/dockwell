@@ -9615,6 +9615,14 @@ components:
                 unmeasured:
                     type: boolean
                     description: True when nothing could tell, so the time the step gets is a guess.
+                finishing:
+                    type: boolean
+                    description: |-
+                        True for a step that finishes a move a run cut short after its replace: it
+                         starts what the move stopped and records its dump.
+                changeId:
+                    type: string
+                    description: The change that moves it, which names what the move stopped.
             description: |-
                 DatabaseMove is what a step that moves a database to a newer release does
                  (ADR 0080): it stops what else of its app runs on the server, dumps the
