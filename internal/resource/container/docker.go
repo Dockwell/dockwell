@@ -240,6 +240,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	if o := makeOwnersLabel(spec); o != "" {
 		out[LabelMakeOwners] = o
 	}
+	if h := heldPortsLabel(spec); h != "" {
+		out[LabelHeldPorts] = h
+	}
 	var set []string
 	add := func(name string, ok bool) {
 		if ok {
@@ -670,7 +673,7 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 		}
 		req.ExposedPorts[key] = struct{}{}
 		req.HostConfig.PortBindings[key] = append(req.HostConfig.PortBindings[key],
-			docker.PortBinding{HostIP: p.GetHostIp(), HostPort: strconv.Itoa(int(p.GetHostPort()))})
+			docker.PortBinding{HostIP: boundIP(p), HostPort: strconv.Itoa(int(p.GetHostPort()))})
 	}
 	for _, m := range spec.GetTmpfs() {
 		if req.HostConfig.Tmpfs == nil {
@@ -1044,6 +1047,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	}
 	slices.Sort(out.Expose)
 	out.Expose = slices.Compact(out.Expose)
+	held := heldPorts(c.Config.Labels[LabelHeldPorts])
 	for key, bindings := range c.HostConfig.PortBindings {
 		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)
@@ -1053,9 +1057,11 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		}
 		for _, b := range bindings {
 			hp, _ := strconv.ParseUint(b.HostPort, 10, 16)
-			out.Ports = append(out.Ports, &resourcev1.PortMapping{
-				HostPort: uint32(hp), ContainerPort: uint32(cp), Protocol: protocol, HostIp: b.HostIP,
-			})
+			p := &resourcev1.PortMapping{HostPort: uint32(hp), ContainerPort: uint32(cp), Protocol: protocol, HostIp: b.HostIP}
+			if ip, ok := held[heldKey(p)]; ok && b.HostIP == heldIP {
+				p.HostIp, p.Held = ip, true
+			}
+			out.Ports = append(out.Ports, p)
 		}
 	}
 	unscope := func(name string) string {
@@ -2428,4 +2434,57 @@ func (d *Docker) mayReuse(ctx context.Context, ref, id, service string) error {
 // answers to there (Docker.Joins).
 type Join struct {
 	Network, Alias string
+}
+
+// LabelHeldPorts lists the ports a container publishes on 127.0.0.1 alone while its
+// app is held (PortMapping.held), by host port and protocol, each with the address
+// it listens on once opened where that isn't every address, such as
+// "8080/tcp,9000/udp@192.0.2.10", so each reads back held, as its spec has it
+// (ADR 0084).
+const LabelHeldPorts = docker.OwnPrefix + "held-ports"
+
+// heldIP is where a held port listens.
+const heldIP = "127.0.0.1"
+
+// boundIP is the address a port listens on: 127.0.0.1 while it's held.
+func boundIP(p *resourcev1.PortMapping) string {
+	if p.GetHeld() {
+		return heldIP
+	}
+	return p.GetHostIp()
+}
+
+// heldKey names a held port in LabelHeldPorts, such as "8080/tcp".
+func heldKey(p *resourcev1.PortMapping) string {
+	return strconv.Itoa(int(p.GetHostPort())) + "/" + protocolName(p.GetProtocol())
+}
+
+// heldPortsLabel is LabelHeldPorts for a spec, or "" while it holds none.
+func heldPortsLabel(spec *resourcev1.Container) string {
+	var keys []string
+	for _, p := range spec.GetPorts() {
+		if !p.GetHeld() {
+			continue
+		}
+		k := heldKey(p)
+		if ip := p.GetHostIp(); ip != "" {
+			k += "@" + ip
+		}
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return strings.Join(slices.Compact(keys), ",")
+}
+
+// heldPorts reads LabelHeldPorts: each held port's address once opened, by its key.
+func heldPorts(label string) map[string]string {
+	out := map[string]string{}
+	for _, k := range strings.Split(label, ",") {
+		if k == "" {
+			continue
+		}
+		key, ip, _ := strings.Cut(k, "@")
+		out[key] = ip
+	}
+	return out
 }

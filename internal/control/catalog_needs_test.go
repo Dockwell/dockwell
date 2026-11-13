@@ -21,6 +21,8 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -603,6 +605,20 @@ func TestAnInstallSharesAServerYouRun(t *testing.T) {
 	if _, err := ch.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: theirs.GetId()})); err == nil {
 		t.Error("the blog's developer undid a change to the database's project")
 	}
+	// A failure out of sight says nothing of what failed, even beside one in sight.
+	blogDeveloper := place.WithCaller(t.Context(), place.Caller{Grants: []store.Grant{{ProjectID: envProject(t, f, appEnv), Role: store.RoleDeveloper}}})
+	failed := func(scope, name string) *dockwellv1.StepProgress {
+		return &dockwellv1.StepProgress{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: name}, State: dockwellv1.StepState_STEP_STATE_FAILED}
+	}
+	for _, steps := range [][]*dockwellv1.StepProgress{{failed(dbEnv, "db")}, {failed(appEnv, "app"), failed(dbEnv, "db")}} {
+		c := &dockwellv1.Change{Id: theirs.GetId(), Error: "db in data failed: the disk of hz-1 is full", Steps: steps}
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error { return changes.Narrow(blogDeveloper, tx, c) }); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(c.GetError(), "db in data") || !strings.Contains(c.GetError(), "in a project you can't see") {
+			t.Errorf("with %d steps failed, the blog's developer reads %q", len(steps), c.GetError())
+		}
+	}
 
 	// The database's developer undoes it: the blog takes the old password back.
 	hold(dbDeveloper)
@@ -935,7 +951,7 @@ func TestUseAnotherDatabase(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
-	own := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	own := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}, sizes: map[string]int64{"blog": 12 << 20}}
 	shared := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
 	c, err := catalog.Load("")
 	if err != nil {
@@ -994,7 +1010,7 @@ func TestUseAnotherDatabase(t *testing.T) {
 	if notes := notesOf(planned, "catalog_need_moves"); len(notes) != 1 || !strings.Contains(notes[0], "db keeps running as it is") {
 		t.Errorf("the plan says %q of the old database", notes)
 	}
-	if notes := notesOf(planned, "catalog_need_copies"); len(notes) != 1 || !strings.Contains(notes[0], "keeps serving from db until the copy is done") {
+	if notes := notesOf(planned, "catalog_need_copies"); len(notes) != 1 || !strings.Contains(notes[0], "Blog's database of 12 MB") || !strings.Contains(notes[0], "keeps serving from db until the copy is done") {
 		t.Errorf("the plan says %q of the copy", notes)
 	}
 	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
@@ -1013,7 +1029,11 @@ func TestUseAnotherDatabase(t *testing.T) {
 	}
 	shared.mu.Lock()
 	owner := shared.databases["blog"]
-	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.HasPrefix(strings.SplitN(said, "\n", 2)[1], `SET ROLE "blog";`) })
+	// Loaded as blog, the user made for it, signing in as them.
+	loaded := slices.ContainsFunc(shared.said, func(said string) bool {
+		cmd, _, _ := strings.Cut(said, "\n")
+		return strings.Contains(cmd, `psql`) && strings.Contains(cmd, `-U "$1" -d "$2"`) && strings.HasSuffix(cmd, " sh blog blog 5432")
+	})
 	shared.mu.Unlock()
 	own.mu.Lock()
 	dumped := slices.ContainsFunc(own.said, func(said string) bool { return strings.Contains(said, "pg_dump") && strings.Contains(said, " blog\n") })
@@ -1030,6 +1050,9 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(catalog.DirEnv, dir)
 	owned := strings.Replace(blogEntry, "web:\n  service: app\n", "web:\n  service: app\nfirstVisitorOwns: true\n", 1)
+	// It publishes its port on every address, as a converted 1Panel app does, and
+	// runs an admin service beside it, with a domain of its own.
+	owned = strings.Replace(owned, "        - \"127.0.0.1:${PORT}:80\"\n", "        - \"${PORT}:80\"\n    admin:\n      image: ghcr.io/acme/blog:1@sha256:"+digest1+"\n", 1)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(owned), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1080,21 +1103,50 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 	applyReviewed(t, ch, propose(t, ch, "Serve the blog", &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: "www"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "blog.example.com", Service: "app", Port: 80}}},
+	}, &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: "adm"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "admin.example.com", Service: "admin", Port: 80}}},
 	}))
 	res, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice, StartEmpty: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	planned := res.Msg.GetChange()
-	if notes := notesOf(planned, "catalog_need_starts_empty"); len(notes) != 1 || !strings.Contains(notes[0], "answer that it isn't open until you open it") {
+	if notes := notesOf(planned, "catalog_need_starts_empty"); len(notes) != 1 || !strings.Contains(notes[0], "its domains answer that it isn't open, and the ports it publishes listen on this server alone") {
 		t.Errorf("the plan says %q of starting empty", notes)
+	}
+	if notes := notesOf(planned, "catalog_need_undo"); len(notes) != 1 || !strings.Contains(notes[0], "with what Blog wrote there after the move") {
+		t.Errorf("the plan says %q of undoing it", notes)
+	}
+	// Held before the app restarts: a stranger never reaches it empty and open.
+	steps := planned.GetPlan().GetServers()[0].GetSteps()
+	at := func(kind, name string) int {
+		return slices.IndexFunc(steps, func(s *dockwellv1.PlanStep) bool {
+			return s.GetResource().GetKind() == kind && s.GetResource().GetName() == name
+		})
+	}
+	if www, app := at("route", "www"), at("service", "app"); www < 0 || app < 0 || www > app {
+		t.Errorf("the route is held at step %d, and the app restarts at %d", www, app)
 	}
 	if len(notesOf(planned, "catalog_need_copies")) != 0 {
 		t.Error("a move that starts empty says it copies")
 	}
 	applyReviewed(t, ch, planned)
-	if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: "www"}]; !got.GetHeld() {
-		t.Errorf("the ingress has the blog's route as %v", got)
+	for _, name := range []string{"www", "adm"} {
+		if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: name}]; !got.GetHeld() {
+			t.Errorf("the ingress has the blog's route %s as %v", name, got)
+		}
+	}
+	bound := func() string {
+		t.Helper()
+		app := e.Newest(docker.Project(env), "app")
+		if app == nil || len(app.HostConfig.PortBindings["80/tcp"]) != 1 {
+			t.Fatalf("the blog publishes %v", app)
+		}
+		return app.HostConfig.PortBindings["80/tcp"][0].HostIP
+	}
+	if ip := bound(); ip != "127.0.0.1" {
+		t.Errorf("held, the blog listens on %q", ip)
 	}
 	var held resourcev1.Route
 	err = f.store.View(t.Context(), func(tx *store.Tx) error {
@@ -1108,10 +1160,28 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		t.Errorf("the blog's route after starting empty is %v, %v", &held, err)
 	}
 	shared.mu.Lock()
-	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.Contains(said, "SET ROLE") })
+	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.Contains(said, `-U "$1" -d "$2"`) })
 	shared.mu.Unlock()
 	if loaded {
 		t.Error("a move that starts empty copied the database")
+	}
+
+	// Its owner opens it: its routes answer, and its port listens where it did.
+	opened, err := cat.OpenCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.OpenCatalogInstallRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, ch, opened.Msg.GetChange())
+	for _, name := range []string{"www", "adm"} {
+		if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: name}]; got.GetHeld() {
+			t.Errorf("opened, the ingress has the blog's route %s as %v", name, got)
+		}
+	}
+	if ip := bound(); ip != "" {
+		t.Errorf("opened, the blog listens on %q", ip)
+	}
+	if _, err := cat.OpenCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.OpenCatalogInstallRequest{Id: "blog"})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("opening it again = %v", err)
 	}
 }
 

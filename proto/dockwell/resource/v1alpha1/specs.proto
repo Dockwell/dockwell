@@ -323,6 +323,11 @@ message PortMapping {
   // The server address it listens on, such as "127.0.0.1". Empty listens on
   // every address.
   string host_ip = 4;
+  // It listens on 127.0.0.1 alone, whatever host_ip says, until a person opens
+  // its app: an app that starts on an empty database, whose first visitor makes
+  // its owner, is closed to strangers until its owner sets it up (ADR 0084).
+  // Numbered apart, as open work adds to this message.
+  bool held = 80;
 }
 
 // RestartPolicy says when Docker restarts a stopped container.

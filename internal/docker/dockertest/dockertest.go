@@ -1416,6 +1416,15 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		e.finishCreate(w, c, &req)
 		return
 	}
+	if other, ok := strings.CutPrefix(mode, "container:"); ok {
+		// It shares another container's network, and has none of its own.
+		if found, err := e.findContainer(other); err != nil || found == nil {
+			fail(w, http.StatusNotFound, "No such container: %s", other)
+			return
+		}
+		e.finishCreate(w, c, &req)
+		return
+	}
 	n := e.network(w, mode)
 	if n == nil {
 		return

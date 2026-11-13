@@ -6710,11 +6710,14 @@ msgstr "Not open yet"
 msgid "Open it to everyone"
 msgstr "Open it to everyone"
 
-msgid "Open {domains} to everyone"
-msgstr "Open {domains} to everyone"
+msgid "Port {at} listens on its server alone, so its owner sets it up first, through the panel."
+msgstr "Port {at} listens on its server alone, so its owner sets it up first, through the panel."
 
-msgid "{domains} answers that it isn't open, so its owner sets it up first, through the panel."
-msgstr "{domains} answers that it isn't open, so its owner sets it up first, through the panel."
+msgid "{where} answers that it isn't open, and port {at} listens on its server alone, so its owner sets it up first, through the panel."
+msgstr "{where} answers that it isn't open, and port {at} listens on its server alone, so its owner sets it up first, through the panel."
+
+msgid "{where} answers that it isn't open, so its owner sets it up first, through the panel."
+msgstr "{where} answers that it isn't open, so its owner sets it up first, through the panel."
 
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>, read-only"

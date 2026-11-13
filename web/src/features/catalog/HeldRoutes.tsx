@@ -1,54 +1,51 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ChangeService, type ServiceInfo } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { type CatalogInstall, CatalogService, type ServiceInfo } from "@dockwell/api";
 import { Button, Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { environmentOf } from "../apps/app";
+import { appOf } from "../apps/app";
 import { useAppDomains } from "../apps/domains";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 
 /**
- * An app's routes held while it starts on an empty database and its first visitor
- * makes its owner: what they answer, as a state, and the action that opens them, a
- * plan that sets each route as it is but held (ADR 0084).
+ * An app held while it starts on an empty database and its first visitor makes its
+ * owner: its domains answer that it isn't open, and the ports it publishes listen on
+ * its server alone. What that means, as a state, and the action that opens it, a plan
+ * the server makes from what runs, so nothing else of the app changes (ADR 0084).
  */
-export function HeldRoutes({ service }: { service: ServiceInfo }) {
+export function HeldRoutes({ service, install }: { service: ServiceInfo; install: CatalogInstall }) {
   const { t } = useLingui();
+  const transport = useTransport();
   const sheet = useChangeSheet();
-  const environment = environmentOf(service);
-  const may = useMay()(ChangeService.method.proposeChange, { environment });
-  const held = useAppDomains(service).domains.flatMap((d) =>
-    d.routes.filter((r) => r.held).map((route) => ({ domain: d.name, route })),
-  );
-  if (held.length === 0) return null;
-  const domains = [...new Set(held.map((h) => h.domain))].join(", ");
+  const may = useMay()(CatalogService.method.openCatalogInstall, { project: install.projectId });
+  const domains = [
+    ...new Set(useAppDomains(service).domains.flatMap((d) => (d.routes.some((r) => r.held) ? [d.name] : []))),
+  ];
+  const ports = (appOf(service)?.ports ?? []).filter((p) => p.held).map((p) => String(p.hostPort));
+  if (domains.length === 0 && ports.length === 0) return null;
   const open = () =>
     sheet.open({
-      kind: "propose",
-      summary: t`Open ${domains} to everyone`,
-      edits: held.map(({ domain, route }) => ({
-        resource: { kind: "route", scope: environment, name: route.name },
-        spec: {
-          kind: {
-            case: "route" as const,
-            value: {
-              domain,
-              path: route.path,
-              service: route.service,
-              tls: route.tls,
-              trustedProxies: route.trustedProxies,
-              plainForAnyone: route.plainForAnyone,
-              ...(route.hostPort ? { hostPort: route.hostPort } : { port: route.port }),
-            },
-          },
-        },
-      })),
+      kind: "plan",
+      make: () => createClient(CatalogService, transport).openCatalogInstall({ id: install.projectId }),
     });
+  const where = domains.join(", ");
+  const at = ports.join(", ");
   return (
     <Callout tone="warning" title={t`Not open yet`}>
-      <Trans>{domains} answers that it isn't open, so its owner sets it up first, through the panel.</Trans>{" "}
+      {domains.length > 0 && ports.length > 0 ? (
+        <Trans>
+          {where} answers that it isn't open, and port {at} listens on its server alone, so its owner sets it up first,
+          through the panel.
+        </Trans>
+      ) : domains.length > 0 ? (
+        <Trans>{where} answers that it isn't open, so its owner sets it up first, through the panel.</Trans>
+      ) : (
+        <Trans>Port {at} listens on its server alone, so its owner sets it up first, through the panel.</Trans>
+      )}{" "}
       <Button variant="secondary" size="sm" onClick={open} {...may.off}>
         <Trans>Open it to everyone</Trans>
       </Button>

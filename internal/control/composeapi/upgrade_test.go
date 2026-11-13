@@ -4,11 +4,14 @@ package composeapi
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
+	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -259,6 +262,40 @@ func TestAnUpgradeKeepsAMovedDatabaseOnItsNewVolume(t *testing.T) {
 		}
 		if merged.GetApp().GetImage() != next.GetApp().GetImage() {
 			t.Errorf("with %s, the upgrade runs %s", c.volume, merged.GetApp().GetImage())
+		}
+	}
+}
+
+// Holding an app that starts empty closes each port its services publish, and refuses
+// one that would stay open to strangers: on the server's own network, or with nothing
+// to hold (ADR 0084).
+func TestHoldingAnAppClosesItsPorts(t *testing.T) {
+	app := func(c *resourcev1.Container) *compose.Stack {
+		return &compose.Stack{Services: []compose.Item[*resourcev1.Service]{{Name: "app", Spec: &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}}}}
+	}
+	published := app(&resourcev1.Container{Image: "blog:1", Ports: []*resourcev1.PortMapping{{HostPort: 8080, ContainerPort: 80}, {HostPort: 8443, ContainerPort: 443, HostIp: "192.0.2.10"}}})
+	if err := hold(published, "Blog", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range published.Services[0].Spec.GetApp().GetPorts() {
+		if !p.GetHeld() {
+			t.Errorf("port %d isn't held", p.GetHostPort())
+		}
+	}
+	route := &dockwellv1.Edit{Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "blog.example.com", Service: "app", Held: true}}}}
+	if err := hold(app(&resourcev1.Container{Image: "blog:1"}), "Blog", []*dockwellv1.Edit{route}); err != nil {
+		t.Errorf("an app with a domain held: %v", err)
+	}
+	for why, stack := range map[string]*compose.Stack{
+		"has no domain or published port":  app(&resourcev1.Container{Image: "blog:1"}),
+		"runs on the server's own network": app(&resourcev1.Container{Image: "blog:1", HostNetwork: true}),
+	} {
+		err := hold(stack, "Blog", []*dockwellv1.Edit{route})
+		if why == "has no domain or published port" {
+			err = hold(stack, "Blog", nil)
+		}
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), why) {
+			t.Errorf("%s: %v", why, err)
 		}
 	}
 }

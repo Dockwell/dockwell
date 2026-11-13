@@ -8,12 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -31,9 +33,18 @@ type fakePostgres struct {
 	// starting is how many more times it answers as a server that's starting.
 	starting int
 	// dump is what its pg_dump writes, by database, and loaded what its psql was
-	// given to load, by database.
-	dump   map[string]string
-	loaded map[string]string
+	// given to load, by database; loads are the environment and the arguments of each
+	// load, and loadFails fails each after it reads what it's given.
+	dump      map[string]string
+	loaded    map[string]string
+	loads     []fakeLoad
+	loadFails bool
+}
+
+// fakeLoad is how a load ran: its environment and the arguments after its script.
+type fakeLoad struct {
+	env  []string
+	args []string
 }
 
 var (
@@ -52,14 +63,20 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 		defer f.mu.Unlock()
 		_, _ = io.WriteString(x.Stdout, f.dump[x.Cmd[len(x.Cmd)-1]])
 		return 0
-	case strings.Contains(script, "psql") && strings.Contains(script, `-d "$1"`):
+	case strings.Contains(script, "psql") && strings.Contains(script, `-d "$2"`):
 		b, _ := io.ReadAll(x.Stdin)
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		if f.loaded == nil {
 			f.loaded = map[string]string{}
 		}
-		f.loaded[x.Cmd[len(x.Cmd)-1]] = string(b)
+		args := x.Cmd[len(x.Cmd)-3:]
+		f.loads = append(f.loads, fakeLoad{env: x.Env, args: args})
+		if f.loadFails {
+			_, _ = io.WriteString(x.Stderr, "psql:<stdin>:2: ERROR:  relation \"posts\" already exists\n")
+			return 3
+		}
+		f.loaded[args[1]] = string(b)
 		return 0
 	}
 	b, _ := io.ReadAll(x.Stdin)
@@ -110,6 +127,7 @@ func userStand(t *testing.T) (*UserDriver, *fakePostgres, *dockertest.Engine) {
 	client := e.Client()
 	id, err := client.CreateContainer(t.Context(), "env_1-db-1", &docker.CreateRequest{Config: docker.Config{
 		Image: "postgres:17", Labels: map[string]string{docker.LabelProject: "env_1", docker.LabelService: "db", docker.LabelNumber: "1"},
+		Env: []string{"POSTGRES_PASSWORD=the-administrators"},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -245,14 +263,134 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 	if err := copying("blog", "env_2"); err != nil {
 		t.Fatal(err)
 	}
-	if got := pg.loaded["blog"]; got != "SET ROLE \"blog\";\nCREATE TABLE posts (id int);\nINSERT INTO posts VALUES (1);\n" {
+	if got := pg.loaded["blog"]; got != "CREATE TABLE posts (id int);\nINSERT INTO posts VALUES (1);\n" {
 		t.Errorf("the new server loaded %q", got)
+	}
+	// It loaded as the new user, with their password, in a container of its own that
+	// has none of the server's environment, its administrator's password among it.
+	if len(pg.loads) != 1 {
+		t.Fatalf("loads %v", pg.loads)
+	}
+	load := pg.loads[0]
+	if !slices.Equal(load.args, []string{"blog", "blog", "5432"}) || !slices.Contains(load.env, "PGPASSWORD=a-password-no-one-typed") {
+		t.Errorf("the load ran with %v, %v", load.args, load.env)
+	}
+	if slices.ContainsFunc(load.env, func(kv string) bool { return strings.HasPrefix(kv, "POSTGRES_PASSWORD=") }) {
+		t.Errorf("the load ran with the server's environment: %v", load.env)
+	}
+	list, err := client.ListContainers(t.Context(), map[string][]string{"label": {LabelCopy}})
+	if err != nil || len(list) != 0 {
+		t.Errorf("the container that loaded the copy is still there: %v, %v", list, err)
+	}
+	g, _, _ := d.recorded(resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"})
+	if g.Copying || !slices.Equal(g.CopiedFrom, []string{"env_2", "db", "blog"}) {
+		t.Errorf("a whole copy is kept as %+v", g)
 	}
 	if err := copying("wiki", "env_9"); err == nil || !strings.Contains(err.Error(), "has no container on this server") {
 		t.Errorf("a copy from nowhere: %v", err)
 	}
 	if pg.roles["wiki"] {
 		t.Error("a copy that failed left its user behind")
+	}
+}
+
+// A copy an agent's restart cut short reads as no user, not as one that's whole, and
+// applying again empties the database of the part it holds and copies it whole (ADR
+// 0084).
+func TestACopyCutShortStartsOver(t *testing.T) {
+	d, pg, e := userStand(t)
+	old := &fakePostgres{
+		roles: map[string]bool{"postgres": true}, databases: map[string]string{"postgres": "postgres", "blog": "blog"},
+		dump: map[string]string{"blog": "CREATE TABLE posts (id int);\n"},
+	}
+	e.AddLocalImage("postgres:16", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}, Exec: old.exec})
+	client := e.Client()
+	id, err := client.CreateContainer(t.Context(), "env_2-db-1", &docker.CreateRequest{Config: docker.Config{
+		Image: "postgres:16", Labels: map[string]string{docker.LabelProject: "env_2", docker.LabelService: "db", docker.LabelNumber: "1"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"}
+	desired := &resourcev1.DatabaseUser{Service: "db", Password: "BLOG_DATABASE_PASSWORD", CopyFrom: &resourcev1.DatabaseCopy{Environment: "env_2", Service: "db", Database: "blog"}}
+	// What a run that stopped mid-copy leaves: the user, their database, part of it.
+	pg.roles["blog"], pg.databases["blog"] = true, "blog"
+	if err := d.record(ref, &given{Service: "db", Uses: "BLOG_DATABASE_PASSWORD", Copying: true}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := d.Observe(t.Context(), ref); err != nil || got != nil {
+		t.Fatalf("a copy cut short reads as %v, %v", got, err)
+	}
+	step := resource.Step{Ref: ref, Action: resource.ActionCreate}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+	if err := d.Apply(ctx, step, desired); err != nil {
+		t.Fatal(err)
+	}
+	dropped := slices.IndexFunc(pg.said, func(sql string) bool { return strings.Contains(sql, `DROP DATABASE IF EXISTS "blog"`) })
+	made := slices.IndexFunc(pg.said, func(sql string) bool { return strings.Contains(sql, `CREATE DATABASE "blog"`) })
+	if dropped < 0 || made < dropped {
+		t.Errorf("it didn't empty the database before copying again: %q", pg.said)
+	}
+	got, err := d.Observe(t.Context(), ref)
+	if err != nil || got.(*resourcev1.DatabaseUser).GetCopyFrom().GetDatabase() != "blog" {
+		t.Errorf("a whole copy reads as %v, %v", got, err)
+	}
+	// One that fails to load takes the user away again, and says the copy is begun no more.
+	pg.loadFails = true
+	ref.Name, desired.DatabaseName = "wiki", "wiki"
+	step.Ref = ref
+	if err := d.Apply(ctx, step, desired); err == nil || !strings.Contains(err.Error(), "couldn't load the copy of blog as wiki") {
+		t.Errorf("a load that fails: %v", err)
+	}
+	if _, ok, _ := d.recorded(ref); ok || pg.roles["wiki"] {
+		t.Error("a copy that failed left its user behind")
+	}
+}
+
+// A copy never reads a database its server keeps for itself, whatever the control
+// plane took.
+func TestASystemDatabaseIsNeverCopied(t *testing.T) {
+	for _, name := range []string{"postgres", "template1", "mysql", "information_schema"} {
+		u := &resourcev1.DatabaseUser{Service: "db", Password: "P", CopyFrom: &resourcev1.DatabaseCopy{Environment: "env_2", Service: "db", Database: name}}
+		if err := (&UserDriver{}).Validate(u); err == nil || !strings.Contains(err.Error(), "keeps for itself") {
+			t.Errorf("copying %s: %v", name, err)
+		}
+	}
+	d, _, _ := userStand(t)
+	err := d.copyInto(t.Context(), &docker.Container{}, &Engine{Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL}, "blog", "blog", "p", &resourcev1.DatabaseCopy{Environment: "env_2", Service: "db", Database: "postgres"})
+	if err == nil || !strings.Contains(err.Error(), "keeps for itself") {
+		t.Errorf("the agent copied postgres: %v", err)
+	}
+}
+
+// A MySQL or MariaDB dump loads with no DEFINER of the old server's, so what it makes
+// is the loading user's; data that reads like one stays as it is.
+func TestACopyTakesOutDefiners(t *testing.T) {
+	dump := "/*!50013 DEFINER=`wordpress`@`%` SQL SECURITY DEFINER */\n" +
+		"CREATE DEFINER=`root`@`localhost` PROCEDURE `p`()\n" +
+		"/*!50003 CREATE*/ /*!50017 DEFINER='shop'@'%'*/ /*!50003 TRIGGER t BEFORE INSERT ON x FOR EACH ROW SET @a = 1 */;;\n" +
+		"INSERT INTO `notes` VALUES ('CREATE DEFINER=`root`@`%` stays in data');\n" +
+		"/*!50106 CREATE*/ /*!50117 DEFINER=root@localhost*/ /*!50106 EVENT `e` ON SCHEDULE EVERY 1 DAY DO SELECT 1 */"
+	b, err := io.ReadAll(withoutDefiners(strings.NewReader(dump)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "/*!50013 SQL SECURITY DEFINER */\n" +
+		"CREATE PROCEDURE `p`()\n" +
+		"/*!50003 CREATE*/ /*!50017 */ /*!50003 TRIGGER t BEFORE INSERT ON x FOR EACH ROW SET @a = 1 */;;\n" +
+		"INSERT INTO `notes` VALUES ('CREATE DEFINER=`root`@`%` stays in data');\n" +
+		"/*!50106 CREATE*/ /*!50117 */ /*!50106 EVENT `e` ON SCHEDULE EVERY 1 DAY DO SELECT 1 */"
+	if string(b) != want {
+		t.Errorf("got\n%s\nwant\n%s", b, want)
+	}
+	// A line longer than what's read at once goes through whole.
+	long := strings.Repeat("x", 200<<10) + "\n" + "CREATE DEFINER=`a`@`%` VIEW v\n"
+	b, err = io.ReadAll(withoutDefiners(strings.NewReader(long)))
+	if err != nil || string(b) != strings.Repeat("x", 200<<10)+"\nCREATE VIEW v\n" {
+		t.Errorf("a long line: %d bytes, %v", len(b), err)
 	}
 }
 

@@ -19,9 +19,12 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/database"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource/link"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -74,7 +77,8 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		return nil, h.internal(ctx, err)
 	}
 	server := h.serverOf(ctx, install.GetEnvironmentId())
-	needed, notes, err := h.meetNeeds(ctx, s, ran, nil, map[string]string{m.GetNeed(): m.GetChoice()}, pinned, h.candidates(ctx), install.GetProject(), server, stays...)
+	candidates := h.candidates(ctx)
+	needed, notes, err := h.meetNeeds(ctx, s, ran, nil, map[string]string{m.GetNeed(): m.GetChoice()}, pinned, candidates, install.GetProject(), server, stays...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +133,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 	}
 	// The app's own database is copied across where both ends run the same engine on
 	// this server; otherwise it starts empty only when asked to (ADR 0084).
-	moved, err := h.moveData(ctx, m, entry, install.GetEnvironmentId(), server, needed)
+	moved, err := h.moveData(ctx, m, entry, install.GetEnvironmentId(), server, needed, after, candidates)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +171,7 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
 		Notes:        notes,
+		Hold:         moved.hold,
 		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(shared.Extra, written, moved.holds), Joins: shared.Joins},
 	})
 	if err != nil {
@@ -176,10 +181,12 @@ func (h *Handler) SetCatalogNeed(ctx context.Context, req *connect.Request[dockw
 }
 
 // moving is what moving an app's database asks besides the move: notes for its plan,
-// and its routes held where it starts empty and its first visitor makes its owner.
+// and where it starts empty and its first visitor makes its owner, every way in held:
+// its routes, and the ports its services publish (hold).
 type moving struct {
 	notes []revision.Note
 	holds []*dockwellv1.Edit
+	hold  bool
 }
 
 // moveData has the user the move makes on the new server start as a copy of the
@@ -187,7 +194,7 @@ type moving struct {
 // refuses with cant_copy, unless the request asks to start empty. An app that starts
 // empty whose first visitor makes its owner has its routes held, so a stranger can't
 // make themselves its owner before the person who moved it sets it up.
-func (h *Handler) moveData(ctx context.Context, m *dockwellv1.SetCatalogNeedRequest, entry *catalogv1.Entry, env, server string, needed *catalog.Needed) (moving, error) {
+func (h *Handler) moveData(ctx context.Context, m *dockwellv1.SetCatalogNeedRequest, entry *catalogv1.Entry, env, server string, needed *catalog.Needed, services []string, candidates []catalog.Candidate) (moving, error) {
 	var out moving
 	i := slices.IndexFunc(needed.Shared, func(w catalog.Way) bool { return w.Need.GetName() == m.GetNeed() })
 	if i < 0 {
@@ -223,31 +230,51 @@ func (h *Handler) moveData(ctx context.Context, m *dockwellv1.SetCatalogNeedRequ
 			return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s, so %s's data can't be copied across. Start it empty there, or pick a server that runs %s", why, app, catalog.EngineName(catalogv1.Engine(was.GetEngine()))), "cant_copy")
 		case !m.GetStartEmpty():
 			w.CopyFrom = &resourcev1.DatabaseCopy{Environment: cmp.Or(was.GetMeetsEnvironment(), env), Service: was.GetService(), Database: was.GetDatabaseName()}
+			size := ""
+			if n, ok := sizeOf(candidates, w.CopyFrom); ok {
+				size = " of " + human.Size(n)
+			}
 			out.notes = append(out.notes, revision.Note{
-				Reason:  "catalog_need_copies",
-				Message: fmt.Sprintf("Dockwell copies %s's database from %s to %s first. %s keeps serving from %s until the copy is done, then starts on the copy; what it writes in between stays on %s", app, was.GetService(), from, app, was.GetService(), was.GetService()),
+				Reason: "catalog_need_copies",
+				Message: fmt.Sprintf("Dockwell copies %s's database%s from %s to %s first. %s keeps serving from %s until the copy is done, then starts on the copy; what it writes while the copy runs, which takes longer the larger it is, stays on %s",
+					app, size, was.GetService(), from, app, was.GetService(), was.GetService()),
 			})
-			return nil
-		}
-		msg := fmt.Sprintf("%s starts on an empty database on %s", app, from)
-		if entry.GetFirstVisitorOwns() {
-			held, err := holdRoutes(ctx, tx, env, entry.GetWeb().GetService())
-			if err != nil {
-				return err
+		default:
+			msg := fmt.Sprintf("%s starts on an empty database on %s", app, from)
+			if entry.GetFirstVisitorOwns() {
+				held, err := holdRoutes(ctx, tx, env, services)
+				if err != nil {
+					return err
+				}
+				out.holds, out.hold = held, true
+				msg += ". Its first visitor makes its owner, so it's held before it restarts: its domains answer that it isn't open, and the ports it publishes listen on this server alone, until you open it from its page. Set it up first, through the panel"
 			}
-			out.holds = held
-			if len(held) > 0 {
-				msg += fmt.Sprintf(". Its first visitor makes its owner, so its %s answer that it isn't open until you open it: set it up first, opening it from its page through the panel", plural(len(held), "domain", "domains"))
-			}
+			out.notes = append(out.notes, revision.Note{Reason: "catalog_need_starts_empty", Message: msg})
 		}
-		out.notes = append(out.notes, revision.Note{Reason: "catalog_need_starts_empty", Message: msg})
+		out.notes = append(out.notes, revision.Note{
+			Reason: "catalog_need_undo",
+			Message: fmt.Sprintf("Undoing this puts %s back on %s, and drops the database Dockwell makes it on %s, with what %s wrote there after the move",
+				app, was.GetService(), from, app),
+		})
 		return nil
 	})
 	return out, err
 }
 
-// holdRoutes holds each route of env that sends to service, as an edit of its spec.
-func holdRoutes(ctx context.Context, tx *store.Tx, env, service string) ([]*dockwellv1.Edit, error) {
+// sizeOf is how much a database to copy takes, as its server's reading says.
+func sizeOf(candidates []catalog.Candidate, c *resourcev1.DatabaseCopy) (int64, bool) {
+	for i := range candidates {
+		if candidates[i].EnvironmentID == c.GetEnvironment() && candidates[i].Service == c.GetService() {
+			n, ok := candidates[i].Sizes[c.GetDatabase()]
+			return n, ok
+		}
+	}
+	return 0, false
+}
+
+// holdRoutes holds each route of env that sends to one of services, as an edit of
+// its spec.
+func holdRoutes(ctx context.Context, tx *store.Tx, env string, services []string) ([]*dockwellv1.Edit, error) {
 	routes, err := tx.ListResources(ctx, env, "route")
 	if err != nil {
 		return nil, err
@@ -256,7 +283,7 @@ func holdRoutes(ctx context.Context, tx *store.Tx, env, service string) ([]*dock
 	for _, r := range routes {
 		spec := &resourcev1.Route{}
 		// A route is never sealed: it holds no secret.
-		if r.Spec == nil || proto.Unmarshal(r.Spec, spec) != nil || spec.GetService() != service || spec.GetHeld() {
+		if r.Spec == nil || proto.Unmarshal(r.Spec, spec) != nil || !slices.Contains(services, spec.GetService()) || spec.GetHeld() {
 			continue
 		}
 		spec.Held = true
@@ -266,4 +293,71 @@ func holdRoutes(ctx context.Context, tx *store.Tx, env, service string) ([]*dock
 		})
 	}
 	return out, nil
+}
+
+// OpenCatalogInstall plans opening an install that SetCatalogNeed held as it started
+// empty: each held route answers again, and each held port listens where it did, as
+// the person who set it up asks (ADR 0084).
+func (h *Handler) OpenCatalogInstall(ctx context.Context, req *connect.Request[dockwellv1.OpenCatalogInstallRequest]) (*connect.Response[dockwellv1.OpenCatalogInstallResponse], error) {
+	s, err := h.catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	found, err := h.find(ctx, s, req.Msg.GetId())
+	if err != nil {
+		return nil, err
+	}
+	install := found.install
+	env := install.GetEnvironmentId()
+	var edits []*dockwellv1.Edit
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		for _, kind := range []string{"route", string(service.Kind)} {
+			list, err := tx.ListResources(ctx, env, kind)
+			if err != nil {
+				return err
+			}
+			for i := range list {
+				r := list[i]
+				if r.Spec == nil {
+					continue
+				}
+				spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+				if err != nil {
+					return err
+				}
+				var out *resourcev1.Spec
+				switch v := spec.(type) {
+				case *resourcev1.Route:
+					if v.GetHeld() {
+						v.Held = false
+						out = &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: v}}
+					}
+				case *resourcev1.Service:
+					opened := false
+					for _, p := range v.GetApp().GetPorts() {
+						opened = opened || p.GetHeld()
+						p.Held = false
+					}
+					if opened {
+						out = &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: v}}
+					}
+				}
+				if out != nil {
+					edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: kind, Scope: env, Name: r.Name}, Spec: out})
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	if len(edits) == 0 {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't held, so there's nothing to open", install.GetProject()), "not_held")
+	}
+	change, err := h.changes.Propose(ctx, "Open "+install.GetProject()+" to everyone", edits, nil, changes.Also{})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.OpenCatalogInstallResponse{Change: change}), nil
 }

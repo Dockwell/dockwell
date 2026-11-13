@@ -121,6 +121,10 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if own {
 			continue
 		}
+		// What it points at in another environment needs a role there too (ADR 0084).
+		if err := e.reachRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
+			return err
+		}
 		needs, why := store.RoleDeveloper, ""
 		switch {
 		case at.admins != "":

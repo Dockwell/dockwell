@@ -526,7 +526,12 @@ func (q quoted) MarshalYAML() (any, error) {
 // "127.0.0.1:8080:80/udp".
 func portString(p *resourcev1.PortMapping) string {
 	s := strconv.Itoa(int(p.GetHostPort())) + ":" + strconv.Itoa(int(p.GetContainerPort()))
-	if ip := p.GetHostIp(); ip != "" {
+	ip := p.GetHostIp()
+	if p.GetHeld() {
+		// Held, it listens on the server alone (ADR 0084), as the label it carries says.
+		ip = "127.0.0.1"
+	}
+	if ip != "" {
 		if addr, err := netip.ParseAddr(ip); err == nil && addr.Is6() {
 			ip = "[" + ip + "]"
 		}

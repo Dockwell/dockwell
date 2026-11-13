@@ -629,13 +629,20 @@ describe("A database's admin tool", () => {
     await waitFor(() => expect(asked).toEqual({ choice: "service:data/production/mysql", startEmpty: true }));
   });
 
-  it("says an app's held domain isn't open yet, and opens it as a plan that keeps the rest of its route", async () => {
+  it("says an app's held domain and port aren't open yet, and opens them as a plan the server makes", async () => {
     const user = userEvent.setup();
-    let edits: unknown;
+    let opened: string | undefined;
+    const held = anApp("db", "postgres:17.11", { ports: [{ hostPort: 8080, containerPort: 80, held: true }] });
     renderAt("/apps/svc_db", {
-      ...tools({ listCatalogInstalls: () => installed(false) }),
+      ...tools({
+        listCatalogInstalls: () => installed(false),
+        openCatalogInstall: (req) => {
+          opened = req.id;
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
       resources: places(),
-      services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+      services: { listServices: () => ({ services: [held] }) },
       domains: {
         listDomains: () => ({
           domains: [
@@ -647,23 +654,14 @@ describe("A database's admin tool", () => {
           ],
         }),
       },
-      changes: {
-        proposeChange: (req) => {
-          edits = req.edits.map((e) => ({ name: e.resource?.name, spec: e.spec?.kind.value }));
-          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
-        },
-      },
     });
     const panel = await screen.findByRole("region", { name: "From the catalog" });
     expect(await within(panel).findByText("Not open yet")).toBeVisible();
+    expect(panel).toHaveTextContent(
+      "db.example.com answers that it isn't open, and port 8080 listens on its server alone",
+    );
     await user.click(within(panel).getByRole("button", { name: "Open it to everyone" }));
-    await waitFor(() => expect(edits).toBeDefined());
-    expect(edits).toMatchObject([
-      {
-        name: "www",
-        spec: { domain: "db.example.com", service: "db", port: 80, held: false, trustedProxies: ["cloudflare"] },
-      },
-    ]);
+    await waitFor(() => expect(opened).toBe("prj_1"));
   });
 
   it("is removed later from the database's page, as a plan", async () => {

@@ -6710,11 +6710,14 @@ msgstr "尚未开放"
 msgid "Open it to everyone"
 msgstr "向所有人开放"
 
-msgid "Open {domains} to everyone"
-msgstr "向所有人开放 {domains}"
+msgid "Port {at} listens on its server alone, so its owner sets it up first, through the panel."
+msgstr "端口 {at} 只在它所在的服务器上监听，以便所有者先通过面板完成设置。"
 
-msgid "{domains} answers that it isn't open, so its owner sets it up first, through the panel."
-msgstr "{domains} 会回应它尚未开放，以便所有者先通过面板完成设置。"
+msgid "{where} answers that it isn't open, and port {at} listens on its server alone, so its owner sets it up first, through the panel."
+msgstr "{where} 会回应它尚未开放，端口 {at} 只在它所在的服务器上监听，以便所有者先通过面板完成设置。"
+
+msgid "{where} answers that it isn't open, so its owner sets it up first, through the panel."
+msgstr "{where} 会回应它尚未开放，以便所有者先通过面板完成设置。"
 
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>，只读"

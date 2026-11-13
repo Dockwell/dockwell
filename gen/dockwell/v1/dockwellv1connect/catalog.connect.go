@@ -53,6 +53,9 @@ const (
 	// CatalogServiceSetCatalogNeedProcedure is the fully-qualified name of the CatalogService's
 	// SetCatalogNeed RPC.
 	CatalogServiceSetCatalogNeedProcedure = "/dockwell.v1.CatalogService/SetCatalogNeed"
+	// CatalogServiceOpenCatalogInstallProcedure is the fully-qualified name of the CatalogService's
+	// OpenCatalogInstall RPC.
+	CatalogServiceOpenCatalogInstallProcedure = "/dockwell.v1.CatalogService/OpenCatalogInstall"
 	// CatalogServiceInstallCatalogEntryProcedure is the fully-qualified name of the CatalogService's
 	// InstallCatalogEntry RPC.
 	CatalogServiceInstallCatalogEntryProcedure = "/dockwell.v1.CatalogService/InstallCatalogEntry"
@@ -118,6 +121,11 @@ type CatalogServiceClient interface {
 	// is, with its data. It's refused with the reason unchanged when the need is met so
 	// already.
 	SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error)
+	// OpenCatalogInstall plans opening an install that SetCatalogNeed held as it
+	// started empty: each of its routes answers again, and each port its services
+	// publish listens where it did, as the person who set it up asks. It's refused
+	// with the reason not_held when nothing of it is held (ADR 0084).
+	OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -217,6 +225,12 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("SetCatalogNeed")),
 			connect.WithClientOptions(opts...),
 		),
+		openCatalogInstall: connect.NewClient[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse](
+			httpClient,
+			baseURL+CatalogServiceOpenCatalogInstallProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("OpenCatalogInstall")),
+			connect.WithClientOptions(opts...),
+		),
 		installCatalogEntry: connect.NewClient[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](
 			httpClient,
 			baseURL+CatalogServiceInstallCatalogEntryProcedure,
@@ -272,6 +286,7 @@ type catalogServiceClient struct {
 	upgradeCatalogInstall *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
 	setCatalogCompanion   *connect.Client[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse]
 	setCatalogNeed        *connect.Client[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse]
+	openCatalogInstall    *connect.Client[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse]
 	installCatalogEntry   *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
 	setCatalogSource      *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
 	listCatalogSources    *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
@@ -309,6 +324,11 @@ func (c *catalogServiceClient) SetCatalogCompanion(ctx context.Context, req *con
 // SetCatalogNeed calls dockwell.v1.CatalogService.SetCatalogNeed.
 func (c *catalogServiceClient) SetCatalogNeed(ctx context.Context, req *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error) {
 	return c.setCatalogNeed.CallUnary(ctx, req)
+}
+
+// OpenCatalogInstall calls dockwell.v1.CatalogService.OpenCatalogInstall.
+func (c *catalogServiceClient) OpenCatalogInstall(ctx context.Context, req *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error) {
+	return c.openCatalogInstall.CallUnary(ctx, req)
 }
 
 // InstallCatalogEntry calls dockwell.v1.CatalogService.InstallCatalogEntry.
@@ -388,6 +408,11 @@ type CatalogServiceHandler interface {
 	// is, with its data. It's refused with the reason unchanged when the need is met so
 	// already.
 	SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error)
+	// OpenCatalogInstall plans opening an install that SetCatalogNeed held as it
+	// started empty: each of its routes answers again, and each port its services
+	// publish listens where it did, as the person who set it up asks. It's refused
+	// with the reason not_held when nothing of it is held (ADR 0084).
+	OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error)
 	// InstallCatalogEntry plans installing an app as a project of its own, ready
 	// to apply or discard, as ImportCompose does with a file. The plan makes the
 	// project, its secrets and what its Compose file runs, and pins the project to
@@ -483,6 +508,12 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("SetCatalogNeed")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceOpenCatalogInstallHandler := connect.NewUnaryHandler(
+		CatalogServiceOpenCatalogInstallProcedure,
+		svc.OpenCatalogInstall,
+		connect.WithSchema(catalogServiceMethods.ByName("OpenCatalogInstall")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceInstallCatalogEntryHandler := connect.NewUnaryHandler(
 		CatalogServiceInstallCatalogEntryProcedure,
 		svc.InstallCatalogEntry,
@@ -541,6 +572,8 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceSetCatalogCompanionHandler.ServeHTTP(w, r)
 		case CatalogServiceSetCatalogNeedProcedure:
 			catalogServiceSetCatalogNeedHandler.ServeHTTP(w, r)
+		case CatalogServiceOpenCatalogInstallProcedure:
+			catalogServiceOpenCatalogInstallHandler.ServeHTTP(w, r)
 		case CatalogServiceInstallCatalogEntryProcedure:
 			catalogServiceInstallCatalogEntryHandler.ServeHTTP(w, r)
 		case CatalogServiceSetCatalogSourceProcedure:
@@ -586,6 +619,10 @@ func (UnimplementedCatalogServiceHandler) SetCatalogCompanion(context.Context, *
 
 func (UnimplementedCatalogServiceHandler) SetCatalogNeed(context.Context, *connect.Request[v1.SetCatalogNeedRequest]) (*connect.Response[v1.SetCatalogNeedResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SetCatalogNeed is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) OpenCatalogInstall(context.Context, *connect.Request[v1.OpenCatalogInstallRequest]) (*connect.Response[v1.OpenCatalogInstallResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.OpenCatalogInstall is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error) {

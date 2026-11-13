@@ -147,6 +147,10 @@ func (h *Handler) Candidates(ctx context.Context) ([]catalog.Candidate, error) {
 				}
 				for _, d := range r.GetDatabases() {
 					c.Databases = append(c.Databases, d.GetName())
+					if c.Sizes == nil {
+						c.Sizes = map[string]int64{}
+					}
+					c.Sizes[d.GetName()] = d.GetSizeBytes()
 				}
 				for _, u := range r.GetUsers() {
 					c.Users = append(c.Users, u.GetName())

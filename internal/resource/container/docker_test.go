@@ -827,3 +827,39 @@ func TestAContainerSaysWhichImageItRuns(t *testing.T) {
 		t.Errorf("one that's gone runs %+v, %v", got, err)
 	}
 }
+
+// A held port listens on 127.0.0.1 alone, and reads back held, with the address it
+// listens on once opened; opening it replaces the container, which then listens
+// there (ADR 0084).
+func TestAHeldPortListensOnTheServerAlone(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	web := resource.Ref{Kind: service.Kind, Scope: env, Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Ports: []*resourcev1.PortMapping{
+		{HostPort: 8080, ContainerPort: 80, Held: true},
+		{HostPort: 8443, ContainerPort: 443, HostIp: "192.0.2.10", Held: true},
+	}}}}
+	apply(t, l, web, spec)
+	bound := func() map[string]string {
+		out := map[string]string{}
+		for key, b := range e.Newest(docker.Project(env), "web").HostConfig.PortBindings {
+			out[key] = b[0].HostIP
+		}
+		return out
+	}
+	if got := bound(); got["80/tcp"] != "127.0.0.1" || got["443/tcp"] != "127.0.0.1" {
+		t.Errorf("held, it listens on %v", got)
+	}
+	unchanged(t, l, web, spec)
+	for _, p := range spec.GetApp().GetPorts() {
+		p.Held = false
+	}
+	if step := apply(t, l, web, spec); step.Action != resource.ActionReplace {
+		t.Errorf("opening it = %+v, want a replace", step.Decision)
+	}
+	if got := bound(); got["80/tcp"] != "" || got["443/tcp"] != "192.0.2.10" {
+		t.Errorf("opened, it listens on %v", got)
+	}
+	unchanged(t, l, web, spec)
+}

@@ -94,6 +94,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "CatalogService.listCatalogSourceRefs": { within: "CatalogService.setCatalogSource" },
   "CatalogService.listCatalogSources": "read",
   "CatalogService.listCatalogStores": "read",
+  "CatalogService.openCatalogInstall": "may",
   "CatalogService.removeCatalogSource": "may",
   "CatalogService.setCatalogCompanion": "may",
   "CatalogService.setCatalogNeed": "may",

@@ -30,13 +30,14 @@ type Candidate struct {
 	Project, Environment     string // by name
 	ProjectID, EnvironmentID string
 	Engine                   catalogv1.Engine
-	Version                  string   // what it says of itself, or its tag's
-	Servers                  []string // the servers it runs on, by ID
-	ServerNames              []string // and by name
-	Databases, Users         []string // what its reading lists, for names that are free
-	SharedWith               []string // the projects whose apps link to it already
-	AdministeredBy           string   // a service outside it that signs in as its administrator, if any
-	JoinsInPlace             bool     // every server it runs on has an agent that joins link networks in place
+	Version                  string           // what it says of itself, or its tag's
+	Servers                  []string         // the servers it runs on, by ID
+	ServerNames              []string         // and by name
+	Databases, Users         []string         // what its reading lists, for names that are free
+	Sizes                    map[string]int64 // how much each of its databases takes, in bytes, as its reading says
+	SharedWith               []string         // the projects whose apps link to it already
+	AdministeredBy           string           // a service outside it that signs in as its administrator, if any
+	JoinsInPlace             bool             // every server it runs on has an agent that joins link networks in place
 	// PartOf names the app whose catalog install it's part of, as WordPress's own
 	// MariaDB is, where that app's upgrades would change it, and Pinnable says the
 	// plan that first shares it can pin it apart from the app, as the entry's own

@@ -13,10 +13,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
-	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
-	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -327,57 +325,6 @@ func (e *Engine) checkNames(ctx context.Context, tx *store.Tx, items []item, it 
 
 // linkKind is the kind that alone writes a value from another environment (ADR 0084).
 const linkKind resource.Kind = "link"
-
-// checkFromElsewhere refuses a value from another environment that no link of its
-// own environment writes, and one that reads a value anything there uses but a
-// database user. A link reads the password of the user it made, and nothing else of
-// that environment, as revealing anything else takes a passkey (ADR 0084).
-func (e *Engine) checkFromElsewhere(ctx context.Context, tx *store.Tx, items []item, it *item) error {
-	if it.spec == nil || !e.valuer(it.ref.Kind) {
-		return nil
-	}
-	for _, u := range e.usesOf(it, it.spec) {
-		if u.Scope == "" || u.Scope == it.ref.Scope {
-			continue
-		}
-		name := ""
-		if from := variable.FromOf(it.spec); from != nil {
-			name = from.GetValue().GetLink()
-		}
-		links, err := liveIn(ctx, tx, items, it.ref.Scope, linkKind)
-		if err != nil {
-			return err
-		}
-		if !slices.Contains(links, name) {
-			return fault.New(ErrInvalid, "%s %s takes its value from another environment, which only a link writes, and its environment has no link %s. Link the app to what it needs, and the link writes it",
-				it.ref.Kind, it.ref.Name, cmp.Or(name, "named"))
-		}
-		users, err := tx.UsersOf(ctx, u.Scope, string(u.Kind), u.Name)
-		if err != nil {
-			return err
-		}
-		for i := range users {
-			other := &users[i]
-			if other.Scope == u.Scope && other.Kind != string(database.UserKind) {
-				return fault.New(ErrInvalid, "%s %s reads %s %s of another environment, which %s %s uses there. A link reads only the password of a database user it made",
-					it.ref.Kind, it.ref.Name, u.Kind, u.Name, other.Kind, other.Name)
-			}
-		}
-		for i := range items {
-			other := &items[i]
-			if other.ref.Scope != u.Scope || other.spec == nil || other.ref.Kind == database.UserKind {
-				continue
-			}
-			for _, ou := range e.usesOf(other, other.spec) {
-				if ou.Scope == "" && ou.Kind == u.Kind && ou.Name == u.Name {
-					return fault.New(ErrInvalid, "%s %s reads %s %s of another environment, which %s %s uses there. A link reads only the password of a database user it made",
-						it.ref.Kind, it.ref.Name, u.Kind, u.Name, other.ref.Kind, other.ref.Name)
-				}
-			}
-		}
-	}
-	return nil
-}
 
 // refuseLinkedGoing refuses deleting a service that a link of another environment
 // reads, naming the project whose app uses it: a shared database never goes with an

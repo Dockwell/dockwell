@@ -3,13 +3,17 @@
 package control
 
 import (
+	"context"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
@@ -116,7 +120,7 @@ func TestAValueFromAnotherEnvironmentIsALinksAlone(t *testing.T) {
 func testAValueFromAnotherEnvironmentIsALinksAlone(t *testing.T, backend store.Backend) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
-	hz1 := f.addNamedServer(t, "hz-1", true)
+	hz1 := f.addNamedServerWith(t, "hz-1", &usersInMemory{made: map[resource.Ref]proto.Message{}})
 	c := changeClient(b, b.origin)
 	blog := listedEnv(t, b)
 	apply(t, c, propose(t, c, "Add the data project", &dockwellv1.Edit{
@@ -142,12 +146,18 @@ func testAValueFromAnotherEnvironmentIsALinksAlone(t *testing.T, backend store.B
 		in(data, secretSpec("ADMIN_PASSWORD", "the-administrators")),
 		in(data, secretSpec("BLOG_DB_PASSWORD", "blogs-own-1")),
 		in(data, serviceSpec("db", map[string]string{"POSTGRES_PASSWORD": "ADMIN_PASSWORD"}, hz1.id.ServerID)),
+		// The blog's user, as a link makes one, kept where nothing runs it: this server
+		// has no PostgreSQL to make it in.
+		in(data, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "database.user", Name: "blog"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: &resourcev1.DatabaseUser{Service: "db", Password: "BLOG_DB_PASSWORD"}}},
+		}),
 	))
-	fromData := func(name, link string) *dockwellv1.Edit {
+	fromData := func(name string) *dockwellv1.Edit {
 		return in(blog, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Name: "DB_PASSWORD"},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{From: &resourcev1.ValueFrom{
-				Source: &resourcev1.ValueFrom_Value{Value: &resourcev1.ValueRef{Environment: data, Secret: true, Name: name, Link: link}},
+				Source: &resourcev1.ValueFrom_Value{Value: &resourcev1.ValueRef{Environment: data, Secret: true, Name: name, Link: "db"}},
 			}}}},
 		})
 	}
@@ -167,10 +177,14 @@ func testAValueFromAnotherEnvironmentIsALinksAlone(t *testing.T, backend store.B
 			t.Errorf("%s: got %v", why, err)
 		}
 	}
-	refused("has no link db", fromData("BLOG_DB_PASSWORD", "db"))
-	refused("which service db uses there", theLink, fromData("ADMIN_PASSWORD", "db"))
+	refused("has no link db", fromData("BLOG_DB_PASSWORD"))
+	// Only the link's own environment, and only through it.
+	elsewhere := proto.CloneOf(theLink)
+	elsewhere.Spec.GetLink().MeetsEnvironment = blog
+	refused("link db meets nothing in that environment", elsewhere, fromData("BLOG_DB_PASSWORD"))
+	refused("ADMIN_PASSWORD isn't the password of blog, the user link db made there", theLink, fromData("ADMIN_PASSWORD"))
 
-	apply(t, c, propose(t, c, "Link the blog", theLink, fromData("BLOG_DB_PASSWORD", "db"),
+	apply(t, c, propose(t, c, "Link the blog", theLink, fromData("BLOG_DB_PASSWORD"),
 		in(blog, serviceSpec("web", map[string]string{"WORDPRESS_DB_PASSWORD": "DB_PASSWORD"}, hz1.id.ServerID))))
 	envOf := func() map[string]string {
 		t.Helper()
@@ -203,4 +217,35 @@ func testAValueFromAnotherEnvironmentIsALinksAlone(t *testing.T, backend store.B
 	if got := envOf()["WORDPRESS_DB_PASSWORD"]; got != "blogs-own-2" {
 		t.Errorf("after the rotation web reads %q", got)
 	}
+}
+
+// usersInMemory makes database users as a record alone, for a test server with no
+// PostgreSQL to make them in.
+type usersInMemory struct {
+	database.UserDriver
+	mu   sync.Mutex
+	made map[resource.Ref]proto.Message
+}
+
+func (u *usersInMemory) Observe(_ context.Context, ref resource.Ref) (proto.Message, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.made[ref], nil
+}
+
+func (u *usersInMemory) Apply(_ context.Context, step resource.Step, desired proto.Message) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if desired == nil {
+		delete(u.made, step.Ref)
+	} else {
+		u.made[step.Ref] = proto.Clone(desired)
+	}
+	return nil
+}
+
+func (*usersInMemory) Verify(context.Context, resource.Ref, proto.Message) error { return nil }
+
+func (u *usersInMemory) Judge(_ context.Context, _ resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return u.Plan(actual, desired, changes)
 }

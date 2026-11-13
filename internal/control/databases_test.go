@@ -196,6 +196,8 @@ type pgState struct {
 	databases map[string]string // a database's owner
 	said      []string
 	makeNone  bool
+	// sizes has its reading list its databases, each this large, where set.
+	sizes map[string]int64
 }
 
 var (
@@ -228,7 +230,12 @@ func (s *pgState) image() dockertest.Image {
 					users = append(users, fmt.Sprintf(`{"name":%q,"super":%t,"login":true}`, name, name == "postgres"))
 				}
 				slices.Sort(users)
-				_, _ = fmt.Fprintf(x.Stdout, `{"version":"17.2","user":"postgres","databases":[],"users":[%s]}`+"\n", strings.Join(users, ","))
+				var dbs []string
+				for name, size := range s.sizes {
+					dbs = append(dbs, fmt.Sprintf(`{"name":%q,"owner":%q,"size":%d}`, name, s.databases[name], size))
+				}
+				slices.Sort(dbs)
+				_, _ = fmt.Fprintf(x.Stdout, `{"version":"17.2","user":"postgres","databases":[%s],"users":[%s]}`+"\n", strings.Join(dbs, ","), strings.Join(users, ","))
 				return 0
 			}
 			if s.makeNone {

@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
@@ -249,11 +250,18 @@ func (e *Engine) isReferrer(kind resource.Kind) bool {
 
 // orderByReference puts what a resource names, in the change, before it:
 // so what it needs is made first, and taken down last, as deletes run last
-// first. Otherwise the proposal's order stays.
+// first. Otherwise the proposal's order stays. A route the change only holds
+// goes before the service it sends to, so a stranger never reaches what
+// restarts held (ADR 0084).
 func (e *Engine) orderByReference(items []item) []item {
 	at := make(map[resource.Ref]int, len(items))
+	holds := map[resource.Ref][]int{} // routes only held, by their service
 	for i := range items {
 		at[items[i].ref] = i
+		if r, ok := onlyHolds(&items[i]); ok {
+			to := resource.Ref{Kind: "service", Scope: items[i].ref.Scope, Name: r.GetService()}
+			holds[to] = append(holds[to], i)
+		}
 	}
 	const visiting, done = 1, 2
 	state := make([]int, len(items))
@@ -265,7 +273,15 @@ func (e *Engine) orderByReference(items []item) []item {
 		}
 		state[i] = visiting
 		it := &items[i]
+		for _, j := range holds[it.ref] {
+			visit(j)
+		}
+		// A route only held needs nothing first: it closes what it sends to as it is.
+		_, held := onlyHolds(it)
 		for _, spec := range []proto.Message{it.spec, it.current} {
+			if held {
+				break
+			}
 			for _, use := range e.kinds.References(it.ref.Kind, spec) {
 				if j, ok := at[resource.Ref{Kind: use.Kind, Scope: it.ref.Scope, Name: use.Name}]; ok {
 					visit(j)
@@ -279,4 +295,17 @@ func (e *Engine) orderByReference(items []item) []item {
 		visit(i)
 	}
 	return out
+}
+
+// onlyHolds reports a route the change only holds: as it was, but answering that it
+// isn't open.
+func onlyHolds(it *item) (*resourcev1.Route, bool) {
+	was, wok := it.current.(*resourcev1.Route)
+	now, nok := it.spec.(*resourcev1.Route)
+	if !wok || !nok || was.GetHeld() || !now.GetHeld() || now.GetService() == "" {
+		return nil, false
+	}
+	open := proto.CloneOf(now)
+	open.Held = false
+	return now, proto.Equal(open, was)
 }

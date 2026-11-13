@@ -115,6 +115,22 @@ service CatalogService {
     };
   }
 
+  // OpenCatalogInstall plans opening an install that SetCatalogNeed held as it
+  // started empty: each of its routes answers again, and each port its services
+  // publish listens where it did, as the person who set it up asks. It's refused
+  // with the reason not_held when nothing of it is held (ADR 0084).
+  rpc OpenCatalogInstall(OpenCatalogInstallRequest) returns (OpenCatalogInstallResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "open"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:open"
+      body: "*"
+    };
+  }
+
   // InstallCatalogEntry plans installing an app as a project of its own, ready
   // to apply or discard, as ImportCompose does with a file. The plan makes the
   // project, its secrets and what its Compose file runs, and pins the project to
@@ -502,13 +518,28 @@ message SetCatalogNeedRequest {
   // Start the app on an empty database there, rather than copying its own across.
   // Copying is the default where both ends run the same engine; where they don't,
   // the plan is refused with the reason cant_copy until this asks for it. An app
-  // whose first visitor makes its owner then has its routes held, so its owner sets
-  // it up first, through the panel.
+  // whose first visitor makes its owner then has every way in held before it
+  // restarts: its routes answer that it isn't open, and the ports its services
+  // publish listen on the server alone, until OpenCatalogInstall opens them, so
+  // its owner sets it up first, through the panel. Where nothing can be held, it's
+  // refused with the reason cant_hold.
   bool start_empty = 4;
 }
 
 // SetCatalogNeedResponse carries the planned change.
 message SetCatalogNeedResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// OpenCatalogInstallRequest names the install to open.
+message OpenCatalogInstallRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+}
+
+// OpenCatalogInstallResponse carries the planned change.
+message OpenCatalogInstallResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

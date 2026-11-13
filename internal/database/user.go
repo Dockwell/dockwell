@@ -51,7 +51,9 @@ type UserDriver struct {
 	// just after its container is made in the same change, and Every how often it asks
 	// again. Zero means two minutes and a second.
 	Wait, Every time.Duration
-	mu          sync.Mutex
+	// CopyWait bounds copying a database into a new user's: two hours unless set.
+	CopyWait time.Duration
+	mu       sync.Mutex
 }
 
 var (
@@ -108,6 +110,8 @@ func (*UserDriver) Validate(spec proto.Message) error {
 	}
 	if from := u.GetCopyFrom(); from != nil {
 		switch {
+		case SystemDatabase(from.GetDatabase()):
+			return fmt.Errorf("%s is a database its server keeps for itself, which Dockwell never copies", from.GetDatabase())
 		case !strings.HasPrefix(from.GetEnvironment(), "env_"):
 			return errors.New("a database to copy names its environment by its ID, such as env_…")
 		case resource.CheckLabel("service", from.GetService(), "db") != nil:
@@ -165,6 +169,9 @@ func (*UserDriver) Plan(actual, desired proto.Message, changes []resource.Change
 	for _, c := range changes {
 		if c.Path == "service" || c.Path == "database_name" {
 			return resource.Decision{}, errors.New("a database user's service and database can't change. Make another user, then delete this one")
+		}
+		if strings.HasPrefix(c.Path, "copy_from") {
+			return resource.Decision{}, errors.New("a database user is copied into once, as it's made, so what it's a copy of can't change. Make another user, then delete this one")
 		}
 	}
 	return resource.Decision{Action: resource.ActionUpdate}, nil
@@ -330,8 +337,12 @@ type given struct {
 	Uses     string `json:"uses"`
 	Revision int64  `json:"revision"`
 	// CopiedFrom is the database it was made as a copy of, as its spec says, by
-	// environment, service and database.
+	// environment, service and database, kept once the copy is whole.
 	CopiedFrom []string `json:"copied_from,omitempty"`
+	// Copying says a step began copying a database into it and didn't finish: what
+	// the database holds is part of a copy, which reads as no user, so applying again
+	// empties it and copies it whole.
+	Copying bool `json:"copying,omitempty"`
 }
 
 func (d *UserDriver) recordPath() string { return filepath.Join(d.Dir, "database-users.json") }
@@ -393,7 +404,7 @@ func (d *UserDriver) recorded(ref resource.Ref) (given, bool, error) {
 // make and didn't finish, which applying again finishes.
 func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
 	g, ok, err := d.recorded(ref)
-	if err != nil || !ok {
+	if err != nil || !ok || g.Copying {
 		return nil, err
 	}
 	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses}
@@ -449,13 +460,25 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		return fmt.Errorf("can't give %s the password in %s: %w", ref.Name, u.GetPassword(), err)
 	}
 	g := &given{Service: u.GetService(), Database: u.GetDatabaseName(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse]}
-	if from := u.GetCopyFrom(); from != nil {
-		g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
-	}
+	from := u.GetCopyFrom()
 	if create {
+		before, began, err := d.recorded(ref)
+		if err != nil {
+			return err
+		}
+		if began && before.Copying {
+			// An earlier run left part of a copy in the database it made: that goes, and
+			// the copy starts over into an empty one.
+			if err := d.whileStarting(ctx, func() error { return d.run(ctx, c, e, e.drop(ref.Name, db)) }); err != nil {
+				return fmt.Errorf("can't empty %s of the copy an earlier run left part of: %w", db, err)
+			}
+		}
 		// Kept first, so a step that fails halfway leaves a user Dockwell knows it
-		// began: applying again finishes it, and deleting it drops what was made.
-		if err := d.record(ref, g); err != nil {
+		// began: applying again finishes it, and deleting it drops what was made. Its
+		// copy is kept as begun until it's whole.
+		begun := *g
+		begun.Copying = from != nil
+		if err := d.record(ref, &begun); err != nil {
 			return err
 		}
 	}
@@ -475,14 +498,18 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		}
 		// A database to copy goes into the one just made, empty; one that can't be
 		// copied takes the user and database away again, so the step leaves nothing.
-		if from := u.GetCopyFrom(); from != nil {
-			if err := d.copyInto(ctx, c, e, ref.Name, db, from); err != nil {
-				if derr := d.run(ctx, c, e, e.drop(ref.Name, db)); derr == nil {
+		if from != nil {
+			if err := d.copyInto(ctx, c, e, ref.Name, db, password, from); err != nil {
+				if derr := d.run(context.WithoutCancel(ctx), c, e, e.drop(ref.Name, db)); derr == nil {
 					_ = d.record(ref, nil)
 				}
 				return err
 			}
+			g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
 		}
+	} else if from != nil {
+		// A copy is made once, with the user, and what it came from can't change.
+		g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
 	}
 	return d.record(ref, g)
 }

@@ -1739,7 +1739,7 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 		if err := e.checkNames(ctx, tx, items, it); err != nil {
 			return err
 		}
-		if err := e.checkFromElsewhere(ctx, tx, items, it); err != nil {
+		if err := e.checkReaches(ctx, tx, items, it); err != nil {
 			return err
 		}
 		if it.level == resource.LevelEnvironment {

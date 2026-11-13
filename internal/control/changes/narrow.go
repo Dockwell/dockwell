@@ -131,7 +131,12 @@ func Narrow(ctx context.Context, tx *store.Tx, c *dockwellv1.Change) error {
 	}
 	c.Steps = steps
 	c.Confirmation = confirmationOf(c.Steps)
-	if failedHidden && !failedHere {
+	switch {
+	case failedHidden && failedHere:
+		// What it says of the failure may be of what failed out of sight, whatever
+		// failed here too: each step the reader holds says its own.
+		c.Error = "It failed here, and on something in a project you can't see. Each step here that failed says why."
+	case failedHidden:
 		// What it says of the failure is of what failed, which the reader can't see.
 		c.Error = "It failed on something in a project you can't see."
 	}

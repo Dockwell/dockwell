@@ -63,6 +63,12 @@ type Upgrade struct {
 	Notes []revision.Note
 	// Needs are what its needs set, and how each is met, as Install's are.
 	Needs Needs
+	// Hold closes the app to strangers as it restarts, as one that starts on an
+	// empty database whose first visitor makes its owner (ADR 0084): each port its
+	// services publish listens on the server alone (PortMapping.held), beside the
+	// routes Needs.Extra holds. It's refused with cant_hold where nothing can be
+	// held, or a service runs on the server's own network.
+	Hold bool
 }
 
 // PlanUpgrade plans an install's newer release into the environment it runs in, with
@@ -102,6 +108,11 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "upgrade_clash")
 	}
 	deletes = slices.DeleteFunc(deletes, func(r resource.Ref) bool { return r.Kind == service.Kind && slices.Contains(in.Keeps, r.Name) })
+	if in.Hold {
+		if err := hold(next, in.Name, in.Needs.Extra); err != nil {
+			return nil, err
+		}
+	}
 	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
 	for i := range in.Notes {
 		n := in.Notes[i]
@@ -512,3 +523,29 @@ func mergeList(to protoreflect.List, key func(protoreflect.Value) string, base, 
 }
 
 func sortedKeys[V any](m map[string]V) []string { return slices.Sorted(maps.Keys(m)) }
+
+// hold has each port the file's services publish listen on the server alone, and
+// refuses an app that would still be open to strangers: one with a service on the
+// server's own network, or with nothing to hold, no route among routes nor a port.
+func hold(next *compose.Stack, app string, routes []*dockwellv1.Edit) error {
+	held := 0
+	for _, e := range routes {
+		if e.GetSpec().GetRoute().GetHeld() {
+			held++
+		}
+	}
+	for _, s := range next.Services {
+		c := s.Spec.GetApp()
+		if c.GetHostNetwork() {
+			return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs on the server's own network, which Dockwell can't close to strangers while %s starts empty and its first visitor makes its owner. Copy its database across instead", s.Name, app), "cant_hold")
+		}
+		for _, p := range c.GetPorts() {
+			p.Held = true
+			held++
+		}
+	}
+	if held == 0 {
+		return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's first visitor makes its owner, and it has no domain or published port Dockwell can hold while it starts empty, so whoever reaches it first could take it. Give it a domain first, or copy its database across instead", app), "cant_hold")
+	}
+	return nil
+}

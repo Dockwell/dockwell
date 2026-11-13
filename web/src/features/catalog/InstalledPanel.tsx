@@ -58,7 +58,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           </Trans>
         </p>
         <Facts facts={facts} />
-        <HeldRoutes service={service} />
+        <HeldRoutes service={service} install={install} />
         {entry ? <NeedLines entry={entry} install={install} /> : null}
         {entry ? <CompanionLines entry={entry} install={install} /> : null}
         {install.upgrade ? (
