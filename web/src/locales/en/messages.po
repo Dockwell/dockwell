@@ -7770,6 +7770,9 @@ msgstr "Reloaded {name} on {server}"
 msgid "Reloading {name} on {server}"
 msgstr "Reloading {name} on {server}"
 
+msgid "Remove {serverName}"
+msgstr "Remove {serverName}"
+
 msgid "Restarted {name} on {server}"
 msgstr "Restarted {name} on {server}"
 
@@ -8174,6 +8177,9 @@ msgstr "Docker restarts: every app and website on {server} stops until it's back
 
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
+
+msgid "Its kept logs can't be read from then on, and go in 7 days"
+msgstr "Its kept logs can't be read from then on, and go in 7 days"
 
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
@@ -8912,6 +8918,12 @@ msgstr "It takes that proxy's word for where a request came from. Whatever else 
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 
+msgid "It's revoked as this applies, before any step, and its agent is refused from then on."
+msgstr "It's revoked as this applies, before any step, and its agent is refused from then on."
+
+msgid "It's revoked once its steps have passed, and its agent is refused from then on."
+msgstr "It's revoked once its steps have passed, and its agent is refused from then on."
+
 msgid "Its apps leave the catalog"
 msgstr "Its apps leave the catalog"
 
@@ -9300,6 +9312,9 @@ msgstr "{name} joins the {leadsTo} network {path} on {server}"
 msgid "{name} keeps what is in {names} as it is"
 msgstr "{name} keeps what is in {names} as it is"
 
+msgid "{name} leaves the fleet for good"
+msgstr "{name} leaves the fleet for good"
+
 msgid "{name} lets in someone {path} kept out"
 msgstr "{name} lets in someone {path} kept out"
 
@@ -9369,6 +9384,9 @@ msgstr "{name}'s data uses {features}'s features, which {to} can't run"
 
 msgid "{name}'s features go up to {from} before it moves to {to}"
 msgstr "{name}'s features go up to {from} before it moves to {to}"
+
+msgid "{name}'s kept logs can't be read from then on, and go in 7 days."
+msgstr "{name}'s kept logs can't be read from then on, and go in 7 days."
 
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
@@ -13256,6 +13274,51 @@ msgstr "{total, plural, one {# systemd unit} other {# systemd units}}"
 
 msgid "{total, plural, one {All # process.} other {All # processes.}}"
 msgstr "{total, plural, one {All # process.} other {All # processes.}}"
+
+msgid "It may be compromised"
+msgstr "It may be compromised"
+
+msgid "Its apps"
+msgstr "Its apps"
+
+msgid "Leave them running"
+msgstr "Leave them running"
+
+msgid "Move them to"
+msgstr "Move them to"
+
+msgid "Move them to another server"
+msgstr "Move them to another server"
+
+msgid "Move them to {onlyName}"
+msgstr "Move them to {onlyName}"
+
+msgid "Nothing on the server changes"
+msgstr "Nothing on the server changes"
+
+msgid "Plan removal"
+msgstr "Plan removal"
+
+msgid "Remove from fleet"
+msgstr "Remove from fleet"
+
+msgid "Revoked now, with its keys, and no step on it"
+msgstr "Revoked now, with its keys, and no step on it"
+
+msgid "Revoked once its steps have passed"
+msgstr "Revoked once its steps have passed"
+
+msgid "Stop them"
+msgstr "Stop them"
+
+msgid "Their data stays on the server"
+msgstr "Their data stays on the server"
+
+msgid "Volumes start empty there, and their data stays"
+msgstr "Volumes start empty there, and their data stays"
+
+msgid "{apps, plural, one {# app runs on it} other {# apps run on it}}"
+msgstr "{apps, plural, one {# app runs on it} other {# apps run on it}}"
 
 msgid "Add one to reach an app at a name of yours"
 msgstr "Add one to reach an app at a name of yours"

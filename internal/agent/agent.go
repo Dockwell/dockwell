@@ -577,9 +577,19 @@ func connectionReason(err error) string {
 
 // forget has an agent whose server was removed stop putting back what it ran, and
 // forget it, values and key: nothing of it is the server's to run any more (ADR
-// 0054). Joining again starts afresh.
+// 0054). The certificates by DNS it was given go from its ingress first, as their
+// keys are revoked (ADR 0090). Joining again starts afresh.
 func forget(ctx context.Context, cfg Config) {
-	if cfg.presence == nil || !cfg.presence.remove() || cfg.Desired == nil {
+	if cfg.presence == nil || !cfg.presence.remove() {
+		return
+	}
+	if cfg.Certificates != nil {
+		if _, err := cfg.Certificates.PutCertificates(ctx, nil); err != nil {
+			cfg.Logger.WarnContext(ctx, "this server was removed from the fleet, and the agent can't take the certificates by DNS it was given out of its ingress. Their keys are revoked; remove them from Caddy's config by hand",
+				slog.String("error", err.Error()))
+		}
+	}
+	if cfg.Desired == nil {
 		return
 	}
 	if err := cfg.Desired.Wipe(); err != nil {

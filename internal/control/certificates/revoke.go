@@ -158,3 +158,54 @@ func (m *Manager) openGiven(ctx context.Context, tx *store.Tx, serial string, g 
 	}
 	return &out, nil
 }
+
+// RemovalNotes say what a server's removal does to certificates by DNS, for its
+// plan: which shared ones it re-issues, as the server has their keys now, and
+// which keys it had it revokes (ADR 0088, ADR 0090).
+func (m *Manager) RemovalNotes(ctx context.Context, server, name string) ([]revision.Note, error) {
+	var gv map[string]*given
+	var st map[string]*held
+	if err := m.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		if gv, err = givenKeys(ctx, tx); err != nil {
+			return err
+		}
+		st, err = states(ctx, tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	serials := make([]string, 0, len(gv))
+	for serial := range gv {
+		serials = append(serials, serial)
+	}
+	slices.Sort(serials)
+	var reissue, revoke []string
+	for _, serial := range serials {
+		g := gv[serial]
+		if !slices.Contains(g.Servers, server) {
+			continue
+		}
+		names := strings.Join(g.Names, ", ")
+		if !slices.Contains(revoke, names) {
+			revoke = append(revoke, names)
+		}
+		if s := st[g.Holder]; g.Holder != server && s != nil && s.Serial == serial && !slices.Contains(reissue, names) {
+			reissue = append(reissue, names)
+		}
+	}
+	var out []revision.Note
+	if len(reissue) > 0 {
+		out = append(out, revision.Note{
+			Reason: "reissues_certificates", Names: reissue,
+			Message: "Re-issues with new keys, for the servers left: " + strings.Join(reissue, "; "),
+		})
+	}
+	if len(revoke) > 0 {
+		out = append(out, revision.Note{
+			Reason: "revokes_certificates", Names: revoke,
+			Message: "Revokes the certificates' keys " + name + " had: " + strings.Join(revoke, "; "),
+		})
+	}
+	return out, nil
+}

@@ -344,6 +344,23 @@ func New(cfg Config) (*Server, error) {
 			}
 		}
 	}
+	// A server a change took out of the fleet: it leaves the fleet's list, its
+	// stream ends now, and its certificates' keys are replaced and revoked at once
+	// (ADR 0090).
+	if cfg.Changes != nil {
+		agents, certs, hub := cfg.Agents, cfg.certificates, cfg.Fleet
+		cfg.Changes.OnRemoved(func(server string) {
+			if hub != nil {
+				hub.Removed(server)
+			}
+			if agents != nil {
+				agents.Kick(server)
+			}
+			if certs != nil {
+				certs.Wake()
+			}
+		})
+	}
 	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower)
 	if err != nil {
 		return nil, err
@@ -486,6 +503,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	}
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)
+		if cfg.certificates != nil {
+			ch.SetRemovalNotes(cfg.certificates.RemovalNotes)
+		}
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)

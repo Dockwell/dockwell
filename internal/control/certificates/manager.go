@@ -75,6 +75,23 @@ type Manager struct {
 	once sync.Once
 	// working holds a place while a tick runs, so ticks never overlap.
 	working sync.Mutex
+	// wake has Run look now, as a server left the fleet.
+	wake     chan struct{}
+	wakeOnce sync.Once
+}
+
+// Wake has the manager look at what's due now, rather than at its next tick, as a
+// server that left the fleet takes its keys back (ADR 0090).
+func (m *Manager) Wake() {
+	select {
+	case m.wakes() <- struct{}{}:
+	default:
+	}
+}
+
+func (m *Manager) wakes() chan struct{} {
+	m.wakeOnce.Do(func() { m.wake = make(chan struct{}, 1) })
+	return m.wake
 }
 
 func (m *Manager) now() time.Time {
@@ -114,6 +131,7 @@ func (m *Manager) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
+		case <-m.wakes():
 		}
 	}
 }

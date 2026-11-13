@@ -298,6 +298,10 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 
 	recheck := time.NewTicker(h.recheck)
 	defer recheck.Stop()
+	var kicked <-chan struct{}
+	if session != nil {
+		kicked = session.kicked
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -367,6 +371,13 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 		case <-silence.C:
 			log.WarnContext(ctx, "closing a silent stream", slog.String("silent_for", human.Duration(h.silence)))
 			return silent()
+		case <-kicked:
+			kicked = nil
+			_, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial)
+			if err != nil {
+				log.InfoContext(ctx, "closing the stream of a server that was removed", slog.String("reason", err.Error()))
+				return h.refuse(ctx, peer, err)
+			}
 		case <-recheck.C:
 			_, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial)
 			if errors.Is(err, identity.ErrRevoked) || errors.Is(err, identity.ErrUnknownServer) || errors.Is(err, identity.ErrStaleCertificate) {

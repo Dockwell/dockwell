@@ -188,7 +188,7 @@ function readingOrder(resource: PlanResource, planned: PlannedResource | undefin
 export function diffResources(
   plan: Plan | undefined,
   rows: FieldRows,
-  options: { expanded?: boolean; tag?: (intent: Intent) => string } = {},
+  options: { expanded?: boolean; tag?: (intent: Intent) => string; letsGo?: string } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
   const maybe = ifNewerIn(plan);
@@ -218,6 +218,8 @@ export function diffResources(
       out.action = "update";
       if (options.tag) out.note = options.tag(intent);
     }
+    // What a removal lets go of on its server takes no step there: it stays as it is (ADR 0090).
+    if (resource.letsGo && options.letsGo) out.note = options.letsGo;
     // What is at risk is never folded away, as what a plan deletes otherwise starts.
     if (changes.some((c) => c.tone === "critical" || c.tone === "warning")) out.expanded = true;
     if (options.expanded !== undefined) out.expanded = options.expanded;

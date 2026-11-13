@@ -7770,6 +7770,9 @@ msgstr "已在 {server} 上重载 {name}"
 msgid "Reloading {name} on {server}"
 msgstr "正在 {server} 上重载 {name}"
 
+msgid "Remove {serverName}"
+msgstr "移除 {serverName}"
+
 msgid "Restarted {name} on {server}"
 msgstr "已在 {server} 上重启 {name}"
 
@@ -8174,6 +8177,9 @@ msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，�
 
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "其 Dockerfile 能读取 {buildLogins} 可读取的任何镜像"
+
+msgid "Its kept logs can't be read from then on, and go in 7 days"
+msgstr "此后无法读取它保留的日志，7 天后删除"
 
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
@@ -8912,6 +8918,12 @@ msgstr "它会相信该代理所说的请求来源。该范围内的其他任何
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其他内容都不会改动。"
 
+msgid "It's revoked as this applies, before any step, and its agent is refused from then on."
+msgstr "应用时立即吊销，先于任何步骤，此后它的代理会被拒绝。"
+
+msgid "It's revoked once its steps have passed, and its agent is refused from then on."
+msgstr "它的步骤完成后吊销，此后它的代理会被拒绝。"
+
 msgid "Its apps leave the catalog"
 msgstr "它的应用将离开应用目录"
 
@@ -9300,6 +9312,9 @@ msgstr "{name} 在 {server} 上加入 {leadsTo} 网络 {path}"
 msgid "{name} keeps what is in {names} as it is"
 msgstr "{name} 保留 {names} 中的内容不变"
 
+msgid "{name} leaves the fleet for good"
+msgstr "{name} 将永久离开服务器群"
+
 msgid "{name} lets in someone {path} kept out"
 msgstr "{name} 会放进 {path} 原本挡住的人"
 
@@ -9369,6 +9384,9 @@ msgstr "{name} 的数据用到了 {features} 的功能，{to} 无法运行"
 
 msgid "{name}'s features go up to {from} before it moves to {to}"
 msgstr "{name} 在升级到 {to} 之前，功能先提升到 {from}"
+
+msgid "{name}'s kept logs can't be read from then on, and go in 7 days."
+msgstr "此后无法读取 {name} 保留的日志，7 天后删除。"
 
 msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
@@ -13256,6 +13274,51 @@ msgstr "{total, plural, other {# 个 systemd 单元}}"
 
 msgid "{total, plural, one {All # process.} other {All # processes.}}"
 msgstr "{total, plural, other {全部 # 个进程。}}"
+
+msgid "It may be compromised"
+msgstr "它可能已被入侵"
+
+msgid "Its apps"
+msgstr "它的应用"
+
+msgid "Leave them running"
+msgstr "让它们继续运行"
+
+msgid "Move them to"
+msgstr "移到"
+
+msgid "Move them to another server"
+msgstr "移到另一台服务器"
+
+msgid "Move them to {onlyName}"
+msgstr "移到 {onlyName}"
+
+msgid "Nothing on the server changes"
+msgstr "服务器上的一切保持不变"
+
+msgid "Plan removal"
+msgstr "规划移除"
+
+msgid "Remove from fleet"
+msgstr "从服务器群中移除"
+
+msgid "Revoked now, with its keys, and no step on it"
+msgstr "立即吊销，连同它的密钥，不在它上面执行任何步骤"
+
+msgid "Revoked once its steps have passed"
+msgstr "它的步骤完成后吊销"
+
+msgid "Stop them"
+msgstr "停止它们"
+
+msgid "Their data stays on the server"
+msgstr "它们的数据留在服务器上"
+
+msgid "Volumes start empty there, and their data stays"
+msgstr "卷在那边从空开始，数据留在原处"
+
+msgid "{apps, plural, one {# app runs on it} other {# apps run on it}}"
+msgstr "{apps, plural, other {上面运行着 # 个应用}}"
 
 msgid "Add one to reach an app at a name of yours"
 msgstr "添加一个，用你自己的域名访问应用"

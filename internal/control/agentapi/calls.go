@@ -482,6 +482,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		kicked: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	if d := hello.GetDesired(); d != nil {
@@ -511,6 +512,17 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	}
 	a.connected(server)
 	return s
+}
+
+// Kick ends a removed server's stream now, rather than at its next check, so no
+// call reaches it meanwhile (ADR 0090). Its agent hears it was removed.
+func (a *Agents) Kick(server string) {
+	a.mu.Lock()
+	s := a.sessions[server]
+	a.mu.Unlock()
+	if s != nil {
+		s.kickOnce.Do(func() { close(s.kicked) })
+	}
 }
 
 // SetPace tells every agent how often to send stats from now on, as people start
@@ -546,6 +558,10 @@ type Session struct {
 	agents *Agents
 	server string
 	name   string
+	// kicked closes as the server is removed, which ends its stream at once
+	// (ADR 0090), and kickOnce closes it once.
+	kicked   chan struct{}
+	kickOnce sync.Once
 
 	kindsMu sync.Mutex
 	kinds   []resource.Kind

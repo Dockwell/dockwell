@@ -18,6 +18,7 @@ import { isPrivateAddress, serverStatus } from "./server";
 import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
 import { useMay } from "../auth/may";
+import { RemoveServerButton } from "./RemoveServer";
 
 /** What the server is: its system and hardware. */
 export function SystemPanel({ server }: { server: Server }) {
@@ -261,6 +262,12 @@ export function AgentPanel({ server, unknown = false }: { server: Server; unknow
           </Fact>
         ) : null}
       </dl>
+      {/* Taking it out of the fleet is where its agent is: the control server has no such way (ADR 0090). */}
+      {server.controlServer ? null : (
+        <div className="server-agent-actions">
+          <RemoveServerButton server={server} />
+        </div>
+      )}
     </Panel>
   );
 }

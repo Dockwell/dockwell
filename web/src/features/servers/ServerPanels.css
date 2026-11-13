@@ -197,3 +197,12 @@ code.panel-meta {
   display: block;
   margin-top: var(--space-1);
 }
+
+/* What acts on the server as a whole, such as taking it out of the fleet, under its facts. */
+.server-agent-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}

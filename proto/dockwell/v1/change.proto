@@ -240,6 +240,30 @@ service ChangeService {
     };
   }
 
+  // PlanRemoveServer plans taking a server out of the fleet: a change whose edits
+  // move, stop or let go of what runs on it, as apps says, and which revokes the
+  // server as its last act. The plan lists what moves, what stops, what stays on
+  // the server, which certificates by DNS it re-issues and revokes, and what
+  // becomes of its backups. With compromised, it revokes the server as it
+  // commits, before any step, and takes none on it. It can't be undone, applying
+  // it takes a person's passkey, and the control server can't be removed. See
+  // docs/adr/0090-removing-a-server-and-marking-one-compromised.md.
+  rpc PlanRemoveServer(PlanRemoveServerRequest) returns (PlanRemoveServerResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "remove"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers:planRemove"
+      body: "*"
+    };
+  }
+
   // PlanSystemServiceAction plans an action on one of a server's system
   // services, its systemd units or OpenRC services: starting, stopping,
   // restarting or reloading it, or enabling, disabling, masking or unmasking it
@@ -608,6 +632,50 @@ message PlanRebootRequest {
 message PlanRebootResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// AppsOnRemoval is what happens to the apps a server runs as it's removed.
+enum AppsOnRemoval {
+  // As APPS_ON_REMOVAL_LEAVE.
+  APPS_ON_REMOVAL_UNSPECIFIED = 0;
+  // Dockwell lets go of them, running, and takes no step on the server.
+  APPS_ON_REMOVAL_LEAVE = 1;
+  // They run on the server move_to names before they come off this one. A
+  // volume's data stays here, and it starts empty there.
+  APPS_ON_REMOVAL_MOVE = 2;
+  // They come off the server. Their volumes' data stays on it.
+  APPS_ON_REMOVAL_STOP = 3;
+}
+
+// PlanRemoveServerRequest names a server to take out of the fleet, and what
+// happens to what it runs.
+message PlanRemoveServerRequest {
+  // The server, by ID.
+  string server_id = 1;
+  // What happens to its apps. Unset leaves them running.
+  AppsOnRemoval apps = 2;
+  // The server they move to, by ID, for APPS_ON_REMOVAL_MOVE.
+  string move_to = 3;
+  // The server may be in someone else's hands: it's revoked as the change
+  // commits, and the change takes no step on it, so its apps can't be stopped.
+  bool compromised = 4;
+  // What the change is for, for the timeline. Empty says what it removes.
+  string summary = 5;
+}
+
+// PlanRemoveServerResponse carries the planned removal.
+message PlanRemoveServerResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// ServerRemoval is the server a change takes out of the fleet.
+message ServerRemoval {
+  // The server's ID and name.
+  string server_id = 1;
+  string server_name = 2;
+  // It's revoked as the change commits, as it may be compromised.
+  bool compromised = 3;
 }
 
 // PlanSystemServiceActionRequest names a system service, what to do to it, and
@@ -1068,6 +1136,9 @@ message Plan {
   // of either, so a plan can't read as another's. Empty while there's one
   // project with one environment. A plan that spans several lists each.
   repeated PlanPlace places = 9;
+  // The server it takes out of the fleet, if it does (ADR 0090). Numbered in
+  // the block removal holds, 140 to 149.
+  ServerRemoval removes = 140;
 }
 
 // PlanPlace is where a plan's resources land, naming only what offers a choice.
@@ -1242,6 +1313,10 @@ message PlannedResource {
   // What an action on one of its server's system services does, for a server's
   // host the change acts on a unit of (ADR 0082). Track S takes 70 to 79 here.
   HostUnit unit = 70;
+  // The change takes no step for it on the server it removes from the fleet:
+  // what it left there stays as it is, and Dockwell lets go of it (ADR 0090).
+  // Numbered in the block removal holds, 140 to 149.
+  bool lets_go = 141;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what

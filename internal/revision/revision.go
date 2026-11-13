@@ -132,6 +132,8 @@ type Engine struct {
 	// onUnit hears of each step that acted on a server's system service, by the
 	// server's ID.
 	onUnit func(server string)
+	// onRemoved hears of each server a change took out of the fleet (ADR 0090).
+	onRemoved func(server string)
 	// sources reads what a build's branch or tag names now, and detector how its
 	// commit builds (ADR 0046).
 	sources  Sources
@@ -233,6 +235,10 @@ type Edit struct {
 	// Reboot reboots its server, for a server's host: a step that passes once the
 	// server's agent connects from another boot, which makes no revision (ADR 0064).
 	Reboot bool
+	// Forget takes no step for it on the server a removal takes out of the fleet:
+	// what it left there stays as it is, and the control plane lets go of it
+	// (ADR 0090).
+	Forget bool
 	// Unit acts on one of its server's system services, for a server's host: a step
 	// that makes no revision (ADR 0082). Its Change is filled in as it's proposed.
 	Unit *resource.UnitAsked
@@ -320,6 +326,9 @@ type Proposal struct {
 	Via     string // where it comes from, such as ViaPanel
 	Edits   []Edit
 	Notes   []Note // what the plan should say beside its steps
+	// Removes is the server the change takes out of the fleet, if it does
+	// (ADR 0090).
+	Removes *Removal
 	// RollsBackTo is the revision it puts back, for RollBackTo to record.
 	RollsBackTo int
 	// IfNothing refuses the proposal when its plan would do nothing, on the
@@ -410,6 +419,9 @@ type Plan struct {
 	// Intent is what it is for, when the method that proposed it knows. It
 	// isn't in the fingerprint: it says nothing about what the plan does.
 	Intent *Intent `json:",omitempty"`
+	// Removes is the server it takes out of the fleet, if it does (ADR 0090).
+	// Its fingerprint covers it.
+	Removes *Removal `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -436,6 +448,9 @@ type ResourcePlan struct {
 	// Reboot says the change reboots its server, for a server's host, which makes
 	// no revision and can't be undone (ADR 0064).
 	Reboot *resource.Reboot `json:",omitempty"`
+	// Forget says the change takes no step for it on the server it removes: what
+	// it left there stays (ADR 0090).
+	Forget bool `json:",omitempty"`
 	// Unit says what the change does to one of its server's system services, for
 	// a server's host, which makes no revision (ADR 0082). Undoing it plans the
 	// action that puts back how the unit stood.
@@ -596,6 +611,10 @@ func (p *Plan) KeyPairs() map[string][]string {
 // or lets two containers write to one place, as a spec chose: two writers can
 // corrupt a database, and applying can't undo that.
 func (p *Plan) Destructive() bool {
+	// A removal cuts a server off, which nothing puts back (ADR 0090).
+	if p.Removes != nil {
+		return true
+	}
 	steps := p.Steps()
 	for i := range steps {
 		if steps[i].Destroys || len(steps[i].Warnings) > 0 || steps[i].Rollout.TwoWriters() {
@@ -687,6 +706,10 @@ type item struct {
 	install *resource.InstallAsked
 	// reboot names the reboot the change asks of a server's host: the change's ID.
 	reboot string
+	// removal is the server the change takes out of the fleet, and forget says
+	// the item takes no step there (ADR 0090).
+	removal *Removal
+	forget  bool
 	// unit is the action the change asks of one of a server's system services.
 	unit *resource.UnitAsked
 	// follows says the change took it in because it uses a value the change
@@ -870,6 +893,8 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Reboot && ed.Ref == items[i].ref }) {
 			items[i].reboot = changeID
 		}
+		items[i].removal = p.Removes
+		items[i].forget = slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Forget && ed.Ref == items[i].ref })
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Unit != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].unit = &resource.UnitAsked{Change: changeID, Name: p.Edits[j].Unit.Name, Action: p.Edits[j].Unit.Action}
 		}
@@ -2303,6 +2328,8 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	if err := e.checkCertificates(ctx, items); err != nil {
 		return nil, err
 	}
+	// The server a removal takes out takes no step for what it leaves there.
+	removal := leaving(items)
 	var servers, removed []string
 	byServer := map[string][]*item{}
 	for i := range items {
@@ -2319,6 +2346,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 		}
 	}
+	// A server a removal takes steps on for some items, and lets go of others, is one
+	// with steps (ADR 0090).
+	removed = slices.DeleteFunc(removed, func(s string) bool { return slices.Contains(servers, s) })
 	names, err := e.serverNames(ctx, slices.Concat(servers, removed))
 	if err != nil {
 		return nil, err
@@ -2340,11 +2370,19 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	}
 	ref := func(r resource.Ref) string { return fmt.Sprintf("%s|%s|%s", r.Kind, stable(r.Scope), r.Name) }
 
-	plan := &Plan{}
+	plan := &Plan{Removes: removal}
 	// fp is the fingerprint, and plain the one an earlier version would
 	// have made, which differ only in how they digest a spec.
 	keyed, plain := sha256.New(), sha256.New()
 	fp := io.MultiWriter(keyed, plain)
+	if removal != nil {
+		fmt.Fprintf(fp, "removes %s|%t\n", removal.Server, removal.Compromised)
+		for i := range items {
+			if items[i].forget {
+				fmt.Fprintf(fp, "forget %s\n", ref(items[i].ref))
+			}
+		}
+	}
 	for i := range items {
 		it := &items[i]
 		if it.changes() {
@@ -2659,6 +2697,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
 		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id]
+		rp.Forget = items[i].forget
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -3627,6 +3666,13 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 		if err := KeepProofs(ctx, tx.Tx, plan.Proofs()); err != nil {
 			return err
 		}
+		// A server that may be compromised is out of the fleet from now on,
+		// before any step (ADR 0090).
+		if r := plan.Removes; r != nil && r.Compromised {
+			if err := e.revoke(ctx, tx.Tx, c, r.Server); err != nil {
+				return err
+			}
+		}
 		return tx.StartApplying(ctx, c.ID, by.Actor, by.Via, record, now)
 	})
 	e.mu.Unlock()
@@ -3640,6 +3686,9 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	c.State, c.AppliedAt, c.AppliedBy, c.AppliedVia, c.Progress = store.ChangeApplying, now, by.Actor, by.Via, record
 	e.track(c.ID, progress)
 	e.published(c.ID, store.ChangeApplying)
+	if r := plan.Removes; r != nil && r.Compromised {
+		e.removed(r.Server)
+	}
 	return &committed{c: c, items: items, plan: plan}, nil
 }
 
@@ -3989,8 +4038,17 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		return reconnects(names)
 	}
-	if err := e.finish(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID)); err != nil {
+	// A removal's last act is the server leaving the fleet, as the change is
+	// applied (ADR 0090).
+	var then func(*store.RevisionTx) error
+	if rm := r.plan.Removes; rm != nil && !rm.Compromised {
+		then = func(tx *store.RevisionTx) error { return e.revoke(ctx, tx.Tx, c, rm.Server) }
+	}
+	if err := e.finishWith(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID), then); err != nil {
 		return err
+	}
+	if rm := r.plan.Removes; rm != nil && !rm.Compromised {
+		e.removed(rm.Server)
 	}
 	e.published(c.ID, store.ChangeApplied)
 	return nil
@@ -4235,6 +4293,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
 			it.unit = unitIn(c, ref)
+			it.removal, it.forget = removalIn(c), forgetIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -4421,6 +4480,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
 		it.unit = unitIn(c, ref)
+		it.removal, it.forget = removalIn(c), forgetIn(c, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
@@ -4520,6 +4580,11 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 // finish records how a change ended, with its progress, and audits it as
 // whoever applied it.
 func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, event string, progress *Progress) error {
+	return e.finishWith(ctx, c, state, errText, event, progress, nil)
+}
+
+// finishWith is finish with then in the same transaction, when it isn't nil.
+func (e *Engine) finishWith(ctx context.Context, c store.Change, state, errText, event string, progress *Progress, then func(*store.RevisionTx) error) error {
 	now := e.now()
 	actor, via := c.Actor, c.ProposedVia
 	if c.AppliedBy != "" {
@@ -4531,6 +4596,11 @@ func (e *Engine) finish(ctx context.Context, c store.Change, state, errText, eve
 		}
 		if err := writeProgress(ctx, tx, c.ID, progress); err != nil {
 			return err
+		}
+		if then != nil {
+			if err := then(tx); err != nil {
+				return err
+			}
 		}
 		return tx.RecordEvent(ctx, store.Event{ID: id.New(id.Event), At: now, Actor: actor, Action: event, Subject: c.ID, Detail: c.Summary, Surface: via})
 	})
@@ -5289,6 +5359,9 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	}
 	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Reboot != nil }) {
 		return nil, fault.New(ErrCantUndo, "a reboot can't be undone: %s rebooted its server, and nothing it changed is to put back", changeID)
+	}
+	if took, err := DecodePlan(c.Plan); err == nil && took.Removes != nil {
+		return nil, fault.New(ErrCantUndo, "a removal can't be undone: %s took %s out of the fleet. Join it again with a new ticket from Add server", changeID, cmp.Or(took.Removes.Name, took.Removes.Server))
 	}
 	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Unit != nil }) {
 		return e.undoUnits(ctx, c, took, by)
