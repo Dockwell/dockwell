@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/collect"
+	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentfiles "github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/system"
@@ -122,6 +123,9 @@ type testServer struct {
 	// access keeps its firewall's changes that wait for their confirmation, when
 	// it has a firewall under the timer.
 	access agent.AccessConfirmer
+	// keeps has its agent keep what its server runs (ADR 0054), each run in a new
+	// cache of its own, as an agent whose records were lost starts.
+	keeps bool
 }
 
 // addServer enrolls a server, hz-1, and connects its agent with fake
@@ -191,6 +195,13 @@ func (s *testServer) run(t *testing.T) {
 		cfg.Builds = s.builds
 	}
 	cfg.Images = s.images
+	if s.keeps {
+		kept, err := desired.Open(t.TempDir(), s.id.ServerID, slog.New(slog.DiscardHandler))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.Desired = kept
+	}
 	if cfg.Images.Test == "" {
 		cfg.Images.Off = "this is a test, so it reads no image from a registry"
 	}

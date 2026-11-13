@@ -28,8 +28,14 @@ var ErrNotPlaced = errors.New("the resource isn't placed on that server")
 // it is about to run on: each value by the name the resource sees it as,
 // read at the revision the spec pins. It gives values only for a resource
 // whose latest revision is placed on server, and only for that revision's
-// spec, which desired must be: a server gets the secrets of what runs on
-// it, and nothing else.
+// spec as the server sees it, which desired must be: a server gets the
+// secrets of what runs on it, and nothing else.
+//
+// What only the control plane keeps (resource.ControlOnly), such as which of a
+// service's values reads show (ADR 0081), never reaches a server, so it doesn't
+// count: a revision that changes only that applies nothing, and the spec a
+// server runs, and is sent to keep (ADR 0054), is still the latest's as the
+// server sees it (#593).
 func (k *Keeper) Values(ctx context.Context, server string, ref resource.Ref, desired proto.Message) (map[string]string, error) {
 	t, err := k.kinds.Type(ref.Kind)
 	if err != nil {
@@ -55,7 +61,7 @@ func (k *Keeper) Values(ctx context.Context, server string, ref resource.Ref, de
 		if err != nil {
 			return err
 		}
-		if !proto.Equal(latest, desired) {
+		if !proto.Equal(k.kinds.OnServer(ref.Kind, latest), k.kinds.OnServer(ref.Kind, desired)) {
 			return fault.New(ErrNotPlaced, "the spec to apply isn't the latest revision of %s %s, so its values don't go to %s", ref.Kind, ref.Name, server)
 		}
 		for _, u := range resource.Uses(t, latest) {

@@ -4,11 +4,13 @@ package secrets_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -294,9 +296,9 @@ func testValuesGoOnlyWhereTheServiceRuns(t *testing.T, backend store.Backend) {
 	docker := map[string]*containertest.Fake{"srv_A": containertest.NewFake(), "srv_B": containertest.NewFake()}
 	agents := fleet{}
 	for id, d := range docker {
-		agents[id] = resource.Local{
+		agents[id] = serverSide{Local: resource.Local{
 			Drivers: resource.NewRegistry(&service.Driver{Containers: container.Driver{Runtime: d}}), Server: id, Values: k,
-		}
+		}, kinds: kinds()}
 	}
 	e := revision.New(db, kinds(), agents, k, logger)
 	var env string
@@ -347,6 +349,79 @@ func testValuesGoOnlyWhereTheServiceRuns(t *testing.T, backend store.Backend) {
 	if _, err := k.Values(t.Context(), "srv_A", ref, other); !errors.Is(err, secrets.ErrNotPlaced) || !strings.Contains(err.Error(), "isn't the latest revision") {
 		t.Errorf("values for a spec that isn't api's: %v, want it refused", err)
 	}
+
+	// A revision that changes only what the control plane keeps, as showing a value
+	// does (ADR 0081), applies nothing on the server: what the server runs, at the
+	// revision before, and as it's sent to keep without what only the control plane
+	// keeps, still gets its values (#593).
+	withPlain := proto.CloneOf(api)
+	withPlain.GetApp().Env = map[string]string{"PLAIN": "hello"}
+	shown := proto.CloneOf(withPlain)
+	shown.ShownEnv = []string{"PLAIN"}
+	for _, spec := range []*resourcev1.Service{withPlain, shown} {
+		plan, err := e.Propose(t.Context(), revision.Proposal{Summary: "Change api", Actor: "usr_test", Edits: []revision.Edit{
+			{Ref: ref, Spec: spec, Servers: []string{"srv_A"}},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := e.Apply(t.Context(), plan.Change); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// As the store keeps them, with their defaults and pins: the revision the server
+	// runs, which showing the value didn't change there, and the latest.
+	var before, latest proto.Message
+	_ = db.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(service.Kind), env, "api")
+		if err != nil {
+			t.Fatal(err)
+		}
+		earlier, err := tx.GetRevision(t.Context(), r.ID, r.Revision-1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before, err = k.Decode(t.Context(), tx, store.InRevision(r.ID, r.Kind, earlier.Revision), earlier.Spec); err != nil {
+			t.Fatal(err)
+		}
+		latest, err = k.Decode(t.Context(), tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		return err
+	})
+	if len(latest.(*resourcev1.Service).GetShownEnv()) == 0 || len(before.(*resourcev1.Service).GetShownEnv()) != 0 {
+		t.Fatalf("the revisions read as %v, then %v", before, latest)
+	}
+	for i, desired := range []proto.Message{before, kinds().OnServer(service.Kind, before), latest, kinds().OnServer(service.Kind, latest)} {
+		values, err := k.Values(t.Context(), "srv_A", ref, desired)
+		if err != nil || values["DATABASE_URL"] != "postgres://hunter2@db" {
+			t.Errorf("values for what srv_A runs (%d), after a revision that only shows a value: %v, %v", i, values, err)
+		}
+	}
+	// What the server would see differently is still refused.
+	changed := proto.CloneOf(latest.(*resourcev1.Service))
+	changed.GetApp().Env = map[string]string{"PLAIN": "something else"}
+	if _, err := k.Values(t.Context(), "srv_A", ref, changed); !errors.Is(err, secrets.ErrNotPlaced) {
+		t.Errorf("values for a spec the server would see differently: %v, want it refused", err)
+	}
+}
+
+// serverSide is a server's agent as the control plane reaches it: what only the
+// control plane keeps comes off each spec before the server sees it, and the
+// server's values are asked for that spec, as the agent stream has it (agentapi).
+type serverSide struct {
+	resource.Local
+	kinds *resource.Registry
+}
+
+func (s serverSide) Plan(ctx context.Context, desired []resource.Desired) ([]resource.Step, error) {
+	out := slices.Clone(desired)
+	for i := range out {
+		out[i].Spec = s.kinds.OnServer(out[i].Ref.Kind, out[i].Spec)
+	}
+	return s.Local.Plan(ctx, out)
+}
+
+func (s serverSide) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	return s.Local.Apply(ctx, step, s.kinds.OnServer(step.Ref.Kind, desired))
 }
 
 // A list opens many specs, so it can't read a key for each.
