@@ -3,8 +3,12 @@
 package container_test
 
 import (
+	"context"
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -40,8 +44,11 @@ func TestAFileMountRunsAndReadsBackAsItsSpec(t *testing.T) {
 	planAndApply(t, l, webRef(), spec)
 	c := e.Container(service.ContainerName(webRef()))
 	conf := files.Path(nginxConf, 0o444)
-	if !strings.Contains(strings.Join(c.HostConfig.Binds, " "), conf+":/etc/nginx/conf.d/default.conf:ro") {
-		t.Errorf("binds on Docker: %v", c.HostConfig.Binds)
+	// M2: bound as a mount of type bind, which fails where its source is missing,
+	// never as a Binds entry, for which Docker would make an empty folder instead.
+	if !slices.Contains(c.HostConfig.Mounts, docker.Mount{Type: "bind", Source: conf, Target: "/etc/nginx/conf.d/default.conf", ReadOnly: true}) ||
+		strings.Contains(strings.Join(c.HostConfig.Binds, " "), conf) {
+		t.Errorf("mounts on Docker: %v, binds %v", c.HostConfig.Mounts, c.HostConfig.Binds)
 	}
 	if b, err := os.ReadFile(conf); err != nil || string(b) != nginxConf {
 		t.Errorf("the file kept is %q, %v", b, err)
@@ -89,6 +96,9 @@ func TestWhatAFileMountTakes(t *testing.T) {
 		"a file too big":      {[]*resourcev1.Mount{fileMount("/a", big, 0)}, "writes up to 256 KiB"},
 		"a writable file":     {[]*resourcev1.Mount{fileMount("/a", "x", 0o644)}, "is read-only"},
 		"a file made by hand": {[]*resourcev1.Mount{{Target: "/a", MakeOwner: "1:1", Source: &resourcev1.Mount_File{File: &resourcev1.MountFile{Content: "x"}}}}, "takes no external, make_owner or relabel"},
+		"a file in /proc":     {[]*resourcev1.Mount{fileMount("/proc/sys/kernel/x", "x", 0)}, "the kernel's own folders"},
+		"a file in /sys":      {[]*resourcev1.Mount{fileMount("/sys/x", "x", 0)}, "the kernel's own folders"},
+		"a file in /dev":      {[]*resourcev1.Mount{fileMount("//dev/../dev/x", "x", 0)}, "the kernel's own folders"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := container.Validate(&resourcev1.Container{Image: "nginx:1.27", Mounts: c.mounts}); err == nil || !strings.Contains(err.Error(), c.want) {
@@ -142,5 +152,88 @@ func TestTheFileStore(t *testing.T) {
 	}
 	if _, err := os.Stat(young); err != nil {
 		t.Errorf("a file written a moment ago is gone: %v", err)
+	}
+}
+
+// M2: a prune that can't tell what a container mounts removes nothing, as a file it
+// took for unused would leave that container on an empty folder at its next start.
+func TestAPruneRemovesNothingItCantTellIsUnused(t *testing.T) {
+	for name, fail := range map[string]func(cancel func()) error{
+		"an inspect that fails":           func(func()) error { return errors.New("the engine is busy") },
+		"a context cancelled in the loop": func(cancel func()) error { cancel(); return nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			f := &container.Files{Dir: t.TempDir(), Client: e.Client()}
+			e.AddContainer(docker.Container{Name: "/a"})
+			e.AddContainer(docker.Container{Name: "/b"})
+			old, err := f.Write("old", 0o444)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Chtimes(old, time.Now().Add(-2*time.Hour), time.Now().Add(-2*time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			e.Intercept(func(r *http.Request) error {
+				if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/json") && strings.Contains(r.URL.Path, "/containers/") && !strings.HasSuffix(r.URL.Path, "/containers/json") {
+					return fail(cancel)
+				}
+				return nil
+			})
+			if err := f.Prune(ctx); err == nil {
+				t.Error("the prune says it read every container")
+			}
+			if _, err := os.Stat(old); err != nil {
+				t.Errorf("a file it couldn't tell was unused is gone: %v", err)
+			}
+		})
+	}
+}
+
+// M2: a file written again, as a container is made anew with it, counts its hour
+// from then, so a prune never takes it from under a container being made.
+func TestAFileWrittenAgainIsKeptAnotherHour(t *testing.T) {
+	e := dockertest.New(t)
+	f := &container.Files{Dir: t.TempDir(), Client: e.Client()}
+	p, err := f.Write("again", 0o444)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p, time.Now().Add(-2*time.Hour), time.Now().Add(-2*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write("again", 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Prune(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p); err != nil {
+		t.Errorf("a file written a moment ago, again, is gone: %v", err)
+	}
+}
+
+// M2: an empty folder on a file's name, as Docker makes for a missing bind source,
+// gives way to the file; one that holds something is left, saying so.
+func TestAFolderOnAFilesNameGivesWayWhenEmpty(t *testing.T) {
+	f := &container.Files{Dir: t.TempDir()}
+	p := f.Path("conf", 0o444)
+	if err := os.Mkdir(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := f.Write("conf", 0o444); err != nil || got != p {
+		t.Fatalf("writing over an empty folder = %s, %v", got, err)
+	}
+	if b, err := os.ReadFile(p); err != nil || string(b) != "conf" {
+		t.Errorf("the file reads %q, %v", b, err)
+	}
+	full := f.Path("other", 0o444)
+	if err := os.MkdirAll(filepath.Join(full, "inside"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write("other", 0o444); err == nil || !strings.Contains(err.Error(), "isn't empty") {
+		t.Errorf("writing over a folder that holds something = %v", err)
 	}
 }
