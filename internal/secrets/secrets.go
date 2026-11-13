@@ -93,9 +93,14 @@ type Keeper struct {
 }
 
 // New returns a Keeper over db, with the install's key. kinds reads the
-// specs it resolves and reveals.
+// specs it resolves and reveals. What reads a stored spec directly opens it
+// with the keeper from then on (store.Tx.Open), as a route's is sealed.
 func New(db *store.DB, key *seal.Key, kinds *resource.Registry) *Keeper {
-	return &Keeper{db: db, key: key, kinds: kinds, digest: key.Derive("spec digests"), now: time.Now}
+	k := &Keeper{db: db, key: key, kinds: kinds, digest: key.Derive("spec digests"), now: time.Now}
+	if db != nil {
+		db.SetOpener(k)
+	}
+	return k
 }
 
 // Sealed reports whether a stored spec is sealed.
@@ -237,7 +242,7 @@ func (k *Keeper) Seal(ctx context.Context, tx *store.Tx, at store.SpecAt, encode
 // (ErrUnsealed).
 func (k *Keeper) Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	if !Sealed(stored) {
-		if k.sealedKind(resource.Kind(at.Kind)) {
+		if k.refusesUnsealed(resource.Kind(at.Kind), stored) {
 			return nil, unsealed(at)
 		}
 		return stored, nil
@@ -332,7 +337,7 @@ func (k *Keeper) openEach(ctx context.Context, tx *store.Tx, specs []store.Store
 	}
 	for i, s := range specs {
 		if !Sealed(s.Spec) {
-			if k.sealedKind(resource.Kind(s.At.Kind)) {
+			if k.refusesUnsealed(resource.Kind(s.At.Kind), s.Spec) {
 				failed[i] = unsealed(s.At)
 				continue
 			}
@@ -382,11 +387,25 @@ func (k *Keeper) openEach(ctx context.Context, tx *store.Tx, specs []store.Store
 	return out, failed, nil
 }
 
-// sealedKind reports a kind whose specs are kept sealed. One this keeper
-// doesn't know counts, as nothing says it holds no secret.
-func (k *Keeper) sealedKind(kind resource.Kind) bool {
+// refusesUnsealed reports a spec stored in the clear that this keeper won't read: one
+// of a kind kept sealed, unless the kind was kept in the clear before it could hold
+// a secret (resource.SealedLater) and the spec holds none, as one stored before then
+// doesn't. What holds a secret was written sealed, so one in the clear that holds
+// any wasn't written by Dockwell. A kind this keeper doesn't know counts as sealed,
+// as nothing says it holds no secret.
+func (k *Keeper) refusesUnsealed(kind resource.Kind, stored []byte) bool {
 	t, err := k.kinds.Type(kind)
-	return err != nil || resource.Sealed(t)
+	if err != nil {
+		return true
+	}
+	if !resource.Sealed(t) {
+		return false
+	}
+	if _, later := t.(resource.SealedLater); !later {
+		return true
+	}
+	spec, err := k.kinds.Decode(kind, stored)
+	return err != nil || resource.SetsSensitive(spec)
 }
 
 // Decode opens a stored spec and reads it as its kind.

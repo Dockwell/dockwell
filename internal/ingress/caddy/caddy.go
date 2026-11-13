@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -22,6 +23,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -334,6 +336,17 @@ type matcher struct {
 	// what the placeholder gives, as header_regexp passes if any one line of a header
 	// matches, and the placeholder joins them all.
 	VarsRegexp map[string]pattern `json:"vars_regexp,omitempty"`
+	// ClientIP is the client Caddy found through a proxy the server trusts, which a
+	// private route's list holds a request from a proxy it names to (ADR 0087).
+	ClientIP *remoteIP `json:"client_ip,omitempty"`
+	// Not holds what a request must match none of.
+	Not []matcher `json:"not,omitempty"`
+	// PathRegexp is what a private path's route also takes: the path's other
+	// spellings, which an app may read as the path (privateVariants).
+	PathRegexp *pattern `json:"path_regexp,omitempty"`
+	// HeaderRegexp holds what a header must look like: Basic credentials of one of
+	// a private route's users (nameCheckOf).
+	HeaderRegexp map[string]pattern `json:"header_regexp,omitempty"`
 }
 
 type remoteIP struct {
@@ -381,25 +394,53 @@ type handler struct {
 	LoadBalancing    *loadBalancing `json:"load_balancing,omitempty"`
 	Transport        *transport     `json:"transport,omitempty"`
 	Headers          *headers       `json:"headers,omitempty"`
-	// Routes are a subroute's: what a route believes of its request.
+	// Routes are a subroute's: what a route believes of its request, or whom a
+	// private route keeps out.
 	Routes []beliefRoute `json:"routes,omitempty"`
+	// Providers are the authentication handler's: who signs in to a private route.
+	Providers *providers `json:"providers,omitempty"`
+}
+
+// providers, httpBasic, account and hashAlgo are Caddy's authentication handler,
+// with HTTP Basic: each user's name and bcrypt hash, the domain as the realm, and a
+// cache of what it checked, as each check costs a bcrypt (ADR 0087).
+type providers struct {
+	HTTPBasic *httpBasic `json:"http_basic,omitempty"`
+}
+
+type httpBasic struct {
+	Accounts  []account `json:"accounts"`
+	Hash      *hashAlgo `json:"hash"`
+	HashCache *struct{} `json:"hash_cache,omitempty"`
+	Realm     string    `json:"realm"`
+}
+
+type account struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type hashAlgo struct {
+	Algorithm string `json:"algorithm"`
 }
 
 // beliefRoute is one step of what a route believes. It sets request variables, and
 // its route's reverse_proxy reads those, so which peer is believed is the route's
 // own, though what Caddy trusts is per server.
 type beliefRoute struct {
-	Match  []matcher           `json:"match,omitempty"`
-	Handle []map[string]string `json:"handle"`
+	Match  []matcher        `json:"match,omitempty"`
+	Handle []map[string]any `json:"handle"`
 }
 
-// headers changes what a handler sends upstream.
+// headers changes what a handler sends upstream, and what goes back.
 type headers struct {
-	Request *headerOps `json:"request,omitempty"`
+	Request  *headerOps `json:"request,omitempty"`
+	Response *headerOps `json:"response,omitempty"`
 }
 
 type headerOps struct {
 	Set    map[string][]string `json:"set,omitempty"`
+	Add    map[string][]string `json:"add,omitempty"`
 	Delete []string            `json:"delete,omitempty"`
 }
 
@@ -548,22 +589,22 @@ type pattern struct {
 //   - From either, https is taken at its word, and nothing else is: a visitor can't
 //     put anything else in front of an app through it.
 func beliefOf(named, edge []string) handler {
-	steps := []beliefRoute{{Handle: []map[string]string{{"handler": "vars", clientVar: peerAddress, schemeVar: realScheme}}}}
+	steps := []beliefRoute{{Handle: []map[string]any{{"handler": "vars", clientVar: peerAddress, schemeVar: realScheme}}}}
 	if len(named) > 0 {
 		steps = append(steps, beliefRoute{
 			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: named}}},
-			Handle: []map[string]string{{"handler": "vars", clientVar: resolvedClient}},
+			Handle: []map[string]any{{"handler": "vars", clientVar: resolvedClient}},
 		})
 	}
 	if len(edge) > 0 {
 		steps = append(steps, beliefRoute{
 			Match:  []matcher{{RemoteIP: &remoteIP{Ranges: edge}, VarsRegexp: map[string]pattern{edgeClient: {Pattern: addressShape}}}},
-			Handle: []map[string]string{{"handler": "vars", clientVar: edgeClient}},
+			Handle: []map[string]any{{"handler": "vars", clientVar: edgeClient}},
 		})
 	}
 	steps = append(steps, beliefRoute{
 		Match:  []matcher{{RemoteIP: &remoteIP{Ranges: slices.Concat(named, edge)}, Header: map[string][]string{"X-Forwarded-Proto": {"https"}}}},
-		Handle: []map[string]string{{"handler": "vars", schemeVar: "https"}},
+		Handle: []map[string]any{{"handler": "vars", schemeVar: "https"}},
 	})
 	return handler{Handler: "subroute", Routes: steps}
 }
@@ -632,17 +673,180 @@ func routeJSON(r ingress.Route) route {
 		Transport:     upstreamTransport(),
 		Headers:       ownName(clientAddress(), r.Domain),
 	}
-	handle := []handler{h}
-	if len(r.TrustedProxies)+len(r.EdgeProxies) > 0 {
+	var handle []handler
+	if believes(r) {
 		h.Headers = ownName(believingAddress(), r.Domain)
-		handle = []handler{beliefOf(r.TrustedProxies, r.EdgeProxies), h}
+		handle = append(handle, beliefOf(r.TrustedProxies, r.EdgeProxies))
 	}
+	if len(r.Allow) > 0 {
+		handle = append(handle, gateOf(r))
+	}
+	if len(r.Users) > 0 {
+		handle = append(handle, nameCheckOf(r), signInOf(r))
+	}
+	h.Headers = guarded(h.Headers, r)
+	match := []matcher{m}
+	if r.Path != "" && keepsOut(r) {
+		variant := m
+		variant.Path, variant.PathRegexp = nil, &pattern{Pattern: privateVariants(r.Path)}
+		match = append(match, variant)
+	}
+	handle = append(handle, h)
 	if r.Held {
 		// Its answer comes first, and ends the request, so nothing goes on; the steps
 		// after it stay, so reading the route back reads where it sends.
 		handle = append([]handler{heldHandler()}, handle...)
 	}
-	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: handle}
+	return route{ID: r.ID, Match: match, Terminal: true, Handle: handle}
+}
+
+// keepsOut reports a route with a list or users.
+func keepsOut(r ingress.Route) bool { return len(r.Allow)+len(r.Users) > 0 }
+
+// privateVariants matches a private path's other spellings, decoded, in any case: the
+// path with a ";" or "\\" after it, or with nothing after it but spaces, control
+// characters or dots. A path matcher sees none of them as the path, so they would
+// fall to a public route above it, and Tomcat, Jetty and Undertow take ";x" off, as
+// Windows servers take off trailing dots and spaces (#606's review, H2). Something
+// that only starts the same, such as /admin2 or /admin.php, is another path.
+func privateVariants(path string) string {
+	return `(?i)^` + regexp.QuoteMeta(path) + `(?:$|[/;\\]|[\x00-\x20.]+$)`
+}
+
+// believes reports a route that names a proxy, whose steps decide what it believes
+// of a request (beliefOf).
+func believes(r ingress.Route) bool { return len(r.TrustedProxies)+len(r.EdgeProxies) > 0 }
+
+// refused is what a private route answers someone off its list: 403, and nothing
+// else, so it says nothing of what's behind it.
+var refused = []map[string]any{{"handler": "static_response", "status_code": "403"}}
+
+// nameCheckOf answers 401 to Basic credentials that don't name one of a private
+// route's users, and to none, as the authentication handler would, but before it.
+// Caddy checks a name it doesn't know against a fake hash of its own, at cost 14,
+// sixteen times the cost of a wrong password here, so a stranger's made-up names
+// would cost the server most (#606's review, M1).
+func nameCheckOf(r ingress.Route) handler {
+	names := make([]matcher, len(r.Users))
+	for i, u := range r.Users {
+		names[i] = matcher{HeaderRegexp: map[string]pattern{"Authorization": {Pattern: basicNamePattern(u.Name)}}}
+	}
+	ask := []map[string]any{{
+		"handler": "static_response", "status_code": "401",
+		"headers": map[string][]string{"Www-Authenticate": {`Basic realm="` + r.Domain + `"`}},
+	}}
+	return handler{Handler: "subroute", Routes: []beliefRoute{{Match: []matcher{{Not: names}}, Handle: ask}}}
+}
+
+// basicNamePattern matches Basic credentials whose name is name, whatever the
+// password: base64 of "name:", as far as the password leaves it fixed, and the
+// characters a password can follow it with. It pins every bit of "name:", so it
+// matches no other name. The scheme's word may be in any case, as Go reads it.
+func basicNamePattern(name string) string {
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	s := name + ":"
+	whole := len(s) / 3 * 3
+	fixed := base64.StdEncoding.EncodeToString([]byte(s[:whole]))
+	var then string
+	switch rest := s[whole:]; len(rest) {
+	case 1:
+		// Its top six bits, then its last two with the password's first four.
+		fixed += string(alphabet[rest[0]>>2])
+		at := int(rest[0]&3) << 4
+		then = "[" + alphabet[at:at+16] + "]"
+	case 2:
+		fixed += string(alphabet[rest[0]>>2]) + string(alphabet[(rest[0]&3)<<4|rest[1]>>4])
+		at := int(rest[1]&15) << 2
+		then = "[" + alphabet[at:at+4] + "]"
+	}
+	return `^(?i:basic) ` + regexp.QuoteMeta(fixed) + then
+}
+
+// gateOf keeps out whoever isn't on a private route's list, by the client the route
+// believes (ADR 0087). With no proxy named, that's the peer on the connection. From
+// a proxy it names, it's the client Caddy found behind it, which is what beliefOf
+// believes; from anyone else, the peer. Nothing reads X-Forwarded-For on its own.
+func gateOf(r ingress.Route) handler {
+	allow := &remoteIP{Ranges: r.Allow}
+	if len(r.TrustedProxies) == 0 {
+		return handler{Handler: "subroute", Routes: []beliefRoute{
+			{Match: []matcher{{Not: []matcher{{RemoteIP: allow}}}}, Handle: refused},
+		}}
+	}
+	named := &remoteIP{Ranges: r.TrustedProxies}
+	return handler{Handler: "subroute", Routes: []beliefRoute{
+		{Match: []matcher{{RemoteIP: named, Not: []matcher{{ClientIP: allow}}}}, Handle: refused},
+		{Match: []matcher{{Not: []matcher{{RemoteIP: named}, {RemoteIP: allow}}}}, Handle: refused},
+	}}
+}
+
+// gateStatus is what a subroute that answers a request itself answers with: "403"
+// for a list's gate, "401" for the check of users' names, or "" for one that
+// doesn't, as what a route believes doesn't.
+func gateStatus(h handler) string {
+	for _, r := range h.Routes {
+		for _, m := range r.Handle {
+			if m["handler"] == "static_response" {
+				status, _ := m["status_code"].(string)
+				return status
+			}
+		}
+	}
+	return ""
+}
+
+// readGate reads a gate's list: what the first of its steps lets through.
+func readGate(h handler) []string {
+	if len(h.Routes) == 0 || len(h.Routes[0].Match) != 1 || len(h.Routes[0].Match[0].Not) == 0 {
+		return nil
+	}
+	not := h.Routes[0].Match[0].Not
+	last := not[len(not)-1]
+	switch {
+	case last.ClientIP != nil:
+		return last.ClientIP.Ranges
+	case last.RemoteIP != nil:
+		return last.RemoteIP.Ranges
+	}
+	return nil
+}
+
+// signInOf asks for a private route's users' names and passwords, with the domain
+// as the realm, so a browser keeps them apart from another domain's.
+func signInOf(r ingress.Route) handler {
+	accounts := make([]account, len(r.Users))
+	for i, u := range r.Users {
+		accounts[i] = account{Username: u.Name, Password: u.Hash}
+	}
+	return handler{Handler: "authentication", Providers: &providers{HTTPBasic: &httpBasic{
+		Accounts: accounts, Hash: &hashAlgo{Algorithm: "bcrypt"}, HashCache: &struct{}{}, Realm: r.Domain,
+	}}}
+}
+
+// readUsers reads who signs in, from signInOf's handler.
+func readUsers(h handler) []ingress.User {
+	if h.Providers == nil || h.Providers.HTTPBasic == nil {
+		return nil
+	}
+	var out []ingress.User
+	for _, a := range h.Providers.HTTPBasic.Accounts {
+		out = append(out, ingress.User{Name: a.Username, Hash: a.Password})
+	}
+	return out
+}
+
+// guarded is what a private route sends on and back. With users, it sends on what
+// it would, less the password a visitor signed in with, so an app that logs its
+// headers can't log it. A private route's answers are its visitors' alone, so it
+// tells a shared cache not to keep them (#606's review, L2).
+func guarded(h *headers, r ingress.Route) *headers {
+	if len(r.Users) > 0 {
+		h.Request.Delete = append(slices.Clone(h.Request.Delete), "Authorization")
+	}
+	if keepsOut(r) {
+		h.Response = &headerOps{Add: map[string][]string{"Cache-Control": {"private"}}}
+	}
+	return h
 }
 
 // heldBody is what a held route answers (ADR 0084).
@@ -1232,6 +1436,7 @@ func routeID(raw json.RawMessage) string {
 var (
 	knownRouteKeys   = []string{"@id", "match", "handle", "terminal"}
 	knownMatchKeys   = []string{"host", "path", "protocol", "remote_ip"}
+	knownVariantKeys = []string{"host", "path_regexp", "protocol", "remote_ip"}
 	knownHandlerKeys = []string{"handler", "upstreams", "flush_interval", "stream_close_delay", "load_balancing", "headers", "transport"}
 )
 
@@ -1251,7 +1456,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	out := ingress.Route{ID: id}
 	raw, out.Held = unheld(raw)
 	var r route
-	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) != 1 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 2 || r.Handle[len(r.Handle)-1].Handler != "reverse_proxy" {
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 5 || r.Handle[len(r.Handle)-1].Handler != "reverse_proxy" {
 		out.Edited = true
 		return out, true
 	}
@@ -1274,18 +1479,35 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	for _, u := range proxy.Upstreams {
 		out.Upstreams = append(out.Upstreams, u.Dial)
 	}
-	if len(r.Handle) == 2 {
-		out.TrustedProxies, out.EdgeProxies = readBelief(r.Handle[0])
+	for i := range len(r.Handle) - 1 {
+		h := &r.Handle[i]
+		switch status := gateStatus(*h); {
+		case h.Handler == "subroute" && status == "403":
+			out.Allow = readGate(*h)
+		case h.Handler == "subroute" && status == "401":
+			// The users' names, which the authentication handler says; it's checked
+			// against what they write below.
+		case h.Handler == "subroute" && status != "":
+			out.Edited = true
+		case h.Handler == "subroute":
+			out.TrustedProxies, out.EdgeProxies = readBelief(*h)
+		case h.Handler == "authentication":
+			out.Users = readUsers(*h)
+		default:
+			out.Edited = true
+		}
 	}
 	out.PlainForAnyone = out.Plain && r.Match[0].RemoteIP == nil
-	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, len(r.Handle) == 2, out.Domain) || !beliefAndReachAreOurs(r, out) || !transportIsOurs(raw)
+	out.Edited = out.Edited || !onlyKnownKeys(raw) || !headersAreOurs(raw, out) || !beliefAndReachAreOurs(raw, r, out) || !transportIsOurs(raw)
 	return out, true
 }
 
 // beliefAndReachAreOurs reports a route whose steps and whose reach are what
-// Dockwell would write for what it read of them, as these decide who it answers and
-// what a service believes, and a hand edit of them would otherwise read as nothing.
-func beliefAndReachAreOurs(r route, read ingress.Route) bool {
+// Dockwell would write for what it read of them, as these decide who it answers,
+// whom it keeps out and what a service believes, and a hand edit of them would
+// otherwise read as nothing. Each step is compared as Caddy has it, so a key Dockwell
+// doesn't write is a difference too.
+func beliefAndReachAreOurs(raw json.RawMessage, r route, read ingress.Route) bool {
 	// What's read is the route without a held route's answer, which is compared apart.
 	read.Held = false
 	want := routeJSON(read)
@@ -1294,15 +1516,27 @@ func beliefAndReachAreOurs(r route, read ingress.Route) bool {
 	if err1 != nil || err2 != nil || !sameJSON(wantMatch, haveMatch) {
 		return false
 	}
-	if len(r.Handle) != len(want.Handle) {
+	var have struct {
+		Match  []json.RawMessage `json:"match"`
+		Handle []json.RawMessage `json:"handle"`
+	}
+	if json.Unmarshal(raw, &have) != nil || len(have.Handle) != len(want.Handle) || len(have.Match) != len(want.Match) {
 		return false
 	}
-	if len(r.Handle) == 1 {
-		return true
+	// A private path's other spellings, as Dockwell writes them, and nothing more.
+	for i := 1; i < len(want.Match); i++ {
+		m, err := json.Marshal(want.Match[i])
+		if err != nil || !sameJSON(m, have.Match[i]) {
+			return false
+		}
 	}
-	wantSteps, err1 := json.Marshal(want.Handle[0])
-	haveSteps, err2 := json.Marshal(r.Handle[0])
-	return err1 == nil && err2 == nil && sameJSON(wantSteps, haveSteps)
+	for i := range len(want.Handle) - 1 {
+		step, err := json.Marshal(want.Handle[i])
+		if err != nil || !sameJSON(step, have.Handle[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // headersAreOurs reports a route that changes the headers it sends as Dockwell
@@ -1310,7 +1544,9 @@ func beliefAndReachAreOurs(r route, read ingress.Route) bool {
 // a header added by hand is a hand edit, and would otherwise read as nothing. A
 // route that trusts a proxy believes it, and one that doesn't never does. A shape
 // from before ownName reads as ours, and the next change writes over it (withTrust).
-func headersAreOurs(raw json.RawMessage, trusts bool, domain string) bool {
+// A route with users is new, so it has only today's shape, less Authorization.
+func headersAreOurs(raw json.RawMessage, read ingress.Route) bool {
+	trusts, domain := believes(read), read.Domain
 	var r struct {
 		Handle []struct {
 			Headers json.RawMessage `json:"headers"`
@@ -1326,6 +1562,12 @@ func headersAreOurs(raw json.RawMessage, trusts bool, domain string) bool {
 	shapes := []*headers{ownName(clientAddress(), domain), ownName(distrustingAddress(), domain), clientAddress(), olderClientAddress(), distrustingAddress()}
 	if trusts {
 		shapes = []*headers{ownName(believingAddress(), domain), believingAddress()}
+	}
+	switch {
+	case keepsOut(read) && trusts:
+		shapes = []*headers{guarded(ownName(believingAddress(), domain), read)}
+	case keepsOut(read):
+		shapes = []*headers{guarded(ownName(clientAddress(), domain), read), guarded(ownName(distrustingAddress(), domain), read)}
 	}
 	for _, h := range slices.Clone(shapes) {
 		if slices.Equal(h.Request.Delete, stripped()) {
@@ -1377,7 +1619,10 @@ func onlyKnownKeys(raw json.RawMessage) bool {
 		}
 		return true
 	}
-	return in(top, knownRouteKeys) && len(r.Match) == 1 && in(r.Match[0], knownMatchKeys) && len(r.Handle) > 0 && in(r.Handle[len(r.Handle)-1], knownHandlerKeys)
+	// A private path's route has a second matcher, of its other spellings, which
+	// beliefAndReachAreOurs holds to what Dockwell writes.
+	variants := len(r.Match) == 1 || (len(r.Match) == 2 && in(r.Match[1], knownVariantKeys))
+	return in(top, knownRouteKeys) && len(r.Match) > 0 && in(r.Match[0], knownMatchKeys) && variants && len(r.Handle) > 0 && in(r.Handle[len(r.Handle)-1], knownHandlerKeys)
 }
 
 // whyDown is what to say of a Caddy that can't take a change. Reading its last
@@ -1645,17 +1890,13 @@ func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 		// One with steps of its own decides for itself what it believes, whatever the
 		// server trusts, and only needs its own name written.
 		want := ownName(clientAddress(), read.Domain)
-		// A held route's answer comes first, and is no step of what it believes.
-		steps := len(r.Handle)
-		if read.Held {
-			steps--
-		}
 		switch {
-		case steps == 2:
+		case believes(read):
 			want = ownName(believingAddress(), read.Domain)
 		case serverTrusts:
 			want = ownName(distrustingAddress(), read.Domain)
 		}
+		want = guarded(want, read)
 		last := &r.Handle[len(r.Handle)-1]
 		have, err1 := json.Marshal(last.Headers)
 		ours, err2 := json.Marshal(want)

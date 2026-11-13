@@ -10950,6 +10950,21 @@ components:
                     description: |-
                         The proxies in front it believes, as Route.trusted_proxies names them, so what
                          reads a route has all of it.
+                allow:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Who it lets in, as addresses and ranges, as Route.access says: anyone else
+                         gets 403. Empty lets in everyone it answers (ADR 0087).
+                users:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Who may sign in to it with a password, by name, in its order. A password,
+                         or its hash, is never shown: an edit that names a user with no password
+                         keeps theirs.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -10990,6 +11005,13 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/DomainCheck'
                     description: What DNS says of it.
+                strangers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/StrangerCheck'
+                    description: |-
+                        What a stranger gets from each of its routes that keeps anyone out, by path,
+                         as the server last asked them (ADR 0087).
             description: DomainStatus is where one domain's certificate and DNS stand on a server.
         DownloadFileResponse:
             type: object
@@ -13001,6 +13023,7 @@ components:
                         - HOST_ACCESS_KIND_EXTERNAL_VOLUME
                         - HOST_ACCESS_KIND_TAKES_ON
                         - HOST_ACCESS_KIND_BACKUP_OF
+                        - HOST_ACCESS_KIND_ACCESS_OPENED
                         - HOST_ACCESS_KIND_SERVER_SHELL
                     type: string
                     description: What it is.
@@ -17980,6 +18003,14 @@ components:
                          a person opens it, as an app whose first visitor makes its owner is held while it
                          starts on an empty database, so its owner sets it up first, opening it through
                          the panel (ADR 0084).
+                access:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteAccess'
+                    description: |-
+                        Who gets in: only the addresses on a list, only those who sign in with a
+                         password, or both. Unset, the route answers whoever reaches it. A person
+                         approves any change that lets in someone it kept out. Numbered apart, as open
+                         work adds to this message. See docs/adr/0087-private-routes.md.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -17989,6 +18020,31 @@ components:
                  a certificate; its last stops it and frees them. See
                  docs/adr/0024-the-caddy-ingress-driver.md and
                  docs/adr/0030-routes-behind-a-tunnel-or-a-proxy.md.
+        RouteAccess:
+            type: object
+            properties:
+                allow:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses and ranges that get in, IPv4 and IPv6, such as "203.0.113.7" or
+                         "2001:db8:1::/64", up to 64. Anyone else gets 403 Forbidden. The client is the
+                         one the route believes: the peer on the connection, or what a proxy it names
+                         says. A route that names Cloudflare's preset, or that takes no certificate and
+                         names no proxy, as behind a tunnel on the server's own network, can't have a
+                         list, as it can't tell its visitors apart; passwords work there.
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RouteUser'
+                    description: |-
+                        Who may sign in, with a name and a password, up to 20. Anyone without one is
+                         asked, with 401. An edit that names a user without a password keeps the one
+                         they have.
+            description: |-
+                RouteAccess is who a route lets in. With a list and users, a visitor must be on
+                 the list and sign in; off the list they get 403 before a password is asked.
         RouteAnswers:
             type: object
             properties:
@@ -18048,6 +18104,23 @@ components:
                     description: The port on the server it goes to, when it goes to no service.
                     format: uint32
             description: RouteMove is a route leaving one service for another.
+        RouteUser:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: 'Their name: letters, digits, ".", "_" and "-", up to 64.'
+                password:
+                    type: string
+                    description: |-
+                        A new password, at least 12 characters, given in an edit. It's hashed before
+                         anything keeps it, and never stored or shown.
+                passwordHash:
+                    type: string
+                    description: |-
+                        The bcrypt hash of their password, which is what's kept. A client may give one
+                         itself, as from an htpasswd file, in place of password.
+            description: RouteUser is someone who may sign in to a private route.
         RunTaskRequest:
             type: object
             properties:
@@ -20448,6 +20521,40 @@ components:
             description: |-
                 StepUpChoice is how often someone is asked for their passkey again, and
                  what that comes to in this session.
+        StrangerCheck:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The route's path. Empty is the whole domain.
+                outcome:
+                    enum:
+                        - STRANGER_OUTCOME_UNSPECIFIED
+                        - STRANGER_OUTCOME_KEPT_OUT
+                        - STRANGER_OUTCOME_ASKED_FOR_PASSWORD
+                        - STRANGER_OUTCOME_LET_IN
+                        - STRANGER_OUTCOME_OTHER
+                        - STRANGER_OUTCOME_CANT_TELL
+                    type: string
+                    description: What came of it.
+                    format: enum
+                status:
+                    type: integer
+                    description: |-
+                        The HTTP status it answered with, such as 403, or 0 when nothing answered
+                         or the server can't tell.
+                    format: uint32
+                said:
+                    type: string
+                    description: |-
+                        What it said, in a line, such as "403 Forbidden", or why the server can't
+                         tell, for people.
+            description: |-
+                StrangerCheck is what a stranger gets from a private route, as its server asks
+                 it about once a minute, and at once after a change: from the server itself,
+                 with no password, as an address no list names. A request from there can't be
+                 told apart from a stranger's where the server is on the route's list, or where
+                 the route answers only proxies the server isn't.
         SystemLogLine:
             type: object
             properties:

@@ -126,6 +126,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
   [HostAccessKind.HTTPS_OFF]: 4,
+  [HostAccessKind.ACCESS_OPENED]: 4,
   [HostAccessKind.VOLUME_MOUNT]: 5,
   [HostAccessKind.SERVER_PATH]: 6,
 };
@@ -360,6 +361,14 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           title: t`${name} stops HTTPS on ${path} on ${server}`,
           more: t`https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out.`,
         };
+      case HostAccessKind.ACCESS_OPENED: {
+        const opening = words.access(access);
+        return {
+          key,
+          title: t`${name} lets in someone ${path} kept out`,
+          more: t`It opens ${opening}. A token can keep out more, and only a person lets anyone in.`,
+        };
+      }
       case HostAccessKind.HOST_NETWORK:
         return {
           key,

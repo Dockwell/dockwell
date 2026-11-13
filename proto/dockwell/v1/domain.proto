@@ -118,6 +118,13 @@ message DomainRoute {
   // The proxies in front it believes, as Route.trusted_proxies names them, so what
   // reads a route has all of it.
   repeated string trusted_proxies = 81;
+  // Who it lets in, as addresses and ranges, as Route.access says: anyone else
+  // gets 403. Empty lets in everyone it answers (ADR 0087).
+  repeated string allow = 110;
+  // Who may sign in to it with a password, by name, in its order. A password,
+  // or its hash, is never shown: an edit that names a user with no password
+  // keeps theirs.
+  repeated string users = 111;
 }
 
 // DomainServer is where a domain stands on one server.
@@ -182,6 +189,44 @@ message DomainStatus {
   Certificate certificate = 2;
   // What DNS says of it.
   DomainCheck dns = 3;
+  // What a stranger gets from each of its routes that keeps anyone out, by path,
+  // as the server last asked them (ADR 0087).
+  repeated StrangerCheck strangers = 110;
+}
+
+// StrangerCheck is what a stranger gets from a private route, as its server asks
+// it about once a minute, and at once after a change: from the server itself,
+// with no password, as an address no list names. A request from there can't be
+// told apart from a stranger's where the server is on the route's list, or where
+// the route answers only proxies the server isn't.
+message StrangerCheck {
+  // The route's path. Empty is the whole domain.
+  string path = 1;
+  // What came of it.
+  StrangerOutcome outcome = 2;
+  // The HTTP status it answered with, such as 403, or 0 when nothing answered
+  // or the server can't tell.
+  uint32 status = 3;
+  // What it said, in a line, such as "403 Forbidden", or why the server can't
+  // tell, for people.
+  string said = 4;
+}
+
+// StrangerOutcome is what a stranger gets from a private route.
+enum StrangerOutcome {
+  // Not asked yet.
+  STRANGER_OUTCOME_UNSPECIFIED = 0;
+  // 403: kept out, with nothing else said.
+  STRANGER_OUTCOME_KEPT_OUT = 1;
+  // 401: asked for a name and password.
+  STRANGER_OUTCOME_ASKED_FOR_PASSWORD = 2;
+  // Anything below 400: let in, which a private route shouldn't.
+  STRANGER_OUTCOME_LET_IN = 3;
+  // Another answer, such as a 502 from an app that's down, or none at all.
+  STRANGER_OUTCOME_OTHER = 4;
+  // The server can't tell what a stranger gets from where it asks: said says
+  // why.
+  STRANGER_OUTCOME_CANT_TELL = 5;
 }
 
 // Certificate is where a domain's certificate stands on a server.

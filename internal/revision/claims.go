@@ -228,12 +228,14 @@ func oneOf(names []string) string {
 // takeovers is what each item takes from another scope: a Group it claims
 // that its own scope doesn't hold, which another scope held within the undo
 // window. A token could otherwise delete a route in one change and claim its
-// domain from elsewhere in the next, so a person approves it (ADR 0024). A
+// domain from elsewhere in the next, so a person approves it (ADR 0024). So is
+// what goes off HTTPS (weakening), and what opens a private route (openings). A
 // plan's fingerprint covers it, and it counts as host access.
 func (e *Engine) takeovers(ctx context.Context, items []item) (map[resource.Ref][]resource.Access, error) {
 	wanted := false
 	for i := range items {
-		wanted = wanted || len(e.kinds.Claims(items[i].ref.Kind, items[i].spec)) > 0
+		// A delete can leave what it served to a route above it (openings).
+		wanted = wanted || len(e.kinds.Claims(items[i].ref.Kind, items[i].spec)) > 0 || len(e.kinds.Claims(items[i].ref.Kind, items[i].current)) > 0
 	}
 	if !wanted {
 		return nil, nil
@@ -280,6 +282,9 @@ func (e *Engine) takeovers(ctx context.Context, items []item) (map[resource.Ref]
 				if err := e.weakening(ctx, tx, it, past, items, out); err != nil {
 					return err
 				}
+			}
+			if err := e.openings(ctx, tx, kind, past, items, out); err != nil {
+				return err
 			}
 		}
 		return nil

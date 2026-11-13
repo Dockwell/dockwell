@@ -570,6 +570,12 @@ const (
 	// A backup of a volume that reached path, which is as good as root, coming back
 	// into a volume that doesn't. What it holds can be read from there.
 	HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF HostAccessKind = 18
+	// A private route opened to someone it kept out within the undo window, at the
+	// domain and path in path, and how in detail: its address list taken off or
+	// widened, its users taken off, a user added, or a password changed. A token
+	// could otherwise let itself in. Numbered apart, as open work adds to this enum.
+	// See docs/adr/0087-private-routes.md.
+	HostAccessKind_HOST_ACCESS_KIND_ACCESS_OPENED HostAccessKind = 110
 	// A shell command the agent runs on the server as root, on a schedule (ADR
 	// 0053): the same as root. Numbered in the block scheduled tasks hold, as open
 	// work adds to this enum.
@@ -598,6 +604,7 @@ var (
 		16:  "HOST_ACCESS_KIND_EXTERNAL_VOLUME",
 		17:  "HOST_ACCESS_KIND_TAKES_ON",
 		18:  "HOST_ACCESS_KIND_BACKUP_OF",
+		110: "HOST_ACCESS_KIND_ACCESS_OPENED",
 		150: "HOST_ACCESS_KIND_SERVER_SHELL",
 	}
 	HostAccessKind_value = map[string]int32{
@@ -620,6 +627,7 @@ var (
 		"HOST_ACCESS_KIND_EXTERNAL_VOLUME":  16,
 		"HOST_ACCESS_KIND_TAKES_ON":         17,
 		"HOST_ACCESS_KIND_BACKUP_OF":        18,
+		"HOST_ACCESS_KIND_ACCESS_OPENED":    110,
 		"HOST_ACCESS_KIND_SERVER_SHELL":     150,
 	}
 )
@@ -8781,7 +8789,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
 	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
 	"\x12INTENT_KIND_REPULL\x10\x04\x12\x17\n" +
-	"\x13INTENT_KIND_UPGRADE\x10\x05*\xbe\x05\n" +
+	"\x13INTENT_KIND_UPGRADE\x10\x05*\xe2\x05\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -8803,6 +8811,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	" HOST_ACCESS_KIND_EXTERNAL_VOLUME\x10\x10\x12\x1d\n" +
 	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11\x12\x1e\n" +
 	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12\x12\"\n" +
+	"\x1eHOST_ACCESS_KIND_ACCESS_OPENED\x10n\x12\"\n" +
 	"\x1dHOST_ACCESS_KIND_SERVER_SHELL\x10\x96\x01*\xd3\x01\n" +
 	"\x10DetectionProblem\x12!\n" +
 	"\x1dDETECTION_PROBLEM_UNSPECIFIED\x10\x00\x12!\n" +

@@ -4605,6 +4605,194 @@ msgstr "{name} (default)"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
 
+msgid "A stranger gets 403 Forbidden"
+msgstr "A stranger gets 403 Forbidden"
+
+msgid "A stranger gets in"
+msgstr "A stranger gets in"
+
+msgid "A stranger gets {said}"
+msgstr "A stranger gets {said}"
+
+msgid "A stranger is asked for a password"
+msgstr "A stranger is asked for a password"
+
+msgid "Add a user"
+msgstr "Add a user"
+
+msgid "Add an address or a range"
+msgstr "Add an address or a range"
+
+msgid "Add an address, or turn the list off."
+msgstr "Add an address, or turn the list off."
+
+msgid "Add your address, {entry}"
+msgstr "Add your address, {entry}"
+
+msgid "Add your network, {entry}"
+msgstr "Add your network, {entry}"
+
+msgid "Addresses let in"
+msgstr "Addresses let in"
+
+msgid "Anyone with a Cloudflare Worker can say who they are here, so ask for a password instead."
+msgstr "Anyone with a Cloudflare Worker can say who they are here, so ask for a password instead."
+
+msgid "Ask for a password"
+msgstr "Ask for a password"
+
+msgid "Bind it to the server alone"
+msgstr "Bind it to the server alone"
+
+msgid "Change who gets in to {where}"
+msgstr "Change who gets in to {where}"
+
+msgid "Copy the password"
+msgstr "Copy the password"
+
+msgid "Dockwell shows it only now, and keeps only its hash."
+msgstr "Dockwell shows it only now, and keeps only its hash."
+
+msgid "Every visitor comes from your tunnel's address until the route names it as a proxy."
+msgstr "Every visitor comes from your tunnel's address until the route names it as a proxy."
+
+msgid "I've kept a copy of each password"
+msgstr "I've kept a copy of each password"
+
+msgid "I've kept a copy of the password"
+msgstr "I've kept a copy of the password"
+
+msgid "Its server can't tell from where it asks"
+msgstr "Its server can't tell from where it asks"
+
+msgid "Its server hasn't checked yet"
+msgstr "Its server hasn't checked yet"
+
+msgid "Keep strangers out of an app with no sign-in of its own"
+msgstr "Keep strangers out of an app with no sign-in of its own"
+
+msgid "Keep the password somewhere else"
+msgstr "Keep the password somewhere else"
+
+msgid "Let anyone in to {where}"
+msgstr "Let anyone in to {where}"
+
+msgid "Make it private"
+msgstr "Make it private"
+
+msgid "Make {where} private"
+msgstr "Make {where} private"
+
+msgid "Make {where} private too"
+msgstr "Make {where} private too"
+
+msgid "Name the user, such as admin."
+msgstr "Name the user, such as admin."
+
+msgid "New password for {who}"
+msgstr "New password for {who}"
+
+msgid "Now anyone who reaches it gets in"
+msgstr "Now anyone who reaches it gets in"
+
+msgid "On {on}, a stranger gets 403 Forbidden"
+msgstr "On {on}, a stranger gets 403 Forbidden"
+
+msgid "On {on}, a stranger gets in"
+msgstr "On {on}, a stranger gets in"
+
+msgid "On {on}, a stranger gets {said}"
+msgstr "On {on}, a stranger gets {said}"
+
+msgid "On {on}, a stranger is asked for a password"
+msgstr "On {on}, a stranger is asked for a password"
+
+msgid "Once applied, a stranger gets 403 Forbidden"
+msgstr "Once applied, a stranger gets 403 Forbidden"
+
+msgid "Once applied, a stranger is asked for a password"
+msgstr "Once applied, a stranger is asked for a password"
+
+msgid "Once applied, anyone who reaches it gets in"
+msgstr "Once applied, anyone who reaches it gets in"
+
+msgid "Only these addresses"
+msgstr "Only these addresses"
+
+msgid "Other ways in let anyone reach this app"
+msgstr "Other ways in let anyone reach this app"
+
+msgid "Password copied"
+msgstr "Password copied"
+
+msgid "Password for {who}"
+msgstr "Password for {who}"
+
+msgid "Port {port} on its server"
+msgstr "Port {port} on its server"
+
+msgid "Private"
+msgstr "Private"
+
+msgid "Private here · open at {where}"
+msgstr "Private here · open at {where}"
+
+msgid "Private here · open on port {port}"
+msgstr "Private here · open on port {port}"
+
+msgid "Private · {said}"
+msgstr "Private · {said}"
+
+msgid "Remove {who}"
+msgstr "Remove {who}"
+
+msgid "Take {entry} off the list"
+msgstr "Take {entry} off the list"
+
+msgid "Turn on HTTPS for this domain"
+msgstr "Turn on HTTPS for this domain"
+
+msgid "Turn on HTTPS for {domainName}"
+msgstr "Turn on HTTPS for {domainName}"
+
+msgid "UDP port {port} on its server"
+msgstr "UDP port {port} on its server"
+
+msgid "User name"
+msgstr "User name"
+
+msgid "Visitors reach it over plain HTTP, so a password would cross the network in the clear."
+msgstr "Visitors reach it over plain HTTP, so a password would cross the network in the clear."
+
+msgid "What a stranger gets"
+msgstr "What a stranger gets"
+
+msgid "Who gets in"
+msgstr "Who gets in"
+
+msgid "Who gets in to {where}"
+msgstr "Who gets in to {where}"
+
+msgid "Write an address or a range, such as 203.0.113.7 or 2001:db8::/64."
+msgstr "Write an address or a range, such as 203.0.113.7 or 2001:db8::/64."
+
+msgid "You reach the panel through this server, so your own address can't be offered."
+msgstr "You reach the panel through this server, so your own address can't be offered."
+
+msgid "keeps their password"
+msgstr "keeps their password"
+
+msgctxt "an address on a list, that is yours"
+msgid "you"
+msgstr "you"
+
+msgctxt "an address range on a list, that yours is in"
+msgid "your network"
+msgstr "your network"
+
+msgid "{on} can't tell from where it asks"
+msgstr "{on} can't tell from where it asks"
+
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"
 
@@ -7959,6 +8147,9 @@ msgstr "No downtime"
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
 
+msgid "Opens {opening}"
+msgstr "Opens {opening}"
+
 msgid "Packages it installs on {server}"
 msgstr "Packages it installs on {server}"
 
@@ -8651,6 +8842,9 @@ msgstr "It never bans {never}."
 msgid "It never bans {never}. {counts} {lifting}"
 msgstr "It never bans {never}. {counts} {lifting}"
 
+msgid "It opens {opening}. A token can keep out more, and only a person lets anyone in."
+msgstr "It opens {opening}. A token can keep out more, and only a person lets anyone in."
+
 msgid "It reaches what the server reaches, past Docker's network and the firewall."
 msgstr "It reaches what the server reaches, past Docker's network and the firewall."
 
@@ -9059,6 +9253,9 @@ msgstr "{name} joins the {leadsTo} network {path} on {server}"
 
 msgid "{name} keeps what is in {names} as it is"
 msgstr "{name} keeps what is in {names} as it is"
+
+msgid "{name} lets in someone {path} kept out"
+msgstr "{name} lets in someone {path} kept out"
 
 #. placeholder {0}: server.serverName
 msgid "{name} loses its data on {0}"
@@ -9549,17 +9746,26 @@ msgstr "a {driver} network on {path}"
 msgid "a {type} mount ({reads})"
 msgstr "a {type} mount ({reads})"
 
+msgid "adds the user {named}"
+msgstr "adds the user {named}"
+
 msgid "anyone on the internet"
 msgstr "anyone on the internet"
 
 msgid "anyone who can reach {server}"
 msgstr "anyone who can reach {server}"
 
+msgid "changes the password of {named}"
+msgstr "changes the password of {named}"
+
 msgid "environment {environment}"
 msgstr "environment {environment}"
 
 msgid "firewall rule"
 msgstr "firewall rule"
+
+msgid "lets in {named}"
+msgstr "lets in {named}"
 
 msgid "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
 msgstr "plain HTTP on {path} for anyone who can reach this server, around whatever is in front of it"
@@ -9575,6 +9781,12 @@ msgstr "read-write"
 
 msgid "something else on the server"
 msgstr "something else on the server"
+
+msgid "takes off its list of addresses"
+msgstr "takes off its list of addresses"
+
+msgid "takes off its passwords"
+msgstr "takes off its passwords"
 
 msgid "the Linux capability {path}"
 msgstr "the Linux capability {path}"
@@ -9686,6 +9898,9 @@ msgstr "{path} as a proxy it believes on where a request came from"
 
 msgid "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
 msgstr "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
+
+msgid "{path} to someone it kept out: it {how}"
+msgstr "{path} to someone it kept out: it {how}"
 
 msgid "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
 msgstr "{proxy} isn't running on {server}, so this route starts it, and it takes ports {ports}"
@@ -9994,9 +10209,6 @@ msgstr "{servers}, and sealed on {destination}"
 
 msgid "{servers}, unencrypted"
 msgstr "{servers}, unencrypted"
-
-msgid "Add a user"
-msgstr "Add a user"
 
 msgid "Can do anything"
 msgstr "Can do anything"
@@ -12988,9 +13200,6 @@ msgstr "{running, plural, one {# running} other {# running}}"
 
 msgid "{unknown, plural, one {# unknown} other {# unknown}}"
 msgstr "{unknown, plural, one {# unknown} other {# unknown}}"
-
-msgid "Private"
-msgstr "Private"
 
 msgid "Last heard {seen}; the numbers here are from then."
 msgstr "Last heard {seen}; the numbers here are from then."

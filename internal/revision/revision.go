@@ -2448,6 +2448,10 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 						gained = append(gained, resource.Access{Kind: resource.AccessBackupOf, Path: p})
 					}
 				}
+			} else {
+				// Deleting a private route can leave what it served to a public one
+				// above it (openings).
+				gained = append(gained, takes[it.ref]...)
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])

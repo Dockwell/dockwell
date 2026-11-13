@@ -50,7 +50,27 @@ type DB struct {
 	where string
 	// recorded fires when a write that recorded an audit event commits.
 	recorded signal
+	// opener opens a sealed spec for what reads one directly (Tx.Open).
+	opener atomic.Pointer[Opener]
 }
+
+// Opener opens a stored spec that may be sealed, as the control plane's keeper
+// does, and refuses one it shouldn't read (ADR 0022).
+type Opener interface {
+	Open(ctx context.Context, tx *Tx, at SpecAt, stored []byte) ([]byte, error)
+}
+
+// openerNow is the opener set, or nil.
+func (db *DB) openerNow() Opener {
+	if o := db.opener.Load(); o != nil {
+		return *o
+	}
+	return nil
+}
+
+// SetOpener has what reads a stored spec directly open it with o (Tx.Open). The
+// control plane sets its keeper once it has one.
+func (db *DB) SetOpener(o Opener) { db.opener.Store(&o) }
 
 // Backend names a kind of database the store runs on.
 type Backend string
@@ -302,6 +322,18 @@ type Tx struct {
 	dialect *dialect
 	// recorded is set once a write records an audit event; nil in a read.
 	recorded *bool
+	// opener is the DB's, when it has one.
+	opener Opener
+}
+
+// Open returns a stored spec opened, for code that reads one directly rather than
+// through the revision engine, such as a list of domains. With no opener set, as in
+// a test with no keys, it's the spec as stored.
+func (t *Tx) Open(ctx context.Context, at SpecAt, stored []byte) ([]byte, error) {
+	if t.opener == nil {
+		return stored, nil
+	}
+	return t.opener.Open(ctx, t, at, stored)
 }
 
 func (t *Tx) exec(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -353,7 +385,7 @@ func (db *DB) View(ctx context.Context, fn func(*Tx) error) error {
 		return fmt.Errorf("can't begin a read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	return fn(&Tx{tx: tx, dialect: db.dialect})
+	return fn(&Tx{tx: tx, dialect: db.dialect, opener: db.openerNow()})
 }
 
 // Update runs fn in a write transaction and commits it if fn returns nil.
@@ -367,7 +399,9 @@ func (db *DB) Update(ctx context.Context, fn func(*Tx) error) error {
 // fires Recorded once it commits if fn recorded an audit event.
 func (db *DB) writeTx(ctx context.Context, fn func(*Tx) error) error {
 	var recorded bool
-	err := db.update(ctx, func(tx *sql.Tx) error { return fn(&Tx{tx: tx, dialect: db.dialect, recorded: &recorded}) })
+	err := db.update(ctx, func(tx *sql.Tx) error {
+		return fn(&Tx{tx: tx, dialect: db.dialect, recorded: &recorded, opener: db.openerNow()})
+	})
 	if err == nil && recorded {
 		db.recorded.fire()
 	}

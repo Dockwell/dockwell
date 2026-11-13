@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/domain.proto.
  */
 export const file_dockwell_v1_domain: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjcKEkNoZWNrRG9tYWluUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDgoGZG9tYWluGAIgASgJIj4KE0NoZWNrRG9tYWluUmVzcG9uc2USJwoFY2hlY2sYASABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayI6ChJMaXN0RG9tYWluc1JlcXVlc3QSEwoLZW52aXJvbm1lbnQYASABKAkSDwoHc2VydmljZRgCIAEoCSI7ChNMaXN0RG9tYWluc1Jlc3BvbnNlEiQKB2RvbWFpbnMYASADKAsyEy5kb2Nrd2VsbC52MS5Eb21haW4ikQEKBkRvbWFpbhIMCgRuYW1lGAEgASgJEhYKDmVudmlyb25tZW50X2lkGAIgASgJEgsKA3VybBgDIAEoCRIoCgZyb3V0ZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5Sb3V0ZRIqCgdzZXJ2ZXJzGAUgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU2VydmVyIsIBCgtEb21haW5Sb3V0ZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHBhdGgYAyABKAkSDwoHc2VydmljZRgEIAEoCRIMCgRwb3J0GAUgASgNEgsKA3VybBgGIAEoCRILCgN0bHMYByABKAkSEQoJaG9zdF9wb3J0GAggASgNEhgKEHBsYWluX2Zvcl9hbnlvbmUYCSABKAgSDAoEaGVsZBhQIAEoCBIXCg90cnVzdGVkX3Byb3hpZXMYUSADKAkinQEKDERvbWFpblNlcnZlchIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKQoGc3RhdHVzGAMgASgLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEg0KBXN0YWxlGAQgASgIEisKB2luZ3Jlc3MYBSABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIroBCg1JbmdyZXNzU3RhdHVzEg0KBXByb3h5GAEgASgJEg8KB3J1bm5pbmcYAiABKAgSLAoHcHJvYmxlbRgDIAEoDjIbLmRvY2t3ZWxsLnYxLkluZ3Jlc3NQcm9ibGVtEg8KB21lc3NhZ2UYBCABKAkSDwoHaG9sZGVycxgFIAMoCRIPCgd2ZXJzaW9uGAYgASgJEhYKDnBpbm5lZF92ZXJzaW9uGAcgASgJEhAKCG91dGRhdGVkGAggASgIInQKDERvbWFpblN0YXR1cxIOCgZkb21haW4YASABKAkSLQoLY2VydGlmaWNhdGUYAiABKAsyGC5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZRIlCgNkbnMYAyABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayKvAQoLQ2VydGlmaWNhdGUSLAoFc3RhdGUYASABKA4yHS5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVN0YXRlEjAKB3Byb2JsZW0YAiABKA4yHy5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVByb2JsZW0SDwoHbWVzc2FnZRgDIAEoCRIvCgtleHBpcmVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAqlQEKDkluZ3Jlc3NQcm9ibGVtEh8KG0lOR1JFU1NfUFJPQkxFTV9VTlNQRUNJRklFRBAAEh8KG0lOR1JFU1NfUFJPQkxFTV9QT1JUU19UQUtFThABEiAKHElOR1JFU1NfUFJPQkxFTV9TVUJORVRfVEFLRU4QAhIfChtJTkdSRVNTX1BST0JMRU1fTk9UX1JVTk5JTkcQAyqsAQoQQ2VydGlmaWNhdGVTdGF0ZRIhCh1DRVJUSUZJQ0FURV9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUNFUlRJRklDQVRFX1NUQVRFX1BFTkRJTkcQARIcChhDRVJUSUZJQ0FURV9TVEFURV9JU1NVRUQQAhIcChhDRVJUSUZJQ0FURV9TVEFURV9GQUlMRUQQAxIaChZDRVJUSUZJQ0FURV9TVEFURV9OT05FEAQqygIKEkNlcnRpZmljYXRlUHJvYmxlbRIjCh9DRVJUSUZJQ0FURV9QUk9CTEVNX1VOU1BFQ0lGSUVEEAASGwoXQ0VSVElGSUNBVEVfUFJPQkxFTV9ETlMQARIiCh5DRVJUSUZJQ0FURV9QUk9CTEVNX0NPTk5FQ1RJT04QAhIkCiBDRVJUSUZJQ0FURV9QUk9CTEVNX1dST05HX1NFUlZFUhADEiQKIENFUlRJRklDQVRFX1BST0JMRU1fUkFURV9MSU1JVEVEEAQSGwoXQ0VSVElGSUNBVEVfUFJPQkxFTV9DQUEQBRIfChtDRVJUSUZJQ0FURV9QUk9CTEVNX1JFRlVTRUQQBhIdChlDRVJUSUZJQ0FURV9QUk9CTEVNX09USEVSEAcSJQohQ0VSVElGSUNBVEVfUFJPQkxFTV9DQU5UX1JFQUNIX0NBEAgyjQIKDURvbWFpblNlcnZpY2USeAoLTGlzdERvbWFpbnMSHy5kb2Nrd2VsbC52MS5MaXN0RG9tYWluc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0RG9tYWluc1Jlc3BvbnNlIiaQAgGguxgBwLsYAsi7GALQuxgEgtPkkwINEgsvdjEvZG9tYWlucxKBAQoLQ2hlY2tEb21haW4SHy5kb2Nrd2VsbC52MS5DaGVja0RvbWFpblJlcXVlc3QaIC5kb2Nrd2VsbC52MS5DaGVja0RvbWFpblJlc3BvbnNlIi+QAgGguxgCwLsYA8i7GAPQuxgFgtPkkwIWOgEqIhEvdjEvZG9tYWluczpjaGVja0KkAQoPY29tLmRvY2t3ZWxsLnYxQgtEb21haW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjcKEkNoZWNrRG9tYWluUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDgoGZG9tYWluGAIgASgJIj4KE0NoZWNrRG9tYWluUmVzcG9uc2USJwoFY2hlY2sYASABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayI6ChJMaXN0RG9tYWluc1JlcXVlc3QSEwoLZW52aXJvbm1lbnQYASABKAkSDwoHc2VydmljZRgCIAEoCSI7ChNMaXN0RG9tYWluc1Jlc3BvbnNlEiQKB2RvbWFpbnMYASADKAsyEy5kb2Nrd2VsbC52MS5Eb21haW4ikQEKBkRvbWFpbhIMCgRuYW1lGAEgASgJEhYKDmVudmlyb25tZW50X2lkGAIgASgJEgsKA3VybBgDIAEoCRIoCgZyb3V0ZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5Sb3V0ZRIqCgdzZXJ2ZXJzGAUgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU2VydmVyIuABCgtEb21haW5Sb3V0ZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHBhdGgYAyABKAkSDwoHc2VydmljZRgEIAEoCRIMCgRwb3J0GAUgASgNEgsKA3VybBgGIAEoCRILCgN0bHMYByABKAkSEQoJaG9zdF9wb3J0GAggASgNEhgKEHBsYWluX2Zvcl9hbnlvbmUYCSABKAgSDAoEaGVsZBhQIAEoCBIXCg90cnVzdGVkX3Byb3hpZXMYUSADKAkSDQoFYWxsb3cYbiADKAkSDQoFdXNlcnMYbyADKAkinQEKDERvbWFpblNlcnZlchIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKQoGc3RhdHVzGAMgASgLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEg0KBXN0YWxlGAQgASgIEisKB2luZ3Jlc3MYBSABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIroBCg1JbmdyZXNzU3RhdHVzEg0KBXByb3h5GAEgASgJEg8KB3J1bm5pbmcYAiABKAgSLAoHcHJvYmxlbRgDIAEoDjIbLmRvY2t3ZWxsLnYxLkluZ3Jlc3NQcm9ibGVtEg8KB21lc3NhZ2UYBCABKAkSDwoHaG9sZGVycxgFIAMoCRIPCgd2ZXJzaW9uGAYgASgJEhYKDnBpbm5lZF92ZXJzaW9uGAcgASgJEhAKCG91dGRhdGVkGAggASgIIqMBCgxEb21haW5TdGF0dXMSDgoGZG9tYWluGAEgASgJEi0KC2NlcnRpZmljYXRlGAIgASgLMhguZG9ja3dlbGwudjEuQ2VydGlmaWNhdGUSJQoDZG5zGAMgASgLMhguZG9ja3dlbGwudjEuRG9tYWluQ2hlY2sSLQoJc3RyYW5nZXJzGG4gAygLMhouZG9ja3dlbGwudjEuU3RyYW5nZXJDaGVjayJqCg1TdHJhbmdlckNoZWNrEgwKBHBhdGgYASABKAkSLQoHb3V0Y29tZRgCIAEoDjIcLmRvY2t3ZWxsLnYxLlN0cmFuZ2VyT3V0Y29tZRIOCgZzdGF0dXMYAyABKA0SDAoEc2FpZBgEIAEoCSKvAQoLQ2VydGlmaWNhdGUSLAoFc3RhdGUYASABKA4yHS5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVN0YXRlEjAKB3Byb2JsZW0YAiABKA4yHy5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVByb2JsZW0SDwoHbWVzc2FnZRgDIAEoCRIvCgtleHBpcmVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAqlQEKDkluZ3Jlc3NQcm9ibGVtEh8KG0lOR1JFU1NfUFJPQkxFTV9VTlNQRUNJRklFRBAAEh8KG0lOR1JFU1NfUFJPQkxFTV9QT1JUU19UQUtFThABEiAKHElOR1JFU1NfUFJPQkxFTV9TVUJORVRfVEFLRU4QAhIfChtJTkdSRVNTX1BST0JMRU1fTk9UX1JVTk5JTkcQAyrUAQoPU3RyYW5nZXJPdXRjb21lEiAKHFNUUkFOR0VSX09VVENPTUVfVU5TUEVDSUZJRUQQABIdChlTVFJBTkdFUl9PVVRDT01FX0tFUFRfT1VUEAESJwojU1RSQU5HRVJfT1VUQ09NRV9BU0tFRF9GT1JfUEFTU1dPUkQQAhIbChdTVFJBTkdFUl9PVVRDT01FX0xFVF9JThADEhoKFlNUUkFOR0VSX09VVENPTUVfT1RIRVIQBBIeChpTVFJBTkdFUl9PVVRDT01FX0NBTlRfVEVMTBAFKqwBChBDZXJ0aWZpY2F0ZVN0YXRlEiEKHUNFUlRJRklDQVRFX1NUQVRFX1VOU1BFQ0lGSUVEEAASHQoZQ0VSVElGSUNBVEVfU1RBVEVfUEVORElORxABEhwKGENFUlRJRklDQVRFX1NUQVRFX0lTU1VFRBACEhwKGENFUlRJRklDQVRFX1NUQVRFX0ZBSUxFRBADEhoKFkNFUlRJRklDQVRFX1NUQVRFX05PTkUQBCrKAgoSQ2VydGlmaWNhdGVQcm9ibGVtEiMKH0NFUlRJRklDQVRFX1BST0JMRU1fVU5TUEVDSUZJRUQQABIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0ROUxABEiIKHkNFUlRJRklDQVRFX1BST0JMRU1fQ09OTkVDVElPThACEiQKIENFUlRJRklDQVRFX1BST0JMRU1fV1JPTkdfU0VSVkVSEAMSJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9SQVRFX0xJTUlURUQQBBIbChdDRVJUSUZJQ0FURV9QUk9CTEVNX0NBQRAFEh8KG0NFUlRJRklDQVRFX1BST0JMRU1fUkVGVVNFRBAGEh0KGUNFUlRJRklDQVRFX1BST0JMRU1fT1RIRVIQBxIlCiFDRVJUSUZJQ0FURV9QUk9CTEVNX0NBTlRfUkVBQ0hfQ0EQCDKNAgoNRG9tYWluU2VydmljZRJ4CgtMaXN0RG9tYWlucxIfLmRvY2t3ZWxsLnYxLkxpc3REb21haW5zUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3REb21haW5zUmVzcG9uc2UiJpACAaC7GAHAuxgCyLsYAtC7GASC0+STAg0SCy92MS9kb21haW5zEoEBCgtDaGVja0RvbWFpbhIfLmRvY2t3ZWxsLnYxLkNoZWNrRG9tYWluUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkNoZWNrRG9tYWluUmVzcG9uc2UiL5ACAaC7GALAuxgDyLsYA9C7GAWC0+STAhY6ASoiES92MS9kb21haW5zOmNoZWNrQqQBCg9jb20uZG9ja3dlbGwudjFCC0RvbWFpblByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * CheckDomainRequest names a domain and the server it's meant to reach.
@@ -255,6 +255,23 @@ export type DomainRoute = Message<"dockwell.v1.DomainRoute"> & {
    * @generated from field: repeated string trusted_proxies = 81;
    */
   trustedProxies: string[];
+
+  /**
+   * Who it lets in, as addresses and ranges, as Route.access says: anyone else
+   * gets 403. Empty lets in everyone it answers (ADR 0087).
+   *
+   * @generated from field: repeated string allow = 110;
+   */
+  allow: string[];
+
+  /**
+   * Who may sign in to it with a password, by name, in its order. A password,
+   * or its hash, is never shown: an edit that names a user with no password
+   * keeps theirs.
+   *
+   * @generated from field: repeated string users = 111;
+   */
+  users: string[];
 };
 
 /**
@@ -415,6 +432,14 @@ export type DomainStatus = Message<"dockwell.v1.DomainStatus"> & {
    * @generated from field: dockwell.v1.DomainCheck dns = 3;
    */
   dns?: DomainCheck | undefined;
+
+  /**
+   * What a stranger gets from each of its routes that keeps anyone out, by path,
+   * as the server last asked them (ADR 0087).
+   *
+   * @generated from field: repeated dockwell.v1.StrangerCheck strangers = 110;
+   */
+  strangers: StrangerCheck[];
 };
 
 /**
@@ -423,6 +448,54 @@ export type DomainStatus = Message<"dockwell.v1.DomainStatus"> & {
  */
 export const DomainStatusSchema: GenMessage<DomainStatus> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_domain, 8);
+
+/**
+ * StrangerCheck is what a stranger gets from a private route, as its server asks
+ * it about once a minute, and at once after a change: from the server itself,
+ * with no password, as an address no list names. A request from there can't be
+ * told apart from a stranger's where the server is on the route's list, or where
+ * the route answers only proxies the server isn't.
+ *
+ * @generated from message dockwell.v1.StrangerCheck
+ */
+export type StrangerCheck = Message<"dockwell.v1.StrangerCheck"> & {
+  /**
+   * The route's path. Empty is the whole domain.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * What came of it.
+   *
+   * @generated from field: dockwell.v1.StrangerOutcome outcome = 2;
+   */
+  outcome: StrangerOutcome;
+
+  /**
+   * The HTTP status it answered with, such as 403, or 0 when nothing answered
+   * or the server can't tell.
+   *
+   * @generated from field: uint32 status = 3;
+   */
+  status: number;
+
+  /**
+   * What it said, in a line, such as "403 Forbidden", or why the server can't
+   * tell, for people.
+   *
+   * @generated from field: string said = 4;
+   */
+  said: string;
+};
+
+/**
+ * Describes the message dockwell.v1.StrangerCheck.
+ * Use `create(StrangerCheckSchema)` to create a new message.
+ */
+export const StrangerCheckSchema: GenMessage<StrangerCheck> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 9);
 
 /**
  * Certificate is where a domain's certificate stands on a server.
@@ -466,7 +539,7 @@ export type Certificate = Message<"dockwell.v1.Certificate"> & {
  * Use `create(CertificateSchema)` to create a new message.
  */
 export const CertificateSchema: GenMessage<Certificate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 9);
+  messageDesc(file_dockwell_v1_domain, 10);
 
 /**
  * IngressProblem is why a server's routes aren't being served.
@@ -509,6 +582,62 @@ export enum IngressProblem {
  */
 export const IngressProblemSchema: GenEnum<IngressProblem> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_domain, 0);
+
+/**
+ * StrangerOutcome is what a stranger gets from a private route.
+ *
+ * @generated from enum dockwell.v1.StrangerOutcome
+ */
+export enum StrangerOutcome {
+  /**
+   * Not asked yet.
+   *
+   * @generated from enum value: STRANGER_OUTCOME_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * 403: kept out, with nothing else said.
+   *
+   * @generated from enum value: STRANGER_OUTCOME_KEPT_OUT = 1;
+   */
+  KEPT_OUT = 1,
+
+  /**
+   * 401: asked for a name and password.
+   *
+   * @generated from enum value: STRANGER_OUTCOME_ASKED_FOR_PASSWORD = 2;
+   */
+  ASKED_FOR_PASSWORD = 2,
+
+  /**
+   * Anything below 400: let in, which a private route shouldn't.
+   *
+   * @generated from enum value: STRANGER_OUTCOME_LET_IN = 3;
+   */
+  LET_IN = 3,
+
+  /**
+   * Another answer, such as a 502 from an app that's down, or none at all.
+   *
+   * @generated from enum value: STRANGER_OUTCOME_OTHER = 4;
+   */
+  OTHER = 4,
+
+  /**
+   * The server can't tell what a stranger gets from where it asks: said says
+   * why.
+   *
+   * @generated from enum value: STRANGER_OUTCOME_CANT_TELL = 5;
+   */
+  CANT_TELL = 5,
+}
+
+/**
+ * Describes the enum dockwell.v1.StrangerOutcome.
+ */
+export const StrangerOutcomeSchema: GenEnum<StrangerOutcome> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_domain, 1);
 
 /**
  * CertificateState is where a domain's certificate stands.
@@ -558,7 +687,7 @@ export enum CertificateState {
  * Describes the enum dockwell.v1.CertificateState.
  */
 export const CertificateStateSchema: GenEnum<CertificateState> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 1);
+  enumDesc(file_dockwell_v1_domain, 2);
 
 /**
  * CertificateProblem is why a certificate failed.
@@ -635,7 +764,7 @@ export enum CertificateProblem {
  * Describes the enum dockwell.v1.CertificateProblem.
  */
 export const CertificateProblemSchema: GenEnum<CertificateProblem> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 2);
+  enumDesc(file_dockwell_v1_domain, 3);
 
 /**
  * DomainService says where the domains of your routes stand: what each sends
