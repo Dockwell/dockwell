@@ -1288,7 +1288,11 @@ function VolumesPanel({ app }: { app: Container | undefined }) {
     <Panel title={t`Volumes`} flush>
       <ul className="app-mounts">
         {mounts.map((mount) => (
-          <MountRow key={mount.target} mount={mount} volumeId={volumeIds.get(mount.source.value ?? "")} />
+          <MountRow
+            key={mount.target}
+            mount={mount}
+            volumeId={mount.source.case === "volume" ? volumeIds.get(mount.source.value) : undefined}
+          />
         ))}
       </ul>
     </Panel>
