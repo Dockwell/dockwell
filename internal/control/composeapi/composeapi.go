@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -125,6 +126,21 @@ type Install struct {
 	// Notes are what else the plan says, such as the digest each image is pinned
 	// to. A note's ref names the project when it names nothing.
 	Notes []revision.Note
+	// Needs are what its needs set, and how each is met.
+	Needs Needs
+}
+
+// Needs are what an install's needs set in its environment, and how each is met
+// (ADR 0084).
+type Needs struct {
+	// Variables are the values of the names needs set that hold no password, by
+	// name, kept as the environment's variables, and Stands what stands for each
+	// among the file's variables, which a service uses by reference in its place.
+	Variables, Stands map[string]string
+	// OldStands stand for them in the old file an upgrade reads.
+	OldStands map[string]string
+	// Links are each need, met, by its name.
+	Links map[string]*resourcev1.Link
 }
 
 // Limits are what a service may use, and when Docker restarts it. An empty field
@@ -209,6 +225,10 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	}
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
 	useSecrets(stack, in.Stands)
+	// What a need sets is the environment's variables, used by reference, before what
+	// shows is read, so a need's plain parts show as the variables they are and its
+	// password and URL, secrets, never do (ADR 0081, 0084).
+	useValues(stack, in.Needs.Stands, variable.VariableKind)
 	showPlain(stack)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
 	var notes []revision.Note
@@ -226,7 +246,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		}
 		notes = append(notes, n)
 	}
-	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes})
+	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs})
 }
 
 // planning is what a plan adds to a file read for a place.
@@ -245,18 +265,30 @@ type planning struct {
 	skipBackup bool
 	// intent is what the plan is for, when the method proposing it knows.
 	intent *revision.Intent
+	// needs are the variables an install's needs set, and its links.
+	needs Needs
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
 // environment from a secret, rather than hold the value itself.
 func useSecrets(stack *compose.Stack, values map[string]string) {
+	useValues(stack, values, variable.SecretKind)
+}
+
+// useValues has each service use by reference, as the environment's value of kind,
+// what a file's variables gave it with a value that stands for one, rather than hold
+// the value itself.
+func useValues(stack *compose.Stack, stands map[string]string, kind resource.Kind) {
+	if len(stands) == 0 {
+		return
+	}
 	for _, s := range stack.Services {
 		app := s.Spec.GetApp()
 		for as, value := range app.GetEnv() {
-			for name, secret := range values {
-				if value == secret {
+			for name, stand := range stands {
+				if value == stand {
 					delete(app.Env, as)
-					binding.Use(s.Spec, resource.Use{As: as, Kind: variable.SecretKind, Name: name})
+					binding.Use(s.Spec, resource.Use{As: as, Kind: kind, Name: name})
 				}
 			}
 		}
@@ -305,6 +337,12 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	}
 	for _, name := range slices.Sorted(maps.Keys(also.secrets)) {
 		add(variable.SecretKind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: also.secrets[name]}}})
+	}
+	for _, name := range slices.Sorted(maps.Keys(also.needs.Variables)) {
+		add(variable.VariableKind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: also.needs.Variables[name]}}})
+	}
+	for _, name := range slices.Sorted(maps.Keys(also.needs.Links)) {
+		add(link.Kind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: also.needs.Links[name]}})
 	}
 	for _, n := range stack.Networks {
 		add(network.Kind, n.Name, &resourcev1.Spec{Kind: &resourcev1.Spec_Network{Network: n.Spec}})

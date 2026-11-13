@@ -53,6 +53,7 @@ func Commands() []string {
 		"invite",
 		"invites",
 		"join-tickets",
+		"links",
 		"logs",
 		"members",
 		"networks",

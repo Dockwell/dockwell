@@ -112,6 +112,120 @@ message Entry {
   // own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
   // each one's description and readme, as GetCatalogEntry has them.
   map<string, Translation> translations = 31;
+  // What the app reads from outside its own containers, such as a MySQL-compatible
+  // database, each met as a person installs it: by a new one beside the app, by
+  // one Dockwell runs already, or by a connection. Empty needs nothing, as before.
+  // Numbered apart, as open work adds to this message. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  repeated Need needs = 40;
+}
+
+// Need is something an app reads from outside its own containers, such as a
+// database, by the names it sets in the app's environment.
+message Need {
+  // Its name in the entry, such as "db": lowercase letters, digits and dashes,
+  // as a service's.
+  string name = 1;
+  // What people call it, such as "Database".
+  string label = 2;
+  // What meets it: any of these engines, each at the versions the app takes. At
+  // least one.
+  repeated NeedAccept accepts = 3;
+  // The service of the entry's Compose file that meets it when a person takes a
+  // new one, such as "db", which is one of databases and reads the need's names.
+  // It's left out of the install when the need is met otherwise, with the
+  // volumes and inputs only it uses. Empty: the entry brings none, and a new one
+  // comes from the catalog's entry for the engine.
+  string service = 4;
+  // The database to make for it, such as "wordpress". Empty takes the need's
+  // name, with underscores for dashes.
+  string database = 5;
+  // The user to make for it, who owns that database. Empty takes the
+  // database's name.
+  string user = 6;
+  // The names it sets in the app's environment, which the Compose file uses as
+  // ${NAME}, each a whole environment value. At least one.
+  repeated NeedSet sets = 7;
+  // The app keeps the password it installed with, as Nextcloud does in its
+  // config.php, so setting it anew would leave the app with the old one: a
+  // rotation of it is refused.
+  bool set_once = 8;
+}
+
+// NeedAccept is an engine that meets a need, at the versions the app takes.
+message NeedAccept {
+  // The engine.
+  Engine engine = 1;
+  // The versions, as comparators on dotted numbers separated by spaces, such as
+  // ">=8.0" or ">=10.6 <12". Empty takes any.
+  string versions = 2;
+}
+
+// NeedSet is a name a need sets in the app's environment, and what it holds.
+message NeedSet {
+  // The name, as its Compose file uses it, such as "DB_HOST".
+  string name = 1;
+  // What it holds.
+  Part part = 2;
+  // How a URL is written, with {host}, {port}, {address}, {database}, {user} and
+  // {password} where each goes, such as
+  // "postgres://{user}:{password}@{host}:{port}/{database}?schema=public", and
+  // {tls} where TLS goes, written as tls says. Each part is percent-encoded for
+  // its place. Only for a URL; empty writes the engine's own form.
+  string template = 3;
+  // How the app reads whether to use TLS, for a TLS part or {tls} in a template:
+  // its words for on and off, such as "require" and "disable" for libpq, or
+  // "true" and "false" for node-postgres or Go's MySQL driver.
+  NeedTls tls = 4;
+}
+
+// NeedTls is how an app reads whether to use TLS.
+message NeedTls {
+  // What it reads as on, such as "require".
+  string on = 1;
+  // What it reads as off, such as "disable".
+  string off = 2;
+}
+
+// Engine is what runs a database, as Dockwell knows it (ADR 0038).
+enum Engine {
+  ENGINE_UNSPECIFIED = 0;
+  // PostgreSQL.
+  ENGINE_POSTGRESQL = 1;
+  // MySQL, and Percona Server for MySQL through a connection.
+  ENGINE_MYSQL = 2;
+  // MariaDB.
+  ENGINE_MARIADB = 3;
+  // Redis.
+  ENGINE_REDIS = 4;
+  // Valkey.
+  ENGINE_VALKEY = 5;
+  // MongoDB.
+  ENGINE_MONGODB = 6;
+  // ClickHouse.
+  ENGINE_CLICKHOUSE = 7;
+}
+
+// Part is what a name a need sets holds.
+enum Part {
+  PART_UNSPECIFIED = 0;
+  // The host the app reaches it at, such as "db".
+  PART_HOST = 1;
+  // Its port, such as "3306".
+  PART_PORT = 2;
+  // The host and port together, such as "db:3306".
+  PART_ADDRESS = 3;
+  // The database's name. For Redis and Valkey, the number of the logical
+  // database.
+  PART_DATABASE = 4;
+  // The user it signs in as.
+  PART_USER = 5;
+  // The user's password, kept as a secret.
+  PART_PASSWORD = 6;
+  // A URL with all of it, the password among it, kept as a secret.
+  PART_URL = 7;
+  // Whether to use TLS, in the app's own words, as the set's tls gives them.
+  PART_TLS = 8;
 }
 
 // Translation is what an entry says in another language than its own, as its

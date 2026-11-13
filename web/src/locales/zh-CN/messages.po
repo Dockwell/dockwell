@@ -6639,6 +6639,18 @@ msgstr "限制与重启"
 msgid "New database"
 msgstr "新建数据库"
 
+msgid "New {engine} {version} beside {app}"
+msgstr "在 {app} 旁新建 {engine} {version}"
+
+msgid "New {name}"
+msgstr "新建 {name}"
+
+msgid "Nothing here can make its {unmetWord} yet"
+msgstr "这里还无法创建它所需的 {unmetWord}"
+
+msgid "Nothing here can make one yet"
+msgstr "这里还无法创建"
+
 msgid "Open {app}"
 msgstr "打开 {app}"
 
@@ -8082,6 +8094,10 @@ msgstr "保留 7 天，然后删除"
 
 msgid "label"
 msgstr "标签"
+
+msgctxt "an app's need, met"
+msgid "link"
+msgstr "关联"
 
 msgid "mounted at"
 msgstr "挂载位置"

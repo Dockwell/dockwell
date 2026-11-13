@@ -84,9 +84,10 @@ const KINDS = ["route", "variable", "secret", "volume", "task", "backup.policy",
 
 /**
  * What goes with what uses it and nobody makes: a network, which a website or a Compose file
- * brings. The Projects list doesn't name it, so neither does what goes with a project.
+ * brings, and a link, which says how an app's need is met (ADR 0084). The Projects list doesn't
+ * name them, so neither does what goes with a project.
  */
-const UNNAMED: ReadonlySet<string> = new Set(["service", "network"]);
+const UNNAMED: ReadonlySet<string> = new Set(["service", "network", "link"]);
 
 /**
  * Says what a list of resources is, by kind and count, such as "1 app, 1 database and 2 secrets",

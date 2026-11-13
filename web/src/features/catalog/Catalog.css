@@ -1341,3 +1341,17 @@
 .catalog-sheet.is-phone .catalog-engines .catalog-chosen-label {
   padding-top: 0;
 }
+
+/* A need's ways to be met, with what the app takes beneath them (ADR 0084). */
+.catalog-need-ways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.catalog-need-takes {
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+}

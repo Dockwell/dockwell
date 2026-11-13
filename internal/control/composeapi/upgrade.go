@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -56,6 +57,8 @@ type Upgrade struct {
 	OldStands    map[string]string
 	// Notes are what else the plan says, as Install's are.
 	Notes []revision.Note
+	// Needs are what its needs set, and how each is met, as Install's are.
+	Needs Needs
 }
 
 // PlanUpgrade plans an install's newer release into the environment it runs in, with
@@ -75,6 +78,8 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	}
 	useSecrets(next, in.Stands)
 	useSecrets(old, in.OldStands)
+	useValues(next, in.Needs.Stands, variable.VariableKind)
+	useValues(old, in.Needs.OldStands, variable.VariableKind)
 	showPlain(next)
 	h.normalize(old)
 	h.normalize(next)
@@ -114,7 +119,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	intent := &revision.Intent{Kind: revision.IntentUpgrade, Resource: in.Project, FromRelease: in.FromRelease, Release: in.Release}
 	switch {
 	case in.Companion:
-		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes})
 	case in.SkipBackup:
 		backUp = nil
 		say = revision.Note{
@@ -123,9 +128,9 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 			Ref:     project,
 		}
 	case len(backUp) == 0:
-		return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent})
+		return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, notes: notes, intent: intent})
 	}
-	return h.plan(ctx, req, next, place, planning{secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent})
+	return h.plan(ctx, req, next, place, planning{needs: in.Needs, secrets: in.Secrets, upgrade: true, deletes: deletes, backUp: backUp, skipBackup: in.SkipBackup, notes: append([]revision.Note{say}, notes...), intent: intent})
 }
 
 // normalize gives what a file says the shape the store keeps it in, so it compares

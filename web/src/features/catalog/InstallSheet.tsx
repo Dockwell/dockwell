@@ -3,6 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  type CatalogNeedOption,
   type CatalogPart,
   CatalogService,
   type Change,
@@ -13,6 +14,7 @@ import {
   HostAccessKind,
   type Input,
   InputType,
+  type Need,
   RestartPolicy,
 } from "@dockwell/api";
 import {
@@ -63,6 +65,7 @@ import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
+import { engineName, needsRequest, optionsByNeed, takesLine } from "./needs";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
@@ -150,6 +153,8 @@ export function InstallSheet({
   // A person's own value for a secret Dockwell would generate, by its name: there once they choose to set one.
   const [own, setOwn] = useState<Readonly<Record<string, string>>>({});
   const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
+  // How each need is met, by its name, as someone picked it: its first option until they do (ADR 0084).
+  const [needPicks, setNeedPicks] = useState<Readonly<Record<string, string>>>({});
   // The defaults someone pressed Change on, which show as their fields from then on.
   const [changing, setChanging] = useState<ReadonlySet<string>>(new Set());
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -172,6 +177,7 @@ export function InstallSheet({
     setTypedName(undefined);
     setOwn({});
     setTurned({});
+    setNeedPicks({});
     setChanging(new Set());
     setFailure(undefined);
     setNameError(undefined);
@@ -325,8 +331,13 @@ export function InstallSheet({
   // The catalog it installs from, the one picked or the one it's listed from, when it's another catalog than Dockwell's own (ADR 0077).
   const pickedSource = catalog ? origins.data?.sources.find((s) => s.name === catalog) : undefined;
   const source = catalog ? (pickedSource?.own ? undefined : catalog) : stranger(origins.origins, id)?.name;
+  // What the app needs from outside its own containers, each met by a new one beside it for now.
+  const needs = entry?.needs ?? [];
+  const needOptions = optionsByNeed(got.data?.needs ?? []);
+  const unmet = needs.find((need) => (needOptions.get(need.name) ?? []).length === 0);
   const ready =
     entry !== undefined &&
+    !unmet &&
     origins.data !== undefined &&
     !origins.error &&
     !nameInvalid &&
@@ -338,6 +349,7 @@ export function InstallSheet({
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
   const missingLabel = (missing ?? ownEmpty)?.label ?? "";
+  const unmetWord = unmet ? inSentence(unmet.label) : "";
   const wrongLabel = ownWrong?.label ?? "";
   const license = entry?.appLicense ?? "";
   const values = {
@@ -365,6 +377,7 @@ export function InstallSheet({
           cpus,
           restart,
           companions: Object.fromEntries(companions.filter((c) => isOn(c) !== c.on).map((c) => [c.service, isOn(c)])),
+          needs: needsRequest(needs, needOptions, needPicks, true),
         },
         (_path, key) => !secrets.has(key),
       )
@@ -443,6 +456,7 @@ export function InstallSheet({
         cpus,
         restart,
         companions: Object.fromEntries(companions.map((c) => [c.service, isOn(c)])),
+        needs: needsRequest(needs, needOptions, needPicks),
       });
       if (picked.current !== asked) return;
       review(res.change);
@@ -499,7 +513,9 @@ export function InstallSheet({
         <>
           <span className="dw-sheet-note">
             <Icon name={entry?.hostAccess ? "shield" : "commit"} size={14} />
-            {missing || ownEmpty ? (
+            {unmet ? (
+              <Trans>Nothing here can make its {unmetWord} yet</Trans>
+            ) : missing || ownEmpty ? (
               <Trans>Give {missingLabel} a value to review the plan</Trans>
             ) : ownWrong ? (
               <Trans>Fix {wrongLabel} to review the plan</Trans>
@@ -602,6 +618,43 @@ export function InstallSheet({
                 <Chosen label={t`Runs on`} value={only.name} />
               ) : null}
               {top.map(line)}
+              {needs.map((need) => {
+                const options = needOptions.get(need.name) ?? [];
+                const pick = options.find((o) => o.choice === needPicks[need.name]) ?? options[0];
+                if (!pick) {
+                  return (
+                    <Chosen
+                      key={need.name}
+                      label={need.label}
+                      value={t`Nothing here can make one yet`}
+                      tone="warning"
+                    />
+                  );
+                }
+                if (changing.has(`need:${need.name}`) && options.length > 1) {
+                  return (
+                    <NeedPicker
+                      key={need.name}
+                      need={need}
+                      options={options}
+                      value={pick.choice}
+                      disabled={busy}
+                      onPick={(choice) => setNeedPicks((was) => ({ ...was, [need.name]: choice }))}
+                    />
+                  );
+                }
+                const engine = engineName(pick.engine);
+                const version = pick.version;
+                return (
+                  <Chosen
+                    key={need.name}
+                    label={need.label}
+                    value={t`New ${engine} ${version} beside ${app}`}
+                    plain
+                    onChange={options.length > 1 ? () => change(`need:${need.name}`) : undefined}
+                  />
+                );
+              })}
               {source ? (
                 <Chosen label={t`Catalog`} value={t`${named(source)} · Not tested by Dockwell`} tone="warning" />
               ) : null}
@@ -882,6 +935,57 @@ function EnginePicker({
             <code className="catalog-engine-version">{entry.version}</code>
           </label>
         ))}
+      </span>
+    </fieldset>
+  );
+}
+
+/**
+ * How a need is met, picked from what can make a new one beside the app, each with
+ * the version it installs, and what the app takes beneath them.
+ */
+function NeedPicker({
+  need,
+  options,
+  value,
+  onPick,
+  disabled,
+}: {
+  need: Need;
+  options: readonly CatalogNeedOption[];
+  value: string;
+  onPick: (choice: string) => void;
+  // While its plan is asked for, the pick stays as it is.
+  disabled?: boolean;
+}) {
+  const id = useId();
+  return (
+    <fieldset className="catalog-engines catalog-need" aria-labelledby={id} disabled={disabled}>
+      <span id={id} className="catalog-chosen-label">
+        {need.label}
+      </span>
+      <span className="catalog-need-ways">
+        <span className="catalog-engines-list">
+          {options.map((option) => {
+            const name = engineName(option.engine);
+            return (
+              <label key={option.choice} className={cx("catalog-engine", option.choice === value && "is-picked")}>
+                <input
+                  type="radio"
+                  name={id}
+                  value={option.choice}
+                  checked={option.choice === value}
+                  onChange={() => onPick(option.choice)}
+                />
+                <span className="catalog-engine-name">
+                  <Trans>New {name}</Trans>
+                </span>{" "}
+                <code className="catalog-engine-version">{option.version}</code>
+              </label>
+            );
+          })}
+        </span>
+        <span className="catalog-need-takes">{takesLine(need)}</span>
       </span>
     </fieldset>
   );
