@@ -17,6 +17,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -59,6 +60,14 @@ type subject struct {
 	// own releases, as a website's web and PHP servers' (ADR 0039): nothing is
 	// checked for it, and it reads as kept current by Dockwell.
 	pinned bool
+}
+
+// checksImage says a check reads what's newer than the subject's image from its
+// registry: any service's but a catalog install's, whose catalog says what's newer,
+// unless it runs an image by a tag that moves, such as latest, whose new builds
+// only its registry knows of (ADR 0085).
+func (s *subject) checksImage() bool {
+	return !s.install || catalog.Moving(imageOf(s.Spec))
 }
 
 // Run checks each server's services every Every, until ctx ends, and a
@@ -117,7 +126,7 @@ func (k *Keeper) tick(ctx context.Context) error {
 			if !s.kept || s.row.Problem != keptByDockwell || s.row.Image != checkedAs(s.Spec) {
 				marking = append(marking, *s)
 			}
-		case s.home != "" && !s.install:
+		case s.home != "" && s.checksImage():
 			byHome[s.home] = append(byHome[s.home], *s)
 		}
 	}
@@ -347,7 +356,9 @@ func (k *Keeper) readImage(ctx context.Context, server string, ref registry.Ref,
 		failed[key] = err
 		return nil, err
 	}
-	call := &agentv1.ImageUpdatesCall{Reference: image, Tags: s.Spec.GetRuntime() == nil}
+	// A catalog install moves on by its catalog's releases, and by a new build of a
+	// tag that moves, never to another tag.
+	call := &agentv1.ImageUpdatesCall{Reference: image, Tags: s.Spec.GetRuntime() == nil && !s.install}
 	if d := s.Digests[server]; d != "" {
 		call.Running = ref.Name() + "@" + d
 	}

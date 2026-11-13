@@ -42,6 +42,7 @@ func main() {
 
 const usage = `Usage: dockwell-catalog convert --from 1panel --source <checkout> --out <folder> [--overlays <folder>]
        dockwell-catalog check <folder>
+       dockwell-catalog rates [--record] [--pin] [--list]
 
 convert converts a catalog's apps into Dockwell's entries, one file each in --out,
 with a report of what it left out and why, and what it knows of each image.
@@ -49,15 +50,21 @@ with a report of what it left out and why, and what it knows of each image.
 check checks a folder of entries, and the images in its folder media, as the
 control plane reads a catalog source, and says what it would leave out and why.
 
+rates converts each store the control plane reads, at the commit the repository
+pins, and says how many of its apps install and why the rest are left out.
+
 `
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if len(args) > 0 && args[0] == "check" {
 		return check(ctx, args[1:], stdout)
 	}
+	if len(args) > 0 && args[0] == "rates" {
+		return rates(ctx, args[1:], stdout, stderr)
+	}
 	if len(args) == 0 || args[0] != "convert" {
 		fmt.Fprint(stderr, usage)
-		return errors.New("name what to do: convert or check")
+		return errors.New("name what to do: convert, check or rates")
 	}
 	flags := flag.NewFlagSet("convert", flag.ContinueOnError)
 	flags.SetOutput(stderr)

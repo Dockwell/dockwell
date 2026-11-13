@@ -117,76 +117,22 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	parent := ctx
 	ctx, cancel := context.WithTimeout(parent, fetchWait)
 	defer cancel()
-	snap, err := gitfetch.Trees(ctx, s.Client, spec.GetRepository(), spec.GetCommit(), gitfetch.TreeDefault)
+	got, err := convert.Fetch(ctx, s.Client, store, spec.GetRepository(), spec.GetCommit(), spec.GetPath())
 	if err != nil {
 		return nil, nil, err
 	}
-	defer snap.Close()
-	prefix := strings.Trim(path.Clean("/"+spec.GetPath()), "/")
-	rel := func(p string) string {
-		if prefix == "" {
-			return p
-		}
-		return strings.TrimPrefix(p, prefix+"/")
-	}
-	listed, err := snap.Walk(prefix, func(p string, depth int) bool { return store.Descend(rel(p), depth) })
-	if err != nil {
-		return nil, nil, err
-	}
-	l := &convert.Listing{Dirs: map[string]bool{}, Files: map[string]bool{}, Big: map[string]bool{}}
-	var want []gitfetch.Entry
-	byPath := map[string]gitfetch.Entry{}
-	for _, e := range listed {
-		if e.Dir {
-			l.Dirs[rel(e.Path)] = true
-			continue
-		}
-		l.Files[rel(e.Path)] = true
-		byPath[rel(e.Path)] = e
-		if store.Want(rel(e.Path)) {
-			want = append(want, e)
-		}
-	}
-	// The repository's own licence, at its top, which every entry keeps.
-	top, err := snap.Walk("", nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	var licenseFile []gitfetch.Entry
-	for _, name := range convert.LicenseFiles {
-		if i := slices.IndexFunc(top, func(e gitfetch.Entry) bool { return e.Path == name && !e.Dir }); i >= 0 {
-			licenseFile = append(licenseFile, top[i])
-			break
-		}
-	}
-	files, big, err := snap.Read(ctx, append(want, licenseFile...))
-	if err != nil {
-		return nil, nil, err
-	}
-	l.Read = map[string][]byte{}
-	for p, b := range files {
-		l.Read[rel(p)] = b
-	}
-	for _, p := range big {
-		l.Big[rel(p)] = true
-	}
-	src := convert.Source{Name: store.SourceName(spec.GetRepository()), Repository: spec.GetRepository(), Commit: spec.GetCommit(), License: "NOASSERTION"}
-	if len(licenseFile) > 0 {
-		text := files[licenseFile[0].Path]
-		if found := convert.LicenseOf(text); found != "" {
-			src.License, src.LicenseText, src.CopyrightInLicense = found, text, found == "MIT"
-		}
-	}
+	defer got.Close()
+	src, snap, byPath := got.Source, got.Snapshot, got.ByPath
 	converting, done := context.WithTimeout(parent, convertWait)
 	defer done()
-	run, err := convert.OnServer(converting, store, l, src, snap.Time)
+	run, err := convert.OnServer(converting, store, got.Listing, src, got.Time)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
 	}
 	images := storeIcons(ctx, snap, run, byPath)
 	out := map[string][]byte{}
 	rec := leftOutRecord{Format: store.Format, Version: convert.Version, License: src.License, Apps: len(run.Results)}
-	date := snap.Time.UTC().Format(time.DateOnly)
+	date := got.Time.UTC().Format(time.DateOnly)
 	size := 0
 	for i := range run.Results {
 		r := &run.Results[i]

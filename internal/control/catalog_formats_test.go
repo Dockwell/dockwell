@@ -3,8 +3,12 @@
 package control
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -12,6 +16,7 @@ import (
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/gitfetch/gitfetchtest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -76,12 +81,11 @@ func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
 		t.Fatalf("SetCatalogSource: %v", err)
 	}
 	planned := res.Msg.GetChange()
-	if reads := notesOf(planned, "catalog_source_reads"); len(reads) != 1 || reads[0] != "It reads 1 app from "+repo.URL+", at "+head[:12]+", as Coolify's templates, under Apache-2.0." {
+	if reads := notesOf(planned, "catalog_source_reads"); len(reads) != 1 || reads[0] != "It reads 2 apps from "+repo.URL+", at "+head[:12]+", as Coolify's templates, under Apache-2.0." {
 		t.Errorf("what it reads: %q", reads)
 	}
 	if left := notesOf(planned, "catalog_source_leaves_out"); len(left) != 1 ||
-		!strings.HasPrefix(left[0], "It leaves out 3 of 4 apps: ") || !strings.Contains(left[0], "1 name no version that stays put") ||
-		!strings.Contains(left[0], "1 are marked by their store to leave out") {
+		!strings.HasPrefix(left[0], "It leaves out 2 of 4 apps: ") || !strings.Contains(left[0], "1 are marked by their store to leave out") {
 		t.Errorf("what it leaves out: %q", left)
 	}
 	if len(notesOf(planned, "catalog_source_refuses")) != 0 {
@@ -95,14 +99,15 @@ func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
 	}
 	// Beside Dockwell's own catalog (ADR 0077).
 	s := slices.DeleteFunc(sources.Msg.GetSources(), func(s *dockwellv1.CatalogSourceInfo) bool { return s.GetOwn() })
-	if len(s) != 1 || s[0].GetSource().GetFormat() != resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY || !slices.Equal(s[0].GetEntries(), []string{"board"}) || len(s[0].GetRefused()) != 3 {
+	// An app whose image follows a tag that moves is read too (ADR 0085).
+	if len(s) != 1 || s[0].GetSource().GetFormat() != resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY || !slices.Equal(s[0].GetEntries(), []string{"board", "moving"}) || len(s[0].GetRefused()) != 2 {
 		t.Fatalf("ListCatalogSources = %v", s)
 	}
 	kinds := map[string]string{}
 	for _, r := range s[0].GetRefused() {
 		kinds[r.GetId()] = r.GetKind()
 	}
-	if kinds["moving"] != "no-version" || kinds["ignored"] != "skipped" || kinds["scripted"] == "" {
+	if kinds["ignored"] != "skipped" || kinds["scripted"] == "" {
 		t.Errorf("what it left out, by kind: %v", kinds)
 	}
 
@@ -240,5 +245,131 @@ func TestTheSameAppInTwoCatalogsIsOneCard(t *testing.T) {
 	}
 	if in := installs.Msg.GetInstalls()[0]; in.GetPin().GetCatalog() != "beta" || in.GetPin().GetRepository() != second.URL || in.GetName() == "" {
 		t.Errorf("the install's pin = %v, name %q", in.GetPin(), in.GetName())
+	}
+}
+
+// movingRegistry stands in for Docker Hub, where nginx's latest points at one build
+// and then, once moved, at another.
+func movingRegistry(t *testing.T, first string) (string, func(digest string)) {
+	t.Helper()
+	config := `{"os":"linux","architecture":"amd64","config":{"ExposedPorts":{"80/tcp":{}}}}`
+	var at atomic.Value
+	at.Store(first)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		digest := at.Load().(string)
+		switch p := r.URL.Path; {
+		case p == "/v2/library/nginx/manifests/latest" || p == "/v2/library/nginx/manifests/"+digest:
+			w.Header().Set("Docker-Content-Digest", digest)
+			if r.Method == http.MethodGet {
+				_, _ = fmt.Fprintf(w, `{"config":{"digest":"sha256:%064d","size":%d}}`, 8, len(config))
+			}
+		case strings.HasPrefix(p, "/v2/library/nginx/blobs/"):
+			_, _ = w.Write([]byte(config))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL, func(d string) { at.Store(d) }
+}
+
+// A store's app whose image follows a tag that moves, such as latest, installs: its
+// plan pins the build the tag points at now and says so, and it runs that build
+// until a new one's pushed, which its check then offers, and upgrading the install
+// takes, by a plan that says the new build (ADR 0085).
+func TestAMovingTagIsPinnedAndMovesByItsBuilds(t *testing.T) {
+	const (
+		buildA = "sha256:aaaa000000000000000000000000000000000000000000000000000000000000"
+		buildB = "sha256:bbbb000000000000000000000000000000000000000000000000000000000000"
+	)
+	repo := gitfetchtest.New(t)
+	head := repo.Commit(map[string]string{
+		"LICENSE":                       "                                 Apache License\n                           Version 2.0, January 2004\n",
+		"templates/compose/moving.yaml": strings.Replace(boardTemplate, "nginx:1.27", "nginx", 1),
+	})
+	registry, push := movingRegistry(t, buildA)
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	pullsAnything(f.addDockerServer(t))
+	srv := f.lastDocker
+	srv.stop()
+	waitConnected(t, f, srv.id.ServerID, false)
+	srv.images = agent.ImageReads{Test: registry}
+	srv.run(t)
+	waitConnected(t, f, srv.id.ServerID, true)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	res, err := cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "coolify", Repository: repo.URL, Commit: head}))
+	if err != nil {
+		t.Fatalf("SetCatalogSource: %v", err)
+	}
+	apply(t, c, res.Msg.GetChange())
+
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "moving"}))
+	if err != nil {
+		t.Fatalf("a store's app on latest isn't in the catalog: %v", err)
+	}
+	// An image named with no tag is latest, written out, so the plan names what it pins.
+	if e := got.Msg.GetEntry(); !strings.Contains(e.GetCompose(), "image: nginx:latest\n") || e.GetVersion() != "latest" {
+		t.Errorf("the entry names %q at version %q", e.GetCompose(), e.GetVersion())
+	}
+	installing := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "moving"})
+	if pins := notesOf(installing, "catalog_pins_images"); len(pins) != 1 || !strings.Contains(pins[0], "nginx:latest at sha256:aaaa00000000") {
+		t.Errorf("the plan doesn't say the build it pins: %q", pins)
+	}
+	apply(t, c, installing)
+	installs, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil || len(installs.Msg.GetInstalls()) != 1 {
+		t.Fatalf("installs = %v, %v", installs.Msg, err)
+	}
+	project := installs.Msg.GetInstalls()[0].GetProjectId()
+	if file := string(installs.Msg.GetInstalls()[0].GetPin().GetFile()); !strings.Contains(file, "image: nginx:latest@"+buildA) {
+		t.Errorf("the install runs:\n%s", file)
+	}
+
+	// With the same build, there's nothing to take.
+	_, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: project}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "on the newest build of nginx:latest") {
+		t.Errorf("upgrading on the same build: %v", err)
+	}
+
+	// A new build of latest is offered as one, through its catalog.
+	push(buildB)
+	u := dockwellv1connect.NewServiceUpdateServiceClient(b, b.origin, connect.WithProtoJSON())
+	checked, err := u.CheckServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.CheckServiceUpdatesRequest{Server: srv.id.ServerID}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var offered *dockwellv1.AvailableUpdate
+	for _, s := range checked.Msg.GetServices() {
+		if s.GetResource().GetName() == "board" && len(s.GetUpdate().GetAvailable()) > 0 {
+			if s.GetUpdate().GetSource() != dockwellv1.UpdateSource_UPDATE_SOURCE_CATALOG {
+				t.Errorf("the install's update reads as %v", s.GetUpdate().GetSource())
+			}
+			offered = s.GetUpdate().GetAvailable()[0]
+		}
+	}
+	if offered.GetKind() != dockwellv1.UpdateKind_UPDATE_KIND_DIGEST || offered.GetToDigest() != buildB || offered.GetCatalogRelease() == 0 {
+		t.Fatalf("the install was offered %v", offered)
+	}
+
+	upgrading, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: project}))
+	if err != nil {
+		t.Fatalf("taking the new build: %v", err)
+	}
+	ch := upgrading.Msg.GetChange()
+	if ch.GetSummary() != "Update moving to the newest build of nginx:latest" {
+		t.Errorf("the plan's summary is %q", ch.GetSummary())
+	}
+	if pins := notesOf(ch, "catalog_pins_images"); len(pins) != 1 || !strings.Contains(pins[0], "nginx:latest at sha256:bbbb00000000") {
+		t.Errorf("the plan doesn't say the new build: %q", pins)
+	}
+	apply(t, c, ch)
+	installs, err = cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file := string(installs.Msg.GetInstalls()[0].GetPin().GetFile()); !strings.Contains(file, "image: nginx:latest@"+buildB) {
+		t.Errorf("after the update the install runs:\n%s", file)
 	}
 }

@@ -701,6 +701,9 @@ func webTag(file []byte, fields []Field) string {
 	}
 	tag := func(svc *yaml.Node) string {
 		if img := mapGet(svc, "image"); img != nil {
+			if untagged(strings.TrimSpace(img.Value)) && !strings.Contains(img.Value, "$") {
+				return "latest" // what Docker pulls for an image named with no tag
+			}
 			if r, err := parseRef(img.Value); err == nil {
 				return r.tag
 			}

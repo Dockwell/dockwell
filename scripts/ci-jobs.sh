@@ -39,14 +39,14 @@ shopt -s inherit_errexit
 # listed. Licenses and links and Install, every job always run, and Build of
 # main runs on every pull request, as it can't run this before it builds.
 # every-leg isn't a job: it runs every install leg, not only some.
-ci_jobs="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel"
+ci_jobs="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel"
 install_jobs="snapshot budgets install systemd every-leg"
 every_job="$ci_jobs $install_jobs"
 
 # What each job is called in its workflow.
 declare -A names=(
   [go]="Go" [docker-go]="Go on Docker" [caddy-go]="Go on Caddy" [docker-e2e]="Service end to end on Docker"
-  [catalog-docker]="Catalog on Docker" [docker-panel]="Panel end to end on Docker" [logs-load]="Log load"
+  [catalog-docker]="Catalog on Docker" [store-docker]="Other stores on Docker" [docker-panel]="Panel end to end on Docker" [logs-load]="Log load"
   [containers-load]="Hundreds of containers" [transfers-load]="Transfer load" [e2e]="Panel end to end" [schema]="API schema" [panel]="Panel"
   [chaos]="Chaos on Docker"
   [snapshot]="Release snapshot" [budgets]="Memory budgets"

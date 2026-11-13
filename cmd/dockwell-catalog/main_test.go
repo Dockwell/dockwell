@@ -18,7 +18,7 @@ func TestItSaysWhatItNeeds(t *testing.T) {
 		args []string
 		want string
 	}{
-		"nothing":                  {nil, "name what to do: convert or check"},
+		"nothing":                  {nil, "name what to do: convert, check or rates"},
 		"no source":                {[]string{"convert", "--from", "1panel"}, "name the source's checkout with --source"},
 		"a format it doesn't read": {[]string{"convert", "--from", "umbrel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, `not "umbrel"`},
 		"a folder with no apps":    {[]string{"convert", "--from", "1panel", "--source", t.TempDir(), "--out", t.TempDir(), "--commit", "abc"}, "github.com/1Panel-dev/appstore"},

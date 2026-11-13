@@ -361,7 +361,7 @@ func (k *Keeper) CheckService(ctx context.Context, serviceID string) error {
 		return err
 	}
 	i := slices.IndexFunc(subjects, func(s subject) bool { return s.ID == serviceID })
-	if i < 0 || subjects[i].install {
+	if i < 0 || !subjects[i].checksImage() {
 		return nil // a catalog install's is read from its catalog, as it's asked for
 	}
 	s := subjects[i]
@@ -389,7 +389,7 @@ func (k *Keeper) CheckServer(ctx context.Context, server string) error {
 	}
 	var list []subject
 	for i := range subjects {
-		if s := &subjects[i]; s.home == server && !s.install {
+		if s := &subjects[i]; s.home == server && s.checksImage() {
 			list = append(list, *s)
 		}
 	}

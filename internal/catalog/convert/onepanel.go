@@ -151,21 +151,22 @@ func onePanelRead(t *tree, dir string) App {
 		return app
 	}
 	var names []string
-	latest := false
+	latest := ""
 	for _, v := range versions {
 		if !v.IsDir() || !t.isFile(path.Join(appDir, v.Name(), "docker-compose.yml")) {
 			continue
 		}
 		if unversioned[v.Name()] {
-			latest = true
+			latest = v.Name()
 			continue
 		}
 		names = append(names, v.Name())
 	}
 	switch {
-	case len(names) == 0 && latest:
-		app.LeftOut, app.Class = "it has only a version named latest, which moves, so no entry could pin it", ClassNoVersion
-		return app
+	case len(names) == 0 && latest != "":
+		// Its only version moves, as its images' tags do: an install pins the build
+		// they point at when it's planned (ADR 0085).
+		names = []string{latest}
 	case len(names) == 0:
 		app.LeftOut, app.Class = "it has no version with a Compose file of its own", ClassFile
 		return app

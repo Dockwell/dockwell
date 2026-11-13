@@ -281,6 +281,11 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		r.LeftOut, r.Class = app.LeftOut, cmp.Or(app.Class, ClassCantSay)
 		return r
 	}
+	if !c.OnServer && unversioned[app.Version] {
+		// A catalog that's published pins each image as it's converted, so a version
+		// that moves would never move on there; on a server, an install pins it.
+		return fail(leave(ClassNoVersion, "its only version is %s, which moves, so no entry could pin it", app.Version), "")
+	}
 	if err := resource.CheckLabel("catalog entry", app.ID, "postgres"); err != nil {
 		return fail(leave(ClassCantSay, "its ID %s", err), "")
 	}

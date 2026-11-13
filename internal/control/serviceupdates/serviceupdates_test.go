@@ -3,6 +3,7 @@
 package serviceupdates
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -97,6 +98,30 @@ func TestCatalogUpdate(t *testing.T) {
 	}
 	if u := catalogUpdate(CatalogInstall{FromVersion: "17.12"}, now); len(u.GetAvailable()) != 0 || u.GetSource() != dockwellv1.UpdateSource_UPDATE_SOURCE_CATALOG {
 		t.Errorf("an install that's up to date = %v", u)
+	}
+}
+
+// A catalog install that runs an image by a tag that moves is offered each new build
+// its check found, at the release it runs, so taking it upgrades the install and no
+// image is named; what else its check found isn't an install's to take (ADR 0085).
+func TestNewBuildsOfACatalogInstall(t *testing.T) {
+	now := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+	u := catalogUpdate(CatalogInstall{FromVersion: "latest", Release: 1762947277}, now)
+	found := &dockwellv1.ServiceUpdate{Available: []*dockwellv1.AvailableUpdate{
+		{Kind: dockwellv1.UpdateKind_UPDATE_KIND_MAJOR, ToVersion: "2.0"},
+		{Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, FromVersion: "latest", ToVersion: "latest", ToDigest: "sha256:" + strings.Repeat("b", 64)},
+	}}
+	newBuilds(u, found, CatalogInstall{Release: 1762947277})
+	if u.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE || len(u.GetAvailable()) != 1 {
+		t.Fatalf("the install's update = %v", u)
+	}
+	if a := u.GetAvailable()[0]; a.GetKind() != dockwellv1.UpdateKind_UPDATE_KIND_DIGEST || a.GetCatalogRelease() != 1762947277 {
+		t.Errorf("the new build = %v", a)
+	}
+	still := catalogUpdate(CatalogInstall{FromVersion: "latest"}, now)
+	newBuilds(still, nil, CatalogInstall{})
+	if still.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_UP_TO_DATE || len(still.GetAvailable()) != 0 {
+		t.Errorf("an install with no new build = %v", still)
 	}
 }
 

@@ -305,12 +305,17 @@ func serverOnePanel(stdio IO) func(context.Context) (*agentv1.ReadOnePanelResult
 
 // imageReads says where the agent reads images from (ADR 0062). A test asks
 // nothing beyond this machine: with DOCKWELL_TEST set, only the registry
-// DOCKWELL_TEST_REGISTRY names, and none without it.
+// DOCKWELL_TEST_REGISTRY names, and none without it. Named "public", it's each
+// image's own, as without DOCKWELL_TEST, for a test that pulls from them anyway.
 func imageReads(stdio IO) agent.ImageReads {
 	if !isSet(stdio.Getenv(envTest)) {
 		return agent.ImageReads{}
 	}
-	if test := stdio.Getenv(envTestRegistry); test != "" {
+	switch test := stdio.Getenv(envTestRegistry); test {
+	case testRegistryPublic:
+		return agent.ImageReads{}
+	case "":
+	default:
 		return agent.ImageReads{Test: test}
 	}
 	return agent.ImageReads{Off: "this is a test, so Dockwell reads no image from a registry here. Set " + envTestRegistry + " to a registry of stand-ins"}
