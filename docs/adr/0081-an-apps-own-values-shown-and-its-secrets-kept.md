@@ -21,7 +21,7 @@ So the dots aren't a bug in the panel: no response carries the values. And for a
 ### A service says which of its own values show
 
 - **`Service.shown_env`** (180) names the values of its app's own environment that hold no secret. A read (`GetService`, `ListServices`), a plan and an export show those as they are. Every other value stays as ADR 0022 has it: blanked, masked, left out.
-- **Only the control plane keeps it** (`resource.ControlOnly`). A server never sees it, so changing it alone restarts nothing, drift never reads it as missing, and no container label or hash carries it. Drift kept as the latest revision keeps a name shown only while the server has the value it showed: one changed there by hand could be anything.
+- **Only the control plane keeps it** (`resource.ControlOnly`). A server never sees it, so changing it alone restarts nothing, drift never reads it as missing, and no container label or hash carries it. Drift kept as the latest revision keeps a name shown only while the server has the value it showed: one changed there by hand could be anything. A revision that changes it alone applies nothing, so the revision a server runs can be an earlier one: what a server is sent to keep (ADR 0054), and the values that go with it, are checked against the latest revision as the server sees it, not by its number (#593).
 - **It names only what the environment has,** sorted and once each, and never a value shaped like a secret, as `Validate` leaves it, whoever names it.
 
 ### Who decides, and how a value comes to show
