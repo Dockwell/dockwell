@@ -1002,10 +1002,11 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 
 // timedOut says which time ran out, of a call that ran out of time. Where the
 // control plane stopped waiting, the agent didn't answer within the call's time.
-// Where the agent answered that a time of its own ran out, that is its answer, and
-// reads with its words: the call's time, which the agent's clock may end just before
-// the control plane's own deadline, or a wait on the server, such as a container's
-// start, which may end long before it. That one reads as when the agent answered,
+// Where the agent answered that its time ran out, that was a wait of its own on the
+// server, such as a container's start: its clock for the call starts as the call
+// comes, with what the control plane had left as it sent it, so it never ends
+// before the control plane's own deadline, and by then callOnce gives the control
+// plane's own end. So the answer reads as when it came, with the agent's words,
 // never as no answer within the call's time, as #606's Docker run read "didn't
 // answer within 10 min" of an agent that answered in 30 s.
 func (s *Session) timedOut(err error, timeout time.Duration, deadline time.Time) error {
@@ -1018,21 +1019,8 @@ func (s *Session) timedOut(err error, timeout time.Duration, deadline time.Time)
 			"or stuck on something on the server, such as Docker or a network mount. Check those on %s, then try again",
 			s.name, human.Duration(timeout.Round(time.Second)), s.name)
 	}
-	words := strings.TrimRight(strings.TrimSpace(said.message), ".")
-	if left := time.Until(deadline); left > endsWithTheCall(timeout) {
-		return fault.New(err, "%s's agent answered %s that a wait on the server ran out, so it stopped: %s. Check that on %s, then try again",
-			s.name, answeredAfter(timeout-left), words, s.name)
-	}
-	return fault.New(err, "%s's agent ran out of the %s this had, so it stopped: %s. What it was doing may be left half done, "+
-		"or stuck on something on the server, such as Docker or a network mount. Check those on %s, then try again",
-		s.name, human.Duration(timeout.Round(time.Second)), words, s.name)
-}
-
-// endsWithTheCall is how near the call's own deadline an agent that says its time ran
-// out has to answer for that time to be the call's, as its clock may run a little
-// ahead. Sooner, a wait of its own ran out.
-func endsWithTheCall(timeout time.Duration) time.Duration {
-	return max(time.Second, timeout/50)
+	return fault.New(err, "%s's agent answered %s that a wait on the server ran out, so it stopped: %s. Check what it was waiting for on %s, then try again",
+		s.name, answeredAfter(timeout-time.Until(deadline)), strings.TrimRight(strings.TrimSpace(said.message), "."), s.name)
 }
 
 // answeredAfter says how long an agent took to answer, for a message.
