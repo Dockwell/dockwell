@@ -281,9 +281,16 @@ func holdRoutes(ctx context.Context, tx *store.Tx, env string, services []string
 	}
 	var out []*dockwellv1.Edit
 	for _, r := range routes {
+		if r.Spec == nil {
+			continue
+		}
+		// A route is sealed since it could hold users' password hashes (ADR 0087).
+		plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return nil, err
+		}
 		spec := &resourcev1.Route{}
-		// A route is never sealed: it holds no secret.
-		if r.Spec == nil || proto.Unmarshal(r.Spec, spec) != nil || !slices.Contains(services, spec.GetService()) || spec.GetHeld() {
+		if proto.Unmarshal(plain, spec) != nil || !slices.Contains(services, spec.GetService()) || spec.GetHeld() {
 			continue
 		}
 		spec.Held = true

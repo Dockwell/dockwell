@@ -4605,6 +4605,9 @@ msgstr "{name}（默认）"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
 
+msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
+msgstr "私有路由要求其域名的所有路由在同一台服务器上，否则路径会落到其上层路由。"
+
 msgid "A stranger gets 403 Forbidden"
 msgstr "陌生人会收到 403 Forbidden"
 
@@ -4662,6 +4665,9 @@ msgstr "我已保存每个密码的副本"
 msgid "I've kept a copy of the password"
 msgstr "我已保存密码的副本"
 
+msgid "Its routes run on more than one server"
+msgstr "它的路由运行在不止一台服务器上"
+
 msgid "Its server can't tell from where it asks"
 msgstr "它的服务器从发起检查的位置无法判断"
 
@@ -4685,6 +4691,12 @@ msgstr "将 {where} 设为私有"
 
 msgid "Make {where} private too"
 msgstr "也将 {where} 设为私有"
+
+msgid "Move the whole domain to {serverName}"
+msgstr "将整个域名移到 {serverName}"
+
+msgid "Move {domainName} to {serverName}"
+msgstr "将 {domainName} 移到 {serverName}"
 
 msgid "Name the user, such as admin."
 msgstr "为用户命名，例如 admin。"

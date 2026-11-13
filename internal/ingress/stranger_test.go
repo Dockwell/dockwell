@@ -108,13 +108,16 @@ func TestEachPrivateRouteIsAskedAsAStranger(t *testing.T) {
 // a public route above it that answers it is a stranger let in (#606's review, H2).
 func TestAPrivatePathIsAskedAsAnotherSpellingToo(t *testing.T) {
 	routes := []Route{{Domain: "a.example.com", Path: "/admin", Allow: []string{"203.0.113.0/24"}}}
-	a := &asked{answers: map[string]int{"a.example.com/admin": 403, "a.example.com/admin;x": 200}}
-	got := AskStrangers(t.Context(), a, routes)["a.example.com"]
-	if len(got) != 1 || got[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN || !strings.Contains(got[0].GetSaid(), "/admin;x") {
-		t.Errorf("a path whose other spelling is public reads %v", got)
+	for _, spelling := range []string{"/admin;x", "/;x/admin", "/x/..;/admin", "/%5cadmin"} {
+		a := &asked{answers: map[string]int{"a.example.com/admin": 403, "a.example.com" + spelling: 200}}
+		got := AskStrangers(t.Context(), a, routes)["a.example.com"]
+		if len(got) != 1 || got[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN || !strings.Contains(got[0].GetSaid(), spelling) {
+			t.Errorf("a path public as %s reads %v", spelling, got)
+		}
 	}
-	a.answers["a.example.com/admin;x"] = 403
+	// 400 for an odd spelling, as a domain with a private path answers, keeps out too.
+	a := &asked{answers: map[string]int{"a.example.com/admin": 403, "a.example.com/admin;x": 400, "a.example.com/;x/admin": 400, "a.example.com/x/..;/admin": 400, "a.example.com/%5cadmin": 400}}
 	if got := AskStrangers(t.Context(), a, routes)["a.example.com"]; got[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT {
-		t.Errorf("a path kept out either way reads %v", got)
+		t.Errorf("a path kept out every way reads %v", got)
 	}
 }

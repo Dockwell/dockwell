@@ -254,6 +254,7 @@ func (e *Engine) isReferrer(kind resource.Kind) bool {
 // goes before the service it sends to, so a stranger never reaches what
 // restarts held (ADR 0084).
 func (e *Engine) orderByReference(items []item) []item {
+	items = e.privateFirst(items)
 	at := make(map[resource.Ref]int, len(items))
 	holds := map[resource.Ref][]int{} // routes only held, by their service
 	for i := range items {
@@ -293,6 +294,51 @@ func (e *Engine) orderByReference(items []item) []item {
 	}
 	for i := range items {
 		visit(i)
+	}
+	return out
+}
+
+// privateFirst puts what keeps anyone out ahead of the rest of its kind, keeping the
+// proposal's order otherwise: a private path is made before the public route above
+// it, and as deletes run last first, taken down after it. So when a domain's routes
+// move to another server together, neither server serves the path open while the
+// change runs (#606's review, L4).
+func (e *Engine) privateFirst(items []item) []item {
+	keepsOut := func(it *item) bool {
+		t, err := e.kinds.Type(it.ref.Kind)
+		if err != nil {
+			return false
+		}
+		o, ok := t.(resource.Opener)
+		if !ok {
+			return false
+		}
+		spec := it.spec
+		if spec == nil {
+			spec = it.current
+		}
+		return spec != nil && o.KeepsOut(spec)
+	}
+	// Within the places a kind's items have, those that keep anyone out go first, each
+	// group in the proposal's order; other kinds keep their places.
+	out := slices.Clone(items)
+	places := map[resource.Kind][]int{}
+	for i := range out {
+		places[out[i].ref.Kind] = append(places[out[i].ref.Kind], i)
+	}
+	for _, at := range places {
+		var first, rest []item
+		for _, i := range at {
+			if keepsOut(&items[i]) {
+				first = append(first, items[i])
+			} else {
+				rest = append(rest, items[i])
+			}
+		}
+		ordered := slices.Concat(first, rest)
+		for j := range ordered {
+			out[at[j]] = ordered[j]
+		}
 	}
 	return out
 }

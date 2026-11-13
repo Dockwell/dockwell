@@ -3,6 +3,7 @@
 package revision
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -210,5 +211,69 @@ func TestAPrivateRouteMovesWithNewPasswords(t *testing.T) {
 			"www can't go on srv_B: its users' passwords stay on the server it runs on. Give ci a new password to move it",
 			at(&resourcev1.RouteUser{Name: "ci"}, "srv_B"))
 		propose(t, e, "Moved, with a new password", at(ci("another long password"), "srv_B"))
+	})
+}
+
+// Only the domains a change touches are its to answer for: a change elsewhere in the
+// environment goes, whatever another domain's routes are (#606's review, L1). The
+// refusal names every route and where it runs (L3).
+func TestTogetherAnswersForWhatTheChangeTouches(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, _, _ := setupRoutes(t, b, "srv_A", "srv_B")
+		private := &resourcev1.Route{Domain: "shop.example.com", Path: "/admin", Service: "web", Port: 8080, Access: &resourcev1.RouteAccess{Allow: []string{"203.0.113.0/24"}}}
+		public := &resourcev1.Route{Domain: "shop.example.com", Service: "web", Port: 8080}
+		other := &resourcev1.Route{Domain: "blog.example.com", Service: "web", Port: 8080}
+		split := []served{
+			{name: "admin", spec: private, servers: []string{"srv_B"}},
+			{name: "shop", spec: public, servers: []string{"srv_A"}},
+			{name: "api", spec: &resourcev1.Route{Domain: "shop.example.com", Path: "/api", Service: "web", Port: 8080}, servers: []string{"srv_B"}},
+			{name: "blog", spec: other, servers: []string{"srv_A"}},
+		}
+		var opener resource.Opener = &route.Driver{}
+		blog := &item{ref: resource.Ref{Kind: route.Kind, Scope: prod, Name: "blog"}, spec: other}
+		if err := e.togetherIn(t.Context(), route.Kind, split, opener, []*item{blog}); err != nil {
+			t.Errorf("a change to another domain is refused: %v", err)
+		}
+		shop := &item{ref: resource.Ref{Kind: route.Kind, Scope: prod, Name: "shop"}, spec: public}
+		err := e.togetherIn(t.Context(), route.Kind, split, opener, []*item{shop})
+		if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "This would run admin on srv_B, api on srv_B and shop on srv_A. Move the whole domain to one server") {
+			t.Errorf("a change to the split domain = %v", err)
+		}
+	})
+}
+
+// A domain moved to another server together never serves its private path open on
+// either while the change runs: on the server it goes to, the private path is made
+// before the public root, and on the one it leaves, taken down after it (#606's
+// review, L4).
+func TestAPrivatePathIsMadeFirstAndTakenDownLast(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, prod, _, _ := setupRoutes(t, b, "srv_A", "srv_B")
+		admin := func(servers ...string) Edit {
+			ed := privateIn(prod, "admin", "shop.example.com", "/admin", &resourcev1.RouteAccess{Allow: []string{"203.0.113.0/24"}})
+			ed.Servers = servers
+			return ed
+		}
+		// The public root comes first in the proposal, as a person may well write it.
+		apply(t, e, propose(t, e, "Shop", routeIn(prod, "shop", "shop.example.com", "", "srv_A"), admin("srv_A")))
+		p := propose(t, e, "Move", routeIn(prod, "shop", "shop.example.com", "", "srv_B"), admin("srv_B"))
+		steps := func(server string) []string {
+			for _, sp := range p.Servers {
+				if sp.Server == server {
+					var out []string
+					for _, st := range sp.Steps {
+						out = append(out, st.Ref.Name+" "+st.Action.String())
+					}
+					return out
+				}
+			}
+			return nil
+		}
+		if got := strings.Join(steps("srv_B"), ", "); !strings.HasPrefix(got, "admin create") {
+			t.Errorf("on the server it goes to, the steps run %s, want the private path first", got)
+		}
+		if got := strings.Join(steps("srv_A"), ", "); !strings.HasSuffix(got, "admin delete") {
+			t.Errorf("on the server it leaves, the steps run %s, want the private path last", got)
+		}
 	})
 }

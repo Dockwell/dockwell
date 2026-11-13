@@ -56,7 +56,11 @@ const (
 	plainNoneID   = derivedPrefix + "none"
 	// secureNoneID is the same for the HTTPS server, and is made anew with it.
 	secureNoneID = derivedPrefix + "secure-none"
-	routesPath   = "/config/apps/http/servers/" + serverName + "/routes"
+	// secureSpellingsID and plainSpellingsID refuse what no browser writes, on a
+	// domain with a private path, ahead of all its routes (oddSpellings).
+	secureSpellingsID = derivedPrefix + "secure-spellings"
+	plainSpellingsID  = derivedPrefix + "spellings"
+	routesPath        = "/config/apps/http/servers/" + serverName + "/routes"
 	// serversPath is every server, whose ETag covers them all, as one reload can
 	// move a route from one to the other.
 	serversPath = "/config/apps/http/servers"
@@ -1288,7 +1292,7 @@ func routesIn(servers map[string]json.RawMessage) (all, others []json.RawMessage
 	}
 	all = slices.DeleteFunc(all, func(raw json.RawMessage) bool {
 		id := routeID(raw)
-		return isGeneration(id) || id == secureNoneID
+		return isGeneration(id) || id == secureNoneID || id == secureSpellingsID
 	})
 	plain, err := read(httpServerName)
 	if err != nil {
@@ -1801,6 +1805,9 @@ func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json
 	if secure, err = withSecureNone(secure); err != nil {
 		return err
 	}
+	if secure, err = withSpellings(secure, secureSpellingsID); err != nil {
+		return err
+	}
 	plain = withTrust(plain, len(trusted) > 0)
 	var tlsServer map[string]json.RawMessage
 	if err := unmarshalIf(servers[serverName], &tlsServer); err != nil {
@@ -1823,6 +1830,9 @@ func (c *Caddy) editServers(servers map[string]json.RawMessage, edit func([]json
 		return err
 	}
 	if plain, err = withDerived(plain, secure); err != nil {
+		return err
+	}
+	if plain, err = withSpellings(plain, plainSpellingsID); err != nil {
 		return err
 	}
 	if len(plain) == 0 {
@@ -2026,6 +2036,65 @@ var noSite = []map[string]any{{
 	"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
 }}
 
+// oddSpellings matches a decoded path no browser writes, and that a server behind may
+// read as another: a ";" or "\\" anywhere, a control character, a "." or ".." segment,
+// or one with something odd after it, a byte encoded twice, "::$" as NTFS names a
+// file's stream, or Unicode white space at the end. Tomcat, Jetty and Undertow take
+// ";x" off every segment and then resolve "..", and IIS reads "\\" as "/", so
+// /x/..;/admin, /;x/admin or /%5cadmin would reach a private /admin through a public
+// route above it (#606's review, H2). A browser resolves dot segments and encodes
+// what it sends once, so these come from no one a site serves.
+const oddSpellings = `[;\\\x00-\x1f\x7f]|(?:^|/)\.{1,2}(?:$|/|[^/\w.-])|%[0-9A-Fa-f]{2}|::\$|[\s\p{Z}\x{feff}]$`
+
+// withSpellings answers 400 to an odd spelling of a path (oddSpellings) on each
+// domain that has a private path, ahead of all its routes, so none of them can be
+// reached by one, the public route above the private path among them. A domain's
+// private path keeps its own pattern too (privateVariants). On the plain HTTP server
+// it answers only what the domain's routes answer, so anyone else still can't tell
+// they're there.
+func withSpellings(list []json.RawMessage, id string) ([]json.RawMessage, error) {
+	var domains []string
+	var reached []matcher
+	for _, raw := range list {
+		read, ok := readRoute(raw)
+		if !ok || read.Edited || read.Path == "" || !keepsOut(read) || slices.Contains(domains, read.Domain) {
+			continue
+		}
+		domains = append(domains, read.Domain)
+	}
+	if len(domains) == 0 {
+		return list, nil
+	}
+	slices.Sort(domains)
+	odd := &pattern{Pattern: oddSpellings}
+	for _, raw := range list {
+		read, ok := readRoute(raw)
+		if !ok || read.Edited || !slices.Contains(domains, read.Domain) {
+			continue
+		}
+		m := matcher{Host: []string{read.Domain}, PathRegexp: odd}
+		if read.Plain {
+			m.Protocol, m.RemoteIP = plainProtocol, reachOf(read)
+		}
+		if !slices.ContainsFunc(reached, func(o matcher) bool { return reflect.DeepEqual(o, m) }) {
+			reached = append(reached, m)
+		}
+	}
+	route, err := json.Marshal(map[string]any{
+		"@id": id, "terminal": true,
+		"match": reached,
+		"handle": []map[string]any{{
+			"handler": "static_response", "status_code": http.StatusBadRequest,
+			"body":    "This address isn't one a browser writes.\n",
+			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
+		}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(list, route), nil
+}
+
 // withSecureNone has a domain with a certificate answer a 404 for a path none of its
 // routes covers, as with a route to /api alone. It's for those domains alone, so it
 // says nothing of the panel's, or of what isn't Dockwell's.
@@ -2071,11 +2140,13 @@ func sortRoutes(routes []json.RawMessage) {
 			return key{rank: 1}
 		case id == closedRouteID, id == plainClosedID:
 			return key{rank: 2}
+		case id == secureSpellingsID, id == plainSpellingsID:
+			return key{rank: 3}
 		case id == plainNoneID, id == secureNoneID:
-			return key{rank: 4}
+			return key{rank: 5}
 		}
 		r, _ := readRoute(raw)
-		return key{rank: 3, domain: r.Domain, path: r.Path}
+		return key{rank: 4, domain: r.Domain, path: r.Path}
 	}
 	type keyed struct {
 		raw json.RawMessage
@@ -2091,7 +2162,7 @@ func sortRoutes(routes []json.RawMessage) {
 		switch {
 		case ka.rank != kb.rank:
 			return ka.rank - kb.rank
-		case ka.rank != 3:
+		case ka.rank != 4:
 			return 0
 		case ka.domain != kb.domain:
 			return strings.Compare(ka.domain, kb.domain)

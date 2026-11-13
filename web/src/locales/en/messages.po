@@ -4605,6 +4605,9 @@ msgstr "{name} (default)"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
 
+msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
+msgstr "A private route needs its domain's routes on one server, or a path falls to the route above it."
+
 msgid "A stranger gets 403 Forbidden"
 msgstr "A stranger gets 403 Forbidden"
 
@@ -4662,6 +4665,9 @@ msgstr "I've kept a copy of each password"
 msgid "I've kept a copy of the password"
 msgstr "I've kept a copy of the password"
 
+msgid "Its routes run on more than one server"
+msgstr "Its routes run on more than one server"
+
 msgid "Its server can't tell from where it asks"
 msgstr "Its server can't tell from where it asks"
 
@@ -4685,6 +4691,12 @@ msgstr "Make {where} private"
 
 msgid "Make {where} private too"
 msgstr "Make {where} private too"
+
+msgid "Move the whole domain to {serverName}"
+msgstr "Move the whole domain to {serverName}"
+
+msgid "Move {domainName} to {serverName}"
+msgstr "Move {domainName} to {serverName}"
 
 msgid "Name the user, such as admin."
 msgstr "Name the user, such as admin."

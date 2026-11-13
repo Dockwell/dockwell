@@ -1750,6 +1750,42 @@ describe("who gets in to a route (ADR 0087)", () => {
     expect(edits[0]?.spec?.kind.value).toMatchObject({ held: true, access: { allow: ["198.51.100.23"] } });
   });
 
+  it("offers to move a domain whose routes run on two servers to one, before it can be private", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    renderAt(
+      "/domains?private=rte_shop-example-com",
+      privateApi(
+        [
+          aDomain({
+            name: "shop.example.com",
+            certificate: issued,
+            routes: [
+              { id: "rte_shop-example-com", name: "shop-example-com", service: "web", port: 80 },
+              { id: "rte_shop-admin", name: "shop-admin", path: "/admin", service: "web", port: 80 },
+            ],
+            servers: [
+              { serverId: SERVER, serverName: "hz-1" },
+              { serverId: "srv_2", serverName: "hz-2" },
+            ],
+          }),
+        ],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make shop.example.com private" });
+    expect(sheet).toHaveTextContent("Its routes run on more than one server");
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    await user.click(within(sheet).getByRole("button", { name: "Move the whole domain to hz-2" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits.map((e) => [e.resource?.name, e.servers])).toEqual([
+      ["shop-example-com", ["srv_2"]],
+      ["shop-admin", ["srv_2"]],
+    ]);
+    expect(edits[1]?.spec?.kind.value).toMatchObject({ domain: "shop.example.com", path: "/admin" });
+  });
+
   it("asks for no password where a browser would send it over plain HTTP, and offers HTTPS", async () => {
     const user = userEvent.setup();
     const edits: ProposeChangeRequest["edits"] = [];

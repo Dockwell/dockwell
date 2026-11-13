@@ -33,11 +33,14 @@ func (c *Caddy) Ask(ctx context.Context, domain, path string, plain bool, header
 	if plain {
 		scheme, port = "http", httpPort
 	}
-	u := url.URL{Scheme: scheme, Host: domain, Path: path}
+	u := url.URL{Scheme: scheme, Host: domain, Path: "/"}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return 0, "", err
 	}
+	// As written, with nothing escaped or cleaned, as a stranger's odd spellings are
+	// asked too.
+	req.URL.Opaque = path
 	for k, v := range header {
 		req.Header[k] = v
 	}

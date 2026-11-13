@@ -565,9 +565,16 @@ func (h *Handler) holdWays(ctx context.Context, env string, next *compose.Stack,
 			return err
 		}
 		for _, r := range routes {
+			if r.Spec == nil {
+				continue
+			}
+			// A route is sealed since it could hold users' password hashes (ADR 0087).
+			plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
 			spec := &resourcev1.Route{}
-			// A route is never sealed: it holds no secret.
-			if r.Spec == nil || proto.Unmarshal(r.Spec, spec) != nil || spec.GetService() != "" || !ports[spec.GetHostPort()] || spec.GetHeld() {
+			if proto.Unmarshal(plain, spec) != nil || spec.GetService() != "" || !ports[spec.GetHostPort()] || spec.GetHeld() {
 				continue
 			}
 			if r.Scope == env {

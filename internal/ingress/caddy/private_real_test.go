@@ -362,7 +362,11 @@ func TestTheStrangerCheckOnRealCaddy(t *testing.T) {
 	tunnel.TrustedProxies, tunnel.Allow = []string{"127.0.0.1/32"}, []string{"203.0.113.0/24"}
 	open := plainRoute("dockwell.env.open", "open.example.net", up)
 	open.TrustedProxies, open.Allow = []string{"127.0.0.1/32"}, []string{"192.0.2.0/24"}
-	for _, r := range []ingress.Route{listed, password, tunnel, open} {
+	// A private path under a public root, asked by its odd spellings too.
+	shop := aRoute("dockwell.env.shop", "shop.example.net", "", up)
+	admin := aRoute("dockwell.env.admin", "shop.example.net", "/admin", up)
+	admin.Allow = []string{"203.0.113.0/24"}
+	for _, r := range []ingress.Route{listed, password, tunnel, open, shop, admin} {
 		put(t, c, r)
 	}
 	// Its certificate is Caddy's own, and comes in a moment.
@@ -377,6 +381,7 @@ func TestTheStrangerCheckOnRealCaddy(t *testing.T) {
 		"password.example.net": dockwellv1.StrangerOutcome_STRANGER_OUTCOME_ASKED_FOR_PASSWORD,
 		"tunnel.example.net":   dockwellv1.StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT,
 		"open.example.net":     dockwellv1.StrangerOutcome_STRANGER_OUTCOME_CANT_TELL,
+		"shop.example.net":     dockwellv1.StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT,
 	} {
 		if len(got[domain]) != 1 || got[domain][0].GetOutcome() != want {
 			t.Errorf("%s reads %v, want %v", domain, got[domain], want)
@@ -428,19 +433,52 @@ func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 		_ = res.Body.Close()
 		return res.StatusCode
 	}
-	for _, p := range []string{
-		"/admin", "/admin/x", "/admin;x=1", "/admin%3bx", "/admin%3B", "/admin%00", "/admin%20", "/admin%09",
-		"/admin%5cx", "/admin.", "/admin..", "/admin%2e", "/ADMIN", "/Admin;jsessionid=1", "//admin", "/x/../admin", "/%61dmin", "/admin%2fx",
-	} {
+	other := plainRoute("dockwell.env.other", "other.example.net", up)
+	other.PlainForAnyone = true
+	put(t, c, other)
+	for _, p := range []string{"/admin", "/admin/x", "/ADMIN", "//admin", "/x/../admin", "/%61dmin", "/admin%2fx"} {
 		if got := status(p); got != http.StatusForbidden {
 			t.Errorf("%s reaches %d, want the private path's 403", p, got)
 		}
 	}
-	// The public route answers these, whatever its app says of them.
-	for _, p := range []string{"/", "/adminx", "/admin.php", "/admin2", "/administrator", "/who"} {
-		if got := status(p); got == http.StatusForbidden {
-			t.Errorf("%s answers 403, want the public route", p)
+	// Each a server behind may read as /admin, and no browser writes: 400 for the
+	// domain, or the private path's 403, never the public route.
+	for _, p := range []string{
+		"/admin;x=1", "/admin%3bx", "/admin%3B", "/admin%00", "/admin%20", "/admin%09", "/admin%5cx", "/admin.", "/admin..",
+		"/admin%2e", "/Admin;jsessionid=1", "/x/..;/admin", "/;x/admin", "/.;/admin", "/admin;x/html", "/admin/x/..;/html",
+		"/%5cadmin", "/x%5c..%5cadmin", "/admin%253b", "/admin%c2%a0", "/admin%e3%80%80", "/admin%7f", "/admin::$DATA", "/x/%2e%2e/admin",
+	} {
+		if got := status(p); got != http.StatusBadRequest && got != http.StatusForbidden {
+			t.Errorf("%s reaches %d, want 400 or the private path's 403", p, got)
 		}
+	}
+	// The public route answers these, whatever its app says of them.
+	for _, p := range []string{"/", "/adminx", "/admin.php", "/admin2", "/administrator", "/who", "/.well-known/security.txt", "/a.b/c", "/..x"} {
+		if got := status(p); got == http.StatusForbidden || got == http.StatusBadRequest {
+			t.Errorf("%s answers %d, want the public route", p, got)
+		}
+	}
+	// A domain with no private path is as it was.
+	conn := func(host, path string) int {
+		t.Helper()
+		nc, err := net.Dial("tcp", net.JoinHostPort(own, strconv.Itoa(c.http)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer nc.Close()
+		_ = nc.SetDeadline(time.Now().Add(10 * time.Second))
+		if _, err := fmt.Fprintf(nc, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host); err != nil {
+			t.Fatal(err)
+		}
+		res, err := http.ReadResponse(bufio.NewReader(nc), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = res.Body.Close()
+		return res.StatusCode
+	}
+	if got := conn("other.example.net", "/who;jsessionid=1"); got == http.StatusBadRequest {
+		t.Errorf("a domain with no private path refuses ;jsessionid: %d", got)
 	}
 
 	rt := routeJSON(admin)

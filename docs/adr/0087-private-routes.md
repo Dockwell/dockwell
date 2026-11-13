@@ -89,7 +89,9 @@ What the engine compares is **what serves each domain and path** before the chan
 - **Deleting a private route to a path under a public domain**, which leaves the path to the domain. Deleting a private route with nothing above it keeps everyone out, and is a token's.
 - **With nothing serving a path now**, what served it within the undo window counts, from any environment, as going off HTTPS does (ADR 0030): deleting a private route and making a public one in its place, in one change or two, is the same as editing it. With something serving it, only that counts, so what a person opened stays a token's to edit.
 
-**A domain that keeps anyone out runs from one server.** What serves a path is worked out from specs, wherever they run, and on a server without a path's own route, the route above it serves it there. So a private path moved alone to another server would leave it to a public root on the first, and a private path placed apart from its root from the start leaves it open there already. Once any of a domain's routes keeps anyone out, the engine refuses a change that would run its routes from more than one place, naming them and where: "Place them on one server, together". Moving all of them together opens nothing, and is a token's. A domain that keeps no one out runs where it likes, as before.
+**A domain that keeps anyone out runs from one server.** What serves a path is worked out from specs, wherever they run, and on a server without a path's own route, the route above it serves it there. So a private path moved alone to another server would leave it to a public root on the first, and a private path placed apart from its root from the start leaves it open there already. Once any of a domain's routes keeps anyone out, the engine refuses a change to that domain that would run its routes from more than one place, naming each route and where it runs: "This would run admin on hz-2 and shop on hz-1. Move the whole domain to one server". The sheet offers that move, a button for each server, and holds Review plan until it's done. Moving all of them together opens nothing, and is a token's. A change to another domain in the environment answers only for its own. A domain that keeps no one out runs where it likes, as before.
+
+**A moved domain is never open between steps.** A kind's resources that keep anyone out go ahead of the rest of it in a change's order, so a private path is made before the public route above it, and, as deletes run last first, taken down after it: on the server the domain moves to and on the one it leaves.
 
 The plan says each way in as a fact (`list-off`, `allow:<range>`, `users-off`, `user:<name>`, `password:<name>`), which the plan's words, the CLI's and the panel's put in their own language.
 
@@ -97,6 +99,15 @@ The plan says each way in as a fact (`list-off`, `allow:<range>`, `users-off`, `
 
 - **Caddy applies it in the same reload as any route change** (ADR 0024): no app restarts, and Caddy doesn't either.
 - **A route's handlers, in order:** what it believes (ADR 0030), a subroute that answers 403 where the client isn't on the list, a subroute that answers 401 where the credentials name no user, Caddy's `authentication` handler (`http_basic`, bcrypt, `hash_cache`, the domain as realm), then `reverse_proxy`. Each is written from typed values; a name, a range and a hash are all that come from a spec, after checks.
+- **A domain with a private path answers 400 to what no browser writes**, ahead of all its routes, on the decoded path:
+  - `;` or `\` anywhere;
+  - a control character;
+  - a `.` or `..` segment, or one with something odd after it (`.well-known` is fine);
+  - a byte encoded twice;
+  - `::$`;
+  - Unicode white space at the end.
+
+  Tomcat, Jetty and Undertow take `;x` off every segment and then resolve `..`, and IIS reads `\` as `/`, so `/x/..;/admin`, `/;x/admin`, `/manager;x/html` or `/%5cadmin` would reach a private path through the public route above it. A browser resolves dot segments and encodes once, so these come from no one a site serves. The cost is that a `;jsessionid` in a path gets 400 on such a domain, which a Java app falls back from to its cookie. On a domain behind a tunnel, it answers only who the domain's routes answer, so a stranger still can't tell they're there. It's one route Dockwell derives on each of Caddy's servers on every change, as it does the 404 for a path no route covers.
 - **A private path's other spellings reach it.** Caddy's path matcher sees `/admin;x=1`, `/admin%00`, `/admin%20`, `/admin%5cx` and `/admin.` as other paths, so they'd fall to a public route above it, and Tomcat, Jetty and Undertow take `;x` off, as Windows servers take off trailing dots and spaces. A private path's route matches a second way too: a `path_regexp`, in any case, on the decoded path, of the path followed by nothing, `/`, `;` or `\`, or by nothing but spaces, control characters and dots. What only starts the same, such as `/admin2` or `/admin.php`, is another path. Checked on Caddy 2.11.7 with each spelling.
 - **A private route's answers aren't a shared cache's to keep.** It adds `Cache-Control: private` to what it sends back.
 - **It reads back as itself.** The list, the users and their hashes are read from Caddy's config, so a hand edit of them reads as what it now holds, and anything else in those handlers reads as edited by hand. Either is drift from the spec.
@@ -111,7 +122,7 @@ The route's server asks it as a stranger, on each pass of the agent's domain wat
 
 - **From the server itself, with no password**, to Caddy on loopback, over the port it serves the route on. It checks no certificate, as it reads only Caddy's own status line.
 - **As someone no list names.** Through a tunnel on the server that the route names (`127.0.0.1`), it says it passes on `192.0.2.1`, from the range kept for documentation, as that's who a tunnel's visitor reads as. Otherwise it's the server's loopback.
-- **A private path is asked a second way,** with `;x` after it, as an app may read that as the path. Let in either way reads as let in.
+- **A private path is asked its odd spellings too:** `P;x`, `/;x/P`, `/x/..;/P` and `/%5cP`, sent as written. Let in any way reads as let in; 400 is kept out.
 - **What it says:** kept out (403), asked for a password (401), let in (below 400, which a private route shouldn't be), another answer, or that it **can't tell**: where who it asks as is on the list, or the route answers only proxies the server isn't.
 - Once Caddy doesn't answer one, the rest of that pass aren't asked. A request with no `Authorization` costs Caddy no bcrypt.
 

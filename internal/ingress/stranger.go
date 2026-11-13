@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"strings"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
@@ -24,9 +25,12 @@ type Asker interface {
 // (RFC 5737), which no list should name.
 const strangerAddress = "192.0.2.1"
 
-// variantSuffix is what the stranger check also asks a private path with: Tomcat,
-// Jetty and Undertow read "/admin;x" as "/admin".
-const variantSuffix = ";x"
+// Spellings are what the stranger check also asks a private path as, written as a
+// stranger would send them: Tomcat, Jetty and Undertow take ";x" off each segment and
+// then resolve "..", and IIS reads "\\" as "/", so each reads as the path there.
+func Spellings(path string) []string {
+	return []string{path + ";x", "/;x" + path, "/x/..;" + path, "/%5c" + strings.TrimPrefix(path, "/")}
+}
 
 // asksFrom is the loopback address a stranger check comes from.
 const asksFrom = "127.0.0.1"
@@ -81,9 +85,15 @@ func AskStrangers(ctx context.Context, asker Asker, routes []Route) map[string][
 			check.Status, check.Said, check.Outcome = uint32(status), said, outcomeOf(status) //nolint:gosec // an HTTP status, 100 to 599
 			// A path's other spellings, which an app may read as the path, should keep
 			// a stranger out as well (#606's review, H2).
-			if r.Path != "" && check.GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
-				if status, said, err := asker.Ask(ctx, r.Domain, r.Path+variantSuffix, r.Plain, header); err == nil && outcomeOf(status) == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
-					check.Status, check.Said, check.Outcome = uint32(status), said+" at "+r.Path+variantSuffix, dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN //nolint:gosec // an HTTP status
+			if r.Path == "" {
+				break
+			}
+			for _, spelling := range Spellings(r.Path) {
+				if check.GetOutcome() == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
+					break
+				}
+				if status, said, err := asker.Ask(ctx, r.Domain, spelling, r.Plain, header); err == nil && outcomeOf(status) == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
+					check.Status, check.Said, check.Outcome = uint32(status), said+" at "+spelling, dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN //nolint:gosec // an HTTP status
 				}
 			}
 		}

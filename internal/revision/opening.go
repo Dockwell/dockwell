@@ -103,7 +103,7 @@ func (e *Engine) openingsIn(ctx context.Context, tx *store.Tx, kind resource.Kin
 			after = append(after, served{name: it.ref.Name, spec: it.spec, by: it, servers: it.servers})
 		}
 	}
-	if err := e.togetherIn(ctx, kind, after, opener); err != nil {
+	if err := e.togetherIn(ctx, kind, after, opener, its); err != nil {
 		return err
 	}
 	keysOf := func(spec proto.Message) []resource.Claim { return e.kinds.Claims(kind, spec) }
@@ -164,45 +164,54 @@ func (e *Engine) openingsIn(ctx context.Context, tx *store.Tx, kind resource.Kin
 // they run, so a private path on one server and its public parent on another would
 // leave the path to the parent there: moving the path alone would open it on the
 // server it left, and placing it apart from the start leaves it open there already.
-// A Group's resources go together, then, once any of them keeps anyone out.
-func (e *Engine) togetherIn(ctx context.Context, kind resource.Kind, after []served, opener resource.Opener) error {
+// A Group's resources go together, then, once any of them keeps anyone out. Only the
+// Groups the change touches are its to answer for (#606's review, L1), and the
+// refusal names each resource and where, so the panel can offer the move (L3).
+func (e *Engine) togetherIn(ctx context.Context, kind resource.Kind, after []served, opener resource.Opener, its []*item) error {
+	touched := map[string]bool{}
+	for _, it := range its {
+		for _, spec := range []proto.Message{it.current, it.spec} {
+			for _, c := range e.kinds.Claims(kind, spec) {
+				touched[c.Group] = true
+			}
+		}
+	}
 	groups := map[string][]served{}
 	for _, s := range after {
 		for _, c := range e.kinds.Claims(kind, s.spec) {
-			groups[c.Group] = append(groups[c.Group], s)
+			if touched[c.Group] {
+				groups[c.Group] = append(groups[c.Group], s)
+			}
 		}
 	}
 	for _, group := range slices.Sorted(maps.Keys(groups)) {
-		members := groups[group]
-		if !slices.ContainsFunc(members, func(s served) bool { return opener.KeepsOut(s.spec) }) {
+		members := slices.DeleteFunc(groups[group], func(s served) bool { return len(s.servers) == 0 }) // nowhere yet, as one that never ran
+		if !slices.ContainsFunc(groups[group], func(s served) bool { return opener.KeepsOut(s.spec) }) || len(members) == 0 {
 			continue
 		}
-		var first *served
-		for i := range members {
-			s := &members[i]
-			if len(s.servers) == 0 {
-				continue // nowhere yet, as a resource that never ran
-			}
-			if first == nil {
-				first = s
-				continue
-			}
-			if !slices.Equal(slices.Sorted(slices.Values(s.servers)), slices.Sorted(slices.Values(first.servers))) {
-				names, err := e.serverNames(ctx, slices.Concat(first.servers, s.servers))
-				if err != nil {
-					return err
-				}
-				on := func(ids []string) string {
-					list := make([]string, len(ids))
-					for i, id := range ids {
-						list[i] = names[id]
-					}
-					return human.List(list)
-				}
-				return fault.New(ErrInvalid, "%s keeps strangers out of some of its routes, so all its routes run on one server: a path left on a server without its own route falls to the route above it there. This would run %s on %s, and %s on %s. Place them on one server, together",
-					group, first.name, on(first.servers), s.name, on(s.servers))
-			}
+		place := func(s served) string { return strings.Join(slices.Sorted(slices.Values(s.servers)), " ") }
+		if !slices.ContainsFunc(members, func(s served) bool { return place(s) != place(members[0]) }) {
+			continue
 		}
+		var ids []string
+		for _, s := range members {
+			ids = append(ids, s.servers...)
+		}
+		names, err := e.serverNames(ctx, ids)
+		if err != nil {
+			return err
+		}
+		slices.SortFunc(members, func(a, b served) int { return strings.Compare(a.name, b.name) })
+		where := make([]string, len(members))
+		for i, s := range members {
+			on := make([]string, len(s.servers))
+			for j, id := range slices.Sorted(slices.Values(s.servers)) {
+				on[j] = names[id]
+			}
+			where[i] = s.name + " on " + human.List(on)
+		}
+		return fault.New(ErrInvalid, "%s keeps strangers out of some of its routes, so all its routes run on one server: a path left on a server without its own route falls to the route above it there. This would run %s. Move the whole domain to one server",
+			group, human.List(where))
 	}
 	return nil
 }

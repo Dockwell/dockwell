@@ -270,7 +270,10 @@ export function PrivateSheet({
   const listEmpty = keepsList && entries.length === 0;
   // Turning both off on a route that lets in anyone already changes nothing.
   const changes = wasPrivate || keepsList || asks;
-  const ready = changes && !nameMissing && (made.length === 0 || kept) && !listEmpty;
+  // A private route's domain runs from one server, or a path left behind would fall to
+  // the route above it there, which the server refuses (ADR 0087).
+  const split = domain.servers.length > 1;
+  const ready = changes && !nameMissing && (made.length === 0 || kept) && !listEmpty && !split;
 
   const addEntry = (entry: string) => {
     const value = entry.trim();
@@ -285,6 +288,34 @@ export function PrivateSheet({
     setTypedError(undefined);
   };
 
+  /** Each of the domain's routes as it is, for an edit that changes one thing of them all. */
+  const asItIs = (r: DomainRoute) => ({
+    domain: domain.name,
+    path: r.path,
+    service: r.service,
+    ...(r.hostPort ? { hostPort: r.hostPort } : { port: r.port }),
+    tls: r.tls,
+    trustedProxies: r.trustedProxies,
+    plainForAnyone: r.plainForAnyone,
+    held: r.held,
+    ...(r.allow.length + r.users.length > 0
+      ? { access: { allow: r.allow, users: r.users.map((name) => ({ name })) } }
+      : {}),
+  });
+  const moveTo = (serverId: string, serverName: string) =>
+    setPlan({
+      kind: "propose",
+      summary: t`Move ${domainName} to ${serverName}`,
+      edits: domain.routes.map((r) => ({
+        resource: { kind: "route", scope: domain.environmentId, name: r.name },
+        spec: { kind: { case: "route" as const, value: asItIs(r) } },
+        servers: [serverId],
+      })),
+      retryLabel: t`Edit and try again`,
+      // Moved or not, the sheet comes back, and reads the domain again as it is.
+      onClose: () => setPlan(undefined),
+    });
+
   // Every route of the domain at once, as a domain is served one way or the other.
   const domainName = domain.name;
   const turnOnHTTPS = () =>
@@ -293,22 +324,7 @@ export function PrivateSheet({
       summary: t`Turn on HTTPS for ${domainName}`,
       edits: domain.routes.map((r) => ({
         resource: { kind: "route", scope: domain.environmentId, name: r.name },
-        spec: {
-          kind: {
-            case: "route" as const,
-            value: {
-              domain: domain.name,
-              path: r.path,
-              service: r.service,
-              ...(r.hostPort ? { hostPort: r.hostPort } : { port: r.port }),
-              trustedProxies: r.trustedProxies,
-              held: r.held,
-              ...(r.allow.length + r.users.length > 0
-                ? { access: { allow: r.allow, users: r.users.map((name) => ({ name })) } }
-                : {}),
-            },
-          },
-        },
+        spec: { kind: { case: "route" as const, value: { ...asItIs(r), tls: "", plainForAnyone: false } } },
         ...(domain.servers.length === 1 ? { servers: [domain.servers[0]?.serverId ?? ""] } : {}),
       })),
       retryLabel: t`Edit and try again`,
@@ -432,6 +448,21 @@ export function PrivateSheet({
           </div>
         </section>
         <OpenWays ways={openWaysOf(domain, route, service, all)} service={service} onOther={onOther} />
+        {split ? (
+          <Callout tone="warning" title={t`Its routes run on more than one server`}>
+            <p className="private-saved-line">{t`A private route needs its domain's routes on one server, or a path falls to the route above it.`}</p>
+            <div className="private-user-acts">
+              {domain.servers.map((s) => {
+                const serverName = s.serverName;
+                return (
+                  <Button key={s.serverId} variant="secondary" size="sm" onClick={() => moveTo(s.serverId, serverName)}>
+                    {t`Move the whole domain to ${serverName}`}
+                  </Button>
+                );
+              })}
+            </div>
+          </Callout>
+        ) : null}
 
         <fieldset className="private-part">
           <label className="app-check private-toggle">
