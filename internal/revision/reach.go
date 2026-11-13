@@ -322,3 +322,61 @@ func checkCopyFrom(items []item, it *item, u *resourcev1.DatabaseUser) error {
 	return fault.New(ErrInvalid, "database user %s copies %s of %s, and no link in this change moves from it to %s. A database is copied only as an app's link moves to another, as Use another database on the app's page does",
 		it.ref.Name, c.GetDatabase(), c.GetService(), it.ref.Name)
 }
+
+// forLinkRoles checks a person's change to an item made for an app's link (Edit.For),
+// a restore of the app's database alone on a server it may share: the link has to
+// meet that server, whose service keeps its data in the item's volume, and the role
+// it needs is where the link is, a developer, or an admin where that's protected and
+// the change applies; a protected server's environment holds too, as an admin's
+// (ADR 0084). To one who holds nothing where the link is, it reads as not there.
+func (e *Engine) forLinkRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, it *item, server spot, byID map[string]*item, a act) error {
+	link, err := e.load(ctx, tx, it.forLink)
+	if err != nil {
+		return err
+	}
+	l, ok := link.current.(*resourcev1.Link)
+	if !ok || cmp.Or(l.GetMeetsEnvironment(), it.forLink.Scope) != it.ref.Scope {
+		return fault.New(ErrInvalid, "link %s doesn't meet the server %s is on, so nothing of it is done for that link", it.forLink.Name, it.ref.Name)
+	}
+	svc, err := e.load(ctx, tx, resource.Ref{Kind: "service", Scope: it.ref.Scope, Name: l.GetService()})
+	if err != nil {
+		return err
+	}
+	mounts := svc.current != nil && slices.ContainsFunc(e.kinds.References("service", svc.current), func(r resource.Reference) bool {
+		return r.Kind == it.ref.Kind && r.Name == it.ref.Name
+	})
+	if !mounts {
+		return fault.New(ErrInvalid, "%s isn't where %s, which link %s meets, keeps its data, so nothing of it is done for that link", it.ref.Name, l.GetService(), it.forLink.Name)
+	}
+	at, err := e.envSpotByID(ctx, tx, it.forLink.Scope, byID)
+	if errors.Is(err, store.ErrNotFound) {
+		return fault.New(ErrOutOfReach, "%s", ErrOutOfReach.Error())
+	}
+	if err != nil {
+		return err
+	}
+	held := place.Holds(grants, at.Place)
+	if held == "" {
+		return fault.New(ErrOutOfReach, "%s", ErrOutOfReach.Error())
+	}
+	needs, why := store.RoleDeveloper, ""
+	switch {
+	case a != planning && at.Protected:
+		needs, why = store.RoleAdmin, "it restores "+it.forLink.Name+"'s database for an app in a protected environment"
+	case a != planning && server.Protected:
+		needs, why = store.RoleAdmin, "it restores a database on a server in a protected environment"
+		held = maxRole(held, place.Holds(grants, server.Place))
+	}
+	if store.RoleRank(held) < store.RoleRank(needs) {
+		return &Refusal{act: a, Held: held, Needs: needs, Why: why}
+	}
+	return nil
+}
+
+// maxRole is the higher of two roles.
+func maxRole(a, b string) string {
+	if store.RoleRank(b) > store.RoleRank(a) {
+		return b
+	}
+	return a
+}

@@ -1710,6 +1710,10 @@ message BackupFirst {
   // True when nothing could tell: there was no backup before, and measuring the
   // volume took too long. The time the step gets is a guess, and the plan says so.
   bool unmeasured = 6;
+  // The one database it dumps alone, an app's on a server it shares, taken for
+  // the app before its update (ADR 0084). Empty backs up the whole volume.
+  // Numbered apart, as open work adds to this message.
+  string database_name = 80;
 }
 
 // DatabaseMove is what a step that moves a database to a newer release does
@@ -1811,6 +1815,11 @@ message RestorePlan {
   // backup is tied to a volume by name alone, so what it holds may be that, whatever
   // the volume it comes back into reaches.
   repeated string reached = 10;
+  // The one database it brings back, alone, for an app's on a server it shares:
+  // nothing stops, its user can't sign in while it loads, and the rest of the
+  // server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
+  // as open work adds to this message.
+  string database_name = 80;
 }
 
 // RouteMove is a route leaving one service for another.

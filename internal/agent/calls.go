@@ -530,7 +530,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}
 			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
 			if id := d.GetBackupId(); id != "" {
-				want.Backup = &resource.BackupAsked{ID: id}
+				want.Backup = &resource.BackupAsked{ID: id, Database: d.GetBackupDatabase()}
 			}
 			if change := d.GetReboot(); change != "" {
 				want.Reboot = &resource.RebootAsked{Change: change}

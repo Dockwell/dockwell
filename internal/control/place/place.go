@@ -8,7 +8,9 @@
 package place
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -178,6 +180,7 @@ func (pl *Placer) Items(ctx context.Context, changeID string) ([]Item, error) {
 	for i := range c.Items {
 		own[c.Items[i].ResourceID] = &c.Items[i]
 	}
+	links := forLinks(c.Plan)
 	out := make([]Item, 0, len(c.Items))
 	for i := range c.Items {
 		it := &c.Items[i]
@@ -185,9 +188,44 @@ func (pl *Placer) Items(ctx context.Context, changeID string) ([]Item, error) {
 		if err != nil {
 			return nil, err
 		}
+		if link, ok := links[[3]string{it.Kind, it.Scope, it.Name}]; ok {
+			// Done for an app's link, as a restore of its database alone: it's an edit
+			// where the link is, and taken in where the server is (ADR 0084).
+			at, err := pl.itemPlace(ctx, &store.ChangeItem{Kind: link[0], Scope: link[1], Name: link[2]}, own)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, Item{Kind: it.Kind, Scope: it.Scope, Name: it.Name, Place: at},
+				Item{Kind: it.Kind, Scope: it.Scope, Name: it.Name, Follows: true, Place: p})
+			continue
+		}
 		out = append(out, Item{Kind: it.Kind, Scope: it.Scope, Name: it.Name, Follows: it.Follows, Place: p})
 	}
 	return out, nil
+}
+
+// forLinks are the items of a change's plan done for an app's link, each with that
+// link, by kind, scope and name (revision's ResourcePlan.For).
+func forLinks(plan []byte) map[[3]string][3]string {
+	if !bytes.Contains(plan, []byte(`"For"`)) {
+		return nil
+	}
+	var p struct {
+		Resources []struct {
+			Ref struct{ Kind, Scope, Name string }
+			For *struct{ Kind, Scope, Name string }
+		}
+	}
+	if json.Unmarshal(plan, &p) != nil {
+		return nil
+	}
+	out := map[[3]string][3]string{}
+	for _, r := range p.Resources {
+		if r.For != nil {
+			out[[3]string{r.Ref.Kind, r.Ref.Scope, r.Ref.Name}] = [3]string{r.For.Kind, r.For.Scope, r.For.Name}
+		}
+	}
+	return out
 }
 
 // Sides are the places of a change's edits, and of what it took in through a value it

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -71,6 +72,9 @@ type Manifest struct {
 	Method string `json:"method"`
 	// Database names the database of a dump.
 	Database string `json:"database,omitempty"`
+	// OneDatabase is the one database a dump holds, for an app's on a server it
+	// shares, which restores alone (ADR 0084).
+	OneDatabase string `json:"one_database,omitempty"`
 	// Image is what wrote it, for a dump or a copy of one's files.
 	Image string `json:"image,omitempty"`
 	// Size is the size of the file, and SHA256 what it hashes to.
@@ -232,6 +236,9 @@ type Take struct {
 	// from is the database to dump, where it isn't what runs on the volume, as a
 	// move dumps the old release in a container of its own (ADR 0080).
 	from *database
+	// Database is the one database to dump, for an app's on a server it shares,
+	// rather than the whole server (ADR 0084).
+	Database string
 }
 
 // Take takes a backup, and says what it is once it's whole on the disk. Nothing
@@ -278,10 +285,29 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if take.from != nil {
 		db = take.from
 	}
-	if db != nil && (db.running || take.from != nil) {
+	if one := take.Database; one != "" {
+		// One database alone is a dump of it, from its server running now.
+		switch {
+		case engines.CheckSQLName("database", one) != nil:
+			return nil, fmt.Errorf("%q isn't a database's name", one)
+		case engines.SystemDatabase(one):
+			return nil, fmt.Errorf("%s is a database its server keeps for itself. Back up the whole volume to keep it", one)
+		case db == nil || db.kind.dumpOne == nil:
+			return nil, fmt.Errorf("%s holds no PostgreSQL, MySQL or MariaDB server, so Dockwell can't dump %s from it alone", take.Ref.Name, one)
+		case !db.running:
+			return nil, fmt.Errorf("%s's database server isn't running, and a dump of %s needs it. Start it, then try again", take.Ref.Name, one)
+		}
+		m.Method, m.Format, m.Database, m.Image, m.OneDatabase = resource.BackupDump, db.kind.dumpFormat(), db.kind.name, db.image, one
+		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
+			if m.Unpacked, err = r.dump(ctx, take.Ref, db, one, w); err != nil {
+				return 0, err
+			}
+			return 0, reachedAfter()
+		}, verifyOne(db.kind))
+	} else if db != nil && (db.running || take.from != nil) {
 		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, db.kind.dumpFormat(), db.kind.name, db.image
 		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
-			if m.Unpacked, err = r.dump(ctx, take.Ref, db, w); err != nil {
+			if m.Unpacked, err = r.dump(ctx, take.Ref, db, "", w); err != nil {
 				return 0, err
 			}
 			return 0, reachedAfter()

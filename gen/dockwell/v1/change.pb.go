@@ -6567,7 +6567,11 @@ type BackupFirst struct {
 	EstimateBytes int64 `protobuf:"varint,5,opt,name=estimate_bytes,json=estimateBytes,proto3" json:"estimate_bytes,omitempty"`
 	// True when nothing could tell: there was no backup before, and measuring the
 	// volume took too long. The time the step gets is a guess, and the plan says so.
-	Unmeasured    bool `protobuf:"varint,6,opt,name=unmeasured,proto3" json:"unmeasured,omitempty"`
+	Unmeasured bool `protobuf:"varint,6,opt,name=unmeasured,proto3" json:"unmeasured,omitempty"`
+	// The one database it dumps alone, an app's on a server it shares, taken for
+	// the app before its update (ADR 0084). Empty backs up the whole volume.
+	// Numbered apart, as open work adds to this message.
+	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6642,6 +6646,13 @@ func (x *BackupFirst) GetUnmeasured() bool {
 		return x.Unmeasured
 	}
 	return false
+}
+
+func (x *BackupFirst) GetDatabaseName() string {
+	if x != nil {
+		return x.DatabaseName
+	}
+	return ""
 }
 
 // DatabaseMove is what a step that moves a database to a newer release does
@@ -6962,7 +6973,12 @@ type RestorePlan struct {
 	// What the backup's volume reached when it was taken that's as good as root. A
 	// backup is tied to a volume by name alone, so what it holds may be that, whatever
 	// the volume it comes back into reaches.
-	Reached       []string `protobuf:"bytes,10,rep,name=reached,proto3" json:"reached,omitempty"`
+	Reached []string `protobuf:"bytes,10,rep,name=reached,proto3" json:"reached,omitempty"`
+	// The one database it brings back, alone, for an app's on a server it shares:
+	// nothing stops, its user can't sign in while it loads, and the rest of the
+	// server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
+	// as open work adds to this message.
+	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -7065,6 +7081,13 @@ func (x *RestorePlan) GetReached() []string {
 		return x.Reached
 	}
 	return nil
+}
+
+func (x *RestorePlan) GetDatabaseName() string {
+	if x != nil {
+		return x.DatabaseName
+	}
+	return ""
 }
 
 // RouteMove is a route leaving one service for another.
@@ -8588,7 +8611,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aallowed\x18\x03 \x03(\tR\aallowed\x12\x18\n" +
 	"\atunnels\x18\x04 \x03(\tR\atunnels\x12\x1f\n" +
 	"\vpanel_ports\x18\x05 \x03(\rR\n" +
-	"panelPorts\"\xd6\x01\n" +
+	"panelPorts\"\xfb\x01\n" +
 	"\vBackupFirst\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x121\n" +
 	"\x06method\x18\x02 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
@@ -8597,7 +8620,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\x05 \x01(\x03R\restimateBytes\x12\x1e\n" +
 	"\n" +
 	"unmeasured\x18\x06 \x01(\bR\n" +
-	"unmeasured\"\x80\x03\n" +
+	"unmeasured\x12#\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"\x80\x03\n" +
 	"\fDatabaseMove\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1f\n" +
@@ -8625,7 +8649,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\amanager\x18\x01 \x01(\tR\amanager\x12\x1c\n" +
 	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xcf\x02\n" +
+	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xf4\x02\n" +
 	"\vRestorePlan\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x16\n" +
 	"\x06undoes\x18\x02 \x01(\tR\x06undoes\x121\n" +
@@ -8639,7 +8663,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"written_by\x18\b \x01(\tR\twrittenBy\x12\x17\n" +
 	"\aruns_on\x18\t \x01(\tR\x06runsOn\x12\x18\n" +
 	"\areached\x18\n" +
-	" \x03(\tR\areached\"^\n" +
+	" \x03(\tR\areached\x12#\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"^\n" +
 	"\tRouteMove\x12\x14\n" +
 	"\x05where\x18\x01 \x01(\tR\x05where\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12\x0e\n" +

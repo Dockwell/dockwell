@@ -58,6 +58,8 @@ type Handler struct {
 	shareable Shareable
 	// pages is the catalog's index, which every page is cut from (ADR 0092).
 	pages pageIndex
+	// backups backs up and restores an app's database alone. Nil can't.
+	backups Backups
 }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)

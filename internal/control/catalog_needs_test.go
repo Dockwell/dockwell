@@ -1072,7 +1072,9 @@ func TestUseAnotherDatabase(t *testing.T) {
 	})
 	shared.mu.Unlock()
 	own.mu.Lock()
-	dumped := slices.ContainsFunc(own.said, func(said string) bool { return strings.Contains(said, "pg_dump") && strings.Contains(said, " blog\n") })
+	dumped := slices.ContainsFunc(own.said, func(said string) bool {
+		return strings.Contains(said, "pg_dump") && strings.HasSuffix(said, " blog blog")
+	})
 	own.mu.Unlock()
 	if owner != "blog" || !loaded || !dumped {
 		t.Errorf("on the shared PostgreSQL, blog owns %q; the blog's database was dumped %v and loaded as blog %v", owner, dumped, loaded)

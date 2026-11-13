@@ -349,6 +349,46 @@ describe("the backups page", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/^Everything in orders on hz-1 is replaced/);
   });
 
+  it("asks for a shared server's name typed before it plans restoring it whole", async () => {
+    const user = userEvent.setup();
+    const change = restoring({
+      backupId: "bkp_1",
+      method: BackupMethod.DUMP,
+      database: "PostgreSQL",
+      sizeBytes: 1n << 20n,
+    });
+    const asked: string[] = [];
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          restoreBackup: (req) => {
+            asked.push(req.confirm);
+            if (req.confirm !== "db") {
+              throw new ConnectError(
+                "Restoring db whole takes back what blog wrote to it since 2026-11-06 03:00 UTC. Type db to confirm, or restore each app's database alone from its page",
+                Code.FailedPrecondition,
+                { "Dockwell-Error": "confirm_name" },
+              );
+            }
+            return { change };
+          },
+        },
+        changes: { getChange: () => ({ change }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restore db whole" });
+    expect(dialog).toHaveTextContent("Restoring db whole takes back what blog wrote to it since");
+    const review = within(dialog).getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    await user.type(within(dialog).getByLabelText("Type db to confirm"), "db");
+    await user.click(review);
+    await waitFor(() => expect(asked).toEqual(["", "db"]));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Everything in orders on hz-1 is replaced/);
+  });
+
   it("says what a schedule costs, and plans it", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn((req: ProposeChangeRequest) => {

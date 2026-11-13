@@ -3,6 +3,8 @@
 package backup
 
 import (
+	"cmp"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/volume"
@@ -48,6 +51,9 @@ type state struct {
 	// Ended is when it finished or undid itself: an undo can come for 7 days after
 	// that, however long it took.
 	Ended time.Time `json:"ended,omitzero"`
+	// One is who a restore of one database alone keeps out of it, and how to let them
+	// back in, kept from before the first thing it changes (ADR 0084).
+	One *engines.Lockout `json:"one,omitempty"`
 }
 
 func readState(path string) (*state, error) {
@@ -104,7 +110,7 @@ func (r *Runner) source(ref resource.Ref, src resource.RestoreSource) (*Manifest
 		if !reached(s.Stage, stageCopied) {
 			return nil, "", errors.New("that restore never finished copying what it replaced, so there's nothing to put back. Restore a backup instead")
 		}
-		return &s.Manifest, filepath.Join(dir, beforePrefix+src.Undoes+"."+formatArchive), nil
+		return &s.Manifest, filepath.Join(dir, beforePrefix+src.Undoes+"."+cmp.Or(s.Format, formatArchive)), nil
 	}
 	m, err := readManifest(filepath.Join(dir, src.Backup+".json"))
 	if errors.Is(err, os.ErrNotExist) {
@@ -201,9 +207,27 @@ func estimate(m *Manifest) time.Duration {
 // JudgeBackup plans a backup as a step of a change, and reports false if it's been
 // taken already. It stops what runs on the volume for an exact copy, as what follows
 // it in a change usually replaces that anyway.
-func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, id string) (resource.Decision, bool, error) {
+func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, asked resource.BackupAsked) (resource.Decision, bool, error) {
+	id := asked.ID
 	if _, err := readManifest(filepath.Join(r.dir(ref), id+".json")); err == nil {
 		return resource.Decision{}, false, nil
+	}
+	if one := asked.Database; one != "" {
+		// One app's database alone, before its update: a dump of it, which stops
+		// nothing, from its server running now (ADR 0084).
+		t := volume.TargetOf(ref)
+		u, err := r.users(ctx, t)
+		if err != nil {
+			return resource.Decision{}, false, err
+		}
+		db := u.database()
+		switch {
+		case db == nil || db.kind.dumpOne == nil:
+			return resource.Decision{}, false, fmt.Errorf("%s holds no PostgreSQL, MySQL or MariaDB server, so %s can't be dumped alone before the update", ref.Name, one)
+		case !db.running:
+			return resource.Decision{}, false, fmt.Errorf("%s's database server isn't running, and dumping %s before the update needs it. Start it, then plan this again", ref.Name, one)
+		}
+		return resource.Decision{Action: resource.ActionUpdate, BackupFirst: &resource.BackupFirst{ID: id, Method: resource.BackupDump, Database: db.kind.name, One: one}}, true, nil
 	}
 	p, err := r.Preview(ctx, ref)
 	if err != nil {
@@ -234,7 +258,7 @@ func (r *Runner) ApplyBackup(ctx context.Context, step resource.Step) error {
 	m, err := readManifest(filepath.Join(r.dir(step.Ref), first.ID+".json"))
 	if err != nil {
 		resource.Stage(ctx, resource.PhaseBackingUp, "Backing up "+step.Ref.Name)
-		if m, err = r.Take(ctx, Take{ID: first.ID, Ref: step.Ref, Stop: true}); err != nil {
+		if m, err = r.Take(ctx, Take{ID: first.ID, Ref: step.Ref, Stop: true, Database: first.One}); err != nil {
 			return err
 		}
 	}
@@ -260,6 +284,18 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 	u, err := r.users(ctx, t)
 	if err != nil {
 		return resource.Decision{}, false, err
+	}
+	if m.OneDatabase != "" {
+		// One database alone: nothing stops, its user can't sign in while it loads.
+		if _, err := oneServer(u, m); err != nil {
+			return resource.Decision{}, false, err
+		}
+		return resource.Decision{
+			Action: resource.ActionReplace, Effect: resource.EffectRestart, Destroys: true, Downtime: estimate(m),
+			Restore: &resource.RestorePlan{
+				Backup: src.Backup, Undoes: src.Undoes, Method: m.Method, Database: m.Database, OneDatabase: m.OneDatabase, Taken: m.Taken, Size: m.Size, Reached: m.Reached,
+			},
+		}, true, nil
 	}
 	stops, db, err := r.stopsFor(ctx, t, u, m)
 	if err != nil {
@@ -323,6 +359,9 @@ func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resou
 	m, file, err := r.source(ref, src)
 	if err != nil {
 		return stopping(err)
+	}
+	if m.OneDatabase != "" {
+		return r.restoreOne(ctx, ref, t, st, m, file)
 	}
 	verify := verifyArchive
 	if isDump(m.Format) {
@@ -610,4 +649,145 @@ func (r *Runner) volumeAsPlanned(ctx context.Context, ref resource.Ref, t volume
 		return r.noVolume(ref, err)
 	}
 	return r.Paths.VolumeAsPlanned(ctx, v, planned, stopped)
+}
+
+// oneServer is the running database server a backup of one database restores into:
+// the one on the volume, of the backup's engine.
+func oneServer(u *users, m *Manifest) (*database, error) {
+	db := u.database()
+	switch {
+	case db == nil || db.kind.name != m.Database || db.kind.dumpOne == nil:
+		return nil, fmt.Errorf("this backup is a dump of %s alone, which loads into a running %s, and nothing on this server runs one on its volume. Deploy the service that uses it, then plan this again", m.OneDatabase, m.Database)
+	case !db.running:
+		return nil, fmt.Errorf("%s, which %s loads into, isn't running. Start it, then plan this again", db.name, m.OneDatabase)
+	}
+	return db, nil
+}
+
+// restoreOne brings back one database alone, an app's on a server it shares (ADR
+// 0084). Its user is kept out first, so the app writes nothing as it loads, and what
+// the database holds now goes to a dump the server keeps for 7 days, which undoing
+// this loads back. The backup loads as the database's owner, through the copy's path,
+// never as the server's administrator. One that fails puts what was there back, then
+// lets the app in; one that can't put it back keeps the app out, as what's there may
+// not be whole, and says how to try again. A run cut short goes on from where it got.
+func (r *Runner) restoreOne(ctx context.Context, ref resource.Ref, t volume.Target, st *state, m *Manifest, file string) error {
+	one := m.OneDatabase
+	k := kindNamed(m.Database)
+	if k == nil || k.dumpOne == nil {
+		return fmt.Errorf("this backup is a dump of %s alone, of %s, which this agent can't load. Update it to the control plane's version", one, m.Database)
+	}
+	resource.Progress(ctx, "Checking the backup")
+	if err := check(file, m, verifyOne(k)); err != nil {
+		return fmt.Errorf("the backup is damaged, so nothing was changed: %w. Choose another", err)
+	}
+	u, err := r.users(ctx, t)
+	if err != nil {
+		return err
+	}
+	db, err := oneServer(u, m)
+	if err != nil {
+		return err
+	}
+	c, err := r.Client.InspectContainer(ctx, db.id)
+	if err != nil {
+		return err
+	}
+	e := engines.Recognise(c.Config.Image)
+	if e == nil {
+		return fmt.Errorf("%s doesn't run %s from its official image, so %s can't be restored alone", db.name, m.Database, one)
+	}
+	resource.Progress(ctx, "Keeping "+one+"'s user out while it loads")
+	lockout, password, err := engines.LockOut(ctx, r.Client, c, e, one, st.One)
+	if err != nil {
+		return fmt.Errorf("can't keep %s's user out, so nothing was changed: %w", one, err)
+	}
+	if st.One == nil {
+		st.One = lockout
+		if err := r.saveState(ref, st, st.Stage); err != nil {
+			return errors.Join(err, r.letIn(ctx, c, e, one, st))
+		}
+	}
+	if !reached(st.Stage, stageCopied) {
+		resource.Progress(ctx, "Dumping what's in "+one+" now, which the server keeps for 7 days")
+		st.Manifest = Manifest{
+			ID: beforePrefix + st.Change, Environment: ref.Scope, Volume: ref.Name, Format: k.dumpFormat(), Method: resource.BackupDump,
+			Database: k.name, OneDatabase: one, Image: db.image, Taken: r.now().UTC(),
+		}
+		var as []string
+		if lockout.Loader != "" {
+			// Its owner can't sign in now: the role that loads dumps it, as the owner.
+			as = []string{lockout.Loader, lockout.Owner}
+		}
+		err := r.write(ref, &st.Manifest, func(w io.Writer) (int64, error) {
+			var err error
+			st.Unpacked, err = r.dumpAs(ctx, ref, db, one, as, w)
+			return 0, err
+		}, verifyOne(k))
+		if err != nil {
+			return errors.Join(fmt.Errorf("can't keep what's in %s now, so nothing was replaced: %w", one, err), r.letIn(ctx, c, e, one, st))
+		}
+		if err := r.saveState(ref, st, stageCopied); err != nil {
+			return errors.Join(err, r.letIn(ctx, c, e, one, st))
+		}
+	}
+	before := filepath.Join(r.dir(ref), st.ID+"."+st.Format)
+	if !reached(st.Stage, stageReplaced) {
+		if err := r.saveState(ref, st, stageReplacing); err != nil {
+			return errors.Join(err, r.letIn(ctx, c, e, one, st))
+		}
+		resource.Progress(ctx, "Loading the backup into "+one)
+		if err := r.loadInto(ctx, c, e, one, lockout, password, file); err != nil {
+			failed := fmt.Errorf("the backup didn't load into %s: %w", one, err)
+			resource.Progress(ctx, "Putting back what was in "+one)
+			if perr := r.loadInto(ctx, c, e, one, lockout, password, before); perr != nil {
+				return fmt.Errorf("%w. Putting back what was there failed too: %w. %s stays kept out of %s, as what's in it may not be whole. "+
+					"A dump of what was there is at %s on this server. Run dockwell changes undo %s to try again", failed, perr, lockout.Owner, one, before, st.Change)
+			}
+			if err := r.saveState(ref, st, stageUndone); err != nil {
+				return errors.Join(failed, err)
+			}
+			if err := r.letIn(ctx, c, e, one, st); err != nil {
+				return fmt.Errorf("%w. What was there is back in %s, and %w", failed, one, err)
+			}
+			return fmt.Errorf("%w. What was there is back in %s, and its user signs in again", failed, one)
+		}
+		if err := r.saveState(ref, st, stageReplaced); err != nil {
+			return err
+		}
+	}
+	if err := r.letIn(ctx, c, e, one, st); err != nil {
+		return fmt.Errorf("%s holds the backup now, and %w. Apply this change again to try again", one, err)
+	}
+	return r.saveState(ref, st, stageFinished)
+}
+
+// letIn lets a restore's lockout go, whatever became of the restore's context.
+func (r *Runner) letIn(ctx context.Context, c *docker.Container, e *engines.Engine, one string, st *state) error {
+	if st.One == nil {
+		return nil
+	}
+	ctx, cancel := resource.Finishing(ctx, startWait)
+	defer cancel()
+	if err := engines.LetIn(ctx, r.Client, c, e, one, st.One); err != nil {
+		return fmt.Errorf("can't let %s back into %s: %w", st.One.Owner, one, err)
+	}
+	return nil
+}
+
+// loadInto loads a gzipped dump of one database into it, through the copy's path,
+// as whom the lockout has load it.
+func (r *Runner) loadInto(ctx context.Context, c *docker.Container, e *engines.Engine, one string, l *engines.Lockout, password, file string) error {
+	f, err := os.Open(file) //nolint:gosec // under the agent's own directory
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("the dump doesn't open: %w", err)
+	}
+	defer gz.Close()
+	user, prelude := l.Signer(password)
+	return engines.Loader{Client: r.Client}.Load(ctx, engines.Load{To: c, Engine: e, User: user, Password: password, Database: one, Prelude: prelude}, gz)
 }

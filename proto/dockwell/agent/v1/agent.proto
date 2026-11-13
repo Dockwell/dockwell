@@ -1259,6 +1259,9 @@ message BackupCall {
   dockwell.v1.ResourceRef volume = 2;
   // Stop what runs on the volume for an exact copy, and start it again after.
   bool stop = 3;
+  // The one database to dump, for an app's on a server it shares, rather than the
+  // whole server (ADR 0084). Empty backs up the volume as before.
+  string database = 291;
 }
 
 // ListUpdatesCall asks which package updates wait, read with the server's own
@@ -2096,6 +2099,9 @@ message DesiredResource {
   string scope_name = 9;
   // Backs up the resource's data as a step of this change, under this ID.
   string backup_id = 10;
+  // The one database that backup dumps alone, an app's on a server it shares, as
+  // the app's update takes it first (ADR 0084). Empty backs up the whole volume.
+  string backup_database = 292;
   // Installs updates on the server, for its host (ADR 0064). Numbered in the
   // servers area's block, 230 to 239.
   InstallUpdates install_updates = 232;

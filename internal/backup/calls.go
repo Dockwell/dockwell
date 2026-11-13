@@ -30,7 +30,7 @@ func (c Calls) Preview(ctx context.Context, call *agentv1.BackupPreviewCall) (*a
 
 // Take takes a backup.
 func (c Calls) Take(ctx context.Context, call *agentv1.BackupCall) (*agentv1.BackupResult, error) {
-	m, err := c.Runner.Take(ctx, Take{ID: call.GetId(), Ref: resourcepb.FromRef(call.GetVolume()), Stop: call.GetStop()})
+	m, err := c.Runner.Take(ctx, Take{ID: call.GetId(), Ref: resourcepb.FromRef(call.GetVolume()), Stop: call.GetStop(), Database: call.GetDatabase()})
 	if err != nil {
 		return nil, err
 	}

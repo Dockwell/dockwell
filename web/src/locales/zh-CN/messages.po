@@ -6610,6 +6610,9 @@ msgstr "不检查恢复"
 msgid "Hasn't run yet"
 msgstr "尚未运行"
 
+msgid "Its app's database alone"
+msgstr "只有它的应用的数据库"
+
 #. placeholder {0}: policy.spec?.keep ?? 0
 #. placeholder {1}: policy.kept
 #. placeholder {2}: formatBytes(policy.keptBytes, i18n.locale)
@@ -6720,6 +6723,12 @@ msgstr "无论结果如何，复制结束后被停止的内容都会重新启动
 #. placeholder {3}: formatBytes(total, i18n.locale)
 msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 msgstr "{count, plural, other {每次备份约占 {0}；保留 # 份约占 {1}。磁盘还有 {toGive} 可用。}}"
+
+msgid "Restore {server} whole"
+msgstr "整体恢复 {server}"
+
+msgid "Type {server} to confirm"
+msgstr "输入 {server} 以确认"
 
 msgid "Copy of a running app"
 msgstr "运行中应用的副本"
@@ -7199,8 +7208,44 @@ msgstr "已发布版本 {next}。"
 msgid "{name} {version}"
 msgstr "{name} {version}"
 
+msgid "Back up daily"
+msgstr "每天备份"
+
+msgid "Back up {need}'s database daily"
+msgstr "每天备份 {need} 的数据库"
+
+msgid "Backing up"
+msgstr "正在备份"
+
+msgid "It wasn't backed up"
+msgstr "未能备份"
+
+msgid "Its database isn't backed up alone yet"
+msgstr "它的数据库还没有单独备份过"
+
+msgid "Its database's backups"
+msgstr "它的数据库的备份"
+
+msgid "Only by hand"
+msgstr "仅手动"
+
+msgid "Reading its backups"
+msgstr "正在读取它的备份"
+
+msgid "Stop backing up {need}'s database on a schedule"
+msgstr "停止按计划备份 {need} 的数据库"
+
+msgid "Stop the schedule"
+msgstr "停止计划"
+
+msgid "{how}, keeps {keeps}"
+msgstr "{how}，保留 {keeps} 个"
+
 msgid "Copies its data"
 msgstr "复制它的数据"
+
+msgid "Its backups"
+msgstr "它的备份"
 
 msgid "Its data can't be copied there"
 msgstr "它的数据无法复制到那里"
@@ -10069,9 +10114,6 @@ msgstr "备份方式"
 
 msgid "No backups of {name} yet"
 msgstr "{name} 还没有备份"
-
-msgid "Only by hand"
-msgstr "仅手动"
 
 msgid "Restoring"
 msgstr "恢复"

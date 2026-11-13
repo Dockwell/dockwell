@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -76,17 +77,28 @@ type databaseKind struct {
 	// probe, where set, prints ok when a running server's dump keeps everything it
 	// holds; one that doesn't is backed up as files, as before it was dumped.
 	probe []string
+	// dumpOne writes one database, its name the shell's first argument, with what
+	// drops what it makes first, owned by no one, so what restores it as the
+	// database's owner makes it theirs, for an app's database on a server it shares;
+	// completeOne is what such a dump's last lines say when whole. PostgreSQL's runs
+	// as the database's owner, the second argument, never the administrator, which a
+	// user of a shared server could turn a dump against (CVE-2024-7348). Unset where
+	// Dockwell doesn't dump one database alone (ADR 0084).
+	dumpOne     []string
+	completeOne string
 }
 
 // Each official image lets these run from inside with what its environment says.
 var databaseKinds = []*databaseKind{
 	{
 		name: "PostgreSQL", image: "postgres", data: "/var/lib/postgresql/data", dataVar: "PGDATA", series: 1, portFlags: true,
-		dump:       []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
-		load:       []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGOPTIONS='-c lc_messages=C'; exec psql -X -q -U "${POSTGRES_USER:-postgres}" -d postgres -f -`},
-		ready:      []string{"sh", "-c", `exec pg_isready -q -h 127.0.0.1 -p "${PGPORT:-5432}" -U "${POSTGRES_USER:-postgres}"`},
-		complete:   "PostgreSQL database cluster dump complete",
-		loadFailed: postgresLoadFailed,
+		dump:        []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dumpall -U "${POSTGRES_USER:-postgres}" --clean --if-exists`},
+		load:        []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGOPTIONS='-c lc_messages=C'; exec psql -X -q -U "${POSTGRES_USER:-postgres}" -d postgres -f -`},
+		ready:       []string{"sh", "-c", `exec pg_isready -q -h 127.0.0.1 -p "${PGPORT:-5432}" -U "${POSTGRES_USER:-postgres}"`},
+		complete:    "PostgreSQL database cluster dump complete",
+		dumpOne:     []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; exec pg_dump -U "$2" ${3:+"--role=$3"} --no-owner --no-acl --clean --if-exists -d "$1"`, "sh"},
+		completeOne: "PostgreSQL database dump complete",
+		loadFailed:  postgresLoadFailed,
 		// pg_isready exits 3 when it never tried: its own command line is wrong.
 		neverReady: func(code int, _ string) bool { return code == 3 },
 		preflight:  []string{"sh", "-c", postgresPreflight},
@@ -94,13 +106,15 @@ var databaseKinds = []*databaseKind{
 	},
 	{
 		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: []string{"MYSQL_ROOT_PASSWORD"}, series: 2,
-		dump:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
-		load:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
-		ready:      []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
-		complete:   "Dump completed",
-		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
-		preflight:  []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; c=mysql; ` + sqlPreflight},
-		census:     []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot -N -B -e "` + sqlCensus + `"`},
+		dump:        []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
+		dumpOne:     []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --single-transaction --routines --events --triggers --hex-blob --set-gtid-purged=OFF "$1"`, "sh"},
+		completeOne: "Dump completed",
+		load:        []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
+		ready:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
+		complete:    "Dump completed",
+		neverReady:  func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
+		preflight:   []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; c=mysql; ` + sqlPreflight},
+		census:      []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot -N -B -e "` + sqlCensus + `"`},
 		// From 8.0.16 the server upgrades what it holds as it starts; FORCE makes it
 		// go through tables a load wrote in the old layout.
 		upgradeArgs: []string{"--upgrade=FORCE"},
@@ -116,6 +130,10 @@ var databaseKinds = []*databaseKind{
 			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
 			`history=""; "$tool" --help 2>/dev/null | grep -q -- '--dump-history' && history=--dump-history; ` +
 			`exec "$tool" -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges $history`},
+		dumpOne: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
+			`exec "$tool" -uroot --single-transaction --routines --events --triggers --hex-blob "$1"`, "sh"},
+		completeOne: "Dump completed",
 		probe: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
 			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
 			`if "$tool" --help 2>/dev/null | grep -q -- '--dump-history'; then echo ok; exit 0; fi; ` +
@@ -473,16 +491,42 @@ func (t *tail) String() string {
 	return strings.TrimSpace(string(t.buf))
 }
 
-// dump writes a database's own dump to w, gzipped, and says how large it is unzipped.
-func (r *Runner) dump(ctx context.Context, ref resource.Ref, db *database, w io.Writer) (int64, error) {
-	resource.Progress(ctx, "Dumping "+ref.Name+" with "+db.kind.name+"'s own tools")
+// dump writes a database's own dump to w, gzipped, and says how large it is unzipped:
+// the whole server's, or where one names a database, that database's alone.
+func (r *Runner) dump(ctx context.Context, ref resource.Ref, db *database, one string, w io.Writer) (int64, error) {
+	return r.dumpAs(ctx, ref, db, one, nil, w)
+}
+
+// dumpAs is dump, of one database as a user and role a restore has it dump as, where
+// as names them: its owner can't sign in while a restore keeps it out.
+func (r *Runner) dumpAs(ctx context.Context, ref resource.Ref, db *database, one string, as []string, w io.Writer) (int64, error) {
+	cmd := db.kind.dump
+	if one != "" {
+		resource.Progress(ctx, "Dumping "+one+" on "+ref.Name+" with "+db.kind.name+"'s own tools")
+		cmd = append(slices.Clone(db.kind.dumpOne), one)
+		if db.kind.name == "PostgreSQL" && len(as) > 0 {
+			cmd = append(cmd, as...)
+		} else if db.kind.name == "PostgreSQL" {
+			c, err := r.Client.InspectContainer(ctx, db.id)
+			if err != nil {
+				return 0, err
+			}
+			owner, err := engines.OwnerOf(ctx, r.Client, c, engines.Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL), one)
+			if err != nil {
+				return 0, fmt.Errorf("can't read who owns %s: %w", one, err)
+			}
+			cmd = append(cmd, owner)
+		}
+	} else {
+		resource.Progress(ctx, "Dumping "+ref.Name+" with "+db.kind.name+"'s own tools")
+	}
 	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
 		return 0, err
 	}
 	errs := &tail{}
 	plain := &counter{w: gz}
-	code, err := r.Client.Exec(ctx, db.id, db.tool(db.kind.dump), docker.Streams{Stdout: plain, Stderr: errs})
+	code, err := r.Client.Exec(ctx, db.id, db.tool(cmd), docker.Streams{Stdout: plain, Stderr: errs})
 	switch {
 	case err != nil:
 		return 0, fmt.Errorf("can't dump %s: %w", db.kind.name, err)
@@ -541,6 +585,14 @@ func verifyDump(k *databaseKind) verifier {
 	if k.verify != nil {
 		return k.verify
 	}
+	return verifyEnd(k.complete)
+}
+
+// verifyOne reads back a dump of one database.
+func verifyOne(k *databaseKind) verifier { return verifyEnd(k.completeOne) }
+
+// verifyEnd reads back a gzipped dump to its end, which says complete when whole.
+func verifyEnd(complete string) verifier {
 	return func(r io.Reader) error {
 		gz, err := gzip.NewReader(r)
 		if err != nil {
@@ -551,8 +603,8 @@ func verifyDump(k *databaseKind) verifier {
 		if _, err := io.Copy(end, gz); err != nil { //nolint:gosec // a backup this agent wrote, read once and kept to its last 4 KiB
 			return fmt.Errorf("the dump stops short or is damaged: %w", err)
 		}
-		if !strings.Contains(end.String(), k.complete) {
-			return fmt.Errorf("the dump doesn't end as a whole one does, with %q", k.complete)
+		if !strings.Contains(end.String(), complete) {
+			return fmt.Errorf("the dump doesn't end as a whole one does, with %q", complete)
 		}
 		return nil
 	}

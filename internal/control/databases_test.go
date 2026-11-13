@@ -198,6 +198,8 @@ type pgState struct {
 	makeNone  bool
 	// sizes has its reading list its databases, each this large, where set.
 	sizes map[string]int64
+	// loaded is what each load into one database was given, by database.
+	loaded map[string]string
 }
 
 var (
@@ -206,6 +208,7 @@ var (
 	createDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
 	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
+	askLockout = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 	askOwner   = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 	askRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 )
@@ -221,11 +224,35 @@ func (s *pgState) image() dockertest.Image {
 				_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
 				return 2
 			}
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, "pg_dumpall") {
+				// The whole server, which reads nothing.
+				_, _ = io.WriteString(x.Stdout, "CREATE ROLE blog;\n--\n-- PostgreSQL database cluster dump complete\n--\n")
+				return 0
+			}
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, "pg_dump ") {
+				// One database alone, which a dump says it ended.
+				s.mu.Lock()
+				defer s.mu.Unlock()
+				s.said = append(s.said, script)
+				_, _ = io.WriteString(x.Stdout, "CREATE TABLE posts (id int);\n--\n-- PostgreSQL database dump complete\n--\n")
+				return 0
+			}
 			b, _ := io.ReadAll(x.Stdin)
 			sql := string(b)
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			s.said = append(s.said, strings.Join(x.Cmd, " ")+"\n"+sql)
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, `-d "$d"`) {
+				if s.loaded == nil {
+					s.loaded = map[string]string{}
+				}
+				s.loaded[x.Cmd[5]] = sql
+				return 0
+			}
+			if m := askLockout.FindStringSubmatch(sql); m != nil {
+				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q,"login":true,"super":false}`+"\n", s.databases[m[1]])
+				return 0
+			}
 			if m := askOwner.FindStringSubmatch(sql); m != nil {
 				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q}`+"\n", s.databases[m[1]])
 				return 0

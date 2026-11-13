@@ -1239,7 +1239,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
 		if b := d.Backup; b != nil {
-			dr.BackupId = b.ID
+			dr.BackupId, dr.BackupDatabase = b.ID, b.Database
 		}
 		if m := d.Move; m != nil {
 			dr.MoveDatabase = &agentv1.MoveDatabase{BackupId: m.Backup, FromVolume: m.From, ToVolume: m.To, ChangeId: m.Change, FinishOnly: m.Finish}

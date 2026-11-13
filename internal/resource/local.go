@@ -61,6 +61,9 @@ type Desired struct {
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
 type BackupAsked struct {
 	ID string
+	// Database is the one database it dumps alone, an app's on a server it shares
+	// (ADR 0084). Empty backs up the whole volume.
+	Database string
 }
 
 // MoveAsked is a database a change moves to a newer release on a server, by a dump
@@ -430,7 +433,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			if !ok {
 				return nil, fmt.Errorf("can't plan %s: this agent can't back up a %s", want.Ref, want.Ref.Kind)
 			}
-			dec, left, err := b.JudgeBackup(ctx, want.Ref, want.Backup.ID)
+			dec, left, err := b.JudgeBackup(ctx, want.Ref, *want.Backup)
 			if err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 			}

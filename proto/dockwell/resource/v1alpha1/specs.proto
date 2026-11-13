@@ -1043,6 +1043,12 @@ message BackupPolicy {
     DRILL_MONTHLY = 3;
   }
   Drill drill = 9;
+  // An app's database alone, in place of a volume: the link in this environment,
+  // by its need's name, whose database on whatever server meets it is dumped, as its
+  // owner, on the schedule, and kept as its app's page keeps them (ADR 0084). Such
+  // a policy stops nothing and has no drills. Numbered apart, as open work adds to
+  // this message.
+  string link = 80;
 }
 
 // BackupDestination is S3-compatible storage that backups go to as well as the

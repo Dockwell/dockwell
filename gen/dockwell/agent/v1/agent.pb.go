@@ -6635,7 +6635,10 @@ type BackupCall struct {
 	// The volume.
 	Volume *v1.ResourceRef `protobuf:"bytes,2,opt,name=volume,proto3" json:"volume,omitempty"`
 	// Stop what runs on the volume for an exact copy, and start it again after.
-	Stop          bool `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
+	Stop bool `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
+	// The one database to dump, for an app's on a server it shares, rather than the
+	// whole server (ADR 0084). Empty backs up the volume as before.
+	Database      string `protobuf:"bytes,291,opt,name=database,proto3" json:"database,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6689,6 +6692,13 @@ func (x *BackupCall) GetStop() bool {
 		return x.Stop
 	}
 	return false
+}
+
+func (x *BackupCall) GetDatabase() string {
+	if x != nil {
+		return x.Database
+	}
+	return ""
 }
 
 // ListUpdatesCall asks which package updates wait, read with the server's own
@@ -11215,6 +11225,9 @@ type DesiredResource struct {
 	ScopeName string `protobuf:"bytes,9,opt,name=scope_name,json=scopeName,proto3" json:"scope_name,omitempty"`
 	// Backs up the resource's data as a step of this change, under this ID.
 	BackupId string `protobuf:"bytes,10,opt,name=backup_id,json=backupId,proto3" json:"backup_id,omitempty"`
+	// The one database that backup dumps alone, an app's on a server it shares, as
+	// the app's update takes it first (ADR 0084). Empty backs up the whole volume.
+	BackupDatabase string `protobuf:"bytes,292,opt,name=backup_database,json=backupDatabase,proto3" json:"backup_database,omitempty"`
 	// Installs updates on the server, for its host (ADR 0064). Numbered in the
 	// servers area's block, 230 to 239.
 	InstallUpdates *InstallUpdates `protobuf:"bytes,232,opt,name=install_updates,json=installUpdates,proto3" json:"install_updates,omitempty"`
@@ -11337,6 +11350,13 @@ func (x *DesiredResource) GetScopeName() string {
 func (x *DesiredResource) GetBackupId() string {
 	if x != nil {
 		return x.BackupId
+	}
+	return ""
+}
+
+func (x *DesiredResource) GetBackupDatabase() string {
+	if x != nil {
+		return x.BackupDatabase
 	}
 	return ""
 }
@@ -14462,12 +14482,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tcontainer\x18\x01 \x01(\tR\tcontainer\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\"E\n" +
 	"\x11BackupPreviewCall\x120\n" +
-	"\x06volume\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\"b\n" +
+	"\x06volume\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\"\x7f\n" +
 	"\n" +
 	"BackupCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x06volume\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12\x12\n" +
-	"\x04stop\x18\x03 \x01(\bR\x04stop\"A\n" +
+	"\x04stop\x18\x03 \x01(\bR\x04stop\x12\x1b\n" +
+	"\bdatabase\x18\xa3\x02 \x01(\tR\bdatabase\"A\n" +
 	"\x0fListUpdatesCall\x12\x18\n" +
 	"\arefresh\x18\x01 \x01(\bR\arefresh\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"I\n" +
@@ -14772,7 +14793,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\x8d\x05\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xb7\x05\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -14785,7 +14806,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"scope_name\x18\t \x01(\tR\tscopeName\x12\x1b\n" +
 	"\tbackup_id\x18\n" +
-	" \x01(\tR\bbackupId\x12K\n" +
+	" \x01(\tR\bbackupId\x12(\n" +
+	"\x0fbackup_database\x18\xa4\x02 \x01(\tR\x0ebackupDatabase\x12K\n" +
 	"\x0finstall_updates\x18\xe8\x01 \x01(\v2!.dockwell.agent.v1.InstallUpdatesR\x0einstallUpdates\x12\x17\n" +
 	"\x06reboot\x18\xe9\x01 \x01(\tR\x06reboot\x12E\n" +
 	"\rmove_database\x18\x84\x02 \x01(\v2\x1f.dockwell.agent.v1.MoveDatabaseR\fmoveDatabase\x122\n" +

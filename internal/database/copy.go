@@ -128,40 +128,20 @@ func (d *UserDriver) copyInto(ctx context.Context, to *docker.Container, e *Engi
 	if se := Recognise(src.Config.Image); se == nil || se.Kind != e.Kind {
 		return fmt.Errorf("%s doesn't run %s, so its database %s can't be copied into %s's", from.GetService(), e.Name, from.GetDatabase(), e.Name)
 	}
-	dump, load := dumpOne[e.Kind], loadOne[e.Kind]
-	if dump == nil {
+	dump := dumpOne[e.Kind]
+	if dump == nil || loadOne[e.Kind] == nil {
 		return fmt.Errorf("copying a %s database across isn't something Dockwell does yet", e.Name)
 	}
 	ctx, cancel := context.WithTimeout(ctx, cmp.Or(d.CopyWait, copyWait))
 	defer cancel()
 	dump = append(withPort("PGPORT", PortOf(e, src.Config.Cmd), dump), from.GetDatabase())
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
-		owner, err := d.ownerOf(ctx, src, e, from.GetDatabase())
+		owner, err := OwnerOf(ctx, d.Client, src, e, from.GetDatabase())
 		if err != nil {
 			return fmt.Errorf("can't read who owns %s on %s, so nothing was copied: %w", from.GetDatabase(), from.GetService(), err)
 		}
 		dump = append(dump, owner)
 	}
-	port := strconv.FormatUint(uint64(cmp.Or(PortOf(e, to.Config.Cmd), e.Port)), 10)
-
-	// The load's own network, with the new server alone on it.
-	network, addr, leave, err := d.copyNetwork(ctx, to, user)
-	if err != nil {
-		return err
-	}
-	defer leave()
-	trusts, err := d.trusted(ctx, to, e, network, port, addr, db)
-	if err != nil {
-		return err
-	}
-	if trusts {
-		return fmt.Errorf("%s lets anyone on its networks sign in as its administrator with no password, so a copy loaded into it could take the whole server, and nothing was copied. "+
-			"Have it ask for passwords, as POSTGRES_HOST_AUTH_METHOD=scram-sha-256 or a root password does, then try again", serviceOf(to))
-	}
-	first, options := d.refusals(ctx, to, e)
-	load = append(slices.Clone(load), user, db, port, addr)
-	load = append(load, options...)
-
 	pr, pw := io.Pipe()
 	moved := &atomic.Int64{}
 	dumpSaid := &capped{max: 4 << 10}
@@ -176,45 +156,112 @@ func (d *UserDriver) copyInto(ctx context.Context, to *docker.Container, e *Engi
 		dumped <- err
 	}()
 	stopTelling := tellCopied(ctx, from.GetDatabase(), moved)
-	var in io.Reader
-	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
-		in = withoutRestrict(pr)
-	} else {
-		in = withoutDefiners(pr)
-	}
-	in = io.MultiReader(strings.NewReader(first), in)
-	loadSaid := &capped{max: 4 << 10}
-	code, err := d.throwaway(ctx, to.Config.Image, network, user, []string{copyPassword[e.Kind] + "=" + password}, load, in, loadSaid)
+	err = Loader{Client: d.Client}.Load(ctx, Load{To: to, Engine: e, User: user, Password: password, Database: db}, pr)
 	stopTelling()
 	_ = pr.CloseWithError(errLoadEnded)
 	dumpErr := <-dumped
 	if errors.Is(dumpErr, errLoadEnded) {
 		// The load ended first, and what it says is why.
 		dumpErr = nil
-		if err == nil && code == 0 {
+		if err == nil {
 			err = errors.New("the load ended before the dump did")
 		}
 	}
+	var refused *LoadError
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		return fmt.Errorf("copying %s across took longer than %s, so it stopped and nothing moved. Copy it by hand, then use start empty", from.GetDatabase(), cmp.Or(d.CopyWait, copyWait))
 	case dumpErr != nil:
 		return fmt.Errorf("can't copy %s across: %w", from.GetDatabase(), dumpErr)
+	case errors.As(err, &refused):
+		return fmt.Errorf("%s couldn't load the copy of %s as %s, code %d: %s", e.Name, from.GetDatabase(), user, refused.Code, refused.Said)
 	case err != nil:
 		return fmt.Errorf("can't copy %s across: %w", from.GetDatabase(), err)
-	case code != 0:
-		return fmt.Errorf("%s couldn't load the copy of %s as %s, code %d: %s", e.Name, from.GetDatabase(), user, code, scrubbed(strings.TrimSpace(loadSaid.String())))
 	}
 	return nil
 }
 
-// ownerOf is who owns a PostgreSQL database, which its dump runs as.
-func (d *UserDriver) ownerOf(ctx context.Context, c *docker.Container, e *Engine, db string) (string, error) {
+// Loader loads a dump into one database as a user of it, as a copy does: by the
+// server's own client in a throwaway container of its image, holding nothing, on an
+// internal network made for the load with the server alone on it, dialling the
+// server's address there, where a password is asked for. A server that lets its
+// administrator in there with no password isn't loaded into. Where the client can,
+// it refuses every client command in the dump; a MySQL or MariaDB dump's DEFINER
+// clauses go, so what it makes is the user's (ADR 0084).
+type Loader struct {
+	Client *docker.Client
+}
+
+// Load is one load: into Database on the server To runs, as User with Password,
+// running Prelude first, such as PostgreSQL's SET ROLE.
+type Load struct {
+	To                       *docker.Container
+	Engine                   *Engine
+	User, Password, Database string
+	Prelude                  string
+}
+
+// LoadError is a load the server's client stopped, with what it said.
+type LoadError struct {
+	Code int
+	Said string
+}
+
+func (e *LoadError) Error() string {
+	return fmt.Sprintf("the load stopped with code %d: %s", e.Code, e.Said)
+}
+
+// Load loads dump. A load the client stopped is a *LoadError.
+func (ld Loader) Load(ctx context.Context, l Load, dump io.Reader) error {
+	e, to := l.Engine, l.To
+	load := loadOne[e.Kind]
+	if load == nil {
+		return fmt.Errorf("loading a %s database isn't something Dockwell does yet", e.Name)
+	}
+	port := strconv.FormatUint(uint64(cmp.Or(PortOf(e, to.Config.Cmd), e.Port)), 10)
+	network, addr, leave, err := ld.copyNetwork(ctx, to, l.User)
+	if err != nil {
+		return err
+	}
+	defer leave()
+	trusts, err := ld.trusted(ctx, to, e, network, port, addr, l.Database)
+	if err != nil {
+		return err
+	}
+	if trusts {
+		return fmt.Errorf("%s lets anyone on its networks sign in as its administrator with no password, so a dump loaded into it could take the whole server, and nothing was loaded. "+
+			"Have it ask for passwords, as POSTGRES_HOST_AUTH_METHOD=scram-sha-256 or a root password does, then try again", serviceOf(to))
+	}
+	first, options := ld.refusals(ctx, to, e)
+	cmd := append(slices.Clone(load), l.User, l.Database, port, addr)
+	cmd = append(cmd, options...)
+	var in io.Reader
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+		in = withoutRestrict(dump)
+	} else {
+		in = withoutDefiners(dump)
+	}
+	in = io.MultiReader(strings.NewReader(first+l.Prelude), in)
+	said := &capped{max: 4 << 10}
+	code, err := ld.throwaway(ctx, to.Config.Image, network, l.User, []string{copyPassword[e.Kind] + "=" + l.Password}, cmd, in, said)
+	switch {
+	case err != nil:
+		return err
+	case code != 0:
+		return &LoadError{Code: code, Said: scrubbed(strings.TrimSpace(said.String()))}
+	}
+	return nil
+}
+
+// OwnerOf is who owns a PostgreSQL database, which a dump of it alone runs as: on a
+// server other apps share, a dump as the administrator is one a user of it could turn
+// against the server (CVE-2024-7348).
+func OwnerOf(ctx context.Context, client *docker.Client, c *docker.Container, e *Engine, db string) (string, error) {
 	if err := CheckSQLName("database", db); err != nil {
 		return "", err
 	}
 	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
-	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd,
+	said, err := Reader{Client: client}.ask(ctx, c.ID, e, cmd,
 		"SELECT json_build_object('owner', r.rolname) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '"+db+"';\n")
 	if err != nil {
 		return "", err
@@ -236,11 +283,11 @@ func serviceOf(c *docker.Container) string {
 // copyNetwork makes an internal network of the copy's own, joins the new server to
 // it, and says its name and the server's address there; leave takes the server
 // off it and removes it, whatever became of the copy.
-func (d *UserDriver) copyNetwork(ctx context.Context, to *docker.Container, user string) (network, addr string, leave func(), err error) {
+func (ld Loader) copyNetwork(ctx context.Context, to *docker.Container, user string) (network, addr string, leave func(), err error) {
 	network = docker.CopyPrefix + user + "-" + randomHex(6)
 	// Internal, and with no address of the server's own on its bridge, so what's on
 	// it reaches neither the internet nor the server itself, only the new database.
-	if _, err := d.Client.CreateNetwork(ctx, &docker.NetworkCreate{
+	if _, err := ld.Client.CreateNetwork(ctx, &docker.NetworkCreate{
 		Name: network, Internal: true, CheckDuplicate: true, Labels: map[string]string{LabelCopy: user},
 		Options: map[string]string{inhibitIPv4: "true"},
 	}); err != nil {
@@ -251,16 +298,16 @@ func (d *UserDriver) copyNetwork(ctx context.Context, to *docker.Container, user
 		gone, cancel := resource.Finishing(ctx, time.Minute)
 		defer cancel()
 		if joined {
-			_ = d.Client.DisconnectNetwork(gone, network, to.ID)
+			_ = ld.Client.DisconnectNetwork(gone, network, to.ID)
 		}
-		_ = d.Client.RemoveNetwork(gone, network)
+		_ = ld.Client.RemoveNetwork(gone, network)
 	}
-	if err := d.Client.ConnectNetwork(ctx, network, to.ID, nil); err != nil {
+	if err := ld.Client.ConnectNetwork(ctx, network, to.ID, nil); err != nil {
 		leave()
 		return "", "", nil, fmt.Errorf("docker can't put %s on the network the copy loads on: %w", serviceOf(to), err)
 	}
 	joined = true
-	c, err := d.Client.InspectContainer(ctx, to.ID)
+	c, err := ld.Client.InspectContainer(ctx, to.ID)
 	if err == nil {
 		if ep := c.NetworkSettings.Networks[network]; ep != nil {
 			addr = ep.IPAddress
@@ -281,14 +328,14 @@ const inhibitIPv4 = "com.docker.network.bridge.inhibit_ipv4"
 // no password from another host on the copy's network. Only the server's refusal to
 // let it in says it doesn't: anything else, such as a connection that fails, is no
 // answer, and the copy doesn't go on.
-func (d *UserDriver) trusted(ctx context.Context, to *docker.Container, e *Engine, network, port, addr, db string) (bool, error) {
+func (ld Loader) trusted(ctx context.Context, to *docker.Container, e *Engine, network, port, addr, db string) (bool, error) {
 	admin := "root"
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
 		admin = cmp.Or(envOf(to.Config.Env, "POSTGRES_USER"), "postgres")
 	}
 	cmd := append(slices.Clone(trustsAnyone[e.Kind]), admin, port, addr, db)
 	said := &capped{max: 4 << 10}
-	code, err := d.throwaway(ctx, to.Config.Image, network, "check", nil, cmd, nil, said)
+	code, err := ld.throwaway(ctx, to.Config.Image, network, "check", nil, cmd, nil, said)
 	switch {
 	case err != nil:
 		return false, fmt.Errorf("can't tell whether %s asks for a password on the copy's network, so nothing was copied: %w", serviceOf(to), err)
@@ -340,9 +387,9 @@ func envOf(env []string, name string) string {
 // with: a first line for psql, from 17.6, 16.10, 15.14, 14.19 and 13.22 on, which
 // takes no backslash command after it but one with a key no dump can know, or
 // options for a MySQL or MariaDB client that has them.
-func (d *UserDriver) refusals(ctx context.Context, to *docker.Container, e *Engine) (first string, options []string) {
+func (ld Loader) refusals(ctx context.Context, to *docker.Container, e *Engine) (first string, options []string) {
 	said := &capped{max: 256 << 10}
-	if code, err := d.Client.Exec(ctx, to.ID, clientSays[e.Kind], docker.Streams{Stdin: strings.NewReader(""), Stdout: said}); err != nil || code != 0 {
+	if code, err := ld.Client.Exec(ctx, to.ID, clientSays[e.Kind], docker.Streams{Stdin: strings.NewReader(""), Stdout: said}); err != nil || code != 0 {
 		return "", nil
 	}
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
@@ -380,7 +427,7 @@ var psqlRelease = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompi
 
 // throwaway runs cmd in a container of image made for it, on network alone, with
 // nothing mounted and every capability dropped, and removes it after.
-func (d *UserDriver) throwaway(ctx context.Context, image, network, user string, env, cmd []string, in io.Reader, said io.Writer) (int, error) {
+func (ld Loader) throwaway(ctx context.Context, image, network, user string, env, cmd []string, in io.Reader, said io.Writer) (int, error) {
 	req := &docker.CreateRequest{
 		Config: docker.Config{
 			Image: image, Entrypoint: []string{}, Cmd: cmd, Env: env,
@@ -395,16 +442,16 @@ func (d *UserDriver) throwaway(ctx context.Context, image, network, user string,
 			LogConfig: &docker.LogConfig{Type: "none"},
 		},
 	}
-	id, err := d.Client.CreateContainer(ctx, docker.CopyPrefix+user+"-"+randomHex(6), req)
+	id, err := ld.Client.CreateContainer(ctx, docker.CopyPrefix+user+"-"+randomHex(6), req)
 	if err != nil {
 		return 0, fmt.Errorf("docker can't make the container that loads the copy: %w", err)
 	}
 	defer func() {
 		gone, cancel := resource.Finishing(ctx, time.Minute)
 		defer cancel()
-		_ = d.Client.RemoveOneOff(gone, id)
+		_ = ld.Client.RemoveOneOff(gone, id)
 	}()
-	return d.Client.RunAttached(ctx, id, docker.Streams{Stdin: in, Stdout: io.Discard, Stderr: said})
+	return ld.Client.RunAttached(ctx, id, docker.Streams{Stdin: in, Stdout: io.Discard, Stderr: said})
 }
 
 // randomHex is n random bytes, as hex.

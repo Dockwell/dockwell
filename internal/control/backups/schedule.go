@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
@@ -79,11 +81,13 @@ func (h *Handler) policies(ctx context.Context, tx *store.Tx) ([]policy, error) 
 	return out, nil
 }
 
-// due is one run of a policy on one server.
+// due is one run of a policy on one server: of a whole volume, or of one app's
+// database on it, taken for its link (ADR 0084).
 type due struct {
-	policy policy
-	volume store.Resource
-	server store.Server
+	policy       policy
+	volume       store.Resource
+	server       store.Server
+	one, forLink string
 }
 
 // RunDue starts what's due now. A run missed while the control plane was down
@@ -99,7 +103,15 @@ func (h *Handler) RunDue(ctx context.Context) error {
 		}
 		for i := range list {
 			p := list[i]
-			v, err := tx.GetResource(ctx, string(volume.Kind), p.environment, p.spec.GetVolume())
+			var one, forLink string
+			name, env := p.spec.GetVolume(), p.environment
+			if p.spec.GetLink() != "" {
+				var ok bool
+				if env, name, one, forLink, ok = h.linkedDatabase(ctx, tx, p.environment, p.spec.GetLink()); !ok {
+					continue // nothing to dump, which its app's page says
+				}
+			}
+			v, err := tx.GetResource(ctx, string(volume.Kind), env, name)
 			if err != nil || v.Spec == nil {
 				continue // the volume's gone: a change would have had to delete the policy first
 			}
@@ -117,7 +129,7 @@ func (h *Handler) RunDue(ctx context.Context) error {
 					return err
 				}
 				if ready {
-					runs = append(runs, due{p, v, server})
+					runs = append(runs, due{policy: p, volume: v, server: server, one: one, forLink: forLink})
 				}
 			}
 		}
@@ -160,6 +172,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: run.volume.Scope, Volume: run.volume.Name, VolumeID: run.volume.ID, ServerID: run.server.ID,
 		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id, Destination: run.policy.spec.GetDestination(),
+		OneDatabase: run.one, ForLink: run.forLink,
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("error", err.Error()))
@@ -360,4 +373,33 @@ func max2(a, b time.Time) time.Time {
 		return a
 	}
 	return b
+}
+
+// linkedDatabase is the database a link in env, by name, has on the server that meets
+// it: that server's environment, the volume it keeps its data in, the database's name,
+// and the link's ID. Not ok where there's none, as a link to a Redis has.
+func (h *Handler) linkedDatabase(ctx context.Context, tx *store.Tx, env, name string) (serverEnv, vol, one, linkID string, ok bool) {
+	r, err := tx.GetResource(ctx, "link", env, name)
+	if err != nil || r.Spec == nil {
+		return "", "", "", "", false
+	}
+	l := &resourcev1.Link{}
+	// A link is never sealed: it names values, and holds none.
+	if proto.Unmarshal(r.Spec, l) != nil || l.GetDatabaseName() == "" {
+		return "", "", "", "", false
+	}
+	serverEnv = cmp.Or(l.GetMeetsEnvironment(), env)
+	svc, err := tx.GetResource(ctx, "service", serverEnv, l.GetService())
+	if err != nil || svc.Spec == nil {
+		return "", "", "", "", false
+	}
+	spec, err := h.keeper.Decode(ctx, tx, store.InRevision(svc.ID, svc.Kind, svc.Revision), svc.Spec)
+	if err != nil {
+		return "", "", "", "", false
+	}
+	s, _ := spec.(*resourcev1.Service)
+	if vol = database.DataVolume(s); vol == "" {
+		return "", "", "", "", false
+	}
+	return serverEnv, vol, l.GetDatabaseName(), r.ID, true
 }

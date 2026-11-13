@@ -223,9 +223,17 @@ type Edit struct {
 	// Restore asks for the resource's data to come back from a backup, with its
 	// spec as it is, on the server that holds the backup (ADR 0033).
 	Restore *resource.RestoreSource
+	// For is the link, in another environment, the edit is made for: a restore of
+	// one app's database alone, on a server it shares, needs a role where the app's
+	// link is, not where the server is, and the link has to meet that server (ADR
+	// 0084).
+	For resource.Ref
 	// Backup backs up the resource's data on each server that has it, as a step that
 	// comes before what uses it. A resource the change makes has nothing to back up.
 	Backup bool
+	// BackupOne is the one database that backup dumps alone, an app's, for the link
+	// For names (ADR 0084).
+	BackupOne string
 	// Install installs its server's updates, for a server's host: a step its agent
 	// simulates as it plans and runs in a unit of its own, which makes no revision
 	// (ADR 0064).
@@ -338,6 +346,17 @@ type Proposal struct {
 	// (ADR 0080): one no edit names is kept as it is, with its backup. Edit.Backup
 	// says the same of an edit's own resource.
 	BackUp []resource.Ref
+	// BackUpOne names apps' databases to dump alone before anything else, each on
+	// a server the app may share, made for its link (ADR 0084).
+	BackUpOne []OneBackup
+}
+
+// OneBackup is an app's database dumped alone before its update: the server's
+// volume, the database, and the app's link it's taken for (ADR 0084).
+type OneBackup struct {
+	Volume   resource.Ref
+	Database string
+	For      resource.Ref
 }
 
 // Place is where a plan's resources live, as far as anyone has a choice: Project
@@ -441,10 +460,13 @@ type ResourcePlan struct {
 	// action that puts back how the unit stood.
 	Unit *resource.Unit `json:",omitempty"`
 	// Restore says what the change brings its data back from, which makes no
-	// revision either.
+	// revision either, and For the link it does that for (Edit.For).
 	Restore *resource.RestoreSource `json:",omitempty"`
+	For     *resource.Ref           `json:",omitempty"`
 	// Backups are the backups the change takes of it, by server ID.
 	Backups map[string]string `json:",omitempty"`
+	// BackupOne is the one database those backups dump alone (Edit.BackupOne).
+	BackupOne string `json:",omitempty"`
 	// Move is the database the change moves to a newer release, by a dump into a
 	// new volume (ADR 0080).
 	Move *resource.MoveAsked `json:",omitempty"`
@@ -664,6 +686,10 @@ type item struct {
 	restart string
 	// restore is what its data comes back from, as a restart is, on one server.
 	restore *resource.RestoreSource
+	// forLink is the link the edit is made for (Edit.For), and backupOne the one
+	// database its backups dump alone (Edit.BackupOne).
+	forLink   resource.Ref
+	backupOne string
 	// backups are the backups the change takes of it first, by server ID.
 	backups map[string]string
 	// move is the database it moves to a newer release, by a dump into a new
@@ -691,7 +717,7 @@ func (it item) noRevision() bool {
 // backupOn is the backup the item takes on a server first, if any.
 func (it item) backupOn(server string) *resource.BackupAsked {
 	if backup := it.backups[server]; backup != "" {
-		return &resource.BackupAsked{ID: backup}
+		return &resource.BackupAsked{ID: backup, Database: it.backupOne}
 	}
 	return nil
 }
@@ -813,7 +839,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			return nil, err
 		}
 	}
-	if len(backUp) > 0 || len(dumped) > 0 {
+	if len(p.BackUpOne) > 0 {
+		if p.Edits, err = e.withOneBackups(ctx, p.Edits, p.BackUpOne); err != nil {
+			return nil, err
+		}
+	}
+	if len(backUp) > 0 || len(dumped) > 0 || len(p.BackUpOne) > 0 {
 		if items, err = e.items(ctx, p.Edits, rotate); err != nil {
 			return nil, err
 		}
@@ -821,6 +852,10 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	for i := range items {
 		if j := slices.IndexFunc(dumped, func(d dumpMove) bool { return d.service == items[i].ref }); j >= 0 {
 			items[i].move = dumped[j].asked
+		}
+		// What's done for an app's link takes its role where the link is (ADR 0084).
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.For != (resource.Ref{}) && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].forLink = p.Edits[j].For
 		}
 	}
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -842,16 +877,21 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
 			items[i].restart = changeID
 		}
-		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Backup && ed.Ref == items[i].ref }) && items[i].current != nil {
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Backup && ed.Ref == items[i].ref }); j >= 0 && items[i].current != nil {
 			items[i].backups = make(map[string]string, len(items[i].placed))
 			for _, server := range items[i].placed {
 				items[i].backups[server] = id.New(id.Backup)
+			}
+			items[i].backupOne = p.Edits[j].BackupOne
+			if p.Edits[j].For != (resource.Ref{}) {
+				items[i].forLink = p.Edits[j].For
 			}
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Restore != nil && ed.Ref == items[i].ref }); j >= 0 {
 			restore := *p.Edits[j].Restore
 			restore.Change = changeID
 			items[i].restore = &restore
+			items[i].forLink = p.Edits[j].For
 		}
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Reboot && ed.Ref == items[i].ref }) {
 			items[i].reboot = changeID
@@ -3003,6 +3043,11 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
 		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore, Backups: it.backups, Move: it.move,
+		BackupOne: it.backupOne,
+	}
+	if it.forLink != (resource.Ref{}) {
+		link := it.forLink
+		rp.For = &link
 	}
 	switch {
 	case slices.Contains(steps, resource.ActionReplace):
@@ -3427,7 +3472,7 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	// What a move of the failed change stopped, and its dump, the rollback's step of
 	// the database finishes, as nothing else starts what a move stopped.
 	for i := range items {
-		if _, _, move := restoreIn(failed, items[i].ref); move != nil {
+		if _, _, move, _ := restoreIn(failed, items[i].ref); move != nil {
 			finish := *move
 			finish.Finish = true
 			items[i].move = &finish
@@ -3893,7 +3938,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			if m := it.moveOn(q.server); m != nil {
 				volume, volumeID = resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: m.From}, m.FromID
 			}
-			e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: *told.Backup})
+			e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: *told.Backup, One: it.backupOne, For: it.forLink})
 		}
 		did := q.step.Action
 		if told.Did != nil {
@@ -4194,7 +4239,8 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if restarts(c, ref) {
 				it.restart = c.ID
 			}
-			it.restore, it.backups, it.move = restoreIn(c, ref)
+			it.restore, it.backups, it.move, it.forLink = restoreIn(c, ref)
+			it.backupOne = backupOneIn(c, ref)
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
 			it.unit = unitIn(c, ref)
@@ -4380,7 +4426,8 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		if restarts(c, ref) {
 			it.restart = c.ID
 		}
-		it.restore, it.backups, it.move = restoreIn(c, ref)
+		it.restore, it.backups, it.move, it.forLink = restoreIn(c, ref)
+		it.backupOne = backupOneIn(c, ref)
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
 		it.unit = unitIn(c, ref)
@@ -4579,7 +4626,7 @@ func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, er
 func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
 	for i := range c.Items {
 		ref := resource.Ref{Kind: resource.Kind(c.Items[i].Kind), Scope: c.Items[i].Scope, Name: c.Items[i].Name}
-		if source, _, _ := restoreIn(c, ref); source != nil {
+		if source, _, _, _ := restoreIn(c, ref); source != nil {
 			return ref, source, true
 		}
 	}
@@ -4589,27 +4636,55 @@ func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
 // restoreIn is what a change restores a resource from, and the backups it takes of
 // it, as its plan says: like a restart, neither is in the spec the store keeps for
 // the change's item.
-func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[string]string, *resource.MoveAsked) {
+func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[string]string, *resource.MoveAsked, resource.Ref) {
 	if len(c.Plan) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, resource.Ref{}
 	}
 	var p struct {
 		Resources []struct {
 			Ref     resource.Ref
 			Restore *resource.RestoreSource
+			For     *resource.Ref
 			Backups map[string]string
 			Move    *resource.MoveAsked
 		}
 	}
 	if json.Unmarshal(c.Plan, &p) != nil {
-		return nil, nil, nil
+		return nil, nil, nil, resource.Ref{}
+	}
+	for i := range p.Resources {
+		if r := p.Resources[i]; r.Ref == ref {
+			var link resource.Ref
+			if r.For != nil {
+				link = *r.For
+			}
+			return r.Restore, r.Backups, r.Move, link
+		}
+	}
+	return nil, nil, nil, resource.Ref{}
+}
+
+// backupOneIn is the one database change c's backup of ref dumps alone, as its plan
+// fixed it, or "".
+func backupOneIn(c store.Change, ref resource.Ref) string {
+	if len(c.Plan) == 0 || !bytes.Contains(c.Plan, []byte(`"BackupOne"`)) {
+		return ""
+	}
+	var p struct {
+		Resources []struct {
+			Ref       resource.Ref
+			BackupOne string
+		}
+	}
+	if json.Unmarshal(c.Plan, &p) != nil {
+		return ""
 	}
 	for i := range p.Resources {
 		if p.Resources[i].Ref == ref {
-			return p.Resources[i].Restore, p.Resources[i].Backups, p.Resources[i].Move
+			return p.Resources[i].BackupOne
 		}
 	}
-	return nil, nil, nil
+	return ""
 }
 
 // installIn is the install of updates change c asks of ref, as its plan fixed
@@ -4695,6 +4770,10 @@ type BackupStep struct {
 	VolumeID string
 	Server   string
 	Taken    resource.BackupTaken
+	// One is the one database it dumped alone, and For the app's link it was taken
+	// for (ADR 0084).
+	One string
+	For resource.Ref
 }
 
 // OnBackup says what hears of each backup a step takes, for the record of backups.
@@ -4705,10 +4784,22 @@ func (e *Engine) OnBackup(fn func(context.Context, BackupStep)) { e.onBackup = f
 // destroys what's there, so a person has to apply it, and the server keeps a copy
 // of that for the undo window, which undoing the change puts back (ADR 0033).
 func (e *Engine) Restore(ctx context.Context, ref resource.Ref, source resource.RestoreSource, by By, summary string) (*Plan, error) {
-	return e.restore(ctx, ref, source, by, summary, "")
+	return e.restore(ctx, ref, source, by, summary, "", RestoreAs{})
 }
 
-func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.RestoreSource, by By, summary, reverts string) (*Plan, error) {
+// RestoreAs is what else a restore says: the link it's made for, and notes for its
+// plan (ADR 0084).
+type RestoreAs struct {
+	For   resource.Ref
+	Notes []Note
+}
+
+// RestoreWith is Restore, made as as says.
+func (e *Engine) RestoreWith(ctx context.Context, ref resource.Ref, source resource.RestoreSource, as RestoreAs, by By, summary string) (*Plan, error) {
+	return e.restore(ctx, ref, source, by, summary, "", as)
+}
+
+func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.RestoreSource, by By, summary, reverts string, as RestoreAs) (*Plan, error) {
 	t, err := e.kinds.Type(ref.Kind)
 	if err != nil {
 		return nil, fault.New(ErrInvalid, "%w", err)
@@ -4733,7 +4824,7 @@ func (e *Engine) restore(ctx context.Context, ref resource.Ref, source resource.
 	if summary == "" {
 		summary = "Restore " + ref.Name
 	}
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restore: &source}}}, reverts, false)
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Notes: as.Notes, Edits: []Edit{{Ref: ref, Spec: it.current, Restore: &source, For: as.For}}}, reverts, false)
 }
 
 // FeaturesFrom says where a plan finds what a database last said of the features its
@@ -4821,6 +4912,31 @@ func databaseMoves(items []item, skip bool, features func(serviceID string) stri
 // volumeKind is the volumes' kind, which a backup is of (volume.Kind, which this
 // package doesn't import).
 const volumeKind resource.Kind = "volume"
+
+// withOneBackups adds a dump first of each app's database ones names, alone, as an
+// edit of its server's volume made for the app's link, kept as it is (ADR 0084).
+func (e *Engine) withOneBackups(ctx context.Context, edits []Edit, ones []OneBackup) ([]Edit, error) {
+	out := slices.Clone(edits)
+	for _, one := range ones {
+		if slices.ContainsFunc(out, func(ed Edit) bool { return ed.Ref == one.Volume }) {
+			// The change edits that volume already, whose own backup covers it whole.
+			continue
+		}
+		var it item
+		if err := e.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			it, err = e.load(ctx, tx, one.Volume)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+		if it.current == nil {
+			continue
+		}
+		out = append(out, Edit{Ref: one.Volume, Spec: it.current, Backup: true, BackupOne: one.Database, For: one.For})
+	}
+	return out, nil
+}
 
 // withBackups marks each volume to back up first in edits, adding an edit that
 // keeps a volume as it is where the proposal doesn't name it.
@@ -4983,9 +5099,10 @@ func (e *Engine) guardsAccess(kind resource.Kind) bool {
 }
 
 // undoRestore plans putting back what a change's restore replaced, which is all
-// there is to undo of it: it made no revision.
+// there is to undo of it: it made no revision. One made for a link is undone for it.
 func (e *Engine) undoRestore(ctx context.Context, c store.Change, ref resource.Ref, source *resource.RestoreSource, by By) (*Plan, error) {
-	return e.restore(ctx, ref, resource.RestoreSource{Undoes: c.ID, Server: source.Server}, by, "Undo: "+c.Summary, c.ID)
+	_, _, _, link := restoreIn(c, ref)
+	return e.restore(ctx, ref, resource.RestoreSource{Undoes: c.ID, Server: source.Server}, by, "Undo: "+c.Summary, c.ID, RestoreAs{For: link})
 }
 
 // Discard drops a planned change without applying it. It stays on record
