@@ -365,6 +365,9 @@ func (k *Keeper) CheckService(ctx context.Context, serviceID string) error {
 		return nil // a catalog install's is read from its catalog, as it's asked for
 	}
 	s := subjects[i]
+	if s.pinned {
+		return k.markKept(ctx, []subject{s})
+	}
 	if s.home == "" || !k.Agents.Connected(s.home) {
 		return k.unreachable(ctx, s)
 	}

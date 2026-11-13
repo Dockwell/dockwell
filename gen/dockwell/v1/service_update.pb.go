@@ -179,6 +179,10 @@ const (
 	UpdateProblem_UPDATE_PROBLEM_NOT_RUNNING UpdateProblem = 6
 	// Its image was built or loaded on its server, so no registry has it.
 	UpdateProblem_UPDATE_PROBLEM_LOCAL_IMAGE UpdateProblem = 7
+	// Dockwell picks and pins its image itself and moves it with its own releases,
+	// as it does a website's web and PHP servers' (ADR 0039), so nothing is checked
+	// and nobody has anything to act on.
+	UpdateProblem_UPDATE_PROBLEM_KEPT_BY_DOCKWELL UpdateProblem = 8
 )
 
 // Enum value maps for UpdateProblem.
@@ -192,6 +196,7 @@ var (
 		5: "UPDATE_PROBLEM_AGENT_OUTDATED",
 		6: "UPDATE_PROBLEM_NOT_RUNNING",
 		7: "UPDATE_PROBLEM_LOCAL_IMAGE",
+		8: "UPDATE_PROBLEM_KEPT_BY_DOCKWELL",
 	}
 	UpdateProblem_value = map[string]int32{
 		"UPDATE_PROBLEM_UNSPECIFIED":          0,
@@ -202,6 +207,7 @@ var (
 		"UPDATE_PROBLEM_AGENT_OUTDATED":       5,
 		"UPDATE_PROBLEM_NOT_RUNNING":          6,
 		"UPDATE_PROBLEM_LOCAL_IMAGE":          7,
+		"UPDATE_PROBLEM_KEPT_BY_DOCKWELL":     8,
 	}
 )
 
@@ -1218,7 +1224,7 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x16UPDATE_CHECK_AVAILABLE\x10\x02\x1a\r\xa2\xbb\x18\tavailable\x12#\n" +
 	"\x13UPDATE_CHECK_FAILED\x10\x03\x1a\n" +
 	"\xa2\xbb\x18\x06failed\x12-\n" +
-	"\x18UPDATE_CHECK_NOT_CHECKED\x10\x04\x1a\x0f\xa2\xbb\x18\vnot checked*\xa6\x03\n" +
+	"\x18UPDATE_CHECK_NOT_CHECKED\x10\x04\x1a\x0f\xa2\xbb\x18\vnot checked*\xe1\x03\n" +
 	"\rUpdateProblem\x12\x1e\n" +
 	"\x1aUPDATE_PROBLEM_UNSPECIFIED\x10\x00\x12A\n" +
 	"#UPDATE_PROBLEM_PRIVATE_OR_NOT_FOUND\x10\x01\x1a\x18\xa2\xbb\x18\x14private_or_not_found\x12/\n" +
@@ -1227,7 +1233,8 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x1dUPDATE_PROBLEM_SERVER_OFFLINE\x10\x04\x1a\x12\xa2\xbb\x18\x0eserver_offline\x125\n" +
 	"\x1dUPDATE_PROBLEM_AGENT_OUTDATED\x10\x05\x1a\x12\xa2\xbb\x18\x0eagent_outdated\x12/\n" +
 	"\x1aUPDATE_PROBLEM_NOT_RUNNING\x10\x06\x1a\x0f\xa2\xbb\x18\vnot_running\x12/\n" +
-	"\x1aUPDATE_PROBLEM_LOCAL_IMAGE\x10\a\x1a\x0f\xa2\xbb\x18\vlocal_image*\xc1\x01\n" +
+	"\x1aUPDATE_PROBLEM_LOCAL_IMAGE\x10\a\x1a\x0f\xa2\xbb\x18\vlocal_image\x129\n" +
+	"\x1fUPDATE_PROBLEM_KEPT_BY_DOCKWELL\x10\b\x1a\x14\xa2\xbb\x18\x10kept_by_dockwell*\xc1\x01\n" +
 	"\fUpdateSource\x12\x1d\n" +
 	"\x19UPDATE_SOURCE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x13UPDATE_SOURCE_IMAGE\x10\x01\x1a\t\xa2\xbb\x18\x05image\x12&\n" +

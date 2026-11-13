@@ -4853,6 +4853,9 @@ msgstr "New build"
 msgid "Not checked yet"
 msgstr "Not checked yet"
 
+msgid "Not checked: Dockwell keeps it current"
+msgstr "Not checked: Dockwell keeps it current"
+
 msgid "Not now"
 msgstr "Not now"
 
@@ -15855,6 +15858,9 @@ msgstr "Goes to index.php"
 
 msgid "How it serves"
 msgstr "How it serves"
+
+msgid "Kept current by Dockwell"
+msgstr "Kept current by Dockwell"
 
 msgid "Sends each request straight to the port"
 msgstr "Sends each request straight to the port"

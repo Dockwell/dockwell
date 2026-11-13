@@ -48,6 +48,8 @@ func newerWords(u *dockwellv1.ServiceUpdate, now time.Time) string {
 	switch {
 	case len(offers) > 0:
 		out = strings.Join(offers, ", ")
+	case u.GetProblem() == dockwellv1.UpdateProblem_UPDATE_PROBLEM_KEPT_BY_DOCKWELL:
+		out = "Not checked: Dockwell keeps it current"
 	case u.GetCheck() == dockwellv1.UpdateCheck_UPDATE_CHECK_FAILED || u.GetCheck() == dockwellv1.UpdateCheck_UPDATE_CHECK_NOT_CHECKED:
 		out = "Can't check: " + strings.ReplaceAll(word(u.GetProblem()), "_", " ")
 	default:

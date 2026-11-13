@@ -176,8 +176,9 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
   const rest = update.available.filter((a) => a !== first && !a.skipped);
   const skipped = update.available.filter((a) => a.skipped);
   const checkedWords = checked ? t`Checked ${time.ago(checked, now)}` : "";
+  // A catalog install's check is its catalog's, and what Dockwell keeps current isn't checked at all.
   const checkNow =
-    update.source === UpdateSource.CATALOG ? null : (
+    update.source === UpdateSource.CATALOG || update.problem === UpdateProblem.KEPT_BY_DOCKWELL ? null : (
       <Button
         variant="ghost"
         size="sm"
@@ -361,6 +362,8 @@ function ProblemWords({ problem }: { problem: UpdateProblem }): ReactNode {
       return <Trans>Not running yet, so there's nothing to compare</Trans>;
     case UpdateProblem.LOCAL_IMAGE:
       return <Trans>Built on its server, so no registry has newer versions</Trans>;
+    case UpdateProblem.KEPT_BY_DOCKWELL:
+      return <Trans>Not checked: Dockwell keeps it current</Trans>;
     default:
       return <Trans>Not checked yet</Trans>;
   }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { ServiceInfo } from "@dockwell/api";
+import { type ServiceInfo, UpdateProblem } from "@dockwell/api";
 import { Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -112,7 +112,10 @@ function DomainStanding({ name, read }: { name: string; read: Parameters<typeof 
   );
 }
 
-/** A service that serves the website, how it runs, and its logs. */
+/**
+ * A service that serves the website, how it runs, and its logs, and that Dockwell keeps
+ * its image current, as it pins it, once the check says so (ADR 0079).
+ */
 function ServicePart({
   name,
   detail,
@@ -142,6 +145,11 @@ function ServicePart({
       >
         <Trans>Logs</Trans>
       </Link>
+      {service?.update?.problem === UpdateProblem.KEPT_BY_DOCKWELL ? (
+        <span className="website-part-note">
+          <Trans>Kept current by Dockwell</Trans>
+        </span>
+      ) : null}
     </li>
   );
 }
