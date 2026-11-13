@@ -632,8 +632,8 @@ describe("A website that serves a folder", () => {
     expect(within(sheet).getByRole("textbox", { name: "Path" })).toHaveValue("/var/www/shop.example.com");
     expect(within(sheet).queryByText(/Give the folder/)).not.toBeInTheDocument();
     expect(await within(sheet).findByText("New. Made with the site.", {}, { timeout: 3_000 })).toBeVisible();
-    // A folder that isn't there is seen from the folder above, as asking for it would go on Activity as refused.
-    expect(read).not.toContain("/var/www/shop.example.com");
+    // A folder is looked up by its own path, as a lookup, which goes on no Activity when it isn't there (#588).
+    await waitFor(() => expect(read).toContain("/var/www/shop.example.com"), { timeout: 3_000 });
 
     await pickFolder(user, sheet, "/srv/site");
     expect(await within(sheet).findByText("Holds index.html and 2 more", {}, { timeout: 3_000 })).toBeVisible();
@@ -650,6 +650,41 @@ describe("A website that serves a folder", () => {
       value: expect.objectContaining({ root: "/srv/site", index: [], singlePageApp: true }),
     });
     expect(read).toContain("/srv/site");
+  });
+
+  it("finds its folder by its own path where the folder above holds more than a listing carries (#588)", async () => {
+    const user = userEvent.setup();
+    // A media library: its listing carries the first 5,000 entries by name, and site sorts after them.
+    const crowd = Array.from({ length: 5000 }, (_, i) =>
+      entry(`aa-${String(i).padStart(4, "0")}`, "drwxr-xr-x", FileType.DIRECTORY),
+    );
+    const site = disk({
+      "/srv/media/site": { mode: "drwxr-xr-x", entries: [entry("index.html"), entry("style.css")] },
+    });
+    renderAt(
+      "/websites/new",
+      api([], {
+        files: {
+          listFiles: (req: { path: string; match: string }) => {
+            if (req.path === "/srv/media") {
+              return {
+                path: "/srv/media",
+                directory: { mode: "drwxr-xr-x", type: FileType.DIRECTORY, owner: "mira", uid: 1000, gid: 1000 },
+                entries: req.match ? [] : crowd,
+                truncated: req.match === "",
+                total: 7200,
+              };
+            }
+            return site(req);
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await pickFolder(user, sheet, "/srv/media/site");
+    expect(await within(sheet).findByText("Holds index.html and 1 more", {}, { timeout: 3_000 })).toBeVisible();
+    expect(within(sheet).queryByText(/^New\./)).not.toBeInTheDocument();
   });
 
   it("makes a folder that isn't there as the folder above's owner, and says so", async () => {

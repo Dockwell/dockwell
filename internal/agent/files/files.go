@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"os"
 	"os/user"
 	"path"
@@ -318,14 +319,22 @@ func holds(name, match string) bool {
 // pageOf reads a directory's names a chunk at a time and keeps the first
 // MaxEntries+1 in name order that come after after and hold match, case aside. So
 // a folder of any size lists from its first name, with memory for two pages of
-// names at most, whatever it holds.
-func pageOf(ctx context.Context, dir *os.File, after, match string) ([]string, error) {
+// names at most, whatever it holds. It counts every name that holds match too,
+// whatever the page, so a listing cut short says how many there are.
+func pageOf(ctx context.Context, dir *os.File, after, match string) ([]string, uint32, error) {
 	keep := MaxEntries + 1
 	var names []string
+	var total uint32
 	for {
 		chunk, err := dir.Readdirnames(listChunk)
 		for _, n := range chunk {
-			if after != "" && n <= after || !holds(n, match) {
+			if !holds(n, match) {
+				continue
+			}
+			if !arriving(n) && total < math.MaxUint32 {
+				total++
+			}
+			if after != "" && n <= after {
 				continue
 			}
 			names = append(names, n)
@@ -339,17 +348,17 @@ func pageOf(ctx context.Context, dir *os.File, after, match string) ([]string, e
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if ctx.Err() != nil {
-			return nil, ctx.Err()
+			return nil, 0, ctx.Err()
 		}
 	}
 	slices.Sort(names)
 	if len(names) > keep {
 		names = names[:keep]
 	}
-	return names, nil
+	return names, total, nil
 }
 
 func (s *Server) list(ctx context.Context, t *trail, p, match, after string) (*agentv1.ListFilesResult, error) {
@@ -375,7 +384,7 @@ func (s *Server) list(ctx context.Context, t *trail, p, match, after string) (*a
 	}
 	dir := os.NewFile(uintptr(fd), where)
 	defer dir.Close()
-	names, err := pageOf(ctx, dir, after, match)
+	names, total, err := pageOf(ctx, dir, after, match)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -387,7 +396,9 @@ func (s *Server) list(ctx context.Context, t *trail, p, match, after string) (*a
 		names = names[:MaxEntries]
 	}
 	owners := owners{}
-	here := &dockwellv1.ListFilesResponse{Path: where, Directory: entry(path.Base(where), &w.st, owners), Truncated: truncated}
+	here := &dockwellv1.ListFilesResponse{
+		Path: where, Directory: entry(path.Base(where), &w.st, owners), Truncated: truncated, Total: total,
+	}
 	// The last name this page went past, listed or not, which the next page starts after.
 	upTo := after
 	room := maxListBytes

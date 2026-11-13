@@ -90,6 +90,9 @@ msgstr "Down"
 msgid "Error"
 msgstr "Error"
 
+msgid "Find in {path}"
+msgstr "Find in {path}"
+
 msgid "Folders in {path}"
 msgstr "Folders in {path}"
 
@@ -124,11 +127,20 @@ msgstr "Looking in"
 msgid "Memory"
 msgstr "Memory"
 
+msgid "More match than this shows. Type more of the name."
+msgstr "More match than this shows. Type more of the name."
+
 msgid "New folder in {path}"
 msgstr "New folder in {path}"
 
 msgid "No folder chosen"
 msgstr "No folder chosen"
+
+msgid "No folder here holds “{name}”"
+msgstr "No folder here holds “{name}”"
+
+msgid "No folders among these"
+msgstr "No folders among these"
 
 msgid "No folders here"
 msgstr "No folders here"
@@ -201,6 +213,12 @@ msgstr "Set out"
 
 msgid "Show all of this line"
 msgstr "Show all of this line"
+
+msgid "Showing the first {shown}. Type a name to find one."
+msgstr "Showing the first {shown}. Type a name to find one."
+
+msgid "Showing {shown} of {total}. Type a name to find one."
+msgstr "Showing {shown} of {total}. Type a name to find one."
 
 msgid "Stopped"
 msgstr "Stopped"
@@ -279,6 +297,10 @@ msgstr "network"
 
 msgid "package"
 msgstr "package"
+
+#. Placeholder of the field that finds a folder by name.
+msgid "part of its name"
+msgstr "part of its name"
 
 msgid "project"
 msgstr "project"

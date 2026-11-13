@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
-import { FileService, FileType } from "@dockwell/api";
+import { FileService } from "@dockwell/api";
 import type { FolderListing } from "@dockwell/ui";
-import { useCallback, useMemo } from "react";
 
 import { useMay } from "../auth/may";
+import { useFolderList } from "../files/folders";
 
 /**
  * What a folder picker reads of a server's folders: each folder's own, through
@@ -14,23 +12,10 @@ import { useMay } from "../auth/may";
  * where its reader may not list a server's files, which is an admin's (ADR 0048),
  * or while there's no server to read: the path is typed then.
  */
-export function useServerFolders(server: string | undefined): ((path: string) => Promise<FolderListing>) | undefined {
-  const transport = useTransport();
-  const client = useMemo(() => createClient(FileService, transport), [transport]);
+export function useServerFolders(
+  server: string | undefined,
+): ((path: string, match?: string) => Promise<FolderListing>) | undefined {
+  const list = useFolderList(server ?? "");
   const allowed = useMay()(FileService.method.listFiles).allowed;
-  const list = useCallback(
-    async (path: string): Promise<FolderListing> => {
-      const read = await client.listFiles({ serverId: server ?? "", path, lookup: true });
-      return {
-        path: read.path,
-        folders: read.entries
-          .filter(
-            (e) => e.type === FileType.DIRECTORY || (e.type === FileType.SYMLINK && e.linkType === FileType.DIRECTORY),
-          )
-          .map((e) => ({ name: e.name, locked: e.refused })),
-      };
-    },
-    [client, server],
-  );
   return allowed && server ? list : undefined;
 }

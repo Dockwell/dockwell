@@ -168,6 +168,18 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         newIn: (path) => t`New folder in ${path}`,
         newName: t({ message: "name", comment: "Placeholder of the field that names a new folder." }),
         use: t({ message: "Use", comment: "The button that takes the new folder's name as the folder to use." }),
+        cut: (shownCount, totalCount) => {
+          const shown = active.number(shownCount);
+          const total = active.number(totalCount);
+          return totalCount > 0
+            ? t`Showing ${shown} of ${total}. Type a name to find one.`
+            : t`Showing the first ${shown}. Type a name to find one.`;
+        },
+        findIn: (path) => t`Find in ${path}`,
+        findName: t({ message: "part of its name", comment: "Placeholder of the field that finds a folder by name." }),
+        noMatch: (name) => t`No folder here holds “${name}”`,
+        noneShown: t`No folders among these`,
+        moreMatch: t`More match than this shows. Type more of the name.`,
       },
       connection: {
         title: t({

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { Code } from "@connectrpc/connect";
 import {
   ChangeSchema,
   type ChangeServiceRuntimeRequest,
@@ -21,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { aHealth, anApp, aRevision, ENV, places, SERVER } from "../../test/apps";
+import { authError } from "../../test/auth";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { forgetDrafts } from "./AppEnvironment";
@@ -141,7 +143,8 @@ function disk(folders: Record<string, { uid: number; entries: string[]; mode?: s
         })),
       };
     }
-    throw new Error(`nothing at ${req.path}`);
+    // As the server says it: nothing there, with its reason, which a lookup reads.
+    throw authError(Code.NotFound, "not_found", `there's nothing at ${req.path}`);
   };
 }
 
@@ -377,6 +380,46 @@ describe("New app, from a folder", () => {
     );
   });
 
+  it("finds a folder whose parent holds more than a listing carries, by its own path (#588)", async () => {
+    const user = userEvent.setup();
+    const asked: { path: string; match: string }[] = [];
+    // A busy /tmp: its listing carries the first 5,000 entries by name, and shop sorts after them.
+    const crowd = Array.from({ length: 5000 }, (_, i) => `aa-${String(i).padStart(4, "0")}`);
+    const shop = disk({ "/tmp/shop": { uid: 1000, entries: ["package.json", "server.js"] } });
+    renderAt(
+      "/apps/new?source=folder",
+      api(
+        {
+          files: {
+            listFiles: (req: { path: string; match: string }) => {
+              asked.push({ path: req.path, match: req.match });
+              if (req.path === "/tmp") {
+                const names = req.match ? [...crowd, "shop"].filter((n) => n.includes(req.match)) : crowd;
+                return {
+                  path: "/tmp",
+                  directory: { mode: "drwxrwxrwt", type: FileType.DIRECTORY, uid: 0, gid: 0 },
+                  entries: names.map(entry),
+                  truncated: req.match === "",
+                  total: 5942,
+                };
+              }
+              return shop(req);
+            },
+          },
+        },
+        [],
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New app" });
+    await chooseFolder(user, sheet, "/tmp/shop");
+    await waitFor(() => expect(sheet).toHaveTextContent("Holds package.json and 1 more · Open in Files"), {
+      timeout: 3_000,
+    });
+    expect(sheet).not.toHaveTextContent("Dockwell makes it");
+    // Looked up by its own path; the folder above, cut short, decides nothing.
+    expect(asked.some((a) => a.path === "/tmp/shop")).toBe(true);
+  });
+
   it("reads the folder on each server it runs on, and says what each has", async () => {
     const user = userEvent.setup();
     const there = disk({ "/srv/api": { uid: 1001, entries: ["package.json"] } });
@@ -389,7 +432,7 @@ describe("New app, from a folder", () => {
               if (req.serverId === SERVER) return there(req);
               // hz-2 has /srv, empty.
               if (req.path === "/srv") return { ...there(req), entries: [] };
-              throw new Error("nothing there");
+              throw authError(Code.NotFound, "not_found", `there's nothing at ${req.path}`);
             },
           },
         },

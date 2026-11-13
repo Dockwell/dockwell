@@ -32,6 +32,69 @@ function Picker({ start = "/var/www/new.example.com", note }: { start?: string; 
 }
 
 describe("FolderPicker", () => {
+  it("says where a folder holds more than a listing carries, and finds one past it by name on the server", async () => {
+    const user = userEvent.setup();
+    // A busy /tmp: its listing says it carries 5,000 of 5,942 entries, and the folder wanted sorts after
+    // them. A few stand for them all, as the picker shows what it's given.
+    const first = Array.from({ length: 40 }, (_, i) => `aa-${String(i).padStart(4, "0")}`);
+    const busy = vi.fn(async (path: string, find?: string): Promise<FolderListing> => {
+      if (path === "/tmp" && find) {
+        const names = [...first, "shop-1", "shop-2"].filter((n) => n.includes(find));
+        return { path, folders: names.map((name) => ({ name })) };
+      }
+      if (path === "/tmp") return { path, folders: first.map((name) => ({ name })), cut: { shown: 5000, total: 5942 } };
+      if (path === "/tmp/shop-2") return { path, folders: [] };
+      throw new Error("not there");
+    });
+    function Busy() {
+      const [value, setValue] = useState("/tmp");
+      return (
+        <>
+          <FolderPicker label="Folder" value={value} onChange={setValue} list={busy} defaultOpen />
+          <output>{value}</output>
+        </>
+      );
+    }
+    const { container } = render(<Busy />);
+    expect(await screen.findByText("Showing 5,000 of 5,942. Type a name to find one.")).toBeVisible();
+    const find = screen.getByRole("searchbox", { name: "Find in /tmp" });
+    expect(find).toHaveAccessibleDescription("Showing 5,000 of 5,942. Type a name to find one.");
+    await user.type(find, "shop");
+    const folders = screen.getByRole("list", { name: "Folders in /tmp" });
+    await within(folders).findByRole("button", { name: "shop-2" }, { timeout: 3_000 });
+    // Searched on the server, in the folder being looked in, not among what the listing carried.
+    expect(busy).toHaveBeenLastCalledWith("/tmp", "shop");
+    expect(within(folders).queryByRole("button", { name: "aa-0001" })).not.toBeInTheDocument();
+    await user.click(within(folders).getByRole("button", { name: "shop-2" }));
+    expect(container.querySelector("output")).toHaveTextContent("/tmp/shop-2");
+    // Looking in the folder chosen starts afresh: nothing to find, and nothing cut.
+    await waitFor(() => expect(screen.queryByRole("searchbox")).not.toBeInTheDocument());
+    await expectAccessible(container);
+  });
+
+  it("says no folder holds a name, and that more do than a search shows", async () => {
+    const user = userEvent.setup();
+    const busy = vi.fn(async (path: string, find?: string): Promise<FolderListing> => {
+      if (find === "zz") return { path, folders: [] };
+      if (find === "a") return { path, folders: [{ name: "a1" }], cut: { shown: 5000, total: 6000 } };
+      return { path, folders: [], cut: { shown: 5000, total: 0 } };
+    });
+    render(<FolderPicker label="Folder" value="/tmp" onChange={() => {}} list={busy} defaultOpen />);
+    // A server that can't say how many there are still says the list is cut.
+    expect(await screen.findByText("Showing the first 5,000. Type a name to find one.")).toBeVisible();
+    // None of what it shows is a folder, which says nothing of what's past it.
+    expect(screen.getByText("No folders among these")).toBeVisible();
+    expect(screen.queryByText("No folders here")).not.toBeInTheDocument();
+    const find = screen.getByRole("searchbox", { name: "Find in /tmp" });
+    await user.type(find, "zz");
+    expect(await screen.findByText("No folder here holds “zz”", {}, { timeout: 3_000 })).toBeVisible();
+    await user.clear(find);
+    await user.type(find, "a");
+    expect(
+      await screen.findByText("More match than this shows. Type more of the name.", {}, { timeout: 3_000 }),
+    ).toBeVisible();
+  });
+
   it("opens on what was refused, and stays open as it's fixed", async () => {
     const user = userEvent.setup();
     // A form that refuses an empty path, and forgets that as soon as anything is typed.

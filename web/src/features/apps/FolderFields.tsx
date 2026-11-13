@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { FileService, FileType, type WebsiteRuntime } from "@dockwell/api";
+import { FileService, type WebsiteRuntime } from "@dockwell/api";
 import {
   Advanced,
   Button,
@@ -17,8 +17,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, type Ref, useCallback, useEffect, useRef, useState } from "react";
 
-import { reasonOf, sentence } from "../../lib/errors";
-import { nameOf, parentOf } from "../files/paths";
+import { sentence } from "../../lib/errors";
+import { useFolderLookup } from "../files/lookup";
+import { nameOf } from "../files/paths";
 import { canWrite } from "../websites/WebsiteFields";
 import { toLabel } from "./app";
 import { useServerFolders } from "./folders";
@@ -446,8 +447,8 @@ function useSettled<T>(value: T, ms: number): T {
 /**
  * What the server says of an app's folder: a short line for its field (new, and
  * Dockwell makes it; or what it holds), or what stops the app there, with what puts
- * it right. It reads the folder above first, so a folder that isn't there yet isn't a
- * refusal on Activity, and says what the folder's files run on (onDetected).
+ * it right. It looks the folder up by its own path, as a lookup that goes on no
+ * Activity (useFolderLookup), and says what the folder's files run on (onDetected).
  * Reading the disk is a person's, as Files is, so this is too.
  */
 function useFolderState({
@@ -474,23 +475,11 @@ function useFolderState({
 }): { note?: ReactNode; problem?: ReactNode } {
   const { t } = useLingui();
   const path = useSettled(folder.trim().replace(/\/+$/, ""), READ_AFTER_MS);
-  const asked = server !== "" && path.startsWith("/") && path.length > 1 && !/\/\.\.?(\/|$)/.test(path);
-  const above = useQuery(
-    FileService.method.listFiles,
-    { serverId: server, path: parentOf(path), lookup: true },
-    { enabled: asked, retry: false, refetchOnWindowFocus: false },
-  );
-  const there = above.data?.entries.find((e) => e.name === nameOf(path));
-  const isFolder =
-    there !== undefined &&
-    (there.type === FileType.DIRECTORY || (there.type === FileType.SYMLINK && there.linkType === FileType.DIRECTORY));
-  const listed = useQuery(
-    FileService.method.listFiles,
-    { serverId: server, path, lookup: true },
-    { enabled: asked && isFolder, retry: false, refetchOnWindowFocus: false },
-  );
-  const aboveMissing = above.error !== null && reasonOf(above.error) === "not_found";
-  const dir = listed.data?.directory;
+  // The folder by its own path, so one under a folder of any size is found (#588).
+  const lookup = useFolderLookup(server, path);
+  const asked = lookup.asked;
+  const listing = lookup.listing;
+  const dir = listing?.directory;
   const owner = dir && dir.uid !== 0 && dir.gid !== 0 ? `${dir.uid}:${dir.gid}` : "";
   // Said once as it's found, so what someone types after stays theirs.
   const told = useRef("");
@@ -501,7 +490,7 @@ function useFolderState({
   }, [owner, onOwner]);
   // What its files run on: the first language with a file of its own there, and the
   // version a version file names.
-  const names = listed.data?.entries.map((e) => e.name);
+  const names = listing?.entries.map((e) => e.name);
   const itsLanguage = names
     ? APP_LANGUAGES.find((id) => (MARKERS[id] ?? []).some((m) => names.includes(m)))
     : undefined;
@@ -540,8 +529,8 @@ function useFolderState({
         : undefined,
     );
   }, [waiting, path, itsLanguage, itsMarker, itsVersion, itsPort, versionFile, onDetected]);
-  if (!asked || above.isPending || (above.error && !aboveMissing)) return {};
-  if (aboveMissing || !there) {
+  if (!lookup.state) return {};
+  if (lookup.state === "missing") {
     return {
       note: (
         <>
@@ -553,7 +542,7 @@ function useFolderState({
       ),
     };
   }
-  if (!isFolder) {
+  if (lookup.state === "not-a-folder") {
     return {
       problem: (
         <Callout tone="warning" className="app-folder-note" title={t`${path} is a file`}>
@@ -562,17 +551,16 @@ function useFolderState({
       ),
     };
   }
-  if (listed.isPending) return {};
-  if (listed.error) {
+  if (lookup.state === "unread" || !listing) {
     return {
       problem: (
         <Callout tone="warning" className="app-folder-note">
-          {sentence(listed.error)}
+          {lookup.error ? sentence(lookup.error) : null}
         </Callout>
       ),
     };
   }
-  const { entries } = listed.data;
+  const { entries } = listing;
   if (dir && (dir.uid === 0 || dir.gid === 0)) {
     return {
       problem: (

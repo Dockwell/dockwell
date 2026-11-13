@@ -13,7 +13,16 @@ export interface FolderListing {
   /** The folder's path as the server resolved it, with links followed. */
   path: string;
   folders: readonly { name: string; locked?: boolean }[];
+  /**
+   * Set where the folder holds more than a listing carries: how many entries the listing
+   * shows, and how many there are, 0 where the server can't say. The picker says so,
+   * and finds a folder by name instead.
+   */
+  cut?: { shown: number; total: number };
 }
+
+/** How long typing rests before a name is looked for on the server. */
+const FIND_AFTER_MS = 300;
 
 export interface FolderPickerProps {
   /** Sits above, in sentence case. */
@@ -22,10 +31,11 @@ export interface FolderPickerProps {
   value: string;
   onChange: (path: string) => void;
   /**
-   * Reads a folder's own folders. It rejects when the folder isn't there or can't be
-   * read, and the picker then looks in the folder above.
+   * Reads a folder's own folders: all of them, or, given a name to find, those whose
+   * names hold it, searched on the server. It rejects when the folder isn't there or
+   * can't be read, and the picker then looks in the folder above.
    */
-  list: (path: string) => Promise<FolderListing>;
+  list: (path: string, find?: string) => Promise<FolderListing>;
   /**
    * What's known of the chosen folder, as one short line under it, such as "New, made
    * with the site" or "12 files".
@@ -86,6 +96,11 @@ export function FolderPicker({
   const [failed, setFailed] = useState(false);
   const [naming, setNaming] = useState("");
   const asked = useRef(0);
+  // A name to find in the folder being looked in, for one that holds more than a listing
+  // carries, and the folders whose names hold it.
+  const [finding, setFinding] = useState("");
+  const [found, setFound] = useState<FolderListing>();
+  const [findFailed, setFindFailed] = useState(false);
   const invalid = hasContent(error);
   const noted = !invalid && hasContent(note);
 
@@ -100,6 +115,7 @@ export function FolderPicker({
     const mine = ++asked.current;
     setListing(undefined);
     setFailed(false);
+    setFinding("");
     const tryAt = (where: string) => {
       list(where).then(
         (found) => {
@@ -119,11 +135,41 @@ export function FolderPicker({
     tryAt(path);
   };
 
+  // A name is looked for on the server a moment after the last key, in the folder being
+  // looked in, so a folder of any size finds one; what an earlier name found never lands
+  // over a later one's.
+  useEffect(() => {
+    const name = finding.trim();
+    setFound(undefined);
+    setFindFailed(false);
+    if (name === "") return;
+    let current = true;
+    const timer = setTimeout(() => {
+      list(at, name).then(
+        (r) => {
+          if (current) setFound(r);
+        },
+        () => {
+          if (current) setFindFailed(true);
+        },
+      );
+    }, FIND_AFTER_MS);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [finding, at, list]);
+
   // Opening looks where the chosen folder would be: in it when it's there, above it otherwise.
   // biome-ignore lint/correctness/useExhaustiveDependencies: only as it opens, not as the value follows what's picked.
   useEffect(() => {
     if (open) look(value.startsWith("/") ? value : "/");
   }, [open]);
+
+  // What the list shows: the folders whose names hold what's typed, or all the folder's.
+  const searching = finding.trim() !== "";
+  const shown = searching ? found : listing;
+  const cantRead = searching ? findFailed : failed;
 
   const choose = (path: string) => {
     onChange(path);
@@ -201,19 +247,48 @@ export function FolderPicker({
               </span>
             ))}
           </nav>
+          {listing?.cut || searching ? (
+            <div className="dw-folder-find">
+              {listing?.cut ? (
+                <p className="dw-folder-cut" id={`${id}-cut`}>
+                  {strings.cut(listing.cut.shown, listing.cut.total)}
+                </p>
+              ) : null}
+              <label className="dw-folder-typed">
+                <span className="dw-folder-sub">{strings.findIn(at)}</span>
+                <input
+                  className="dw-folder-input"
+                  type="search"
+                  value={finding}
+                  placeholder={strings.findName}
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  aria-describedby={listing?.cut ? `${id}-cut` : undefined}
+                  onChange={(event) => setFinding(event.target.value)}
+                  onKeyDown={(event) => {
+                    // The form around it isn't sent by finding a folder.
+                    if (event.key === "Enter") event.preventDefault();
+                  }}
+                />
+              </label>
+            </div>
+          ) : null}
           <ul
             className="dw-folder-list"
             aria-label={strings.foldersIn(at)}
-            aria-busy={listing === undefined && !failed}
+            aria-busy={shown === undefined && !cantRead}
           >
-            {failed ? (
+            {cantRead ? (
               <li className="dw-folder-quiet">{strings.cantRead}</li>
-            ) : listing === undefined ? (
+            ) : shown === undefined ? (
               <li className="dw-folder-quiet">{strings.reading}</li>
-            ) : listing.folders.length === 0 ? (
-              <li className="dw-folder-quiet">{strings.empty}</li>
+            ) : shown.folders.length === 0 ? (
+              <li className="dw-folder-quiet">
+                {searching ? strings.noMatch(finding.trim()) : shown.cut ? strings.noneShown : strings.empty}
+              </li>
             ) : (
-              listing.folders.map((folder) => {
+              shown.folders.map((folder) => {
                 const path = join(at, folder.name);
                 return (
                   <li key={folder.name}>
@@ -232,6 +307,7 @@ export function FolderPicker({
               })
             )}
           </ul>
+          {searching && found?.cut ? <p className="dw-folder-cut">{strings.moreMatch}</p> : null}
           <div className="dw-folder-new">
             <label className="dw-folder-typed">
               <span className="dw-folder-sub">{strings.newIn(at)}</span>

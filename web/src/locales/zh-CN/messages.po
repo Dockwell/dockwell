@@ -90,6 +90,9 @@ msgstr "宕机"
 msgid "Error"
 msgstr "错误"
 
+msgid "Find in {path}"
+msgstr "在 {path} 中查找"
+
 msgid "Folders in {path}"
 msgstr "{path} 中的文件夹"
 
@@ -124,11 +127,20 @@ msgstr "正在查看"
 msgid "Memory"
 msgstr "内存"
 
+msgid "More match than this shows. Type more of the name."
+msgstr "匹配的比这里显示的多。请输入更多名称。"
+
 msgid "New folder in {path}"
 msgstr "在 {path} 中新建文件夹"
 
 msgid "No folder chosen"
 msgstr "尚未选择文件夹"
+
+msgid "No folder here holds “{name}”"
+msgstr "这里没有名称包含“{name}”的文件夹"
+
+msgid "No folders among these"
+msgstr "这些项中没有文件夹"
 
 msgid "No folders here"
 msgstr "这里没有文件夹"
@@ -201,6 +213,12 @@ msgstr "展开"
 
 msgid "Show all of this line"
 msgstr "显示整行"
+
+msgid "Showing the first {shown}. Type a name to find one."
+msgstr "显示前 {shown} 项。输入名称来查找。"
+
+msgid "Showing {shown} of {total}. Type a name to find one."
+msgstr "显示 {total} 项中的 {shown} 项。输入名称来查找。"
 
 msgid "Stopped"
 msgstr "已停止"
@@ -279,6 +297,10 @@ msgstr "网络"
 
 msgid "package"
 msgstr "软件包"
+
+#. Placeholder of the field that finds a folder by name.
+msgid "part of its name"
+msgstr "名称的一部分"
 
 msgid "project"
 msgstr "项目"

@@ -241,7 +241,12 @@ type ListFilesResponse struct {
 	Truncated bool `protobuf:"varint,4,opt,name=truncated,proto3" json:"truncated,omitempty"`
 	// What to pass as page for the entries after these, in name order. Empty when
 	// there are no more, and from an agent older than the control plane.
-	NextPage      string `protobuf:"bytes,230,opt,name=next_page,json=nextPage,proto3" json:"next_page,omitempty"`
+	NextPage string `protobuf:"bytes,230,opt,name=next_page,json=nextPage,proto3" json:"next_page,omitempty"`
+	// How many entries the directory holds, or how many hold match where one is
+	// asked, whatever page this is: so a listing cut short can say how much more
+	// there is. Zero from an agent older than the control plane. Numbered apart, as
+	// open work adds to this message.
+	Total         uint32 `protobuf:"varint,60,opt,name=total,proto3" json:"total,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -309,6 +314,13 @@ func (x *ListFilesResponse) GetNextPage() string {
 		return x.NextPage
 	}
 	return ""
+}
+
+func (x *ListFilesResponse) GetTotal() uint32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
 }
 
 // ReadFileRequest names a file on a server.
@@ -2343,13 +2355,14 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
 	"\x06lookup\x18< \x01(\bR\x06lookup\x12\x15\n" +
 	"\x05match\x18\xe6\x01 \x01(\tR\x05match\x12\x13\n" +
-	"\x04page\x18\xe7\x01 \x01(\tR\x04page\"\xcb\x01\n" +
+	"\x04page\x18\xe7\x01 \x01(\tR\x04page\"\xe1\x01\n" +
 	"\x11ListFilesResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x124\n" +
 	"\tdirectory\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\tdirectory\x120\n" +
 	"\aentries\x18\x03 \x03(\v2\x16.dockwell.v1.FileEntryR\aentries\x12\x1c\n" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x1c\n" +
-	"\tnext_page\x18\xe6\x01 \x01(\tR\bnextPage\"B\n" +
+	"\tnext_page\x18\xe6\x01 \x01(\tR\bnextPage\x12\x14\n" +
+	"\x05total\x18< \x01(\rR\x05total\"B\n" +
 	"\x0fReadFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\"\xdc\x01\n" +

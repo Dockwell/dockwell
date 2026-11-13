@@ -13,7 +13,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import type { Page } from "playwright-core";
 
@@ -57,8 +57,15 @@ async function applyPlan(page: Page, done: string) {
   await finish.click();
 }
 
+/** The most entries an agent's listing carries (internal/agent/files MaxEntries). */
+const LISTING_BOUND = 5000;
+
 export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: RuntimesFlowOptions) {
-  const folder = mkdtempSync(join(tmpdir(), "dw-shop-"));
+  // In a busy folder, as a shared /tmp or a media library is: more entries than a listing
+  // carries, each sorting before the app's, so only a lookup by its own path finds it (#588).
+  const busy = mkdtempSync(join(tmpdir(), "dw-busy-"));
+  for (let i = 0; i <= LISTING_BOUND; i++) writeFileSync(join(busy, `aa-${String(i).padStart(5, "0")}`), "");
+  const folder = mkdtempSync(join(busy, "shop-"));
   writeFileSync(
     join(folder, "package.json"),
     '{"name": "shop", "version": "1.0.0", "private": true, "scripts": {"start": "node server.js"}}\n',
@@ -83,6 +90,25 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     await sheet.getByRole("button", { name: /^(Choose a folder|Change the folder)/ }).click();
     await sheet.getByRole("textbox", { name: "Path", exact: true }).fill(folder);
     await sheet.getByRole("button", { name: "Done", exact: true }).click();
+    await sheet.getByText("Holds package.json and 1 more").waitFor({ timeout: 15_000 });
+    // Browsing the busy folder says it shows only some of it, and a name finds the app's.
+    await sheet.getByRole("button", { name: `Change the folder, ${folder}` }).click();
+    await sheet
+      .getByRole("navigation", { name: "Looking in" })
+      .getByRole("button", { name: basename(busy), exact: true })
+      .click();
+    await sheet
+      .getByText(`Showing 5,000 of ${(LISTING_BOUND + 2).toLocaleString("en")}. Type a name to find one.`)
+      .waitFor();
+    await sheet.getByRole("searchbox", { name: `Find in ${busy}` }).fill("shop-");
+    await sheet
+      .getByRole("list", { name: `Folders in ${busy}` })
+      .getByRole("button", { name: basename(folder), exact: true })
+      .click();
+    await sheet.getByRole("button", { name: "Done", exact: true }).click();
+    if ((await sheet.getByRole("button", { name: `Change the folder, ${folder}` }).count()) !== 1) {
+      fail("finding the folder by name in a busy folder didn't choose it");
+    }
     await sheet.getByText("Holds package.json and 1 more").waitFor({ timeout: 15_000 });
     // Its files say what it runs on, so nobody picks a language: the newest Node.js, as nothing names a version.
     const runtime = sheet.getByText(/^Node\.js \d+$/);
@@ -206,7 +232,7 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
     step("  runtimes: a folder on Node.js, planned, approved, run, moved to another version and deleted");
   } finally {
     server.close();
-    rmSync(folder, { recursive: true, force: true });
+    rmSync(busy, { recursive: true, force: true });
   }
 }
 

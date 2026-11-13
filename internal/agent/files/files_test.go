@@ -259,6 +259,13 @@ func TestALargeFolderListsInNameOrderAPageAtATime(t *testing.T) {
 	if got := len(first.GetEntries()); got != MaxEntries || !first.GetTruncated() || first.GetNextPage() == "" {
 		t.Fatalf("the first page has %d entries, truncated %t, next %q", got, first.GetTruncated(), first.GetNextPage())
 	}
+	// It says how many there are, whatever page it is, so a list cut short can say how much more.
+	if first.GetTotal() != uint32(len(want)) {
+		t.Fatalf("the first page says the folder holds %d, want %d", first.GetTotal(), len(want))
+	}
+	if next, err := d.server.List(t.Context(), dir, "", first.GetNextPage()); err != nil || next.GetListing().GetTotal() != uint32(len(want)) {
+		t.Fatalf("the second page says the folder holds %d (%v), want %d", next.GetListing().GetTotal(), err, len(want))
+	}
 	if first.GetEntries()[0].GetName() != want[0] || first.GetEntries()[MaxEntries-1].GetName() != want[MaxEntries-1] {
 		t.Fatalf("the first page isn't the first names: %s to %s", first.GetEntries()[0].GetName(), first.GetEntries()[MaxEntries-1].GetName())
 	}
@@ -271,6 +278,9 @@ func TestALargeFolderListsInNameOrderAPageAtATime(t *testing.T) {
 		got, pages := d.pages(t, dir, "ERROR")
 		if pages != 1 || !slices.Equal(got, []string{"Error.LOG"}) {
 			t.Fatalf("searching for ERROR found %v in %d pages", got, pages)
+		}
+		if l, err := d.server.List(t.Context(), dir, "ERROR", ""); err != nil || l.GetListing().GetTotal() != 1 {
+			t.Fatalf("searching for ERROR says %d hold it (%v), want 1", l.GetListing().GetTotal(), err)
 		}
 		var tens []string
 		for _, name := range want {
