@@ -30,6 +30,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/health"
@@ -124,6 +125,8 @@ var (
 		"secret.reveal", "secrets.rotate_key",
 		// A test of a destination's keys, before any plan: who tried which storage.
 		backups.ActionTestDestination,
+		// A saved DNS provider's token, used again to write in its zones (ADR 0088).
+		dnsproviders.ActionCheck,
 		// An app opened through the panel, which is as much as a secret revealed (ADR 0061).
 		"service.open",
 		// One of an app's own values that reads hidden, revealed (ADR 0081).

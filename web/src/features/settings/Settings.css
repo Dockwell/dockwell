@@ -1354,3 +1354,10 @@
 .panel-domain-warn {
   color: var(--warning);
 }
+
+/* A card's actions side by side, wrapping on a narrow card. */
+.integrations-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

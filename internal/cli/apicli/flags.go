@@ -473,6 +473,7 @@ var sealedMessages = []protoreflect.FullName{
 	(&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.RegistryLogin{}).ProtoReflect().Descriptor().FullName(),
 	(&resourcev1.RegistryLoginEcr{}).ProtoReflect().Descriptor().FullName(),
+	(&resourcev1.DnsProvider{}).ProtoReflect().Descriptor().FullName(),
 }
 
 // errInlineSecret refuses JSON on the command line that sets a secret,

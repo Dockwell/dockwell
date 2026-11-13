@@ -582,6 +582,12 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const host = name || event.subject?.id || "";
           return { title: host ? t`Tested backup storage at ${host}` : t`Tested backup storage`, icon: "archive" };
         }
+        case "dns_provider.check":
+          // A saved DNS provider's token, used again to write and delete a record in its zones.
+          return {
+            title: name ? t`Checked the DNS provider ${name}, writing in its zones` : t`Checked a DNS provider`,
+            icon: "globe",
+          };
         case "secret.reveal":
           return { title: name ? t`Revealed the secret ${name}` : t`Revealed a secret`, icon: "eye" };
         case "service.value_reveal": {

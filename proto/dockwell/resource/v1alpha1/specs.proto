@@ -1267,7 +1267,28 @@ message Spec {
     // What signs in to a container registry, kind "registry.login". Numbered in
     // the block registry logins hold, 100 to 109.
     RegistryLogin registry_login = 100;
+    // What writes a DNS zone's records, so the control plane can prove a name by
+    // DNS-01, kind "dns.provider" (ADR 0088). Numbered in the block DNS-01 holds,
+    // 120 to 129.
+    DnsProvider dns_provider = 120;
   }
+}
+
+// DnsProvider is what writes the records of one or more DNS zones through a DNS
+// provider's API, so the control plane can prove a name by DNS-01 and get its
+// certificate, kind "dns.provider". It lives in the organization, and only an
+// admin adds, changes or removes one. Its token stays on the control plane, and
+// goes to no server. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+message DnsProvider {
+  // Which provider's API: "cloudflare".
+  string provider = 1;
+  // The zones it writes in, such as "example.com", each checked before it's
+  // saved.
+  repeated string zones = 2;
+  // The provider's API token: for Cloudflare, an API token with Zone:Read and
+  // DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an
+  // update to keep it.
+  string api_token = 3 [(sensitive) = true];
 }
 
 // RegistryLogin is what signs in to a container registry, so an app can pull an

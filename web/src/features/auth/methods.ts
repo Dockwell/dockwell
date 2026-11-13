@@ -130,7 +130,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",
 
+  "DomainService.checkDnsProvider": "may",
   "DomainService.checkDomain": "may",
+  "DomainService.listDnsProviders": "read",
   "DomainService.listDomains": "read",
 
   "EventService.listEvents": "read",

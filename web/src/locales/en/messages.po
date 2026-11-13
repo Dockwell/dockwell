@@ -754,8 +754,14 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Checked a DNS provider"
+msgstr "Checked a DNS provider"
+
 msgid "Checked that a backup of {volume} restores"
 msgstr "Checked that a backup of {volume} restores"
+
+msgid "Checked the DNS provider {name}, writing in its zones"
+msgstr "Checked the DNS provider {name}, writing in its zones"
 
 msgid "Claimed this install"
 msgstr "Claimed this install"
@@ -10163,6 +10169,67 @@ msgstr "{failedAt}, which failed: {failedWhy}"
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"
 
+msgid "An API token with Zone:Read and DNS:Edit for your zones."
+msgstr "An API token with Zone:Read and DNS:Edit for your zones."
+
+#. placeholder {0}: zones[0]
+msgid "Can write DNS for {0}"
+msgstr "Can write DNS for {0}"
+
+#. placeholder {0}: zones.length
+msgid "Can write DNS for {0} zones"
+msgstr "Can write DNS for {0} zones"
+
+msgid "Can't reach Cloudflare"
+msgstr "Can't reach Cloudflare"
+
+msgid "Can't write DNS"
+msgstr "Can't write DNS"
+
+msgid "Change the DNS provider {name}"
+msgstr "Change the DNS provider {name}"
+
+msgid "Connect Cloudflare"
+msgstr "Connect Cloudflare"
+
+#. placeholder {0}: editing.name
+msgid "DNS provider {0}"
+msgstr "DNS provider {0}"
+
+msgid "Kept unless you paste one"
+msgstr "Kept unless you paste one"
+
+msgid "Make a token at Cloudflare"
+msgstr "Make a token at Cloudflare"
+
+msgid "Not checked"
+msgstr "Not checked"
+
+msgid "Prove names by DNS through Cloudflare"
+msgstr "Prove names by DNS through Cloudflare"
+
+msgid "Remove the DNS provider {name}"
+msgstr "Remove the DNS provider {name}"
+
+msgid "Scope it to these zones"
+msgstr "Scope it to these zones"
+
+#. placeholder {0}: answer?.reaches.length ?? 0
+msgid "The token reaches {0} zones."
+msgstr "The token reaches {0} zones."
+
+msgid "Token works · pick its zones"
+msgstr "Token works · pick its zones"
+
+msgid "What a certificate names it by, in the CLI."
+msgstr "What a certificate names it by, in the CLI."
+
+msgid "Wrong token"
+msgstr "Wrong token"
+
+msgid "Zones"
+msgstr "Zones"
+
 msgid "A domain sends people to an app, so run one first."
 msgstr "A domain sends people to an app, so run one first."
 
@@ -11785,9 +11852,6 @@ msgstr "Kept unless you type one"
 
 msgid "Not a registry, or can't reach it"
 msgstr "Not a registry, or can't reach it"
-
-msgid "Not checked"
-msgstr "Not checked"
 
 msgid "Only some projects"
 msgstr "Only some projects"
@@ -14078,11 +14142,12 @@ msgstr "1 project"
 msgid "<0>{0}</0> for {who}"
 msgstr "<0>{0}</0> for {who}"
 
+#. placeholder {0}: p.name
+msgid "<0>{0}</0> proves names by DNS"
+msgstr "<0>{0}</0> proves names by DNS"
+
 msgid "A backup didn't get here {when}"
 msgstr "A backup didn't get here {when}"
-
-msgid "A route can sit behind its proxy or a Tunnel."
-msgstr "A route can sit behind its proxy or a Tunnel."
 
 msgid "Any DNS provider"
 msgstr "Any DNS provider"
@@ -14090,6 +14155,9 @@ msgstr "Any DNS provider"
 #. placeholder {0}: d.bucket
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
+
+msgid "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
+msgstr "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
 
 msgid "Connect a registry"
 msgstr "Connect a registry"
@@ -14160,9 +14228,6 @@ msgstr "S3-compatible storage"
 
 msgid "Values your apps use live in <0>Variables and secrets</0>"
 msgstr "Values your apps use live in <0>Variables and secrets</0>"
-
-msgid "Works in front of routes"
-msgstr "Works in front of routes"
 
 msgid "in front of a server's routes"
 msgstr "in front of a server's routes"

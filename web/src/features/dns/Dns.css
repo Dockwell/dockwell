@@ -1,0 +1,59 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.dns-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* What the live check found, in a line, with the provider's own words under it. */
+.dns-sheet-check {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.dns-sheet-said {
+  margin: 0;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.dns-zones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dns-zones legend {
+  margin-bottom: var(--space-2);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dns-zone {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+}
+
+.dns-zone-said {
+  color: var(--critical);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+}
+
+/* Remove sits apart from Cancel and Review plan, at the footer's start. */
+.dns-remove {
+  margin-inline-end: auto;
+  color: var(--critical);
+}

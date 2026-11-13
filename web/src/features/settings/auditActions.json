@@ -31,6 +31,7 @@
   "change.failed",
   "change.planned",
   "claim_link.create",
+  "dns_provider.check",
   "file.change_unknown",
   "file.delete",
   "file.delete_failed",

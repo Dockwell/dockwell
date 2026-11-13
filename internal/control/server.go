@@ -56,6 +56,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/databases"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/domains"
 	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/files"
@@ -182,6 +183,12 @@ type Config struct {
 	ECR *registrylogins.ECR
 	// logins are the registry logins, read with Secrets from Store.
 	logins *registrylogins.Logins
+	// DNSAPI reaches a DNS provider's API with a token, for the DNS providers
+	// (ADR 0088): Cloudflare's own unless a test passes one that reaches its own
+	// server.
+	DNSAPI func(token string) dnsproviders.API
+	// dns are the DNS providers, read with Secrets from Store.
+	dns *dnsproviders.Providers
 	// Logs changes the limits of reading logs, as tests do.
 	Logs logapi.Options
 	// EventPoll is how often a watch of the timeline reads the store again,
@@ -285,6 +292,10 @@ func New(cfg Config) (*Server, error) {
 		cfg.logins = registrylogins.New(cfg.Store, cfg.Secrets)
 		if cfg.ECR != nil {
 			cfg.logins.ECR = cfg.ECR
+		}
+		cfg.dns = dnsproviders.New(cfg.Store, cfg.Secrets)
+		if cfg.DNSAPI != nil {
+			cfg.dns.Cloudflare = cfg.DNSAPI
 		}
 	}
 	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower)
@@ -458,6 +469,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 				variables.New(cfg.Changes.Kinds(), cfg.Store, cfg.Secrets, cfg.Auth, cfg.Logger), opts...))
 		}
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
+		domainHandler.DNS = cfg.dns
 		domainHandler.Lookup = cfg.DNSLookup
 		handle(dockwellv1connect.NewDomainServiceHandler(domainHandler, opts...))
 		if cfg.Fleet != nil {

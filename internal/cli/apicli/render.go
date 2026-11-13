@@ -1410,7 +1410,19 @@ var labels = map[protoreflect.Name]string{
 	"undo_deadline":  "Undo until",
 }
 
-var acronyms = map[string]string{"id": "ID", "rp": "RP", "os": "OS", "cpu": "CPU", "ip": "IP", "url": "URL", "uri": "URI", "json": "JSON", "ttl": "TTL", "api": "API"}
+var acronyms = map[string]string{"id": "ID", "rp": "RP", "os": "OS", "cpu": "CPU", "ip": "IP", "url": "URL", "uri": "URI", "json": "JSON", "ttl": "TTL", "api": "API", "dns": "DNS"}
+
+// kindWords is a kind as a sentence names it: "registry.login" is "registry login",
+// and "dns.provider" "DNS provider".
+func kindWords(kind resource.Kind) string {
+	words := strings.Split(string(kind), ".")
+	for i, w := range words {
+		if a, ok := acronyms[w]; ok {
+			words[i] = a
+		}
+	}
+	return strings.Join(words, " ")
+}
 
 // Label is a field's name for people: "server_name" is "Server name",
 // "create_time" "Created".

@@ -41,6 +41,12 @@ const (
 	// DomainServiceCheckDomainProcedure is the fully-qualified name of the DomainService's CheckDomain
 	// RPC.
 	DomainServiceCheckDomainProcedure = "/dockwell.v1.DomainService/CheckDomain"
+	// DomainServiceListDnsProvidersProcedure is the fully-qualified name of the DomainService's
+	// ListDnsProviders RPC.
+	DomainServiceListDnsProvidersProcedure = "/dockwell.v1.DomainService/ListDnsProviders"
+	// DomainServiceCheckDnsProviderProcedure is the fully-qualified name of the DomainService's
+	// CheckDnsProvider RPC.
+	DomainServiceCheckDnsProviderProcedure = "/dockwell.v1.DomainService/CheckDnsProvider"
 )
 
 // DomainServiceClient is a client for the dockwell.v1.DomainService service.
@@ -57,6 +63,17 @@ type DomainServiceClient interface {
 	// check 60 names a minute, and an answer that's a private address is only
 	// shown when it's the server's own.
 	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
+	// ListDnsProviders returns the DNS providers an admin connected, sorted by
+	// name, with the zones each writes in, so a certificate can name one. A token
+	// is never returned. Below an admin, it says each one's ID, name and zones. See
+	// docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+	ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error)
+	// CheckDnsProvider checks a DNS provider's token from the control plane, as a
+	// certificate would use it, and saves nothing: with a token as typed, or a
+	// saved provider's again. It lists the zones the token reaches, and in each
+	// zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
+	// deletes it. An admin's, signed in, as a provider is install-wide.
+	CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error)
 }
 
 // NewDomainServiceClient constructs a client for the dockwell.v1.DomainService service. By default,
@@ -84,13 +101,28 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listDnsProviders: connect.NewClient[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse](
+			httpClient,
+			baseURL+DomainServiceListDnsProvidersProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("ListDnsProviders")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		checkDnsProvider: connect.NewClient[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse](
+			httpClient,
+			baseURL+DomainServiceCheckDnsProviderProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("CheckDnsProvider")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // domainServiceClient implements DomainServiceClient.
 type domainServiceClient struct {
-	listDomains *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
-	checkDomain *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
+	listDomains      *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
+	checkDomain      *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
+	listDnsProviders *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
+	checkDnsProvider *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
 }
 
 // ListDomains calls dockwell.v1.DomainService.ListDomains.
@@ -101,6 +133,16 @@ func (c *domainServiceClient) ListDomains(ctx context.Context, req *connect.Requ
 // CheckDomain calls dockwell.v1.DomainService.CheckDomain.
 func (c *domainServiceClient) CheckDomain(ctx context.Context, req *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error) {
 	return c.checkDomain.CallUnary(ctx, req)
+}
+
+// ListDnsProviders calls dockwell.v1.DomainService.ListDnsProviders.
+func (c *domainServiceClient) ListDnsProviders(ctx context.Context, req *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error) {
+	return c.listDnsProviders.CallUnary(ctx, req)
+}
+
+// CheckDnsProvider calls dockwell.v1.DomainService.CheckDnsProvider.
+func (c *domainServiceClient) CheckDnsProvider(ctx context.Context, req *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error) {
+	return c.checkDnsProvider.CallUnary(ctx, req)
 }
 
 // DomainServiceHandler is an implementation of the dockwell.v1.DomainService service.
@@ -117,6 +159,17 @@ type DomainServiceHandler interface {
 	// check 60 names a minute, and an answer that's a private address is only
 	// shown when it's the server's own.
 	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
+	// ListDnsProviders returns the DNS providers an admin connected, sorted by
+	// name, with the zones each writes in, so a certificate can name one. A token
+	// is never returned. Below an admin, it says each one's ID, name and zones. See
+	// docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+	ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error)
+	// CheckDnsProvider checks a DNS provider's token from the control plane, as a
+	// certificate would use it, and saves nothing: with a token as typed, or a
+	// saved provider's again. It lists the zones the token reaches, and in each
+	// zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
+	// deletes it. An admin's, signed in, as a provider is install-wide.
+	CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error)
 }
 
 // NewDomainServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -140,12 +193,29 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	domainServiceListDnsProvidersHandler := connect.NewUnaryHandler(
+		DomainServiceListDnsProvidersProcedure,
+		svc.ListDnsProviders,
+		connect.WithSchema(domainServiceMethods.ByName("ListDnsProviders")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	domainServiceCheckDnsProviderHandler := connect.NewUnaryHandler(
+		DomainServiceCheckDnsProviderProcedure,
+		svc.CheckDnsProvider,
+		connect.WithSchema(domainServiceMethods.ByName("CheckDnsProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DomainService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DomainServiceListDomainsProcedure:
 			domainServiceListDomainsHandler.ServeHTTP(w, r)
 		case DomainServiceCheckDomainProcedure:
 			domainServiceCheckDomainHandler.ServeHTTP(w, r)
+		case DomainServiceListDnsProvidersProcedure:
+			domainServiceListDnsProvidersHandler.ServeHTTP(w, r)
+		case DomainServiceCheckDnsProviderProcedure:
+			domainServiceCheckDnsProviderHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -161,4 +231,12 @@ func (UnimplementedDomainServiceHandler) ListDomains(context.Context, *connect.R
 
 func (UnimplementedDomainServiceHandler) CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckDomain is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.ListDnsProviders is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckDnsProvider is not implemented"))
 }

@@ -754,8 +754,14 @@ msgstr "请求运行 {task}"
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
 
+msgid "Checked a DNS provider"
+msgstr "检查了一个 DNS 服务商"
+
 msgid "Checked that a backup of {volume} restores"
 msgstr "已检查 {volume} 的一个备份可以恢复"
+
+msgid "Checked the DNS provider {name}, writing in its zones"
+msgstr "检查了 DNS 服务商 {name}，在其区域中写入"
 
 msgid "Claimed this install"
 msgstr "认领了这个安装"
@@ -10163,6 +10169,67 @@ msgstr "{failedAt}，失败：{failedWhy}"
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} / {ofWords}"
 
+msgid "An API token with Zone:Read and DNS:Edit for your zones."
+msgstr "一个对你的区域具有 Zone:Read 和 DNS:Edit 权限的 API 令牌。"
+
+#. placeholder {0}: zones[0]
+msgid "Can write DNS for {0}"
+msgstr "可以为 {0} 写入 DNS"
+
+#. placeholder {0}: zones.length
+msgid "Can write DNS for {0} zones"
+msgstr "可以为 {0} 个区域写入 DNS"
+
+msgid "Can't reach Cloudflare"
+msgstr "无法连接 Cloudflare"
+
+msgid "Can't write DNS"
+msgstr "无法写入 DNS"
+
+msgid "Change the DNS provider {name}"
+msgstr "更改 DNS 服务商 {name}"
+
+msgid "Connect Cloudflare"
+msgstr "连接 Cloudflare"
+
+#. placeholder {0}: editing.name
+msgid "DNS provider {0}"
+msgstr "DNS 服务商 {0}"
+
+msgid "Kept unless you paste one"
+msgstr "保留原值，除非你粘贴新的"
+
+msgid "Make a token at Cloudflare"
+msgstr "在 Cloudflare 创建令牌"
+
+msgid "Not checked"
+msgstr "未检查"
+
+msgid "Prove names by DNS through Cloudflare"
+msgstr "通过 Cloudflare 用 DNS 证明域名"
+
+msgid "Remove the DNS provider {name}"
+msgstr "移除 DNS 服务商 {name}"
+
+msgid "Scope it to these zones"
+msgstr "将其范围限定为这些区域"
+
+#. placeholder {0}: answer?.reaches.length ?? 0
+msgid "The token reaches {0} zones."
+msgstr "该令牌可访问 {0} 个区域。"
+
+msgid "Token works · pick its zones"
+msgstr "令牌可用 · 选择其区域"
+
+msgid "What a certificate names it by, in the CLI."
+msgstr "证书在 CLI 中用来指代它的名称。"
+
+msgid "Wrong token"
+msgstr "令牌错误"
+
+msgid "Zones"
+msgstr "区域"
+
 msgid "A domain sends people to an app, so run one first."
 msgstr "域名把访问者带到应用，所以请先运行一个应用。"
 
@@ -11785,9 +11852,6 @@ msgstr "不填则保留原值"
 
 msgid "Not a registry, or can't reach it"
 msgstr "不是镜像仓库，或无法连接"
-
-msgid "Not checked"
-msgstr "未检查"
 
 msgid "Only some projects"
 msgstr "仅限部分项目"
@@ -14078,11 +14142,12 @@ msgstr "1 个项目"
 msgid "<0>{0}</0> for {who}"
 msgstr "<0>{0}</0>，用于{who}"
 
+#. placeholder {0}: p.name
+msgid "<0>{0}</0> proves names by DNS"
+msgstr "<0>{0}</0> 通过 DNS 证明域名"
+
 msgid "A backup didn't get here {when}"
 msgstr "{when}有一份备份未能送达"
-
-msgid "A route can sit behind its proxy or a Tunnel."
-msgstr "路由可以位于它的代理或 Tunnel 之后。"
 
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
@@ -14090,6 +14155,9 @@ msgstr "任何 DNS 服务商"
 #. placeholder {0}: d.bucket
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
+
+msgid "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
+msgstr "通过 DNS 获取证书，适用于 NAT 之后或通配符域名。路由也可以位于其代理或 Tunnel 之后。"
 
 msgid "Connect a registry"
 msgstr "连接镜像仓库"
@@ -14160,9 +14228,6 @@ msgstr "S3 兼容存储"
 
 msgid "Values your apps use live in <0>Variables and secrets</0>"
 msgstr "应用使用的值保存在<0>变量和机密</0>中"
-
-msgid "Works in front of routes"
-msgstr "可用于路由之前"
 
 msgid "in front of a server's routes"
 msgstr "位于服务器路由之前"

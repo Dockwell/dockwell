@@ -6,6 +6,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { DomainCheck } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import { file_dockwell_v1_options } from "./options_pb";
@@ -18,7 +19,207 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/domain.proto.
  */
 export const file_dockwell_v1_domain: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIjcKEkNoZWNrRG9tYWluUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDgoGZG9tYWluGAIgASgJIj4KE0NoZWNrRG9tYWluUmVzcG9uc2USJwoFY2hlY2sYASABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayI6ChJMaXN0RG9tYWluc1JlcXVlc3QSEwoLZW52aXJvbm1lbnQYASABKAkSDwoHc2VydmljZRgCIAEoCSI7ChNMaXN0RG9tYWluc1Jlc3BvbnNlEiQKB2RvbWFpbnMYASADKAsyEy5kb2Nrd2VsbC52MS5Eb21haW4ikQEKBkRvbWFpbhIMCgRuYW1lGAEgASgJEhYKDmVudmlyb25tZW50X2lkGAIgASgJEgsKA3VybBgDIAEoCRIoCgZyb3V0ZXMYBCADKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5Sb3V0ZRIqCgdzZXJ2ZXJzGAUgAygLMhkuZG9ja3dlbGwudjEuRG9tYWluU2VydmVyIsIBCgtEb21haW5Sb3V0ZRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHBhdGgYAyABKAkSDwoHc2VydmljZRgEIAEoCRIMCgRwb3J0GAUgASgNEgsKA3VybBgGIAEoCRILCgN0bHMYByABKAkSEQoJaG9zdF9wb3J0GAggASgNEhgKEHBsYWluX2Zvcl9hbnlvbmUYCSABKAgSDAoEaGVsZBhQIAEoCBIXCg90cnVzdGVkX3Byb3hpZXMYUSADKAkinQEKDERvbWFpblNlcnZlchIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKQoGc3RhdHVzGAMgASgLMhkuZG9ja3dlbGwudjEuRG9tYWluU3RhdHVzEg0KBXN0YWxlGAQgASgIEisKB2luZ3Jlc3MYBSABKAsyGi5kb2Nrd2VsbC52MS5JbmdyZXNzU3RhdHVzIroBCg1JbmdyZXNzU3RhdHVzEg0KBXByb3h5GAEgASgJEg8KB3J1bm5pbmcYAiABKAgSLAoHcHJvYmxlbRgDIAEoDjIbLmRvY2t3ZWxsLnYxLkluZ3Jlc3NQcm9ibGVtEg8KB21lc3NhZ2UYBCABKAkSDwoHaG9sZGVycxgFIAMoCRIPCgd2ZXJzaW9uGAYgASgJEhYKDnBpbm5lZF92ZXJzaW9uGAcgASgJEhAKCG91dGRhdGVkGAggASgIInQKDERvbWFpblN0YXR1cxIOCgZkb21haW4YASABKAkSLQoLY2VydGlmaWNhdGUYAiABKAsyGC5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZRIlCgNkbnMYAyABKAsyGC5kb2Nrd2VsbC52MS5Eb21haW5DaGVjayKvAQoLQ2VydGlmaWNhdGUSLAoFc3RhdGUYASABKA4yHS5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVN0YXRlEjAKB3Byb2JsZW0YAiABKA4yHy5kb2Nrd2VsbC52MS5DZXJ0aWZpY2F0ZVByb2JsZW0SDwoHbWVzc2FnZRgDIAEoCRIvCgtleHBpcmVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAqlQEKDkluZ3Jlc3NQcm9ibGVtEh8KG0lOR1JFU1NfUFJPQkxFTV9VTlNQRUNJRklFRBAAEh8KG0lOR1JFU1NfUFJPQkxFTV9QT1JUU19UQUtFThABEiAKHElOR1JFU1NfUFJPQkxFTV9TVUJORVRfVEFLRU4QAhIfChtJTkdSRVNTX1BST0JMRU1fTk9UX1JVTk5JTkcQAyqsAQoQQ2VydGlmaWNhdGVTdGF0ZRIhCh1DRVJUSUZJQ0FURV9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUNFUlRJRklDQVRFX1NUQVRFX1BFTkRJTkcQARIcChhDRVJUSUZJQ0FURV9TVEFURV9JU1NVRUQQAhIcChhDRVJUSUZJQ0FURV9TVEFURV9GQUlMRUQQAxIaChZDRVJUSUZJQ0FURV9TVEFURV9OT05FEAQqygIKEkNlcnRpZmljYXRlUHJvYmxlbRIjCh9DRVJUSUZJQ0FURV9QUk9CTEVNX1VOU1BFQ0lGSUVEEAASGwoXQ0VSVElGSUNBVEVfUFJPQkxFTV9ETlMQARIiCh5DRVJUSUZJQ0FURV9QUk9CTEVNX0NPTk5FQ1RJT04QAhIkCiBDRVJUSUZJQ0FURV9QUk9CTEVNX1dST05HX1NFUlZFUhADEiQKIENFUlRJRklDQVRFX1BST0JMRU1fUkFURV9MSU1JVEVEEAQSGwoXQ0VSVElGSUNBVEVfUFJPQkxFTV9DQUEQBRIfChtDRVJUSUZJQ0FURV9QUk9CTEVNX1JFRlVTRUQQBhIdChlDRVJUSUZJQ0FURV9QUk9CTEVNX09USEVSEAcSJQohQ0VSVElGSUNBVEVfUFJPQkxFTV9DQU5UX1JFQUNIX0NBEAgyjQIKDURvbWFpblNlcnZpY2USeAoLTGlzdERvbWFpbnMSHy5kb2Nrd2VsbC52MS5MaXN0RG9tYWluc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5MaXN0RG9tYWluc1Jlc3BvbnNlIiaQAgGguxgBwLsYAsi7GALQuxgEgtPkkwINEgsvdjEvZG9tYWlucxKBAQoLQ2hlY2tEb21haW4SHy5kb2Nrd2VsbC52MS5DaGVja0RvbWFpblJlcXVlc3QaIC5kb2Nrd2VsbC52MS5DaGVja0RvbWFpblJlc3BvbnNlIi+QAgGguxgCwLsYA8i7GAPQuxgFgtPkkwIWOgEqIhEvdjEvZG9tYWluczpjaGVja0KkAQoPY29tLmRvY2t3ZWxsLnYxQgtEb21haW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9kb21haW4ucHJvdG8SC2RvY2t3ZWxsLnYxIhkKF0xpc3REbnNQcm92aWRlcnNSZXF1ZXN0IksKGExpc3REbnNQcm92aWRlcnNSZXNwb25zZRIvCglwcm92aWRlcnMYASADKAsyHC5kb2Nrd2VsbC52MS5EbnNQcm92aWRlckluZm8iTAoPRG5zUHJvdmlkZXJJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcHJvdmlkZXIYAyABKAkSDQoFem9uZXMYBCADKAkiYQoXQ2hlY2tEbnNQcm92aWRlclJlcXVlc3QSEAoIcHJvdmlkZXIYASABKAkSFwoJYXBpX3Rva2VuGAIgASgJQgTI8xgBEg0KBXpvbmVzGAMgAygJEgwKBG5hbWUYBCABKAkikwEKGENoZWNrRG5zUHJvdmlkZXJSZXNwb25zZRIsCgVzdGF0ZRgBIAEoDjIdLmRvY2t3ZWxsLnYxLkRuc1Byb3ZpZGVyU3RhdGUSDwoHcmVhY2hlcxgCIAMoCRIoCgV6b25lcxgDIAMoCzIZLmRvY2t3ZWxsLnYxLkRuc1pvbmVDaGVjaxIOCgZkZXRhaWwYBCABKAkiPAoMRG5zWm9uZUNoZWNrEgwKBHpvbmUYASABKAkSDgoGd3JpdGVzGAIgASgIEg4KBmRldGFpbBgDIAEoCSI3ChJDaGVja0RvbWFpblJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg4KBmRvbWFpbhgCIAEoCSI+ChNDaGVja0RvbWFpblJlc3BvbnNlEicKBWNoZWNrGAEgASgLMhguZG9ja3dlbGwudjEuRG9tYWluQ2hlY2siOgoSTGlzdERvbWFpbnNSZXF1ZXN0EhMKC2Vudmlyb25tZW50GAEgASgJEg8KB3NlcnZpY2UYAiABKAkiOwoTTGlzdERvbWFpbnNSZXNwb25zZRIkCgdkb21haW5zGAEgAygLMhMuZG9ja3dlbGwudjEuRG9tYWluIpEBCgZEb21haW4SDAoEbmFtZRgBIAEoCRIWCg5lbnZpcm9ubWVudF9pZBgCIAEoCRILCgN1cmwYAyABKAkSKAoGcm91dGVzGAQgAygLMhguZG9ja3dlbGwudjEuRG9tYWluUm91dGUSKgoHc2VydmVycxgFIAMoCzIZLmRvY2t3ZWxsLnYxLkRvbWFpblNlcnZlciLCAQoLRG9tYWluUm91dGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRwYXRoGAMgASgJEg8KB3NlcnZpY2UYBCABKAkSDAoEcG9ydBgFIAEoDRILCgN1cmwYBiABKAkSCwoDdGxzGAcgASgJEhEKCWhvc3RfcG9ydBgIIAEoDRIYChBwbGFpbl9mb3JfYW55b25lGAkgASgIEgwKBGhlbGQYUCABKAgSFwoPdHJ1c3RlZF9wcm94aWVzGFEgAygJIp0BCgxEb21haW5TZXJ2ZXISEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEikKBnN0YXR1cxgDIAEoCzIZLmRvY2t3ZWxsLnYxLkRvbWFpblN0YXR1cxINCgVzdGFsZRgEIAEoCBIrCgdpbmdyZXNzGAUgASgLMhouZG9ja3dlbGwudjEuSW5ncmVzc1N0YXR1cyK6AQoNSW5ncmVzc1N0YXR1cxINCgVwcm94eRgBIAEoCRIPCgdydW5uaW5nGAIgASgIEiwKB3Byb2JsZW0YAyABKA4yGy5kb2Nrd2VsbC52MS5JbmdyZXNzUHJvYmxlbRIPCgdtZXNzYWdlGAQgASgJEg8KB2hvbGRlcnMYBSADKAkSDwoHdmVyc2lvbhgGIAEoCRIWCg5waW5uZWRfdmVyc2lvbhgHIAEoCRIQCghvdXRkYXRlZBgIIAEoCCJ0CgxEb21haW5TdGF0dXMSDgoGZG9tYWluGAEgASgJEi0KC2NlcnRpZmljYXRlGAIgASgLMhguZG9ja3dlbGwudjEuQ2VydGlmaWNhdGUSJQoDZG5zGAMgASgLMhguZG9ja3dlbGwudjEuRG9tYWluQ2hlY2sirwEKC0NlcnRpZmljYXRlEiwKBXN0YXRlGAEgASgOMh0uZG9ja3dlbGwudjEuQ2VydGlmaWNhdGVTdGF0ZRIwCgdwcm9ibGVtGAIgASgOMh8uZG9ja3dlbGwudjEuQ2VydGlmaWNhdGVQcm9ibGVtEg8KB21lc3NhZ2UYAyABKAkSLwoLZXhwaXJlX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wKsQCChBEbnNQcm92aWRlclN0YXRlEiIKHkROU19QUk9WSURFUl9TVEFURV9VTlNQRUNJRklFRBAAEjAKGUROU19QUk9WSURFUl9TVEFURV9XUklURVMQARoRorsYDUNhbiB3cml0ZSBETlMSLwoaRE5TX1BST1ZJREVSX1NUQVRFX1JFRlVTRUQQAhoPorsYC1dyb25nIHRva2VuEjYKHUROU19QUk9WSURFUl9TVEFURV9DQU5UX1dSSVRFEAMaE6K7GA9DYW4ndCB3cml0ZSBETlMSQAoeRE5TX1BST1ZJREVSX1NUQVRFX1VOUkVBQ0hBQkxFEAQaHKK7GBhDYW4ndCByZWFjaCB0aGUgcHJvdmlkZXISLwoaRE5TX1BST1ZJREVSX1NUQVRFX1JFQUNIRVMQBRoPorsYC1Rva2VuIHdvcmtzKpUBCg5JbmdyZXNzUHJvYmxlbRIfChtJTkdSRVNTX1BST0JMRU1fVU5TUEVDSUZJRUQQABIfChtJTkdSRVNTX1BST0JMRU1fUE9SVFNfVEFLRU4QARIgChxJTkdSRVNTX1BST0JMRU1fU1VCTkVUX1RBS0VOEAISHwobSU5HUkVTU19QUk9CTEVNX05PVF9SVU5OSU5HEAMqrAEKEENlcnRpZmljYXRlU3RhdGUSIQodQ0VSVElGSUNBVEVfU1RBVEVfVU5TUEVDSUZJRUQQABIdChlDRVJUSUZJQ0FURV9TVEFURV9QRU5ESU5HEAESHAoYQ0VSVElGSUNBVEVfU1RBVEVfSVNTVUVEEAISHAoYQ0VSVElGSUNBVEVfU1RBVEVfRkFJTEVEEAMSGgoWQ0VSVElGSUNBVEVfU1RBVEVfTk9ORRAEKsoCChJDZXJ0aWZpY2F0ZVByb2JsZW0SIwofQ0VSVElGSUNBVEVfUFJPQkxFTV9VTlNQRUNJRklFRBAAEhsKF0NFUlRJRklDQVRFX1BST0JMRU1fRE5TEAESIgoeQ0VSVElGSUNBVEVfUFJPQkxFTV9DT05ORUNUSU9OEAISJAogQ0VSVElGSUNBVEVfUFJPQkxFTV9XUk9OR19TRVJWRVIQAxIkCiBDRVJUSUZJQ0FURV9QUk9CTEVNX1JBVEVfTElNSVRFRBAEEhsKF0NFUlRJRklDQVRFX1BST0JMRU1fQ0FBEAUSHwobQ0VSVElGSUNBVEVfUFJPQkxFTV9SRUZVU0VEEAYSHQoZQ0VSVElGSUNBVEVfUFJPQkxFTV9PVEhFUhAHEiUKIUNFUlRJRklDQVRFX1BST0JMRU1fQ0FOVF9SRUFDSF9DQRAIMvMJCg1Eb21haW5TZXJ2aWNlEngKC0xpc3REb21haW5zEh8uZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXF1ZXN0GiAuZG9ja3dlbGwudjEuTGlzdERvbWFpbnNSZXNwb25zZSImkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCDRILL3YxL2RvbWFpbnMSgQEKC0NoZWNrRG9tYWluEh8uZG9ja3dlbGwudjEuQ2hlY2tEb21haW5SZXF1ZXN0GiAuZG9ja3dlbGwudjEuQ2hlY2tEb21haW5SZXNwb25zZSIvkAIBoLsYAsC7GAPIuxgD0LsYBYLT5JMCFjoBKiIRL3YxL2RvbWFpbnM6Y2hlY2sSjAEKEExpc3REbnNQcm92aWRlcnMSJC5kb2Nrd2VsbC52MS5MaXN0RG5zUHJvdmlkZXJzUmVxdWVzdBolLmRvY2t3ZWxsLnYxLkxpc3REbnNQcm92aWRlcnNSZXNwb25zZSIrkAIBoLsYAcC7GALIuxgC0LsYBYLT5JMCEhIQL3YxL2Ruc1Byb3ZpZGVycxKWAQoQQ2hlY2tEbnNQcm92aWRlchIkLmRvY2t3ZWxsLnYxLkNoZWNrRG5zUHJvdmlkZXJSZXF1ZXN0GiUuZG9ja3dlbGwudjEuQ2hlY2tEbnNQcm92aWRlclJlc3BvbnNlIjWguxgCsLsYAcC7GATIuxgE0LsYBoLT5JMCGzoBKiIWL3YxL2Ruc1Byb3ZpZGVyczpjaGVjaxq7BaK7GIQCCgdkb21haW5zEvgBV2hlcmUgdGhlIGRvbWFpbnMgb2YgeW91ciByb3V0ZXMgc3RhbmQ6IHdoYXQgZWFjaCBzZW5kcyB3aGVyZSwgYW5kIHdoZXRoZXIgaXRzIGNlcnRpZmljYXRlIGlzIHBlbmRpbmcsIGlzc3VlZCBvciBmYWlsZWQsIHdpdGggd2hhdCB0byBkbyB3aGVuIGl0IGZhaWxlZC4gQ2hhbmdlIHJvdXRlcyB3aXRoIENoYW5nZVNlcnZpY2UsIGFzIGtpbmQgcm91dGUuIFNlZSBkb2NzL2Fkci8wMDI0LXRoZS1jYWRkeS1pbmdyZXNzLWRyaXZlci5tZC6iuxitAwoNZG5zLXByb3ZpZGVycxKbA1doYXQgd3JpdGVzIGEgRE5TIHpvbmUncyByZWNvcmRzLCBzbyB0aGUgY29udHJvbCBwbGFuZSBjYW4gcHJvdmUgYSBuYW1lIGJ5IEROUy0wMSBhbmQgZ2V0IGl0cyBjZXJ0aWZpY2F0ZSwgYmVoaW5kIE5BVCBvciBmb3IgYSB3aWxkY2FyZC4gQSBwcm92aWRlciBpcyBpbnN0YWxsLXdpZGU6IGFuIGFkbWluIGNvbm5lY3RzIGl0IGFzIGEgY2hhbmdlLCB3aXRoIGEgcGxhbi4gSXRzIHRva2VuIHN0YXlzIG9uIHRoZSBjb250cm9sIHBsYW5lIGFuZCBnb2VzIHRvIG5vIHNlcnZlci4gQ2hlY2tEbnNQcm92aWRlciB3cml0ZXMgYW5kIGRlbGV0ZXMgYSBUWFQgcmVjb3JkIHdpdGhvdXQgc2F2aW5nIGFueXRoaW5nLiBTZWUgZG9jcy9hZHIvMDA4OC1jZXJ0aWZpY2F0ZXMtYnktZG5zLTAxLWFuZC13aWxkY2FyZC1kb21haW5zLm1kLkKkAQoPY29tLmRvY2t3ZWxsLnYxQgtEb21haW5Qcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * ListDnsProvidersRequest asks for every DNS provider the caller may see.
+ *
+ * @generated from message dockwell.v1.ListDnsProvidersRequest
+ */
+export type ListDnsProvidersRequest = Message<"dockwell.v1.ListDnsProvidersRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.ListDnsProvidersRequest.
+ * Use `create(ListDnsProvidersRequestSchema)` to create a new message.
+ */
+export const ListDnsProvidersRequestSchema: GenMessage<ListDnsProvidersRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 0);
+
+/**
+ * ListDnsProvidersResponse holds the DNS providers.
+ *
+ * @generated from message dockwell.v1.ListDnsProvidersResponse
+ */
+export type ListDnsProvidersResponse = Message<"dockwell.v1.ListDnsProvidersResponse"> & {
+  /**
+   * Sorted by name.
+   *
+   * @generated from field: repeated dockwell.v1.DnsProviderInfo providers = 1;
+   */
+  providers: DnsProviderInfo[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListDnsProvidersResponse.
+ * Use `create(ListDnsProvidersResponseSchema)` to create a new message.
+ */
+export const ListDnsProvidersResponseSchema: GenMessage<ListDnsProvidersResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 1);
+
+/**
+ * DnsProviderInfo is a DNS provider, without its token.
+ *
+ * @generated from message dockwell.v1.DnsProviderInfo
+ */
+export type DnsProviderInfo = Message<"dockwell.v1.DnsProviderInfo"> & {
+  /**
+   * Its ID, dnp_….
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Its name.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * Which provider's API, such as "cloudflare".
+   *
+   * @generated from field: string provider = 3;
+   */
+  provider: string;
+
+  /**
+   * The zones it writes in.
+   *
+   * @generated from field: repeated string zones = 4;
+   */
+  zones: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.DnsProviderInfo.
+ * Use `create(DnsProviderInfoSchema)` to create a new message.
+ */
+export const DnsProviderInfoSchema: GenMessage<DnsProviderInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 2);
+
+/**
+ * CheckDnsProviderRequest is a token to check, or a saved provider to check
+ * again.
+ *
+ * @generated from message dockwell.v1.CheckDnsProviderRequest
+ */
+export type CheckDnsProviderRequest = Message<"dockwell.v1.CheckDnsProviderRequest"> & {
+  /**
+   * Which provider's API: "cloudflare". Unset when name says which.
+   *
+   * @generated from field: string provider = 1;
+   */
+  provider: string;
+
+  /**
+   * The token, as typed. Unset to check a saved provider's.
+   *
+   * @generated from field: string api_token = 2;
+   */
+  apiToken: string;
+
+  /**
+   * The zones to write a record in. Empty lists the zones the token reaches and
+   * writes in none.
+   *
+   * @generated from field: repeated string zones = 3;
+   */
+  zones: string[];
+
+  /**
+   * A saved provider to check again, by name, with what it saved for anything
+   * left unset here.
+   *
+   * @generated from field: string name = 4;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckDnsProviderRequest.
+ * Use `create(CheckDnsProviderRequestSchema)` to create a new message.
+ */
+export const CheckDnsProviderRequestSchema: GenMessage<CheckDnsProviderRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 3);
+
+/**
+ * CheckDnsProviderResponse says what the token may do.
+ *
+ * @generated from message dockwell.v1.CheckDnsProviderResponse
+ */
+export type CheckDnsProviderResponse = Message<"dockwell.v1.CheckDnsProviderResponse"> & {
+  /**
+   * How the provider answered, taken together.
+   *
+   * @generated from field: dockwell.v1.DnsProviderState state = 1;
+   */
+  state: DnsProviderState;
+
+  /**
+   * The zones the token reaches, sorted, which a form offers to pick from.
+   *
+   * @generated from field: repeated string reaches = 2;
+   */
+  reaches: string[];
+
+  /**
+   * For each zone asked for, whether a record could be written there.
+   *
+   * @generated from field: repeated dockwell.v1.DnsZoneCheck zones = 3;
+   */
+  zones: DnsZoneCheck[];
+
+  /**
+   * The provider's own words, when it said no or couldn't be reached, in a line.
+   *
+   * @generated from field: string detail = 4;
+   */
+  detail: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckDnsProviderResponse.
+ * Use `create(CheckDnsProviderResponseSchema)` to create a new message.
+ */
+export const CheckDnsProviderResponseSchema: GenMessage<CheckDnsProviderResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 4);
+
+/**
+ * DnsZoneCheck is what writing a record in one zone came to.
+ *
+ * @generated from message dockwell.v1.DnsZoneCheck
+ */
+export type DnsZoneCheck = Message<"dockwell.v1.DnsZoneCheck"> & {
+  /**
+   * The zone, such as "example.com".
+   *
+   * @generated from field: string zone = 1;
+   */
+  zone: string;
+
+  /**
+   * Whether a record was written there, and deleted.
+   *
+   * @generated from field: bool writes = 2;
+   */
+  writes: boolean;
+
+  /**
+   * The provider's own words, when it couldn't.
+   *
+   * @generated from field: string detail = 3;
+   */
+  detail: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DnsZoneCheck.
+ * Use `create(DnsZoneCheckSchema)` to create a new message.
+ */
+export const DnsZoneCheckSchema: GenMessage<DnsZoneCheck> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_domain, 5);
 
 /**
  * CheckDomainRequest names a domain and the server it's meant to reach.
@@ -46,7 +247,7 @@ export type CheckDomainRequest = Message<"dockwell.v1.CheckDomainRequest"> & {
  * Use `create(CheckDomainRequestSchema)` to create a new message.
  */
 export const CheckDomainRequestSchema: GenMessage<CheckDomainRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 0);
+  messageDesc(file_dockwell_v1_domain, 6);
 
 /**
  * CheckDomainResponse says what DNS says of it.
@@ -67,7 +268,7 @@ export type CheckDomainResponse = Message<"dockwell.v1.CheckDomainResponse"> & {
  * Use `create(CheckDomainResponseSchema)` to create a new message.
  */
 export const CheckDomainResponseSchema: GenMessage<CheckDomainResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 1);
+  messageDesc(file_dockwell_v1_domain, 7);
 
 /**
  * ListDomainsRequest says which domains to return.
@@ -97,7 +298,7 @@ export type ListDomainsRequest = Message<"dockwell.v1.ListDomainsRequest"> & {
  * Use `create(ListDomainsRequestSchema)` to create a new message.
  */
 export const ListDomainsRequestSchema: GenMessage<ListDomainsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 2);
+  messageDesc(file_dockwell_v1_domain, 8);
 
 /**
  * ListDomainsResponse lists domains.
@@ -118,7 +319,7 @@ export type ListDomainsResponse = Message<"dockwell.v1.ListDomainsResponse"> & {
  * Use `create(ListDomainsResponseSchema)` to create a new message.
  */
 export const ListDomainsResponseSchema: GenMessage<ListDomainsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 3);
+  messageDesc(file_dockwell_v1_domain, 9);
 
 /**
  * Domain is one domain the routes of an environment serve.
@@ -169,7 +370,7 @@ export type Domain = Message<"dockwell.v1.Domain"> & {
  * Use `create(DomainSchema)` to create a new message.
  */
 export const DomainSchema: GenMessage<Domain> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 4);
+  messageDesc(file_dockwell_v1_domain, 10);
 
 /**
  * DomainRoute is one route of a domain.
@@ -262,7 +463,7 @@ export type DomainRoute = Message<"dockwell.v1.DomainRoute"> & {
  * Use `create(DomainRouteSchema)` to create a new message.
  */
 export const DomainRouteSchema: GenMessage<DomainRoute> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 5);
+  messageDesc(file_dockwell_v1_domain, 11);
 
 /**
  * DomainServer is where a domain stands on one server.
@@ -313,7 +514,7 @@ export type DomainServer = Message<"dockwell.v1.DomainServer"> & {
  * Use `create(DomainServerSchema)` to create a new message.
  */
 export const DomainServerSchema: GenMessage<DomainServer> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 6);
+  messageDesc(file_dockwell_v1_domain, 12);
 
 /**
  * IngressStatus is where a server's ingress stands, on a server with routes.
@@ -387,7 +588,7 @@ export type IngressStatus = Message<"dockwell.v1.IngressStatus"> & {
  * Use `create(IngressStatusSchema)` to create a new message.
  */
 export const IngressStatusSchema: GenMessage<IngressStatus> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 7);
+  messageDesc(file_dockwell_v1_domain, 13);
 
 /**
  * DomainStatus is where one domain's certificate and DNS stand on a server.
@@ -422,7 +623,7 @@ export type DomainStatus = Message<"dockwell.v1.DomainStatus"> & {
  * Use `create(DomainStatusSchema)` to create a new message.
  */
 export const DomainStatusSchema: GenMessage<DomainStatus> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 8);
+  messageDesc(file_dockwell_v1_domain, 14);
 
 /**
  * Certificate is where a domain's certificate stands on a server.
@@ -466,7 +667,62 @@ export type Certificate = Message<"dockwell.v1.Certificate"> & {
  * Use `create(CertificateSchema)` to create a new message.
  */
 export const CertificateSchema: GenMessage<Certificate> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_domain, 9);
+  messageDesc(file_dockwell_v1_domain, 15);
+
+/**
+ * DnsProviderState is what a DNS provider said of a token.
+ *
+ * @generated from enum dockwell.v1.DnsProviderState
+ */
+export enum DnsProviderState {
+  /**
+   * @generated from enum value: DNS_PROVIDER_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * It wrote and deleted a record in every zone asked for.
+   *
+   * @generated from enum value: DNS_PROVIDER_STATE_WRITES = 1;
+   */
+  WRITES = 1,
+
+  /**
+   * The provider refused the token, or it isn't an API token.
+   *
+   * @generated from enum value: DNS_PROVIDER_STATE_REFUSED = 2;
+   */
+  REFUSED = 2,
+
+  /**
+   * The token is good, but couldn't write in a zone asked for, or reaches no
+   * zone.
+   *
+   * @generated from enum value: DNS_PROVIDER_STATE_CANT_WRITE = 3;
+   */
+  CANT_WRITE = 3,
+
+  /**
+   * The provider couldn't be reached, or didn't answer in time.
+   *
+   * @generated from enum value: DNS_PROVIDER_STATE_UNREACHABLE = 4;
+   */
+  UNREACHABLE = 4,
+
+  /**
+   * The token is good and reaches these zones; no zone was asked for, so
+   * nothing was written.
+   *
+   * @generated from enum value: DNS_PROVIDER_STATE_REACHES = 5;
+   */
+  REACHES = 5,
+}
+
+/**
+ * Describes the enum dockwell.v1.DnsProviderState.
+ */
+export const DnsProviderStateSchema: GenEnum<DnsProviderState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_domain, 0);
 
 /**
  * IngressProblem is why a server's routes aren't being served.
@@ -508,7 +764,7 @@ export enum IngressProblem {
  * Describes the enum dockwell.v1.IngressProblem.
  */
 export const IngressProblemSchema: GenEnum<IngressProblem> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 0);
+  enumDesc(file_dockwell_v1_domain, 1);
 
 /**
  * CertificateState is where a domain's certificate stands.
@@ -558,7 +814,7 @@ export enum CertificateState {
  * Describes the enum dockwell.v1.CertificateState.
  */
 export const CertificateStateSchema: GenEnum<CertificateState> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 1);
+  enumDesc(file_dockwell_v1_domain, 2);
 
 /**
  * CertificateProblem is why a certificate failed.
@@ -635,7 +891,7 @@ export enum CertificateProblem {
  * Describes the enum dockwell.v1.CertificateProblem.
  */
 export const CertificateProblemSchema: GenEnum<CertificateProblem> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_domain, 2);
+  enumDesc(file_dockwell_v1_domain, 3);
 
 /**
  * DomainService says where the domains of your routes stand: what each sends
@@ -673,6 +929,33 @@ export const DomainService: GenService<{
     methodKind: "unary";
     input: typeof CheckDomainRequestSchema;
     output: typeof CheckDomainResponseSchema;
+  },
+  /**
+   * ListDnsProviders returns the DNS providers an admin connected, sorted by
+   * name, with the zones each writes in, so a certificate can name one. A token
+   * is never returned. Below an admin, it says each one's ID, name and zones. See
+   * docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+   *
+   * @generated from rpc dockwell.v1.DomainService.ListDnsProviders
+   */
+  listDnsProviders: {
+    methodKind: "unary";
+    input: typeof ListDnsProvidersRequestSchema;
+    output: typeof ListDnsProvidersResponseSchema;
+  },
+  /**
+   * CheckDnsProvider checks a DNS provider's token from the control plane, as a
+   * certificate would use it, and saves nothing: with a token as typed, or a
+   * saved provider's again. It lists the zones the token reaches, and in each
+   * zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
+   * deletes it. An admin's, signed in, as a provider is install-wide.
+   *
+   * @generated from rpc dockwell.v1.DomainService.CheckDnsProvider
+   */
+  checkDnsProvider: {
+    methodKind: "unary";
+    input: typeof CheckDnsProviderRequestSchema;
+    output: typeof CheckDnsProviderResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_domain, 0);

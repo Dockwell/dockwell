@@ -2091,6 +2091,59 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/dnsProviders:
+        get:
+            tags:
+                - DomainService
+            description: |-
+                ListDnsProviders returns the DNS providers an admin connected, sorted by
+                 name, with the zones each writes in, so a certificate can name one. A token
+                 is never returned. Below an admin, it says each one's ID, name and zones. See
+                 docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+            operationId: DomainService_ListDnsProviders
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDnsProvidersResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/dnsProviders:check:
+        post:
+            tags:
+                - DomainService
+            description: |-
+                CheckDnsProvider checks a DNS provider's token from the control plane, as a
+                 certificate would use it, and saves nothing: with a token as typed, or a
+                 saved provider's again. It lists the zones the token reaches, and in each
+                 zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
+                 deletes it. An admin's, signed in, as a provider is install-wide.
+            operationId: DomainService_CheckDnsProvider
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckDnsProviderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckDnsProviderResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -9244,6 +9297,58 @@ components:
                          people, such as a log rotation of its own in place of the file's. A plan's
                          notes say the same.
             description: CheckComposeResponse says what a Compose file would make, or why it can't.
+        CheckDnsProviderRequest:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: 'Which provider''s API: "cloudflare". Unset when name says which.'
+                apiToken:
+                    type: string
+                    description: The token, as typed. Unset to check a saved provider's.
+                zones:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The zones to write a record in. Empty lists the zones the token reaches and
+                         writes in none.
+                name:
+                    type: string
+                    description: |-
+                        A saved provider to check again, by name, with what it saved for anything
+                         left unset here.
+            description: |-
+                CheckDnsProviderRequest is a token to check, or a saved provider to check
+                 again.
+        CheckDnsProviderResponse:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - DNS_PROVIDER_STATE_UNSPECIFIED
+                        - DNS_PROVIDER_STATE_WRITES
+                        - DNS_PROVIDER_STATE_REFUSED
+                        - DNS_PROVIDER_STATE_CANT_WRITE
+                        - DNS_PROVIDER_STATE_UNREACHABLE
+                        - DNS_PROVIDER_STATE_REACHES
+                    type: string
+                    description: How the provider answered, taken together.
+                    format: enum
+                reaches:
+                    type: array
+                    items:
+                        type: string
+                    description: The zones the token reaches, sorted, which a form offers to pick from.
+                zones:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DnsZoneCheck'
+                    description: For each zone asked for, whether a record could be written there.
+                detail:
+                    type: string
+                    description: The provider's own words, when it said no or couldn't be reached, in a line.
+            description: CheckDnsProviderResponse says what the token may do.
         CheckDomainRequest:
             type: object
             properties:
@@ -10750,6 +10855,62 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        DnsProvider:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: 'Which provider''s API: "cloudflare".'
+                zones:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The zones it writes in, such as "example.com", each checked before it's
+                         saved.
+                apiToken:
+                    type: string
+                    description: |-
+                        The provider's API token: for Cloudflare, an API token with Zone:Read and
+                         DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an
+                         update to keep it.
+            description: |-
+                DnsProvider is what writes the records of one or more DNS zones through a DNS
+                 provider's API, so the control plane can prove a name by DNS-01 and get its
+                 certificate, kind "dns.provider". It lives in the organization, and only an
+                 admin adds, changes or removes one. Its token stays on the control plane, and
+                 goes to no server. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+        DnsProviderInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, dnp_….
+                name:
+                    type: string
+                    description: Its name.
+                provider:
+                    type: string
+                    description: Which provider's API, such as "cloudflare".
+                zones:
+                    type: array
+                    items:
+                        type: string
+                    description: The zones it writes in.
+            description: DnsProviderInfo is a DNS provider, without its token.
+        DnsZoneCheck:
+            type: object
+            properties:
+                zone:
+                    type: string
+                    description: The zone, such as "example.com".
+                writes:
+                    type: boolean
+                    description: Whether a record was written there, and deleted.
+                detail:
+                    type: string
+                    description: The provider's own words, when it couldn't.
+            description: DnsZoneCheck is what writing a record in one zone came to.
         DockwellFirewallRule:
             type: object
             properties:
@@ -14562,6 +14723,15 @@ components:
                         $ref: '#/components/schemas/DeletedFile'
                     description: Newest first.
             description: ListDeletedFilesResponse is what's in a server's Recently deleted.
+        ListDnsProvidersResponse:
+            type: object
+            properties:
+                providers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DnsProviderInfo'
+                    description: Sorted by name.
+            description: ListDnsProvidersResponse holds the DNS providers.
         ListDomainsResponse:
             type: object
             properties:
@@ -20185,6 +20355,13 @@ components:
                     description: |-
                         What signs in to a container registry, kind "registry.login". Numbered in
                          the block registry logins hold, 100 to 109.
+                dnsProvider:
+                    allOf:
+                        - $ref: '#/components/schemas/DnsProvider'
+                    description: |-
+                        What writes a DNS zone's records, so the control plane can prove a name by
+                         DNS-01, kind "dns.provider" (ADR 0088). Numbered in the block DNS-01 holds,
+                         120 to 129.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes

@@ -37,6 +37,7 @@ func Commands() []string {
 		"control-plane",
 		"database-users",
 		"databases",
+		"dns-providers",
 		"domains",
 		"drift",
 		"environments",
