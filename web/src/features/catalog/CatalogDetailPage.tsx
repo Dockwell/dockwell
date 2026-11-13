@@ -12,9 +12,10 @@ import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
 import { Facts, useEntryFacts } from "./access";
+import { Markdown } from "./Markdown";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
 import type { CatalogSearch } from "./search";
-import { categoryLabel, installOf, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
+import { categoryLabel, installOf, useEntryWords, useInstalls, useOrigins, useSourceNames } from "./useCatalog";
 import "./Catalog.css";
 
 /** Browsing an app is read-only. Its installation form opens only from the Install action. */
@@ -45,6 +46,8 @@ export function CatalogDetailPage({
     installOf(install, id, origins.origins, origins.also),
   );
   const entry = got.data?.entry;
+  // What the app's catalog says of it, in the reader's language where it writes it there (ADR 0083).
+  const words = useEntryWords()(entry);
   const facts = useEntryFacts(entry);
   const app = entry?.name ?? id;
   const label = categoryLabel(entry?.category ?? "");
@@ -77,7 +80,7 @@ export function CatalogDetailPage({
       title={app}
       breadcrumb={back}
       backLink={phoneBack}
-      lead={entry?.summary}
+      lead={entry ? words.summary : undefined}
       badge={entry ? <AppIcon name={app} path={entry.icon} large /> : undefined}
       actions={install}
       phoneAction={
@@ -111,7 +114,7 @@ export function CatalogDetailPage({
         <>
           <div className="catalog-detail-phone-intro">
             <AppIcon name={app} path={entry.icon} large />
-            <p>{entry.summary}</p>
+            <p>{words.summary}</p>
           </div>
           <dl className="catalog-facts">
             <div>
@@ -221,17 +224,29 @@ export function CatalogDetailPage({
                 </section>
               ) : null}
               <section className="catalog-section" aria-labelledby="catalog-about-heading">
-                <h2 id="catalog-about-heading">
-                  <Trans>About {app}</Trans>
-                </h2>
-                <div className="catalog-description">
-                  {(entry.description || entry.summary)
-                    .split(/\n\s*\n/u)
-                    .filter(Boolean)
-                    .map((paragraph) => (
-                      <p key={paragraph}>{paragraph}</p>
-                    ))}
+                <div className="catalog-section-head">
+                  <h2 id="catalog-about-heading">
+                    <Trans>About {app}</Trans>
+                  </h2>
+                  {/* Another catalog's words are its own, as its summary is (ADR 0078). */}
+                  {from && (words.readme || words.description) ? (
+                    <span className="catalog-words-from" title={t`From the catalog ${from.name}`}>
+                      <Trans>In {named(from.name)}'s words</Trans>
+                    </span>
+                  ) : null}
                 </div>
+                {words.readme ? (
+                  <Markdown text={words.readme} className="catalog-readme" />
+                ) : (
+                  <div className="catalog-description">
+                    {(words.description || words.summary)
+                      .split(/\n\s*\n/u)
+                      .filter(Boolean)
+                      .map((paragraph) => (
+                        <p key={paragraph}>{paragraph}</p>
+                      ))}
+                  </div>
+                )}
                 {entry.features.length > 0 ? (
                   <ul className="catalog-features">
                     {entry.features.map((feature) => (

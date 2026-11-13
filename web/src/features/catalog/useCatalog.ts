@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { type CatalogInstall, CatalogService, type CatalogSourceInfo } from "@dockwell/api";
+import { type CatalogInstall, CatalogService, type CatalogSourceInfo, type Entry } from "@dockwell/api";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
@@ -123,6 +123,7 @@ const CATEGORIES: Readonly<Record<string, MessageDescriptor>> = {
   monitoring: msg`Monitoring`,
   networking: msg`Networking`,
   notes: msg`Notes`,
+  other: msg({ message: "Other", context: "catalog category" }),
   security: msg`Security`,
   storage: msg`Storage`,
 };
@@ -136,4 +137,39 @@ export function categoryLabel(category: string): MessageDescriptor | string {
 export function monogram(name: string): string {
   const letters = name.replace(/[^\p{L}\p{N}]/gu, "");
   return `${letters.charAt(0).toUpperCase()}${letters.charAt(1)}`;
+}
+
+/** What an entry says, in one language: its line, its paragraphs and its README. */
+export interface EntryWords {
+  summary: string;
+  description: string;
+  readme: string;
+}
+
+/**
+ * What each entry says in the reader's language, where its catalog writes it there,
+ * field by field, and otherwise in its own (ADR 0083). The catalog's list carries only
+ * each language's summary; an app's page has the rest.
+ */
+export function useEntryWords(): (entry: Entry | undefined) => EntryWords {
+  const { i18n } = useLingui();
+  const locale = i18n.locale;
+  return useCallback(
+    (entry) => {
+      const own = { summary: entry?.summary ?? "", description: entry?.description ?? "", readme: entry?.readme ?? "" };
+      if (!entry || locale.startsWith("en")) return own;
+      const tags = Object.keys(entry.translations);
+      const lang = locale.split("-")[0] ?? locale;
+      const tag = tags.find((t) => t === locale) ?? tags.find((t) => t.split("-")[0] === lang);
+      const words = tag ? entry.translations[tag] : undefined;
+      if (!words) return own;
+      return {
+        summary: words.summary || own.summary,
+        description: words.description || own.description,
+        // A README in the reader's language takes the place of the description and README in another.
+        readme: words.readme || (words.description ? "" : own.readme),
+      };
+    },
+    [locale],
+  );
 }

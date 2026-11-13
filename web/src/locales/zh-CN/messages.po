@@ -6358,6 +6358,10 @@ msgstr "来自目录 {name}"
 msgid "Good to know"
 msgstr "须知"
 
+#. placeholder {0}: named(from.name)
+msgid "In {0}'s words"
+msgstr "来自 {0} 的介绍"
+
 msgid "Included in this install"
 msgstr "本次安装包含"
 
@@ -6447,6 +6451,9 @@ msgstr "无法读取应用目录"
 msgid "Couldn't read the sources, so apps from them aren't marked"
 msgstr "无法读取来源，因此未标记来自来源的应用"
 
+msgid "Every catalog"
+msgstr "全部目录"
+
 msgid "Find an app for your server. Explore what it does before you install."
 msgstr "为你的服务器寻找应用。安装前，先了解它的功能。"
 
@@ -6456,6 +6463,11 @@ msgstr "来自目录 {source}"
 #. placeholder {0}: list([source ?? "", ...also].filter(Boolean))
 msgid "From the catalogs {0}"
 msgstr "来自目录 {0}"
+
+#. placeholder {0}: from[0]
+#. placeholder {0}: named(from.name)
+msgid "From {0}"
+msgstr "来自 {0}"
 
 msgid "No app here has <0>{typed}</0> in its name or what it does."
 msgstr "没有应用的名称或用途中包含 <0>{typed}</0>。"
@@ -6478,6 +6490,9 @@ msgstr "搜索应用"
 msgid "Search every category"
 msgstr "在全部分类中搜索"
 
+msgid "Show every catalog"
+msgstr "显示全部目录"
+
 msgid "Sources"
 msgstr "来源"
 
@@ -6493,6 +6508,12 @@ msgstr "查看应用"
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
 msgstr "另见于 {0}"
+
+#. placeholder {0}: apps.length
+#. placeholder {0}: count.apps
+#. placeholder {0}: entries?.length ?? 0
+msgid "{0, plural, one {# app} other {# apps}}"
+msgstr "{0, plural, other {# 个应用}}"
 
 msgid "{count, plural, one {Installed} other {# installed}}"
 msgstr "{count, plural, other {已安装 # 个}}"
@@ -6711,9 +6732,6 @@ msgstr "{name} {version}"
 msgid "1Panel's app store"
 msgstr "1Panel 应用商店"
 
-msgid "Add another store's apps"
-msgstr "添加其他商店的应用"
-
 msgid "Ask for a value Dockwell doesn't make yet"
 msgstr "需要 Dockwell 尚不能生成的值"
 
@@ -6744,6 +6762,24 @@ msgstr "ID 已被排在前面的目录占用"
 msgid "Have files that can't be read"
 msgstr "有无法读取的文件"
 
+msgid "Install once Dockwell carries their files along"
+msgstr "Dockwell 支持随附文件后即可安装"
+
+msgid "Install once Dockwell connects them to a database"
+msgstr "Dockwell 支持连接数据库后即可安装"
+
+msgid "Install once Dockwell fills in what their store does"
+msgstr "Dockwell 能填入其商店提供的值后即可安装"
+
+msgid "Install once Dockwell offers them for amd64 servers"
+msgstr "Dockwell 为 amd64 服务器提供后即可安装"
+
+msgid "Install once Dockwell pins their moving tag by digest"
+msgstr "Dockwell 按摘要固定其浮动标签后即可安装"
+
+msgid "Install once Dockwell runs their setup steps itself"
+msgstr "Dockwell 自行执行其安装步骤后即可安装"
+
 msgid "Marked by their store to leave out"
 msgstr "被其商店标记为不收录"
 
@@ -6768,26 +6804,27 @@ msgstr "会在服务器上运行脚本"
 msgid "Ship files beside their Compose file"
 msgstr "在 Compose 文件旁附带文件"
 
+msgid "Their store keeps them out of its own list"
+msgstr "其商店未在自身列表中提供"
+
 msgid "Use a value their store fills in"
 msgstr "使用其商店自动填写的值"
 
 msgid "Use another app's database"
 msgstr "使用其他应用的数据库"
 
-#. placeholder {0}: apps.length
-#. placeholder {0}: count.apps
-#. placeholder {0}: here.length
-msgid "{0, plural, one {# app} other {# apps}}"
-msgstr "{0, plural, other {# 个应用}}"
-
-msgid "{left, plural, one {# app left out, and why} other {# apps left out, and why}}"
-msgstr "{left, plural, other {未收录的 # 个应用及原因}}"
+msgid "{left, plural, one {# app left out, by why} other {# apps left out, by why}}"
+msgstr "{left, plural, other {# 个应用未收录，按原因分组}}"
 
 msgid "{left, plural, one {# file left out, and why} other {# files left out, and why}}"
 msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
 
 msgid "A source is already named {name}. Use another name."
 msgstr "已有名为 {name} 的来源。请换一个名称。"
+
+msgctxt "catalog store"
+msgid "Add"
+msgstr "添加"
 
 msgid "Add Dockwell's catalog"
 msgstr "添加 Dockwell 的目录"
@@ -6801,8 +6838,23 @@ msgstr "添加来源"
 msgid "Add another source"
 msgstr "添加其他来源"
 
+#. placeholder {0}: named(store)
+#. placeholder {0}: storeName(store)
+msgid "Add {0}"
+msgstr "添加 {0}"
+
+msgctxt "catalog store"
+msgid "Added"
+msgstr "已添加"
+
+msgid "An app store, or any public Git repository"
+msgstr "应用商店，或任意公开 Git 仓库"
+
 msgid "Another commit"
 msgstr "其他提交"
+
+msgid "App stores"
+msgstr "应用商店"
 
 msgid "Apps from a public Git repository"
 msgstr "来自公开 Git 仓库的应用"
@@ -6810,6 +6862,12 @@ msgstr "来自公开 Git 仓库的应用"
 #. placeholder {0}: chosen.commit.slice(0, 12)
 msgid "At {0} now. It stays there until you move it."
 msgstr "当前位于 {0}。在你切换之前不会变动。"
+
+msgid "Browse the apps from {said}"
+msgstr "浏览来自 {said} 的应用"
+
+msgid "Browse these apps"
+msgstr "浏览这些应用"
 
 msgid "Can't be read now, so its apps are out of the catalog"
 msgstr "暂时无法读取，其应用不在应用目录中"
@@ -6859,9 +6917,6 @@ msgstr "正在跟随 {branch} · {0}检查"
 msgid "Its new commits come in on their own. What's installed stays as it is."
 msgstr "它的新提交会自动进来。已安装的应用保持不变。"
 
-msgid "Its top"
-msgstr "仓库根目录"
-
 msgid "Move to another commit"
 msgstr "切换到其他提交"
 
@@ -6873,6 +6928,9 @@ msgstr "没有分支或标签位于此提交。"
 
 msgid "No catalogs to install from"
 msgstr "没有可以安装应用的目录"
+
+msgid "Or any public Git repository"
+msgstr "或任意公开 Git 仓库"
 
 msgctxt "catalog source"
 msgid "Pin here"
@@ -6887,10 +6945,6 @@ msgstr "已读取。共有 {count} 个或更多分支和标签。"
 
 msgid "Remove {said}"
 msgstr "移除 {said}"
-
-msgctxt "catalog source"
-msgid "Store"
-msgstr "商店"
 
 msgid "The catalogs Dockwell installs apps from"
 msgstr "Dockwell 安装应用所用的目录"
@@ -6910,6 +6964,10 @@ msgstr "条目所在位置。留空表示仓库根目录。"
 msgid "its top"
 msgstr "仓库根目录"
 
+#. placeholder {0}: list.length
+msgid "{0, plural, one {# catalog you read} other {# catalogs you read}}"
+msgstr "{0, plural, other {你读取的 # 个目录}}"
+
 #. placeholder {0}: at.join(", ")
 msgid "{0} is at this commit."
 msgstr "{0} 位于此提交。"
@@ -6922,6 +6980,32 @@ msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
 
 msgid "{short} (tag)"
 msgstr "{short}（标签）"
+
+msgid "As counted at {at}"
+msgstr "统计于 {at}"
+
+msgid "As read at {at}"
+msgstr "读取于 {at}"
+
+msgctxt "catalog store"
+msgid "Go to it"
+msgstr "前往"
+
+#. placeholder {0}: store.label
+msgid "Go to {0}"
+msgstr "前往 {0}"
+
+#. placeholder {0}: store.apps
+#. placeholder {1}: store.installs
+#. placeholder {2}: store.installs
+msgid "{0, plural, one {About {1} of # app installs} other {About {2} of # apps install}}"
+msgstr "{0, plural, other {# 个应用中约 {2} 个可安装}}"
+
+#. placeholder {0}: store.apps
+#. placeholder {1}: store.installs
+#. placeholder {2}: store.installs
+msgid "{0, plural, one {{1} of # app installs} other {{2} of # apps install}}"
+msgstr "{0, plural, other {# 个应用中 {2} 个可安装}}"
 
 msgid "Answers on this server alone, on port {port}, until it has a domain"
 msgstr "在有域名之前，只在此服务器的 {port} 端口上响应"
@@ -7021,6 +7105,10 @@ msgstr "网络"
 
 msgid "Notes"
 msgstr "笔记"
+
+msgctxt "catalog category"
+msgid "Other"
+msgstr "其他"
 
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
 msgstr "<0>{name}</0> 已在 <1>{names}</1> 上停止"
@@ -15250,10 +15338,6 @@ msgstr "下载中"
 
 msgid "Downloading the packages"
 msgstr "正在下载软件包"
-
-#. placeholder {0}: from[0]
-msgid "From {0}"
-msgstr "来自 {0}"
 
 #. placeholder {0}: from.length
 msgid "From {0} sources"

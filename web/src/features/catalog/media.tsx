@@ -27,9 +27,10 @@ export function projectLink(address: string): string | undefined {
 export function AppIcon({ name, path, large = false }: { name: string; path: string; large?: boolean }) {
   const [failed, setFailed] = useState<string>();
   const src = mediaPath(path);
+  const art = src !== undefined && failed !== src;
   return (
-    <span className={cx("catalog-icon", large && "is-large")} aria-hidden="true">
-      {src && failed !== src ? (
+    <span className={cx("catalog-icon", large && "is-large", art && "has-art")} aria-hidden="true">
+      {art ? (
         <img src={src} alt="" width={large ? 72 : 48} height={large ? 72 : 48} onError={() => setFailed(src)} />
       ) : (
         monogram(name)

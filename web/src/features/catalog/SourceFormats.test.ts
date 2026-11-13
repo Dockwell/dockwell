@@ -6,18 +6,24 @@ import { describe, expect, it } from "vitest";
 
 import { sourcesWords, sourceWords } from "./SourceFormats";
 
-const source = (name: string, repository: string, format = CatalogFormat.UNSPECIFIED, path = "") =>
-  create(CatalogSourceInfoSchema, { name, source: { repository, format, path } });
+const source = (name: string, repository: string, format = CatalogFormat.UNSPECIFIED, path = "", store = "") =>
+  create(CatalogSourceInfoSchema, { name, source: { repository, format, path }, store });
 
 describe("A source as a person says it", () => {
-  it("is the store's name at its own repository, and owner/name anywhere else, never its ID", () => {
+  it("is the store's name where the control plane says it reads one, and owner/name anywhere else, never its ID", () => {
+    expect(
+      sourceWords(source("onepanel", "https://github.com/1Panel-dev/appstore", CatalogFormat.ONEPANEL, "", "onepanel")),
+    ).toBe("1Panel");
+    expect(
+      sourceWords(source("dok", "https://github.com/Dokploy/templates.git/", CatalogFormat.DOKPLOY, "", "dokploy")),
+    ).toBe("Dokploy");
+    expect(
+      sourceWords(source("cool", "https://github.com/coollabsio/coolify", CatalogFormat.COOLIFY, "", "coolify")),
+    ).toBe("Coolify");
+    // The panel never decides it from the link: the control plane says it, at the store's own repository alone.
     expect(sourceWords(source("onepanel", "https://github.com/1Panel-dev/appstore", CatalogFormat.ONEPANEL))).toBe(
-      "1Panel",
+      "1panel-dev/appstore",
     );
-    expect(sourceWords(source("dok", "https://github.com/Dokploy/templates.git/", CatalogFormat.DOKPLOY))).toBe(
-      "Dokploy",
-    );
-    expect(sourceWords(source("cool", "https://github.com/coollabsio/coolify", CatalogFormat.COOLIFY))).toBe("Coolify");
     // A fork in a store's format is no store of its own.
     expect(sourceWords(source("onepanel", "https://github.com/acme/appstore", CatalogFormat.ONEPANEL))).toBe(
       "acme/appstore",

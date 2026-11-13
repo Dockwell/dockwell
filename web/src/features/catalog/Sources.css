@@ -5,31 +5,6 @@
   color: var(--ink-muted);
 }
 
-.sources-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-  gap: var(--space-3) var(--space-4);
-  margin: 0 0 var(--space-4);
-}
-
-.sources-facts dt {
-  color: var(--ink-muted);
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.sources-facts dd {
-  margin: 2px 0 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.sources-commit {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 /* Following a branch: when Dockwell last looked, and the ways to look now or stop here. */
 .sources-follow {
   display: flex;
@@ -63,39 +38,6 @@
   margin-bottom: var(--space-4);
 }
 
-.sources-heading {
-  margin: 0 0 var(--space-2);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.sources-apps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sources-app {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-full);
-  color: var(--ink);
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.sources-app:hover {
-  border-color: var(--cobalt);
-  color: var(--cobalt);
-}
-
-.sources-app:focus-visible,
 .sources-left summary:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
@@ -164,10 +106,6 @@
     --control-lg: 44px;
   }
 
-  .sources-app {
-    height: 44px;
-  }
-
   .sources-left summary {
     min-height: 44px;
     align-content: center;
@@ -191,24 +129,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Another store's apps in one click: those no source reads yet, in a row that wraps. */
-.sources-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  min-width: 0;
-  margin: 0 0 var(--space-4);
-  padding: 0;
-  border: 0;
-}
-
-/* In the empty state, its own row above Add a source, as wide as the panel lets it be. */
-.empty-state .sources-presets {
-  flex-basis: 100%;
-  justify-content: center;
-  margin: 0 0 var(--space-2);
-}
-
 /* How a pasted repository reads, as a line of fact under it. */
 .sources-format {
   display: flex;
@@ -222,23 +142,273 @@
   content: "\00a0·\00a0";
 }
 
-/* What a store leaves out, by why, the most first, each opening to its apps. */
-.sources-left-kind {
-  margin-top: var(--space-2);
+/* A source's card: its mark, name and where it reads, then its apps in a line, then what it leaves out. */
+.sources-list {
+  display: grid;
+  gap: var(--space-4);
 }
 
-.sources-left-kind summary {
+.sources-list-heading {
+  margin-bottom: calc(var(--space-1) * -1);
+}
+
+.source-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  scroll-margin-top: var(--space-6);
+}
+
+.source-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.source-card-title {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.source-card-title h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-card-title h3:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.source-card-where {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-2);
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.source-card-where > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The dot stays with what it follows, so a line that wraps never starts with one. */
+.source-card-where > :not(:last-child)::after {
+  margin-left: var(--space-2);
+  content: "·";
+}
+
+.source-card-commit {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.source-card-where > .source-card-commit {
+  overflow-wrap: normal;
+}
+
+.source-card-commit code {
+  font-size: 12px;
+}
+
+.source-card-actions {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-1);
+}
+
+.source-card .sources-follow,
+.source-card .sources-follow + .dw-callout,
+.source-card .sources-follow + .dw-callout + .dw-callout {
+  margin: 0;
+}
+
+/* Its apps in one line: a few icons, the count, and the way into the catalog filtered to it. */
+.source-card-apps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.source-card-icons {
+  display: inline-flex;
+  flex: none;
+}
+
+/* Whole here, as the catalog's own styles load only with its pages (route CSS is split). */
+.source-card-icons .catalog-icon {
+  display: grid;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  box-shadow: 0 0 0 2px var(--surface);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.source-card-icons .catalog-icon.has-art {
+  padding: 2px;
+  background: var(--art-ground);
+}
+
+.source-card-icons .catalog-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.source-card-icons .catalog-icon + .catalog-icon {
+  margin-left: -6px;
+}
+
+.source-card-count {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 550;
+}
+
+.source-card .sources-left {
+  margin: 0;
+}
+
+/* What a store leaves out, by why, the most first, each with what would make it install, opening to its apps. */
+.sources-left-kinds {
+  display: grid;
+  margin-top: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.sources-left-kind + .sources-left-kind {
+  border-top: 1px solid var(--line);
+}
+
+.sources-left-kind > summary {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   color: var(--ink);
+  font-size: 13px;
+}
+
+.sources-left-kind > summary:hover {
+  background: var(--canvas);
+}
+
+.sources-left-why {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sources-left-needs {
+  color: var(--ink-muted);
+  font-size: 12px;
 }
 
 .sources-left-count {
+  flex: none;
+  min-width: 28px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
   color: var(--ink-muted);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
+  line-height: 20px;
+  text-align: center;
 }
 
-.sources-left-kind ul {
-  padding-left: var(--space-3);
+.sources-left-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+
+.sources-left-kind .sources-left-list {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+}
+
+/* In the sheet: the stores first, one click each, then a link for anything else. */
+.sources-or {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.sources-or::after {
+  flex: 1;
+  border-top: 1px solid var(--line);
+  content: "";
+}
+
+.sources-pick {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sources-pick legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.sources-pick-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources-pick .store-tile {
+  padding: var(--space-2) var(--space-3);
+}
+
+@media (max-width: 639.98px) {
+  /* Change says itself by its icon and its name for a screen reader, so where it reads keeps the room. */
+  .source-card-actions .dw-btn-label {
+    display: none;
+  }
+
+  .source-card-apps .dw-btn {
+    flex: 1 0 100%;
+  }
+
+  .sources-left-kind > summary {
+    min-height: 44px;
+  }
 }
