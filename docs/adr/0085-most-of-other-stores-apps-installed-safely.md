@@ -60,6 +60,7 @@ A store's file that names `latest` never changes when `latest` moves, so the cat
 ### "Converts" means "works", for a sample
 
 - **Other stores on Docker installs a sample of each store's apps on real Docker,** through the CLI, as a person would: `scripts/store-e2e.sh` adds each store at its pinned commit, and each app installs from its converted entry, its plan pins each image, every container runs, healthy where its entry has a check, on loopback alone, the app answers on the port a person opens, and it's removed through a plan. The sample is small apps, at least one from each store: one on a moving tag, one named with no tag, and one by a version.
+- **Its first run found a store's own mistake:** Dokploy's CyberChef publishes port 80, where its image has listened on 8080 since it moved to an unprivileged web server, so it runs and answers nothing, in Dokploy as here. A plan could read the port an image declares, as a form already does (ADR 0062), and say when a store's differs; that's later work, and the sample takes another app.
 - **The job's agent reads registries as a server does,** under `DOCKWELL_TEST_REGISTRY=public`, while `DOCKWELL_TEST` keeps everything else it would reach off (ADR 0034). Without it a test still reads no image from a registry.
 
 ### Numbers

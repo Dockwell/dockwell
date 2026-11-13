@@ -226,7 +226,7 @@ store-rates: ## Convert 1Panel's, Dokploy's and Coolify's stores at the commits 
 
 # A sample of what each store brings: small apps, one at least from each, on a tag
 # that moves, one named with no tag, and one by a version (ADR 0085).
-STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/cyberchef coolify/privatebin
+STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin
 
 .PHONY: store-e2e
 store-e2e: build-go ## Install a sample of 1Panel's, Dokploy's and Coolify's apps, converted on the server at the pinned commits, on this machine's Docker (STORE_APPS names them)
