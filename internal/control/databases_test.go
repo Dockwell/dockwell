@@ -208,7 +208,7 @@ var (
 	createDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"' WHERE NOT EXISTS`)
 	dropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
 	dropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
-	askLockout = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
+	askLockout = regexp.MustCompile(`'login', r.rolcanlogin, 'super', r.rolsuper, 'loader', .* FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 	askOwner   = regexp.MustCompile(`'owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 	askRole    = regexp.MustCompile(`rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 )
@@ -250,7 +250,7 @@ func (s *pgState) image() dockertest.Image {
 				return 0
 			}
 			if m := askLockout.FindStringSubmatch(sql); m != nil {
-				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q,"login":true,"super":false}`+"\n", s.databases[m[1]])
+				_, _ = fmt.Fprintf(x.Stdout, `{"owner":%q,"login":true,"super":false,"loader":null}`+"\n", s.databases[m[1]])
 				return 0
 			}
 			if m := askOwner.FindStringSubmatch(sql); m != nil {

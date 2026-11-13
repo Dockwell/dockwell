@@ -130,8 +130,12 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if own {
 			continue
 		}
-		// What it points at in another environment needs a role there too (ADR 0084).
+		// What it points at in another environment needs a role there too, and so does
+		// a whole restore of a server another environment's app shares (ADR 0084).
 		if err := e.reachRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
+			return err
+		}
+		if err := e.linkedRestoreRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
 			return err
 		}
 		needs, why := store.RoleDeveloper, ""
@@ -578,7 +582,7 @@ func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]it
 			it.id = ci.ResourceID
 		}
 		it.follows = ci.Follows
-		_, _, _, it.forLink = restoreIn(c, ref)
+		it.restore, _, _, it.forLink = restoreIn(c, ref)
 		if ref.Kind == scope.EnvironmentKind && ci.Spec != nil {
 			// An environment's spec holds nothing sealed. One that can't be read
 			// counts as protected after.

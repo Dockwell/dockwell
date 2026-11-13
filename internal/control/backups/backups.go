@@ -768,13 +768,16 @@ func (h *Handler) RestoreBackup(ctx context.Context, req *connect.Request[dockwe
 // RestoreOne plans bringing back one database alone from a backup taken for an app's
 // link, by its ID and as its ref, whose project's role the caller has been checked
 // for: the engine checks it again, where the link is (ADR 0084).
-func (h *Handler) RestoreOne(ctx context.Context, backupID, forLink string, link resource.Ref, summary string) (*dockwellv1.Change, error) {
+func (h *Handler) RestoreOne(ctx context.Context, backupID, forLink, dbName string, link resource.Ref, summary string) (*dockwellv1.Change, error) {
 	b, err := h.backup(ctx, backupID)
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
 	if b.ForLink != forLink || b.OneDatabase == "" {
 		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup %s of this app's database. List its backups to find one", backupID), "not_found")
+	}
+	if b.OneDatabase != dbName {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s holds %s, and this app's database is %s now, so it isn't restored. Choose a backup of %s", b.ID, b.OneDatabase, dbName, dbName), "other_database")
 	}
 	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
 	return h.restore(ctx, &b, ref, revision.RestoreAs{For: link}, cmp.Or(strings.TrimSpace(summary), "Restore "+b.OneDatabase))

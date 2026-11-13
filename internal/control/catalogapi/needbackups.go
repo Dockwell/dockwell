@@ -14,9 +14,11 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/link"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -30,19 +32,21 @@ import (
 type Backups interface {
 	BackUpOne(ctx context.Context, volumeID, database, forLink, destination string) (*dockwellv1.Backup, error)
 	ListFor(ctx context.Context, forLink string, pageSize int32, pageToken string) (*dockwellv1.ListBackupsResponse, error)
-	RestoreOne(ctx context.Context, backupID, forLink string, link resource.Ref, summary string) (*dockwellv1.Change, error)
+	RestoreOne(ctx context.Context, backupID, forLink, database string, link resource.Ref, summary string) (*dockwellv1.Change, error)
 }
 
 // BackUpWith gives the handler what backs up an app's database.
 func (h *Handler) BackUpWith(b Backups) { h.backups = b }
 
 // needDatabase is the database an install's need has: the link that meets it, by ref
-// and ID, the volume its server keeps its data in, by ID, and the database's name.
+// and ID, the volume its server keeps its data in, by ID, the database's name, and the
+// environment the server runs in.
 type needDatabase struct {
 	link     resource.Ref
 	linkID   string
 	volumeID string
 	database string
+	server   string
 }
 
 // databaseOf finds the database an install's need has.
@@ -98,7 +102,7 @@ func (h *Handler) databaseOf(ctx context.Context, id, need string) (needDatabase
 		if err != nil {
 			return err
 		}
-		out = needDatabase{link: resource.Ref{Kind: link.Kind, Scope: env, Name: need}, linkID: r.ID, volumeID: v.ID, database: l.GetDatabaseName()}
+		out = needDatabase{link: resource.Ref{Kind: link.Kind, Scope: env, Name: need}, linkID: r.ID, volumeID: v.ID, database: l.GetDatabaseName(), server: server}
 		return nil
 	})
 	return out, err
@@ -127,6 +131,16 @@ func (h *Handler) ListCatalogNeedBackups(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
+	// Where the server runs is another project's to name, to someone with no role there.
+	sees, err := h.seesEnvironment(ctx, db.server)
+	if err != nil {
+		return nil, err
+	}
+	if !sees {
+		for _, b := range page.GetBackups() {
+			b.EnvironmentId, b.Volume, b.VolumeId, b.ServerName = "", "", "", ""
+		}
+	}
 	return connect.NewResponse(&dockwellv1.ListCatalogNeedBackupsResponse{Backups: page.GetBackups(), NextPageToken: page.GetNextPageToken()}), nil
 }
 
@@ -136,9 +150,33 @@ func (h *Handler) RestoreCatalogNeed(ctx context.Context, req *connect.Request[d
 	if err != nil {
 		return nil, err
 	}
-	c, err := h.backups.RestoreOne(ctx, req.Msg.GetBackupId(), db.linkID, db.link, req.Msg.GetSummary())
+	c, err := h.backups.RestoreOne(ctx, req.Msg.GetBackupId(), db.linkID, db.database, db.link, req.Msg.GetSummary())
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.RestoreCatalogNeedResponse{Change: c}), nil
+}
+
+// seesEnvironment says the person in ctx holds a role where env is, or anywhere.
+func (h *Handler) seesEnvironment(ctx context.Context, env string) (bool, error) {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return true, nil
+	}
+	sees := false
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			for _, e := range p.Environments {
+				if e.ID == env {
+					sees = place.Holds(caller.Grants, place.Place{Project: p.ID, Environment: env}) != ""
+				}
+			}
+		}
+		return nil
+	})
+	return sees, err
 }

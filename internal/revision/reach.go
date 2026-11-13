@@ -373,6 +373,60 @@ func (e *Engine) forLinkRoles(ctx context.Context, tx *store.Tx, grants []store.
 	return nil
 }
 
+// linkedRestoreRoles checks a restore of a whole volume that a server keeps its data
+// in, where links of other environments meet that server: it takes back what each of
+// their apps wrote since, so it needs a role in each of those environments, a
+// developer, and an admin where one is protected and the change applies, is undone
+// or is discarded by someone else, wherever it was planned (ADR 0084). A restore of
+// one database alone, made for its link, is forLinkRoles'.
+func (e *Engine) linkedRestoreRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, it *item, byID map[string]*item, a act) error {
+	if it.restore == nil || it.forLink != (resource.Ref{}) || it.ref.Kind != volumeKind {
+		return nil
+	}
+	links, err := tx.ListKind(ctx, "link")
+	if err != nil {
+		return err
+	}
+	mounts := map[string]bool{} // by service: it keeps its data in the volume
+	for _, r := range links {
+		l := &resourcev1.Link{}
+		// A link is never sealed: it names values, and holds none.
+		if r.Spec == nil || r.Scope == it.ref.Scope || proto.Unmarshal(r.Spec, l) != nil || cmp.Or(l.GetMeetsEnvironment(), r.Scope) != it.ref.Scope {
+			continue
+		}
+		in, seen := mounts[l.GetService()]
+		if !seen {
+			svc, err := e.load(ctx, tx, resource.Ref{Kind: "service", Scope: it.ref.Scope, Name: l.GetService()})
+			if err != nil {
+				return err
+			}
+			in = svc.current != nil && slices.ContainsFunc(e.kinds.References("service", svc.current), func(u resource.Reference) bool {
+				return u.Kind == it.ref.Kind && u.Name == it.ref.Name
+			})
+			mounts[l.GetService()] = in
+		}
+		if !in {
+			continue
+		}
+		at, err := e.envSpotByID(ctx, tx, r.Scope, byID)
+		if errors.Is(err, store.ErrNotFound) {
+			continue // its environment is gone, and its app with it
+		}
+		if err != nil {
+			return err
+		}
+		held := place.Holds(grants, at.Place)
+		needs, why := store.RoleDeveloper, "it restores "+it.ref.Name+" whole, which takes back what an app in another project wrote to it since"
+		if a != planning && at.Protected {
+			needs, why = store.RoleAdmin, "it restores "+it.ref.Name+" whole, which takes back what an app in a protected environment wrote to it since"
+		}
+		if store.RoleRank(held) < store.RoleRank(needs) {
+			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
+		}
+	}
+	return nil
+}
+
 // maxRole is the higher of two roles.
 func maxRole(a, b string) string {
 	if store.RoleRank(b) > store.RoleRank(a) {

@@ -805,7 +805,8 @@ func (r *Runner) Prune() error {
 		if r.now().Sub(since) < KeepFor+keepPast {
 			continue
 		}
-		archive := strings.TrimSuffix(path, ".json") + "." + formatArchive
+		// A copy of the volume, or a dump of one database alone.
+		archive := strings.TrimSuffix(path, ".json") + "." + cmp.Or(st.Format, formatArchive)
 		if err := os.Remove(archive); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("can't remove what a restore kept: %w", err)
 		}

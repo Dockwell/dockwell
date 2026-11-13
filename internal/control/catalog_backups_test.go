@@ -107,6 +107,10 @@ func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
 		list, err := cat.ListCatalogNeedBackups(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogNeedBackupsRequest{Id: "blog", Need: "db"}))
 		t.Fatalf("the blog's database backed up as %v (made %v; listed %v, %v)", one, made.Msg.GetBackup(), list, err)
 	}
+	// Where data's server runs is data's project's to name, not the blog's developer's.
+	if one.GetEnvironmentId() != "" || one.GetVolume() != "" || one.GetVolumeId() != "" || one.GetServerName() != "" {
+		t.Errorf("the blog's developer reads where data's server runs: %v", one)
+	}
 	pg.mu.Lock()
 	dumpedAsOwner := slices.ContainsFunc(pg.said, func(s string) bool { return strings.Contains(s, "pg_dump") && strings.HasSuffix(s, " blog blog") })
 	pg.mu.Unlock()
@@ -116,6 +120,24 @@ func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
 	// Its whole server's backups aren't the blog's to restore, nor this one by that way.
 	if _, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: whole.Msg.GetBackup().GetId()})); err == nil {
 		t.Error("the blog's developer restored data's whole server")
+	}
+
+	// A backup taken for the blog's link of a database it doesn't have now isn't
+	// restored into the one it has.
+	stray := "bkp_01KAT4ZR6E3V0Y5XBKZB5D9Q7N"
+	if err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+		b, err := tx.GetBackup(t.Context(), one.GetId())
+		if err != nil {
+			return err
+		}
+		b.ID, b.OneDatabase = stray, "shop"
+		return tx.CreateBackup(t.Context(), b)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cat.RestoreCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.RestoreCatalogNeedRequest{Id: "blog", Need: "db", BackupId: stray})); connect.CodeOf(err) != connect.CodeFailedPrecondition ||
+		!strings.Contains(err.Error(), "this app's database is blog now") {
+		t.Errorf("restoring a backup of another database into the blog's = %v", err)
 	}
 
 	restored, err := cat.RestoreCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.RestoreCatalogNeedRequest{Id: "blog", Need: "db", BackupId: one.GetId()}))
@@ -183,6 +205,10 @@ func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
 	// An upgrade of the blog, which changes its project and so is an admin's, dumps its
 	// database on data's server alone first, for the blog, which lists it.
 	hold(onInstall(store.RoleAdmin))
+	if list, err := cat.ListCatalogNeedBackups(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogNeedBackupsRequest{Id: "blog", Need: "db"})); err != nil ||
+		len(list.Msg.GetBackups()) == 0 || list.Msg.GetBackups()[0].GetEnvironmentId() != dbEnv || list.Msg.GetBackups()[0].GetServerName() == "" {
+		t.Errorf("an admin lists the blog's database's backups as %v, %v", list, err)
+	}
 	next := strings.NewReplacer(`release: 1`, `release: 2`, `version: "1.0"`, `version: "1.1"`, "blog:1@sha256:"+digest1, "blog:1@sha256:"+digest2).Replace(blogEntry)
 	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(next), 0o600); err != nil {
 		t.Fatal(err)

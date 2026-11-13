@@ -57,9 +57,12 @@ var dumpOne = map[dockwellv1.DatabaseEngine][]string{
 // loadOne reads such a dump into one database as its user, stopping at the first
 // error: the user, the database, the server's port and its address are the
 // shell's arguments, then any options the client takes beside, and the password
-// is in the environment, as copyPassword names it.
+// is in the environment, as copyPassword names it. PostgreSQL's loads as one
+// transaction, so one that stops leaves the database as it was: a dump made with
+// --clean drops each table before it makes it, and one that stopped partway would
+// leave it empty.
 var loadOne = map[dockwellv1.DatabaseEngine][]string{
-	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `u=$1 d=$2 p=$3 h=$4; shift 4; exec psql -X -q -v ON_ERROR_STOP=1 -h "$h" -p "$p" -U "$u" -d "$d" "$@" -f -`, "sh"},
+	dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL: {"sh", "-c", `u=$1 d=$2 p=$3 h=$4; shift 4; exec psql -X -q -1 -v ON_ERROR_STOP=1 -h "$h" -p "$p" -U "$u" -d "$d" "$@" -f -`, "sh"},
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL:      {"sh", "-c", `u=$1 d=$2 p=$3 h=$4; shift 4; exec mysql --protocol=TCP -h "$h" -P "$p" -u "$u" "$@" "$d"`, "sh"},
 	dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:    {"sh", "-c", `u=$1 d=$2 p=$3 h=$4; shift 4; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec "$c" --protocol=TCP -h "$h" -P "$p" -u "$u" "$@" "$d"`, "sh"},
 }

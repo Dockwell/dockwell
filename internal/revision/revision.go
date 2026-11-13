@@ -857,6 +857,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.For != (resource.Ref{}) && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].forLink = p.Edits[j].For
 		}
+		// A restore's roles are checked as it's planned too, before it has its change.
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Restore != nil && ed.Ref == items[i].ref }); j >= 0 {
+			restore := *p.Edits[j].Restore
+			items[i].restore = &restore
+		}
 	}
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		if err := e.checkRoles(ctx, tx, p.Actor, nil, items, planning); err != nil {

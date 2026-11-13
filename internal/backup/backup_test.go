@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -60,6 +61,16 @@ type bench struct {
 	admin     []string
 	loads     []oneLoad
 	loadsFail int
+	// The server's roles, as its administrator's SQL leaves them: whether the owner
+	// is kept out, and each role made to load. notOwned is what the database holds
+	// that its owner doesn't, and adminFails fails that many of the administrator's
+	// asks that hold failsOn: what comes before it in one stands, as psql stops
+	// there, and what it says doesn't happen.
+	ownerOut   bool
+	loaders    map[string]bool
+	notOwned   string
+	adminFails int
+	failsOn    string
 	// MySQL and MariaDB: what the probe of a MariaDB says, how many times an upgrade
 	// ran and whether it fails, and the commands each server was started with.
 	probeSays    string
@@ -190,18 +201,28 @@ func (b *bench) postgres(x dockertest.Exec) int {
 			return 1
 		}
 		b.loads = append(b.loads, oneLoad{args: slices.Clone(x.Cmd[4:]), env: slices.Clone(x.Env), sql: string(data)})
+		// It has no volume of its own: what it loads goes into the server's.
+		into := filepath.Join(b.engine.VolumeDir(b.target.Name), "data.sql")
 		if b.loadsFail > 0 {
 			b.loadsFail--
 			_, _ = io.WriteString(x.Stderr, "psql:<stdin>:4: ERROR:  relation \"orders\" already exists\n")
+			if !strings.Contains(x.Cmd[2], " -1 ") {
+				// Each statement before it stands, and a dump with --clean drops
+				// each table first: the database is left empty.
+				_ = os.WriteFile(into, nil, 0o600)
+			}
 			return 3
 		}
-		// What it holds is the dump, after the restrict and the role it sets.
-		lines := strings.SplitAfter(string(data), "\n")
+		// What it holds is the dump, after the restrict, the role it sets, and what
+		// empties the database first.
+		sql := string(data)
+		if _, after, ok := strings.Cut(sql, "$dw_empty$;\n"); ok {
+			sql = after
+		}
+		lines := strings.SplitAfter(sql, "\n")
 		for len(lines) > 0 && (strings.HasPrefix(lines[0], `\restrict `) || strings.HasPrefix(lines[0], "SET ROLE ")) {
 			lines = lines[1:]
 		}
-		// It has no volume of its own: what it loads goes into the server's.
-		into := filepath.Join(b.engine.VolumeDir(b.target.Name), "data.sql")
 		if err := os.WriteFile(into, []byte(strings.Join(lines, "")), 0o600); err != nil {
 			return 1
 		}
@@ -210,12 +231,45 @@ func (b *bench) postgres(x dockertest.Exec) int {
 		// Its administrator's SQL from its input, which reads and changes users, not
 		// the data. A query on its command line, as a drill asks, isn't this.
 		data, _ := io.ReadAll(x.Stdin)
-		b.admin = append(b.admin, string(data))
+		sql := string(data)
+		b.admin = append(b.admin, sql)
+		if b.loaders == nil {
+			b.loaders = map[string]bool{}
+		}
 		switch {
-		case strings.Contains(string(data), "'login', r.rolcanlogin"):
-			_, _ = io.WriteString(x.Stdout, `{"owner":"shop","login":true,"super":false}`+"\n")
-		case strings.Contains(string(data), "json_build_object('owner'"):
+		case strings.Contains(sql, "'login', r.rolcanlogin"):
+			loader := "null"
+			for name := range b.loaders {
+				loader = `"` + name + `"`
+			}
+			_, _ = fmt.Fprintf(x.Stdout, `{"owner":"shop","login":%t,"super":false,"loader":%s}`+"\n", !b.ownerOut, loader)
+			return 0
+		case strings.Contains(sql, "json_build_object('owner'"):
 			_, _ = io.WriteString(x.Stdout, `{"owner":"shop"}`+"\n")
+			return 0
+		case strings.Contains(sql, "FROM pg_extension x WHERE x.oid >= 16384 AND x.extowner <>"):
+			_, _ = io.WriteString(x.Stdout, b.notOwned)
+			return 0
+		}
+		// What it changes of the roles, statement by statement.
+		for _, m := range regexp.MustCompile(`CREATE ROLE "(dw_restore_[0-9a-f]+)"`).FindAllStringSubmatch(sql, -1) {
+			b.loaders[m[1]] = true
+		}
+		for _, m := range regexp.MustCompile(`DROP ROLE IF EXISTS "(dw_restore_[0-9a-f]+)"`).FindAllStringSubmatch(sql, -1) {
+			if b.adminFails == 0 || !strings.Contains(sql, b.failsOn) {
+				delete(b.loaders, m[1])
+			}
+		}
+		if strings.Contains(sql, `ALTER ROLE "shop" NOLOGIN`) {
+			b.ownerOut = true
+		}
+		if b.adminFails > 0 && b.failsOn != "" && strings.Contains(sql, b.failsOn) {
+			b.adminFails--
+			_, _ = io.WriteString(x.Stderr, "psql:<stdin>:2: ERROR:  canceling statement due to statement timeout\n")
+			return 3
+		}
+		if strings.Contains(sql, `ALTER ROLE "shop" LOGIN;`) {
+			b.ownerOut = false
 		}
 		return 0
 	case strings.Contains(script, "pg_isready"):
@@ -1743,26 +1797,136 @@ func TestOneDatabaseRestoresAlone(t *testing.T) {
 		t.Errorf("after the undo shop holds %q", got)
 	}
 
-	// A load that fails puts back what was there, and lets the user in.
-	b.admin, b.loadsFail = nil, 1
+	// It loads as one transaction, after what the owner has there goes, so a load
+	// that fails partway changes nothing: the user signs in again to what was there,
+	// and nothing is put back, which could fail too.
+	if !strings.Contains(load.sql, "SET ROLE \"shop\";\nDO $dw_empty$") || !strings.Contains(load.sql, "PERFORM lo_unlink") {
+		t.Errorf("the load doesn't empty the database first: %q", load.sql)
+	}
+	b.admin, b.loads, b.loadsFail = nil, nil, 1
 	err = b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_3"})
-	if err == nil || !strings.Contains(err.Error(), "didn't load into shop") || !strings.Contains(err.Error(), "What was there is back in shop") {
+	if err == nil || !strings.Contains(err.Error(), "didn't load into shop") || !strings.Contains(err.Error(), "What was there is still in shop, and its user signs in again") {
 		t.Errorf("a load that fails: %v", err)
 	}
 	if got := b.read("data.sql"); !strings.Contains(got, "written since") {
 		t.Errorf("after a load that failed shop holds %q", got)
 	}
-	if admin := strings.Join(b.admin, ""); !strings.Contains(admin, `ALTER ROLE "shop" LOGIN;`) {
-		t.Errorf("after a load that failed, its administrator ran %q", admin)
+	if len(b.loads) != 1 || b.ownerOut || len(b.loaders) != 0 {
+		t.Errorf("after a load that failed: %d loads, kept out %t, roles that load %v", len(b.loads), b.ownerOut, b.loaders)
+	}
+}
+
+// A restore of one database never leaves its app out with nothing to let it back in
+// (ADR 0084): a database holding something its owner doesn't own is refused before
+// anyone is kept out; a lockout that fails partway lets the user back in; an undo of
+// a restore that couldn't let its user in takes up that restore's lockout, from its
+// record or, with that gone, from the role it left; and a role that loaded and
+// couldn't go is taken up by the next restore. What a restore kept goes after 7 days.
+func TestARestoreOfOneDatabaseNeverLeavesItsAppOut(t *testing.T) {
+	b := newBench(t)
+	b.write("data.sql", "CREATE TABLE orders; -- as backed up")
+	b.run("db", "postgres:17", "/var/lib/postgresql/data")
+	if _, err := b.runner.Take(t.Context(), Take{ID: "bkp_1", Ref: ref, Database: "shop"}); err != nil {
+		t.Fatal(err)
+	}
+	b.write("data.sql", "CREATE TABLE orders; -- written since")
+	record := filepath.Join(b.runner.dir(ref), "lockout-shop.json")
+	settled := func(what string) {
+		t.Helper()
+		if b.ownerOut || len(b.loaders) != 0 {
+			t.Errorf("%s: shop kept out %t, roles that load %v", what, b.ownerOut, b.loaders)
+		}
+		if _, err := os.Stat(record); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s: the record of keeping shop out stays: %v", what, err)
+		}
 	}
 
-	// One whose put-back fails too keeps the user out, and says how to try again.
-	b.admin, b.loadsFail = nil, 2
-	err = b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_4"})
-	if err == nil || !strings.Contains(err.Error(), "shop stays kept out of shop") || !strings.Contains(err.Error(), "dockwell changes undo chg_4") {
-		t.Errorf("a put-back that fails: %v", err)
+	// Something of an administrator's in it: refused as it's planned, and as it's
+	// applied, before anyone is kept out.
+	b.notOwned = "the extension dblink\n"
+	_, _, err := b.runner.JudgeRestore(t.Context(), ref, resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"})
+	if err == nil || !strings.Contains(err.Error(), "shop holds the extension dblink, which isn't shop's") {
+		t.Errorf("planning a restore of a database holding an administrator's extension = %v", err)
 	}
-	if admin := strings.Join(b.admin, ""); strings.Contains(admin, `ALTER ROLE "shop" LOGIN;`) {
-		t.Errorf("a restore that couldn't put back let the user in: %q", admin)
+	b.admin = nil
+	err = b.runner.ApplyRestore(t.Context(), resource.Step{Ref: ref}, resource.RestoreSource{Backup: "bkp_1", Change: "chg_1"})
+	if err == nil || !strings.Contains(err.Error(), "nothing was changed") || strings.Contains(strings.Join(b.admin, ""), "NOLOGIN") || len(b.loads) != 0 {
+		t.Errorf("applying it = %v, its administrator ran %q", err, b.admin)
+	}
+	settled("refused")
+	b.notOwned = ""
+
+	// Keeping the user out fails after it's out: it's let back in.
+	b.adminFails, b.failsOn = 1, "pg_terminate_backend"
+	err = b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_2"})
+	if err == nil || !strings.Contains(err.Error(), "can't keep shop's user out, so nothing was loaded") {
+		t.Errorf("a lockout that fails partway = %v", err)
+	}
+	settled("a lockout that failed")
+
+	// Letting it in fails, so it's left out, and says to try again; the undo the
+	// change offers takes up its lockout, and lets it in as it was.
+	b.adminFails, b.failsOn = 1, `ALTER ROLE "shop" LOGIN;`
+	err = b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_3"})
+	if err == nil || !strings.Contains(err.Error(), "Apply this change again") || !b.ownerOut {
+		t.Fatalf("a restore that can't let its user in = %v, kept out %t", err, b.ownerOut)
+	}
+	if _, err := os.Stat(record); err != nil {
+		t.Fatalf("a restore that left its user out keeps no record of it: %v", err)
+	}
+	made := len(b.loaders)
+	if err := b.restore(resource.RestoreSource{Undoes: "chg_3", Change: "chg_4"}); err != nil {
+		t.Fatal(err)
+	}
+	settled("the undo")
+	if got := b.read("data.sql"); !strings.Contains(got, "written since") {
+		t.Errorf("after the undo shop holds %q", got)
+	}
+	if n := strings.Count(strings.Join(b.admin, ""), "SELECT 'CREATE ROLE"); made != 1 || n == 0 {
+		t.Errorf("roles made to load: %d, then %d asks to make one", made, n)
+	}
+
+	// With its record gone, the role it left says it's out, and is taken up.
+	b.adminFails, b.failsOn = 1, `ALTER ROLE "shop" LOGIN;`
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_5"}); err == nil || !b.ownerOut {
+		t.Fatalf("a restore that can't let its user in = %v", err)
+	}
+	if err := os.Remove(record); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.restore(resource.RestoreSource{Undoes: "chg_5", Change: "chg_6"}); err != nil {
+		t.Fatal(err)
+	}
+	settled("the undo with no record")
+
+	// A role that loaded and couldn't go is only a warning: the user is in, and the
+	// next restore takes the role up, and removes it.
+	b.adminFails, b.failsOn = 1, "DROP ROLE IF EXISTS"
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_7"}); err != nil {
+		t.Fatalf("a restore whose role that loaded stays = %v", err)
+	}
+	var left string
+	for name := range b.loaders {
+		left = name
+	}
+	if b.ownerOut || left == "" {
+		t.Fatalf("after it, kept out %t, roles that load %v", b.ownerOut, b.loaders)
+	}
+	b.admin = nil
+	if err := b.restore(resource.RestoreSource{Backup: "bkp_1", Change: "chg_8"}); err != nil {
+		t.Fatal(err)
+	}
+	settled("the next restore")
+	if admin := strings.Join(b.admin, ""); !strings.Contains(admin, `DROP ROLE IF EXISTS "`+left+`"`) {
+		t.Errorf("the next restore didn't take up %s: %q", left, admin)
+	}
+
+	// What each restore kept of shop goes after 7 days.
+	b.runner.Now = func() time.Time { return time.Now().Add(KeepFor + 2*time.Hour) }
+	if err := b.runner.Prune(); err != nil {
+		t.Fatal(err)
+	}
+	if left := b.files(); slices.ContainsFunc(left, func(f string) bool { return strings.HasPrefix(f, beforePrefix) }) {
+		t.Errorf("after 7 days the server keeps %v", left)
 	}
 }
