@@ -761,7 +761,8 @@ func TestTimeRunningOutOnTheAgentCountsAsTime(t *testing.T) {
 			t.Errorf("it says %q, with %q, of an agent that answered at once", said, not)
 		}
 	}
-	if plain, _ := resource.Explain(err); !strings.HasPrefix(plain, "The step's time ran out") {
+	// The agent's own words say the same: a wait on the server, with the step's time left.
+	if plain, _ := resource.Explain(err); !strings.HasPrefix(plain, "Dockwell couldn't create http, as a wait on this server ran out with the step's own time left") {
 		t.Errorf("it reads %q", plain)
 	}
 }

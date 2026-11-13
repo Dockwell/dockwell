@@ -647,12 +647,13 @@ func judgeStep(ctx context.Context, j Judge, ref Ref, actual, desired proto.Mess
 // and that the driver finds it healthy. The desired spec is normalized
 // again first, as Plan does.
 func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) error {
+	ctx = WithStep(ctx)
 	d, err := l.Drivers.Driver(step.Ref.Kind)
 	if err != nil {
 		return err
 	}
 	if desired, err = normalize(d, desired); err != nil {
-		return cantApply(step, err)
+		return cantApply(ctx, step, err)
 	}
 	if l.Values != nil && len(Uses(d, desired)) > 0 {
 		values, err := l.Values.Values(ctx, l.Server, step.Ref, desired)
@@ -664,7 +665,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if step.BackupFirst != nil {
 		b, ok := d.(BackerUp)
 		if !ok {
-			return cantApply(step, fmt.Errorf("this agent can't back up a %s", step.Ref.Kind))
+			return cantApply(ctx, step, fmt.Errorf("this agent can't back up a %s", step.Ref.Kind))
 		}
 		if err := b.ApplyBackup(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't back up %s, so nothing else in this change ran: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't back up %s: %w", step.Ref, err))
@@ -674,14 +675,14 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if step.Unit != nil {
 		u, ok := d.(UnitActor)
 		if !ok {
-			return cantApply(step, fmt.Errorf("this agent can't act on system services for a %s", step.Ref.Kind))
+			return cantApply(ctx, step, fmt.Errorf("this agent can't act on system services for a %s", step.Ref.Kind))
 		}
 		return u.ApplyUnit(ctx, step)
 	}
 	if step.Reboot != nil {
 		r, ok := d.(Rebooter)
 		if !ok {
-			return cantApply(step, fmt.Errorf("this agent can't reboot its server for a %s", step.Ref.Kind))
+			return cantApply(ctx, step, fmt.Errorf("this agent can't reboot its server for a %s", step.Ref.Kind))
 		}
 		if err := r.ApplyReboot(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't reboot the server: %s. Reboot it over SSH, or plan the reboot again.", clause(err)), fmt.Errorf("can't reboot the server: %w", err))
@@ -691,7 +692,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if step.Install != nil {
 		in, ok := d.(Installer)
 		if !ok {
-			return cantApply(step, fmt.Errorf("this agent can't install updates for a %s", step.Ref.Kind))
+			return cantApply(ctx, step, fmt.Errorf("this agent can't install updates for a %s", step.Ref.Kind))
 		}
 		if err := in.ApplyInstall(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't install the updates: %s.", clause(err)), fmt.Errorf("can't install the updates: %w", err))
@@ -701,7 +702,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if step.Restore != nil {
 		r, ok := d.(Restorer)
 		if !ok {
-			return cantApply(step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))
+			return cantApply(ctx, step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))
 		}
 		source := RestoreSource{Backup: step.Restore.Backup, Undoes: step.Restore.Undoes, Change: DeployOf(ctx).Change}
 		if err := r.ApplyRestore(ctx, step, source); err != nil {
@@ -717,7 +718,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			}
 			return nil
 		} else if err != nil {
-			return cantApply(step, err)
+			return cantApply(ctx, step, err)
 		}
 	}
 	actual, err := Observe(ctx, d, step.Ref)
@@ -757,16 +758,23 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	return nil
 }
 
-// cantApply is a step its driver couldn't carry out. A driver that says why
-// in plain words keeps them; otherwise it is the step and the driver's reason,
-// without the scope in its ref, which is an ID.
-func cantApply(step Step, err error) error {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return Plainly(fmt.Sprintf("The step's time ran out before Dockwell could %s %s, so it stopped waiting. Check it on this server, then try again.", step.Action, step.Ref.Name),
-			fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err))
+// cantApply is a step its driver couldn't carry out, in ctx, the step's. A driver
+// that says why in plain words keeps them; otherwise it is the step and the
+// driver's reason, without the scope in its ref, which is an ID. A wait that
+// ended says which: the step's time, a wait inside it with the step's time left,
+// or the step called off (StopOf).
+func cantApply(ctx context.Context, step Step, err error) error {
+	detail := fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err)
+	switch StopOf(ctx, err) {
+	case StepTime:
+		return Plainly(fmt.Sprintf("The step's time ran out before Dockwell could %s %s, so it stopped waiting. Check it on this server, then try again.", step.Action, step.Ref.Name), detail)
+	case InnerWait:
+		return Plainly(fmt.Sprintf("Dockwell couldn't %s %s, as a wait on this server ran out with the step's own time left: %s. Check it on this server, then try again.", step.Action, step.Ref.Name, clause(err)), detail)
+	case CalledOff:
+		return Plainly(fmt.Sprintf("Dockwell stopped before it could %s %s, as the step was called off: its change was cancelled, or the control plane stopped waiting for it. Run the change again if you still want it.", step.Action, step.Ref.Name), detail)
+	case NotStopped:
 	}
-	return Plainly(fmt.Sprintf("Dockwell can't %s %s: %s. Check it on this server, then try again.", step.Action, step.Ref.Name, clause(err)),
-		fmt.Errorf("can't %s %s: %w", step.Action, step.Ref, err))
+	return Plainly(fmt.Sprintf("Dockwell can't %s %s: %s. Check it on this server, then try again.", step.Action, step.Ref.Name, clause(err)), detail)
 }
 
 // clause is an error's message to go on inside a sentence.
