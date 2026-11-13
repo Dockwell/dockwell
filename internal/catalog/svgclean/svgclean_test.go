@@ -192,7 +192,12 @@ func FuzzClean(f *testing.F) {
 			if !elements[start.Name.Local] {
 				t.Fatalf("Clean kept the element %s:\n%s", start.Name.Local, out)
 			}
+			seen := map[xml.Name]bool{}
 			for _, a := range start.Attr {
+				if seen[a.Name] {
+					t.Fatalf("Clean kept %s twice on an element:\n%s", a.Name.Local, out)
+				}
+				seen[a.Name] = true
 				name := a.Name.Local
 				switch {
 				case a.Name.Space == "" && name == "xmlns", a.Name.Space == xmlNS:
@@ -210,4 +215,105 @@ func FuzzClean(f *testing.F) {
 			}
 		}
 	})
+}
+
+// levels writes a document of depth levels, each of width elements that each name the
+// level below by the reference ref writes, such as a mask or a clip path, and a rect
+// at the top that names the deepest.
+func levels(kind, attr string, width, depth int) string {
+	var s strings.Builder
+	s.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs>`)
+	for l := 0; l <= depth; l++ {
+		fmt.Fprintf(&s, `<%s id="k%d">`, kind, l)
+		for i := range width {
+			ref := ""
+			if l > 0 {
+				ref = fmt.Sprintf(` %s="url(#k%d)"`, attr, l-1)
+			}
+			fmt.Fprintf(&s, `<rect x="%d" width="50" height="50" fill="#fff"%s/>`, i, ref)
+		}
+		fmt.Fprintf(&s, `</%s>`, kind)
+	}
+	fmt.Fprintf(&s, `</defs><rect width="100" height="100" %s="url(#k%d)"/></svg>`, attr, depth)
+	return s.String()
+}
+
+// What a reference names is drawn each time it's named, so masks of masks and clip
+// paths of clip paths count as uses of uses do, and four levels of each, a few KiB,
+// are refused. Two levels draw as they did.
+func TestCleanCountsEveryReference(t *testing.T) {
+	for _, c := range []struct{ kind, attr string }{{"mask", "mask"}, {"clipPath", "clip-path"}} {
+		if out, err := Clean([]byte(levels(c.kind, c.attr, 8, 4))); err == nil {
+			t.Errorf("four levels of %s were kept:\n%.300s", c.kind, out)
+		}
+		if _, err := Clean([]byte(levels(c.kind, c.attr, 8, 2))); err != nil {
+			t.Errorf("two levels of %s were refused: %v", c.kind, err)
+		}
+	}
+	// A reference in a style attribute counts as one in its own attribute does.
+	styled := strings.ReplaceAll(levels("mask", "mask", 8, 4), `mask="url(`, `style="mask:url(`)
+	if _, err := Clean([]byte(styled)); err == nil {
+		t.Error("four levels of masks named in style attributes were kept")
+	}
+	cycle := svg(`<clipPath id="c"><rect clip-path="url(#c)" width="1"/></clipPath><rect clip-path="url(#c)"/>`)
+	if _, err := Clean([]byte(cycle)); err == nil {
+		t.Error("a clip path that names itself was kept")
+	}
+}
+
+// A marker draws at every point of a path, and nests multiplicatively, and a pattern
+// draws again in each tile it fills: neither is kept, nor what names them, so nested
+// markers draw nothing at all.
+func TestCleanFlattensMarkersAndPatterns(t *testing.T) {
+	var s strings.Builder
+	s.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs>`)
+	for l := range 4 {
+		ref := ""
+		if l > 0 {
+			ref = fmt.Sprintf(` marker-start="url(#m%d)" marker-mid="url(#m%d)" marker-end="url(#m%d)"`, l-1, l-1, l-1)
+		}
+		fmt.Fprintf(&s, `<marker id="m%d" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 0L1 1L2 0L3 1L4 0L5 1L6 0L7 1"%s/></marker>`, l, ref)
+	}
+	s.WriteString(`<pattern id="p" width="1" height="1"><rect width="1" height="1"/></pattern></defs>`)
+	s.WriteString(`<path d="M0 0L10 10L20 0L30 10" marker-mid="url(#m3)"/><rect width="9" height="9" fill="url(#p)"/></svg>`)
+	out, err := Clean([]byte(s.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{"marker", "pattern", "orient"} {
+		if strings.Contains(string(out), gone) {
+			t.Errorf("Clean kept %s:\n%s", gone, out)
+		}
+	}
+}
+
+// A style sheet reaches elements by selectors, so what it names can't be counted: it
+// may name a gradient, and nothing else.
+func TestCleanKeepsStyleSheetsToGradients(t *testing.T) {
+	gradient := svg(`<linearGradient id="g"><stop offset="0"/></linearGradient><style>.a{fill:url(#g)}</style><rect class="a"/>`)
+	if _, err := Clean([]byte(gradient)); err != nil {
+		t.Errorf("a style sheet that names a gradient was refused: %v", err)
+	}
+	for name, body := range map[string]string{
+		"a mask":       `<mask id="m"><rect/></mask><style>.a{mask:url(#m)}</style><rect class="a"/>`,
+		"a clip path":  `<clipPath id="c"><rect/></clipPath><style>.a{clip-path:url(#c)}</style><rect class="a"/>`,
+		"nothing":      `<style>.a{fill:url(#missing)}</style><rect class="a"/>`,
+		"a later mask": `<style>.a{mask:url(#m)}</style><rect class="a"/><mask id="m"><rect/></mask>`,
+	} {
+		if out, err := Clean([]byte(svg(body))); err == nil {
+			t.Errorf("a style sheet that names %s was kept:\n%s", name, out)
+		}
+	}
+}
+
+// href and xlink:href both become href, and an element with an attribute twice is one
+// a browser won't draw, so the first is kept.
+func TestCleanKeepsTheFirstOfAnAttribute(t *testing.T) {
+	out, err := Clean([]byte(svg(`<g id="a"/><g id="b"/><use href="#a" xlink:href="#b"/>`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `<use href="#a"/>`) {
+		t.Errorf("Clean wrote:\n%s", out)
+	}
 }
