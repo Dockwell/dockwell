@@ -3378,6 +3378,15 @@ msgstr "Nothing matches"
 msgid "Runs on"
 msgstr "Runs on"
 
+msgid "Select every update shown"
+msgstr "Select every update shown"
+
+msgid "Select the updates in {name}"
+msgstr "Select the updates in {name}"
+
+msgid "Select {name}'s update"
+msgstr "Select {name}'s update"
+
 msgid "Show all environments"
 msgstr "Show all environments"
 
@@ -4520,6 +4529,93 @@ msgstr "{0}, the one it runs"
 msgid "{word} version"
 msgstr "{word} version"
 
+msgid "About {span} down"
+msgstr "About {span} down"
+
+msgid "Applying"
+msgstr "Applying"
+
+msgid "Backs up first"
+msgstr "Backs up first"
+
+msgid "Can't update:"
+msgstr "Can't update:"
+
+msgid "Clear"
+msgstr "Clear"
+
+msgid "Closing leaves them to go on, each on its app's page and on Activity."
+msgstr "Closing leaves them to go on, each on its app's page and on Activity."
+
+msgid "Each app updates as its own change, and one that fails rolls back alone."
+msgstr "Each app updates as its own change, and one that fails rolls back alone."
+
+msgid "Failed, and rolled back:"
+msgstr "Failed, and rolled back:"
+
+msgid "Failed:"
+msgstr "Failed:"
+
+msgid "It destroys data, which you confirm in its own plan"
+msgstr "It destroys data, which you confirm in its own plan"
+
+msgid "It planned nothing"
+msgstr "It planned nothing"
+
+msgid "Its plan changed as the others applied"
+msgstr "Its plan changed as the others applied"
+
+msgid "Its server is offline"
+msgstr "Its server is offline"
+
+msgid "Left for its own review:"
+msgstr "Left for its own review:"
+
+msgid "Nothing stops"
+msgstr "Nothing stops"
+
+msgid "Nothing to change"
+msgstr "Nothing to change"
+
+msgid "Planning"
+msgstr "Planning"
+
+msgid "Selected updates"
+msgstr "Selected updates"
+
+msgctxt "an app's update landed"
+msgid "Updated"
+msgstr "Updated"
+
+msgid "Updates"
+msgstr "Updates"
+
+msgid "Updates finished"
+msgstr "Updates finished"
+
+#. placeholder {0}: ready.length
+msgid "{0, plural, one {Apply # update} other {Apply # updates}}"
+msgstr "{0, plural, one {Apply # update} other {Apply # updates}}"
+
+#. placeholder {0}: following.length
+msgid "{0, plural, one {Updating # app} other {Updating # apps}}"
+msgstr "{0, plural, one {Updating # app} other {Updating # apps}}"
+
+msgid "{n, plural, one {# selected} other {# selected}}"
+msgstr "{n, plural, one {# selected} other {# selected}}"
+
+msgid "{n, plural, one {Select # patch update} other {Select # patch updates}}"
+msgstr "{n, plural, one {Select # patch update} other {Select # patch updates}}"
+
+msgid "{n, plural, one {Update # app} other {Update # apps}}"
+msgstr "{n, plural, one {Update # app} other {Update # apps}}"
+
+msgid "{n, plural, one {Update # selected} other {Update # selected}}"
+msgstr "{n, plural, one {Update # selected} other {Update # selected}}"
+
+msgid "{name} stays planned, on Activity"
+msgstr "{name} stays planned, on Activity"
+
 msgid "Also delete the project {label}"
 msgstr "Also delete the project {label}"
 
@@ -4809,9 +4905,6 @@ msgstr "Update available"
 #. placeholder {0}: stepOf(a)
 msgid "Update available: {0}, {kind}"
 msgstr "Update available: {0}, {kind}"
-
-msgid "Updates"
-msgstr "Updates"
 
 msgid "Updates snoozed"
 msgstr "Updates snoozed"
@@ -6959,9 +7052,6 @@ msgstr "Apply plan"
 msgid "Apply this only if you trust what it runs."
 msgstr "Apply this only if you trust what it runs."
 
-msgid "Applying"
-msgstr "Applying"
-
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"
 msgstr "Applying this approves a change planned with the API token {0}, with your passkey"
@@ -7062,12 +7152,6 @@ msgstr "Nothing outside the server reaches these yet."
 
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "Nothing outside {server} reaches {name} yet."
-
-msgid "Nothing to change"
-msgstr "Nothing to change"
-
-msgid "Planning"
-msgstr "Planning"
 
 msgid "Planning: asking each server what this would take"
 msgstr "Planning: asking each server what this would take"
@@ -7394,9 +7478,6 @@ msgstr "Details"
 
 msgid "Dockwell made this change because of what failed"
 msgstr "Dockwell made this change because of what failed"
-
-msgid "About {span} down"
-msgstr "About {span} down"
 
 msgid "About {span} down, and up to {bound} until healthy"
 msgstr "About {span} down, and up to {bound} until healthy"
@@ -10904,6 +10985,12 @@ msgstr "On the server, and on {kept}"
 msgid "{0}, {zone} · {1}"
 msgstr "{0}, {zone} · {1}"
 
+msgid "Apps with an update"
+msgstr "Apps with an update"
+
+msgid "{more, plural, one {# more on Apps} other {# more on Apps}}"
+msgstr "{more, plural, one {# more on Apps} other {# more on Apps}}"
+
 msgid "Each change you make shows here."
 msgstr "Each change you make shows here."
 
@@ -12532,9 +12619,6 @@ msgstr "Unknown system"
 
 msgid "Up"
 msgstr "Up"
-
-msgid "Clear"
-msgstr "Clear"
 
 msgid "Name the address, such as 203.0.113.7."
 msgstr "Name the address, such as 203.0.113.7."
@@ -15018,9 +15102,6 @@ msgstr "Select every package in {caption}"
 msgid "Select {name}"
 msgstr "Select {name}"
 
-msgid "Selected updates"
-msgstr "Selected updates"
-
 msgid "Show all"
 msgstr "Show all"
 
@@ -15113,17 +15194,11 @@ msgstr "{n, plural, one {# more is held back: {names}. An upgrade doesn't take i
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 
-msgid "{n, plural, one {# selected} other {# selected}}"
-msgstr "{n, plural, one {# selected} other {# selected}}"
-
 msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 msgstr "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 
 msgid "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
 msgstr "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
-
-msgid "{n, plural, one {Update # selected} other {Update # selected}}"
-msgstr "{n, plural, one {Update # selected} other {Update # selected}}"
 
 msgid "{name} needs a reboot"
 msgstr "{name} needs a reboot"

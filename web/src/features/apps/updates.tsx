@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient } from "@connectrpc/connect";
+import { createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   type AvailableUpdate,
@@ -22,7 +22,7 @@ import { type ReactNode, useState } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
-import { useMay } from "../auth/may";
+import { type Offer, useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { environmentOf } from "./app";
@@ -75,7 +75,7 @@ export function useKindWord(): (kind: UpdateKind) => string {
 }
 
 /** The step an update takes, as a person reads it: 16.3 → 16.4, or new commits. */
-function stepOf(a: AvailableUpdate): string {
+export function stepOf(a: AvailableUpdate): string {
   if (a.kind === UpdateKind.DIGEST) return a.toVersion;
   return `${a.fromVersion} → ${a.toVersion}`;
 }
@@ -367,6 +367,42 @@ function ProblemWords({ problem }: { problem: UpdateProblem }): ReactNode {
 }
 
 /**
+ * Plans an app's update as Update does, safe by default: a build of the newest
+ * commit for an app from Git, the newest build of its language's version for an
+ * app from a folder, its install's newer release for a catalog install, and
+ * otherwise the update to the version picked, with its backup first (ADR 0080).
+ */
+export function planUpdate(transport: Transport, service: ServiceInfo, a: AvailableUpdate) {
+  const client = createClient(ServiceService, transport);
+  switch (service.update?.source) {
+    case UpdateSource.GIT:
+      return client.deployService({ id: service.id });
+    case UpdateSource.RUNTIME:
+      return client.changeServiceRuntime({ id: service.id });
+    case UpdateSource.CATALOG:
+      return client.upgradeService({ id: service.id });
+    default:
+      return client.upgradeService({ id: service.id, image: a.toImage });
+  }
+}
+
+/** Whether a person may plan an app's update, by what plans it (ADR 0059). */
+export function useMayUpdate(): (service: ServiceInfo) => Offer {
+  const may = useMay();
+  return (service) => {
+    const environment = environmentOf(service);
+    switch (service.update?.source) {
+      case UpdateSource.GIT:
+        return may(ServiceService.method.deployService, { environment });
+      case UpdateSource.RUNTIME:
+        return may(ServiceService.method.changeServiceRuntime, { environment });
+      default:
+        return may(ServiceService.method.upgradeService, { environment });
+    }
+  };
+}
+
+/**
  * What Update does for an app: the update's own plan, safe by default, to the
  * version picked (ADR 0080), as a catalog install's upgrades its install; a
  * build of the newest commit for an app from Git; and the newest build of its
@@ -376,29 +412,14 @@ function useUpdateAction(service: ServiceInfo) {
   const { t } = useLingui();
   const transport = useTransport();
   const sheet = useChangeSheet();
-  const may = useMay();
   const upgrading = useUpgrade(service);
-  const environment = environmentOf(service);
   const source = service.update?.source;
-  const offer =
-    source === UpdateSource.GIT
-      ? may(ServiceService.method.deployService, { environment })
-      : source === UpdateSource.RUNTIME
-        ? may(ServiceService.method.changeServiceRuntime, { environment })
-        : upgrading.may;
+  const offer = useMayUpdate()(service);
   const run = (a: AvailableUpdate) => {
     switch (source) {
       case UpdateSource.GIT:
-        sheet.open({
-          kind: "plan",
-          make: () => createClient(ServiceService, transport).deployService({ id: service.id }),
-        });
-        return;
       case UpdateSource.RUNTIME:
-        sheet.open({
-          kind: "plan",
-          make: () => createClient(ServiceService, transport).changeServiceRuntime({ id: service.id }),
-        });
+        sheet.open({ kind: "plan", make: () => planUpdate(transport, service, a) });
         return;
       case UpdateSource.CATALOG:
         upgrading.open();

@@ -155,3 +155,107 @@
 .apps-updates-filter[aria-pressed="true"] {
   color: var(--link);
 }
+
+/* Updating several at once (ADR 0080): a box on each row with an update, and a bar once any is picked. */
+.update-pick {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--action);
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.apps-table.has-picks .dw-table td:first-child,
+.apps-table.has-picks .dw-table th:first-child {
+  padding-right: 0;
+}
+
+.update-picks-bar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.update-picks-count {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.update-picks-grow {
+  flex: 1;
+}
+
+/* On a phone, the box sits beside a row, which is a link. */
+.apps-phone-pickrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+}
+
+.apps-phone-pickrow > .apps-phone-row {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The sheet: a row an app, with what it goes to, then where its update is. */
+.update-several-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.update-several-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.update-several-row:last-child {
+  border-bottom: 0;
+}
+
+.update-several-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.update-several-name {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.update-several-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.update-several-refused,
+.update-several-failed {
+  color: var(--critical);
+}
+
+.update-several-row.is-done .update-several-state {
+  color: var(--healthy);
+}

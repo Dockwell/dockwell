@@ -20,6 +20,7 @@ import { withUpdates } from "../apps/updates";
 import { useApps, usePlaces } from "../apps/useServices";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { useRuntimes } from "../websites/website";
+import { OverviewUpdates } from "./OverviewUpdates";
 import "../apps/Apps.css";
 import { StartChoices } from "./StartChoices";
 import "./Overview.css";
@@ -109,6 +110,7 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
         ) : null}
       </div>
       {body}
+      {all ? <OverviewUpdates services={all} now={now} /> : null}
     </section>
   );
 }
