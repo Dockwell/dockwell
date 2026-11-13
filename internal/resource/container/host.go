@@ -178,7 +178,9 @@ func mountAccess(c *resourcev1.Container) []resource.Access {
 	var out []resource.Access
 	for _, m := range c.GetMounts() {
 		if p := m.GetHostPath(); p != "" {
-			a := PathAccess(p, m.GetReadOnly())
+			// Making the folder, owned by a user, writes to the server, however the
+			// container reads it.
+			a := PathAccess(p, m.GetReadOnly() && m.GetMakeOwner() == "")
 			a.Relabel = relabels[m.GetRelabel()]
 			out = append(out, a)
 		}

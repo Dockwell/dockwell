@@ -454,6 +454,9 @@ func check(e *catalogv1.Entry, byTag bool) error {
 	if err := checkDatabases(e); err != nil {
 		return err
 	}
+	if err := checkOwners(e); err != nil {
+		return err
+	}
 	if err := checkAccess(e); err != nil {
 		return err
 	}
@@ -499,6 +502,46 @@ func check(e *catalogv1.Entry, byTag bool) error {
 		return err
 	}
 	return checkNeeds(e)
+}
+
+// checkOwners refuses an owner a service's x-dockwell gives a server path, as only
+// a volume the install makes is one an entry gives an owner (ADR 0085): making a
+// folder of the server's, owned by a user, is a write to the server, whatever the
+// mount says of reading.
+func checkOwners(e *catalogv1.Entry) error {
+	services, err := composeServices(e.GetCompose())
+	if err != nil {
+		return err
+	}
+	for _, name := range slices.Sorted(maps.Keys(services)) {
+		owners, _ := mapGet(mapGet(services[name], "x-dockwell"), "make_owner").(map[string]any)
+		if len(owners) == 0 {
+			continue
+		}
+		vols, _ := mapGet(services[name], "volumes").([]any)
+		for _, v := range vols {
+			source, target, bind := "", "", false
+			switch v := v.(type) {
+			case string:
+				parts := strings.Split(v, ":")
+				if len(parts) >= 2 {
+					source, target = parts[0], parts[1]
+				}
+			case map[string]any:
+				source, _ = v["source"].(string)
+				target, _ = v["target"].(string)
+				kind, _ := v["type"].(string)
+				bind = kind == "bind"
+			}
+			if _, owned := owners[path.Clean(target)]; !owned && owners[target] == nil {
+				continue
+			}
+			if bind || strings.HasPrefix(source, "/") || strings.HasPrefix(source, ".") || strings.HasPrefix(source, "~") || strings.HasPrefix(source, "$") {
+				return fmt.Errorf("its service %s gives the server path %s an owner, and an entry gives one only to a volume its install makes. Mount a volume at %s", name, source, target)
+			}
+		}
+	}
+	return nil
 }
 
 // checkDatabases refuses a database the entry marks that its Compose file doesn't run.

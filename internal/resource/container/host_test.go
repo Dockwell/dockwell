@@ -167,6 +167,12 @@ func TestServerPathsNoContainerMayMount(t *testing.T) {
 			}},
 			[]resource.Access{{Kind: resource.AccessDocker, Path: "/run/user"}, {Kind: resource.AccessDocker, Path: "/run/user/1000"}, {Kind: resource.AccessPath, Path: "/run/user/1000/app", SameAsRoot: true}},
 		},
+		// M1: making a server folder for a user writes to the server, however the
+		// container reads it.
+		"an owned server folder": {
+			&resourcev1.Container{Image: "nginx", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/app/zone"}, Target: "/zone", ReadOnly: true, MakeOwner: "1000:1000"}}},
+			[]resource.Access{{Kind: resource.AccessPath, Path: "/srv/app/zone"}},
+		},
 		"host network": {&resourcev1.Container{Image: "alpine", Networks: []string{"host"}}, []resource.Access{{Kind: resource.AccessNetwork}}},
 		"volume":       {&resourcev1.Container{Image: "alpine", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data"}}}, nil},
 	} {
