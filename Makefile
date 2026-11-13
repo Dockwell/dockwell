@@ -221,7 +221,7 @@ catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this
 	scripts/catalog-e2e.sh $(BIN) $(APPS)
 
 .PHONY: store-rates
-store-rates: ## Convert 1Panel's, Dokploy's and Coolify's stores at the commits the repository pins, as a server does, and fail if an app stops converting (RECORD=1 writes the record, PIN=1 moves each store to its branch first)
+store-rates: ## Convert every store Dockwell reads at the commits the repository pins, as a server does, and fail if an app stops converting (RECORD=1 writes the record, PIN=1 moves each store to its branch first)
 	go run ./cmd/dockwell-catalog rates $(if $(RECORD),--record) $(if $(PIN),--pin)
 
 # A sample of what each store brings: small apps, one at least from each, on a tag
