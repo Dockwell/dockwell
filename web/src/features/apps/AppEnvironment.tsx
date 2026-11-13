@@ -34,6 +34,7 @@ import {
 import { sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
+import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -548,13 +549,16 @@ function Source({ row }: { row: EnvRow }) {
 function Updated({ row }: { row: EnvRow }) {
   const { t } = useLingui();
   const words = useTimeWords();
+  const actor = useActorWords();
   const now = useControlPlaneNow(60_000);
   if (row.pending) return <span className="app-muted">{t`Not applied`}</span>;
   const stored = row.stored;
   if (!stored) return <span className="app-muted">—</span>;
+  // Who, as Activity says it: a person by name, and a token the CLI made by where it ran.
+  const by = stored.updatedBy ? actor(stored.updatedBy) : undefined;
   return (
     <span className="app-env-updated">
-      {stored.updatedBy?.name ? <span>{stored.updatedBy.name}</span> : null}
+      {by ? <span title={by.full === by.name ? undefined : by.full}>{by.name}</span> : null}
       {stored.updateTime ? <span className="app-muted">{words.ago(timestampDate(stored.updateTime), now)}</span> : null}
     </span>
   );

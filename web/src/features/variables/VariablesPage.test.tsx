@@ -14,6 +14,7 @@ import {
   ResourceSchema,
   type RevealSecretRequest,
   StepUpAction,
+  TokenScope,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -465,6 +466,35 @@ describe("the variables and secrets page", () => {
     } finally {
       await activateLocale("en");
     }
+  });
+});
+
+describe("who changed a value", () => {
+  it("says a token the CLI made by where it ran, as Activity does, and the whole of it on hover", async () => {
+    // Made whole, not spread from logLevel: a spread message leaves a plain nested one unconverted.
+    const cli = create(EnvironmentVariableSchema, {
+      id: "var_log",
+      name: "LOG_LEVEL",
+      value: "info",
+      revision: 2n,
+      updateTime: timestampFromDate(new Date(Date.now() - 4 * 60_000)),
+      usedBy: [{ serviceId: "svc_api", service: "api", name: "LOG_LEVEL" }],
+      updatedBy: {
+        kind: ActorKind.TOKEN,
+        id: "tok_1",
+        name: "Local access on hz-1, read-write",
+        localAccess: { account: "mira@hz-1", scope: TokenScope.READ_WRITE },
+      },
+    });
+    renderAt(
+      "/variables",
+      api([production], { variables: { listVariables: () => ({ environmentId: "env_prod", variables: [cli] }) } }),
+    );
+    const row = await screen.findByRole("row", { name: /^LOG_LEVEL/ }, { timeout: 5000 });
+    const who = within(row).getByText("CLI on hz-1");
+    expect(who).toHaveAttribute("title", "Local access token, read-write, tok_1, made by mira@hz-1");
+    expect(row).not.toHaveTextContent("Local access on hz-1");
+    expect(row).toHaveTextContent("4 min ago");
   });
 });
 

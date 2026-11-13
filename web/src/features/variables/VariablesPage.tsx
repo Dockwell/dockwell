@@ -49,6 +49,7 @@ import { RefLink } from "../shell/RefLink";
 import { ProjectPicker } from "./ProjectPicker";
 import { RevealsProvider, useReveal, useReveals } from "./useReveal";
 import "./VariablesPage.css";
+import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 
@@ -619,14 +620,16 @@ function UsedBy({ row }: { row: Row }) {
 
 function Updated({ row }: { row: Row }) {
   const words = useTimeWords();
+  const actor = useActorWords();
   const now = useControlPlaneNow(60_000);
   // What an app sets on itself changes with the app, which its page dates.
   if ("own" in row) return <span className="variables-muted">—</span>;
   const variable = row.shared;
-  const who = variable.updatedBy?.name;
+  // Who, as Activity says it: a person by name, and a token the CLI made by where it ran.
+  const by = variable.updatedBy ? actor(variable.updatedBy) : undefined;
   return (
     <span className="variables-updated">
-      {who ? <span>{who}</span> : null}
+      {by ? <span title={by.full === by.name ? undefined : by.full}>{by.name}</span> : null}
       {variable.updateTime ? (
         <span className="variables-muted">{words.ago(timestampDate(variable.updateTime), now)}</span>
       ) : null}
