@@ -2,7 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-10
-- Amended: 2026-11-12, slice 3 decided in ADR 0082 (#567)
+- Amended: 2026-11-12, slice 3 decided in ADR 0082 (#567); 2026-11-13, the system log as built (#567)
 
 ## Context
 
@@ -76,6 +76,20 @@ No redaction: an admin has a root terminal on the server already ([ADR 0037](003
 ### Numbers
 
 The agent protocol takes this area's block: `Call.system_services` and its result 235, and `Call.system_log`, which follows and reads, and its result 236. Fields of the public schema are numbered its own way, from each message's next free number.
+
+### The system log, as built
+
+Built on 2026-11-13 (#567), slice 2 above, with what changed from it said here.
+
+- **A follow is a log stream.** `ServerService.WatchSystemLog` opens the agent's `LogsCall` with `system` set, so a follow of the journal goes over its own `SendLogs` connection, takes one of the server's 16 places and a reader's 8, and gets its share of the server's 4 MiB/s as one more thing followed, beside its apps' follows (`internal/agent/logs`). Past its share, the agent drops lines and says how many, and the panel shows the count where they were.
+- **One journalctl, shared.** While any follow is open, the agent runs one `journalctl -f --lines=0` with ADR 0067's fields and journald's `UNIT`, in a process group of its own, outside the runner, and gives each follow what's narrowed to its unit: what the unit wrote, and what systemd wrote of it. A follow holds at most 512 KiB of lines it hasn't taken, and drops past it. The shared read goes at most 16 MiB/s of the journal's JSON: past that the follow falls behind the journal rather than take a core to keep up with a flood, as journald keeps it all to read back. The last follow leaving stops it, so with nobody following nothing runs.
+- **Carrying on after a line.** A follow names the newest line the reader has (`after`): the agent reads what came since with `--after-cursor`, after the shared read holds what comes next, at most 1,000 lines, then says there's a gap, which the panel shows with a time range to read the rest. A line both reads hold is sent once.
+- **Search and a time range read back.** `ReadSystemLog` takes `query`, `since` and `until`. journalctl streams newest first and the agent stops at the page, so a search holds no more than its page. A search reads 200,000 lines or 20 s at most, then says how far back it looked (`searched_to`, `cut_short`), and the panel searches on from there with `until`.
+- **Without a journal,** a follow reads what's added to `/var/log/messages` every second, through a rename (another inode) and a copytruncate (a smaller file).
+- **On record,** as decided: `logs.read` as a follow starts, again each hour it stays open, and once as it ends, never what it was narrowed to.
+- **The page.** A server's System log tab: a search, the unit picker (the server's own units, failed first, read once), Errors · Warnings and up · Everything, and Live · 15 min · 1 h · 24 h · 7 d, each in the URL, so a unit's sheet opens it narrowed to that unit (**Open in the system log**). Live reads the newest page, then follows from its newest line; a range or a search reads back, with older lines on scrolling up. The page keeps the newest 5,000 lines.
+- **What it costs:** `make logs-load` floods the journal through a stand-in journalctl, with a follow of it and one whose search nothing matches, and holds the agent to its 40 MB, one journalctl for both, and none once nobody follows. On 2026-11-13 the agent build came to 36.1 MB at most and 71% of a CPU through that stage, its follow sending about 15,000 lines a second and dropping the rest.
+- **Numbers.** The agent protocol takes Track S's block: `LogsCall.system` 283, and `SendLogsRequest.system_lines` 284, `system_dropped` 285 and `system_gap` 286, beside ADR 0082's 280 to 282; `SystemLogCall` gains `query` 5, `since` 6 and `until` 7, and `SystemLogResult` `searched_to` 4 and `cut_short` 5. ADR 0067's 236 stays free.
 
 ### Slice 3, acting on a unit
 

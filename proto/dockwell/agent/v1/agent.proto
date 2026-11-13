@@ -878,6 +878,12 @@ message SystemLogCall {
   string before = 3;
   // How many lines, at most, 1 to 200.
   uint32 limit = 4;
+  // Only lines whose message holds this text, in any case.
+  string query = 5;
+  // Only lines written at or after this time.
+  google.protobuf.Timestamp since = 6;
+  // Only lines written before this time.
+  google.protobuf.Timestamp until = 7;
 }
 
 // SystemLogResult is a page of the server's system log.
@@ -888,6 +894,11 @@ message SystemLogResult {
   bool more = 2;
   // Where they were read from.
   dockwell.v1.SystemLogSource source = 3;
+  // How far back a search looked, when it stopped at its bound before since or
+  // the oldest line: the oldest line it read.
+  google.protobuf.Timestamp searched_to = 4;
+  // True when a search stopped at its bound, so older lines may match.
+  bool cut_short = 5;
 }
 
 // EndProcessCall ends a process: SIGTERM, then SIGKILL 10 s later if it's still
@@ -1784,6 +1795,25 @@ message LogsCall {
   // comes to hold the name too, as docker compose up -d and docker rm then docker
   // run leave a new container under it.
   string container_name = 20;
+  // In place of a service, follows the server's system log (ADR 0067): one
+  // journalctl for every follow of it, each narrowed here, within the same
+  // places and the same share of the server's live rate as a service's follows.
+  // Track S takes 280 to 289 in agent messages.
+  SystemLogFollow system = 283;
+}
+
+// SystemLogFollow narrows a follow of the server's system log.
+message SystemLogFollow {
+  // Only what this unit wrote, or what systemd wrote of it; empty follows
+  // everything.
+  string unit = 1;
+  // Only lines at this level or worse; unset follows every level.
+  dockwell.v1.LogLevel level = 2;
+  // Only lines whose message holds this text, in any case.
+  string query = 3;
+  // Carry on after the line at this cursor, sending what came since first; empty
+  // starts with what comes next.
+  string after = 4;
 }
 
 // LogCursor is a place in one source's lines.
@@ -1831,6 +1861,14 @@ message SendLogsRequest {
   // When this stream began, by this server's clock, on its first message: since
   // when a source with no place is read, if the stream has to carry on.
   google.protobuf.Timestamp started = 6;
+  // A follow of the system log's lines, oldest first (ADR 0067).
+  repeated dockwell.v1.SystemLogLine system_lines = 284;
+  // How many lines of the system log the follow dropped since its last message,
+  // past its share of the server's rate, or as its reader fell behind.
+  uint64 system_dropped = 285;
+  // True when more lines came after the follow's cursor than it carries on with:
+  // the rest are read back, not followed.
+  bool system_gap = 286;
 }
 
 // SendLogsResponse is empty.

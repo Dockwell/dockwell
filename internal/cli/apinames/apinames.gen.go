@@ -71,6 +71,7 @@ func Commands() []string {
 		"ssh",
 		"step-up-policy",
 		"system",
+		"system-logs",
 		"system-services",
 		"tasks",
 		"terminals",

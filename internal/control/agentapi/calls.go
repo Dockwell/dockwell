@@ -883,9 +883,9 @@ func (s *Session) SystemServices(ctx context.Context) (*dockwellv1.SystemService
 // its system log (ADR 0082).
 func (s *Session) ActsOnUnits() bool { return s.actsOnUnits }
 
-// SystemLogTimeout bounds reading a page of a server's system log: one journalctl
-// run of 10 s at most, and room for the answer.
-const SystemLogTimeout = 20 * time.Second
+// SystemLogTimeout bounds reading a page of a server's system log: a search reads for
+// 20 s at most, and there is room for the answer.
+const SystemLogTimeout = 40 * time.Second
 
 // SystemLog asks the agent for a page of the server's system log, newest first
 // (ADR 0082).

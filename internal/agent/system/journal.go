@@ -3,7 +3,6 @@
 package system
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -43,85 +42,154 @@ var journalctl = hosttool.Tool{Name: "journalctl", Paths: []string{"/usr/bin/jou
 
 // journalFields are all a line reads of the journal. Never _CMDLINE, which can
 // hold a password typed with it. journalctl adds the cursor and the time itself.
-var journalFields = "MESSAGE,PRIORITY,_SYSTEMD_UNIT,SYSLOG_IDENTIFIER,_PID"
+var journalFields = "MESSAGE,PRIORITY,_SYSTEMD_UNIT,SYSLOG_IDENTIFIER,_PID,UNIT"
 
 // Page is a page of the system log, newest first.
 type Page struct {
 	Lines  []*dockwellv1.SystemLogLine
 	More   bool
 	Source dockwellv1.SystemLogSource
+	// SearchedTo is the oldest line a search read, when it stopped at its bound.
+	SearchedTo time.Time
+	// CutShort says a search stopped at its bound, so older lines may match.
+	CutShort bool
 }
 
-// Journal reads a page of the server's system log, newest first: what unit wrote
-// (empty for everything), at level or worse (unset for every level), older than the
-// line at before (empty for the newest), at most limit lines.
-func (r *Reader) Journal(ctx context.Context, unit string, level dockwellv1.LogLevel, before string, limit int) (*Page, error) {
+// Ask is what of the system log to read.
+type Ask struct {
+	// Unit narrows it to what a unit wrote; empty reads everything.
+	Unit string
+	// Level narrows it to lines at that level or worse; unset reads every level.
+	Level dockwellv1.LogLevel
+	// Before reads lines older than the one at this cursor; empty reads the newest.
+	Before string
+	// Limit is the most lines a page holds, 1 to MaxLines.
+	Limit int
+	// Query narrows it to lines whose message holds it, in any case.
+	Query string
+	// Since and Until narrow it to a time, either open when zero.
+	Since, Until time.Time
+}
+
+// What a search reads before it stops and says how far it got (ADR 0067, as
+// ADR 0025 bounds a search of a container's log).
+var (
+	// SearchLines is the most lines one search reads.
+	SearchLines = 200_000
+	// SearchTime is the longest one search reads.
+	SearchTime = 20 * time.Second
+)
+
+// Journal reads a page of the server's system log, newest first, as ask says.
+func (r *Reader) Journal(ctx context.Context, ask Ask) (*Page, error) {
 	if r.Unavailable != "" {
 		return nil, errors.New(r.Unavailable)
 	}
-	if limit <= 0 || limit > MaxLines {
-		limit = MaxLines
+	if ask.Limit <= 0 || ask.Limit > MaxLines {
+		ask.Limit = MaxLines
 	}
-	if unit != "" && !unitName().MatchString(unit) && !rcName().MatchString(unit) {
-		return nil, fmt.Errorf("%q isn't a system service's name", unit)
+	if ask.Unit != "" && !unitName().MatchString(ask.Unit) && !rcName().MatchString(ask.Unit) {
+		return nil, fmt.Errorf("%q isn't a system service's name", ask.Unit)
 	}
 	switch {
 	case r.exists("run/systemd/journal"):
-		return r.journal(ctx, unit, level, before, limit)
+		return r.journal(ctx, ask)
 	case r.exists(filepath.Join("var", "log", "messages")):
-		return r.messages(unit, level, before, limit)
+		return r.messages(ask)
 	}
 	return &Page{Source: dockwellv1.SystemLogSource_SYSTEM_LOG_SOURCE_NONE}, nil
 }
 
-func (r *Reader) journal(ctx context.Context, unit string, level dockwellv1.LogLevel, before string, limit int) (*Page, error) {
-	if strings.ContainsAny(before, "\n\x00") {
-		return nil, errors.New("that isn't a cursor of this server's journal")
+// journalArgs are journalctl's arguments for what ask narrows to: only the fields
+// a line shows, and what the journal can narrow by itself.
+func journalArgs(ask Ask) []string {
+	args := []string{"-o", "json", "--system", "--no-pager", "--output-fields=" + journalFields}
+	if ask.Unit != "" {
+		args = append(args, "--unit="+ask.Unit)
 	}
-	n := limit + 1
-	args := []string{"-o", "json", "--system", "--no-pager", "--reverse", "--output-fields=" + journalFields}
-	if unit != "" {
-		args = append(args, "--unit="+unit)
-	}
-	switch level {
+	switch ask.Level {
 	case dockwellv1.LogLevel_LOG_LEVEL_ERROR:
 		args = append(args, "--priority=err")
 	case dockwellv1.LogLevel_LOG_LEVEL_WARN:
 		args = append(args, "--priority=warning")
 	case dockwellv1.LogLevel_LOG_LEVEL_UNSPECIFIED, dockwellv1.LogLevel_LOG_LEVEL_DEBUG, dockwellv1.LogLevel_LOG_LEVEL_INFO:
 	}
-	if before != "" {
+	if !ask.Since.IsZero() {
+		args = append(args, "--since=@"+strconv.FormatInt(ask.Since.Unix(), 10))
+	}
+	if !ask.Until.IsZero() {
+		// To the second, rounded up: a line in the second until names is checked below.
+		args = append(args, "--until=@"+strconv.FormatInt(ask.Until.Add(time.Second-1).Unix(), 10))
+	}
+	return args
+}
+
+// journal reads the journal newest first, from the cursor, and stops once it has a
+// page, or for a search, at its bound. journalctl streams, so a search never holds
+// more than its page.
+func (r *Reader) journal(ctx context.Context, ask Ask) (*Page, error) {
+	if strings.ContainsAny(ask.Before, "\n\x00") {
+		return nil, errors.New("that isn't a cursor of this server's journal")
+	}
+	args := append(journalArgs(ask), "--reverse")
+	if ask.Before != "" {
 		// Reading from the cursor, newest first, starts with its own line, which the
 		// page before already had.
-		args = append(args, "--cursor="+before)
-		n++
+		args = append(args, "--cursor="+ask.Before)
 	}
-	args = append(args, "--lines="+strconv.Itoa(n))
-	res, err := r.Tools.Run(ctx, journalctl, Deadline, nil, args...)
-	if err == nil && res.Code != 0 && strings.Contains(res.Errs, "output-fields") {
+	search := logs.NewSearch(ask.Query)
+	if search.Empty() {
+		// Without a search, the journal stops itself.
+		args = append(args, "--lines="+strconv.Itoa(ask.Limit+2))
+	}
+	page := &Page{Source: dockwellv1.SystemLogSource_SYSTEM_LOG_SOURCE_JOURNAL}
+	ctx, cancel := context.WithTimeout(ctx, SearchTime)
+	defer cancel()
+	read := 0
+	var oldest time.Time
+	each := func(b []byte) bool {
+		line, ok := journalLine(b)
+		if !ok || ask.Before != "" && line.GetCursor() == ask.Before {
+			return true
+		}
+		read++
+		t := line.GetTime().AsTime()
+		if line.GetTime() != nil {
+			oldest = t
+		}
+		if !ask.Until.IsZero() && line.GetTime() != nil && !t.Before(ask.Until) {
+			return true
+		}
+		if search.In([]byte(line.GetMessage())) {
+			if len(page.Lines) == ask.Limit {
+				page.More = true
+				return false
+			}
+			page.Lines = append(page.Lines, line)
+		}
+		if read >= SearchLines {
+			page.CutShort, page.More = true, true
+			return false
+		}
+		return true
+	}
+	_, res, err := r.Tools.Stream(ctx, journalctl, args, each)
+	if err == nil && res.Code > 0 && read == 0 && strings.Contains(res.Errs, "output-fields") {
 		// systemd before 236 has no --output-fields: the fields are read and dropped.
-		args = dropArg(args, "--output-fields="+journalFields)
-		res, err = r.Tools.Run(ctx, journalctl, Deadline, nil, args...)
+		_, res, err = r.Tools.Stream(ctx, journalctl, dropArg(args, "--output-fields="+journalFields), each)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("can't read the server's journal: %w", err)
 	}
-	if res.Code != 0 {
-		return nil, fmt.Errorf("can't read the server's journal: %w", hosttool.Fail("journalctl", res))
+	if ctx.Err() != nil && !page.More {
+		// Out of time: what it found stands, and it says how far it got.
+		page.CutShort, page.More = true, true
 	}
-	page := &Page{Source: dockwellv1.SystemLogSource_SYSTEM_LOG_SOURCE_JOURNAL}
-	sc := bufio.NewScanner(bytes.NewReader(res.Out))
-	sc.Buffer(make([]byte, 64<<10), hosttool.MaxOutput)
-	for sc.Scan() {
-		line, ok := journalLine(sc.Bytes())
-		if !ok || before != "" && line.GetCursor() == before {
-			continue
-		}
-		if len(page.Lines) == limit {
-			page.More = true
-			break
-		}
-		page.Lines = append(page.Lines, line)
+	if page.CutShort {
+		page.SearchedTo = oldest
+	}
+	if res.Code > 0 && read == 0 && !page.More {
+		return nil, fmt.Errorf("can't read the server's journal: %w", hosttool.Fail("journalctl", res))
 	}
 	return page, nil
 }
@@ -140,9 +208,15 @@ func dropArg(args []string, arg string) []string {
 // is an array of numbers: text when they're UTF-8, as a coloured line is, and
 // otherwise said as bytes.
 func journalLine(b []byte) (*dockwellv1.SystemLogLine, bool) {
+	line, _, ok := parseJournal(b)
+	return line, ok
+}
+
+// parseJournal reads an entry, and the unit a line of systemd's own is about.
+func parseJournal(b []byte) (*dockwellv1.SystemLogLine, string, bool) {
 	var e map[string]json.RawMessage
 	if json.Unmarshal(b, &e) != nil {
-		return nil, false
+		return nil, "", false
 	}
 	str := func(k string) string {
 		raw, ok := e[k]
@@ -170,7 +244,7 @@ func journalLine(b []byte) (*dockwellv1.SystemLogLine, bool) {
 	}
 	line := &dockwellv1.SystemLogLine{Cursor: str("__CURSOR"), Message: cut(strings.TrimRight(str("MESSAGE"), "\n"))}
 	if line.Cursor == "" {
-		return nil, false
+		return nil, "", false
 	}
 	if us, err := strconv.ParseInt(str("__REALTIME_TIMESTAMP"), 10, 64); err == nil {
 		line.Time = timestamppb.New(time.UnixMicro(us))
@@ -187,7 +261,7 @@ func journalLine(b []byte) (*dockwellv1.SystemLogLine, bool) {
 		line.Unit = "systemd"
 	}
 	line.Level = priorityLevel(str("PRIORITY"))
-	return line, true
+	return line, str("UNIT"), true
 }
 
 func cut(s string) string {
@@ -229,7 +303,9 @@ var syslogLevels = map[string]dockwellv1.LogLevel{
 
 // messages reads the end of /var/log/messages, newest first: before is the byte
 // where the page before began.
-func (r *Reader) messages(unit string, level dockwellv1.LogLevel, before string, limit int) (*Page, error) {
+func (r *Reader) messages(ask Ask) (*Page, error) {
+	unit, level, before, limit := ask.Unit, ask.Level, ask.Before, ask.Limit
+	search := logs.NewSearch(ask.Query)
 	root := r.Root
 	if root == "" {
 		root = "/"
@@ -284,7 +360,10 @@ func (r *Reader) messages(unit string, level dockwellv1.LogLevel, before string,
 		if !ok || unit != "" && line.GetUnit() != unit && line.GetUnit()+".service" != unit {
 			continue
 		}
-		if level > dockwellv1.LogLevel_LOG_LEVEL_INFO && line.GetLevel() < level {
+		if level > dockwellv1.LogLevel_LOG_LEVEL_INFO && line.GetLevel() < level || !search.In([]byte(line.GetMessage())) {
+			continue
+		}
+		if t := line.GetTime(); t != nil && (!ask.Since.IsZero() && t.AsTime().Before(ask.Since) || !ask.Until.IsZero() && !t.AsTime().Before(ask.Until)) {
 			continue
 		}
 		if len(page.Lines) == limit {
@@ -359,7 +438,7 @@ func Why(lines []*dockwellv1.SystemLogLine) []string {
 // Why reads why a unit failed: the last lines its own process wrote, from its 20
 // newest. Nothing when none can be read.
 func (r *Reader) Why(ctx context.Context, name string) []string {
-	page, err := r.Journal(ctx, name, dockwellv1.LogLevel_LOG_LEVEL_UNSPECIFIED, "", 20)
+	page, err := r.Journal(ctx, Ask{Unit: name, Limit: 20})
 	if err != nil {
 		return nil
 	}

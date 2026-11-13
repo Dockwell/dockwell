@@ -218,7 +218,12 @@ func (s *Service) ReadSystemLog(ctx context.Context, req *connect.Request[dockwe
 	if err := s.recordLogRead(ctx, p, srv); err != nil {
 		return nil, err
 	}
-	page, err := session.SystemLog(ctx, &agentv1.SystemLogCall{Unit: m.GetUnit(), Level: m.GetLevel(), Before: m.GetBefore(), Limit: limit})
+	if len(m.GetQuery()) > maxSystemQuery {
+		return nil, authapi.Invalid(fmt.Errorf("a search is %d bytes at most. Search for less", maxSystemQuery))
+	}
+	page, err := session.SystemLog(ctx, &agentv1.SystemLogCall{
+		Unit: m.GetUnit(), Level: m.GetLevel(), Before: m.GetBefore(), Limit: limit, Query: m.GetQuery(), Since: m.GetSince(), Until: m.GetUntil(),
+	})
 	switch {
 	case errors.Is(err, agentapi.ErrOlderAgent):
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
@@ -226,7 +231,9 @@ func (s *Service) ReadSystemLog(ctx context.Context, req *connect.Request[dockwe
 	case err != nil:
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read its system log now: %w", srv.GetName(), agentWords(err)), authapi.ReasonUnavailable)
 	}
-	return connect.NewResponse(&dockwellv1.ReadSystemLogResponse{Lines: page.GetLines(), More: page.GetMore(), Source: page.GetSource()}), nil
+	return connect.NewResponse(&dockwellv1.ReadSystemLogResponse{
+		Lines: page.GetLines(), More: page.GetMore(), Source: page.GetSource(), SearchedTo: page.GetSearchedTo(), CutShort: page.GetCutShort(),
+	}), nil
 }
 
 // recordLogRead puts reading a server's system log on record as logs.read, at most
@@ -234,6 +241,12 @@ func (s *Service) ReadSystemLog(ctx context.Context, req *connect.Request[dockwe
 // that can't be recorded isn't served. A restart forgets what was recorded, which
 // costs one more event each.
 func (s *Service) recordLogRead(ctx context.Context, p auth.Principal, srv *dockwellv1.Server) error {
+	return s.recordLog(ctx, p, srv, "read the system log on "+srv.GetName())
+}
+
+// recordLog puts reading or following a server's system log on record, as
+// recordLogRead says, with what was done in words.
+func (s *Service) recordLog(ctx context.Context, p auth.Principal, srv *dockwellv1.Server, what string) error {
 	key := p.Actor() + " " + srv.GetId()
 	now := time.Now()
 	s.auditMu.Lock()
@@ -253,7 +266,7 @@ func (s *Service) recordLogRead(ctx context.Context, p auth.Principal, srv *dock
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(ctx, store.Event{
 			ID: id.New(id.Event), At: now, Actor: p.Actor(), Action: "logs.read", Subject: srv.GetId(), Target: srv.GetId(),
-			Detail: "read the system log on " + srv.GetName(), Surface: client.Surface(p),
+			Detail: what, Surface: client.Surface(p),
 		})
 	})
 	if err != nil {

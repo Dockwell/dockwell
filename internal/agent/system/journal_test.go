@@ -28,7 +28,7 @@ func TestTheJournalIsReadAPageAtATime(t *testing.T) {
 		},
 	})
 	r := reader(s)
-	page, err := r.Journal(t.Context(), "nginx.service", dockwellv1.LogLevel_LOG_LEVEL_WARN, "", 2)
+	page, err := r.Journal(t.Context(), system.Ask{Unit: "nginx.service", Level: dockwellv1.LogLevel_LOG_LEVEL_WARN, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,11 +43,11 @@ func TestTheJournalIsReadAPageAtATime(t *testing.T) {
 		t.Errorf("the binary line reads %v", second)
 	}
 	calls := s.Calls()
-	want := "journalctl -o json --system --no-pager --reverse --output-fields=MESSAGE,PRIORITY,_SYSTEMD_UNIT,SYSLOG_IDENTIFIER,_PID --unit=nginx.service --priority=warning --lines=3"
+	want := "journalctl -o json --system --no-pager --output-fields=MESSAGE,PRIORITY,_SYSTEMD_UNIT,SYSLOG_IDENTIFIER,_PID,UNIT --unit=nginx.service --priority=warning --reverse --lines=4"
 	if !slices.Contains(calls, want) {
 		t.Errorf("journalctl ran %q, want %q", calls, want)
 	}
-	next, err := r.Journal(t.Context(), "nginx.service", dockwellv1.LogLevel_LOG_LEVEL_UNSPECIFIED, "c2", 2)
+	next, err := r.Journal(t.Context(), system.Ask{Unit: "nginx.service", Before: "c2", Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestTheJournalIsReadAPageAtATime(t *testing.T) {
 	if got := system.Why(next.Lines); !slices.Equal(got, []string{"\x1b[31mbad\x1b[0m"}) {
 		t.Errorf("why leaves systemd's own line in: %q", got)
 	}
-	if _, err := r.Journal(t.Context(), "nginx.service; rm", dockwellv1.LogLevel_LOG_LEVEL_UNSPECIFIED, "", 2); err == nil {
+	if _, err := r.Journal(t.Context(), system.Ask{Unit: "nginx.service; rm", Limit: 2}); err == nil {
 		t.Error("a name that isn't a unit's was read")
 	}
 }
@@ -87,7 +87,7 @@ func TestWithoutAJournalTheMessagesFileIsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := &system.Reader{Tools: &hosttool.Runner{Root: root}, Root: root}
-	page, err := r.Journal(t.Context(), "nginx", dockwellv1.LogLevel_LOG_LEVEL_UNSPECIFIED, "", 2)
+	page, err := r.Journal(t.Context(), system.Ask{Unit: "nginx", Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,14 +97,14 @@ func TestWithoutAJournalTheMessagesFileIsRead(t *testing.T) {
 	if page.Lines[0].GetMessage() != "shutting down" || page.Lines[1].GetLevel() != dockwellv1.LogLevel_LOG_LEVEL_ERROR || page.Lines[1].GetPid() != 812 {
 		t.Errorf("the page reads %v", page.Lines)
 	}
-	rest, err := r.Journal(t.Context(), "nginx", dockwellv1.LogLevel_LOG_LEVEL_UNSPECIFIED, page.Lines[1].GetCursor(), 10)
+	rest, err := r.Journal(t.Context(), system.Ask{Unit: "nginx", Before: page.Lines[1].GetCursor(), Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(rest.Lines) != 1 || rest.Lines[0].GetMessage() != "started" || rest.More {
 		t.Errorf("the page before reads %v, more %t", rest.Lines, rest.More)
 	}
-	errs, err := r.Journal(t.Context(), "", dockwellv1.LogLevel_LOG_LEVEL_ERROR, "", 10)
+	errs, err := r.Journal(t.Context(), system.Ask{Level: dockwellv1.LogLevel_LOG_LEVEL_ERROR, Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}

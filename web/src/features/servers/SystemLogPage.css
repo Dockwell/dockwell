@@ -1,0 +1,83 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A server's system log (ADR 0067), laid out as an app's logs are: its filters, then the log, which takes the
+   height the window leaves. */
+.syslog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.syslog-tools {
+  flex-wrap: wrap;
+}
+
+.syslog-search {
+  flex: 1 1 240px;
+  min-width: 200px;
+  max-width: 420px;
+}
+
+.syslog-unit {
+  max-width: 260px;
+}
+
+.syslog-pane {
+  display: flex;
+  flex-direction: column;
+  height: max(420px, calc(100dvh - 300px));
+  min-width: 0;
+}
+
+.syslog-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+/* On a phone the search takes the row, and the pickers wrap beneath it. */
+.syslog.is-phone .syslog-search {
+  flex-basis: 100%;
+  max-width: none;
+}
+
+.syslog.is-phone .syslog-unit {
+  max-width: none;
+  flex: 1 1 100%;
+}
+
+.syslog.is-phone .syslog-pane {
+  height: max(360px, calc(100dvh - 360px));
+}
+
+.syslog-title {
+  font: var(--text-code-sm);
+}
+
+/* The picker is the field its frame draws: no box of the browser's own inside it, in either theme. */
+.syslog-unit select {
+  height: 100%;
+  border: 0;
+  padding-left: var(--space-3);
+  background: transparent;
+  color: inherit;
+  font: var(--text-code-sm);
+}
+
+.syslog-unit select:focus-visible {
+  outline: none;
+}
+
+.syslog-unit:focus-within {
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 1px var(--cobalt);
+}
+
+.syslog-unit option,
+.syslog-unit optgroup {
+  background: var(--surface-raised);
+  color: var(--ink);
+}

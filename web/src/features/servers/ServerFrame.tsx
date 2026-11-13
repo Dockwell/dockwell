@@ -170,6 +170,11 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
               <Trans>System services</Trans>
             </RouterTabLink>
           ) : null}
+          {may(ServerService.method.watchSystemServices).allowed ? (
+            <RouterTabLink to="/servers/$serverId/log" params={{ serverId: server.id }}>
+              <Trans>System log</Trans>
+            </RouterTabLink>
+          ) : null}
           {may(ImportService.method.importOnePanel).allowed ? <MoveInTab server={server} /> : null}
         </TabNav>
       )}

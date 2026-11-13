@@ -85,6 +85,10 @@ type Reader struct {
 	// own is the unit the agent runs in, read once.
 	ownOnce sync.Once
 	own     string
+
+	// hub is the follow of the system log every follow shares, while any does.
+	hubMu sync.Mutex
+	hub   *journalHub
 }
 
 // Services reads the server's system services now.

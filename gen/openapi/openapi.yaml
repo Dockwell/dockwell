@@ -3733,6 +3733,25 @@ paths:
                   schema:
                     type: integer
                     format: uint32
+                - name: query
+                  in: query
+                  description: |-
+                    Only lines whose message holds this text, in any case: a search, which reads
+                     back until it has limit lines or reaches its bound, and says how far it got.
+                  schema:
+                    type: string
+                - name: since
+                  in: query
+                  description: Only lines written at or after this time.
+                  schema:
+                    type: string
+                    format: date-time
+                - name: until
+                  in: query
+                  description: Only lines written before this time.
+                  schema:
+                    type: string
+                    format: date-time
             responses:
                 "200":
                     description: OK
@@ -16524,6 +16543,15 @@ components:
                     type: string
                     description: Where they're read from.
                     format: enum
+                searchedTo:
+                    type: string
+                    description: |-
+                        For a search that stopped at its bound before since or the oldest line, the
+                         oldest line it read: before reads on from the last line it sent.
+                    format: date-time
+                cutShort:
+                    type: boolean
+                    description: True when a search stopped at its bound, so older lines may match.
             description: ReadSystemLogResponse is a page of a server's system log, newest first.
         RegenerateRecoveryCodesRequest:
             type: object

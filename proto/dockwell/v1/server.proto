@@ -30,6 +30,10 @@ service ServerService {
     help: "A server's system services: its systemd units, or its OpenRC services, each with its state, whether it starts at boot and since when. The panel shows them on a server's System services tab, to an admin signed in. No API token reads them, so the CLI, which signs in with one, is refused, and a script runs systemctl over SSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md."
   };
   option (dockwell.v1.nouns) = {
+    name: "system-logs"
+    help: "A server's system log: its journal, or /var/log/messages on a server with none, read back a page at a time or followed, narrowed to a system service, a level, a search and a time. The panel shows it on a server's System log tab, to an admin signed in. Reading it goes on the activity log as logs.read. No API token reads it, so the CLI, which signs in with one, is refused, and a script runs journalctl over SSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md."
+  };
+  option (dockwell.v1.nouns) = {
     name: "join-tickets"
     help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server."
   };
@@ -188,6 +192,23 @@ service ServerService {
     option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {get: "/v1/servers/{server_id}/systemLog"};
+  }
+  // WatchSystemLog follows a server's system log: what comes next, or what came
+  // after a line the reader has, then what comes next, narrowed to a system
+  // service, a level and a search. Every follow of a server shares one
+  // journalctl, and what a follow carries shares the server's live rate with its
+  // apps' follows: past its share, the server drops lines and says how many.
+  // Following goes on the activity log as logs.read, once when it starts, again
+  // each hour it stays open and once when it ends, never what it was narrowed
+  // to. No API token follows it, as none reads it. It has no REST path, as
+  // streams have none.
+  // See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
+  rpc WatchSystemLog(WatchSystemLogRequest) returns (stream WatchSystemLogResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
   }
 }
 
@@ -826,6 +847,13 @@ message ReadSystemLogRequest {
   string before = 4;
   // How many lines, at most: 1 to 200. 0 reads 50.
   uint32 limit = 5;
+  // Only lines whose message holds this text, in any case: a search, which reads
+  // back until it has limit lines or reaches its bound, and says how far it got.
+  string query = 6;
+  // Only lines written at or after this time.
+  google.protobuf.Timestamp since = 7;
+  // Only lines written before this time.
+  google.protobuf.Timestamp until = 8;
 }
 
 // ReadSystemLogResponse is a page of a server's system log, newest first.
@@ -836,6 +864,41 @@ message ReadSystemLogResponse {
   bool more = 2;
   // Where they're read from.
   SystemLogSource source = 3;
+  // For a search that stopped at its bound before since or the oldest line, the
+  // oldest line it read: before reads on from the last line it sent.
+  google.protobuf.Timestamp searched_to = 4;
+  // True when a search stopped at its bound, so older lines may match.
+  bool cut_short = 5;
+}
+
+// WatchSystemLogRequest names a server, and what of its system log to follow.
+message WatchSystemLogRequest {
+  // The server's ID.
+  string server_id = 1;
+  // Only what this system service wrote, or what systemd wrote of it. Empty
+  // follows the whole log.
+  string unit = 2;
+  // Only lines at this level or worse. Unset follows every level.
+  LogLevel level = 3;
+  // Only lines whose message holds this text, in any case.
+  string query = 4;
+  // Carry on after the line with this cursor, as ReadSystemLog gave it: what
+  // came since comes first, a bounded number of lines. Empty starts with what
+  // comes next.
+  string after = 5;
+}
+
+// WatchSystemLogResponse is what a follow of a server's system log has next.
+// An empty one says the follow is alive.
+message WatchSystemLogResponse {
+  // The lines, oldest first.
+  repeated SystemLogLine lines = 1;
+  // How many lines the server dropped since the last message, past this
+  // follow's share of its rate, or as this follow fell behind.
+  uint64 dropped = 2;
+  // True when more came after the cursor asked for than a follow carries on
+  // with: read them back with ReadSystemLog.
+  bool gap = 3;
 }
 
 // SystemLogSource is where a server keeps its system log.

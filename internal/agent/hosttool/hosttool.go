@@ -7,10 +7,12 @@
 package hosttool
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -299,3 +301,96 @@ func (t *tail) Write(p []byte) (int, error) {
 }
 
 func (t *tail) String() string { return string(t.buf) }
+
+// MaxLine is the longest line Stream passes on. A longer one is skipped, and
+// counted.
+const MaxLine = 1 << 20
+
+// Stream runs a tool with args and passes each line it prints, without its
+// newline, to each, until the tool ends, ctx ends, or each says to stop; then it
+// stops the tool with everything it started. The line is each's only until it
+// returns. It doesn't wait for the runner's turn: what streams, such as a follow
+// of a log, runs as long as someone reads, beside the runner's other tools. It
+// returns how many lines it skipped for being longer than MaxLine, and how the
+// tool ended, with the last of what it said on standard error.
+func (r *Runner) Stream(ctx context.Context, t Tool, args []string, each func(line []byte) bool) (int, Result, error) {
+	if r.Off {
+		return 0, Result{Code: -1}, fmt.Errorf("%s %w", t.Name, ErrOff)
+	}
+	path, ok := r.Find(t)
+	if !ok {
+		return 0, Result{Code: -1}, fmt.Errorf("%s %w: it isn't at %s", t.Name, ErrMissing, strings.Join(t.Paths, " or "))
+	}
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+	cmd := exec.CommandContext(ctx, r.path(path), args...) //nolint:gosec // a fixed path, with arguments its caller builds
+	cmd.Env = append(append([]string(nil), env...), t.Env...)
+	cmd.Dir = "/"
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	errs := &tail{max: errTail}
+	cmd.Stderr = errs
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, Result{Code: -1}, fmt.Errorf("can't run %s: %w", t.Name, err)
+	}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) }
+	cmd.WaitDelay = KillGrace
+	if r.Grace > 0 {
+		cmd.WaitDelay = r.Grace
+	}
+	if err := cmd.Start(); err != nil {
+		return 0, Result{Code: -1}, fmt.Errorf("can't run %s: %w", r.path(path), err)
+	}
+	skipped := readLines(out, each)
+	stop()
+	err = cmd.Wait()
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	res := Result{Errs: errs.String(), Code: -1}
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		res.Code = cmd.ProcessState.ExitCode()
+	}
+	if err != nil && res.Code < 0 && ctx.Err() == nil && !errors.Is(err, exec.ErrWaitDelay) {
+		return skipped, res, fmt.Errorf("can't run %s: %w", t.Name, err)
+	}
+	return skipped, res, nil
+}
+
+// readLines passes each line of out to each until out ends or each says to
+// stop, skipping a line longer than MaxLine, and says how many it skipped.
+func readLines(out io.Reader, each func([]byte) bool) int {
+	br := bufio.NewReaderSize(out, 64<<10)
+	var long []byte
+	skipped, skipping := 0, false
+	for {
+		chunk, err := br.ReadSlice('\n')
+		switch {
+		case errors.Is(err, bufio.ErrBufferFull):
+			if !skipping && len(long)+len(chunk) <= MaxLine {
+				long = append(long, chunk...)
+			} else if !skipping {
+				skipping, long = true, long[:0]
+			}
+			continue
+		case len(chunk) > 0 && (err == nil || errors.Is(err, io.EOF)):
+			if skipping {
+				skipped++
+				skipping = false
+			} else {
+				line := chunk
+				if len(long) > 0 {
+					long = append(long, chunk...)
+					line = long
+				}
+				if len(long) > MaxLine {
+					skipped++
+				} else if !each(bytes.TrimRight(line, "\r\n")) {
+					return skipped
+				}
+			}
+			long = long[:0]
+		}
+		if err != nil {
+			return skipped
+		}
+	}
+}

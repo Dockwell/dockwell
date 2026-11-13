@@ -12684,6 +12684,9 @@ msgstr "运行控制平面"
 msgid "Server {0}"
 msgstr "服务器 {0}"
 
+msgid "System log"
+msgstr "系统日志"
+
 msgid "System services"
 msgstr "系统服务"
 
@@ -12927,6 +12930,9 @@ msgstr "系统日志中没有 {unit} 的内容。"
 msgid "Older lines"
 msgstr "更早的日志"
 
+msgid "Open in the system log"
+msgstr "在系统日志中打开"
+
 msgid "System log of {unit}"
 msgstr "{unit} 的系统日志"
 
@@ -12936,6 +12942,62 @@ msgstr "警告及以上"
 
 msgid "{server} keeps no system log Dockwell reads."
 msgstr "{server} 没有 Dockwell 可读取的系统日志。"
+
+msgctxt "a time range of seven days"
+msgid "7 d"
+msgstr "7 天"
+
+msgid "Every other"
+msgstr "其他"
+
+msgid "Every system service"
+msgstr "所有系统服务"
+
+msgctxt "system services"
+msgid "Failed"
+msgstr "失败"
+
+msgid "It's older than the control plane, so it can't read its system log."
+msgstr "它比控制平面旧，无法读取系统日志。"
+
+msgid "More came here than a follow carries on with. Pick a time range to read them"
+msgstr "此处的日志多于跟随能接续的数量。选择一个时间范围来读取它们"
+
+msgid "No line holds that."
+msgstr "没有包含该内容的行。"
+
+msgid "Nothing from {unitName} here."
+msgstr "这里没有 {unitName} 的内容。"
+
+msgid "Nothing here."
+msgstr "这里没有内容。"
+
+msgid "Search older"
+msgstr "搜索更早的"
+
+msgid "Search the system log"
+msgstr "搜索系统日志"
+
+msgid "Searched back to {searchedWords}"
+msgstr "已搜索到 {searchedWords}"
+
+msgid "System log filters"
+msgstr "系统日志筛选"
+
+msgid "System service"
+msgstr "系统服务"
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected, so its system log can't be read now. This reads again when it reconnects."
+msgstr "{0} 上的 agent 未连接，暂时无法读取系统日志。重新连接后会再次读取。"
+
+#. placeholder {0}: e.count
+msgid "{0, plural, one {{n} line dropped here, past this follow's share of the server's rate} other {{n} lines dropped here, past this follow's share of the server's rate}}"
+msgstr "{0, plural, other {此处丢弃了 {n} 行，超出了此跟随在服务器速率中的份额}}"
+
+#. placeholder {0}: server.name
+msgid "{0} keeps no system log Dockwell reads."
+msgstr "{0} 没有 Dockwell 可读取的系统日志。"
 
 msgctxt "system services"
 msgid "All"
@@ -12968,10 +13030,6 @@ msgstr "设置开机启动中…"
 
 msgid "Every app on {name} runs in Docker"
 msgstr "{name} 上的所有应用都运行在 Docker 中"
-
-msgctxt "system services"
-msgid "Failed"
-msgstr "失败"
 
 msgid "Failed {failedAgo}"
 msgstr "{failedAgo}失败"
