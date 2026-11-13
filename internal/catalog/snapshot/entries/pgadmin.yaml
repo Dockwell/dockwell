@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: pgadmin
+name: pgAdmin
+summary: Manage PostgreSQL databases from your browser
+description: |-
+  pgAdmin is a browser-based administration tool for PostgreSQL. Inspect database objects, write and run SQL, and investigate activity from one workspace.
+
+  This entry installs pgAdmin on its own. Register a PostgreSQL server after setup using that database's address and credentials; a database server is not included.
+icon: media/pgadmin-icon.webp
+documentation: https://www.pgadmin.org/docs/
+appSource: https://github.com/pgadmin-org/pgadmin4
+features:
+  - "PostgreSQL object browser"
+  - "SQL query editor"
+  - "Database activity views"
+  - "Connections to multiple PostgreSQL servers"
+screenshots:
+  - path: media/pgadmin-dashboard.webp
+    caption: "Database activity in pgAdmin"
+    source: https://raw.githubusercontent.com/pgadmin-org/pgadmin4/ec7ec4b3afc65eedb9fa6b5771ce39d082985636/docs/en_US/images/dashboard_activity.png
+category: databases
+version: "9.18"
+release: 3
+homepage: https://www.pgadmin.org
+license: AGPL-3.0-only
+appLicense: PostgreSQL
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/pgadmin.yaml
+web:
+  service: pgadmin
+signIn:
+  userInput: "ADMIN_EMAIL"
+  passwordInput: "PGADMIN_PASSWORD"
+  changedIn: "its user menu"
+notes:
+  - "Registers a PostgreSQL that has a port of its own at host.docker.internal, which is this server."
+inputs:
+  - name: ADMIN_EMAIL
+    label: Your email
+    type: INPUT_TYPE_EMAIL
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "5050"
+  - name: PGADMIN_PASSWORD
+    setOnce: true
+    label: pgAdmin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    pgadmin:
+      image: dpage/pgadmin4:9.18.0@sha256:c332c5f6dfba995d9ebc4af261d93506d6876085d712eaaa3defc8dd1a3f26de
+      restart: unless-stopped
+      environment:
+        PGADMIN_DEFAULT_EMAIL: ${ADMIN_EMAIL}
+        PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+        PGADMIN_LISTEN_ADDRESS: 0.0.0.0
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      # This server, as pgAdmin reaches it, for a database it runs outside this project.
+      extra_hosts:
+        - host.docker.internal:host-gateway
+      volumes:
+        - data:/var/lib/pgadmin
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/misc/ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 20s
+  volumes:
+    data: {}

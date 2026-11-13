@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -20,7 +21,9 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog/convert"
+	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/gitfetch"
 )
 
@@ -37,8 +40,8 @@ func TestASourcesCommitIsReadOnce(t *testing.T) {
 	for range 2 {
 		s := &Sources{Dir: dir, Fetch: fetch}
 		got, err := s.files(t.Context(), spec)
-		if err != nil || string(got["notes.yaml"]) != "id: notes\n" {
-			t.Fatalf("files = %q, %v", got, err)
+		if err != nil || string(got.entries["notes.yaml"]) != "id: notes\n" {
+			t.Fatalf("files = %q, %v", got.entries, err)
 		}
 	}
 	if asked != 1 {
@@ -50,8 +53,9 @@ func TestASourcesCommitIsReadOnce(t *testing.T) {
 	}
 }
 
-// Only an entry's file, <id>.yaml, is read on and kept, inside the folder a commit
-// is kept in, whatever names the fetch gives (the first review of #332, its H1).
+// Only an entry's file, <id>.yaml, and an image named as one in the folder media, are
+// read on and kept, inside the folder a commit is kept in, whatever names the fetch
+// gives (the first review of #332, its H1).
 func TestASourceKeepsOnlyItsEntries(t *testing.T) {
 	dir := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "planted.yaml")
@@ -64,12 +68,20 @@ func TestASourceKeepsOnlyItsEntries(t *testing.T) {
 			"Upper.yaml":             []byte("id: Upper\n"),
 			"sub/x.yaml":             []byte("id: x\n"),
 			".yaml":                  []byte("id: \n"),
+			"media/logo.png":         png,
+			"media/../escape.png":    png,
+			"media/sub/deep.png":     png,
+			"media/page.svg":         []byte("<svg/>"),
+			"media/README.md":        []byte("images\n"),
 		}, nil
 	}
 	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: "0123456789abcdef0123456789abcdef01234567"}
 	got, err := (&Sources{Dir: dir, Fetch: fetch}).files(t.Context(), spec)
-	if err != nil || len(got) != 1 || got["notes.yaml"] == nil {
-		t.Fatalf("files = %v, %v", slices.Sorted(maps.Keys(got)), err)
+	if err != nil || len(got.entries) != 1 || got.entries["notes.yaml"] == nil {
+		t.Fatalf("files = %v, %v", slices.Sorted(maps.Keys(got.entries)), err)
+	}
+	if !maps.Equal(got.images(), map[string]bool{"logo.png": true}) {
+		t.Errorf("images = %v", got.media)
 	}
 	if _, err := os.Stat(outside); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("a name reached out of the folder: %v", err)
@@ -77,12 +89,107 @@ func TestASourceKeepsOnlyItsEntries(t *testing.T) {
 	var kept []string
 	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, _ error) error {
 		if !d.IsDir() {
-			kept = append(kept, filepath.Base(p))
+			rel, _ := filepath.Rel(dir, p)
+			kept = append(kept, filepath.Base(filepath.Dir(rel))+"/"+filepath.Base(p))
 		}
 		return nil
 	})
-	if !slices.Equal(kept, []string{"notes.yaml"}) {
-		t.Errorf("kept %v", kept)
+	slices.Sort(kept)
+	if want := []string{"0123456789abcdef0123456789abcdef01234567/notes.yaml", "media/logo.png"}; !slices.Equal(kept, want) {
+		t.Errorf("kept %v, want %v", kept, want)
+	}
+}
+
+// A commit kept by a Dockwell from before sources held images kept its entries
+// alone, so it's read again, as a whole, and kept with its images from then on.
+func TestACommitKeptBeforeImagesIsReadAgain(t *testing.T) {
+	asked := 0
+	fetch := func(context.Context, *http.Client, string, string, string, gitfetch.Limits) (map[string][]byte, error) {
+		asked++
+		return map[string][]byte{"notes.yaml": []byte("id: notes\n"), "media/logo.png": png}, nil
+	}
+	dir := t.TempDir()
+	s := &Sources{Dir: dir, Fetch: fetch}
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("b", 40)}
+	kept, _ := s.folders(spec)
+	if err := os.MkdirAll(kept, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(kept, "notes.yaml"), []byte("id: notes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.files(t.Context(), spec)
+	if err != nil || asked != 1 || !got.images()["logo.png"] {
+		t.Fatalf("a commit kept without images: %v, fetched %d times, images %v", err, asked, got.media)
+	}
+	s.tidy([]stored{{name: "community", spec: spec}})
+	if got, err = s.files(t.Context(), spec); err != nil || asked != 1 || !got.images()["logo.png"] {
+		t.Errorf("read again after it was kept with its images: %v, fetched %d times", err, asked)
+	}
+}
+
+// png is the start of a PNG image, as an image's check reads it.
+var png = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+// A source's images are checked by their first bytes, kept beside its entries, and
+// named in the API by the path the control plane serves them at. One that isn't what
+// its name says is left out, and an entry that names it, or one the commit hasn't,
+// or the panel's own artwork, shows none in its place, saying so.
+func TestASourcesImagesAreItsOwn(t *testing.T) {
+	own, err := os.ReadFile("../../catalog/snapshot/entries/memos.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// As an entry built into Dockwell named its artwork, under /catalog-media/.
+	file := strings.ReplaceAll(strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1), ": media/", ": /catalog-media/")
+	file = regexp.MustCompile(`(?m)^icon: .*$`).ReplaceAllString(file, "icon: media/memos-icon.png")
+	shots := strings.Count(file, "  - path: /catalog-media/")
+	file = strings.Replace(file, "  - path: /catalog-media/", "  - path: media/fake.png\n    caption: A page, not an image\n    source: https://example.com/fake.png\n  - path: media/missing.webp\n    caption: Not in the commit\n    source: https://example.com/missing.webp\n  - path: /catalog-media/", 1)
+	fetch := func(context.Context, *http.Client, string, string, string, gitfetch.Limits) (map[string][]byte, error) {
+		return map[string][]byte{
+			"memos-src.yaml":       []byte(file),
+			"media/memos-icon.png": png,
+			"media/fake.png":       []byte("<html><script>alert(1)</script></html>"),
+			"media/named.jpg":      png,
+		}, nil
+	}
+	dir := t.TempDir()
+	s := &Sources{Dir: dir, Fetch: fetch}
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Path: "entries", Commit: strings.Repeat("c", 40)}
+	read := func() sourceRead {
+		t.Helper()
+		files, err := s.files(t.Context(), spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return checkSource(t.Context(), "community", spec, files, claims{})
+	}
+	for _, got := range []sourceRead{read(), read()} { // fetched, then as kept
+		if len(got.entries) != 1 {
+			t.Fatalf("entries = %d, refused = %v", len(got.entries), got.refused)
+		}
+		e := got.entries[0]
+		if want := "/catalog-media/" + keyOf(spec) + "/" + spec.GetCommit() + "/memos-icon.png"; e.GetIcon() != want {
+			t.Errorf("icon %q, want %q", e.GetIcon(), want)
+		}
+		if len(e.GetScreenshots()) != 0 {
+			t.Errorf("%d screenshots kept, none of which the commit holds as images", len(e.GetScreenshots()))
+		}
+		for file, want := range map[string]string{
+			"media/fake.png":      "isn't a WebP, PNG or JPEG image",
+			"media/named.jpg":     "it's a PNG image, named as a JPEG one",
+			"media/missing.webp":  "has no such image",
+			"/catalog-media/memo": "artwork Dockwell ships",
+		} {
+			if !slices.ContainsFunc(got.refused, func(r *dockwellv1.CatalogSourceRefusal) bool {
+				return strings.HasPrefix(r.GetFile(), file) && strings.Contains(r.GetReason(), want)
+			}) {
+				t.Errorf("%s: no reason saying %q in %v", file, want, got.refused)
+			}
+		}
+		if shots == 0 {
+			t.Fatal("memos.yaml has no screenshots to test with")
+		}
 	}
 }
 
@@ -95,7 +202,7 @@ func TestASourcesEntryCanAskForAServerPath(t *testing.T) {
 		Inputs:  []*catalogv1.Input{{Name: "MEDIA_DIR", Label: "Media folder", Type: catalogv1.InputType_INPUT_TYPE_TEXT}},
 		Compose: "services:\n  media:\n    image: media:1@sha256:" + strings.Repeat("a", 64) + "\n    volumes:\n      - ${MEDIA_DIR}:/media:ro\n",
 	}
-	if err := readsAsInstall(t.Context(), e, false); err != nil {
+	if err := folder.ReadsAsInstall(t.Context(), e, false); err != nil {
 		t.Fatalf("an entry with a required server path was refused: %v", err)
 	}
 }
@@ -104,12 +211,14 @@ func TestASourcesEntryCanAskForAServerPath(t *testing.T) {
 // apps it tests. The catalog shows a source's entry without it, so another
 // catalog's app can't pass for one of Dockwell's by its logo and screens.
 func TestASourcesEntryShowsNoBundledArtwork(t *testing.T) {
-	own, err := os.ReadFile("../../catalog/entries/memos.yaml")
+	own, err := os.ReadFile("../../catalog/snapshot/entries/memos.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
-	got := checkSource(t.Context(), "community", &resourcev1.CatalogSource{}, map[string][]byte{"memos-src.yaml": []byte(file)}, claims{})
+	// As an entry built into Dockwell named its artwork, under /catalog-media/.
+	file := strings.ReplaceAll(strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1), ": media/", ": /catalog-media/")
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("a", 40)}
+	got := checkSource(t.Context(), "community", spec, commitFiles{entries: map[string][]byte{"memos-src.yaml": []byte(file)}}, claims{})
 	if len(got.entries) != 1 {
 		t.Fatalf("entries = %d, refused = %v", len(got.entries), got.refused)
 	}
@@ -137,11 +246,11 @@ func TestASourcesEntryRunsPinnedImages(t *testing.T) {
 		"a flow mapping": "  web:\n    image: " + pinned + "\n  side: {image: \"ghcr.io/stranger/moving:latest\"}\n",
 		"a quoted key":   "  web:\n    \"image\": ghcr.io/stranger/moving:latest\n",
 	} {
-		if err := readsAsInstall(t.Context(), entry(services), false); err == nil || !strings.Contains(err.Error(), "isn't pinned by its digest") {
+		if err := folder.ReadsAsInstall(t.Context(), entry(services), false); err == nil || !strings.Contains(err.Error(), "isn't pinned by its digest") {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	if err := readsAsInstall(t.Context(), entry("  web:\n    image: "+pinned+"\n"), false); err != nil {
+	if err := folder.ReadsAsInstall(t.Context(), entry("  web:\n    image: "+pinned+"\n"), false); err != nil {
 		t.Errorf("a pinned image: %v", err)
 	}
 }
@@ -249,7 +358,7 @@ func TestSourcesFetchOneAtATime(t *testing.T) {
 	s := &Sources{Dir: t.TempDir(), Fetch: fetch}
 	same := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("a", 40)}
 	var wg sync.WaitGroup
-	results := make([]map[string][]byte, 6)
+	results := make([]commitFiles, 6)
 	for i := range results {
 		wg.Go(func() {
 			got, err := s.files(t.Context(), same)
@@ -281,7 +390,7 @@ func TestSourcesFetchOneAtATime(t *testing.T) {
 		t.Errorf("%d fetches ran at once", n)
 	}
 	for i, got := range results {
-		if string(got["notes.yaml"]) != "id: notes\n" {
+		if string(got.entries["notes.yaml"]) != "id: notes\n" {
 			t.Errorf("read %d got %v", i, got)
 		}
 	}
@@ -295,7 +404,7 @@ func TestAStoresCommitKeptByAnOlderConverterIsReadAgain(t *testing.T) {
 	spec := &resourcev1.CatalogSource{Repository: "https://example.com/appstore", Commit: "0123456789abcdef0123456789abcdef01234567", Format: resourcev1.CatalogFormat_CATALOG_FORMAT_ONEPANEL}
 	s := &Sources{Dir: dir}
 	kept, _ := s.folders(spec)
-	keep(kept, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: []byte(`{"format":"1panel","version":0}`)})
+	keep(kept, commitFiles{entries: map[string][]byte{"memos.yaml": []byte("id: memos\n")}, leftOut: []byte(`{"format":"1panel","version":0}`)}, nil)
 	if _, ok := s.kept(spec); ok {
 		t.Error("what an older converter kept reads as kept")
 	}
@@ -304,9 +413,9 @@ func TestAStoresCommitKeptByAnOlderConverterIsReadAgain(t *testing.T) {
 	}
 	other := &resourcev1.CatalogSource{Repository: spec.GetRepository(), Commit: "fedcba9876543210fedcba9876543210fedcba98", Format: spec.GetFormat()}
 	fresh, _ := s.folders(other)
-	keep(fresh, map[string][]byte{"memos.yaml": []byte("id: memos\n"), leftOutFile: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)})
-	if files, ok := s.kept(other); !ok || files["memos.yaml"] == nil {
-		t.Errorf("what this converter kept doesn't read as kept: %v", files)
+	keep(fresh, commitFiles{entries: map[string][]byte{"memos.yaml": []byte("id: memos\n")}, leftOut: fmt.Appendf(nil, `{"format":"1panel","version":%d}`, convert.Version)}, nil)
+	if files, ok := s.kept(other); !ok || files.entries["memos.yaml"] == nil {
+		t.Errorf("what this converter kept doesn't read as kept: %v", files.entries)
 	}
 	// The same folder read as Dockwell's entries is kept apart.
 	dockwell := &resourcev1.CatalogSource{Repository: spec.GetRepository(), Commit: spec.GetCommit()}

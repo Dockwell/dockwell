@@ -17,6 +17,8 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/catalog/snapshot"
+	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/store"
@@ -1234,6 +1236,7 @@ func testAnInstallWithNoRecordStaysAsItIs(t *testing.T, backend store.Backend) {
 		Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "thing"},
 		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{Catalog: &resourcev1.CatalogPin{
 			Entry: "thing", Version: "1.0", Release: 1, Values: map[string]string{"PORT": "18100"},
+			Catalog: catalogapi.DefaultName, Repository: snapshot.Repository, Path: snapshot.Path,
 		}}}},
 	}}}))
 	if err != nil {

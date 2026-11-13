@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: openlist
+name: OpenList
+summary: Browse and share files across your storage providers
+description: |-
+  OpenList shows the files you keep with different storage providers in one place. Browse, preview, download and share them from a browser, or mount them over WebDAV.
+
+  This entry runs OpenList with a data volume for its accounts, provider settings and credentials. Your files stay with their providers: the volume holds no copy of them. You make the admin account on first visit.
+icon: media/openlist-icon.webp
+documentation: https://doc.oplist.org
+appSource: https://github.com/OpenListTeam/OpenList
+features:
+  - "One file list across storage providers"
+  - "Previews for documents, images and video"
+  - "WebDAV access"
+  - "Sharing with passwords and expiry"
+screenshots:
+  - path: media/openlist-preview.webp
+    caption: "A file preview in OpenList, with its Open with menu"
+    source: https://raw.githubusercontent.com/OpenListTeam/OpenList-Docs/4613ff71087b58d8df9924fc403b716f6c25fa73/public/img/config/open-with.png
+category: storage
+version: "4.2.8"
+release: 1
+homepage: https://oplist.org
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/openlist.yaml
+web:
+  service: openlist
+firstVisitorOwns: true
+notes:
+  - "Add storage at /@manage, where guest access stays off until you turn it on."
+  - "Leave OPENLIST_ADMIN_PASSWORD unset: OpenList prints it in its log."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "5244"
+compose: |
+  services:
+    openlist:
+      image: openlistteam/openlist:v4.2.8@sha256:f01a4a3f96020cc2493e0b2eed7a3c8ddea54e3fa57f18ff192bd039ba5cd979
+      restart: unless-stopped
+      # The image creates data as root, then switches to UID 1001. A fresh named
+      # volume inherits that owner. Root here reaches only this app's data volume.
+      user: "0:0"
+      ports:
+        - "127.0.0.1:${PORT}:5244"
+      volumes:
+        - data:/opt/openlist/data
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5244/ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 10s
+  volumes:
+    data: {}

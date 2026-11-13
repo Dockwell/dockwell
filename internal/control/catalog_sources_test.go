@@ -134,7 +134,10 @@ func testACatalogFromGit(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := sources.Msg.GetSources(); len(s) != 1 || s[0].GetName() != "community" || s[0].GetSource().GetCommit() != second ||
+	// Dockwell's own comes first, then community.
+	if s := sources.Msg.GetSources(); len(s) != 2 || !s[0].GetOwn() || s[1].GetOwn() {
+		t.Errorf("ListCatalogSources = %v", s)
+	} else if s := s[1:]; s[0].GetName() != "community" || s[0].GetSource().GetCommit() != second ||
 		!slices.Equal(s[0].GetEntries(), []string{"notes-src", "wiki-src"}) || len(s[0].GetRefused()) != 3 || s[0].GetUnread() != "" {
 		t.Errorf("ListCatalogSources = %v", s)
 	}

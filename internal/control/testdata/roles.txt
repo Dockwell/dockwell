@@ -59,6 +59,7 @@ BuildService.ListBuilds                        read         viewer     viewer   
 BuildService.ListRepositoryBranches            plan         developer  developer  named
 BuildService.ReadBuildLog                      read         viewer     viewer     project
 BuildService.WatchBuild                        read         viewer     viewer     project
+CatalogService.CheckCatalogSource              apply        admin      admin      install
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
 CatalogService.InstallCatalogEntry             plan         admin      admin      install
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared

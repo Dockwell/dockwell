@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: openclaw
+name: OpenClaw
+summary: A personal AI assistant with persistent tools and workspaces
+description: |-
+  OpenClaw is a personal AI assistant that runs on your own server. It keeps sessions, tools and a workspace between conversations, and you reach it from its browser control UI or the chat channels you connect.
+
+  This entry runs the OpenClaw gateway with one data volume for its config, credentials, paired devices and workspace. Its tools run inside the container, with no Docker socket and no server folders. You bring your own model provider account.
+icon: media/openclaw-icon.webp
+documentation: https://docs.openclaw.ai
+appSource: https://github.com/openclaw/openclaw
+features:
+  - "A browser control UI for sessions and settings"
+  - "Tools and a workspace that persist"
+  - "Your choice of model provider"
+  - "Chat channels you connect yourself"
+screenshots:
+  - path: media/openclaw-chat.webp
+    caption: "A session in the OpenClaw Control UI"
+    source: https://raw.githubusercontent.com/openclaw/openclaw/1ebc46e1a52ff2b8828b6186e7b5ab943227c9ae/.github/pr-proof/claw-creator/main-chat.png
+category: ai
+version: "2026.10.7"
+release: 1
+homepage: https://openclaw.ai
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/openclaw.yaml
+web:
+  service: openclaw
+signIn:
+  passwordInput: "GATEWAY_TOKEN"
+addressVariables:
+  - service: openclaw
+    variable: OPENCLAW_CONTROL_UI_ORIGIN
+    value: "https://{domain}"
+notes:
+  - "Its Control UI takes only its own address, not the panel's Open: reach it through the SSH tunnel to its port."
+  - "New devices wait for approval: in its container, node /app/dist/index.js devices list, then devices approve with its ID."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "18789"
+  - name: URL
+    label: Site address
+    hint: The address its Control UI takes. Empty until it has a domain.
+    type: INPUT_TYPE_TEXT
+    optional: true
+  - name: GATEWAY_TOKEN
+    label: Gateway token
+    type: INPUT_TYPE_SECRET
+    generate: 48
+compose: |
+  services:
+    openclaw:
+      image: ghcr.io/openclaw/openclaw:2026.10.7@sha256:fb26f0841659dc757f23feec9adeab51f11d76779a409db5d22e191b43841afa
+      restart: unless-stopped
+      environment:
+        HOME: /home/node
+        OPENCLAW_HOME: /home/node
+        OPENCLAW_STATE_DIR: /home/node/.openclaw
+        OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+        OPENCLAW_CONFIG_DIR: /home/node/.openclaw
+        OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
+        OPENCLAW_GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+        OPENCLAW_CONTROL_UI_ORIGIN: ${URL:-}
+        OPENCLAW_LOCAL_PORT: ${PORT}
+        OPENCLAW_DISABLE_BONJOUR: "1"
+      command:
+        - /bin/sh
+        - -ec
+        - |
+          node -e '
+            const fs = require("node:fs"), JSON5 = require("json5"), p = process.env.OPENCLAW_CONFIG_PATH;
+            const c = fs.existsSync(p) ? JSON5.parse(fs.readFileSync(p, "utf8")) : {};
+            const g = c.gateway || {}, u = g.controlUi || {};
+            const port = process.env.OPENCLAW_LOCAL_PORT;
+            const origins = process.env.OPENCLAW_CONTROL_UI_ORIGIN
+              ? [process.env.OPENCLAW_CONTROL_UI_ORIGIN]
+              : ["http://localhost:" + port, "http://127.0.0.1:" + port];
+            c.gateway = {...g, mode: "local", auth: {...g.auth, mode: "token"}, controlUi: {...u, allowedOrigins: origins}};
+            fs.writeFileSync(p + ".tmp", JSON.stringify(c), {mode: 0o600});
+            fs.renameSync(p + ".tmp", p);
+          '
+          exec node /app/docker-entrypoint.mjs node /app/dist/index.js gateway --bind lan --port 18789
+      ports:
+        - "127.0.0.1:${PORT}:18789"
+      volumes:
+        - data:/home/node/.openclaw
+      healthcheck:
+        test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18789/healthz', {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+        interval: 15s
+        timeout: 5s
+        retries: 24
+        start_period: 60s
+  volumes:
+    data: {}

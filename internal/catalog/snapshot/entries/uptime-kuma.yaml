@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# 2.5.9 goes in ahead of its 14 days, as the lowest release that fixes the published
+# advisories 2.5.7 has: GHSA-86ch-2247-gr56, which anyone who reaches it can use
+# without signing in, and GHSA-v2p3-6f5h-6hhf, which is high.
+id: uptime-kuma
+name: Uptime Kuma
+summary: Uptime checks and status pages
+description: |-
+  Uptime Kuma checks whether your services are reachable and records how they respond over time. Keep monitors together in one dashboard, publish a status page and send notifications when a check fails.
+
+  This entry installs the monitoring dashboard with persistent storage. Add the addresses and checks you want to watch after creating your first account.
+icon: media/uptime-kuma-icon.webp
+documentation: https://github.com/louislam/uptime-kuma/wiki
+appSource: https://github.com/louislam/uptime-kuma
+features:
+  - "Uptime and response-time monitoring"
+  - "HTTP, TCP and other check types"
+  - "Public status pages"
+  - "Notification integrations"
+screenshots:
+  - path: media/uptime-kuma-monitors.webp
+    caption: "Monitor uptime and response times in Uptime Kuma"
+    source: https://uptime.kuma.pet/img/light.jpg
+category: monitoring
+version: "2.5.9"
+release: 3
+homepage: https://uptime.kuma.pet
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/uptime-kuma.yaml
+web:
+  service: uptime-kuma
+firstVisitorOwns: true
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3001"
+compose: |
+  services:
+    uptime-kuma:
+      image: louislam/uptime-kuma:2.5.9@sha256:e88415a90dd2f7efecdbc18de0490aff292764a3ac471531bf1d0481725591bd
+      restart: unless-stopped
+      environment:
+        UPTIME_KUMA_DB_TYPE: sqlite
+      ports:
+        - "127.0.0.1:${PORT}:3001"
+      volumes:
+        - data:/app/data
+      healthcheck:
+        test: ["CMD-SHELL", "extra/healthcheck"]
+        interval: 10s
+        timeout: 10s
+        retries: 18
+        start_period: 30s
+  volumes:
+    data: {}

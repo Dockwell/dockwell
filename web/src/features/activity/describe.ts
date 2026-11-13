@@ -675,6 +675,8 @@ export function alertTitle(
       return a.variant === "major"
         ? i18n._(msg`A major update of ${subject} is out: ${where}`)
         : i18n._(msg`An update of ${subject} is out: ${where}`);
+    case AlertRule_Condition.CATALOG_SOURCE_STUCK:
+      return i18n._(msg`The catalog ${subject} can't follow its branch`);
   }
   return a.title;
 }

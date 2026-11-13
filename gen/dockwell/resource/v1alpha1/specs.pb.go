@@ -680,6 +680,11 @@ const (
 	// A policy that drills has gone two of its periods without a drill that
 	// passed, whether its drills weren't checked or never ran (ADR 0068).
 	AlertRule_CONDITION_RESTORE_DRILL_LATE AlertRule_Condition = 21
+	// A catalog source that follows a branch couldn't move to the branch's
+	// commit: the branch or its commit can't be read, or all of that commit's
+	// entries fail Dockwell's checks (ADR 0077). Numbered apart, as open work
+	// adds conditions.
+	AlertRule_CONDITION_CATALOG_SOURCE_STUCK AlertRule_Condition = 30
 	// An app has an update that counts: newer than what it runs, not skipped,
 	// and not snoozed (ADR 0079). threshold 3 fires for a major alone; 0, for
 	// any. Numbered apart, as open work adds to this enum.
@@ -702,6 +707,7 @@ var (
 		10: "CONDITION_CHECK_DOWN",
 		20: "CONDITION_RESTORE_DRILL_FAILED",
 		21: "CONDITION_RESTORE_DRILL_LATE",
+		30: "CONDITION_CATALOG_SOURCE_STUCK",
 		40: "CONDITION_UPDATE_AVAILABLE",
 	}
 	AlertRule_Condition_value = map[string]int32{
@@ -718,6 +724,7 @@ var (
 		"CONDITION_CHECK_DOWN":           10,
 		"CONDITION_RESTORE_DRILL_FAILED": 20,
 		"CONDITION_RESTORE_DRILL_LATE":   21,
+		"CONDITION_CATALOG_SOURCE_STUCK": 30,
 		"CONDITION_UPDATE_AVAILABLE":     40,
 	}
 )
@@ -2547,7 +2554,12 @@ type CatalogPin struct {
 	// false for one left out, so an upgrade keeps the choice. A companion with no
 	// word here runs when file has its service, as an install from before
 	// companions ran every service, and is otherwise as its entry says.
-	Companions    map[string]bool `protobuf:"bytes,8,rep,name=companions,proto3" json:"companions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	Companions map[string]bool `protobuf:"bytes,8,rep,name=companions,proto3" json:"companions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value"`
+	// The build's commit it was installed from, for an install made from the catalog
+	// built into Dockwell before Dockwell/catalog: Dockwell moved its pin to the
+	// source that reads Dockwell/catalog, which its upgrades come from since (ADR
+	// 0077). Empty for any other install.
+	BuiltInCommit string `protobuf:"bytes,9,opt,name=built_in_commit,json=builtInCommit,proto3" json:"built_in_commit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2650,6 +2662,13 @@ func (x *CatalogPin) GetCompanions() map[string]bool {
 		return x.Companions
 	}
 	return nil
+}
+
+func (x *CatalogPin) GetBuiltInCommit() string {
+	if x != nil {
+		return x.BuiltInCommit
+	}
+	return ""
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -4025,8 +4044,12 @@ func (x *Route) GetPlainForAnyone() bool {
 
 // CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
 // entries in its format in a public Git repository, or another store's, at one
-// commit. Moving it to another commit is a change, so what anyone can install from it
-// moves only with a plan. See docs/adr/0055-catalogs-from-a-git-url.md and
+// commit, with the images its entries name in the folder media inside it. Moving it
+// to another commit is a change, so what anyone can install from it moves only with
+// a plan: a person's, or for one that follows a branch, Dockwell's own, which can be
+// undone. Nothing installed changes with it. See
+// docs/adr/0055-catalogs-from-a-git-url.md,
+// docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
 // docs/adr/0078-other-stores-read-on-the-server.md.
 type CatalogSource struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -4039,6 +4062,10 @@ type CatalogSource struct {
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	// The commit it's read at, in full, as 40 hex digits.
 	Commit string `protobuf:"bytes,3,opt,name=commit,proto3" json:"commit,omitempty"`
+	// The branch it follows, such as "main": when the branch moves, Dockwell moves
+	// the source to its new commit by a change of its own. Empty stays at commit
+	// until a person moves it.
+	Follow string `protobuf:"bytes,4,opt,name=follow,proto3" json:"follow,omitempty"`
 	// How its folder is laid out: Dockwell's own entries, or another store's, which
 	// Dockwell converts as it reads them. Unspecified is Dockwell's own, as a source
 	// made before formats has it.
@@ -4094,6 +4121,13 @@ func (x *CatalogSource) GetPath() string {
 func (x *CatalogSource) GetCommit() string {
 	if x != nil {
 		return x.Commit
+	}
+	return ""
+}
+
+func (x *CatalogSource) GetFollow() string {
+	if x != nil {
+		return x.Follow
 	}
 	return ""
 }
@@ -5857,7 +5891,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fWebsiteProxy\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12(\n" +
-	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\xee\x03\n" +
+	"\x10send_target_host\x18\x03 \x01(\bR\x0esendTargetHost\"\x96\x04\n" +
 	"\n" +
 	"CatalogPin\x12\x14\n" +
 	"\x05entry\x18\x01 \x01(\tR\x05entry\x12\x18\n" +
@@ -5873,7 +5907,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04path\x18Q \x01(\tR\x04path\x12V\n" +
 	"\n" +
 	"companions\x18\b \x03(\v26.dockwell.resource.v1alpha1.CatalogPin.CompanionsEntryR\n" +
-	"companions\x1a9\n" +
+	"companions\x12&\n" +
+	"\x0fbuilt_in_commit\x18\t \x01(\tR\rbuiltInCommit\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
@@ -6034,13 +6069,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x03tls\x18\x05 \x01(\tR\x03tls\x12'\n" +
 	"\x0ftrusted_proxies\x18\x06 \x03(\tR\x0etrustedProxies\x12\x1b\n" +
 	"\thost_port\x18\a \x01(\rR\bhostPort\x12(\n" +
-	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\x9e\x01\n" +
+	"\x10plain_for_anyone\x18\b \x01(\bR\x0eplainForAnyone\"\xb6\x01\n" +
 	"\rCatalogSource\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\x12A\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\x12\x16\n" +
+	"\x06follow\x18\x04 \x01(\tR\x06follow\x12A\n" +
 	"\x06format\x18\n" +
 	" \x01(\x0e2).dockwell.resource.v1alpha1.CatalogFormatR\x06format\"\x8f\f\n" +
 	"\x04Spec\x12?\n" +
@@ -6094,7 +6130,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\vTaskRequest\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
-	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus\"\xb9\x06\n" +
+	"\rexpect_status\x18\x03 \x01(\rR\fexpectStatus\"\xdd\x06\n" +
 	"\tAlertRule\x12M\n" +
 	"\tcondition\x18\x01 \x01(\x0e2/.dockwell.resource.v1alpha1.AlertRule.ConditionR\tcondition\x12\x1c\n" +
 	"\tthreshold\x18\x02 \x01(\rR\tthreshold\x12\x1a\n" +
@@ -6102,7 +6138,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bseverity\x18\x04 \x01(\x0e2..dockwell.resource.v1alpha1.AlertRule.SeverityR\bseverity\x12\x1a\n" +
 	"\bchannels\x18\x05 \x03(\tR\bchannels\x12\x16\n" +
 	"\x06repeat\x18\x06 \x01(\tR\x06repeat\x12\x1a\n" +
-	"\bdisabled\x18\a \x01(\bR\bdisabled\"\xb3\x03\n" +
+	"\bdisabled\x18\a \x01(\bR\bdisabled\"\xd7\x03\n" +
 	"\tCondition\x12\x19\n" +
 	"\x15CONDITION_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16CONDITION_SERVICE_DOWN\x10\x01\x12 \n" +
@@ -6117,7 +6153,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x14CONDITION_CHECK_DOWN\x10\n" +
 	"\x12\"\n" +
 	"\x1eCONDITION_RESTORE_DRILL_FAILED\x10\x14\x12 \n" +
-	"\x1cCONDITION_RESTORE_DRILL_LATE\x10\x15\x12\x1e\n" +
+	"\x1cCONDITION_RESTORE_DRILL_LATE\x10\x15\x12\"\n" +
+	"\x1eCONDITION_CATALOG_SOURCE_STUCK\x10\x1e\x12\x1e\n" +
 	"\x1aCONDITION_UPDATE_AVAILABLE\x10(\"Q\n" +
 	"\bSeverity\x12\x18\n" +
 	"\x14SEVERITY_UNSPECIFIED\x10\x00\x12\x14\n" +

@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# 2.38.6 is Coder's Stable release since 3 Nov 2026, ahead of the 14 days the
+# repository holds other dependencies back, as it fixes published advisories that
+# 2.38.2 has: GHSA-jvgx-787p-cfmg, GHSA-hm3r-4cg2-22xx, GHSA-9frj-7f83-x984,
+# GHSA-x3gf-xv6p-56hf and GHSA-64xh-rgcx-gg65.
+id: coder
+name: Coder
+summary: Development environments on your servers, made from templates
+description: |-
+  Coder gives your team development workspaces on infrastructure you control. Templates describe the tools and resources a workspace needs, so developers can start from a consistent environment and connect with their preferred editor.
+
+  This install includes Coder and its PostgreSQL database. It can create container workspaces through your server's Docker socket, so review that access before installing.
+icon: media/coder-icon.webp
+documentation: https://coder.com/docs
+appSource: https://github.com/coder/coder
+features:
+  - "Reusable workspace templates"
+  - "Development tools on your own infrastructure"
+  - "Browser and desktop editor connections"
+  - "Workspace lifecycle management"
+screenshots:
+  - path: media/coder-workspaces.webp
+    caption: "Development workspaces and their status"
+    source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/docs/images/screenshots/workspaces-listing.png
+  - path: media/coder-workspace.webp
+    caption: "A running workspace with development tools"
+    source: https://raw.githubusercontent.com/coder/coder/f776c020ff85ebe1df48c07f582dd74650f5cd54/docs/images/screenshots/workspace-running-with-topbar.png
+category: developer tools
+version: "2.38.6"
+release: 4
+homepage: https://coder.com
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only, with Enterprise code under Coder's own
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/coder.yaml
+web:
+  service: coder
+hostAccess: >-
+  Docker's socket, so Coder can start your workspaces as containers on this server.
+  Whoever owns Coder controls this server through it.
+firstVisitorOwns: true
+addressVariables:
+  - service: coder
+    variable: CODER_ACCESS_URL
+    value: "https://{domain}"
+notes:
+  - "Workspaces connect to Coder at its access URL, so they need its domain."
+  - "Removing Coder leaves the workspace containers it started."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "7080"
+  - name: POSTGRES_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    coder:
+      image: ghcr.io/coder/coder:v2.38.6@sha256:c9245405c482ede17699d65deb8c21488a17feff5497fc84d6a350c395da2bdd
+      restart: unless-stopped
+      # Docker's socket belongs to a group whose number differs on each server, which no
+      # form can know. Root in the container reaches it anywhere, and is no more than
+      # the socket gives it.
+      user: root
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        CODER_HTTP_ADDRESS: 0.0.0.0:7080
+        CODER_ACCESS_URL: http://localhost:${PORT}
+        CODER_PG_CONNECTION_URL: postgresql://coder@db:5432/coder?sslmode=disable
+        PGPASSWORD: ${POSTGRES_PASSWORD}
+      ports:
+        - "127.0.0.1:${PORT}:7080"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+        - home:/home/coder
+      healthcheck:
+        test: ["CMD", "curl", "-fsS", "--max-time", "4", "http://127.0.0.1:7080/healthz"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 30s
+    db:
+      image: postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: coder
+        POSTGRES_DB: coder
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      volumes:
+        - data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "coder", "-d", "coder"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    home: {}
+    data: {}

@@ -12,6 +12,7 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/registry"
 )
@@ -22,14 +23,9 @@ import (
 // 0029 asks: a wrong merge installs the wrong software, and a missed one costs a
 // card.
 
-// claims are the IDs the catalogs before a source have, by ID.
-type claims map[string]claim
-
-// claim is whose an ID is, and its entry.
-type claim struct {
-	by    string
-	entry *catalogv1.Entry
-}
+// claims are the IDs the catalogs before a source have, by ID: whose each is, and
+// its entry.
+type claims = map[string]folder.Taken
 
 // sameApp says two entries of one ID are the same app: the same name, in any case,
 // and the same image for the service a person opens, by its repository. Anything

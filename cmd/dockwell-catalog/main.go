@@ -4,9 +4,12 @@
 // out: it converts each source's apps into entries in Dockwell's format, once,
 // where the catalog is built, with a person's overlays and images pinned as it
 // runs. The control plane converts a source that's another store's as it reads it,
-// with the same adapters (ADR 0078).
+// with the same adapters (ADR 0078). It also checks a folder of entries as the
+// control plane reads a catalog source, so a catalog's CI refuses what a server
+// would leave out (ADR 0077).
 //
 //	dockwell-catalog convert --from 1panel --source ./appstore --overlays ./overlays/1panel --out ./entries/1panel
+//	dockwell-catalog check ./entries
 package main
 
 import (
@@ -38,16 +41,23 @@ func main() {
 }
 
 const usage = `Usage: dockwell-catalog convert --from 1panel --source <checkout> --out <folder> [--overlays <folder>]
+       dockwell-catalog check <folder>
 
-Converts a catalog's apps into Dockwell's entries, one file each in --out, with a
-report of what it left out and why, and what it knows of each image.
+convert converts a catalog's apps into Dockwell's entries, one file each in --out,
+with a report of what it left out and why, and what it knows of each image.
+
+check checks a folder of entries, and the images in its folder media, as the
+control plane reads a catalog source, and says what it would leave out and why.
 
 `
 
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if len(args) > 0 && args[0] == "check" {
+		return check(ctx, args[1:], stdout)
+	}
 	if len(args) == 0 || args[0] != "convert" {
 		fmt.Fprint(stderr, usage)
-		return errors.New("name what to do: convert")
+		return errors.New("name what to do: convert or check")
 	}
 	flags := flag.NewFlagSet("convert", flag.ContinueOnError)
 	flags.SetOutput(stderr)

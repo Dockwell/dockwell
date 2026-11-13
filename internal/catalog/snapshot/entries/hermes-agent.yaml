@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: hermes-agent
+name: Hermes Agent
+summary: AI agents with a dashboard, memory and an API
+description: |-
+  Hermes Agent runs AI agents with memory, skills and scheduled work, managed from a web dashboard. It also serves an OpenAI-compatible API, so other tools can talk to your agents.
+
+  This entry runs the dashboard and the API, each on its own port, with one data volume for settings, credentials, memory and workspaces. Its terminal runs inside the container. You bring your own model provider account.
+icon: media/hermes-agent-icon.webp
+documentation: https://hermes-agent.nousresearch.com/docs
+appSource: https://github.com/NousResearch/hermes-agent
+features:
+  - "A dashboard for sessions, models and skills"
+  - "Memory that carries across sessions"
+  - "An OpenAI-compatible API"
+  - "Scheduled and webhook-driven work"
+screenshots:
+  - path: media/hermes-agent-sessions.webp
+    caption: "Sessions in the Hermes Agent dashboard"
+    source: https://raw.githubusercontent.com/NousResearch/hermes-agent/e782db3f00b36ab03d60977d1454e9fbdbdebbee/website/static/img/dashboard/admin-sessions.png
+category: ai
+version: "0.22.5"
+release: 1
+homepage: https://hermes-agent.nousresearch.com
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/hermes-agent.yaml
+web:
+  service: hermes
+signIn:
+  user: "admin"
+  passwordInput: "HERMES_PASSWORD"
+notes:
+  - "Add a domain only behind your VPN: a public one needs Hermes's OAuth provider in place of basic auth."
+  - "Its API answers on the API port, on this server alone, at /v1 with the API_KEY secret."
+inputs:
+  - name: PORT
+    label: Web port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "9119"
+  - name: API_PORT
+    label: API port on this server
+    hint: The API, on this server alone.
+    type: INPUT_TYPE_PORT
+    defaultValue: "8642"
+  - name: HERMES_PASSWORD
+    label: Dashboard password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: SESSION_SECRET
+    label: Session secret
+    type: INPUT_TYPE_SECRET
+    generate: 48
+  - name: API_KEY
+    label: API key
+    type: INPUT_TYPE_SECRET
+    generate: 48
+compose: |
+  services:
+    hermes:
+      image: nousresearch/hermes-agent:v0.22.5@sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
+      restart: unless-stopped
+      environment:
+        HERMES_DASHBOARD: "1"
+        HERMES_DASHBOARD_HOST: 0.0.0.0
+        HERMES_DASHBOARD_BASIC_AUTH_USERNAME: admin
+        HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${HERMES_PASSWORD}
+        HERMES_DASHBOARD_BASIC_AUTH_SECRET: ${SESSION_SECRET}
+        API_SERVER_ENABLED: "true"
+        API_SERVER_HOST: 0.0.0.0
+        API_SERVER_KEY: ${API_KEY}
+      command: ["gateway", "run"]
+      ports:
+        - "127.0.0.1:${PORT}:9119"
+        - "127.0.0.1:${API_PORT}:8642"
+      volumes:
+        - data:/opt/data
+      healthcheck:
+        test: ["CMD", "python", "-c", "import json, urllib.request; s=json.load(urllib.request.urlopen('http://127.0.0.1:9119/api/status', timeout=4)); assert s['auth_required'] and 'basic' in s['auth_providers']; urllib.request.urlopen('http://127.0.0.1:8642/health', timeout=4)"]
+        interval: 15s
+        timeout: 10s
+        retries: 24
+        start_period: 60s
+  volumes:
+    data: {}

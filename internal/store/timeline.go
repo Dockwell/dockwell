@@ -154,9 +154,12 @@ func (t *Tx) TimelinePlaces(ctx context.Context, q TimelineQuery) ([]TimelinePla
 		return w
 	}
 	// The changes the filter keeps, in one state or out of one.
+	// Dockwell's own changes are bookkeeping, as a server's host is, and stay off it,
+	// but for a rollback, and a change to a catalog source: what a person can install
+	// moving as its branch moves is theirs to see, and to undo (ADR 0077).
 	changes := func(state string) []string {
-		w := []string{state, "NOT (c.actor = ? AND c.reverts IS NULL)"}
-		args = append(args, ChangeDiscarded, systemActor)
+		w := []string{state, "NOT (c.actor = ? AND c.reverts IS NULL AND NOT EXISTS (SELECT 1 FROM change_items i WHERE i.change_id = c.id AND i.kind = ?))"}
+		args = append(args, ChangeDiscarded, systemActor, catalogSourceKind)
 		if f.ServerID != "" {
 			w = append(w, "c.id IN (SELECT change_id FROM change_servers WHERE server_id = ?)")
 			args = append(args, f.ServerID)
@@ -306,6 +309,10 @@ func (t *Tx) TimelineEntries(ctx context.Context, places []TimelinePlace) ([]Tim
 
 // systemActor is how the revision store names Dockwell as an actor.
 const systemActor = "dockwell"
+
+// catalogSourceKind is a catalog source's kind, whose changes by Dockwell the
+// timeline shows.
+const catalogSourceKind = "catalog.source"
 
 func marks(n int) string { return strings.Repeat("?, ", n-1) + "?" }
 

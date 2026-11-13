@@ -107,7 +107,7 @@ func TestEntriesSortAsPeopleReadThem(t *testing.T) {
 func TestNamesSortWithAccentsAndIDs(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(catalog.DirEnv, dir)
-	raw, err := os.ReadFile("entries/postgres.yaml")
+	raw, err := os.ReadFile("snapshot/entries/postgres.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1023,7 +1023,7 @@ func TestADirectoryOfEntries(t *testing.T) {
 	}
 	mine, _ := built.Entry("postgres")
 	// A release of its own, in the entry's own words.
-	raw, err := os.ReadFile("entries/postgres.yaml")
+	raw, err := os.ReadFile("snapshot/entries/postgres.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

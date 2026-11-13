@@ -1,9 +1,5 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-.sources-page .sources-panel + .sources-panel {
-  margin-top: var(--space-4);
-}
-
 .sources-note {
   margin: 0;
   color: var(--ink-muted);
@@ -32,6 +28,39 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Following a branch: when Dockwell last looked, and the ways to look now or stop here. */
+.sources-follow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  font-size: 13px;
+}
+
+.sources-follow-words {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sources-follow-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.sources-follow + .dw-callout,
+.sources-follow + .dw-callout + .dw-callout {
+  margin-bottom: var(--space-4);
 }
 
 .sources-heading {

@@ -62,6 +62,9 @@ const (
 	// CatalogServiceListCatalogSourceRefsProcedure is the fully-qualified name of the CatalogService's
 	// ListCatalogSourceRefs RPC.
 	CatalogServiceListCatalogSourceRefsProcedure = "/dockwell.v1.CatalogService/ListCatalogSourceRefs"
+	// CatalogServiceCheckCatalogSourceProcedure is the fully-qualified name of the CatalogService's
+	// CheckCatalogSource RPC.
+	CatalogServiceCheckCatalogSourceProcedure = "/dockwell.v1.CatalogService/CheckCatalogSource"
 	// CatalogServiceRemoveCatalogSourceProcedure is the fully-qualified name of the CatalogService's
 	// RemoveCatalogSource RPC.
 	CatalogServiceRemoveCatalogSourceProcedure = "/dockwell.v1.CatalogService/RemoveCatalogSource"
@@ -106,14 +109,16 @@ type CatalogServiceClient interface {
 	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
 	// SetCatalogSource plans adding a catalog from a public Git repository, or moving
-	// one to another commit, ready to apply or discard: a folder of Dockwell's entries,
-	// or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
-	// from the commit and converts as it reads it, running nothing. Dockwell reads the
-	// commit over Git's own protocol, checking what it reads against its names, and
-	// checks each entry as it checks its own. The plan's notes say what the commit
-	// holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
-	// whose ID another has. A source decides what anyone can install, so setting one
-	// is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+	// one to another commit, or having it follow a branch or stay where it is, ready
+	// to apply or discard: a folder of Dockwell's entries, or 1Panel's app store,
+	// Dokploy's templates or Coolify's, which Dockwell tells from the commit and
+	// converts as it reads it, running nothing. Dockwell reads the commit over Git's
+	// own protocol, checking what it reads against its names, and checks each entry,
+	// and each image an entry names, as it checks its own. The plan's notes say what
+	// the commit holds, and what Dockwell leaves out of it and why: an entry it
+	// refuses, or one whose ID another has. A source decides what anyone can install,
+	// so setting one is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md,
+	// docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
 	// docs/adr/0078-other-stores-read-on-the-server.md.
 	SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error)
 	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
@@ -125,6 +130,14 @@ type CatalogServiceClient interface {
 	// SetCatalogSource does, at public addresses alone, and changes nothing. An
 	// admin's, as it reads the network for whoever asks.
 	ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error)
+	// CheckCatalogSource looks at the branch a source follows now, rather than at its
+	// next hourly look, and when the branch has moved, moves the source to its new
+	// commit by Dockwell's own change, applied at once, with the notes a person's
+	// move has. What runs doesn't change: an install with a newer release in it
+	// shows an upgrade, which a person plans. A commit Dockwell can't read, or whose
+	// entries all fail its checks, leaves the source where it is, and the answer
+	// says why. An admin's, as it reads the network.
+	CheckCatalogSource(context.Context, *connect.Request[v1.CheckCatalogSourceRequest]) (*connect.Response[v1.CheckCatalogSourceResponse], error)
 	// RemoveCatalogSource plans no longer reading a catalog, ready to apply or
 	// discard. What's installed from it stays as it runs, and can't upgrade from it.
 	// An admin's, as setting one is.
@@ -200,6 +213,12 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("ListCatalogSourceRefs")),
 			connect.WithClientOptions(opts...),
 		),
+		checkCatalogSource: connect.NewClient[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse](
+			httpClient,
+			baseURL+CatalogServiceCheckCatalogSourceProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("CheckCatalogSource")),
+			connect.WithClientOptions(opts...),
+		),
 		removeCatalogSource: connect.NewClient[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse](
 			httpClient,
 			baseURL+CatalogServiceRemoveCatalogSourceProcedure,
@@ -220,6 +239,7 @@ type catalogServiceClient struct {
 	setCatalogSource      *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
 	listCatalogSources    *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
 	listCatalogSourceRefs *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
+	checkCatalogSource    *connect.Client[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse]
 	removeCatalogSource   *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
 }
 
@@ -268,6 +288,11 @@ func (c *catalogServiceClient) ListCatalogSourceRefs(ctx context.Context, req *c
 	return c.listCatalogSourceRefs.CallUnary(ctx, req)
 }
 
+// CheckCatalogSource calls dockwell.v1.CatalogService.CheckCatalogSource.
+func (c *catalogServiceClient) CheckCatalogSource(ctx context.Context, req *connect.Request[v1.CheckCatalogSourceRequest]) (*connect.Response[v1.CheckCatalogSourceResponse], error) {
+	return c.checkCatalogSource.CallUnary(ctx, req)
+}
+
 // RemoveCatalogSource calls dockwell.v1.CatalogService.RemoveCatalogSource.
 func (c *catalogServiceClient) RemoveCatalogSource(ctx context.Context, req *connect.Request[v1.RemoveCatalogSourceRequest]) (*connect.Response[v1.RemoveCatalogSourceResponse], error) {
 	return c.removeCatalogSource.CallUnary(ctx, req)
@@ -312,14 +337,16 @@ type CatalogServiceHandler interface {
 	// an admin's (ADR 0049).
 	InstallCatalogEntry(context.Context, *connect.Request[v1.InstallCatalogEntryRequest]) (*connect.Response[v1.InstallCatalogEntryResponse], error)
 	// SetCatalogSource plans adding a catalog from a public Git repository, or moving
-	// one to another commit, ready to apply or discard: a folder of Dockwell's entries,
-	// or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
-	// from the commit and converts as it reads it, running nothing. Dockwell reads the
-	// commit over Git's own protocol, checking what it reads against its names, and
-	// checks each entry as it checks its own. The plan's notes say what the commit
-	// holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
-	// whose ID another has. A source decides what anyone can install, so setting one
-	// is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+	// one to another commit, or having it follow a branch or stay where it is, ready
+	// to apply or discard: a folder of Dockwell's entries, or 1Panel's app store,
+	// Dokploy's templates or Coolify's, which Dockwell tells from the commit and
+	// converts as it reads it, running nothing. Dockwell reads the commit over Git's
+	// own protocol, checking what it reads against its names, and checks each entry,
+	// and each image an entry names, as it checks its own. The plan's notes say what
+	// the commit holds, and what Dockwell leaves out of it and why: an entry it
+	// refuses, or one whose ID another has. A source decides what anyone can install,
+	// so setting one is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md,
+	// docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
 	// docs/adr/0078-other-stores-read-on-the-server.md.
 	SetCatalogSource(context.Context, *connect.Request[v1.SetCatalogSourceRequest]) (*connect.Response[v1.SetCatalogSourceResponse], error)
 	// ListCatalogSources returns the catalogs Dockwell reads beside its own, with
@@ -331,6 +358,14 @@ type CatalogServiceHandler interface {
 	// SetCatalogSource does, at public addresses alone, and changes nothing. An
 	// admin's, as it reads the network for whoever asks.
 	ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error)
+	// CheckCatalogSource looks at the branch a source follows now, rather than at its
+	// next hourly look, and when the branch has moved, moves the source to its new
+	// commit by Dockwell's own change, applied at once, with the notes a person's
+	// move has. What runs doesn't change: an install with a newer release in it
+	// shows an upgrade, which a person plans. A commit Dockwell can't read, or whose
+	// entries all fail its checks, leaves the source where it is, and the answer
+	// says why. An admin's, as it reads the network.
+	CheckCatalogSource(context.Context, *connect.Request[v1.CheckCatalogSourceRequest]) (*connect.Response[v1.CheckCatalogSourceResponse], error)
 	// RemoveCatalogSource plans no longer reading a catalog, ready to apply or
 	// discard. What's installed from it stays as it runs, and can't upgrade from it.
 	// An admin's, as setting one is.
@@ -402,6 +437,12 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("ListCatalogSourceRefs")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceCheckCatalogSourceHandler := connect.NewUnaryHandler(
+		CatalogServiceCheckCatalogSourceProcedure,
+		svc.CheckCatalogSource,
+		connect.WithSchema(catalogServiceMethods.ByName("CheckCatalogSource")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceRemoveCatalogSourceHandler := connect.NewUnaryHandler(
 		CatalogServiceRemoveCatalogSourceProcedure,
 		svc.RemoveCatalogSource,
@@ -428,6 +469,8 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceListCatalogSourcesHandler.ServeHTTP(w, r)
 		case CatalogServiceListCatalogSourceRefsProcedure:
 			catalogServiceListCatalogSourceRefsHandler.ServeHTTP(w, r)
+		case CatalogServiceCheckCatalogSourceProcedure:
+			catalogServiceCheckCatalogSourceHandler.ServeHTTP(w, r)
 		case CatalogServiceRemoveCatalogSourceProcedure:
 			catalogServiceRemoveCatalogSourceHandler.ServeHTTP(w, r)
 		default:
@@ -473,6 +516,10 @@ func (UnimplementedCatalogServiceHandler) ListCatalogSources(context.Context, *c
 
 func (UnimplementedCatalogServiceHandler) ListCatalogSourceRefs(context.Context, *connect.Request[v1.ListCatalogSourceRefsRequest]) (*connect.Response[v1.ListCatalogSourceRefsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ListCatalogSourceRefs is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) CheckCatalogSource(context.Context, *connect.Request[v1.CheckCatalogSourceRequest]) (*connect.Response[v1.CheckCatalogSourceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.CheckCatalogSource is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) RemoveCatalogSource(context.Context, *connect.Request[v1.RemoveCatalogSourceRequest]) (*connect.Response[v1.RemoveCatalogSourceResponse], error) {

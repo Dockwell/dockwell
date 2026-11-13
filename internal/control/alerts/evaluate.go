@@ -178,7 +178,10 @@ type Evaluator struct {
 	Checks Checks
 	// Updates says which apps have an update that counts (ADR 0079). Nil has none.
 	Updates func(ctx context.Context) ([]AppUpdate, error)
-	Sender  *Sender
+	// Catalogs says how the catalog sources that follow a branch stand, for
+	// CONDITION_CATALOG_SOURCE_STUCK. Nil watches none.
+	Catalogs func(context.Context) []Following
+	Sender   *Sender
 	// Panel is where the panel answers, for links in messages. Empty puts none.
 	Panel  string
 	Logger *slog.Logger

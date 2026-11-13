@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: mysql
+name: MySQL
+summary: Relational database, with phpMyAdmin to manage it if you want it
+description: |-
+  MySQL is a relational database for applications that use SQL. Use it for structured records, transactions and queries with the MySQL ecosystem of clients and libraries.
+
+  phpMyAdmin, for database administration in your browser, is one switch away when you install it, or later from its page. It keeps database data on a persistent volume and generates an initial root password for you.
+icon: media/mysql-icon.webp
+documentation: https://dev.mysql.com/doc/
+appSource: https://github.com/mysql/mysql-server
+features:
+  - "SQL queries and transactions"
+  - "MySQL client and library support"
+  - "phpMyAdmin web interface, if you want it"
+  - "Persistent database storage"
+screenshots:
+  - path: media/phpmyadmin-tables.webp
+    caption: "Manage MySQL tables in phpMyAdmin, which you can add with this install"
+    source: https://raw.githubusercontent.com/phpmyadmin/website/9a1840a005292617d3e2b18dbeeffba8dd38f264/pmaweb/static/images/screenshots/structure.png
+category: databases
+version: "8.4.11"
+release: 5
+homepage: https://www.mysql.com
+license: AGPL-3.0-only
+appLicense: GPL-2.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/mysql.yaml
+web:
+  service: phpmyadmin
+signIn:
+  user: "root"
+  passwordInput: "MYSQL_ROOT_PASSWORD"
+companions:
+  - service: phpmyadmin
+    label: phpMyAdmin
+    purpose: Browse and edit tables in your browser
+    inputs: [ADMIN_PORT]
+inputs:
+  - name: ADMIN_PORT
+    label: phpMyAdmin port
+    type: INPUT_TYPE_PORT
+    defaultValue: "8082"
+  - name: MYSQL_ROOT_PASSWORD
+    label: Root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    db:
+      image: mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364
+      restart: unless-stopped
+      environment:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      volumes:
+        - data:/var/lib/mysql
+      healthcheck:
+        test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+    phpmyadmin:
+      image: phpmyadmin:5.2.3@sha256:f54a37b908b26caa7032c4eb0c7f3495fdd90208a06eed9c4b2c8e691dd1662c
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        PMA_HOST: db
+      ports:
+        - "${ADMIN_PORT}:80"
+      healthcheck:
+        test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 80) ? 0 : 1);"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}

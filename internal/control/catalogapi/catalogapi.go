@@ -24,6 +24,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
@@ -49,6 +50,9 @@ type Handler struct {
 	// digests pins the images of an entry converted on the control plane when a
 	// plan installs it. Nil can't plan installing one.
 	digests Digests
+	// follower moves the sources that follow a branch, once the control plane has
+	// one (Follow).
+	follower *Follower
 }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)
@@ -109,7 +113,7 @@ func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) 
 	}
 	for _, in := range e.GetInputs() {
 		if variables[in.GetName()] == "" {
-			variables[in.GetName()] = standIn(in)
+			variables[in.GetName()] = folder.StandIn(in)
 		}
 	}
 	stack, err := compose.Read(ctx, compose.Input{File: []byte(e.GetCompose()), Variables: variables})
@@ -157,21 +161,6 @@ func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) 
 	}
 	slices.SortStableFunc(out, func(a, b *dockwellv1.CatalogPart) int { return cmp.Compare(rank(a), rank(b)) })
 	return out, nil
-}
-
-// standIn is a value for an input that has none yet, of the kind it takes. Text reads
-// as a path, as a mount's source may be one, which Compose would read as a volume.
-func standIn(in *catalogv1.Input) string {
-	switch in.GetType() {
-	case catalogv1.InputType_INPUT_TYPE_EMAIL:
-		return "you@example.com"
-	case catalogv1.InputType_INPUT_TYPE_PORT:
-		return "1024"
-	case catalogv1.InputType_INPUT_TYPE_SECRET:
-		return "stand-in"
-	case catalogv1.InputType_INPUT_TYPE_UNSPECIFIED, catalogv1.InputType_INPUT_TYPE_TEXT:
-	}
-	return "/srv/stand-in"
 }
 
 // tagged is an image by repository and tag, without the digest that pins it.
@@ -781,11 +770,7 @@ func (h *Handler) addPorts(ctx context.Context, tx *store.Tx, env string, taken 
 
 // catalog is Dockwell's own catalog, then each source's entries, as ADR 0055 has it.
 func (h *Handler) catalog(ctx context.Context) (sourced, error) {
-	c, err := catalog.Load(h.commit)
-	if err != nil {
-		return sourced{}, h.internal(ctx, err)
-	}
-	s, err := h.withSources(ctx, c, nil)
+	s, err := h.withSources(ctx, nil)
 	if err != nil {
 		return sourced{}, h.internal(ctx, err)
 	}

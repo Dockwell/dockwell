@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# 2.45.5 goes in ahead of its 14 days, as the lowest release that fixes the published
+# advisories 2.44.6 has: GHSA-gx3v-3x3v-f8r5 and GHSA-f2cw-9483-7vcp, which are high,
+# and GHSA-4v22-g448-h4rg, GHSA-426f-xmcv-g8pg, GHSA-rc3w-8jc8-7x3w,
+# GHSA-9qx8-fhxv-w794, GHSA-prmc-fg87-r4gh, GHSA-pwj5-wwm6-g83j and GHSA-jmcg-c7p5-q69g.
+id: n8n
+name: n8n
+summary: Automate workflows across your tools
+description: |-
+  n8n connects the tools you use into automated workflows. Build a flow on a visual canvas, trigger it with an event or schedule, and inspect the data that passes through each step.
+
+  This entry runs n8n on your server and keeps its workflow data. You connect the accounts and services each workflow needs after installation. Check n8n's licence for the way you intend to use it.
+icon: media/n8n-icon.webp
+documentation: https://docs.n8n.io/
+appSource: https://github.com/n8n-io/n8n
+features:
+  - "Visual workflow editor"
+  - "Scheduled and event-driven workflows"
+  - "Integrations with external services"
+  - "Execution history and debugging"
+screenshots:
+  - path: media/n8n-workflow.webp
+    caption: "Build an automation on the n8n workflow canvas"
+    source: https://raw.githubusercontent.com/n8n-io/n8n/93243edc00b288a840fbb562a5e9f64177f2337f/assets/n8n-screenshot.png
+category: automation
+version: "2.45.5"
+release: 3
+homepage: https://n8n.io
+license: AGPL-3.0-only
+appLicense: Sustainable Use, with Enterprise code under n8n's own
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/n8n.yaml
+web:
+  service: n8n
+firstVisitorOwns: true
+addressVariables:
+  - service: n8n
+    variable: WEBHOOK_URL
+    value: "https://{domain}/"
+  - service: n8n
+    variable: N8N_PROXY_HOPS
+    value: "1"
+notes:
+  - "Signs in only over HTTPS, or on localhost in Chrome or Firefox."
+  - "Keeps the key that encrypts your credentials on its volume, so its backups hold both."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "5678"
+compose: |
+  services:
+    n8n:
+      image: n8nio/n8n:2.45.5@sha256:9f6d0a5987ab5a297c4b0b38fbf1a22285dd1364551478e93f03d506908fa74c
+      restart: unless-stopped
+      environment:
+        N8N_LISTEN_ADDRESS: 0.0.0.0
+        N8N_PORT: "5678"
+      ports:
+        - "127.0.0.1:${PORT}:5678"
+      volumes:
+        - data:/home/node/.n8n
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5678/healthz/readiness"]
+        interval: 10s
+        timeout: 5s
+        retries: 18
+        start_period: 30s
+  volumes:
+    data: {}

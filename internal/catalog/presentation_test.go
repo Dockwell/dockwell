@@ -49,6 +49,12 @@ func TestPresentationIsOptionalAndConstrained(t *testing.T) {
 		{"credentials", func(e *catalogv1.Entry) { e.AppSource = "https://user:secret@example.com" }, false},
 		{"no hostname", func(e *catalogv1.Entry) { e.AppSource = "https:///missing" }, false},
 		{"svg screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Path = "/catalog-media/example.svg" }, false},
+		{"its own catalog's icon", func(e *catalogv1.Entry) { e.Icon = "media/example-icon.webp" }, true},
+		{"its own catalog's screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Path = "media/example-screen.png" }, true},
+		{"its own catalog's svg", func(e *catalogv1.Entry) { e.Icon = "media/example.svg" }, false},
+		{"its own catalog's folder below", func(e *catalogv1.Entry) { e.Icon = "media/deeper/example.png" }, false},
+		{"out of its own catalog", func(e *catalogv1.Entry) { e.Icon = "media/../secrets.png" }, false},
+		{"its own catalog, uppercase", func(e *catalogv1.Entry) { e.Icon = "media/Example.png" }, false},
 		{"uncaptioned screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Caption = " " }, false},
 		{"uncredited screenshot", func(e *catalogv1.Entry) { e.Screenshots[0].Source = "" }, false},
 		{"duplicate screenshot", func(e *catalogv1.Entry) { e.Screenshots = append(e.Screenshots, proto.CloneOf(e.Screenshots[0])) }, false},
@@ -75,7 +81,7 @@ func TestBuiltInPresentationAndMedia(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := "../../web/public/catalog-media"
+	root := "snapshot/entries/media"
 	raw, err := os.ReadFile(filepath.Join(root, "manifest.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +100,7 @@ func TestBuiltInPresentationAndMedia(t *testing.T) {
 		if hex.EncodeToString(hash[:]) != item.SHA256 || !strings.HasPrefix(item.URL, "https://") {
 			t.Errorf("%s has lost its provenance", item.File)
 		}
-		credited["/catalog-media/"+item.File] = true
+		credited["media/"+item.File] = true
 	}
 	for _, e := range c.All() {
 		t.Run(e.GetId(), func(t *testing.T) {

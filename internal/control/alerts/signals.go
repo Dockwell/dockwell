@@ -64,9 +64,46 @@ func (s *signals) of(ctx context.Context, r rule) ([]finding, error) {
 		return s.drillsLate(ctx)
 	case resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE:
 		return s.updates(ctx, r), nil
+	case resourcev1.AlertRule_CONDITION_CATALOG_SOURCE_STUCK:
+		return s.catalogsStuck(ctx), nil
 	case resourcev1.AlertRule_CONDITION_UNSPECIFIED:
 	}
 	return nil, fmt.Errorf("no signal for %v", r.spec.GetCondition())
+}
+
+// Following is a catalog source that follows a branch, as the control plane's last
+// look at it found it (ADR 0077).
+type Following struct {
+	// Name is the source's, and Branch the branch it follows.
+	Name, Branch string
+	// Looked says the control plane has looked at it since it started.
+	Looked bool
+	// Problem says why it isn't at the branch's commit, since Since. Empty when it is.
+	Problem string
+	Since   time.Time
+}
+
+// catalogsStuck says, of each source that follows a branch, whether the last look
+// left it short of its branch's commit. One not looked at since the control plane
+// started says nothing, so what's open stays open.
+func (s *signals) catalogsStuck(ctx context.Context) []finding {
+	if s.e.Catalogs == nil {
+		return nil
+	}
+	var out []finding
+	for _, c := range s.e.Catalogs(ctx) {
+		f := finding{thing: "catalog-source:" + c.Name, subjectID: c.Name, subjectName: c.Name, path: "/catalog/sources", verdict: fine}
+		switch {
+		case !c.Looked:
+			f.verdict = unknown
+		case c.Problem != "":
+			f.verdict, f.since = holds, c.Since
+			f.title = "The catalog " + c.Name + " can't follow " + c.Branch
+			f.detail = c.Problem + " What it offers stays as it was, and nothing installed changes. Look at it on Catalog sources, then check now or pin it."
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // Checks are how the install's checks of a URL stand.

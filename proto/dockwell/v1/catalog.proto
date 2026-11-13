@@ -9,6 +9,7 @@ import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 
 // CatalogService lists the apps you can install, and plans installing one as a
 // project of its own: a Compose file with sensible ports and generated
@@ -109,14 +110,16 @@ service CatalogService {
     };
   }
   // SetCatalogSource plans adding a catalog from a public Git repository, or moving
-  // one to another commit, ready to apply or discard: a folder of Dockwell's entries,
-  // or 1Panel's app store, Dokploy's templates or Coolify's, which Dockwell tells
-  // from the commit and converts as it reads it, running nothing. Dockwell reads the
-  // commit over Git's own protocol, checking what it reads against its names, and
-  // checks each entry as it checks its own. The plan's notes say what the commit
-  // holds, and what Dockwell leaves out of it and why: an entry it refuses, or one
-  // whose ID another has. A source decides what anyone can install, so setting one
-  // is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md and
+  // one to another commit, or having it follow a branch or stay where it is, ready
+  // to apply or discard: a folder of Dockwell's entries, or 1Panel's app store,
+  // Dokploy's templates or Coolify's, which Dockwell tells from the commit and
+  // converts as it reads it, running nothing. Dockwell reads the commit over Git's
+  // own protocol, checking what it reads against its names, and checks each entry,
+  // and each image an entry names, as it checks its own. The plan's notes say what
+  // the commit holds, and what Dockwell leaves out of it and why: an entry it
+  // refuses, or one whose ID another has. A source decides what anyone can install,
+  // so setting one is an admin's. See docs/adr/0055-catalogs-from-a-git-url.md,
+  // docs/adr/0077-dockwells-catalog-in-its-own-repository.md and
   // docs/adr/0078-other-stores-read-on-the-server.md.
   rpc SetCatalogSource(SetCatalogSourceRequest) returns (SetCatalogSourceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
@@ -153,6 +156,24 @@ service CatalogService {
     option (dockwell.v1.command) = {verb: "source-refs"};
     option (google.api.http) = {
       post: "/v1/catalog/sources:refs"
+      body: "*"
+    };
+  }
+  // CheckCatalogSource looks at the branch a source follows now, rather than at its
+  // next hourly look, and when the branch has moved, moves the source to its new
+  // commit by Dockwell's own change, applied at once, with the notes a person's
+  // move has. What runs doesn't change: an install with a newer release in it
+  // shows an upgrade, which a person plans. A commit Dockwell can't read, or whose
+  // entries all fail its checks, leaves the source where it is, and the answer
+  // says why. An admin's, as it reads the network.
+  rpc CheckCatalogSource(CheckCatalogSourceRequest) returns (CheckCatalogSourceResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {verb: "check-source"};
+    option (google.api.http) = {
+      post: "/v1/catalog/sources/{name}:check"
       body: "*"
     };
   }
@@ -392,8 +413,12 @@ message SetCatalogSourceRequest {
   string repository = 2;
   // The folder of entries in it. Empty is its top.
   string path = 3;
-  // The commit to read it at, in full, as 40 hex digits.
+  // The commit to read it at, in full, as 40 hex digits. Left out with follow
+  // set, it's the commit the branch is at now.
   string commit = 4;
+  // The branch to follow, such as "main", which Dockwell moves the source along
+  // as it moves, by changes of its own. Empty pins it at commit.
+  string follow = 10;
   // How its folder is laid out. Left out, Dockwell tells from the commit, and the
   // plan says which it read it as; a folder that could be more than one is refused,
   // naming each, for you to pick.
@@ -428,6 +453,21 @@ message CatalogSourceInfo {
   // Why its entries can't be read now, such as a host that doesn't answer. Empty
   // when they can.
   string unread = 5;
+  // When Dockwell last looked at the branch it follows. Unset for a source that
+  // doesn't follow one, or one not looked at since the control plane started.
+  google.protobuf.Timestamp checked = 10;
+  // Why it isn't at the branch's commit after that look: the branch can't be
+  // read, or its commit can't, or all of that commit's entries fail Dockwell's
+  // checks. Empty when it's where it should be.
+  string problem = 11;
+  // The commit the branch was at when Dockwell last looked.
+  string branch_commit = 12;
+  // When Dockwell looks at the branch next, later after each look that failed.
+  google.protobuf.Timestamp next_check = 13;
+  // It's Dockwell's own catalog: it reads Dockwell/catalog's entries, and comes
+  // before every other source. See
+  // docs/adr/0077-dockwells-catalog-in-its-own-repository.md.
+  bool own = 14;
   // The IDs of the apps it has that the catalog lists from a catalog before it,
   // whose entries in it are another choice of the same app, sorted.
   repeated string also = 20;
@@ -488,6 +528,21 @@ message CatalogSourceRef {
   string name = 1;
   // The commit it's at, in full. A tag's is the commit it names.
   string commit = 2;
+}
+
+// CheckCatalogSourceRequest names a source that follows a branch.
+message CheckCatalogSourceRequest {
+  // The source's name.
+  string name = 1;
+}
+
+// CheckCatalogSourceResponse is what the look found.
+message CheckCatalogSourceResponse {
+  // The source as it is after the look.
+  CatalogSourceInfo source = 1;
+  // The change that moved it, applied. Unset when it was where the branch is, or
+  // couldn't move, as source.problem says.
+  Change change = 2;
 }
 
 // RemoveCatalogSourceRequest names the source to stop reading.

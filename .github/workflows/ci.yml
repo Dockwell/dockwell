@@ -56,6 +56,11 @@ jobs:
           cache-dependency-path: |
             go.sum
             tools/go.sum
+      # The binary's snapshot of Dockwell/catalog is that repository at its commit,
+      # so entries are written in one place (docs/adr/0077-dockwells-catalog-in-its-own-repository.md).
+      - name: Catalog snapshot is Dockwell/catalog's
+        if: steps.pick.outputs.run == 'true'
+        run: scripts/catalog-snapshot.sh --check
       - name: Modules are tidy
         if: steps.pick.outputs.run == 'true'
         run: |

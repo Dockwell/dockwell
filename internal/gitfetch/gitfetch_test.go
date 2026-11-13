@@ -101,6 +101,33 @@ func TestFetchReadsAFolderAtACommit(t *testing.T) {
 	}
 }
 
+// A folder in the folder is read too when a fetch names it, one level, with what
+// it wants alone, within limits of its own; a commit without it is no error.
+func TestFetchReadsASubfolder(t *testing.T) {
+	url, first, _ := repo(t)
+	lim := Default
+	lim.Sub = &Sub{Name: "more", Limits: Limits{Files: 5, File: 1 << 10, Total: 4 << 10}, Want: func(name string) bool { return strings.HasSuffix(name, ".yaml") }}
+	got, err := Fetch(t.Context(), gitfetchtest.Client(), url, first, "entries", lim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || string(got["more/deeper.yaml"]) != "id: deeper\n" {
+		t.Errorf("with the folder more: %q", keys(got))
+	}
+	lim.Sub.Want = func(string) bool { return false }
+	if got, err = Fetch(t.Context(), gitfetchtest.Client(), url, first, "entries", lim); err != nil || len(got) != 2 {
+		t.Errorf("wanting none of it: %q, %v", keys(got), err)
+	}
+	lim.Sub = &Sub{Name: "media", Limits: Limits{Files: 5, File: 1 << 10}}
+	if got, err = Fetch(t.Context(), gitfetchtest.Client(), url, first, "entries", lim); err != nil || len(got) != 2 {
+		t.Errorf("a folder the commit hasn't: %q, %v", keys(got), err)
+	}
+	lim.Sub = &Sub{Name: "more", Limits: Limits{Files: 5, File: 1 << 10, Total: 4}}
+	if _, err = Fetch(t.Context(), gitfetchtest.Client(), url, first, "entries", lim); err == nil || !strings.Contains(err.Error(), "entries/more holds over 0 MiB") || !strings.Contains(err.Error(), "Make its images smaller") {
+		t.Errorf("over its own limits: %v", err)
+	}
+}
+
 func keys(m map[string][]byte) []string {
 	var out []string
 	for k := range m {

@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: vaultwarden
+name: Vaultwarden
+summary: Passwords, Bitwarden-compatible
+description: |-
+  Vaultwarden is a lightweight, community-maintained password vault server compatible with Bitwarden clients. Keep your vault on your own server and connect it from a browser, desktop app or mobile client.
+
+  This entry includes the web vault and persistent storage. Serve it over HTTPS before using browser features. Vaultwarden is an independent project; it is not the official Bitwarden server.
+icon: media/vaultwarden-icon.webp
+documentation: https://github.com/dani-garcia/vaultwarden/wiki
+appSource: https://github.com/dani-garcia/vaultwarden
+features:
+  - "Bitwarden-compatible clients"
+  - "Included web vault"
+  - "Password and secure-note storage"
+  - "Vault data on your own server"
+screenshots:
+  - path: media/vaultwarden-client.webp
+    caption: "Bitwarden browser extension, a separate client compatible with Vaultwarden"
+    source: https://raw.githubusercontent.com/bitwarden/clients/103de051270fb7156dbfdbb95ac2ab66722db267/apps/browser/store/locales/en/screenshots/Chrome/Chrome01.png
+category: security
+version: "1.37.4"
+release: 3
+homepage: https://github.com/dani-garcia/vaultwarden
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/vaultwarden.yaml
+web:
+  service: vaultwarden
+firstVisitorOwns: true
+signups:
+  service: vaultwarden
+  variable: SIGNUPS_ALLOWED
+  closed: "false"
+addressVariables:
+  - service: vaultwarden
+    variable: DOMAIN
+    value: "https://{domain}"
+notes:
+  - "Its web vault signs in only over HTTPS, or on localhost."
+  - "Bitwarden's apps sign in at the same address."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8222"
+compose: |
+  services:
+    vaultwarden:
+      image: vaultwarden/server:1.37.4@sha256:efb3cde962015fcc036b2ea625242248611943b27212ebf4392841fb30fad055
+      restart: unless-stopped
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD", "/healthcheck.sh"]
+        interval: 10s
+        timeout: 5s
+        retries: 12
+        start_period: 10s
+  volumes:
+    data: {}

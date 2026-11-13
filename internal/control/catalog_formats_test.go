@@ -93,7 +93,8 @@ func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := sources.Msg.GetSources()
+	// Beside Dockwell's own catalog (ADR 0077).
+	s := slices.DeleteFunc(sources.Msg.GetSources(), func(s *dockwellv1.CatalogSourceInfo) bool { return s.GetOwn() })
 	if len(s) != 1 || s[0].GetSource().GetFormat() != resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY || !slices.Equal(s[0].GetEntries(), []string{"board"}) || len(s[0].GetRefused()) != 3 {
 		t.Fatalf("ListCatalogSources = %v", s)
 	}

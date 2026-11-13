@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: lobechat
+name: LobeChat
+summary: Chat with model providers, with history in your browser
+description: |-
+  LobeChat is a chat interface for the model providers you choose. Keep conversations in topics, switch between models, and use assistants set up for a task.
+
+  This entry is LobeChat's browser-storage edition: chats and settings live in each browser, not on your server, so there is no data volume to back up. An access code protects the provider keys you set on the server. LobeHub 2 is a separate deployment with a database, and isn't an upgrade of this one.
+icon: media/lobechat-icon.webp
+documentation: https://lobehub.com/docs/self-hosting/start
+appSource: https://github.com/lobehub/lobe-chat
+features:
+  - "Chat with the providers and models you choose"
+  - "Topics and assistants for different tasks"
+  - "An access code for shared provider keys"
+  - "History kept in your browser"
+screenshots:
+  - path: media/lobechat-chat.webp
+    caption: "LobeChat's published preview of a conversation"
+    source: https://raw.githubusercontent.com/lobehub/lobe-chat/d718de7e1af2dd7281c4eaca70f627e4b9deddb1/public/screenshots/shot-1.desktop.png
+category: ai
+version: "1.143.3"
+release: 1
+homepage: https://lobehub.com
+license: AGPL-3.0-only
+appLicense: LobeHub Community License
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/lobechat.yaml
+web:
+  service: lobechat
+signIn:
+  passwordInput: "ACCESS_CODE"
+notes:
+  - "Chats stay in each browser at its address, not on the server: export them before you change either."
+  - "It asks for the access code when you first chat, or in its settings."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "3210"
+  - name: ACCESS_CODE
+    label: Access code
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: OPENAI_API_KEY
+    label: OpenAI API key
+    hint: Optional. Leave empty to configure a provider in each browser instead.
+    type: INPUT_TYPE_SECRET
+    optional: true
+compose: |
+  services:
+    lobechat:
+      image: lobehub/lobe-chat:1.143.3@sha256:b2d2454525523d9f0a19c79661f83ec45f13363dbadd5c1180887e77af35d872
+      restart: unless-stopped
+      environment:
+        ACCESS_CODE: ${ACCESS_CODE}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ports:
+        - "127.0.0.1:${PORT}:3210"
+      healthcheck:
+        test: ["CMD", "/bin/node", "-e", "fetch('http://127.0.0.1:3210', {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+        interval: 10s
+        timeout: 5s
+        retries: 24
+        start_period: 30s

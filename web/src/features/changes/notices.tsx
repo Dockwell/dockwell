@@ -1092,6 +1092,9 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     "catalog_source_changes",
     "catalog_source_commit",
     "catalog_source_restores",
+    "catalog_source_follows",
+    "catalog_source_pinned",
+    "catalog_source_followed",
   ]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
@@ -1194,6 +1197,26 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       out.push({
         key: `catalog-restores-${i}`,
         title: t`${projects} can upgrade again, from the catalog each came from.`,
+      });
+    }
+    // Following a branch, as refs/heads/main: what the catalog offers moves, and what runs doesn't.
+    if (note.reason === "catalog_source_follows" || note.reason === "catalog_source_followed") {
+      const branch = (note.names[0] ?? "").replace(/^refs\/heads\//, "");
+      out.push({
+        key: `catalog-follows-${i}`,
+        title:
+          branch === ""
+            ? note.message
+            : note.reason === "catalog_source_follows"
+              ? t`Follows ${branch}: Dockwell moves the catalog along it, by changes you can undo.`
+              : t`Dockwell moves it as ${branch} moved.`,
+        more: t`Installed apps don't change. An upgrade is a plan you apply.`,
+      });
+    }
+    if (note.reason === "catalog_source_pinned") {
+      out.push({
+        key: `catalog-pinned-${i}`,
+        title: t`Stops following its branch, and stays at this commit until you move it.`,
       });
     }
     if (note.reason !== "pulls_again") continue;

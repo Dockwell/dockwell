@@ -21,6 +21,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/convert"
+	"github.com/dockwell/dockwell/internal/catalog/folder"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/gitfetch"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -97,10 +98,9 @@ type leftOutApp struct {
 
 // readLeftOut reads what a converted commit keeps of the apps it left out, if it's
 // what this converter wrote for this format.
-func readLeftOut(files map[string][]byte, format string) (leftOutRecord, bool) {
+func readLeftOut(raw []byte, format string) (leftOutRecord, bool) {
 	var rec leftOutRecord
-	raw, ok := files[leftOutFile]
-	if !ok || json.Unmarshal(raw, &rec) != nil || rec.Format != format || rec.Version != convert.Version {
+	if raw == nil || json.Unmarshal(raw, &rec) != nil || rec.Format != format || rec.Version != convert.Version {
 		return leftOutRecord{}, false
 	}
 	return rec, true
@@ -464,7 +464,7 @@ func (h *Handler) pinImages(ctx context.Context, e *catalogv1.Entry, server stri
 // runImages are the images an entry's services run, as an install reads its file,
 // with stand-ins for what a person types.
 func runImages(ctx context.Context, e *catalogv1.Entry) ([]string, error) {
-	stack, err := readStack(ctx, e)
+	stack, err := folder.ReadStack(ctx, e)
 	if err != nil {
 		return nil, err
 	}

@@ -86,6 +86,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BuildService.readBuildLog": "read",
   "BuildService.watchBuild": "read",
 
+  "CatalogService.checkCatalogSource": "may",
   "CatalogService.getCatalogEntry": "read",
   "CatalogService.installCatalogEntry": "may",
   "CatalogService.listCatalogEntries": "read",

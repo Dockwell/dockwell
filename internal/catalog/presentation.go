@@ -19,12 +19,26 @@ import (
 // request to another server, an API procedure or a path outside the media folder.
 var mediaPath = regexp.MustCompile(`^/catalog-media/[a-z0-9]+(?:[-_/][a-z0-9]+)*\.(svg|png|jpg|jpeg|webp|avif)$`)
 
+// ownMedia is an image in the folder media beside an entry, in its own catalog,
+// which the control plane serves from what it read of it (ADR 0077): a raster
+// format alone, never SVG, which can hold a script. package folder checks the file.
+var ownMedia = regexp.MustCompile(`^media/[a-z0-9]+(?:[-_][a-z0-9]+)*\.(png|jpg|jpeg|webp)$`)
+
+// image says a path is one an entry's image may have: its own catalog's, or the
+// panel's for an entry built into Dockwell. raster leaves out SVG and AVIF.
+func image(path string, raster bool) bool {
+	if ownMedia.MatchString(path) {
+		return true
+	}
+	return mediaPath.MatchString(path) && (!raster || !strings.HasSuffix(path, ".svg"))
+}
+
 func checkPresentation(e *catalogv1.Entry) error {
 	if utf8.RuneCountInString(e.GetDescription()) > 6000 {
 		return errors.New("its description is longer than 6000 characters. Keep the app's overview within that length")
 	}
-	if icon := e.GetIcon(); icon != "" && !mediaPath.MatchString(icon) {
-		return errors.New("its icon needs a local image path under /catalog-media/")
+	if icon := e.GetIcon(); icon != "" && !image(icon, false) {
+		return errors.New("its icon needs an image in the folder media beside it, as media/<name>.webp, in WebP, PNG or JPEG")
 	}
 	for name, address := range map[string]string{"homepage": e.GetHomepage(), "documentation": e.GetDocumentation(), "app source": e.GetAppSource()} {
 		if address != "" && !presentationLink(address) {
@@ -45,8 +59,8 @@ func checkPresentation(e *catalogv1.Entry) error {
 	seen := map[string]bool{}
 	for _, shot := range e.GetScreenshots() {
 		p := shot.GetPath()
-		if !mediaPath.MatchString(p) || strings.HasSuffix(p, ".svg") {
-			return errors.New("each screenshot needs a local raster image path under /catalog-media/")
+		if !image(p, true) {
+			return errors.New("each screenshot needs an image in the folder media beside it, as media/<name>.webp, in WebP, PNG or JPEG")
 		}
 		if seen[p] {
 			return fmt.Errorf("the screenshot %s is listed twice. Keep one copy", p)

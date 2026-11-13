@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# On its first install, upstream's entrypoint gives occ the admin and database
+# passwords on its command line, for the seconds the install takes.
+id: nextcloud
+name: Nextcloud
+summary: Files, calendars and contacts
+description: |-
+  Nextcloud gives you a shared home for files on your own server. Upload and organize documents, share folders with other people, and connect desktop and mobile clients.
+
+  This entry includes Nextcloud and its database. Calendars, contacts and other capabilities can be added through Nextcloud's app system after setup.
+icon: media/nextcloud-icon.webp
+documentation: https://docs.nextcloud.com/server/latest/user_manual/en/
+appSource: https://github.com/nextcloud/server
+features:
+  - "File browsing and sharing"
+  - "Desktop and mobile sync clients"
+  - "User and group access controls"
+  - "An app system for calendars and more"
+screenshots:
+  - path: media/nextcloud-files.webp
+    caption: "Files and sharing in Nextcloud"
+    source: https://raw.githubusercontent.com/nextcloud/screenshots/44fe757d7799e9820c1f2ce079d1450978810a38/nextcloud-hub-25-files.png
+category: storage
+version: "35.0.2"
+release: 4
+homepage: https://nextcloud.com
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-or-later
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/nextcloud.yaml
+web:
+  service: nextcloud
+signIn:
+  userInput: "ADMIN_USER"
+  passwordInput: "NEXTCLOUD_ADMIN_PASSWORD"
+  changedIn: "Personal settings, Security"
+addressVariables:
+  - service: nextcloud
+    variable: OVERWRITEPROTOCOL
+    value: "https"
+  - service: nextcloud
+    variable: TRUSTED_PROXIES
+    value: "172.16.0.0/12"
+notes:
+  - "Answers at the domain you gave on its first install; another needs adding to its trusted_domains."
+  - "Leave the POSTGRES_PASSWORD secret as it is: its config.php keeps the password it installed with."
+  - "Its first start takes a minute or two."
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8084"
+  - name: DOMAIN
+    label: Domain you'll add
+    hint: "Such as cloud.example.com. Nextcloud reads it on its first install only."
+    type: INPUT_TYPE_TEXT
+    optional: true
+  - name: ADMIN_USER
+    label: Admin user
+    type: INPUT_TYPE_TEXT
+    defaultValue: admin
+  - name: NEXTCLOUD_ADMIN_PASSWORD
+    setOnce: true
+    label: Admin password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+  - name: POSTGRES_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    nextcloud:
+      image: nextcloud:35.0.2-apache@sha256:d88929dc8386420b8963f86cabb667fdaf733eef9dcf8fc98e226801a32c023c
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      environment:
+        POSTGRES_HOST: db
+        POSTGRES_DB: nextcloud
+        POSTGRES_USER: nextcloud
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        NEXTCLOUD_ADMIN_USER: ${ADMIN_USER}
+        NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD}
+        NEXTCLOUD_TRUSTED_DOMAINS: ${DOMAIN}
+      ports:
+        - "127.0.0.1:${PORT}:80"
+      volumes:
+        - html:/var/www/html
+      healthcheck:
+        test: ["CMD-SHELL", "curl -fsS --max-time 8 -H 'Host: localhost' http://127.0.0.1/status.php | grep '\"installed\":true' | grep -q '\"maintenance\":false'"]
+        interval: 10s
+        timeout: 10s
+        retries: 30
+        start_period: 180s
+    db:
+      image: postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: nextcloud
+        POSTGRES_DB: nextcloud
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      volumes:
+        - data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "nextcloud", "-d", "nextcloud"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    html: {}
+    data: {}

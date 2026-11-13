@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: plausible
+name: Plausible
+summary: Cookie-free web analytics
+description: |-
+  Plausible presents website traffic in a focused analytics dashboard. See which pages people visit, how they arrive, and which goals they complete without adding a cookie-based visitor profile.
+
+  This entry installs the self-hosted Community Edition and its supporting databases. Add a site after setup, then place its tracking script on the pages you want to measure.
+icon: media/plausible-icon.webp
+documentation: https://plausible.io/docs
+appSource: https://github.com/plausible/analytics
+features:
+  - "Traffic sources and popular pages"
+  - "Goals and custom events"
+  - "Cookie-free website measurement"
+  - "A focused analytics dashboard"
+screenshots:
+  - path: media/plausible-dashboard.webp
+    caption: "Visitor trends, sources and pages in Plausible"
+    source: https://raw.githubusercontent.com/plausible/analytics/021c4191593338197544b227f5d3973cb0deb913/.github/plausible-analytics-dashboard.webp
+category: analytics
+version: "3.2.1"
+release: 5
+homepage: https://plausible.io/self-hosted-web-analytics
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/plausible.yaml
+web:
+  service: plausible
+firstVisitorOwns: true
+addressVariables:
+  - service: plausible
+    variable: BASE_URL
+    value: "https://{domain}"
+inputs:
+  - name: PORT
+    label: Port on this server
+    type: INPUT_TYPE_PORT
+    defaultValue: "8000"
+  - name: SECRET_KEY_BASE
+    setOnce: true
+    label: Secret key
+    type: INPUT_TYPE_SECRET
+    generate: 64
+    minLength: 64
+  - name: POSTGRES_PASSWORD
+    label: Database password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+    characters: CHARACTERS_URL_SAFE
+databases: [db, events]
+compose: |
+  services:
+    plausible:
+      image: ghcr.io/plausible/community-edition:v3.2.1@sha256:33e60bfb40f2df5da00f8753b76fad04f67dba3abe6d73eb516e440e3fb62985
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+        events:
+          condition: service_healthy
+      # Its database is named by a URL alone, so a shell writes that from the secret as it
+      # starts, and the file names no password. Then it makes and migrates what it keeps.
+      command: ["sh", "-c", "export DATABASE_URL=\"postgres://plausible:$$POSTGRES_PASSWORD@db:5432/plausible\" && /entrypoint.sh db createdb && /entrypoint.sh db migrate && exec /entrypoint.sh run"]
+      environment:
+        BASE_URL: http://localhost:${PORT}
+        SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        CLICKHOUSE_DATABASE_URL: http://events:8123/plausible_events_db
+        TMPDIR: /var/lib/plausible/tmp
+      ports:
+        - "127.0.0.1:${PORT}:8000"
+      volumes:
+        - data:/var/lib/plausible
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8000/api/system/health/ready"]
+        interval: 10s
+        timeout: 5s
+        retries: 24
+        start_period: 60s
+    db:
+      image: postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: plausible
+        POSTGRES_DB: plausible
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      volumes:
+        - db:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "plausible", "-d", "plausible"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+    events:
+      # ClickHouse 24.12 is out of upstream's support, and it's what Plausible's own
+      # Compose file pins, which this follows until Plausible moves.
+      image: clickhouse/clickhouse-server:24.12.6.70-alpine@sha256:cd450891db46cc6ffe313ca2b0fb7dbfb897a6873ca74a724cbe050a2cf62621
+      restart: unless-stopped
+      # Plausible's own settings for a small server, which its Compose file mounts:
+      # warnings alone in the log, only the system log it reads, IPv4, and less memory.
+      command: ["sh", "-c", "printf '%s' \"$$PLAUSIBLE_SERVER_XML\" >/etc/clickhouse-server/config.d/plausible.xml && printf '%s' \"$$PLAUSIBLE_USERS_XML\" >/etc/clickhouse-server/users.d/plausible.xml && exec /entrypoint.sh"]
+      environment:
+        CLICKHOUSE_SKIP_USER_SETUP: "1"
+        PLAUSIBLE_SERVER_XML: '<clickhouse><logger><level>warning</level><console>true</console></logger><listen_host>0.0.0.0</listen_host><mark_cache_size>524288000</mark_cache_size><query_log replace="1"><database>system</database><table>query_log</table><flush_interval_milliseconds>7500</flush_interval_milliseconds><engine>ENGINE = MergeTree PARTITION BY event_date ORDER BY (event_time) TTL event_date + interval 30 day SETTINGS ttl_only_drop_parts=1</engine></query_log><metric_log remove="remove"/><asynchronous_metric_log remove="remove"/><query_thread_log remove="remove"/><text_log remove="remove"/><trace_log remove="remove"/><session_log remove="remove"/><part_log remove="remove"/></clickhouse>'
+        PLAUSIBLE_USERS_XML: '<clickhouse><profiles><default><max_threads>1</max_threads><max_block_size>8192</max_block_size><max_download_threads>1</max_download_threads><input_format_parallel_parsing>0</input_format_parallel_parsing><output_format_parallel_formatting>0</output_format_parallel_formatting></default></profiles></clickhouse>'
+      volumes:
+        - events:/var/lib/clickhouse
+      healthcheck:
+        test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8123/ping"]
+        interval: 5s
+        timeout: 5s
+        retries: 24
+  volumes:
+    data: {}
+    db: {}
+    events: {}

@@ -17,7 +17,7 @@ Media ships with the panel under `/catalog-media/`. Entry validation restricts m
 
 All 24 built-in entries have app information and a project logo. Apps with an interface have previews from their projects. A database preview names the included administration tool, and Vaultwarden's preview names the compatible Bitwarden browser extension. Redis and Cloudflare Tunnel explain that they have no local web interface. Screenshots do not promise that a project's current demo exactly matches the pinned release.
 
-The [media manifest](../../web/public/catalog-media/manifest.json) records original URLs, commit IDs where available, hashes and technical transformations. The [notices](../../web/public/catalog-media/NOTICE.txt) retain attribution and source terms. Artwork is not relicensed as Dockwell code, and no preview is fabricated. Catalog descriptions and feature lists are authored here, as [ADR 0029](0029-a-catalog-format-fed-from-other-catalogs.md) requires.
+The [media manifest](../../internal/catalog/snapshot/entries/media/manifest.json) (in `web/public/catalog-media` until [ADR 0077](0077-dockwells-catalog-in-its-own-repository.md) moved it to Dockwell/catalog) records original URLs, commit IDs where available, hashes and technical transformations. The [notices](../../internal/catalog/snapshot/entries/media/NOTICE.txt) retain attribution and source terms. Artwork is not relicensed as Dockwell code, and no preview is fabricated. Catalog descriptions and feature lists are authored here, as [ADR 0029](0029-a-catalog-format-fed-from-other-catalogs.md) requires.
 
 ## Consequences
 

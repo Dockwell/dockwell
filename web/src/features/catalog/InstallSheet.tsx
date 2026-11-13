@@ -64,7 +64,7 @@ import { Facts, useEntryFacts } from "./access";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
-import { useOrigins, useSourceNames } from "./useCatalog";
+import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 // Its lines and the engine picker, wherever the sheet opens: on the Databases page too, which loads no catalog page.
@@ -322,8 +322,9 @@ export function InstallSheet({
   // Where it comes from decides what the sheet says of it, so a plan waits until that's read.
   const origins = useOrigins();
   const named = useSourceNames();
-  // The catalog it installs from: the one picked, or the one it's listed from.
-  const source = catalog || origins.origins.get(id)?.name;
+  // The catalog it installs from, the one picked or the one it's listed from, when it's another catalog than Dockwell's own (ADR 0077).
+  const pickedSource = catalog ? origins.data?.sources.find((s) => s.name === catalog) : undefined;
+  const source = catalog ? (pickedSource?.own ? undefined : catalog) : stranger(origins.origins, id)?.name;
   const ready =
     entry !== undefined &&
     origins.data !== undefined &&

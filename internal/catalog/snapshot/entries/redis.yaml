@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: redis
+name: Redis
+summary: In-memory data store for caches, queues and sessions
+description: |-
+  Redis is an in-memory data store often used for caches, queues, counters and session data. Applications connect through a Redis client library or the command-line client.
+
+  This entry enables append-only persistence and requires a generated password. It is a database service with no bundled web interface. Its port is initially available on this server's loopback address.
+icon: media/redis-icon.webp
+documentation: https://redis.io/docs/latest/
+appSource: https://github.com/redis/redis
+features:
+  - "In-memory data structures"
+  - "Caching and session storage"
+  - "Queues, counters and pub/sub"
+  - "Append-only persistence"
+category: databases
+version: "8.10.2"
+release: 3
+homepage: https://redis.io
+license: AGPL-3.0-only
+appLicense: AGPL-3.0-only
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/redis.yaml
+notes:
+  - "Keeps what you write on its volume, in an append-only file."
+inputs:
+  - name: PORT
+    label: Port on this server
+    hint: "Only this server reaches it, on 127.0.0.1."
+    type: INPUT_TYPE_PORT
+    defaultValue: "6379"
+  - name: REDIS_PASSWORD
+    label: Password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [redis]
+compose: |
+  services:
+    redis:
+      image: redis:8.10.2@sha256:97ec88159e6d7cfb5ddef9015386087d58a912de80112f06ebdfa78fa5989901
+      restart: unless-stopped
+      command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+      environment:
+        REDISCLI_AUTH: ${REDIS_PASSWORD}
+      ports:
+        - "127.0.0.1:${PORT}:6379"
+      volumes:
+        - data:/data
+      healthcheck:
+        test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+        interval: 5s
+        timeout: 5s
+        retries: 12
+  volumes:
+    data: {}

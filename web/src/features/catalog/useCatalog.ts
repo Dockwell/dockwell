@@ -40,6 +40,15 @@ export function useOrigins() {
 }
 
 /**
+ * The source an entry comes from when it's another catalog's, to weigh as one: none
+ * for Dockwell's own, which a source reads too (ADR 0077), or while it isn't known.
+ */
+export function stranger(origins: ReadonlyMap<string, CatalogSourceInfo>, id: string): CatalogSourceInfo | undefined {
+  const source = origins.get(id);
+  return source && !source.own ? source : undefined;
+}
+
+/**
  * Whether an install is of an entry: of its ID, and from a catalog that has the app,
  * the one it's listed from or another that has the same app, as an install upgrades
  * only from where it came from. Another catalog's app of the same ID is another app.
@@ -59,15 +68,22 @@ export function installOf(
 }
 
 /**
- * How a person says each catalog, by its source's ID: "Dockwell's own" for the
- * built-in one (the empty ID), a store's name for a store at its own repository, and
- * otherwise its repository's owner and name. Never the ID, which a tooltip keeps.
+ * How a person says each catalog, by its source's ID: "Dockwell's own" for the source
+ * that reads Dockwell/catalog (ADR 0077) and for the catalog built into older builds
+ * (the empty ID), a store's name for a store at its own repository, and otherwise its
+ * repository's owner and name. Never the ID, which a tooltip keeps.
  */
 export function useSourceNames(): (name: string) => string {
   const { t } = useLingui();
   const sources = useSources().data?.sources;
-  const words = useMemo(() => sourcesWords(sources ?? []), [sources]);
-  return useCallback((name: string) => (name === "" ? t`Dockwell's own` : (words.get(name) ?? name)), [words, t]);
+  const { words, own } = useMemo(() => {
+    const others = (sources ?? []).filter((s) => !s.own);
+    return { words: sourcesWords(others), own: new Set((sources ?? []).filter((s) => s.own).map((s) => s.name)) };
+  }, [sources]);
+  return useCallback(
+    (name: string) => (name === "" || own.has(name) ? t`Dockwell's own` : (words.get(name) ?? name)),
+    [words, own, t],
+  );
 }
 
 /** The other catalogs that have each app, by its ID, as the catalog lists them. */
