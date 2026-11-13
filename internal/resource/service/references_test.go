@@ -131,6 +131,53 @@ func TestAShellsScriptReadsItsValueFromTheEnvironment(t *testing.T) {
 	}
 }
 
+// docker compose, running an export, writes the value into a script, as Compose
+// does any value, where Dockwell keeps the name for the shell. That container
+// reads back as the service, and one with another value doesn't.
+func TestAScriptWithItsValueWrittenInReadsBackAsTheService(t *testing.T) {
+	for name, c := range map[string]struct {
+		value string
+		same  bool
+	}{
+		"the value":     {value: refValue, same: true},
+		"another value": {value: "typed-by-hand-77"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newStack(t)
+			spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED,
+				Command:     []string{"sh", "-c", "exec redis-server --requirepass ${PW}"},
+				Env:         map[string]string{"PW": refValue},
+				Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "redis-cli -a \"${PW}\" -p $${PORT:-6379} ping"}},
+				References:  []string{"command", "healthcheck.test"},
+			}}}
+			s.deploy(t, webRef, proto.Clone(spec).(*resourcev1.Service))
+			before := s.engine.Newest(project, "web")
+			s.engine.Edit(strings.TrimPrefix(before.Name, "/"), func(on *docker.Container) {
+				on.Config.Cmd = []string{"sh", "-c", "exec redis-server --requirepass " + c.value}
+				on.Config.Healthcheck = &docker.Healthcheck{Test: []string{"CMD-SHELL", "redis-cli -a \"" + c.value + "\" -p ${PORT:-6379} ping"}}
+			})
+			got, err := s.local.Observe(t.Context(), []resource.Ref{webRef})
+			if err != nil {
+				t.Fatal(err)
+			}
+			app := got[0].(*resourcev1.Service).GetApp()
+			if !c.same {
+				if !slices.Equal(app.GetCommand(), []string{binding.Unread}) || !slices.Equal(app.GetHealthcheck().GetTest(), []string{binding.Unread}) {
+					t.Errorf("it reads back as %q and %q", app.GetCommand(), app.GetHealthcheck().GetTest())
+				}
+				return
+			}
+			if !slices.Equal(app.GetCommand(), spec.GetApp().GetCommand()) || !slices.Equal(app.GetHealthcheck().GetTest(), spec.GetApp().GetHealthcheck().GetTest()) {
+				t.Errorf("it reads back as %q and %q", app.GetCommand(), app.GetHealthcheck().GetTest())
+			}
+			if step := s.plan(t, webRef, proto.Clone(spec).(*resourcev1.Service), ""); step.Action != resource.ActionNone || len(step.Changes) != 0 {
+				t.Errorf("planning what runs takes %s, changing %+v", step.Action, step.Changes)
+			}
+		})
+	}
+}
+
 // The config hash is a function of the names. Were it of the text, a label anyone with a
 // container could read would check a guess at a short password offline.
 func TestTheConfigHashDoesntDependOnTheValue(t *testing.T) {

@@ -371,11 +371,17 @@ func readWords(c *docker.Container, out *resourcev1.Container) {
 		if !ok {
 			script = -1
 		}
-		got, err := binding.RenderField(want, env, script)
-		if field == binding.FieldEntrypoint {
-			got = noEntrypoint(got)
+		comesTo := func(script int) bool {
+			got, err := binding.RenderField(want, env, script)
+			if field == binding.FieldEntrypoint {
+				got = noEntrypoint(got)
+			}
+			return err == nil && slices.Equal(got, have)
 		}
-		if !unreadable && err == nil && slices.Equal(got, have) {
+		// docker compose, running an export, writes each value into a script, as
+		// Compose does any value it's given, where Dockwell keeps the name for the
+		// shell: that container is the spec too.
+		if !unreadable && (comesTo(script) || script >= 0 && comesTo(-1)) {
 			return want
 		}
 		return []string{binding.Unread}
