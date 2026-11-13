@@ -1139,13 +1139,13 @@ describe("New app, from an image", () => {
     await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
     await user.click(within(sheet).getByRole("button", { name: "Add volume" }));
     await user.click(within(sheet).getByRole("button", { name: "Pick a folder on the server" }));
-    // The picker opens on the server's folders, as a lookup, and a file isn't one.
+    // The picker opens on the server's folders, as a lookup, by name, and a file isn't one.
     const folders = await within(sheet).findByRole("list", { name: "Folders in /" });
     expect(
       within(folders)
         .getAllByRole("button")
         .map((b) => b.textContent),
-    ).toEqual(["srv", "etc"]);
+    ).toEqual(["etc", "srv"]);
     expect(listed[0]).toBe(`${SERVER} / true`);
     await user.click(within(folders).getByRole("button", { name: "srv" }));
     await user.type(within(sheet).getByLabelText("Path in the app"), "/data");

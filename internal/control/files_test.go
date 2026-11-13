@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -111,6 +112,53 @@ func testAPersonReadsAServersFiles(t *testing.T, backend store.Backend) {
 	code, _, body = callREST(t, b, http.MethodPost, "/v1/servers/"+id+"/files:read", nil, `{"path":"`+config+`"}`)
 	if code != http.StatusOK || !strings.Contains(body, "listen 80") {
 		t.Errorf("POST files:read: %d %s", code, body)
+	}
+}
+
+// A folder under a parent that holds more than a listing carries is found by its
+// own path, a lookup of one that isn't there goes on no record, and the parent's
+// listing says how many it holds and finds the folder by name (#588).
+func TestAFolderUnderABusyParentIsFoundByItsOwnPath(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	server := f.addServer(t, false)
+	id := server.id.ServerID
+	busy, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Over the bound, and every one sorts before the folder wanted.
+	for i := range agentfiles.MaxEntries + 10 {
+		if err := os.WriteFile(filepath.Join(busy, fmt.Sprintf("aa-%05d", i)), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shop := filepath.Join(busy, "shop")
+	writeFile(t, filepath.Join(shop, "package.json"), "{}")
+	c := fileClient(b, b.origin)
+
+	parent, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: busy, Lookup: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !parent.Msg.GetTruncated() || parent.Msg.GetTotal() != agentfiles.MaxEntries+11 ||
+		slices.ContainsFunc(parent.Msg.GetEntries(), func(e *dockwellv1.FileEntry) bool { return e.GetName() == "shop" }) {
+		t.Fatalf("the busy parent lists %d of %d, truncated %t", len(parent.Msg.GetEntries()), parent.Msg.GetTotal(), parent.Msg.GetTruncated())
+	}
+	here, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: shop, Lookup: true}))
+	if err != nil || len(here.Msg.GetEntries()) != 1 || here.Msg.GetEntries()[0].GetName() != "package.json" {
+		t.Fatalf("the folder by its own path: %v, %v", here, err)
+	}
+	found, err := c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: busy, Lookup: true, Match: "sho"}))
+	if err != nil || len(found.Msg.GetEntries()) != 1 || found.Msg.GetEntries()[0].GetName() != "shop" || found.Msg.GetTotal() != 1 || found.Msg.GetTruncated() {
+		t.Fatalf("finding sho in the busy parent: %v, %v", found, err)
+	}
+	_, err = c.ListFiles(t.Context(), connect.NewRequest(&dockwellv1.ListFilesRequest{ServerId: id, Path: filepath.Join(busy, "new"), Lookup: true}))
+	if connect.CodeOf(err) != connect.CodeNotFound || reasonOf(err) != "not_found" {
+		t.Fatalf("a folder that isn't there: %v", err)
+	}
+	if got := fileEvents(t, f); len(got) != 0 {
+		t.Errorf("lookups went on record: %v", got)
 	}
 }
 

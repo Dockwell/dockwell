@@ -142,7 +142,7 @@ A check before a start and the start itself are still two steps, a moment apart,
 ### Bounds
 
 - A file reads as text up to 1 MiB. A larger one reads as its first 1 MiB, and can't be saved. One that isn't UTF-8 reads as binary, and its contents aren't sent.
-- A directory lists at most 5,000 entries and 4 MiB.
+- A directory lists at most 5,000 entries and 4 MiB. A listing says how many entries the directory holds, so one that is cut says so, and a name searches the whole directory on the agent, bounded the same way. A form looks a folder someone chose up by its own path, never in its parent's listing, which a busy parent cuts before it (#588).
 - These calls go on the agent's main stream ([ADR 0017](0017-the-change-api-and-the-agent-stream.md)), at most 4 at once, as they are this small. A call keeps its place until its result has gone, so a stream slower than the agent can't pile results up. Uploads and downloads, which aren't this small, would go on a connection of their own, as logs do.
 
 ### A path that stops answering

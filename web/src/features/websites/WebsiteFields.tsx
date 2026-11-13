@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { createClient } from "@connectrpc/connect";
-import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType } from "@dockwell/api";
-import { Advanced, type FolderListing, FolderPicker, SelectField, Switch, Tag, TextField } from "@dockwell/ui";
+import { Advanced, FolderPicker, SelectField, Switch, Tag, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
-import { reasonOf, sentence } from "../../lib/errors";
+import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
-import { nameOf, parentOf } from "../files/paths";
+import { useFolderList } from "../files/folders";
+import { useFolderLookup } from "../files/lookup";
+import { parentOf } from "../files/paths";
 import { changed, indexOf, type Missing, type Serves, type Settings } from "./settings";
 import { useRuntimes } from "./website";
 
@@ -393,8 +393,6 @@ function FolderField({
   onChange: (next: Settings) => void;
 }) {
   const { t } = useLingui();
-  const transport = useTransport();
-  const client = useMemo(() => createClient(FileService, transport), [transport]);
   const mayList = useMay()(FileService.method.listFiles);
   // Who PHP runs as, when the form filled it from the folder's owner, so it follows the
   // folder until someone types another.
@@ -402,23 +400,7 @@ function FolderField({
   const index = indexOf(s.index);
   // Lookups, as the folder note's are: the form reads them, not a person opening a folder, so
   // one the server refuses goes on no Activity.
-  const list = useCallback(
-    async (path: string): Promise<FolderListing> => {
-      const res = await client.listFiles({ serverId: server, path, lookup: true });
-      return {
-        path: res.path,
-        folders: res.entries
-          .filter(
-            (e) =>
-              !e.unreadableName &&
-              (e.type === FileType.DIRECTORY || (e.type === FileType.SYMLINK && e.linkType === FileType.DIRECTORY)),
-          )
-          .map((e) => ({ name: e.name, locked: e.refused }))
-          .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
-      };
-    },
-    [client, server],
-  );
+  const list = useFolderList(server);
   return (
     <FolderPicker
       label={t`Folder`}
@@ -523,30 +505,15 @@ export function FolderNote({
 }) {
   const { t } = useLingui();
   const path = useSettled(root.trim().replace(/\/+$/, ""), READ_AFTER_MS);
-  const asked = server !== "" && path.startsWith("/") && path.length > 1 && !/\/\.\.?(\/|$)/.test(path);
-  const above = useQuery(
-    FileService.method.listFiles,
-    { serverId: server, path: parentOf(path), lookup: true },
-    { enabled: asked, retry: false, refetchOnWindowFocus: false },
-  );
-  const there = above.data?.entries.find((e) => e.name === nameOf(path));
-  const folder =
-    there !== undefined &&
-    (there.type === FileType.DIRECTORY || (there.type === FileType.SYMLINK && there.linkType === FileType.DIRECTORY));
-  const listed = useQuery(
-    FileService.method.listFiles,
-    { serverId: server, path, lookup: true },
-    { enabled: asked && folder, retry: false, refetchOnWindowFocus: false },
-  );
-  // The folder above not being there either means the same, as Docker makes both. What
-  // else can't be read of it says nothing of this one, so this says nothing.
-  const aboveMissing = above.error !== null && reasonOf(above.error) === "not_found";
+  // The folder by its own path, so one under a folder of any size is found (#588). The
+  // folder above not being there either means the same, as Docker makes both.
+  const lookup = useFolderLookup(server, path);
   // A folder that isn't there is made as the one above it is owned, so whoever puts
   // files there now can put the site's there too.
-  const parent = above.data?.directory;
-  const owner = asked && !there && parent ? `${parent.uid}:${parent.gid}` : "";
+  const parent = lookup.parent;
   // Only while it isn't there: a folder that's there keeps its owner, whatever's stored.
-  const missing = asked && !above.isPending && (aboveMissing || (above.data !== undefined && !there));
+  const missing = lookup.state === "missing";
+  const owner = missing && parent ? `${parent.uid}:${parent.gid}` : "";
   // Each is said once as it's found, so what someone types after stays theirs.
   const toldOwner = useRef<string>(undefined);
   useEffect(() => {
@@ -555,7 +522,7 @@ export function FolderNote({
     onOwner?.(owner);
   }, [missing, owner, onOwner]);
   // A folder that's there, for PHP to run as its owner, unless that's root.
-  const listedDir = listed.data?.directory;
+  const listedDir = lookup.listing?.directory;
   const folderOwner =
     listedDir && listedDir.uid !== 0 && listedDir.gid !== 0 ? `${listedDir.uid}:${listedDir.gid}` : "";
   const toldFolderOwner = useRef("");
@@ -564,12 +531,12 @@ export function FolderNote({
     toldFolderOwner.current = folderOwner;
     onFolderOwner?.(folderOwner);
   }, [folderOwner, onFolderOwner]);
-  if (!asked || above.isPending || (above.error && !aboveMissing)) return null;
+  if (!lookup.state) return null;
   // One line: what's there as a state, and nothing a person has to go and run.
   const say = (tone: "new" | "ok" | "warning", words: ReactNode) => (
     <span className={`website-folder-state is-${tone}`}>{words}</span>
   );
-  if (aboveMissing || !there) {
+  if (missing) {
     // A site that's there already says what's missing, and where to make it now, as no plan
     // may be on its way.
     if (existing) {
@@ -593,10 +560,9 @@ export function FolderNote({
     const by = parent && parent.uid !== 0 ? parent.owner || `${parent.uid}:${parent.gid}` : "";
     return say("new", by ? t`New. Made with the site, owned by ${by}.` : t`New. Made with the site.`);
   }
-  if (!folder) return say("warning", t`That's a file, not a folder.`);
-  if (listed.isPending) return null;
-  if (listed.error) return say("warning", sentence(listed.error));
-  const { entries, directory } = listed.data;
+  if (lookup.state === "not-a-folder") return say("warning", t`That's a file, not a folder.`);
+  if (lookup.state === "unread" || !lookup.listing) return lookup.error ? say("warning", sentence(lookup.error)) : null;
+  const { entries, directory } = lookup.listing;
   // Files in a folder run no script, and hide them, so a PHP site's folder answers 404 for them.
   if (serves === "folder" && entries.some((e) => e.name === "index.php" && e.type === FileType.FILE)) {
     return say("warning", t`Holds index.php, which only a PHP site runs.`);

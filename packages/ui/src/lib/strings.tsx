@@ -149,6 +149,21 @@ export interface UIStrings {
     /** That field's placeholder, and the button that takes the name. */
     newName: string;
     use: string;
+    /**
+     * Over a folder's list where it holds more than a listing carries: how many entries
+     * it shows of how many there are (0 where the server can't say), and that a name
+     * finds one.
+     */
+    cut: (shown: number, total: number) => string;
+    /** Over the field that finds a folder by name, with where it looks, and its placeholder. */
+    findIn: (path: string) => string;
+    findName: string;
+    /** In the list, when no folder's name holds what's typed. */
+    noMatch: (name: string) => string;
+    /** In the list, when none of what a cut listing shows is a folder: they may be past it. */
+    noneShown: string;
+    /** Under the list, when more folders hold it than a listing carries. */
+    moreMatch: string;
   };
   connection: {
     /** The card's heading when the page gives none. */
@@ -325,6 +340,15 @@ export const englishStrings: UIStrings = {
     newIn: (path) => `New folder in ${path}`,
     newName: "name",
     use: "Use",
+    cut: (shown, total) =>
+      total > 0
+        ? `Showing ${count(shown)} of ${count(total)}. Type a name to find one.`
+        : `Showing the first ${count(shown)}. Type a name to find one.`,
+    findIn: (path) => `Find in ${path}`,
+    findName: "part of its name",
+    noMatch: (name) => `No folder here holds “${name}”`,
+    noneShown: "No folders among these",
+    moreMatch: "More match than this shows. Type more of the name.",
   },
   connection: {
     title: "Connect",

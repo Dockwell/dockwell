@@ -14079,6 +14079,14 @@ components:
                     description: |-
                         What to pass as page for the entries after these, in name order. Empty when
                          there are no more, and from an agent older than the control plane.
+                total:
+                    type: integer
+                    description: |-
+                        How many entries the directory holds, or how many hold match where one is
+                         asked, whatever page this is: so a listing cut short can say how much more
+                         there is. Zero from an agent older than the control plane. Numbered apart, as
+                         open work adds to this message.
+                    format: uint32
             description: ListFilesResponse is what a directory holds.
         ListHealthResponse:
             type: object
