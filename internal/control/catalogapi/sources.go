@@ -47,6 +47,10 @@ const (
 	// the catalog tries it again, so a host that's down doesn't make every view of
 	// the catalog wait for it.
 	unreadWait = 5 * time.Minute
+	// checkWait is the most checking a commit's entries may take, each read as an
+	// install would read it, apart from whoever asked: a commit of a store's 2,000
+	// apps checks in well under it.
+	checkWait = 3 * time.Minute
 	// plansKept is how many commits read for plans are kept, the newest, so a plan
 	// that's applied finds its commit read.
 	plansKept = 4
@@ -696,7 +700,17 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 		return sourceRead{}, err
 	}
 	s.forget(spec)
-	got = checkSource(ctx, name, spec, files, taken)
+	// The check is every reader's, as the fetch is: a person who leaves the page
+	// mid-check would otherwise cancel each entry's read, and what's kept would say
+	// every one failed. One that runs out of its own time keeps nothing, and the
+	// next read checks again.
+	checking, done := context.WithTimeout(context.WithoutCancel(ctx), checkWait)
+	got = checkSource(checking, name, spec, files, taken)
+	cut := checking.Err()
+	done()
+	if cut != nil {
+		return sourceRead{}, fmt.Errorf("checking its entries took over %s, so Dockwell checks them again at the next read: %w", checkWait, cut)
+	}
 	s.mu.Lock()
 	// What's read is kept for each commit and the IDs before it, which moves as
 	// sources do, so it's let go of whole once it holds mostReads.
