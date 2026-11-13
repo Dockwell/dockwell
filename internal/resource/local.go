@@ -769,9 +769,9 @@ func cantApply(ctx context.Context, step Step, err error) error {
 	case StepTime:
 		return Plainly(fmt.Sprintf("The step's time ran out before Dockwell could %s %s, so it stopped waiting. Check it on this server, then try again.", step.Action, step.Ref.Name), detail)
 	case InnerWait:
-		return Plainly(fmt.Sprintf("Dockwell couldn't %s %s, as a wait on this server ran out with the step's own time left: %s. Check it on this server, then try again.", step.Action, step.Ref.Name, clause(err)), detail)
+		return Plainly(fmt.Sprintf("Dockwell can't %s %s, as a wait on this server ran out with the step's own time left%s. Check what %s waits on, on this server, then try again.", step.Action, step.Ref.Name, Besides(err), step.Ref.Name), detail)
 	case CalledOff:
-		return Plainly(fmt.Sprintf("Dockwell stopped before it could %s %s, as the step was called off: its change was cancelled, or the control plane stopped waiting for it. Run the change again if you still want it.", step.Action, step.Ref.Name), detail)
+		return Plainly(fmt.Sprintf("Dockwell stopped before it could %s %s, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it.", step.Action, step.Ref.Name), detail)
 	case NotStopped:
 	}
 	return Plainly(fmt.Sprintf("Dockwell can't %s %s: %s. Check it on this server, then try again.", step.Action, step.Ref.Name, clause(err)), detail)
@@ -780,6 +780,16 @@ func cantApply(ctx context.Context, step Step, err error) error {
 // clause is an error's message to go on inside a sentence.
 func clause(err error) string {
 	return strings.TrimRight(strings.TrimSpace(err.Error()), ".")
+}
+
+// Besides is what err says beyond a context's own words, to end a clause: ": " and
+// its message, or nothing where it says no more than that a wait ended.
+func Besides(err error) string {
+	said := clause(err)
+	if said == context.DeadlineExceeded.Error() || said == context.Canceled.Error() {
+		return ""
+	}
+	return ": " + said
 }
 
 // Observe reads each resource from its driver.

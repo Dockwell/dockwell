@@ -158,8 +158,9 @@ func TestRunFailuresAreExplained(t *testing.T) {
 		// A step's time running out, as an agent may answer before the control plane's own deadline.
 		{"the step's time", expired, context.DeadlineExceeded, "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again."},
 		{"the step's time, wrapped", expired, timedOut, "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again."},
-		{"a wait inside, with the step's time left", alive, timedOut, "web didn't start, as a wait on this server ran out with the step's own time left: can't read it: context deadline exceeded. Check Docker on this server, then try again."},
-		{"called off", calledOff, fmt.Errorf("can't read it: %w", context.Canceled), "Dockwell stopped starting web, as the step was called off: its change was cancelled, or the control plane stopped waiting for it. Run the change again if you still want it."},
+		{"a wait inside, with the step's time left", alive, timedOut, "web didn't start, as a wait on this server ran out with the step's own time left: can't read it: context deadline exceeded. Check what web waits on, such as Docker, on this server, then try again."},
+		{"a wait inside, saying no more", alive, context.DeadlineExceeded, "web didn't start, as a wait on this server ran out with the step's own time left. Check what web waits on, such as Docker, on this server, then try again."},
+		{"called off", calledOff, fmt.Errorf("can't read it: %w", context.Canceled), "Dockwell stopped starting web, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it."},
 	} {
 		if plain, _ := resource.Explain(explained(tt.ctx, at, tt.err)); plain != tt.want {
 			t.Errorf("%s: %v reads %q, want %q", tt.name, tt.err, plain, tt.want)

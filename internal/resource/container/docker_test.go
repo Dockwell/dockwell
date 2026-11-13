@@ -620,7 +620,7 @@ func TestHealthWaitsAreTold(t *testing.T) {
 			t.Cleanup(cancel)
 			time.AfterFunc(100*time.Millisecond, cancel)
 			return resource.WithStep(ctx)
-		}, "as the step was called off", "time ran out"},
+		}, "stopped waiting for", "time ran out"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			rt := &container.Docker{Client: e.Client(), Poll: time.Millisecond, Soak: -1, HealthWait: tc.wait}

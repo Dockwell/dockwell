@@ -762,7 +762,7 @@ func TestTimeRunningOutOnTheAgentCountsAsTime(t *testing.T) {
 		}
 	}
 	// The agent's own words say the same: a wait on the server, with the step's time left.
-	if plain, _ := resource.Explain(err); !strings.HasPrefix(plain, "Dockwell couldn't create http, as a wait on this server ran out with the step's own time left") {
+	if plain, _ := resource.Explain(err); plain != "Dockwell can't create http, as a wait on this server ran out with the step's own time left. Check what http waits on, on this server, then try again." {
 		t.Errorf("it reads %q", plain)
 	}
 }

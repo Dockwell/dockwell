@@ -2336,11 +2336,11 @@ func (d *Docker) waitHealthy(ctx context.Context, t Target, i *instance, soak ti
 		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s passed its health check, so Dockwell stopped waiting.%s A long pull may have used it up, so try again.", t.Service, lastSaid),
 			fmt.Errorf("the step's time ran out before %s passed its health check, so Dockwell stopped waiting: %w%s. %s", name, cause, said, inspect))
 	case resource.InnerWait:
-		return resource.Plainly(fmt.Sprintf("A wait on this server ran out before %s passed its health check, with the step's own time left.%s Check it on this server, then try again.", t.Service, lastSaid),
+		return resource.Plainly(fmt.Sprintf("A wait on this server ran out before %s passed its health check, with the step's own time left.%s Check what %s waits on, such as Docker, on this server, then try again.", t.Service, lastSaid, t.Service),
 			fmt.Errorf("a wait ran out before %s passed its health check, with the step's own time left: %w%s. %s", name, cause, said, inspect))
 	case resource.CalledOff:
-		return resource.Plainly(fmt.Sprintf("Dockwell stopped waiting for %s's health check, as the step was called off: its change was cancelled, or the control plane stopped waiting for it. Run the change again if you still want it.", t.Service),
-			fmt.Errorf("stopped waiting for %s's health check, as the step was called off: %w", name, cause))
+		return resource.Plainly(fmt.Sprintf("Dockwell stopped waiting for %s's health check, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it.", t.Service),
+			fmt.Errorf("stopped waiting for %s's health check: %w", name, cause))
 	default:
 		return cause
 	}

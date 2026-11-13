@@ -362,10 +362,10 @@ func explained(ctx context.Context, t Target, err error) error {
 	case resource.StepTime:
 		return resource.Plainly(fmt.Sprintf("The step's time ran out before %s started, so Dockwell stopped waiting. A long pull may have used it up, so try again.", t.Service), err)
 	case resource.CalledOff:
-		return resource.Plainly(fmt.Sprintf("Dockwell stopped starting %s, as the step was called off: its change was cancelled, or the control plane stopped waiting for it. Run the change again if you still want it.", t.Service), err)
+		return resource.Plainly(fmt.Sprintf("Dockwell stopped starting %s, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it.", t.Service), err)
 	case resource.InnerWait:
 		if !docker.IsUnavailable(err) {
-			return resource.Plainly(fmt.Sprintf("%s didn't start, as a wait on this server ran out with the step's own time left: %s. Check Docker on this server, then try again.", t.Service, clause(err)), err)
+			return resource.Plainly(fmt.Sprintf("%s didn't start, as a wait on this server ran out with the step's own time left%s. Check what %s waits on, such as Docker, on this server, then try again.", t.Service, resource.Besides(err), t.Service), err)
 		}
 		// Docker not answering in time says which, and how to check it, below.
 	case resource.NotStopped:
@@ -382,14 +382,13 @@ func explained(ctx context.Context, t Target, err error) error {
 
 // asIs takes a message that is whole already as the plain words, in a
 // sentence, as it starts lowercase as Go errors do.
+func asIs(err error) error {
+	return resource.Plainly(capitalize(clause(err))+".", err)
+}
+
 // clause is an error's message to go on inside a sentence.
 func clause(err error) string {
 	return strings.TrimRight(strings.TrimSpace(err.Error()), ".")
-}
-
-func asIs(err error) error {
-	message := strings.TrimRight(strings.TrimSpace(err.Error()), ".")
-	return resource.Plainly(capitalize(message)+".", err)
 }
 
 func capitalize(s string) string {
