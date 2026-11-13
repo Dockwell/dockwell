@@ -47,7 +47,7 @@ This record says what the converter now accepts and why each is safe. It grows a
 - **On the server, an image named by a tag that moves, such as `latest`, `stable` or `main`, converts,** as a version's tag does: the entry names it by its tag, and the plan pins the build it points at then, through the agent of the app's server, and shows the digest (ADR 0078). An image named with no tag is written out as `latest`, which is what Docker pulls for it, so the plan names the tag it pins. A 1Panel app whose only version folder is `latest` converts at version `latest`.
 - **It's as safe as a version's tag, which can be pushed again too.** What runs is the digest a person saw in the plan and approved. No registry is asked at a refresh, and nothing about the image is trusted that a version's tag isn't.
 - **The offline converter still leaves such an app out.** It pins each image as it converts, for a catalog that's published, where a moving tag would never move on.
-- **The converter's version goes up with each slice that changes which apps convert** (`convert.Version`, 2 here), so a server converts a commit it kept again, and a store that's pinned shows the new apps once Dockwell is updated, not only once the store moves.
+- **The converter's version goes up with each slice that changes which apps convert** (`convert.Version`, 3 here, after the 2 that reads stores' logos and words), so a server converts a commit it kept again, and a store that's pinned shows the new apps once Dockwell is updated, not only once the store moves.
 
 ### A new build of a moving tag is an update, through the install's catalog
 
@@ -56,6 +56,8 @@ A store's file that names `latest` never changes when `latest` moves, so the cat
 - **A catalog install that runs an image by a tag that moves is checked for a new build,** with the same HEAD of the tag ADR 0079 makes for any image, every 6 hours and by Check now. Its catalog's releases are read from its catalog, as before; nothing else about the image, such as a newer version tag, is an install's to take.
 - **A new build is offered as an update of the install,** of the kind `digest`, at the release it runs, so the panel's Update, and automatic updates of that kind (ADR 0080), upgrade the install through its catalog and name no image.
 - **Upgrading the install reads each moving tag again,** for the build it points at now: with no newer release, it's planned only when one of them has a new build, with the summary "Update moving to the newest build of nginx:latest"; with a newer release, each moving tag is pinned afresh too, as a person upgrading expects what's current. The plan shows each new digest, and backs up first, as any upgrade does. A companion added or taken away still keeps every digest.
+- **Taking a new build takes that build alone,** never the store's newer release, which a person may have skipped: its update asks for a rebuild (`UpgradeServiceRequest.rebuild`, 90), and the panel's Update, Update several and automatic updates send it for an update of the kind `digest`. When the install's catalog has moved on past the release it runs, a rebuild alone is refused, and the release stays an update of its own, which brings the newest builds with it.
+- **A release whose version stays, or names a tag that moves, is skipped by its number,** such as `release:7` (`AvailableUpdate.skip_as`, 90, which the panel sends as it is), so skipping one release of an app on `latest` never skips the next, nor a new build.
 - **The agent keeps the digest its check read beside a plan's reads,** for the 10 minutes it keeps those, so an update planned right after a check pins the build the check saw.
 
 ### "Converts" means "works", for a sample
@@ -66,7 +68,7 @@ A store's file that names `latest` never changes when `latest` moves, so the cat
 
 ### Numbers
 
-ADR 0085. No proto field yet: this slice adds `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
+ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 12 Nov 2026
 

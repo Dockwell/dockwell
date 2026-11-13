@@ -334,6 +334,10 @@ jobs:
       E2E_ROOT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # It runs a stranger's images as root, so the job's token stays out of the
+          # checkout's Git config.
+          persist-credentials: false
       # The steps after this one run only when this change needs this job,
       # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
       - name: Whether this change needs this job

@@ -403,6 +403,38 @@ func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
 	}
 }
 
+// M2: a new build of a tag that moves, offered at the release an install runs, takes
+// that build alone, and never the catalog's newer release beside it, which a person
+// may have skipped: the rebuild is refused, and the release waits (ADR 0085).
+func TestAnAutomaticNewBuildNeverTakesACatalogsNewerRelease(t *testing.T) {
+	u := startUpgrading(t, store.SQLite, testEntry(1, "1.0", firstRelease, ""))
+	u.release(testEntry(2, "2.0", secondRelease, ""))
+	s := dockwellv1connect.NewServiceServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
+	list, err := s.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var web *dockwellv1.ServiceInfo
+	for _, svc := range list.Msg.GetServices() {
+		if svc.GetResource().GetName() == "web" {
+			web = svc
+		}
+	}
+	b := &bench{f: u.f, b: u.b, e: u.e, c: u.c, s: s}
+	b.setAutoUpdate(t, web, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_ANY, At: "03:00", TimeZone: "UTC"})
+	r := &autoupdate.Runner{
+		DB: u.f.store, Keeper: u.f.keeper, Planner: u.f.server.autoupdates.Planner, Engine: u.f.engine,
+		Updates: &newer{found: map[string]services.Newer{web.GetId(): {Image: firstRelease, Kind: "digest", Catalog: true}}},
+		Logger:  slog.New(slog.DiscardHandler), Now: func() time.Time { return time.Date(2026, 11, 14, 3, 5, 0, 0, time.UTC) },
+	}
+	if err := r.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := u.web().Config.Image; got != firstRelease {
+		t.Errorf("a new build took the catalog's newer release: web runs %s", got)
+	}
+}
+
 // dbEntry is a catalog entry whose app keeps its data in PostgreSQL of image.
 func dbEntry(release int, version, image string) string {
 	return fmt.Sprintf(`id: thing

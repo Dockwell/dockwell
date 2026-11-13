@@ -198,6 +198,52 @@ describe("updating several apps at once", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  it("takes a catalog install's new build alone, never the release beside it", async () => {
+    const user = userEvent.setup();
+    const board = anApp(
+      "board",
+      "nginx:latest",
+      {},
+      {
+        update: create(ServiceUpdateSchema, {
+          check: UpdateCheck.AVAILABLE,
+          source: UpdateSource.CATALOG,
+          available: [
+            {
+              kind: UpdateKind.DIGEST,
+              toDigest: "sha256:bbbb",
+              toImage: "nginx:latest",
+              catalogRelease: 6,
+              skipAs: "sha256:bbbb",
+            },
+          ],
+        }),
+      },
+    );
+    const asked: { rebuild: boolean; image: string }[] = [];
+    renderAt(
+      "/apps",
+      api([board], {
+        services: {
+          listServices: () => ({ services: [board] }),
+          upgradeService: (req) => {
+            asked.push({ rebuild: req.rebuild, image: req.image });
+            return { change: planOf(board, "nginx:latest") };
+          },
+        },
+        changes: { watchChange: watches().stream, discardChange: () => ({}) },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Apps" });
+    await user.click(within(table).getByRole("checkbox", { name: "Select board's update" }));
+    await user.click(
+      within(screen.getByRole("region", { name: "Selected updates" })).getByRole("button", {
+        name: /^Update 1 selected/,
+      }),
+    );
+    await waitFor(() => expect(asked).toEqual([{ rebuild: true, image: "" }]));
+  });
+
   it("says what can't be planned, applies only what can, and discards what it planned when cancelled", async () => {
     const user = userEvent.setup();
     const db = withUpdate("db", "postgres:16.3", "16.4", UpdateKind.PATCH);

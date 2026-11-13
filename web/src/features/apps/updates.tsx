@@ -143,8 +143,9 @@ function useUpdateCalls(service: ServiceInfo) {
   };
 }
 
-/** What skipping names an update by. */
+/** What skipping names an update by: as the server says it, where it does. */
 function targetOf(a: AvailableUpdate): string {
+  if (a.skipAs) return a.skipAs;
   if (a.kind === UpdateKind.DIGEST) return a.toDigest;
   if (a.kind === UpdateKind.COMMIT) return a.toCommit;
   return a.toVersion;
@@ -383,7 +384,8 @@ export function planUpdate(transport: Transport, service: ServiceInfo, a: Availa
     case UpdateSource.RUNTIME:
       return client.changeServiceRuntime({ id: service.id });
     case UpdateSource.CATALOG:
-      return client.upgradeService({ id: service.id });
+      // A new build of a tag that moves is taken alone, never a release the person skipped (ADR 0085).
+      return client.upgradeService({ id: service.id, rebuild: a.kind === UpdateKind.DIGEST });
     default:
       return client.upgradeService({ id: service.id, image: a.toImage });
   }
@@ -425,7 +427,7 @@ function useUpdateAction(service: ServiceInfo) {
         sheet.open({ kind: "plan", make: () => planUpdate(transport, service, a) });
         return;
       case UpdateSource.CATALOG:
-        upgrading.open();
+        upgrading.open(undefined, a.kind === UpdateKind.DIGEST);
         return;
       default:
         upgrading.open(a.toImage || undefined);

@@ -247,14 +247,20 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 			r.Logger.WarnContext(ctx, "can't discard the update an earlier window left for a person", slog.String("change", d.tried.Change), slog.String("error", err.Error()))
 		}
 	}
-	// A catalog install's update upgrades the install, which takes no image.
+	// A catalog install's update upgrades the install, which takes no image; a new
+	// build of a tag that moves takes that build alone, at the release it runs, and
+	// never a release a person may have skipped (ADR 0085).
 	image, summary := newer.Image, fmt.Sprintf("Update %s to %s on its own, in its window", d.name, newer.Image)
-	if newer.Catalog {
+	rebuild := false
+	switch {
+	case newer.Catalog && newer.Kind == "digest":
+		image, rebuild, summary = "", true, fmt.Sprintf("Update %s to the newest build of %s on its own, in its window", d.name, newer.Image)
+	case newer.Catalog:
 		image, summary = "", fmt.Sprintf("Update %s to its catalog's newer release on its own, in its window", d.name)
 	}
 	res, err := r.Planner.UpgradeService(changes.AsDockwell(ctx), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{
 		Id: d.id, Image: image, SkipBackup: a.GetSkipBackup(),
-		Summary: summary,
+		Summary: summary, Rebuild: rebuild,
 	}))
 	if err != nil {
 		// What it can't plan now, such as with its server offline, it tries again

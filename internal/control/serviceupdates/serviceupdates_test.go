@@ -190,3 +190,38 @@ func TestParseDuration(t *testing.T) {
 		t.Error("parseDuration(soon) took it")
 	}
 }
+
+// A catalog release whose version stays, or names a tag that moves, such as latest,
+// is skipped by its release number, so skipping it never skips the next release,
+// nor a new build; one whose version moves on is skipped by its version (ADR 0085).
+func TestACatalogReleaseIsSkippedByItsNumber(t *testing.T) {
+	release := dockwellv1.UpdateKind_UPDATE_KIND_RELEASE
+	for _, tc := range []struct {
+		a    *dockwellv1.AvailableUpdate
+		want string
+	}{
+		{&dockwellv1.AvailableUpdate{Kind: release, FromVersion: "latest", ToVersion: "latest", CatalogRelease: 7}, "release:7"},
+		{&dockwellv1.AvailableUpdate{Kind: release, FromVersion: "1.2.0", ToVersion: "1.2.0", CatalogRelease: 8}, "release:8"},
+		{&dockwellv1.AvailableUpdate{Kind: release, FromVersion: "stable", ToVersion: "main", CatalogRelease: 9}, "release:9"},
+		{&dockwellv1.AvailableUpdate{Kind: dockwellv1.UpdateKind_UPDATE_KIND_MINOR, FromVersion: "1.2.0", ToVersion: "1.3.0", CatalogRelease: 9}, "1.3.0"},
+		{&dockwellv1.AvailableUpdate{Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, ToDigest: "sha256:bbbb", CatalogRelease: 7}, "sha256:bbbb"},
+		{&dockwellv1.AvailableUpdate{Kind: dockwellv1.UpdateKind_UPDATE_KIND_MINOR, FromVersion: "16.3", ToVersion: "16.4"}, "16.4"},
+	} {
+		if got := target(tc.a); got != tc.want {
+			t.Errorf("%v skips as %q, want %q", tc.a, got, tc.want)
+		}
+	}
+	u := &dockwellv1.ServiceUpdate{Check: dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE, Available: []*dockwellv1.AvailableUpdate{
+		{Kind: release, FromVersion: "latest", ToVersion: "latest", CatalogRelease: 7},
+		{Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, ToDigest: "sha256:bbbb", CatalogRelease: 6},
+	}}
+	applyPerson(u, store.ServiceUpdate{Skipped: `["release:7"]`}, time.Now())
+	for _, a := range u.GetAvailable() {
+		if a.GetSkipAs() == "" || a.GetSkipped() != (a.GetKind() == release) {
+			t.Errorf("%v: skip_as %q, skipped %v", a.GetKind(), a.GetSkipAs(), a.GetSkipped())
+		}
+	}
+	if u.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE {
+		t.Errorf("with the release skipped, the new build is still offered: %v", u.GetCheck())
+	}
+}

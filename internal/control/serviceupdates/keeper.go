@@ -15,6 +15,7 @@ import (
 	"math/rand/v2"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -198,7 +199,9 @@ func decodeSkipped(s string) []string {
 }
 
 // target is what skipping an update names it by: its version, its new digest
-// for a new build, or its commit.
+// for a new build, or its commit. A catalog release whose version stays, or names
+// a tag that moves, such as latest, is named by its release number, so skipping
+// it never skips the next one (ADR 0085).
 func target(a *dockwellv1.AvailableUpdate) string {
 	switch a.GetKind() {
 	case dockwellv1.UpdateKind_UPDATE_KIND_DIGEST:
@@ -207,6 +210,9 @@ func target(a *dockwellv1.AvailableUpdate) string {
 		return a.GetToCommit()
 	case dockwellv1.UpdateKind_UPDATE_KIND_UNSPECIFIED, dockwellv1.UpdateKind_UPDATE_KIND_PATCH, dockwellv1.UpdateKind_UPDATE_KIND_MINOR,
 		dockwellv1.UpdateKind_UPDATE_KIND_MAJOR, dockwellv1.UpdateKind_UPDATE_KIND_RELEASE:
+	}
+	if r := a.GetCatalogRelease(); r > 0 && (registry.Step(a.GetFromVersion(), a.GetToVersion()) == registry.KindNone || catalog.MovingTags[a.GetToVersion()]) {
+		return "release:" + strconv.FormatUint(uint64(r), 10)
 	}
 	return a.GetToVersion()
 }
@@ -420,7 +426,8 @@ func applyPerson(u *dockwellv1.ServiceUpdate, row store.ServiceUpdate, now time.
 	skipped := decodeSkipped(row.Skipped)
 	left := 0
 	for _, a := range u.GetAvailable() {
-		a.Skipped = slices.Contains(skipped, target(a))
+		a.SkipAs = target(a)
+		a.Skipped = slices.Contains(skipped, a.GetSkipAs())
 		if !a.GetSkipped() {
 			left++
 		}

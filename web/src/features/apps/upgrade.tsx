@@ -27,8 +27,11 @@ export function writtenVolumes(service: ServiceInfo): string[] {
 }
 
 export interface Upgrade {
-  /** Opens the plan of the update, to image where it's given, or to the newer version Dockwell found. */
-  open: (image?: string) => void;
+  /**
+   * Opens the plan of the update, to image where it's given, or to the newer version Dockwell found.
+   * rebuild takes a catalog install's new build alone, at the release it runs (ADR 0085).
+   */
+  open: (image?: string, rebuild?: boolean) => void;
   /** Whether the person may plan it (ADR 0059). */
   may: Offer;
 }
@@ -51,14 +54,14 @@ export function useUpgrade(service: ServiceInfo): Upgrade {
     ? services.filter((s) => environmentOf(s) === environment).flatMap(writtenVolumes)
     : writtenVolumes(service);
   const names = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format([...new Set(kept)]);
-  const opening = (image: string | undefined, backup: boolean): Opening => {
+  const opening = (image: string | undefined, backup: boolean, rebuild = false): Opening => {
     const choice: PlanChoice = {
       label: t`Back up first`,
       on: backup,
       description: backup
         ? t`Backs up ${names} before anything changes`
         : t`Undo won't bring back what it changes in ${names}`,
-      flip: () => opening(image, !backup),
+      flip: () => opening(image, !backup, rebuild),
       moot: movesDatabase,
     };
     return {
@@ -68,12 +71,13 @@ export function useUpgrade(service: ServiceInfo): Upgrade {
           id: service.id,
           image: image ?? "",
           skipBackup: !backup,
+          rebuild,
         }),
       ...(kept.length > 0 ? { choice } : {}),
     };
   };
   return {
-    open: (image) => sheet.open(opening(image, true)),
+    open: (image, rebuild) => sheet.open(opening(image, true, rebuild)),
     may: may(ServiceService.method.upgradeService, { environment }),
   };
 }

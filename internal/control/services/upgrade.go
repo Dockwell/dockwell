@@ -30,7 +30,9 @@ type Installs interface {
 	IsInstall(ctx context.Context, project string) (bool, error)
 	// UpgradeInstall plans upgrading the install a project is, by its ID, as
 	// UpgradeCatalogInstall does. Empty summary says what it upgrades.
-	UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string) (*dockwellv1.Change, error)
+	// rebuild takes only the new build of each image it runs by a tag that moves, at
+	// the release it runs (ADR 0085).
+	UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string, rebuild bool) (*dockwellv1.Change, error)
 }
 
 // Newer is a newer image for a service, as Dockwell's checks found it (ADR 0079).
@@ -69,6 +71,9 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 			return nil, err
 		}
 		return connect.NewResponse(&dockwellv1.UpgradeServiceResponse{Change: c}), nil
+	}
+	if m.GetRebuild() {
+		return nil, authapi.Invalid(fmt.Errorf("%s isn't part of an app installed from the catalog, and only one takes a rebuild alone. Leave rebuild out, and it takes the newer build Dockwell found", r.Name))
 	}
 	var spec *resourcev1.Service
 	var digest string
@@ -168,7 +173,7 @@ func (h *Handler) upgradeInstall(ctx context.Context, r store.Resource, m *dockw
 	if m.GetImage() != "" {
 		return nil, true, authapi.Invalid(fmt.Errorf("%s is part of an app installed from the catalog, which updates to its catalog's newer release as a whole, so it takes no image. Leave out the image", r.Name))
 	}
-	c, err := h.Installs.UpgradeInstall(ctx, project, m.GetSkipBackup(), m.GetSummary())
+	c, err := h.Installs.UpgradeInstall(ctx, project, m.GetSkipBackup(), m.GetSummary(), m.GetRebuild())
 	return c, true, err
 }
 

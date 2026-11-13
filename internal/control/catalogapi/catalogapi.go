@@ -419,7 +419,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 
 // UpgradeCatalogInstall plans an install's newest release.
 func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[dockwellv1.UpgradeCatalogInstallRequest]) (*connect.Response[dockwellv1.UpgradeCatalogInstallResponse], error) {
-	change, err := h.upgrade(ctx, req.Msg, "")
+	change, err := h.upgrade(ctx, req.Msg, "", false)
 	if err != nil {
 		return nil, err
 	}
@@ -447,14 +447,15 @@ func (h *Handler) IsInstall(ctx context.Context, project string) (bool, error) {
 
 // UpgradeInstall plans upgrading the install a project is, by its ID, as
 // UpgradeCatalogInstall does, for an update of one of its services (ADR 0080).
-// Empty summary says what it upgrades.
-func (h *Handler) UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string) (*dockwellv1.Change, error) {
-	return h.upgrade(ctx, &dockwellv1.UpgradeCatalogInstallRequest{Id: project, SkipBackup: skipBackup}, summary)
+// Empty summary says what it upgrades. rebuild takes only the new build of each
+// image it runs by a tag that moves, at the release it runs (ADR 0085).
+func (h *Handler) UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string, rebuild bool) (*dockwellv1.Change, error) {
+	return h.upgrade(ctx, &dockwellv1.UpgradeCatalogInstallRequest{Id: project, SkipBackup: skipBackup}, summary, rebuild)
 }
 
 // upgrade plans an install's upgrade, with summary for the timeline, or what it
-// upgrades, from and to, where that's empty.
-func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInstallRequest, summary string) (*dockwellv1.Change, error) {
+// upgrades, from and to, where that's empty. rebuildOnly takes a new build alone.
+func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInstallRequest, summary string, rebuildOnly bool) (*dockwellv1.Change, error) {
 	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
@@ -481,6 +482,13 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so an upgrade can't tell that from what you changed, and it stays on %s. To move on, install the new version under another name and bring its data across", install.GetProject(), pin.GetVersion()), "no_record")
+	case rebuildOnly && newer:
+		// A new build was offered at the release it runs, and its catalog has moved
+		// on since: taking the build mustn't take the release, which a person may
+		// have skipped, so the release stays an update of its own.
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog has moved on to %s %s, release %d, so a new build alone would leave that out. Take the release as its own update, which brings the newest builds too", install.GetProject(), entry.GetName(), entry.GetVersion(), entry.GetRelease()), "newer_release")
+	case rebuildOnly && !rebuild:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs no image by a tag that moves at release %d, so it has no new build to take alone", install.GetProject(), pin.GetRelease()), "no_rebuild")
 	}
 	// An image whose tag the release keeps stays at the build the install runs, and
 	// one it moves is pinned to the build its new tag points at now. A tag that moves

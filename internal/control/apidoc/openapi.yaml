@@ -7259,6 +7259,13 @@ components:
                     description: |-
                         True when a person skipped this very version for this service. It counts
                          nowhere and sends no alert, and a newer one still shows.
+                skipAs:
+                    type: string
+                    description: |-
+                        What skipping it names it by, as SkipServiceUpdate's version takes it: its
+                         version, its new digest, its commit, or "release:7" for a catalog release whose
+                         version stays, or names a tag that moves, such as latest, so skipping one
+                         release never skips the next (ADR 0085). Other stores' work takes 90 to 99 here.
             description: AvailableUpdate is one newer version a service can move to.
         Backup:
             type: object
@@ -19451,8 +19458,8 @@ components:
                 version:
                     type: string
                     description: |-
-                        The version, as an AvailableUpdate's to_version says it, such as "17.2", or
-                         its to_digest, for a new build, or its to_commit.
+                        The version, as an AvailableUpdate's skip_as says it: its to_version, such as
+                         "17.2", its to_digest, for a new build, its to_commit, or "release:7".
                 unskip:
                     type: boolean
                     description: Takes the skip back, so the version shows again.
@@ -20598,6 +20605,14 @@ components:
                     description: |-
                         The environment of a service named by name, by name or ID, when its
                          project has more than one.
+                rebuild:
+                    type: boolean
+                    description: |-
+                        For a service of a catalog install: take only the new build of each image it
+                         runs by a tag that moves, at the release it runs, as its update of the kind
+                         digest offers. When its catalog has moved on to a newer release, that's
+                         refused, and the release stays an update of its own (ADR 0085). Other
+                         stores' work takes 90 to 99 here.
             description: UpgradeServiceRequest names a service, and what to update it to.
         UpgradeServiceResponse:
             type: object

@@ -1072,7 +1072,13 @@ type UpgradeServiceRequest struct {
 	Project string `protobuf:"bytes,5,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment of a service named by name, by name or ID, when its
 	// project has more than one.
-	Environment   string `protobuf:"bytes,6,opt,name=environment,proto3" json:"environment,omitempty"`
+	Environment string `protobuf:"bytes,6,opt,name=environment,proto3" json:"environment,omitempty"`
+	// For a service of a catalog install: take only the new build of each image it
+	// runs by a tag that moves, at the release it runs, as its update of the kind
+	// digest offers. When its catalog has moved on to a newer release, that's
+	// refused, and the release stays an update of its own (ADR 0085). Other
+	// stores' work takes 90 to 99 here.
+	Rebuild       bool `protobuf:"varint,90,opt,name=rebuild,proto3" json:"rebuild,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1147,6 +1153,13 @@ func (x *UpgradeServiceRequest) GetEnvironment() string {
 		return x.Environment
 	}
 	return ""
+}
+
+func (x *UpgradeServiceRequest) GetRebuild() bool {
+	if x != nil {
+		return x.Rebuild
+	}
+	return false
 }
 
 // UpgradeServiceResponse carries the planned update.
@@ -1699,7 +1712,7 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\aproject\x18\x04 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x05 \x01(\tR\venvironment\"D\n" +
 	"\x15DeployServiceResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xb4\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xce\x01\n" +
 	"\x15UpgradeServiceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1f\n" +
@@ -1707,7 +1720,8 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"skipBackup\x12\x18\n" +
 	"\asummary\x18\x04 \x01(\tR\asummary\x12\x18\n" +
 	"\aproject\x18\x05 \x01(\tR\aproject\x12 \n" +
-	"\venvironment\x18\x06 \x01(\tR\venvironment\"E\n" +
+	"\venvironment\x18\x06 \x01(\tR\venvironment\x12\x18\n" +
+	"\arebuild\x18Z \x01(\bR\arebuild\"E\n" +
 	"\x16UpgradeServiceResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9a\x01\n" +
 	"\x16RollBackServiceRequest\x12\x0e\n" +
