@@ -42,7 +42,7 @@ func TestOnServerReadsCasaOSsStore(t *testing.T) {
 			t.Errorf("its Compose file keeps %q:\n%s", gone, compose)
 		}
 	}
-	if e.GetSummary() != "A stand-in app for the converter's tests" || e.GetDescription() != "Notes keeps your notes." || e.GetCategory() != "media" ||
+	if e.GetSummary() != "A stand-in app for the converter's tests" || e.GetReadme() != "Notes keeps your notes." || e.GetCategory() != "media" ||
 		e.GetTranslations()["zh-CN"].GetSummary() != "转换器测试用的替身应用" || e.GetWeb().GetService() != "notes" || e.GetVersion() != "1.2.0" {
 		t.Errorf("notes' entry = %v", e)
 	}

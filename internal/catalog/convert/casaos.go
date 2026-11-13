@@ -105,8 +105,10 @@ func casaosRead(t *tree, dir string) App {
 		_ = x.Decode(&meta)
 	}
 	app.Name = cmp.Or(strings.TrimSpace(meta.Title["en_US"]), dir)
-	app.Summary, app.Description = meta.Tagline["en_US"], meta.Description["en_US"]
-	if zh := (Words{Summary: meta.Tagline["zh_CN"], Description: meta.Description["zh_CN"]}); zh != (Words{}) {
+	// CasaOS writes an app's description in Markdown, so it's the entry's README, which
+	// the panel shows as such, where a description is plain text.
+	app.Summary, app.Readme = meta.Tagline["en_US"], meta.Description["en_US"]
+	if zh := (Words{Summary: meta.Tagline["zh_CN"], Readme: meta.Description["zh_CN"]}); zh != (Words{}) {
 		app.Words = map[string]Words{"zh-CN": zh}
 	}
 	app.Homepage, app.Code, app.Docs = cmp.Or(meta.Website, meta.Repo), meta.Repo, meta.Docs
