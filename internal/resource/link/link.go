@@ -69,6 +69,8 @@ func (Type) Validate(spec proto.Message) error {
 		return errors.New("a link needs a label on one line, such as Database")
 	case l.GetService() == "":
 		return errors.New("a link needs the service that meets it, by name")
+	case l.GetMeetsEnvironment() != "" && !strings.HasPrefix(l.GetMeetsEnvironment(), "env_"):
+		return errors.New("a link names the environment of what meets it by its ID, such as env_…")
 	case resourcev1.LinkEngine_name[int32(l.GetEngine())] == "" || l.GetEngine() == resourcev1.LinkEngine_LINK_ENGINE_UNSPECIFIED:
 		return errors.New("a link needs the engine of what meets it")
 	case len(l.GetAccepts()) == 0:
@@ -106,17 +108,30 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// References names the service that meets it, so it can't go while the link reads it.
+// References names the service that meets it, in this environment, so it can't go
+// while the link reads it. One in another environment is the link's to check as it's
+// planned (ADR 0084).
 func (Type) References(spec proto.Message) []resource.Reference {
-	return []resource.Reference{{Kind: "service", Name: spec.(*resourcev1.Link).GetService(), Verb: "read", Apart: true}}
+	l := spec.(*resourcev1.Link)
+	if l.GetMeetsEnvironment() != "" {
+		return nil
+	}
+	return []resource.Reference{{Kind: "service", Name: l.GetService(), Verb: "read", Apart: true}}
 }
 
 // Ties are the values a link sets, a secret for each that holds the password, so a
 // change that deletes its app or its database takes it, with them, once nothing left
 // reads them (ADR 0084).
-func (Type) Ties(spec proto.Message) []resource.Ref {
+//
+// A link to a server another environment runs stands for the network it reaches it
+// on too, named for it (<need>-link), which goes with it.
+func (Type) Ties(name string, spec proto.Message) []resource.Ref {
+	l := spec.(*resourcev1.Link)
 	var out []resource.Ref
-	for _, s := range spec.(*resourcev1.Link).GetSets() {
+	if l.GetMeetsEnvironment() != "" {
+		out = append(out, resource.Ref{Kind: "network", Name: name + "-link"})
+	}
+	for _, s := range l.GetSets() {
 		kind := resource.Kind("variable")
 		if Secret(s) {
 			kind = "secret"

@@ -11,6 +11,8 @@ import { useUpgrade } from "../apps/upgrade";
 import { useServices } from "../apps/useServices";
 import { Facts, SignInCard, useInstallFacts } from "./access";
 import { CompanionLines } from "./Companions";
+import { HeldRoutes } from "./HeldRoutes";
+import { NeedLines } from "./NeedLines";
 import { installIn, useInstalls } from "./useCatalog";
 import "./Catalog.css";
 
@@ -56,6 +58,8 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
           </Trans>
         </p>
         <Facts facts={facts} />
+        <HeldRoutes service={service} install={install} />
+        {entry ? <NeedLines entry={entry} install={install} /> : null}
         {entry ? <CompanionLines entry={entry} install={install} /> : null}
         {install.upgrade ? (
           <div className="catalog-upgrade">

@@ -93,6 +93,44 @@ service CatalogService {
     };
   }
 
+  // SetCatalogNeed plans meeting one of an install's needs another way, ready to
+  // apply or discard, at the release the install is on: Use another database. For
+  // now the way is a server Dockwell runs, as InstallCatalogEntryRequest.needs
+  // names one: the plan makes the app a database and user there, sets the need's
+  // values again, links the server in, and restarts the app. Where both run the same
+  // engine, the plan copies the app's database across first, and the app keeps
+  // serving from the old one until the copy is done; otherwise it's refused with
+  // cant_copy unless start_empty asks to start empty. What met it before stays as it
+  // is, with its data. It's refused with the reason unchanged when the need is met so
+  // already.
+  rpc SetCatalogNeed(SetCatalogNeedRequest) returns (SetCatalogNeedResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "set-need"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:set-need"
+      body: "*"
+    };
+  }
+
+  // OpenCatalogInstall plans opening an install that SetCatalogNeed held as it
+  // started empty: each of its routes answers again, and each port its services
+  // publish listens where it did, as the person who set it up asks. It's refused
+  // with the reason not_held when nothing of it is held (ADR 0084).
+  rpc OpenCatalogInstall(OpenCatalogInstallRequest) returns (OpenCatalogInstallResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "open"};
+    option (google.api.http) = {
+      post: "/v1/catalog/installs/{id}:open"
+      body: "*"
+    };
+  }
+
   // InstallCatalogEntry plans installing an app as a project of its own, ready
   // to apply or discard, as ImportCompose does with a file. The plan makes the
   // project, its secrets and what its Compose file runs, and pins the project to
@@ -283,6 +321,21 @@ message CatalogNeedOption {
   // it isn't the entry's own service. Empty: the entry's own.
   string entry = 5;
   string entry_name = 6;
+  // A server Dockwell runs already, shared because a person chooses it: its
+  // project, environment and service, by name, and its service's ID. Empty for a
+  // new one.
+  string project = 7;
+  string environment = 8;
+  string service = 9;
+  string service_id = 10;
+  // Why it can't meet the need, where it can't, in one line, such as "Nextcloud
+  // signs in to it as its administrator". Such an option is listed, greyed,
+  // never chosen.
+  string why = 11;
+  // The apps that use it already, through links of theirs, by project name.
+  repeated string shared_with = 12;
+  // The servers it runs on, by name, where the app would go with it.
+  repeated string servers = 13;
 }
 
 // CatalogPart is one service an entry installs.
@@ -402,10 +455,12 @@ message InstallCatalogEntryRequest {
   // alone.
   string catalog = 20;
   // How to meet each of the entry's needs, by the need's name: "new" for a new one
-  // beside the app, of the engine its first option has, or "new:<engine>" for one
-  // of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb
-  // or clickhouse), as GetCatalogEntry lists. A need left out takes its first
-  // option. Numbered apart, as open work adds to this message.
+  // beside the app, of the engine its first option has, "new:<engine>" for one of
+  // another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb or
+  // clickhouse), or "service:<project>/<environment>/<service>" for a server
+  // Dockwell runs already, which a database and user are made on for the app, as
+  // GetCatalogEntry lists. A need left out takes its first option. Numbered apart,
+  // as open work adds to this message.
   map<string, string> needs = 80;
 }
 
@@ -447,6 +502,44 @@ message SetCatalogCompanionRequest {
 
 // SetCatalogCompanionResponse carries the planned change.
 message SetCatalogCompanionResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// SetCatalogNeedRequest names an install's need, and what meets it now.
+message SetCatalogNeedRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+  // The need, by its name in the entry, such as "db".
+  string need = 2;
+  // What meets it, as GetCatalogEntryResponse.needs offers it: a server Dockwell
+  // runs, as "service:<project>/<environment>/<service>".
+  string choice = 3;
+  // Start the app on an empty database there, rather than copying its own across.
+  // Copying is the default where both ends run the same engine; where they don't,
+  // the plan is refused with the reason cant_copy until this asks for it. An app
+  // whose first visitor makes its owner then has every way in held before it
+  // restarts: its routes answer that it isn't open, and the ports its services
+  // publish listen on the server alone, until OpenCatalogInstall opens them, so
+  // its owner sets it up first, through the panel. Where nothing can be held, it's
+  // refused with the reason cant_hold.
+  bool start_empty = 4;
+}
+
+// SetCatalogNeedResponse carries the planned change.
+message SetCatalogNeedResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// OpenCatalogInstallRequest names the install to open.
+message OpenCatalogInstallRequest {
+  // The install's project, by name or ID.
+  string id = 1;
+}
+
+// OpenCatalogInstallResponse carries the planned change.
+message OpenCatalogInstallResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

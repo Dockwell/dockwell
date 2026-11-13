@@ -673,6 +673,9 @@ msgstr "{volume} 的一个备份未能检查"
 msgid "A change failed: {subject}"
 msgstr "变更失败：{subject}"
 
+msgid "A change in a project you can't see"
+msgstr "你无法查看的项目中的一项变更"
+
 msgid "A major update of {subject} is out: {where}"
 msgstr "{subject} 有主要版本更新：{where}"
 
@@ -6701,6 +6704,21 @@ msgctxt "companions"
 msgid "Tools"
 msgstr "附带工具"
 
+msgid "Not open yet"
+msgstr "尚未开放"
+
+msgid "Open it to everyone"
+msgstr "向所有人开放"
+
+msgid "Port {at} listens on its server alone, so its owner sets it up first, through the panel."
+msgstr "端口 {at} 只在它所在的服务器上监听，以便所有者先通过面板完成设置。"
+
+msgid "{where} answers that it isn't open, and port {at} listens on its server alone, so its owner sets it up first, through the panel."
+msgstr "{where} 会回应它尚未开放，端口 {at} 只在它所在的服务器上监听，以便所有者先通过面板完成设置。"
+
+msgid "{where} answers that it isn't open, so its owner sets it up first, through the panel."
+msgstr "{where} 会回应它尚未开放，以便所有者先通过面板完成设置。"
+
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>，只读"
 
@@ -6724,11 +6742,17 @@ msgstr "至少 {0} 个字符：字母、数字和 - . _ ~"
 msgid "Change {what}"
 msgstr "更改{what}"
 
+msgid "Choose its {unmetWord} to review the plan"
+msgstr "选择它的 {unmetWord} 后即可审查计划"
+
 msgid "Copy {label}"
 msgstr "复制 {label}"
 
 msgid "Database"
 msgstr "数据库"
+
+msgid "Each app has a user of its own"
+msgstr "每个应用都有自己的用户"
 
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
@@ -6806,6 +6830,12 @@ msgstr "自己设置"
 msgid "Set my own {0}"
 msgstr "自己设置 {0}"
 
+msgid "Shared with {apps} · each app has a user of its own"
+msgstr "已与 {apps} 共享 · 每个应用都有自己的用户"
+
+msgid "Shares {service} in {project}"
+msgstr "共享 {project} 中的 {service}"
+
 msgid "Show {label}"
 msgstr "显示 {label}"
 
@@ -6827,6 +6857,9 @@ msgstr "改用生成的"
 
 msgid "Use letters, digits and - . _ ~ alone, as it goes in a URL."
 msgstr "它会写进 URL，请只使用字母、数字和 - . _ ~。"
+
+msgid "Use one you have"
+msgstr "使用已有的"
 
 msgid "Use printable characters alone."
 msgstr "请只使用可打印字符。"
@@ -6891,6 +6924,9 @@ msgstr "目录中的 {name}"
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, other {# 个自己设置的密钥}}"
 
+msgid "{service} in {project}"
+msgstr "{project} 中的 {service}"
+
 msgid "A change to how {version} runs is out."
 msgstr "{version} 的运行方式有更新。"
 
@@ -6908,6 +6944,33 @@ msgstr "已发布版本 {next}。"
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "Copies its data"
+msgstr "复制它的数据"
+
+msgid "Its data can't be copied there"
+msgstr "它的数据无法复制到那里"
+
+msgid "Nothing else Dockwell runs takes it"
+msgstr "Dockwell 运行的其他服务都不适用"
+
+msgid "Shares {meets} in {project}"
+msgstr "共享 {project} 中的 {meets}"
+
+msgid "Start empty on it"
+msgstr "在其上从空数据库开始"
+
+msgid "Use another {what}"
+msgstr "使用另一个{what}"
+
+msgid "Use it"
+msgstr "使用它"
+
+msgid "What it needs"
+msgstr "它需要的"
+
+msgid "{server} in {where}"
+msgstr "{where} 中的 {server}"
 
 msgid "1Panel's app store"
 msgstr "1Panel 应用商店"
@@ -7666,6 +7729,9 @@ msgstr "{apps} 和 {dbs} 将停止。"
 msgid "{ing} failed"
 msgstr "{ing}失败"
 
+msgid "{items, plural, one {# more in a project you can't see changes with it} other {# more in projects you can't see change with it}}"
+msgstr "{items, plural, other {你无法查看的项目中还有 # 项随之变更}}"
+
 msgid "{made} is deployed"
 msgstr "{made} 已部署"
 
@@ -7689,6 +7755,9 @@ msgstr "{name} 已运行完毕"
 
 msgid "{name} starts at boot on {server}"
 msgstr "{name} 会在 {server} 上开机启动"
+
+msgid "{restarts, plural, one {# app in a project you can't see restarts with it} other {# apps in projects you can't see restart with it}}"
+msgstr "{restarts, plural, other {你无法查看的项目中有 # 个应用随之重启}}"
 
 msgid "{same} stays as it is"
 msgstr "{same} 保持不变"

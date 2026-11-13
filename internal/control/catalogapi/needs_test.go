@@ -44,7 +44,7 @@ func TestANewOneIsPinnedByDigest(t *testing.T) {
 	s := sourced{catalog: (&catalog.Catalog{}).With([]*catalogv1.Entry{mysql, app}), origins: map[string]origin{}}
 	asked := &digestsAsked{answer: goodDigest}
 	h := (&Handler{}).PinWith(asked)
-	needed, notes, err := h.meetNeeds(t.Context(), s, app, nil, nil, nil, "")
+	needed, notes, err := h.meetNeeds(t.Context(), s, app, nil, nil, nil, nil, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

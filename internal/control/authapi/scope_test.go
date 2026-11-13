@@ -66,6 +66,33 @@ func TestEveryIDThatTakesANameIsReadAsOne(t *testing.T) {
 	}
 }
 
+// A call on a catalog install names its project by name or ID in its id, so the
+// scope check reads each as a project's name: one it didn't would pass a name
+// unchecked, and what it answers would say what another project holds, as
+// OpenCatalogInstall's not_held once could.
+func TestEveryCatalogInstallCallReadsItsIDAsAProject(t *testing.T) {
+	checked := 0
+	sd, err := protoregistry.GlobalFiles.FindDescriptorByName("dockwell.v1.CatalogService")
+	if err != nil {
+		t.Fatal(err)
+	}
+	methods := sd.(protoreflect.ServiceDescriptor).Methods()
+	for j := range methods.Len() {
+		md := methods.Get(j)
+		procedure := "/dockwell.v1.CatalogService/" + string(md.Name())
+		if roleRules[procedure].reach != dockwellv1.Reach_REACH_PROJECT || md.Input().Fields().ByName("id") == nil {
+			continue
+		}
+		checked++
+		if idNames[procedure] != "project" {
+			t.Errorf("%s names an install's project in its id, and idNames reads it as %q. Add it there as a project", procedure, idNames[procedure])
+		}
+	}
+	if checked < 4 {
+		t.Errorf("checked %d calls, which says the walk missed some", checked)
+	}
+}
+
 // Every list and stream of a project's objects holds what the filter can place,
 // so a project role's narrowed list leaves out only what isn't theirs, never all
 // of it, and a new list can't skip the filter by holding nothing it reads. This

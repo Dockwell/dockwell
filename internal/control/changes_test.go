@@ -162,6 +162,30 @@ func (f *fullServer) addNamedServer(t *testing.T, name string, withDrivers bool)
 	return s
 }
 
+// addNamedServerWith is addNamedServer with drivers, and more besides.
+func (f *fullServer) addNamedServerWith(t *testing.T, name string, more ...resource.Type) *testServer {
+	t.Helper()
+	key, csr, err := pki.NewServerKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined, err := f.ident.EnrollLocal(t.Context(), csr, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &testServer{
+		id:     enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
+		docker: containertest.NewFake(), fw: &gate{Fake: firewall.NewFake(), started: make(chan struct{}, 4), release: make(chan struct{})},
+		dataDir: t.TempDir(),
+	}
+	s.disk = agentfiles.New(s.dataDir, nil, nil)
+	s.terms = terminal.New(terminal.Options{Shell: []string{"/bin/sh"}, Home: t.TempDir()})
+	containers := container.Driver{Runtime: s.docker, RecreateDowntime: 2 * time.Second}
+	s.drivers = resource.NewRegistry(append([]resource.Type{&containers, &firewall.Driver{Backend: s.fw}, &service.Driver{Containers: containers}}, more...)...)
+	s.connect(t, f)
+	return s
+}
+
 // connect runs the server's agent until stop, and waits for it.
 func (s *testServer) connect(t *testing.T, f *fullServer) {
 	t.Helper()

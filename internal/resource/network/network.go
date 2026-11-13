@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/netip"
 	"slices"
 	"strings"
 
@@ -91,7 +92,65 @@ func (*Driver) Validate(spec proto.Message) error {
 			return errors.New("a network's driver options need names, such as com.docker.network.bridge.name")
 		}
 	}
+	return checkMembers(n)
+}
+
+// checkMembers refuses members and a subnet a link network couldn't have (ADR 0084).
+func checkMembers(n *resourcev1.Network) error {
+	seen := map[string]bool{}
+	for _, m := range n.GetMembers() {
+		switch {
+		case !strings.HasPrefix(m.GetEnvironment(), "env_"):
+			return errors.New("a network's member names its environment by its ID, such as env_…")
+		case !container.NameRE.MatchString(m.GetService()):
+			return fmt.Errorf("a network's member names its service, such as db, not %q", m.GetService())
+		case !container.NameRE.MatchString(m.GetAlias()):
+			return fmt.Errorf("a network's member needs a name it answers to, such as db, not %q", m.GetAlias())
+		case seen[m.GetEnvironment()+"/"+m.GetService()]:
+			return fmt.Errorf("a network names %s as a member twice", m.GetService())
+		}
+		seen[m.GetEnvironment()+"/"+m.GetService()] = true
+	}
+	if sn := n.GetSubnet(); sn != "" {
+		p, err := netip.ParsePrefix(sn)
+		if err != nil || !p.Addr().Is4() || p.Masked() != p {
+			return fmt.Errorf("a network's subnet is an IPv4 range, such as 10.233.0.8/29, not %q", sn)
+		}
+	}
 	return nil
+}
+
+// aliasOn is the name a container answers to on a network, of those Docker lists:
+// Docker adds the container's own name, and before 25 its short ID, so the alias is
+// what's left. Only the short ID itself is Docker's: an alias such as "db" can begin
+// the container's ID, which is hex.
+func aliasOn(c *docker.ContainerSummary, network string) string {
+	ep := c.NetworkSettings.Networks[network]
+	if ep == nil {
+		return ""
+	}
+	for _, a := range ep.Aliases {
+		if !slices.Contains(c.Names, "/"+a) && (len(c.ID) < 12 || a != c.ID[:12]) {
+			return a
+		}
+	}
+	return ""
+}
+
+// MemberTarget is where a network's member runs: its environment's project, and its
+// service.
+func MemberTarget(m *resourcev1.NetworkMember) (project, svc string) {
+	return docker.Project(m.GetEnvironment()), m.GetService()
+}
+
+// environmentOf is the environment an environment's Docker project is of: the project
+// is its ID in lowercase (docker.Project), and an ID is its lowercase prefix and an
+// uppercase ULID, so the ID comes back whole. Any other project is as it is.
+func environmentOf(project string) string {
+	if rest, ok := strings.CutPrefix(project, "env_"); ok {
+		return "env_" + strings.ToUpper(rest)
+	}
+	return project
 }
 
 // plainOptions are the options that keep a bridge network what it is: a
@@ -149,6 +208,10 @@ func OwnLabels(spec *resourcev1.Network) map[string]string {
 	for _, k := range slices.Sorted(maps.Keys(spec.GetOptions())) {
 		set = append(set, "option:"+k)
 	}
+	// A subnet it was given reads back; one Docker chose doesn't.
+	if spec.GetSubnet() != "" {
+		set = append(set, "subnet")
+	}
 	if len(set) == 0 {
 		return nil
 	}
@@ -166,6 +229,9 @@ func Project(n *docker.Network) *resourcev1.Network {
 		set[s] = true
 	}
 	out := &resourcev1.Network{Driver: n.Driver, Internal: n.Internal}
+	if set["subnet"] && len(n.IPAM.Config) > 0 {
+		out.Subnet = n.IPAM.Config[0].Subnet
+	}
 	for k, v := range n.Options {
 		if strings.HasPrefix(k, "com.docker.network.") && !set["option:"+k] {
 			continue
@@ -205,16 +271,48 @@ func (d *Driver) Attached(ctx context.Context, ref resource.Ref) ([]string, erro
 	return out, nil
 }
 
-// Observe asks Docker.
+// Observe asks Docker, and reads as members the containers of other environments'
+// services on it.
 func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, error) {
-	n, err := d.Client.NetworkNamed(ctx, TargetOf(ref).Name)
+	t := TargetOf(ref)
+	n, err := d.Client.NetworkNamed(ctx, t.Name)
 	switch {
 	case docker.IsNotFound(err):
 		return nil, nil
 	case err != nil:
 		return nil, err
 	}
-	return Project(n), nil
+	out := Project(n)
+	members, err := d.members(ctx, t)
+	if err != nil {
+		return nil, err
+	}
+	out.Members = members
+	return out, nil
+}
+
+// members are the services of other environments with a container on the network,
+// each once, with the name it answers to there.
+func (d *Driver) members(ctx context.Context, t Target) ([]*resourcev1.NetworkMember, error) {
+	list, err := d.Client.ListContainers(ctx, map[string][]string{"network": {t.Name}})
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []*resourcev1.NetworkMember
+	for i := range list {
+		c := &list[i]
+		project, svc := c.Labels[docker.LabelProject], c.Labels[docker.LabelService]
+		if project == "" || svc == "" || project == t.Project || seen[project+"/"+svc] {
+			continue
+		}
+		seen[project+"/"+svc] = true
+		out = append(out, &resourcev1.NetworkMember{Environment: environmentOf(project), Service: svc, Alias: aliasOn(c, t.Name)})
+	}
+	slices.SortFunc(out, func(a, b *resourcev1.NetworkMember) int {
+		return strings.Compare(a.GetEnvironment()+"/"+a.GetService(), b.GetEnvironment()+"/"+b.GetService())
+	})
+	return out, nil
 }
 
 // Plan creates and deletes networks. Docker can't change a network, and
@@ -227,9 +325,16 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 	case desired == nil:
 		return resource.Decision{Action: resource.ActionDelete}, nil
 	}
+	// Who joins it changes in place: containers join and leave a running network.
+	if len(changes) > 0 && !slices.ContainsFunc(changes, func(c resource.Change) bool { return !strings.HasPrefix(c.Path, "members") }) {
+		return resource.Decision{Action: resource.ActionUpdate}, nil
+	}
 	what := "its spec"
-	if len(changes) > 0 {
-		what = changes[0].Path
+	for _, c := range changes {
+		if !strings.HasPrefix(c.Path, "members") {
+			what = c.Path
+			break
+		}
 	}
 	return resource.Decision{}, fmt.Errorf("docker can't change a network once it is made, so its %s can't change. "+
 		"Make a new network as you want it, move the services to it, then delete this one", what)
@@ -241,12 +346,16 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	switch step.Action {
 	case resource.ActionCreate:
 		spec := desired.(*resourcev1.Network)
-		_, err := d.Client.CreateNetwork(ctx, &docker.NetworkCreate{
+		create := &docker.NetworkCreate{
 			Name: t.Name, Driver: spec.GetDriver(), Internal: spec.GetInternal(), Options: spec.GetOptions(), Labels: Labels(t, spec),
-		})
-		if err != nil {
+		}
+		if sn := spec.GetSubnet(); sn != "" {
+			create.IPAM = &docker.IPAM{Config: []docker.IPAMConfig{{Subnet: sn}}}
+		}
+		if _, err := d.Client.CreateNetwork(ctx, create); err != nil {
 			return fmt.Errorf("docker can't create the network %s: %w", t.Name, err)
 		}
+		return d.join(ctx, t, nil, spec.GetMembers())
 	case resource.ActionDelete:
 		n, err := d.Client.NetworkNamed(ctx, t.Name)
 		switch {
@@ -254,6 +363,12 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 			return nil
 		case err != nil:
 			return err
+		}
+		// Members of other environments leave first, as they aren't the network's to go with.
+		if members, err := d.members(ctx, t); err == nil {
+			if err := d.join(ctx, t, members, nil); err != nil {
+				return err
+			}
 		}
 		err = d.Client.RemoveNetwork(ctx, n.ID)
 		if docker.IsInUse(err) {
@@ -268,9 +383,68 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		if err != nil && !docker.IsNotFound(err) {
 			return err
 		}
-	case resource.ActionUpdate, resource.ActionReplace:
+	case resource.ActionUpdate:
+		have, err := d.members(ctx, t)
+		if err != nil {
+			return err
+		}
+		return d.join(ctx, t, have, desired.(*resourcev1.Network).GetMembers())
+	case resource.ActionReplace:
 		return fmt.Errorf("docker can't change the network %s once it is made", t.Name)
 	case resource.ActionNone:
+	}
+	return nil
+}
+
+// join has each member's containers join the network, answering to its alias, and
+// each it had and doesn't want leave, in place: a running container joins and leaves
+// a network without a restart. A member with no container yet joins as one is made
+// (container.Driver.Joins).
+func (d *Driver) join(ctx context.Context, t Target, have, want []*resourcev1.NetworkMember) error {
+	key := func(m *resourcev1.NetworkMember) string {
+		return docker.Project(m.GetEnvironment()) + "/" + m.GetService()
+	}
+	wanted := map[string]bool{}
+	for _, m := range want {
+		wanted[key(m)] = true
+	}
+	had := map[string]*resourcev1.NetworkMember{}
+	for _, m := range have {
+		had[key(m)] = m
+	}
+	for _, m := range have {
+		if !wanted[key(m)] {
+			if err := d.each(ctx, m, func(id string) error { return d.Client.DisconnectNetwork(ctx, t.Name, id) }); err != nil {
+				return fmt.Errorf("can't take %s off the network %s: %w", m.GetService(), t.Name, err)
+			}
+		}
+	}
+	for _, m := range want {
+		if old, ok := had[key(m)]; ok && old.GetAlias() == m.GetAlias() {
+			continue
+		} else if ok {
+			if err := d.each(ctx, m, func(id string) error { return d.Client.DisconnectNetwork(ctx, t.Name, id) }); err != nil {
+				return fmt.Errorf("can't take %s off the network %s: %w", m.GetService(), t.Name, err)
+			}
+		}
+		if err := d.each(ctx, m, func(id string) error { return d.Client.ConnectNetwork(ctx, t.Name, id, []string{m.GetAlias()}) }); err != nil {
+			return fmt.Errorf("can't put %s on the network %s: %w", m.GetService(), t.Name, err)
+		}
+	}
+	return nil
+}
+
+// each calls f with every container of a member's service on the server.
+func (d *Driver) each(ctx context.Context, m *resourcev1.NetworkMember, f func(id string) error) error {
+	project, svc := MemberTarget(m)
+	list, err := d.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + project, docker.LabelService + "=" + svc}})
+	if err != nil {
+		return err
+	}
+	for i := range list {
+		if err := f(list[i].ID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

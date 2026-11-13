@@ -53,6 +53,9 @@ type Handler struct {
 	// follower moves the sources that follow a branch, once the control plane has
 	// one (Follow).
 	follower *Follower
+	// shareable lists the database servers an app may share (ADR 0084). Nil offers
+	// none.
+	shareable Shareable
 }
 
 var _ dockwellv1connect.CatalogServiceHandler = (*Handler)(nil)
@@ -126,9 +129,20 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 		h.logger.WarnContext(ctx, "couldn't say what a catalog entry installs", slog.String("entry", entry.GetId()), slog.String("error", err.Error()))
 		parts = nil
 	}
+	needs := needOptions(entry, catalog.WaysWith(entry, s.lookup(), h.candidates(ctx), ""))
+	seen, err := h.seenProjects(ctx)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	if seen != nil {
+		// Who else shares a server is named only where the person holds that project.
+		for _, o := range needs {
+			o.SharedWith = slices.DeleteFunc(o.SharedWith, func(p string) bool { return !seen[p] })
+		}
+	}
 	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{
 		Entry: entry, Project: free.project, Values: free.values, Parts: parts, Catalogs: s.catalogsOf(entry.GetId()),
-		Needs: needOptions(entry, catalog.Ways(entry, s.lookup())),
+		Needs: needs,
 	}), nil
 }
 
@@ -243,7 +257,15 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		return nil, err
 	}
 	// What meets each need, as asked, or each need's first way (ADR 0084).
-	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), m.GetNeeds(), nil, onServer)
+	var candidates []catalog.Candidate
+	if asksToShare(m.GetNeeds()) {
+		candidates = h.candidates(ctx)
+	}
+	named, err := h.whatsFree(ctx, entry, "")
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), m.GetNeeds(), nil, candidates, cmp.Or(m.GetProject(), named.project), onServer)
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +293,18 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	written := writtenEdits(needed, filled)
 	pin := pinTo(entry, from, filled, choice)
 	pin.Needs = needed.Pinned
+	shared, sharedOn, err := h.sharedEdits(ctx, needed, filled)
+	if err != nil {
+		return nil, err
+	}
+	servers := m.GetServers()
+	if len(servers) == 0 {
+		// An app that shares a server goes where it is.
+		servers = sharedOn
+	}
 	project := cmp.Or(m.GetProject(), free.project)
 	if err := (scope.ProjectType{}).CheckName(project); err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
@@ -285,12 +317,12 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Variables:  filled.Variables,
 		Secrets:    filled.Secrets,
 		Stands:     filled.Stands(),
-		Servers:    m.GetServers(),
+		Servers:    servers,
 		FirstSteps: catalog.FirstWords(entry, choice),
 		Pin:        pin,
 		Limits:     limitsOf(m),
 		Notes:      pinNotes,
-		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links},
+		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links, Extra: slices.Concat(shared.Extra, userEdits(needed), written), Joins: shared.Joins},
 	})
 	if err != nil {
 		return nil, err
@@ -516,7 +548,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	}
 	// Its needs stay met as they are, and one the release adds takes its first way.
 	server := h.serverOf(ctx, install.GetEnvironmentId())
-	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), server)
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), nil, install.GetProject(), server)
 	if err != nil {
 		return nil, err
 	}
@@ -553,6 +585,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	written := writtenEdits(needed, filled)
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Needs = needed.Pinned
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
@@ -573,7 +606,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
 		Notes:        pinNotes,
-		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links},
+		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(userEdits(needed), written), Joins: linkJoins(needed)},
 	})
 }
 
@@ -686,7 +719,7 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 		Old:          old.GetFile(),
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
-		Needs:        composeapi.Needs{Stands: linked, OldStands: oldLinked},
+		Needs:        composeapi.Needs{Stands: linked, OldStands: oldLinked, Joins: pinJoins(entry, pin)},
 	})
 	if err != nil {
 		return nil, err

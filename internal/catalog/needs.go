@@ -29,11 +29,13 @@ import (
 // and records how in its pin, so an upgrade reads the file as it did. See
 // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
 //
-// For now a need is met by a new one beside the app: the entry's own service, or
-// the catalog's entry for another engine the need accepts, where that engine's image
-// makes the app a user who isn't its administrator (MySQL and MariaDB). PostgreSQL,
-// MongoDB and Redis from the catalog wait for a user Dockwell makes in the plan, as a
-// shared server would need, and so does a URL that holds a password.
+// A need is met by a new one beside the app: the entry's own service, or the
+// catalog's entry for another engine the need accepts, where that engine's image makes
+// the app a user who isn't its administrator (MySQL and MariaDB), or where the plan
+// makes one (PostgreSQL), or where the server is the app's alone and it signs in with
+// the server's password (Redis); or a server Dockwell runs already, shared because a
+// person chose it. MongoDB from the catalog waits for users Dockwell makes on it.
+// A URL is a value Dockwell writes from the need's parts (Written).
 
 // engine is what the catalog knows of an engine a need can name.
 type engine struct {
@@ -47,10 +49,18 @@ type engine struct {
 	entry string
 	// database, user and password are those first-start variables.
 	database, user, password string
+	// planned says the image makes only an administrator, so the app's user, with its
+	// database, is a database user the install's plan makes once the server is up,
+	// and the administrator's password stays the server's own (ADR 0084).
+	planned bool
+	// alone names the entry's input that holds the server's one password, where the
+	// app signs in with it: a new Redis beside an app is the app's alone, and most
+	// apps send a Redis no user. That password is then the need's.
+	alone string
 }
 
 var engines = map[catalogv1.Engine]engine{
-	catalogv1.Engine_ENGINE_POSTGRESQL: {word: "postgresql", name: "PostgreSQL"},
+	catalogv1.Engine_ENGINE_POSTGRESQL: {word: "postgresql", name: "PostgreSQL", entry: "postgres", planned: true},
 	catalogv1.Engine_ENGINE_MYSQL: {
 		word: "mysql", name: "MySQL", entry: "mysql",
 		database: "MYSQL_DATABASE", user: "MYSQL_USER", password: "MYSQL_PASSWORD",
@@ -59,7 +69,7 @@ var engines = map[catalogv1.Engine]engine{
 		word: "mariadb", name: "MariaDB", entry: "mariadb",
 		database: "MARIADB_DATABASE", user: "MARIADB_USER", password: "MARIADB_PASSWORD",
 	},
-	catalogv1.Engine_ENGINE_REDIS:      {word: "redis", name: "Redis"},
+	catalogv1.Engine_ENGINE_REDIS:      {word: "redis", name: "Redis", entry: "redis", alone: "REDIS_PASSWORD"},
 	catalogv1.Engine_ENGINE_VALKEY:     {word: "valkey", name: "Valkey"},
 	catalogv1.Engine_ENGINE_MONGODB:    {word: "mongodb", name: "MongoDB"},
 	catalogv1.Engine_ENGINE_CLICKHOUSE: {word: "clickhouse", name: "ClickHouse"},
@@ -434,17 +444,44 @@ type Way struct {
 	// pin is how the install met it, for an upgrade that keeps it so, with the
 	// service it added as the pin kept it.
 	pin *resourcev1.PinnedNeed
+	// Existing is a server Dockwell runs already that meets it, shared because a
+	// person chose it, and Why says why it can't, where it can't. Database and User
+	// are what's made for the app there (SharedNames), and Password the secret there
+	// that holds the user's password.
+	Existing                 *Candidate
+	Why                      string
+	Database, User, Password string
+	// Alias is the name a server it shares answers to on its link network, where the
+	// need's own is taken beside the app, as by the database that met it before.
+	Alias string
+	// CopyFrom is a database the user made on the server it shares starts as a copy
+	// of, as Use another database copies the app's across.
+	CopyFrom *resourcev1.DatabaseCopy
 }
 
-// Choice is how InstallCatalogEntryRequest.needs names a way, such as "new:mysql".
-func (w Way) Choice() string { return "new:" + EngineWord(w.Engine) }
+// Choice is how InstallCatalogEntryRequest.needs names a way, such as "new:mysql",
+// or "service:data/production/db" for a server Dockwell runs already.
+func (w Way) Choice() string {
+	if w.Existing != nil {
+		return w.Existing.Choice()
+	}
+	return "new:" + EngineWord(w.Engine)
+}
+
+// Shares reports a way that meets its need by a server Dockwell runs already.
+func (w Way) Shares() bool { return w.Existing != nil }
 
 // Service is the service that meets the need: the entry's own, or the one a new one
 // adds under the need's name, which is the need's name too where the entry brings
 // none.
 func (w Way) Service() string {
-	if own := w.Need.GetService(); own != "" && w.From == nil && len(w.pin.GetFile()) == 0 {
+	if own := w.Need.GetService(); own != "" && w.From == nil && len(w.pin.GetFile()) == 0 && w.Existing == nil {
 		return own
+	}
+	// A server shared with the app answers on its link network to the need's name, or
+	// its alias where that's taken.
+	if w.Existing != nil && w.Alias != "" {
+		return w.Alias
 	}
 	return w.Need.GetName()
 }
@@ -452,10 +489,27 @@ func (w Way) Service() string {
 // Lookup finds a catalog entry by its ID, with the source it's in.
 type Lookup func(id string) (e *catalogv1.Entry, source string, ok bool)
 
-// Ways lists how each of an entry's needs can be met, by need: the entry's own
-// service first, then each other engine the need accepts, in its order, that the
-// catalog brings an entry for at a version the need takes. The first is the default.
+// Ways lists how each of an entry's needs can be met by a new one, by need: the
+// entry's own service first, then each other engine the need accepts, in its order,
+// that the catalog brings an entry for at a version the need takes. The first is the
+// default.
 func Ways(e *catalogv1.Entry, lookup Lookup) map[string][]Way {
+	return WaysWith(e, lookup, nil, "")
+}
+
+// WaysWith lists how each need can be met, as Ways does, and after the new ones the
+// servers Dockwell runs already that take it, the usable first, each with why it
+// can't where it can't. on is the server the app goes on, by ID, or empty where it
+// goes with what it shares.
+func WaysWith(e *catalogv1.Entry, lookup Lookup, candidates []Candidate, on string) map[string][]Way {
+	out := waysNew(e, lookup)
+	for _, n := range e.GetNeeds() {
+		out[n.GetName()] = append(out[n.GetName()], existing(n, e.GetName(), candidates, on)...)
+	}
+	return out
+}
+
+func waysNew(e *catalogv1.Entry, lookup Lookup) map[string][]Way {
 	out := map[string][]Way{}
 	services, _ := composeServices(e.GetCompose())
 	for _, n := range e.GetNeeds() {
@@ -507,19 +561,25 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 			out[name] = w
 			continue
 		}
-		if len(options) == 0 {
-			return nil, fmt.Errorf("%s needs %s, and nothing here can make one yet: %s. Install another app that brings its own", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
-		}
 		choice := asked[name]
-		switch choice {
-		case "", "new":
-			out[name] = options[0]
+		// New is the default, always: a server is shared only because a person chose it.
+		first := slices.IndexFunc(options, func(w Way) bool { return !w.Shares() })
+		switch {
+		case (choice == "" || choice == "new") && first < 0:
+			return nil, fmt.Errorf("%s needs %s, and nothing here can make a new one yet: %s. Choose one you run, if one takes it", e.GetName(), strings.ToLower(n.GetLabel()), acceptWords(n))
+		case choice == "" || choice == "new":
+			out[name] = options[first]
 		default:
 			i := slices.IndexFunc(options, func(w Way) bool { return w.Choice() == choice })
+			if i >= 0 && options[i].Why != "" {
+				return nil, fmt.Errorf("%s can't meet %s's %s: %s", strings.TrimPrefix(choice, "service:"), e.GetName(), strings.ToLower(n.GetLabel()), options[i].Why)
+			}
 			if i < 0 {
 				var choices []string
-				for _, w := range options {
-					choices = append(choices, w.Choice())
+				for i := range options {
+					if options[i].Why == "" {
+						choices = append(choices, options[i].Choice())
+					}
 				}
 				return nil, fmt.Errorf("%s's need %s takes %s, not %q", e.GetName(), name, strings.Join(choices, " or "), choice)
 			}
@@ -546,15 +606,24 @@ func pinnedWay(n *catalogv1.Need, p *resourcev1.PinnedNeed, options []Way) (Way,
 			return Way{}, fmt.Errorf("this release of the app takes %s for its %s, and the install runs %s, so it stays on its release", acceptWords(n), what, runs)
 		}
 	}
+	if p.GetEnvironment() != "" {
+		// A server it shares stays as it was; the link says the rest.
+		return Way{
+			Need: n, Engine: eng, Version: p.GetVersion(), pin: p,
+			Existing: &Candidate{EnvironmentID: p.GetEnvironment(), Service: p.GetMeets()},
+			Database: p.GetDatabase(), User: p.GetUser(), Password: p.GetPassword(),
+		}, nil
+	}
 	if len(p.GetFile()) == 0 {
-		for _, w := range options {
-			if w.From != nil {
+		for i := range options {
+			w := &options[i]
+			if w.From != nil || w.Existing != nil {
 				continue
 			}
 			if eng != catalogv1.Engine_ENGINE_UNSPECIFIED && w.Engine != eng {
 				return Way{}, fmt.Errorf("this release of the app runs %s for its %s, where the install runs %s, which keeps its data in a form %s can't read, so it stays on its release", EngineName(w.Engine), what, runs, EngineName(w.Engine))
 			}
-			return w, nil
+			return *w, nil
 		}
 		return Way{}, fmt.Errorf("this release of the app brings no service for %s, which the install ran its own of, so it stays on its release", what)
 	}
@@ -617,12 +686,25 @@ type Needed struct {
 	Pinned map[string]*resourcev1.PinnedNeed
 	// Links are each need, met, for the plan.
 	Links map[string]*resourcev1.Link
+	// Shared are the needs met by a server Dockwell runs already, whose database,
+	// user and network the plan makes too.
+	Shared []Way
+	// Users are the database users the plan makes on a new server beside the app,
+	// whose image makes only its administrator, by name, each with its password in
+	// the need's secret in the app's environment.
+	Users map[string]*resourcev1.DatabaseUser
+	// Written are the URLs needs set, each a secret of the app's environment that
+	// Dockwell writes from the need's parts there, by name. A secret, as a URL most
+	// often holds the password, and one kind of value for every URL reads the same
+	// through an upgrade. Fill gives each a value of no meaning, which the install
+	// drops.
+	Written map[string]*resourcev1.ValueTemplate
 }
 
 // Need is the entry as an install that meets its needs by met runs it. An entry with
 // no needs is as it is.
 func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
-	out := &Needed{Entry: e, Pinned: map[string]*resourcev1.PinnedNeed{}, Links: map[string]*resourcev1.Link{}}
+	out := &Needed{Entry: e, Pinned: map[string]*resourcev1.PinnedNeed{}, Links: map[string]*resourcev1.Link{}, Users: map[string]*resourcev1.DatabaseUser{}, Written: map[string]*resourcev1.ValueTemplate{}}
 	if len(e.GetNeeds()) == 0 {
 		return out, nil
 	}
@@ -636,7 +718,17 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 		}
 		password := passwordName(n)
 		pinned := &resourcev1.PinnedNeed{Engine: resourcev1.LinkEngine(w.Engine), Version: w.Version}
-		if w.From != nil || len(w.pin.GetFile()) > 0 {
+		if w.Existing != nil {
+			// Its own service goes, and nothing waits for it: the server it shares is
+			// in another project.
+			var err error
+			if file, err = withoutService(file, n.GetService()); err != nil {
+				return nil, err
+			}
+			pinned.Service, pinned.Environment, pinned.Meets = n.GetService(), w.Existing.EnvironmentID, w.Existing.Service
+			pinned.Database, pinned.User, pinned.Password = w.Database, w.User, w.Password
+			out.Shared = append(out.Shared, w)
+		} else if w.From != nil || len(w.pin.GetFile()) > 0 {
 			added, more, err := w.service(password)
 			if err != nil {
 				return nil, err
@@ -651,11 +743,24 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 			if file, err = replaceService(file, n.GetService(), n.GetName(), added); err != nil {
 				return nil, err
 			}
+			// An input of the app's own of a name the server keeps its secret in would
+			// give the app that secret, where another of its services reads it.
+			parsed, err := composeServices(file)
+			if err != nil {
+				return nil, err
+			}
 			for _, m := range more {
-				// An input of the app's own of that name would take the server's secret.
-				if slices.ContainsFunc(inputs, func(in *catalogv1.Input) bool { return in.GetName() == m.GetName() }) {
-					return nil, fmt.Errorf("%s has an input %s, which the need %s's new %s keeps its own secret in. Rename the input", e.GetName(), m.GetName(), n.GetName(), EngineName(w.Engine))
+				if !slices.ContainsFunc(inputs, func(in *catalogv1.Input) bool { return in.GetName() == m.GetName() }) {
+					continue
 				}
+				for name, svc := range parsed {
+					if name != w.Service() && uses(svc, m.GetName()) {
+						return nil, fmt.Errorf("%s has an input %s, which the need %s's %s keeps its own secret in, and %s reads it. Rename the input", e.GetName(), m.GetName(), n.GetName(), EngineName(w.Engine), name)
+					}
+				}
+			}
+			if file, err = waitFor(file, n); err != nil {
+				return nil, err
 			}
 			adds = append(adds, more...)
 			if w.From != nil {
@@ -673,11 +778,39 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 			}
 		}
 		values := needValues(n, w)
+		if w.Existing != nil {
+			values[catalogv1.Part_PART_DATABASE], values[catalogv1.Part_PART_USER] = w.Database, w.User
+		}
+		if engines[w.Engine].planned && w.Existing == nil && (w.From != nil || len(w.pin.GetFile()) > 0) {
+			user, db := values[catalogv1.Part_PART_USER], values[catalogv1.Part_PART_DATABASE]
+			if _, taken := out.Users[user]; taken {
+				return nil, fmt.Errorf("two of %s's needs name the user %s, which one environment has once. Give each need a user of its own", e.GetName(), user)
+			}
+			u := &resourcev1.DatabaseUser{Service: n.GetName(), Password: password}
+			if db != user {
+				u.DatabaseName = db
+			}
+			out.Users[user] = u
+		}
 		for _, s := range n.GetSets() {
-			if SecretPart(s) {
-				if s.GetPart() == catalogv1.Part_PART_URL {
-					return nil, fmt.Errorf("%s writes %s as a URL with its password, which an install takes once Dockwell writes such a URL itself (ADR 0084)", e.GetName(), s.GetName())
+			if s.GetPart() == catalogv1.Part_PART_URL {
+				t, parts, err := urlTemplate(e, n, w, s, values)
+				if err != nil {
+					return nil, err
 				}
+				for _, p := range parts {
+					adds = append(adds, &catalogv1.Input{Name: p.name, Label: p.name, Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: p.value, Optional: true})
+					if !slices.Contains(out.Plain, p.name) {
+						out.Plain = append(out.Plain, p.name)
+					}
+				}
+				// A value Fill makes and the install drops: the URL is written from the
+				// parts, so no one gives it, and no secret of the app's holds it.
+				adds = append(adds, &catalogv1.Input{Name: s.GetName(), Label: s.GetName(), Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32})
+				out.Written[s.GetName()] = t
+				continue
+			}
+			if SecretPart(s) {
 				continue
 			}
 			// A part may be empty, as a user is on an engine with none, so it's optional.
@@ -686,6 +819,10 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 		}
 		adds = append(adds, &catalogv1.Input{Name: password, Label: password, Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32, SetOnce: n.GetSetOnce()})
 		out.Links[n.GetName()] = linkOf(n, w, values)
+		if w.Existing != nil {
+			l := out.Links[n.GetName()]
+			l.MeetsEnvironment, l.Service = w.Existing.EnvironmentID, w.Existing.Service
+		}
 	}
 	// What only a service left out used goes with it, as a companion's inputs do.
 	inputs = slices.DeleteFunc(inputs, func(in *catalogv1.Input) bool { return !usesInput(file, in.GetName()) })
@@ -716,11 +853,41 @@ func PinnedPlain(pinned map[string]*resourcev1.PinnedNeed, entry *catalogv1.Entr
 	return out
 }
 
+// withoutService takes the entry's own service out of a file, where it has one, with
+// every depends_on that names it.
+func withoutService(file, own string) (string, error) {
+	if own == "" {
+		return file, nil
+	}
+	file, err := Without(file, []string{own})
+	if err != nil {
+		return "", err
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(file), &doc); err != nil || len(doc.Content) != 1 {
+		return "", errors.New("its Compose file isn't YAML")
+	}
+	services := nodeGet(doc.Content[0], "services")
+	for i := 1; services != nil && i < len(services.Content); i += 2 {
+		if deps := nodeGet(services.Content[i], "depends_on"); deps != nil {
+			dropDependency(services.Content[i], deps, own)
+		}
+	}
+	return encode(&doc)
+}
+
 // MetFile is an install's file as it ran, from its pin: the entry's file with each
 // service a need added in place of the entry's own.
 func MetFile(file string, pinned map[string]*resourcev1.PinnedNeed) (string, error) {
 	for _, name := range slices.Sorted(maps.Keys(pinned)) {
 		p := pinned[name]
+		if p.GetEnvironment() != "" {
+			var err error
+			if file, err = withoutService(file, p.GetService()); err != nil {
+				return "", err
+			}
+			continue
+		}
 		if len(p.GetFile()) == 0 {
 			continue
 		}
@@ -732,8 +899,11 @@ func MetFile(file string, pinned map[string]*resourcev1.PinnedNeed) (string, err
 	return file, nil
 }
 
-// passwordName is the name a need's password is kept as: the one it sets, or one
-// named for the need where it sets none, such as DB_PASSWORD.
+// PasswordName is the name a need's password is kept as in the app's environment:
+// the one it sets, or one named for the need where it sets none, such as DB_PASSWORD.
+func PasswordName(n *catalogv1.Need) string { return passwordName(n) }
+
+// passwordName is PasswordName.
 func passwordName(n *catalogv1.Need) string {
 	for _, s := range n.GetSets() {
 		if s.GetPart() == catalogv1.Part_PART_PASSWORD {
@@ -772,6 +942,122 @@ func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 		catalogv1.Part_PART_USER:     user,
 		catalogv1.Part_PART_TLS:      tls,
 	}
+}
+
+// urls are each engine's own form of a URL, for a URL part with no template.
+var urls = map[catalogv1.Engine]string{
+	catalogv1.Engine_ENGINE_POSTGRESQL: "postgres://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_MYSQL:      "mysql://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_MARIADB:    "mysql://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_REDIS:      "redis://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_VALKEY:     "redis://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_MONGODB:    "mongodb://{user}:{password}@{host}:{port}/{database}",
+	catalogv1.Engine_ENGINE_CLICKHOUSE: "clickhouse://{user}:{password}@{host}:{port}/{database}",
+}
+
+// partName is a name of the app's environment a URL's part is kept as: the need's
+// own where it sets that part, or else one named for the need, such as DB_HOST, and
+// value what it holds, for a name the install adds.
+type partName struct{ name, value string }
+
+// urlTemplate is a URL part as the template Dockwell writes it from, of the
+// environment's names, each part encoded for where it stands, and the names it adds
+// for parts the need doesn't set (ADR 0084).
+func urlTemplate(e *catalogv1.Entry, n *catalogv1.Need, w Way, s *catalogv1.NeedSet, values map[catalogv1.Part]string) (*resourcev1.ValueTemplate, []partName, error) {
+	text := cmp.Or(s.GetTemplate(), urls[w.Engine])
+	if text == "" {
+		return nil, nil, fmt.Errorf("%s writes %s as a URL, and %s has no URL of its own. Give the need a template", e.GetName(), s.GetName(), EngineName(w.Engine))
+	}
+	prefix := strings.ToUpper(strings.ReplaceAll(n.GetName(), "-", "_")) + "_"
+	taken := map[string]bool{}
+	for _, in := range e.GetInputs() {
+		taken[in.GetName()] = true
+	}
+	for _, other := range e.GetNeeds() {
+		for _, set := range other.GetSets() {
+			taken[set.GetName()] = true
+		}
+	}
+	var added []partName
+	nameOf := func(part catalogv1.Part) (string, error) {
+		if part == catalogv1.Part_PART_PASSWORD {
+			return passwordName(n), nil
+		}
+		for _, set := range n.GetSets() {
+			if set.GetPart() == part {
+				return set.GetName(), nil
+			}
+		}
+		word := strings.TrimPrefix(catalogv1.Part_name[int32(part)], "PART_")
+		name := prefix + word
+		if taken[name] && !slices.ContainsFunc(added, func(p partName) bool { return p.name == name }) {
+			if name = prefix + "LINK_" + word; taken[name] {
+				return "", fmt.Errorf("%s has %s and %s already, which %s's URL %s would keep its %s in. Rename one", e.GetName(), prefix+word, name, n.GetName(), s.GetName(), strings.ToLower(word))
+			}
+		}
+		if !slices.ContainsFunc(added, func(p partName) bool { return p.name == name }) {
+			value := values[part]
+			if part == catalogv1.Part_PART_TLS {
+				// A new one beside the app, or one shared on a link network, takes none.
+				value = s.GetTls().GetOff()
+			}
+			added = append(added, partName{name: name, value: value})
+		}
+		return name, nil
+	}
+	// Where each part stands: the user and password before the host's @, the database
+	// in the path, anything after ? in the query.
+	authority, userinfo, query := 0, -1, strings.IndexByte(text, '?')
+	if i := strings.Index(text, "://"); i >= 0 {
+		authority = i + 3
+	}
+	end := len(text)
+	if i := strings.IndexAny(text[authority:], "/?#"); i >= 0 {
+		end = authority + i
+	}
+	if i := strings.LastIndexByte(text[authority:end], '@'); i >= 0 {
+		userinfo = authority + i
+	}
+	encodingAt := func(at int) resourcev1.Encoding {
+		switch {
+		case at < userinfo:
+			return resourcev1.Encoding_ENCODING_USERINFO
+		case query >= 0 && at > query:
+			return resourcev1.Encoding_ENCODING_QUERY
+		case at >= end:
+			return resourcev1.Encoding_ENCODING_PATH
+		default:
+			return resourcev1.Encoding_ENCODING_UNSPECIFIED
+		}
+	}
+	t := &resourcev1.ValueTemplate{}
+	var b strings.Builder
+	last := 0
+	for _, m := range placeholder.FindAllStringSubmatchIndex(text, -1) {
+		b.WriteString(strings.ReplaceAll(text[last:m[0]], "$", "$$"))
+		last = m[1]
+		word := text[m[2]:m[3]]
+		parts := []catalogv1.Part{catalogv1.Part(catalogv1.Part_value["PART_"+strings.ToUpper(word)])}
+		if word == "address" {
+			parts = []catalogv1.Part{catalogv1.Part_PART_HOST, catalogv1.Part_PART_PORT}
+		}
+		for i, part := range parts {
+			if i > 0 {
+				b.WriteByte(':')
+			}
+			name, err := nameOf(part)
+			if err != nil {
+				return nil, nil, err
+			}
+			b.WriteString("${" + name + "}")
+			if !slices.ContainsFunc(t.GetNames(), func(x *resourcev1.TemplateName) bool { return x.GetName() == name }) {
+				t.Names = append(t.Names, &resourcev1.TemplateName{Name: name, Secret: part == catalogv1.Part_PART_PASSWORD, Encoding: encodingAt(m[0])})
+			}
+		}
+	}
+	b.WriteString(strings.ReplaceAll(text[last:], "$", "$$"))
+	t.Text = b.String()
+	return t, added, nil
 }
 
 // linkOf is a need, met by w, as its link says it.
@@ -843,6 +1129,10 @@ func (w Way) service(password string) (string, []*catalogv1.Input, error) {
 	walkStrings(svc, func(s *yaml.Node) {
 		s.Value = usedNames.ReplaceAllStringFunc(s.Value, func(m string) string {
 			in := m[2:]
+			if in == info.alone {
+				// The server's one password is the app's, as the need's.
+				return "${" + password
+			}
 			i := slices.IndexFunc(w.From.GetInputs(), func(x *catalogv1.Input) bool { return x.GetName() == in })
 			if i < 0 || w.From.GetInputs()[i].GetGenerate() == 0 {
 				bad = fmt.Errorf("%s's %s uses %s, which a new one beside an app can't ask for", w.From.GetName(), name, in)
@@ -859,21 +1149,24 @@ func (w Way) service(password string) (string, []*catalogv1.Input, error) {
 		return "", nil, bad
 	}
 	// The image makes the app's database and user from the need's names, or its
-	// values where the need sets none.
-	env := map[string]string{info.password: "${" + password + "}"}
-	values := needValues(n, w)
-	for _, part := range []struct {
-		variable string
-		part     catalogv1.Part
-	}{{info.database, catalogv1.Part_PART_DATABASE}, {info.user, catalogv1.Part_PART_USER}} {
-		env[part.variable] = values[part.part]
-		for _, s := range n.GetSets() {
-			if s.GetPart() == part.part {
-				env[part.variable] = "${" + s.GetName() + "}"
+	// values where the need sets none, but where the plan makes them, or the app
+	// signs in with the server's one password.
+	if !info.planned && info.alone == "" {
+		env := map[string]string{info.password: "${" + password + "}"}
+		values := needValues(n, w)
+		for _, part := range []struct {
+			variable string
+			part     catalogv1.Part
+		}{{info.database, catalogv1.Part_PART_DATABASE}, {info.user, catalogv1.Part_PART_USER}} {
+			env[part.variable] = values[part.part]
+			for _, s := range n.GetSets() {
+				if s.GetPart() == part.part {
+					env[part.variable] = "${" + s.GetName() + "}"
+				}
 			}
 		}
+		setEnvironment(svc, env)
 	}
-	setEnvironment(svc, env)
 	// What it adds: the service, under the need's name, and the volumes it names.
 	out := &yaml.Node{Kind: yaml.MappingNode}
 	services := &yaml.Node{Kind: yaml.MappingNode}
@@ -944,6 +1237,71 @@ func replaceService(file, own, name, added string) (string, error) {
 		}
 	}
 	return encode(&doc)
+}
+
+// waitFor has each service that reads a need's names wait for the new one beside it,
+// which the need's name names, healthy where it says how it's healthy: an entry from
+// another store that brought none waits for nothing, and its app would start first,
+// before the user the plan makes for it. Only the order a change makes them in reads
+// it, so a file without it, as MetFile's, runs the same.
+func waitFor(file string, n *catalogv1.Need) (string, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(file), &doc); err != nil || len(doc.Content) != 1 {
+		return "", errors.New("its Compose file isn't YAML")
+	}
+	services := nodeGet(doc.Content[0], "services")
+	added := nodeGet(services, n.GetName())
+	if added == nil {
+		return file, nil
+	}
+	condition := "service_started"
+	if nodeGet(added, "healthcheck") != nil {
+		condition = "service_healthy"
+	}
+	parsed, err := composeServices(file)
+	if err != nil {
+		return "", err
+	}
+	for i := 0; i+1 < len(services.Content); i += 2 {
+		name, svc := services.Content[i].Value, services.Content[i+1]
+		if name == n.GetName() || svc.Kind != yaml.MappingNode ||
+			!slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return uses(parsed[name], s.GetName()) }) {
+			continue
+		}
+		deps := nodeGet(svc, "depends_on")
+		switch {
+		case deps == nil:
+			deps = &yaml.Node{Kind: yaml.MappingNode}
+			svc.Content = append(svc.Content, scalar("depends_on"), deps)
+		case deps.Kind == yaml.SequenceNode:
+			if slices.ContainsFunc(deps.Content, func(d *yaml.Node) bool { return d.Value == n.GetName() }) {
+				continue
+			}
+			deps.Content = append(deps.Content, scalar(n.GetName()))
+			continue
+		case nodeGet(deps, n.GetName()) != nil:
+			continue
+		}
+		wait := &yaml.Node{Kind: yaml.MappingNode}
+		wait.Content = append(wait.Content, scalar("condition"), scalar(condition))
+		deps.Content = append(deps.Content, scalar(n.GetName()), wait)
+	}
+	return encode(&doc)
+}
+
+// dropDependency takes a service out of what another depends on, in either form, and
+// the key itself once it names nothing.
+func dropDependency(svc, deps *yaml.Node, name string) {
+	switch deps.Kind {
+	case yaml.SequenceNode:
+		deps.Content = slices.DeleteFunc(deps.Content, func(n *yaml.Node) bool { return n.Value == name })
+	case yaml.MappingNode:
+		deps.Content = deleteKeys(deps.Content, name)
+	default:
+	}
+	if len(deps.Content) == 0 {
+		svc.Content = deleteKeys(svc.Content, "depends_on")
+	}
 }
 
 // moveDependency has what waited for one service wait for another instead, as it
@@ -1163,7 +1521,7 @@ func Standing(e *catalogv1.Entry) *catalogv1.Entry {
 		values := needValues(n, w)
 		for _, s := range n.GetSets() {
 			in := &catalogv1.Input{Name: s.GetName(), Label: s.GetName(), Type: catalogv1.InputType_INPUT_TYPE_TEXT, DefaultValue: values[s.GetPart()], Optional: true}
-			if SecretPart(s) {
+			if SecretPart(s) || s.GetPart() == catalogv1.Part_PART_URL {
 				in = &catalogv1.Input{Name: s.GetName(), Label: s.GetName(), Type: catalogv1.InputType_INPUT_TYPE_SECRET, Generate: 32}
 			}
 			out.Inputs = append(out.Inputs, in)
@@ -1173,12 +1531,13 @@ func Standing(e *catalogv1.Entry) *catalogv1.Entry {
 }
 
 // PlainNames are the names an entry's needs set that hold no password, which an
-// install keeps as its environment's variables.
+// install keeps as its environment's variables. A URL is a secret Dockwell writes,
+// whatever it holds.
 func PlainNames(e *catalogv1.Entry) []string {
 	var out []string
 	for _, n := range e.GetNeeds() {
 		for _, s := range n.GetSets() {
-			if !SecretPart(s) {
+			if !SecretPart(s) && s.GetPart() != catalogv1.Part_PART_URL {
 				out = append(out, s.GetName())
 			}
 		}

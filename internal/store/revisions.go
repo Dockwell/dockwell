@@ -116,6 +116,9 @@ type ChangeItem struct {
 	// Adopts is the full ID of a container the change takes on as this resource,
 	// and AdoptsName what it is called.
 	Adopts, AdoptsName string
+	// Follows is true when the change took it in because it uses a value the change
+	// changes: Dockwell's own item, not the person's edit (ADR 0084).
+	Follows bool
 }
 
 // Resource is a managed resource with its latest revision.
@@ -173,9 +176,9 @@ func (t *RevisionTx) CreateChange(ctx context.Context, c Change) error {
 	}
 	for i := range c.Items {
 		it := &c.Items[i]
-		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run, adopts, adopts_name)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
-			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run), it.Adopts, it.AdoptsName); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO change_items (change_id, position, resource_id, kind, scope, name, base_revision, spec, servers, rotates, pull, run, adopts, adopts_name, follows)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, c.ID, i, it.ResourceID, it.Kind, it.Scope, it.Name, it.BaseRevision, it.Spec,
+			strings.Join(it.Servers, " "), boolInt(it.Rotates), boolInt(it.Pull), boolInt(it.Run), it.Adopts, it.AdoptsName, boolInt(it.Follows)); err != nil {
 			return fmt.Errorf("can't record change %s: %w", c.ID, err)
 		}
 	}
@@ -214,7 +217,7 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run, adopts, adopts_name
+	rows, err := t.query(ctx, `SELECT resource_id, kind, scope, name, base_revision, spec, spec IS NULL, servers, rotates, pull, run, adopts, adopts_name, follows
 		FROM change_items WHERE change_id = ? ORDER BY position`, changeID)
 	if err != nil {
 		return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
@@ -224,11 +227,11 @@ func (t *Tx) GetChange(ctx context.Context, changeID string) (Change, error) {
 		var it ChangeItem
 		var servers string
 		var deleted bool
-		var rotates, pull, run int64
-		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run, &it.Adopts, &it.AdoptsName); err != nil {
+		var rotates, pull, run, follows int64
+		if err := rows.Scan(&it.ResourceID, &it.Kind, &it.Scope, &it.Name, &it.BaseRevision, &it.Spec, &deleted, &servers, &rotates, &pull, &run, &it.Adopts, &it.AdoptsName, &follows); err != nil {
 			return Change{}, fmt.Errorf("can't read change %s: %w", changeID, err)
 		}
-		it.Rotates, it.Pull, it.Run = rotates != 0, pull != 0, run != 0
+		it.Rotates, it.Pull, it.Run, it.Follows = rotates != 0, pull != 0, run != 0, follows != 0
 		it.Spec = spec(it.Spec, deleted)
 		if servers != "" {
 			it.Servers = strings.Fields(servers)
@@ -704,6 +707,9 @@ type Use struct {
 	Kind     string
 	Name     string
 	Revision int // the revision it is pinned to; 0 when it isn't
+	// Scope is where it lives, when that isn't the user's own scope, as a link's
+	// value from another environment does (ADR 0084). Empty is the user's own.
+	Scope string
 }
 
 // AddRevision writes the next revision of a resource, creating the
@@ -733,31 +739,33 @@ func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, 
 		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", n.Kind, n.Name, err)
 	}
 	for _, u := range n.Uses {
-		if _, err := t.exec(ctx, `INSERT INTO revision_uses (resource_id, revision, scope, used_as, used_kind, used_name, used_revision)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, r.ID, r.Revision, n.Scope, u.As, u.Kind, u.Name, u.Revision); err != nil {
+		if _, err := t.exec(ctx, `INSERT INTO revision_uses (resource_id, revision, scope, used_as, used_kind, used_name, used_revision, used_scope)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, r.ID, r.Revision, n.Scope, u.As, u.Kind, u.Name, u.Revision, u.Scope); err != nil {
 			return Revision{}, fmt.Errorf("can't record what %s %s uses: %w", n.Kind, n.Name, err)
 		}
 	}
 	return Revision{Resource: r, CreatedAt: n.At}, nil
 }
 
-// Using is a resource whose latest revision uses another in its scope,
-// and what it uses.
+// Using is a resource whose latest revision uses another, and what it uses. Its
+// Scope is the user's own, and Uses.Scope where what it uses lives, when that's
+// another.
 type Using struct {
 	ID, Kind, Scope, Name string
 	Revision              int // the user's latest revision
 	Uses                  Use
 }
 
-// UsersOf returns what the resources in scope use, at their latest
-// revisions, by the user's kind and name, then the name each use is seen
-// as. A deleted resource uses nothing. With kind set, it returns only the
-// uses of that kind; with names set too, only of those names.
+// UsersOf returns what uses the resources in scope, at the users' latest
+// revisions, by the user's kind and name, then the name each use is seen as: a
+// user in scope itself, or one in another that names scope, as a link's value from
+// another environment does. A deleted resource uses nothing. With kind set, it
+// returns only the uses of that kind; with names set too, only of those names.
 func (t *Tx) UsersOf(ctx context.Context, scope, kind string, names ...string) ([]Using, error) {
-	query := `SELECT r.id, r.kind, r.scope, r.name, r.revision, u.used_as, u.used_kind, u.used_name, u.used_revision
+	query := `SELECT r.id, r.kind, r.scope, r.name, r.revision, u.used_as, u.used_kind, u.used_name, u.used_revision, u.used_scope
 		FROM revision_uses u JOIN resources r ON r.id = u.resource_id AND r.revision = u.revision
-		WHERE u.scope = ? AND (u.used_kind = ? OR ? = '')`
-	args := []any{scope, kind, kind}
+		WHERE (u.used_scope = ? OR u.used_scope = '' AND u.scope = ?) AND (u.used_kind = ? OR ? = '')`
+	args := []any{scope, scope, kind, kind}
 	if len(names) > 0 {
 		query += ` AND u.used_name IN (` + marks(len(names)) + `)`
 		for _, n := range names {
@@ -772,7 +780,7 @@ func (t *Tx) UsersOf(ctx context.Context, scope, kind string, names ...string) (
 	var out []Using
 	for rows.Next() {
 		var u Using
-		if err := rows.Scan(&u.ID, &u.Kind, &u.Scope, &u.Name, &u.Revision, &u.Uses.As, &u.Uses.Kind, &u.Uses.Name, &u.Uses.Revision); err != nil {
+		if err := rows.Scan(&u.ID, &u.Kind, &u.Scope, &u.Name, &u.Revision, &u.Uses.As, &u.Uses.Kind, &u.Uses.Name, &u.Uses.Revision, &u.Uses.Scope); err != nil {
 			return nil, fmt.Errorf("can't read what the resources of %s use: %w", scope, err)
 		}
 		out = append(out, u)

@@ -909,6 +909,10 @@ message Change {
   // for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
   // open work adds to this message.
   ChangeConfirmation confirmation = 40;
+  // What of the change is in projects the reader holds no role in, as a count, where
+  // it reaches one through a link (ADR 0084, amending ADR 0049): the change shows
+  // only what the reader holds. Unset where they hold all of it.
+  ChangeElsewhere elsewhere = 80;
 }
 
 // RollbackStatus is how the rollback of a failed change is going, for
@@ -2176,4 +2180,15 @@ enum StepState {
   STEP_STATE_SKIPPED = 5;
   // Waiting for its server to reconnect, as a rollback does.
   STEP_STATE_WAITING = 6;
+}
+
+// ChangeElsewhere is what of a change is in projects its reader holds no role in.
+message ChangeElsewhere {
+  // How many of its items are there, and of those, how many are services that
+  // restart with it.
+  int32 items = 1;
+  int32 restarts = 2;
+  // The reader holds none of its edits, only what it takes in, so its summary and
+  // who made it are left out, as they'd describe the other project.
+  bool edits_elsewhere = 3;
 }

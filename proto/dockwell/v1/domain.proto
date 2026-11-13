@@ -113,6 +113,11 @@ message DomainRoute {
   // True when a route with tls off answers anyone who can reach the server, as
   // Route.plain_for_anyone says.
   bool plain_for_anyone = 9;
+  // True while it answers that the app isn't open yet, as Route.held says (ADR 0084).
+  bool held = 80;
+  // The proxies in front it believes, as Route.trusted_proxies names them, so what
+  // reads a route has all of it.
+  repeated string trusted_proxies = 81;
 }
 
 // DomainServer is where a domain stands on one server.

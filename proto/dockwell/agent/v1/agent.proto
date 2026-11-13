@@ -512,6 +512,12 @@ message Hello {
   // of them on an agent that doesn't say so, which would leave them out. Other
   // stores' work takes 300 to 309 in agent messages.
   bool own_settings = 300;
+  // True when the agent joins a database shared with an app to the app's link
+  // network in place, and again as it makes the database's container anew (ADR
+  // 0084), so the control plane links an app to a database of another project
+  // only on a server whose agent does. Connectable apps take 290 to 299 in agent
+  // messages.
+  bool links = 290;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.

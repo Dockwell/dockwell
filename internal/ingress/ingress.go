@@ -130,6 +130,9 @@ type Route struct {
 	// Edited is true when it holds something Dockwell doesn't put there, as
 	// after a hand edit, so what it reads as isn't the whole of it.
 	Edited bool
+	// Held is true when it answers that the app isn't open yet and sends nothing
+	// on, until a person opens it (ADR 0084).
+	Held bool
 }
 
 // PanelSite is the panel's site on the proxy: its domain, sent to its socket,
@@ -363,7 +366,7 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 		return nil, nil
 	}
 	r := routes[i]
-	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone}
+	out := &resourcev1.Route{Domain: r.Domain, Path: r.Path, TrustedProxies: proxyNames(r.TrustedProxies, r.EdgeProxies), PlainForAnyone: r.PlainForAnyone, Held: r.Held}
 	if r.Plain {
 		out.Tls = TLSOff
 	}
@@ -983,7 +986,7 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	named, edge := splitProxies(spec.GetTrustedProxies())
 	r := Route{
 		ID: RouteID(ref), Domain: spec.GetDomain(), Path: spec.GetPath(), Upstreams: dials,
-		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(),
+		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
 	}
 	m.logReplaced(ctx, r)
 	if !r.Plain {

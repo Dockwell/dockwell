@@ -12,8 +12,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -27,6 +31,11 @@ import (
 //     it runs with, and the values are read at those revisions;
 //   - a change applies only while what it pinned is still the latest.
 // See docs/adr/0022-secrets-encrypted-at-rest.md.
+
+// maxUseChain bounds how many times a change takes in what uses what it changes: a
+// secret, a value written from it, and a service that uses that is three, and a
+// chain no longer than this ever needs.
+const maxUseChain = 8
 
 // binder returns the item's kind as a Binder, if it is one.
 func (e *Engine) binder(kind resource.Kind) (resource.Binder, bool) {
@@ -82,7 +91,7 @@ func (e *Engine) withUsers(ctx context.Context, tx *store.Tx, items []item) ([]i
 		if err != nil {
 			return nil, err
 		}
-		it.spec = proto.Clone(it.current)
+		it.spec, it.follows = proto.Clone(it.current), true
 		// A value the change replaces with one of another kind, by the
 		// same name, is used as the new one.
 		if rb, ok := e.rebinder(ref.Kind); ok {
@@ -194,7 +203,7 @@ func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resou
 func storeUses(uses []resource.Use) []store.Use {
 	out := make([]store.Use, len(uses))
 	for i, u := range uses {
-		out[i] = store.Use{As: u.As, Kind: string(u.Kind), Name: u.Name, Revision: u.Revision}
+		out[i] = store.Use{As: u.As, Kind: string(u.Kind), Name: u.Name, Revision: u.Revision, Scope: u.Scope}
 	}
 	return out
 }
@@ -209,7 +218,10 @@ func (e *Engine) revisions(ctx context.Context, tx *store.Tx, items []item, it *
 	}
 	revs := map[string]int{}
 	for _, u := range e.usesOf(it, spec) {
-		ref := resource.Ref{Kind: u.Kind, Scope: it.ref.Scope, Name: u.Name}
+		// A use names its own scope where it isn't the user's, as a link's value from
+		// another environment does (ADR 0084).
+		scopeID := cmp.Or(u.Scope, it.ref.Scope)
+		ref := resource.Ref{Kind: u.Kind, Scope: scopeID, Name: u.Name}
 		if other, ok := byRef[ref]; ok {
 			if other.spec == nil {
 				return nil, fault.New(ErrInvalid, "%s %s uses %s %s as %s, which this change deletes. Stop using it in %s first, or in the same change",
@@ -221,10 +233,14 @@ func (e *Engine) revisions(ctx context.Context, tx *store.Tx, items []item, it *
 			}
 			continue
 		}
-		r, err := tx.GetResource(ctx, string(u.Kind), it.ref.Scope, u.Name)
+		r, err := tx.GetResource(ctx, string(u.Kind), scopeID, u.Name)
 		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
-			return nil, fault.New(ErrInvalid, "%s %s uses %s %s as %s, which isn't in its environment. Make it first, or in the same change",
-				it.ref.Kind, it.ref.Name, u.Kind, u.Name, u.As)
+			where := "its environment"
+			if u.Scope != "" {
+				where = "the environment it names"
+			}
+			return nil, fault.New(ErrInvalid, "%s %s uses %s %s as %s, which isn't in %s. Make it first, or in the same change",
+				it.ref.Kind, it.ref.Name, u.Kind, u.Name, u.As, where)
 		}
 		if err != nil {
 			return nil, err
@@ -307,4 +323,85 @@ func (e *Engine) checkNames(ctx context.Context, tx *store.Tx, items []item, it 
 		}
 	}
 	return nil
+}
+
+// linkKind is the kind that alone writes a value from another environment (ADR 0084).
+const linkKind resource.Kind = "link"
+
+// refuseLinkedGoing refuses deleting a service that a link of another environment
+// reads, naming the project whose app uses it: a shared database never goes with an
+// app, nor from under one (ADR 0084). A link in the service's own environment names it
+// as a reference, which the engine refuses already.
+func (e *Engine) refuseLinkedGoing(ctx context.Context, tx *store.Tx, items []item) error {
+	going := map[string]bool{}
+	gone := map[resource.Ref]bool{}
+	for i := range items {
+		it := &items[i]
+		if it.spec == nil && it.current != nil {
+			gone[it.ref] = true
+			if it.ref.Kind == "service" {
+				going[it.ref.Scope+"/"+it.ref.Name] = true
+			}
+		}
+	}
+	if len(going) == 0 {
+		return nil
+	}
+	if t, _ := e.kinds.Type(linkKind); t == nil {
+		return nil
+	}
+	links, err := tx.ListKind(ctx, string(linkKind))
+	if err != nil {
+		return err
+	}
+	// Someone with no role where a link is reads how many, never which (ADR 0084).
+	caller, person := place.CallerFrom(ctx)
+	var named []string
+	hidden := 0
+	service := ""
+	for _, r := range links {
+		ref := resource.Ref{Kind: linkKind, Scope: r.Scope, Name: r.Name}
+		if r.Spec == nil || gone[ref] {
+			continue
+		}
+		it, err := e.load(ctx, tx, ref)
+		if err != nil {
+			return err
+		}
+		l, ok := it.current.(*resourcev1.Link)
+		if !ok || l.GetMeetsEnvironment() == "" || !going[l.GetMeetsEnvironment()+"/"+l.GetService()] {
+			continue
+		}
+		service = l.GetService()
+		project, projectID := r.Scope, ""
+		if tree, err := scope.Load(ctx, tx); err == nil {
+			for _, p := range tree.Projects {
+				for _, env := range p.Environments {
+					if env.ID == r.Scope {
+						project, projectID = p.Name, p.ID
+					}
+				}
+			}
+		}
+		if person && place.Holds(caller.Grants, place.Place{Project: projectID, Environment: r.Scope}) == "" {
+			hidden++
+			continue
+		}
+		named = append(named, "the app in "+project+" through its link "+r.Name)
+	}
+	switch {
+	case len(named) == 0 && hidden == 0:
+		return nil
+	case len(named) == 0:
+		apps := "an app"
+		if hidden > 1 {
+			apps = fmt.Sprintf("%d apps", hidden)
+		}
+		return fault.New(ErrInvalid, "service %s can't go while %s in projects you can't see share it. Ask an admin to point them at another database first",
+			service, apps)
+	case hidden > 0:
+		named = append(named, fmt.Sprintf("%d more in projects you can't see", hidden))
+	}
+	return fault.New(ErrInvalid, "service %s can't go while %s shares it. Point each at another database, or delete it, first",
+		service, human.List(named))
 }

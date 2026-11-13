@@ -3,6 +3,7 @@
 package network_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -78,5 +79,105 @@ func TestNetworks(t *testing.T) {
 	}
 	if e.Network(name) != nil {
 		t.Error("the deleted network is still there")
+	}
+}
+
+// A link network's members are services of other environments, joined and left in
+// place, answering to the app's name for what it needs, read back as such, and let
+// go of before the network goes (ADR 0084). Its subnet is the one it was given.
+func TestALinkNetworksMembersJoinInPlace(t *testing.T) {
+	const shared = "env_01KAT4ZR6E3V0Y5XBKZB5D9Q7N"
+	e := dockertest.New(t)
+	e.Registry["postgres:17"] = dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}}
+	c := e.Client()
+	if err := c.PullImage(t.Context(), "postgres:17", nil); err != nil {
+		t.Fatal(err)
+	}
+	dbName := docker.ContainerName(docker.Project(shared), "db")
+	id, err := c.CreateContainer(t.Context(), dbName, &docker.CreateRequest{Config: docker.Config{
+		Image: "postgres:17", Labels: map[string]string{docker.LabelProject: docker.Project(shared), docker.LabelService: "db"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	l := resource.Local{Drivers: resource.NewRegistry(&network.Driver{Client: c})}
+	ref := resource.Ref{Kind: network.Kind, Scope: env, Name: "db-link"}
+	spec := func(members ...*resourcev1.NetworkMember) *resourcev1.Network {
+		s := &resourcev1.Network{Internal: true, Subnet: "10.233.0.8/29", Members: members}
+		if err := l.Drivers.Validate(network.Kind, s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	apply := func(s *resourcev1.Network, want resource.Action) {
+		t.Helper()
+		steps, err := l.Plan(t.Context(), []resource.Desired{{Ref: ref, Spec: s}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if steps[0].Action != want {
+			t.Fatalf("planned %v (%v), want %v", steps[0].Action, steps[0].Changes, want)
+		}
+		if want != resource.ActionNone {
+			if err := l.Apply(t.Context(), steps[0], s); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	aliases := func() []string {
+		t.Helper()
+		ct := e.Container(dbName)
+		if ct == nil {
+			t.Fatal("the database's container is gone")
+		}
+		if ep := ct.NetworkSettings.Networks[network.TargetOf(ref).Name]; ep != nil {
+			return ep.Aliases
+		}
+		return nil
+	}
+	db := &resourcev1.NetworkMember{Environment: shared, Service: "db", Alias: "db"}
+	apply(spec(db), resource.ActionCreate)
+	if n := e.Network(network.TargetOf(ref).Name); n == nil || len(n.IPAM.Config) == 0 || n.IPAM.Config[0].Subnet != "10.233.0.8/29" {
+		t.Fatalf("the network is %+v, want its subnet", n)
+	}
+	if got := aliases(); !slices.Contains(got, "db") {
+		t.Fatalf("the shared database answers to %v on the link network, want db", got)
+	}
+	apply(spec(db), resource.ActionNone)
+
+	// Another name for it moves it; none takes it off, in place, as it runs.
+	apply(spec(&resourcev1.NetworkMember{Environment: shared, Service: "db", Alias: "postgres"}), resource.ActionUpdate)
+	if got := aliases(); !slices.Contains(got, "postgres") || slices.Contains(got, "db") {
+		t.Errorf("after the update it answers to %v, want postgres", got)
+	}
+	apply(spec(), resource.ActionUpdate)
+	if got := aliases(); got != nil {
+		t.Errorf("taken off, it's still on the network as %v", got)
+	}
+	if e.Container(dbName).State.Status != "running" {
+		t.Error("joining and leaving stopped the database")
+	}
+
+	// The network goes with its member on it, which leaves first.
+	apply(spec(db), resource.ActionUpdate)
+	if err := l.Apply(t.Context(), resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionDelete}}, nil); err != nil {
+		t.Fatalf("deleting a link network with its member on it = %v", err)
+	}
+	if e.Network(network.TargetOf(ref).Name) != nil || aliases() != nil {
+		t.Error("the link network or its member's place on it is still there")
+	}
+
+	for want, bad := range map[string]*resourcev1.Network{
+		"by its ID":  {Members: []*resourcev1.NetworkMember{{Environment: "shared", Service: "db", Alias: "db"}}},
+		"answers to": {Members: []*resourcev1.NetworkMember{{Environment: shared, Service: "db"}}},
+		"twice":      {Members: []*resourcev1.NetworkMember{db, db}},
+		"IPv4 range": {Subnet: "10.233.0.9/29"},
+	} {
+		if err := l.Drivers.Validate(network.Kind, bad); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: got %v", want, err)
+		}
 	}
 }

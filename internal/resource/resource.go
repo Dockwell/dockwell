@@ -1682,7 +1682,8 @@ type ValueMover interface {
 	MoveValues(current, desired proto.Message, names []string) (Kind, map[string]string, error)
 }
 
-// Use is one resource that another uses, in the same scope.
+// Use is one resource that another uses: in the same scope, unless Scope names
+// another, as a link's value from another environment does (ADR 0084).
 type Use struct {
 	// As is the name the user sees it as, such as DATABASE_URL.
 	As   string
@@ -1691,6 +1692,8 @@ type Use struct {
 	Name string
 	// Revision is the revision it is pinned to, 0 when it isn't.
 	Revision int
+	// Scope is the ID of the scope it lives in, when that isn't the user's own.
+	Scope string
 }
 
 // Unplaced is a Type that lives in an environment and runs on no server, as a
@@ -1943,14 +1946,16 @@ type Referrer interface {
 // nothing left uses; and what it names can't go while something left reads them.
 type Tied interface {
 	Referrer
-	// Ties are the values it sets, by kind and name, in its own scope.
-	Ties(spec proto.Message) []Ref
+	// Ties are what it stands for, by kind and name, in its own scope: the values it
+	// sets, and what else a resource of that name makes for them, as a link to a
+	// server it shares makes its network.
+	Ties(name string, spec proto.Message) []Ref
 }
 
 // Ties are the values a spec of kind sets, where its kind is Tied.
-func (r *Registry) Ties(kind Kind, spec proto.Message) []Ref {
+func (r *Registry) Ties(kind Kind, name string, spec proto.Message) []Ref {
 	if t, ok := r.types[kind].(Tied); ok && spec != nil {
-		return t.Ties(spec)
+		return t.Ties(name, spec)
 	}
 	return nil
 }

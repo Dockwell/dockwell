@@ -158,6 +158,56 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 	return nil, fmt.Errorf("%w: %s", ErrUnknown, objectID)
 }
 
+// Item is where one of a change's items is, and whether the change took it in
+// because it uses a value the change changes, rather than as an edit (ADR 0084).
+type Item struct {
+	Kind, Scope, Name string
+	Follows           bool
+	Place             Place
+}
+
+// Items are where each of a change's items is.
+func (pl *Placer) Items(ctx context.Context, changeID string) ([]Item, error) {
+	c, err := pl.tx.GetChange(ctx, changeID)
+	if err != nil {
+		return nil, err
+	}
+	own := make(map[string]*store.ChangeItem, len(c.Items))
+	for i := range c.Items {
+		own[c.Items[i].ResourceID] = &c.Items[i]
+	}
+	out := make([]Item, 0, len(c.Items))
+	for i := range c.Items {
+		it := &c.Items[i]
+		p, err := pl.itemPlace(ctx, it, own)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, Item{Kind: it.Kind, Scope: it.Scope, Name: it.Name, Follows: it.Follows, Place: p})
+	}
+	return out, nil
+}
+
+// Sides are the places of a change's edits, and of what it took in through a value it
+// changes, each once: who may act on it holds the first, and who may read it holds
+// one of either (ADR 0084, amending ADR 0049).
+func (pl *Placer) Sides(ctx context.Context, changeID string) (edits, takenIn []Place, err error) {
+	items, err := pl.Items(ctx, changeID)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range items {
+		side := &edits
+		if items[i].Follows {
+			side = &takenIn
+		}
+		if !slices.Contains(*side, items[i].Place) {
+			*side = append(*side, items[i].Place)
+		}
+	}
+	return edits, takenIn, nil
+}
+
 // itemPlace is where a change's item is: an environment's item is in that
 // environment, and anything else is where its scope is, among the change's own
 // items first, then in the store.

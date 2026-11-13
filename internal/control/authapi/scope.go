@@ -54,6 +54,8 @@ var idNames = map[string]string{
 	dockwellv1connect.LogServiceWatchLogsProcedure:                      "service",
 	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure:      "project",
 	dockwellv1connect.CatalogServiceSetCatalogCompanionProcedure:        "project",
+	dockwellv1connect.CatalogServiceSetCatalogNeedProcedure:             "project",
+	dockwellv1connect.CatalogServiceOpenCatalogInstallProcedure:         "project",
 	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:               "service",
 	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:        "service",
 	dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure:    "service",
@@ -323,6 +325,26 @@ func (i *interceptor) checkScope(ctx context.Context, procedure string, msg any)
 		for _, objectID := range ref.ids {
 			if place.Named(objectID) {
 				continue // servers and destinations are seen by name (ADR 0049)
+			}
+			if isChange(objectID) {
+				// A change that reaches another project through a link is read by whoever
+				// holds any of it, narrowed to that, and acted on by whoever holds each of
+				// its edits; what it takes in there is the engine's to check (ADR 0084).
+				edits, takenIn, err := pl.Sides(ctx, objectID)
+				if err != nil {
+					return err
+				}
+				switch {
+				case r.effect != dockwellv1.Effect_EFFECT_READ, len(takenIn) == 0:
+					places = append(places, edits...)
+				default:
+					held := slices.DeleteFunc(slices.Concat(edits, takenIn), func(p place.Place) bool { return !reaches(grants, p) })
+					if len(held) == 0 {
+						return store.ErrNotFound
+					}
+					places = append(places, held...)
+				}
+				continue
 			}
 			got, err := pl.Of(ctx, objectID)
 			if err != nil {
@@ -639,6 +661,22 @@ func (i *interceptor) filter(ctx context.Context, procedure string, msg any) (sk
 			if ok, done := seen[objectID]; done {
 				return ok, nil
 			}
+			if isChange(objectID) {
+				// A change that reaches another project through a link shows to whoever
+				// holds any of it, narrowed to that by its handler (ADR 0084).
+				edits, takenIn, err := pl.Sides(ctx, objectID)
+				if errors.Is(err, store.ErrNotFound) {
+					err = nil
+				}
+				if err != nil {
+					return false, err
+				}
+				all := slices.Concat(edits, takenIn)
+				ok := len(all) > 0 && (len(takenIn) > 0 && slices.ContainsFunc(all, func(p place.Place) bool { return reaches(grants, p) }) ||
+					!slices.ContainsFunc(all, func(p place.Place) bool { return !reaches(grants, p) }))
+				seen[objectID] = ok
+				return ok, nil
+			}
 			got, err := pl.Of(ctx, objectID)
 			if errors.Is(err, store.ErrNotFound) || errors.Is(err, place.ErrUnknown) {
 				got, err = nil, nil
@@ -862,3 +900,6 @@ func protectedRefusal(p auth.Principal, held, needs string) error {
 	}
 	return fmt.Errorf("this is in a protected environment, where only %s can do it, and %s, so it didn't happen. A developer's change there waits for an admin or the owner to apply it", atLeast(needs), who)
 }
+
+// isChange reports a change's ID.
+func isChange(objectID string) bool { return strings.HasPrefix(objectID, id.Change+"_") }

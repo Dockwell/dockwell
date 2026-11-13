@@ -338,7 +338,14 @@ export function InstallSheet({
   // What the app needs from outside its own containers, each met by a new one beside it for now.
   const needs = entry?.needs ?? [];
   const needOptions = optionsByNeed(got.data?.needs ?? []);
-  const unmet = needs.find((need) => (needOptions.get(need.name) ?? []).length === 0);
+  // The way each need is met: the one picked, or the first new one. A server is shared
+  // only because someone picked it (ADR 0084).
+  const pickOf = (name: string) => {
+    const options = needOptions.get(name) ?? [];
+    return options.find((o) => o.choice === needPicks[name] && o.why === "") ?? options.find((o) => o.service === "");
+  };
+  const unmet = needs.find((need) => pickOf(need.name) === undefined);
+  const unmetShares = unmet !== undefined && (needOptions.get(unmet.name) ?? []).some((o) => o.why === "");
   const ready =
     entry !== undefined &&
     !unmet &&
@@ -517,7 +524,9 @@ export function InstallSheet({
         <>
           <span className="dw-sheet-note">
             <Icon name={entry?.hostAccess ? "shield" : "commit"} size={14} />
-            {unmet ? (
+            {unmet && unmetShares ? (
+              <Trans>Choose its {unmetWord} to review the plan</Trans>
+            ) : unmet ? (
               <Trans>Nothing here can make its {unmetWord} yet</Trans>
             ) : missing || ownEmpty ? (
               <Trans>Give {missingLabel} a value to review the plan</Trans>
@@ -624,7 +633,20 @@ export function InstallSheet({
               {top.map(line)}
               {needs.map((need) => {
                 const options = needOptions.get(need.name) ?? [];
-                const pick = options.find((o) => o.choice === needPicks[need.name]) ?? options[0];
+                const usable = options.filter((o) => o.why === "");
+                const pick = pickOf(need.name);
+                if ((changing.has(`need:${need.name}`) || (!pick && usable.length > 0)) && options.length > 0) {
+                  return (
+                    <NeedPicker
+                      key={need.name}
+                      need={need}
+                      options={options}
+                      value={pick?.choice ?? ""}
+                      disabled={busy}
+                      onPick={(choice) => setNeedPicks((was) => ({ ...was, [need.name]: choice }))}
+                    />
+                  );
+                }
                 if (!pick) {
                   const where = entriesFor(need, (id) => catalogIds.has(id));
                   return (
@@ -650,27 +672,23 @@ export function InstallSheet({
                     />
                   );
                 }
-                if (changing.has(`need:${need.name}`) && options.length > 1) {
-                  return (
-                    <NeedPicker
-                      key={need.name}
-                      need={need}
-                      options={options}
-                      value={pick.choice}
-                      disabled={busy}
-                      onPick={(choice) => setNeedPicks((was) => ({ ...was, [need.name]: choice }))}
-                    />
-                  );
-                }
                 const engine = engineName(pick.engine);
                 const version = pick.version;
+                const service = pick.service;
+                const project = pick.project;
                 return (
                   <Chosen
                     key={need.name}
                     label={need.label}
-                    value={version ? t`New ${engine} ${version} beside ${app}` : t`New ${engine} beside ${app}`}
+                    value={
+                      service
+                        ? t`Shares ${service} in ${project}`
+                        : version
+                          ? t`New ${engine} ${version} beside ${app}`
+                          : t`New ${engine} beside ${app}`
+                    }
                     plain
-                    onChange={options.length > 1 ? () => change(`need:${need.name}`) : undefined}
+                    onChange={usable.length > 1 ? () => change(`need:${need.name}`) : undefined}
                   />
                 );
               })}
@@ -1015,7 +1033,10 @@ function NeedPicker({
   // While its plan is asked for, the pick stays as it is.
   disabled?: boolean;
 }) {
+  const { t } = useLingui();
   const id = useId();
+  const fresh = options.filter((o) => o.service === "");
+  const yours = options.filter((o) => o.service !== "");
   return (
     <fieldset className="catalog-engines catalog-need" aria-labelledby={id} disabled={disabled}>
       <span id={id} className="catalog-chosen-label">
@@ -1023,7 +1044,7 @@ function NeedPicker({
       </span>
       <span className="catalog-need-ways">
         <span className="catalog-engines-list">
-          {options.map((option) => {
+          {fresh.map((option) => {
             const name = engineName(option.engine);
             return (
               <label key={option.choice} className={cx("catalog-engine", option.choice === value && "is-picked")}>
@@ -1048,6 +1069,48 @@ function NeedPicker({
           })}
         </span>
         <span className="catalog-need-takes">{takesLine(need)}</span>
+        {yours.length > 0 ? (
+          <span className="catalog-need-yours">
+            <span className="catalog-need-yours-title">
+              <Trans>Use one you have</Trans>
+            </span>
+            {yours.map((option) => {
+              const service = option.service;
+              const project = option.project;
+              const engine = engineName(option.engine);
+              const apps = option.sharedWith.join(", ");
+              return (
+                <label
+                  key={option.choice}
+                  className={cx("catalog-need-server", option.choice === value && "is-picked", option.why && "is-off")}
+                >
+                  <input
+                    type="radio"
+                    name={id}
+                    value={option.choice}
+                    checked={option.choice === value}
+                    disabled={option.why !== ""}
+                    onChange={() => onPick(option.choice)}
+                  />
+                  <span className="catalog-need-server-name">
+                    <Trans>
+                      {service} in {project}
+                    </Trans>
+                  </span>{" "}
+                  <code className="catalog-engine-version">
+                    {engine} {option.version}
+                  </code>
+                  <span className="catalog-need-server-state">
+                    {option.why ||
+                      (apps
+                        ? t`Shared with ${apps} · each app has a user of its own`
+                        : t`Each app has a user of its own`)}
+                  </span>
+                </label>
+              );
+            })}
+          </span>
+        ) : null}
       </span>
     </fieldset>
   );

@@ -204,14 +204,14 @@ func TestWays(t *testing.T) {
 	if !slices.Equal(got, []string{"new:mysql", "new:mariadb"}) {
 		t.Fatalf("ways %v", got)
 	}
-	// PostgreSQL makes its first user its administrator, so none comes from the
-	// catalog until Dockwell makes the app's user itself.
+	// MongoDB makes its first user its administrator, so none comes from the catalog
+	// until Dockwell makes the app's user on it.
 	e := fromAnotherStore(t)
-	e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_POSTGRESQL}}
+	e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_MONGODB}}
 	if ways := catalog.Ways(e, lookupBuiltIn(t))["db"]; len(ways) != 0 {
-		t.Fatalf("a PostgreSQL from the catalog: %+v", ways)
+		t.Fatalf("a MongoDB from the catalog: %+v", ways)
 	}
-	if _, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), nil, nil); err == nil || !strings.Contains(err.Error(), "nothing here can make one yet") {
+	if _, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), nil, nil); err == nil || !strings.Contains(err.Error(), "nothing here can make a new one yet") {
 		t.Fatalf("an unmet need: %v", err)
 	}
 }
@@ -593,5 +593,308 @@ func TestThePinKeepsTheNamesANeedSets(t *testing.T) {
 	old := map[string]*resourcev1.PinnedNeed{"db": {Engine: resourcev1.LinkEngine_LINK_ENGINE_MARIADB}}
 	if got := catalog.PinnedPlain(old, e); !slices.Equal(got, catalog.PlainNames(e)) {
 		t.Errorf("a pin from before reads %v", got)
+	}
+}
+
+// A server Dockwell runs already is a way to meet a need where it can, listed after
+// the new ones, the usable first; any other is listed with why, and never chosen.
+// New stays the default.
+func TestASharedServer(t *testing.T) {
+	e := wordpressNeeds(t)
+	good := catalog.Candidate{
+		ServiceID: "svc_1", Service: "db", Project: "data", Environment: "production", EnvironmentID: "env_DATA",
+		Engine: catalogv1.Engine_ENGINE_MARIADB, Version: "11.4.4", Servers: []string{"srv_1"}, JoinsInPlace: true,
+		Databases: []string{"wordpress"}, Users: []string{"wordpress"},
+	}
+	old := good
+	old.Service, old.ServiceID, old.Version = "old", "svc_2", "10.5.29"
+	admin := good
+	admin.Service, admin.ServiceID, admin.AdministeredBy = "nc-db", "svc_3", "Nextcloud"
+	elsewhere := good
+	elsewhere.Service, elsewhere.ServiceID, elsewhere.Servers = "far", "svc_4", []string{"srv_2"}
+	pg := good
+	pg.Service, pg.Engine = "pg", catalogv1.Engine_ENGINE_POSTGRESQL
+	ways := catalog.WaysWith(e, lookupBuiltIn(t), []catalog.Candidate{old, admin, good, elsewhere, pg}, "srv_1")["db"]
+	var got []string
+	for _, w := range ways {
+		got = append(got, w.Choice()+" "+w.Why)
+	}
+	want := []string{
+		"new:mariadb ", "new:mysql ",
+		"service:data/production/db ",
+		"service:data/production/old Runs MariaDB 10.5.29; WordPress takes 10.6 or later",
+		"service:data/production/nc-db Nextcloud signs in to it as its administrator",
+		"service:data/production/far Runs on another server",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("ways\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	met, err := catalog.Meet(e, catalog.WaysWith(e, lookupBuiltIn(t), []catalog.Candidate{good}, "srv_1"), nil, nil)
+	if err != nil || met["db"].Shares() {
+		t.Fatalf("with nothing asked, a server is shared: %v, %v", met["db"].Choice(), err)
+	}
+	if _, err := catalog.Meet(e, map[string][]catalog.Way{"db": ways}, map[string]string{"db": "service:data/production/nc-db"}, nil); err == nil || !strings.Contains(err.Error(), "signs in to it as its administrator") {
+		t.Errorf("a greyed server chosen: %v", err)
+	}
+	met, err = catalog.Meet(e, map[string][]catalog.Way{"db": ways}, map[string]string{"db": "service:data/production/db"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := met["db"]
+	w.Database, w.User = catalog.SharedNames(e.GetNeeds()[0], "blog", good)
+	if w.Database != "blog" || w.User != "blog" {
+		t.Errorf("on a server that has wordpress, the names are %s and %s, want the project's", w.Database, w.User)
+	}
+	w.Password = "BLOG_DATABASE_PASSWORD"
+	needed, err := catalog.Need(e, map[string]catalog.Way{"db": w})
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := needed.Entry.GetCompose()
+	if strings.Contains(file, "image: mariadb") || strings.Contains(file, "depends_on") {
+		t.Errorf("sharing a server, the file still runs its own or waits for it:\n%s", file)
+	}
+	defaults := map[string]string{}
+	for _, in := range needed.Entry.GetInputs() {
+		defaults[in.GetName()] = in.GetDefaultValue()
+	}
+	if defaults["DB_ADDRESS"] != "db:3306" || defaults["DB_NAME"] != "blog" || defaults["DB_USER"] != "blog" {
+		t.Errorf("sharing a server, the app reads %v", defaults)
+	}
+	p := needed.Pinned["db"]
+	if p.GetEnvironment() != "env_DATA" || p.GetMeets() != "db" || p.GetDatabase() != "blog" || p.GetPassword() != "BLOG_DATABASE_PASSWORD" || p.GetService() != "db" {
+		t.Errorf("pinned %v", p)
+	}
+	if l := needed.Links["db"]; l.GetMeetsEnvironment() != "env_DATA" || l.GetService() != "db" || l.GetDatabaseName() != "blog" {
+		t.Errorf("link %v", l)
+	}
+	if len(needed.Shared) != 1 {
+		t.Errorf("shared %v", needed.Shared)
+	}
+	readsAsInstalled(t, needed.Entry)
+	again, err := catalog.MetFile(e.GetCompose(), needed.Pinned)
+	if err != nil || again != file {
+		t.Errorf("MetFile reads otherwise: %v\n%s", err, again)
+	}
+}
+
+// A new PostgreSQL from the catalog keeps the image's own user its administrator, with
+// a password of the server's own, and the app's user, with its database, is one the
+// plan makes, its password the need's secret (ADR 0084).
+func TestANewPostgreSQLGetsAUserThePlanMakes(t *testing.T) {
+	e := fromAnotherStore(t)
+	e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_POSTGRESQL, Versions: ">=13"}}
+	ways := catalog.Ways(e, lookupBuiltIn(t))
+	if got := ways["db"]; len(got) != 1 || got[0].Choice() != "new:postgresql" || got[0].From.GetId() != "postgres" {
+		t.Fatalf("ways %+v", got)
+	}
+	met, err := catalog.Meet(e, ways, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needed, err := catalog.Need(e, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := needed.Users["blog"]
+	if len(needed.Users) != 1 || u.GetService() != "db" || u.GetPassword() != "PANEL_DB_USER_PASSWORD" || u.GetDatabaseName() != "" {
+		t.Fatalf("users %v", needed.Users)
+	}
+	file := needed.Entry.GetCompose()
+	// The app, which brought no database and waited for none, waits for this one.
+	for _, want := range []string{"image: postgres:17", "POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD}", "db-data:/var/lib/postgresql/data", "depends_on:\n      db:\n        condition: service_healthy"} {
+		if !strings.Contains(file, want) {
+			t.Errorf("the file has no %q:\n%s", want, file)
+		}
+	}
+	for _, not := range []string{"POSTGRES_USER", "POSTGRES_DB", "adminer"} {
+		if strings.Contains(file, not) {
+			t.Errorf("the file has %q:\n%s", not, file)
+		}
+	}
+	admin := slices.IndexFunc(needed.Entry.GetInputs(), func(in *catalogv1.Input) bool { return in.GetName() == "DB_POSTGRES_PASSWORD" })
+	if admin < 0 || needed.Entry.GetInputs()[admin].GetGenerate() == 0 {
+		t.Errorf("the administrator's password isn't one the install generates: %v", needed.Entry.GetInputs())
+	}
+	if l := needed.Links["db"]; l.GetUser() != "blog" || l.GetDatabaseName() != "blog" || l.GetService() != "db" {
+		t.Errorf("link %v", l)
+	}
+
+	// An upgrade reads the service the install added from its pin, and makes the same user.
+	pinned, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), nil, needed.Pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := catalog.Need(e, pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(again.Users["blog"], u) {
+		t.Errorf("an upgrade's user %v, the install's %v", again.Users["blog"], u)
+	}
+}
+
+// A URL a need sets is a secret Dockwell writes from the need's parts, each encoded for
+// where it stands: the engine's own form, or the entry's template. A part the need
+// doesn't set gets a name of the app's environment of its own, named for the need.
+func TestAURLIsWrittenFromItsParts(t *testing.T) {
+	e := fromAnotherStore(t)
+	indent := regexp.MustCompile(`\n( *)WORDPRESS_DB_NAME: \$\{PANEL_DB_NAME\}`).FindStringSubmatch(e.GetCompose())[1]
+	e.Compose = strings.Replace(e.GetCompose(), "WORDPRESS_DB_NAME: ${PANEL_DB_NAME}", "WORDPRESS_DB_NAME: ${PANEL_DB_NAME}\n"+indent+"DATABASE_URL: ${DATABASE_URL}\n"+indent+"CACHE_URL: ${CACHE_URL}", 1)
+	e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_POSTGRESQL}}
+	e.Needs[0].Sets = append(e.Needs[0].Sets,
+		&catalogv1.NeedSet{Name: "DATABASE_URL", Part: catalogv1.Part_PART_URL},
+		&catalogv1.NeedSet{Name: "CACHE_URL", Part: catalogv1.Part_PART_URL, Template: "postgresql://{user}:{password}@{address}/{database}?sslmode={tls}&application_name=$blog", Tls: &catalogv1.NeedTls{On: "require", Off: "disable"}},
+	)
+	if err := catalog.Check(e); err != nil {
+		t.Fatal(err)
+	}
+	met, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needed, err := catalog.Need(e, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type name struct {
+		name     string
+		secret   bool
+		encoding resourcev1.Encoding
+	}
+	read := func(tm *resourcev1.ValueTemplate) []name {
+		var out []name
+		for _, n := range tm.GetNames() {
+			out = append(out, name{n.GetName(), n.GetSecret(), n.GetEncoding()})
+		}
+		return out
+	}
+	url := needed.Written["DATABASE_URL"]
+	if url.GetText() != "postgres://${PANEL_DB_USER}:${PANEL_DB_USER_PASSWORD}@${PANEL_DB_HOST}:${DB_PORT}/${PANEL_DB_NAME}" {
+		t.Errorf("DATABASE_URL is written as %q", url.GetText())
+	}
+	if got := read(url); !slices.Equal(got, []name{
+		{"PANEL_DB_USER", false, resourcev1.Encoding_ENCODING_USERINFO},
+		{"PANEL_DB_USER_PASSWORD", true, resourcev1.Encoding_ENCODING_USERINFO},
+		{"PANEL_DB_HOST", false, resourcev1.Encoding_ENCODING_UNSPECIFIED},
+		{"DB_PORT", false, resourcev1.Encoding_ENCODING_UNSPECIFIED},
+		{"PANEL_DB_NAME", false, resourcev1.Encoding_ENCODING_PATH},
+	}) {
+		t.Errorf("DATABASE_URL names %v", got)
+	}
+	cache := needed.Written["CACHE_URL"]
+	if cache.GetText() != "postgresql://${PANEL_DB_USER}:${PANEL_DB_USER_PASSWORD}@${PANEL_DB_HOST}:${DB_PORT}/${PANEL_DB_NAME}?sslmode=${DB_TLS}&application_name=$$blog" {
+		t.Errorf("CACHE_URL is written as %q", cache.GetText())
+	}
+	if got := read(cache); got[len(got)-1] != (name{"DB_TLS", false, resourcev1.Encoding_ENCODING_QUERY}) {
+		t.Errorf("CACHE_URL names %v", got)
+	}
+	// The parts it added are the environment's variables, as the need's own are.
+	values := map[string]string{}
+	for _, in := range needed.Entry.GetInputs() {
+		values[in.GetName()] = in.GetDefaultValue()
+	}
+	if values["DB_PORT"] != "5432" || values["DB_TLS"] != "disable" || !slices.Contains(needed.Plain, "DB_PORT") || !slices.Contains(needed.Plain, "DB_TLS") {
+		t.Errorf("inputs %v, plain %v", values, needed.Plain)
+	}
+	if slices.Contains(catalog.PlainNames(e), "DATABASE_URL") {
+		t.Error("a URL reads as a plain name")
+	}
+}
+
+// A need that takes Redis is met new by the catalog's Redis, which is the app's alone:
+// most apps send a Redis no user, so the app signs in with the server's one password,
+// the need's own secret. It publishes nothing, and keeps its data on a volume named for
+// the need.
+func TestANewRedisIsTheAppsAlone(t *testing.T) {
+	e := fromAnotherStore(t)
+	indent := regexp.MustCompile(`\n( *)WORDPRESS_DB_NAME: \$\{PANEL_DB_NAME\}`).FindStringSubmatch(e.GetCompose())[1]
+	e.Compose = strings.Replace(e.GetCompose(), "WORDPRESS_DB_NAME: ${PANEL_DB_NAME}", "WORDPRESS_DB_NAME: ${PANEL_DB_NAME}\n"+indent+"REDIS_HOST: ${REDIS_HOST}\n"+indent+"REDIS_PASSWORD: ${REDIS_PASSWORD}\n"+indent+"REDIS_URL: ${REDIS_URL}", 1)
+	e.Needs = append(e.Needs, &catalogv1.Need{
+		Name: "cache", Label: "Cache",
+		Accepts: []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_REDIS, Versions: ">=6"}},
+		Sets: []*catalogv1.NeedSet{
+			{Name: "REDIS_HOST", Part: catalogv1.Part_PART_HOST},
+			{Name: "REDIS_PASSWORD", Part: catalogv1.Part_PART_PASSWORD},
+			{Name: "REDIS_URL", Part: catalogv1.Part_PART_URL},
+		},
+	})
+	if err := catalog.Check(e); err != nil {
+		t.Fatal(err)
+	}
+	ways := catalog.Ways(e, lookupBuiltIn(t))
+	if got := ways["cache"]; len(got) != 1 || got[0].Choice() != "new:redis" {
+		t.Fatalf("ways %+v", got)
+	}
+	met, err := catalog.Meet(e, ways, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needed, err := catalog.Need(e, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := needed.Entry.GetCompose()
+	for _, want := range []string{"image: redis:8", `"--requirepass", "${REDIS_PASSWORD}"`, "REDISCLI_AUTH: ${REDIS_PASSWORD}", "cache-data:/data"} {
+		if !strings.Contains(file, want) {
+			t.Errorf("the file has no %s:\n%s", want, file)
+		}
+	}
+	if strings.Contains(file, "CACHE_REDIS_PASSWORD") || strings.Contains(file, "6379:6379") || strings.Contains(file, "${PORT}:6379") {
+		t.Errorf("the Redis keeps a password of its own or publishes its port:\n%s", file)
+	}
+	if len(needed.Users) != 0 {
+		t.Errorf("users %v", needed.Users)
+	}
+	if url := needed.Written["REDIS_URL"].GetText(); url != "redis://${CACHE_USER}:${REDIS_PASSWORD}@${REDIS_HOST}:${CACHE_PORT}/${CACHE_DATABASE}" {
+		t.Errorf("REDIS_URL is written as %q", url)
+	}
+	values := map[string]string{}
+	for _, in := range needed.Entry.GetInputs() {
+		values[in.GetName()] = in.GetDefaultValue()
+	}
+	if values["REDIS_HOST"] != "cache" || values["CACHE_USER"] != "" || values["CACHE_DATABASE"] != "0" {
+		t.Errorf("inputs %v", values)
+	}
+}
+
+// An entry's own database, pinned apart from its app as a person first shares it,
+// stays as it ran through the app's upgrades: a release that moves its own database
+// to another image leaves the shared one alone (ADR 0084).
+func TestAnOwnServerPinnedApartStaysAsItRan(t *testing.T) {
+	e := wordpressNeeds(t)
+	lookup := lookupBuiltIn(t)
+	installed, err := catalog.Need(e, mustMeet(t, e, lookup))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ran, err := catalog.MetFile(e.GetCompose(), installed.Pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apart, err := catalog.PinApart(ran, "db", installed.Pinned["db"], "12.3.3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if apart.GetEntry() != "mariadb" || apart.GetService() != "db" || !strings.Contains(string(apart.GetFile()), "image: mariadb:12.3.3") || !strings.Contains(string(apart.GetFile()), "data:") {
+		t.Fatalf("pinned apart as %v:\n%s", apart, apart.GetFile())
+	}
+	pinned := map[string]*resourcev1.PinnedNeed{"db": apart}
+	release := proto.CloneOf(e)
+	release.Compose = regexp.MustCompile(`image: mariadb:\S+`).ReplaceAllString(release.GetCompose(), "image: mariadb:12.4.1")
+	met, err := catalog.Meet(release, catalog.Ways(release, lookup), nil, pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := catalog.Need(release, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := upgraded.Entry.GetCompose()
+	if !strings.Contains(file, "image: mariadb:12.3.3") || strings.Contains(file, "mariadb:12.4.1") {
+		t.Errorf("the app's upgrade moved the shared MariaDB:\n%s", file)
+	}
+	if got := upgraded.Links["db"].GetService(); got != "db" {
+		t.Errorf("the app reaches its database as %q", got)
 	}
 }

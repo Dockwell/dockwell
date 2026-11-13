@@ -4,14 +4,17 @@ import { clone, create } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   CatalogFormat,
+  CatalogNeedOptionSchema,
   CatalogSourceInfoSchema,
   ChangeSchema,
   ChangeState,
   CompanionSchema,
+  Engine,
   EntrySchema,
   HostAccessKind,
   InputType,
   type InstallCatalogEntryRequest,
+  NeedSchema,
   PlanAction,
   RestartPolicy,
   ScreenshotSchema,
@@ -500,6 +503,165 @@ describe("A database's admin tool", () => {
     await expectAccessible(container);
     await user.click(within(tool).getByRole("button", { name: "Add Adminer" }));
     await waitFor(() => expect(asked).toEqual({ id: "prj_1", service: "adminer", on: true }));
+  });
+
+  it("says what meets an app's database on its page, and moves it to one you run as a plan", async () => {
+    const user = userEvent.setup();
+    let asked: { id: string; need: string; choice: string; startEmpty: boolean } | undefined;
+    const withNeed = create(EntrySchema, {
+      ...withTools,
+      companions: [],
+      needs: [create(NeedSchema, { name: "db", label: "Database", accepts: [{ engine: Engine.POSTGRESQL }] })],
+    });
+    renderAt("/apps/svc_db", {
+      ...api({
+        getCatalogEntry: () => ({
+          entry: withNeed,
+          project: "postgres",
+          needs: [
+            create(CatalogNeedOptionSchema, {
+              need: "db",
+              choice: "new:postgresql",
+              engine: Engine.POSTGRESQL,
+              version: "17.11",
+            }),
+            create(CatalogNeedOptionSchema, {
+              need: "db",
+              choice: "service:data/production/pg",
+              engine: Engine.POSTGRESQL,
+              version: "17.6",
+              project: "data",
+              environment: "production",
+              service: "pg",
+            }),
+          ],
+        }),
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "postgres",
+              projectId: "prj_1",
+              environmentId: ENV,
+              pin: { entry: "postgres", version: "17.11", release: 5, needs: { db: { engine: 1, version: "17.11" } } },
+              webServiceId: "svc_db",
+              name: "PostgreSQL",
+              companions: {},
+            },
+          ],
+        }),
+        setCatalogNeed: (req) => {
+          asked = { id: req.id, need: req.need, choice: req.choice, startEmpty: req.startEmpty };
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    const needs = await within(panel).findByRole("list", { name: "What it needs" });
+    expect(needs).toHaveTextContent("New PostgreSQL 17.11 beside PostgreSQL");
+    await user.click(within(needs).getByRole("button", { name: "Use another database" }));
+    expect(needs).toHaveTextContent("pg in data");
+    expect(needs).toHaveTextContent("Copies its data");
+    await user.click(within(needs).getByRole("button", { name: "Use it" }));
+    await waitFor(() =>
+      expect(asked).toEqual({ id: "prj_1", need: "db", choice: "service:data/production/pg", startEmpty: false }),
+    );
+  });
+
+  it("starts an app empty on a server of another engine only as a choice of its own", async () => {
+    const user = userEvent.setup();
+    let asked: { choice: string; startEmpty: boolean } | undefined;
+    const withNeed = create(EntrySchema, {
+      ...withTools,
+      companions: [],
+      needs: [
+        create(NeedSchema, {
+          name: "db",
+          label: "Database",
+          accepts: [{ engine: Engine.MYSQL }, { engine: Engine.MARIADB }],
+        }),
+      ],
+    });
+    renderAt("/apps/svc_db", {
+      ...api({
+        getCatalogEntry: () => ({
+          entry: withNeed,
+          project: "postgres",
+          needs: [
+            create(CatalogNeedOptionSchema, {
+              need: "db",
+              choice: "service:data/production/mysql",
+              engine: Engine.MYSQL,
+              version: "8.4.11",
+              project: "data",
+              environment: "production",
+              service: "mysql",
+            }),
+          ],
+        }),
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "postgres",
+              projectId: "prj_1",
+              environmentId: ENV,
+              pin: { entry: "postgres", version: "17.11", release: 5, needs: { db: { engine: 3, version: "12.3.3" } } },
+              webServiceId: "svc_db",
+              name: "PostgreSQL",
+              companions: {},
+            },
+          ],
+        }),
+        setCatalogNeed: (req) => {
+          asked = { choice: req.choice, startEmpty: req.startEmpty };
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("db", "postgres:17.11")] }) },
+    });
+    const needs = await screen.findByRole("list", { name: "What it needs" });
+    await user.click(within(needs).getByRole("button", { name: "Use another database" }));
+    expect(needs).toHaveTextContent("Its data can't be copied there");
+    expect(within(needs).queryByRole("button", { name: "Use it" })).toBeNull();
+    await user.click(within(needs).getByRole("button", { name: "Start empty on it" }));
+    await waitFor(() => expect(asked).toEqual({ choice: "service:data/production/mysql", startEmpty: true }));
+  });
+
+  it("says an app's held domain and port aren't open yet, and opens them as a plan the server makes", async () => {
+    const user = userEvent.setup();
+    let opened: string | undefined;
+    const held = anApp("db", "postgres:17.11", { ports: [{ hostPort: 8080, containerPort: 80, held: true }] });
+    renderAt("/apps/svc_db", {
+      ...tools({
+        listCatalogInstalls: () => installed(false),
+        openCatalogInstall: (req) => {
+          opened = req.id;
+          throw new ConnectError("nothing more to do here", Code.FailedPrecondition);
+        },
+      }),
+      resources: places(),
+      services: { listServices: () => ({ services: [held] }) },
+      domains: {
+        listDomains: () => ({
+          domains: [
+            {
+              name: "db.example.com",
+              environmentId: ENV,
+              routes: [{ name: "www", service: "db", port: 80, held: true, trustedProxies: ["cloudflare"] }],
+            },
+          ],
+        }),
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    expect(await within(panel).findByText("Not open yet")).toBeVisible();
+    expect(panel).toHaveTextContent(
+      "db.example.com answers that it isn't open, and port 8080 listens on its server alone",
+    );
+    await user.click(within(panel).getByRole("button", { name: "Open it to everyone" }));
+    await waitFor(() => expect(opened).toBe("prj_1"));
   });
 
   it("is removed later from the database's page, as a plan", async () => {

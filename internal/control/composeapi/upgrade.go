@@ -4,12 +4,15 @@ package composeapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -44,9 +47,13 @@ type Upgrade struct {
 	Pin    *resourcev1.CatalogPin
 	// SkipBackup leaves out the backup of its volumes that comes first.
 	SkipBackup bool
-	// Companion says it changes which of the install's companions run, at the
-	// release it's on: no data moves, so it takes no backup and says nothing of one.
+	// Companion says it changes which of the install's companions run, or what meets
+	// one of its needs, at the release it's on: no data moves, so it takes no backup and
+	// says nothing of one.
 	Companion bool
+	// Keeps are services that leave the file and keep running as they are, with their
+	// data, as the database that met a need before it's met another way.
+	Keeps []string
 	// FromRelease and Release are the releases an upgrade leaves and goes to, which
 	// its plan's intent says (ADR 0080). A companion's change has none.
 	FromRelease, Release string
@@ -59,6 +66,12 @@ type Upgrade struct {
 	Notes []revision.Note
 	// Needs are what its needs set, and how each is met, as Install's are.
 	Needs Needs
+	// Hold closes the app to strangers as it restarts, as one that starts on an
+	// empty database whose first visitor makes its owner (ADR 0084): each port its
+	// services publish listens on the server alone (PortMapping.held), beside the
+	// routes Needs.Extra holds. It's refused with cant_hold where nothing can be
+	// held, or a service runs on the server's own network.
+	Hold bool
 }
 
 // PlanUpgrade plans an install's newer release into the environment it runs in, with
@@ -80,6 +93,8 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	useSecrets(old, in.OldStands)
 	useValues(next, in.Needs.Stands, variable.VariableKind)
 	useValues(old, in.Needs.OldStands, variable.VariableKind)
+	joinLinks(next, in.Needs.Joins)
+	joinLinks(old, in.Needs.Joins)
 	showPlain(next)
 	h.normalize(old)
 	h.normalize(next)
@@ -94,6 +109,14 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	deletes, notes, err := mergeStack(place.environment, old, now, next)
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "upgrade_clash")
+	}
+	deletes = slices.DeleteFunc(deletes, func(r resource.Ref) bool { return r.Kind == service.Kind && slices.Contains(in.Keeps, r.Name) })
+	if in.Hold {
+		held, err := h.holdWays(ctx, place.environment, next, &in)
+		if err != nil {
+			return nil, err
+		}
+		in.Notes = append(in.Notes, held...)
 	}
 	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
 	for i := range in.Notes {
@@ -505,3 +528,129 @@ func mergeList(to protoreflect.List, key func(protoreflect.Value) string, base, 
 }
 
 func sortedKeys[V any](m map[string]V) []string { return slices.Sorted(maps.Keys(m)) }
+
+// holdWays holds what reaches the app's published ports from the server itself, a
+// route of its environment that sends to one of those ports on the server, which
+// dials 127.0.0.1, then each port (hold). A route of another environment that sends
+// to one on the app's server can't be held from here, so it's refused with
+// cant_hold. Where the server's Docker is older than 28, which lets machines on its
+// local network reach a port bound to 127.0.0.1, the plan says so.
+func (h *Handler) holdWays(ctx context.Context, env string, next *compose.Stack, in *Upgrade) ([]revision.Note, error) {
+	ports := map[uint32]bool{}
+	for _, s := range next.Services {
+		for _, p := range s.Spec.GetApp().GetPorts() {
+			if p.GetHostPort() != 0 {
+				ports[p.GetHostPort()] = true
+			}
+		}
+	}
+	var notes []revision.Note
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		servers := map[string]bool{}
+		services, err := tx.ListResources(ctx, env, string(service.Kind))
+		if err != nil {
+			return err
+		}
+		for _, r := range services {
+			on, err := tx.Placement(ctx, r.ID, r.Revision)
+			if err != nil {
+				return err
+			}
+			for _, s := range on {
+				servers[s] = true
+			}
+		}
+		routes, err := tx.ListKind(ctx, "route")
+		if err != nil {
+			return err
+		}
+		for _, r := range routes {
+			spec := &resourcev1.Route{}
+			// A route is never sealed: it holds no secret.
+			if r.Spec == nil || proto.Unmarshal(r.Spec, spec) != nil || spec.GetService() != "" || !ports[spec.GetHostPort()] || spec.GetHeld() {
+				continue
+			}
+			if r.Scope == env {
+				spec.Held = true
+				in.Needs.Extra = append(in.Needs.Extra, &dockwellv1.Edit{
+					Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: r.Name},
+					Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: spec}},
+				})
+				continue
+			}
+			on, err := tx.Placement(ctx, r.ID, r.Revision)
+			if err != nil {
+				return err
+			}
+			if slices.ContainsFunc(on, func(s string) bool { return servers[s] }) {
+				return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("a domain of another environment sends to port %d on %s's server, which Dockwell can't hold from here while %s starts empty, so whoever reaches it first could take it. Take that domain off the port first, or copy its database across instead", spec.GetHostPort(), in.Name, in.Name), "cant_hold")
+			}
+		}
+		if len(ports) == 0 {
+			return nil
+		}
+		reports, err := tx.ServerReports(ctx)
+		if err != nil {
+			return err
+		}
+		all, err := tx.ListServers(ctx)
+		if err != nil {
+			return err
+		}
+		for i := range all {
+			sv := &all[i]
+			var inv dockwellv1.ServerInventory
+			if !servers[sv.ID] || proto.Unmarshal(reports[sv.ID].Inventory, &inv) != nil || !beforeDocker28(inv.GetDockerVersion()) {
+				continue
+			}
+			notes = append(notes, revision.Note{
+				Reason: "hold_local_network",
+				Message: fmt.Sprintf("Docker %s on %s lets machines on its local network reach a port bound to 127.0.0.1, which Docker 28 closed, so while %s is held its ports are closed to the internet but not to that network. Update Docker on %s to 28 or later to close them there too",
+					inv.GetDockerVersion(), sv.Name, in.Name, sv.Name),
+				Names: []string{sv.Name},
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		var reason *connect.Error
+		if errors.As(err, &reason) {
+			return nil, err
+		}
+		return nil, h.internal(ctx, err)
+	}
+	return notes, hold(next, in.Name, in.Needs.Extra)
+}
+
+// beforeDocker28 reports a Docker Engine release before 28, as its version says.
+func beforeDocker28(version string) bool {
+	major, _, ok := strings.Cut(version, ".")
+	n, err := strconv.Atoi(major)
+	return ok && err == nil && n < 28
+}
+
+// hold has each port the file's services publish listen on the server alone, and
+// refuses an app that would still be open to strangers: one with a service on the
+// server's own network, or with nothing to hold, no route among routes nor a port.
+func hold(next *compose.Stack, app string, routes []*dockwellv1.Edit) error {
+	held := 0
+	for _, e := range routes {
+		if e.GetSpec().GetRoute().GetHeld() {
+			held++
+		}
+	}
+	for _, s := range next.Services {
+		c := s.Spec.GetApp()
+		if c.GetHostNetwork() {
+			return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs on the server's own network, which Dockwell can't close to strangers while %s starts empty and its first visitor makes its owner. Copy its database across instead", s.Name, app), "cant_hold")
+		}
+		for _, p := range c.GetPorts() {
+			p.Held = true
+			held++
+		}
+	}
+	if held == 0 {
+		return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's first visitor makes its owner, and it has no domain or published port Dockwell can hold while it starts empty, so whoever reaches it first could take it. Give it a domain first, or copy its database across instead", app), "cant_hold")
+	}
+	return nil
+}

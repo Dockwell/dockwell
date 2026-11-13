@@ -513,6 +513,13 @@ func (h *Handler) render(ctx context.Context, tx *store.Tx, names *actors.Names,
 		if e.Change != nil {
 			r := records[e.Change.ID]
 			out[i] = changeEvent(e.At, r, look)
+			// What reaches a project the reader holds no role in is narrowed to theirs.
+			if err := changes.Narrow(ctx, tx, out[i].Change); err != nil {
+				return nil, err
+			}
+			if out[i].GetChange().GetElsewhere().GetEditsElsewhere() {
+				out[i].Actor = nil
+			}
 			if r.State == store.ChangePlanned {
 				// A planned change in a protected environment waits for an admin (ADR 0049).
 				places, err := placer.Of(ctx, r.ID)
