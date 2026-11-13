@@ -1,6 +1,6 @@
 # 0084. What an app needs, met by a new service, one you run, or a connection
 
-- Status: Proposed. Amends [ADR 0029](0029-a-catalog-format-fed-from-other-catalogs.md), where an app that needs a database brings its own and an entry can't use another app's, and [ADR 0022](0022-secrets-encrypted-at-rest.md), where a service uses only its own environment's values.
+- Status: Proposed. Amends [ADR 0022](0022-secrets-encrypted-at-rest.md), where a service uses only its own environment's values; [ADR 0029](0029-a-catalog-format-fed-from-other-catalogs.md), where an app that needs a database brings its own and an entry can't use another app's; [ADR 0033](0033-backups-of-volumes-and-databases.md), where a database is restored as its whole volume; [ADR 0038](0038-databases.md), where a new user's database leaves PUBLIC's rights on; [ADR 0049](0049-roles-and-invites-by-project.md), where a change is one project's to make; [ADR 0054](0054-the-agent-keeps-its-desired-state.md), where the agent keeps what a service's own spec says; [ADR 0074](0074-projects-you-can-see-and-that-go-with-their-last-app.md), where deleting an app's project takes everything in it; and [ADR 0080](0080-updating-an-app-safely-and-automatically.md), where undoing a database's move deletes the new volume.
 - Date: 2026-11-12
 
 ## Context
@@ -11,7 +11,8 @@ On 2026-11-12 the owner asked for apps that connect: WordPress with a new MySQL 
 - **The design drew the choice and it was never built.** The `Catalog-Install` mock says "Ghost needs MySQL 8", offers Create, and Use an existing database, which it greys out with why: "`postgres` runs PostgreSQL, which Ghost does not support."
 - **Projects can't reach each other.** Each project has its own networks, and a database publishes no port (ADR 0029), so an app in one project reaches neither a database's name nor its port in another.
 - **A service uses its own environment's variables and secrets,** by name (ADR 0022), and the store indexes those uses by environment. A secret can't be part of a longer value, so an app that reads its database from a URL needs a shell in its command, as Umami's does.
-- **Dockwell already makes a database and its user on a running server,** as a plan: a `database.user` in that server's environment, with its password a secret there ([ADR 0038](0038-databases.md)). Nothing connects one to an app.
+- **Dockwell already makes a database and its user on a running server,** as a plan: a `database.user` in that server's environment, with its password a secret there (ADR 0038). Nothing connects one to an app.
+- **Some entries sign the app in as the server's administrator.** Nextcloud's PostgreSQL makes its app the image's bootstrap superuser, through `POSTGRES_USER`, as MongoDB's image does through `MONGO_INITDB_ROOT_USERNAME`. PostgreSQL 16 and later won't drop that superuser, and a new database leaves PUBLIC's `CONNECT` on (ADR 0038). Such a server can't be shared safely as it is.
 - **1Panel's store does this its own way.** At commit `55061b9`, 49 of its 269 apps use another app's service: a field of their form picks an installed database app, and 1Panel makes a database and a user on it and fills in its host and port. The converter leaves all 49 out. 44 need a SQL database, 13 a Redis, 2 MongoDB, 1 MinIO and 1 Kafka. 16 write the password inside a URL. 30 of them have nothing else that leaves them out.
 
 How others do it:
@@ -31,11 +32,11 @@ None checks that a database runs a version the app takes. Only Heroku and Railwa
 `Entry.needs` lists what an app reads from outside its own containers. The format is Apache-2.0, as the rest of the entry ([ADR 0012](0012-apache-for-api-schema-and-clients.md)), and an entry without needs installs as before. Each need has:
 
 - **a name,** such as `db`, and a **label,** such as "Database";
-- **what meets it,** as `accepts`: engines, each with the versions the app takes, such as MySQL `>=8.0` or MariaDB `>=10.6`. Versions are comparators on dotted numbers, space-separated, as `>=10.6 <12`, and none takes any;
+- **what meets it,** as `accepts`: engines, each with the versions the app takes, such as MySQL `>=8.0` or MariaDB `>=10.6`. Versions are comparators on dotted numbers, space-separated, as `>=10.6 <12`, each compared at its own precision, so `<=8.4` takes 8.4.11. None takes any. An accept may name the **extensions** the app needs, such as PostgreSQL's `vector`, which the server's administrator makes in the user's step;
 - **the service of its own Compose file that meets it when a person takes a new one,** where the entry brings one, as WordPress's `db`;
 - **the database and user** to make for it, such as `wordpress`, where its engine has them;
-- **what it sets** in the app's environment, as `sets`: names the Compose file uses as `${NAME}`, each with the part it holds: host, port, address (host and port), database, user, password, or URL. A URL is the engine's own form, `postgres://user:password@host:port/database`, unless a `template` writes another, as `postgres://{user}:{password}@{host}:{port}/{database}?schema=public`;
-- whether the app runs without it, as `optional`, which a form shows as a switch.
+- **what it sets** in the app's environment, as `sets`: names the Compose file uses as `${NAME}`, each with the part it holds: host, port, address (host and port), database, user, password, TLS, or URL. TLS is written in the form the app reads it, which the entry gives as its on and off words (`require` and `disable` for libpq, `true` and `false` for node-postgres or Go's MySQL driver). A URL is the engine's own form, `postgres://user:password@host:port/database`, unless a `template` writes another, as `postgres://{user}:{password}@{host}:{port}/{database}?schema=public`. Each part is percent-encoded for where it stands in a URL, so a user such as Azure's `app@server`, or a password with `@`, `/` or `#`, reads as itself;
+- whether its password is **set once** (`set_once`), as Nextcloud keeps the one it installed with in its `config.php`, so setting it anew would leave the app with the old one.
 
 WordPress's need, for example:
 
@@ -68,16 +69,23 @@ Its Compose file writes `WORDPRESS_DB_HOST: ${DB_ADDRESS}`, and its `db` service
 
 ### Three ways to meet a need
 
-- **A new one beside the app,** in its project, and the default. It's the entry's own service where the entry brings one of the engine chosen, made from the need's values as today: its image makes the database and the user on its first start. For another accepted engine, or an entry that brings none, as 1Panel's don't, it's the catalog's entry for that engine, such as Dockwell's `mysql`, whose database service joins the app's project under the need's name, without its companions. Its image makes the app's database and user on its first start too, from the variables Dockwell knows it reads (ADR 0038: `MYSQL_DATABASE`, `MYSQL_USER` and `MYSQL_PASSWORD`, and their MariaDB and PostgreSQL kin), set to the need's values. It upgrades from that entry, as the pin records.
-- **One you run.** A database server Dockwell runs, from its official image, in this project or another the person may change, on the server the app goes on. Dockwell makes a database and a user for the app on it, a `database.user` in that server's environment with its password a secret there (ADR 0038). Redis and Valkey have no users here, so the app takes the server's password and the next logical database no other app on it uses, 0 to 15, and the sheet says, as state, that it can read the other apps' keys.
+- **A new one beside the app,** in its project, and the default. It's the entry's own service where the entry brings one of the engine chosen, made from the need's values as today. For another accepted engine, or an entry that brings none, as 1Panel's don't, it's the catalog's entry for that engine, such as Dockwell's `mysql`, whose database service joins the app's project under the need's name, without its companions, and upgrades from that entry, as the pin records. Its administrator keeps a secret of its own that no app uses:
+  - **MySQL and MariaDB** make the app's user from their first-start variables (`MYSQL_USER`, `MARIADB_USER` and their passwords), with every right on its own database and no other, so their images make it.
+  - **PostgreSQL and MongoDB** make that first user their administrator, so the app's user is a `database.user` made in the same plan, once the server is healthy, and the image's own user stays the administrator's.
+  - **Redis and Valkey** have one password, so a new one is the app's alone.
+- **One you run.** A database server Dockwell runs, from its official image, in this project or another the person may use, on the server the app goes on. Dockwell makes a database and a user for the app on it, a `database.user` in that server's environment with its password a secret there (ADR 0038). Only a server whose administrator's secret no service outside it uses is offered. Any other shows greyed, with why: "Nextcloud signs in to it as its administrator." Redis and Valkey aren't shared: their logical databases isolate nothing (`SELECT`, `FLUSHALL`, `CONFIG SET` and `REPLICAOF` reach them all, and pub/sub crosses them), so a Redis beside each app is the rule. Sharing one waits for a user per app through Redis 6's ACLs, or Valkey's, without `@admin` or `@dangerous`.
 - **A connection.** A database outside Dockwell, such as a managed one from a cloud provider or another host, that an admin added once (below). It's used as given: its database and its user.
 
-Each ends as a **link**: the need, met.
+**Sharing a server takes its defaults away.** The first time a server Dockwell runs gets a user for a second app, the same plan revokes PUBLIC's rights on every database on it: `CONNECT`, and on PostgreSQL before 15 `CREATE` on each database's `public` schema, so one app's user reaches no other's database. That amends ADR 0038, which left them on. Each database made on it later gets the same.
+
+**Sharing an entry's own database makes it an install of its engine.** WordPress's MariaDB, once a second app uses it, is no longer WordPress's to change: the plan that makes the second app's user also gives the server a pin of its own, to the catalog's entry for its engine at the version it runs, so WordPress's upgrades leave it alone and its own come from that entry. An automatic update (ADR 0080) never changes a server other apps use; it waits for a person.
+
+Each way ends as a **link**: the need, met.
 
 ### A link is the met need, and Variables and secrets shows it
 
 - **A link is a resource,** of kind `link`, in the app's environment, named for the need, such as `db`. Its spec says what meets it (a service, by project, environment and name, or a connection), the engines and versions the app takes, the database and user, and the names it sets with what each holds. It runs on no server: the control plane holds it, as it holds a variable. So meeting a need, and meeting it otherwise later, is a change with a plan, on Activity, and undone like any (PRD principle 2).
-- **What it sets are variables and secrets of the app's environment,** one for each name: host, port, address, database and user as variables, the password and a URL that holds it as secrets. The app's services use them by name, as they use any. So Variables and secrets lists them, as the bridge the owner asked for: grouped under the link ("Database · shared-db"), with their source a link to what meets it, and who uses them.
+- **What it sets are variables and secrets of the app's environment,** one for each name: host, port, address, database, user and TLS as variables, the password and a URL that holds it as secrets. The app's services use them by name, as they use any. So Variables and secrets lists them, as the bridge the owner asked for: grouped under the link ("Database · shared-db"), with their source a link to what meets it, and who uses them.
 - **They change through the link.** An edit of a value a link sets is refused, naming the link: "DB_ADDRESS is the link db's. Change the link, or detach it." Detaching keeps each value as it is now, as a plain variable or secret, and lets go of the link, as a plan.
 
 ### Values that come from somewhere
@@ -86,15 +94,19 @@ A variable or a secret may say where its value comes from, as `from`, in place o
 
 - **Another environment's secret or variable,** by project, environment and name. A link to a server in another project takes the password of the user Dockwell made there this way, so the secret lives once, where the user does, and setting it anew there reaches the app.
 - **A connection's password,** for a link to a connection.
-- **A template of this environment's names,** such as `postgres://${DB_USER}:${DB_PASSWORD}@${DB_ADDRESS}/${DB_NAME}`, which Dockwell writes out with the values it names. A template that names a secret is a secret. This is how a password gets inside a URL with a rotation still reaching it, which ADR 0029 refused for an entry's own file: the whole URL is Dockwell's to write, and it's written again whenever a part changes. Umami's shell can go.
+- **A template of this environment's names,** such as `postgres://${DB_USER}:${DB_PASSWORD}@${DB_ADDRESS}/${DB_NAME}`, which Dockwell writes out with the values it names, each encoded for its place. A template that names a secret is a secret. This is how a password gets inside a URL with a rotation still reaching it, which ADR 0029 refused for an entry's own file: the whole URL is Dockwell's to write, and it's written again whenever a part changes. Umami's shell can go.
 
-Each is a use, as a service's of a secret is: pinned to the revision of what it names when a change is planned, so a change there takes in the value and every service that uses it, in the same plan, across projects. The store indexes uses with the environment of what they name. A value is read as the agent needs it, at those revisions, and sealed to the servers that run what uses it, as ADR 0022 says of every secret.
+**Only a link writes a `from` that names another environment or a connection.** A person's own variable may be a template of their environment's names, and nothing more. Otherwise anyone who may change one project could read another's administrator's password through a variable of their own, with no passkey, as revealing it would ask for.
+
+Each is a use, as a service's of a secret is: pinned to the revision of what it names when a change is planned, so a change there takes in the value and every service that uses it, in the same plan. The store indexes uses with the environment of what they name. A value is read as the agent needs it, at those revisions, and sealed to the servers that run what uses it, as ADR 0022 says of every secret.
 
 ### Reaching what meets it
 
 - **In the same project,** by the service's name on the project's network, as today.
-- **In another project, on the same server,** through a network made for the link alone, which only the app and the database join, so neither project's other services reach the other. The database answers on it to the need's name, as a new one beside the app would, so what the app reads doesn't change when what meets the need does, and a name the app's own networks have already is refused when it's planned. The database's service joins and leaves such networks **in place, with no restart**, so a server several apps share restarts only for its own changes: the engine sets the networks its links ask for on its spec, as output, and the agent connects or disconnects the running container (`docker network connect`). An agent from before this says nothing of it in its hello, so its plan replaces the container instead, and says so.
-- **On another server,** not yet. The choice says where it runs and offers to put the app there. Reaching one through the server's private address, with the firewall open to the app's servers alone, comes later.
+- **In another project, on the same server,** through a network made for the link alone: a `network` resource in the app's environment, internal, named for the link, such as `db-link`. It records which service of the other project joins it, by project, environment and name, so the server's own spec never changes for an app. Every service of the app that uses a name the link sets joins it, such as Nextcloud's cron beside its web service, and the database answers on it to the need's name, as a new one beside the app would. So what the app reads doesn't change when what meets the need does, and a name the app's own networks have already is refused when it's planned.
+- **The database joins and leaves in place, with no restart,** so a server several apps share restarts only for its own changes. The agent connects or disconnects its running container (`docker network connect`), keeps each link network's members with its desired state (ADR 0054), and joins them again whenever it makes the container anew: a rollback (ADR 0027), an undo, or a container remade while the control plane was away. An agent from before this says nothing of it in its hello, so the plan to link replaces the database's container instead, and says so.
+- **Each link network takes a /29** from a range Dockwell keeps for them, as Docker's default pools hold about 30 bridge networks on a server, and a server that runs out of those can't start a project. A link that would take the range past what's left is refused when it's planned, with how many the server has and how many are left.
+- **On another server,** not yet. The choice says where it runs, and picking it moves the app there, which the row says: "WordPress goes on vps-2". An app that runs on more than one server can't link to one you run yet. Reaching one through the server's private address, with the firewall open to the app's servers alone, comes later.
 - **A connection,** at its host and port, from each server the app runs on, which the check proves.
 
 ### Checked before the plan
@@ -102,71 +114,84 @@ Each is a use, as a service's of a secret is: pinned to the revision of what it 
 Each way of meeting a need is checked as the person chooses it, and each check is a line beside the choice:
 
 - **The engine and version.** A running server's version is what it says of itself (ADR 0038's reading), one not read yet its image's tag, a new one the entry's version, and a connection what its check reads. One that doesn't fit is shown, greyed, with why: "Runs MariaDB 10.5; WordPress takes 10.6 or later."
-- **Reach** from the server the app goes on, as above.
-- **Signing in.** On a server Dockwell runs, the reading signs in as the image's user, which making a user needs. A connection is signed in to through the agent of the app's server: its address, its TLS, its user, its database, and its version, with nothing of what it answers kept but the version and the reason it refused.
-- **Names.** The database and user start from the entry's, `wordpress`, or on a server other apps use already, from the app's project's name, so two WordPresses on one server don't clash. A name the server's reading lists is taken, and the next free one stands in (`wordpress_2`).
+- **Whose server it is:** greyed where an outside service signs in as its administrator, as above.
+- **Reach** from the server the app goes on, as above, and room for one more link network.
+- **Signing in.** On a server Dockwell runs, the reading signs in as the image's user, which making a user needs. A connection is checked from the app's server: the agent resolves its address and checks it as netguard does (a metadata or link-local address refused, a private one taken), then signs in with the engine's own client, from its official image, against that address: its TLS, its user, its database, its version, and whether the user is a superuser, with nothing of what it answers kept but those and the reason it refused.
+- **Names.** The database and user start from the entry's, `wordpress`, or on a server other apps use already, from the app's project's name, so two WordPresses on one server don't clash. A name the server's reading lists is taken, and the next free one stands in (`wordpress_2`), except where it's a database an earlier install of the same project kept: a reinstall offers that one back first.
 - **Roles** (below).
 
 The plan checks it all again, and the agent again as it applies, so nothing a check said earlier is trusted later.
 
 ### Connections
 
-- **A connection is a resource,** of kind `connection`, at the organization level, as a backup destination is: its engine, host, port, database, user, its password sealed, as a destination's keys are, its TLS (off, required, or verified, with a CA), and the projects that may use it, every one unless it says. It's an admin's to add, change and remove, on Settings, Integrations, under Databases, and from the install sheet, which opens the same form.
+- **A connection is a resource,** of kind `connection`, at the organization level, as a backup destination is: its engine, host, port, database, user, its password sealed, as a destination's keys are, its TLS (off, required, or verified against the public certificate authorities, until the format can carry a file such as a CA), and the projects that may use it, every one unless it says. It's an admin's to add, change and remove, on Settings, Integrations, under Databases, and from the install sheet, which opens the same form.
+- **It serves one link** unless an admin marks it shared, as one database and user given to two apps would let each read the other's data.
+- **"Signs in as an administrator"** shows on it as a state, with no more words, when its check finds its user is a superuser.
 - **The form takes a pasted URL,** such as a provider's `postgres://…`, and fills in the parts, the password going straight into the sealed field. It checks the connection from a server as it's filled in, the only server unless there are more.
-- **A connection that requires TLS meets a need only where the app can ask for TLS,** through its URL, which carries the engine's own parameter, or a name the need sets for it. Otherwise the check says the app can't, before anything is planned.
+- **A connection that requires TLS meets a need only where the app can ask for TLS,** through its URL, which carries the engine's own parameter, or a TLS name the need sets. Otherwise the check says the app can't, before anything is planned.
 - **Removing one is refused while a link uses it,** naming the apps.
 
 ### The install sheet
 
 Defaults first, power one step away, as the design system's interaction principles ask:
 
-- **Each need is one row,** as a summary of its default and Change: "Database · New MariaDB 11.4 beside WordPress · Change". The default is new, unless a compatible database on that server already serves another app through a link, which the person has chosen to share, and is then the default. An entry with nothing new to offer, and nothing compatible, shows the need unmet, with Use a connection, and Install waits for it.
+- **Each need is one row,** as a summary of its default and Change: "Database · New MariaDB 11.4 beside WordPress · Change". New is the default, always. An entry with nothing new to offer shows the need unmet, with Change, and Install waits for it.
 - **Change opens the three ways,** each with its picker and its checks: New, with the engine where more than one is accepted; Use one you have, every database server the person may use, compatible ones first, the rest greyed with why; Use a connection, with Add a connection. The database and user names sit under Advanced, as a summary.
-- **Picking a server picks where the app goes:** a database on another server offers to put the app there, rather than refusing.
-- **The plan says what's created, reused and wired:** "Creates WordPress and a new MariaDB", or "Reuses shared-db: a database and user for WordPress, and a network for the two, joined in place", and "Wires DB_ADDRESS, DB_NAME, DB_USER and the password". The CLI takes the same choice as `--needs db=new`, `db=service:shared-db` or `db=connection:neon-main`.
+- **A choice that moves the app says so in the row,** "WordPress goes on vps-2", rather than being refused.
+- **The plan says what's created, reused and wired:** "Creates WordPress and a new MariaDB", or "Reuses shared-db: a database and user for WordPress, and a network for the two, joined in place", and "Wires DB_ADDRESS, DB_NAME, DB_USER and the password". The CLI takes the same choice as `--needs db=new`, `db=new:mysql`, `db=service:data/production/shared-db` (project, environment and service) or `db=connection:neon-main`.
 
 After it's installed, the app's page has a **Database** card for each need: what meets it, as a link, its engine and version, the database and user, how to connect, its backups, and **Use another database**, which opens the same choice as a plan.
+
+### Changes that cross projects
+
+A link joins two projects, and ADR 0049 gives each its own roles. So:
+
+- **A role in the server's project is asked for only when a change makes or removes something there:** linking, which makes a database user there, Use another database, and deleting the app's database there. Anyone who may change that project may (a developer, an admin where it's protected). A link that would use that project's own secrets beyond the user it makes needs what reveals them too: a person, not a token.
+- **Deleting the app, or detaching its link, is the app's project's alone.** The link network lives in the app's environment, so the database's container leaves it in that project's plan, and nothing in the server's project changes.
+- **A change in the server's project that reaches linked apps takes their restarts in as Dockwell's own items,** as a rotation of a user's password or a move of the server does, not as the person's own edits. Someone who can't see those apps sees how many restart, not which. The linked project's protection still holds: where it's protected, its part waits for one of its admins.
+- **The choice lists only what the person may use,** and a token narrowed to projects (ADR 0071) sees only those.
 
 ### What each change does
 
 | Change | What happens |
 | --- | --- |
-| **Upgrade the app** | Its release's needs are checked against its links. One that no longer fits refuses the upgrade, with why and the fix: "shared-db runs MariaDB 10.5; WordPress 7.2 takes 10.6 or later. Update shared-db first." A need a release adds is asked for, as an input a release adds is, new by default. A new database from the catalog upgrades from its own entry. |
-| **Upgrade what meets it** | A database server's major move (ADR 0080) is checked against every link that names it, and refused where an app wouldn't take the new release, naming the app. |
+| **Upgrade the app** | Its release's needs are checked against its links. One that no longer fits refuses the upgrade, with why and the fix: "shared-db runs MariaDB 10.5; WordPress 7.2 takes 10.6 or later. Update shared-db first." A need a release adds is asked for, as an input a release adds is, new by default, and an automatic update whose release adds one waits for a person. A new database from the catalog upgrades from its own entry. |
+| **Upgrade what meets it** | A database server's major move (ADR 0080) is checked against every link that names it, and refused where an app wouldn't take the new release, naming the app. Its undo, which deletes the new volume, says what each linked app loses, as a whole-server restore does. |
 | **Undo** | As any change. Undoing the change that made a database and user on a server drops them, which destroys data, so only a person applies it, as ADR 0038 says. |
-| **Delete the app** | Its links and their values go with it. A new database beside it goes with the project, as today ([ADR 0074](0074-projects-you-can-see-and-that-go-with-their-last-app.md)). On a server it shared, its database and user stay, as they live in that server's environment: the server's Users tab marks them "No app uses it", with Delete, and the plan says so in one line. |
-| **Delete what meets it** | Refused while a link names it, a project's deletion with what's in it too, naming the apps that use it, with a way to point each elsewhere. A shared service never goes with an app. |
-| **Backups** | A database's data is in its server's volume, so it's backed up with its server (ADR 0033). The app's page shows those backups and backs the server up on demand. An update of the app backs up the databases it links first, a dump that stops nothing, as ADR 0080 backs up its volumes. A restore of a server names every app that links to it. |
-| **Roles** | Using a server in another project needs a role there that may change it (a developer, an admin where it's protected), as a user is made there. A link that takes that server's own password, as a Redis link does, needs what reveals its secrets too: a person, not a token ([ADR 0049](0049-roles-and-invites-by-project.md)). The choice lists only what the person may use. A connection is an admin's to add, and anyone's who may change a project it allows to use. |
-| **Rotate a password** | Setting a user's password anew (ADR 0038's `ChangeDatabasePassword`) restarts every app that uses it through a link, in the same plan, with each URL written again. |
-| **Use another database** | A plan: a database and user on the new one, the values set again, the network swapped, the app restarted. Its data doesn't move, which the plan says in a line; the old database stays where it was, marked "No app uses it". |
-| **Move the app or its database** | A change that would leave a link's two ends on different servers is refused, naming the link, unless it moves both. A connection is checked again from the new server. |
+| **Delete the app** | Its links, their values and their networks go with it. A new database beside it goes with the project, as today (ADR 0074). On a server it shared, its database and user stay, marked on the server's Users tab "No app uses it", with Delete, and the plan says so in a line. **Also delete its database** is a switch beside it, off, which dumps that one database first and asks for its name typed, and is offered only to someone who may change the server's project. |
+| **Delete what meets it** | Refused while a link names it, a project's deletion with what's in it too, naming the apps that use it, or how many for someone who can't see them, with a way to point each elsewhere. A shared service never goes with an app. |
+| **Backups and restores** | A linked app's backups are dumps of its own database (`pg_dump` or `mysqldump` of that one database), on a schedule of its page and before each of its updates, and its page restores that database alone, from one of them. A server's backups stay its whole volume, as ADR 0033 has them, and restoring one stays on the server's page: it needs a role in every linked project, or an admin, lists each app that loses what it wrote since, and asks for the server's name typed. |
+| **Rotate a password** | Setting a user's password anew (ADR 0038's `ChangeDatabasePassword`) restarts every app that uses it through a link, in the same plan, with each URL written again, as Dockwell's own items where the app is in another project. A link whose need says its password is set once refuses it, naming the app. |
+| **Use another database** | A plan: a database and user on the new one, the values set again, the network swapped, the app restarted. Where both ends are the same engine on Dockwell, it copies the one database across by default, and holds the route of an app whose first visitor makes its owner until the copy is done. Otherwise the plan says in a line that the data doesn't move. The old database stays where it was, marked "No app uses it". |
+| **Move the app or its database** | A change that would leave a link's two ends on different servers is refused, naming the link, unless it moves every linked app with its server. A connection is checked again from the new server. |
 
 ### Other stores
 
-The converter maps a store's "another app's database" to needs, which is Track K's (#570), with the shape this record gives. 1Panel's field of type `apps` with its `values` and a `service` child, or a field of type `service` with its `key`, is a need, with the engines they name and no versions. The names 1Panel fills in or asks for, `PANEL_DB_HOST`, `PANEL_DB_PORT`, `PANEL_DB_NAME`, `PANEL_DB_USER`, `PANEL_DB_USER_PASSWORD` and their Redis kin, are its parts. Its password is never asked for: Dockwell makes one, or a connection gives one. A URL that holds them, as docmost's `DATABASE_URL`, is a URL with its template. A field that asks for a server's administrator, as mongo-express's does, is no need: such a tool administers another app's database, and stays out with that reason. Dokploy's and Coolify's templates bring their databases, and may mark them as needs with their service, so they can use one you run too.
+The converter maps a store's "another app's database" to needs, which is Track K's (#570), with the shape this record gives. 1Panel's field of type `apps` with its `values` and a `service` child, or a field of type `service` with its `key`, is a need, with the engines they name and no versions. The names 1Panel fills in or asks for, `PANEL_DB_HOST`, `PANEL_DB_PORT`, `PANEL_DB_NAME`, `PANEL_DB_USER`, `PANEL_DB_USER_PASSWORD` and their Redis kin, are its parts. Its password is never asked for: Dockwell makes one, or a connection gives one. A URL that holds them, as docmost's `DATABASE_URL`, is a URL with its template. A field that asks for a server's administrator, as mongo-express's does, is no need: such a tool administers another app's database, and stays out with that reason. A Redis need is met new beside the app, as above. Dokploy's and Coolify's templates bring their databases, and may mark them as needs with their service, so they can use one you run too.
 
 ### What's installed already
 
-- **Entries:** Dockwell's own entries that bring a database are rewritten with needs, in Dockwell/catalog, each a new release. Each names its password as its secret input was named, such as `MARIADB_PASSWORD`, so an install's secret, and what its database signed its user in with, stay as they are. An entry without needs installs as before.
+- **Entries:** Dockwell's own entries that bring a database are rewritten with needs, in Dockwell/catalog, each a new release. Each names its password as its secret input was named, such as `MARIADB_PASSWORD`, so an install's secret, and what its database signed its user in with, stay as they are. An entry whose app signs in as its server's administrator, as Nextcloud's does, keeps doing so in its own database, which therefore isn't offered to others, until a release gives it a user of its own. An entry without needs installs as before.
 - **Installs:** an install moves to a link at its next upgrade to such a release, in the same plan. The upgrade's three-way merge reads the database and user it has, keeps its secret, and records how each need is met in the pin (`CatalogPin.needs`). Until then it runs as it does, and its page offers to update before choosing another database.
 - **Agents:** joining a network in place needs an agent that says so; an older one restarts the database instead, which its plan says.
 
 ### What the agent build links
 
-Joining and leaving a network in place, in the container driver, and the connection's check: a small client for each engine's sign-in (PostgreSQL's SCRAM-SHA-256 and md5, MySQL's `caching_sha2_password` and `mysql_native_password`, MariaDB's, Redis's `AUTH`) that reads the version and nothing else. No driver library. `make budgets` measures it against the agent's 40 MB.
+Joining and leaving a network in place, in the container driver, with each link network's members kept beside the desired state; and the connection's check, which resolves and checks an address as netguard does and runs the engine's own client in a container of its official image, so the agent speaks no database's protocol. No driver library. `make budgets` measures it against the agent's 40 MB.
 
 ### Numbers
 
-`Entry.needs` 40 and new messages in `catalog.proto`; the Service spec 190 to 199, for the networks its links ask for; `from` 80 in `Variable` and `Secret`; `CatalogPin.needs` 82; 80 to 89 in other messages of the API; and 290 to 299 in `agent.proto`, for the hello's word and the connection's check. Migrations take main's next number when they land.
+`Entry.needs` 40 and new messages in `catalog.proto`; `from` 80 in `Variable` and `Secret`; a `Network`'s members 80; `CatalogPin.needs` 82; 80 to 89 in other messages of the API; and 290 to 299 in `agent.proto`, for the hello's word and the connection's check. The Service spec's 190 to 199 stay unused: nothing of a link is written into a service's own spec. Migrations take main's next number when they land.
 
 ## What we turned down
 
 - **One network for every app,** as 1Panel's, Coolify's and Dokploy's. Any app would reach every database.
 - **Copying the values once,** as Coolify, Dokploy and a copied URL do. A new password, or a database moved, breaks the app with nothing to say why.
 - **Joining the two projects' networks.** Every service of each would reach the other's.
+- **Recording a link's network on the database's own service.** Deleting an app would then need a role in the database's project, and every app linked would change that project's spec.
 - **A database as a kind of its own,** as an add-on. ADR 0038 keeps a database a service, with everything a service has.
 - **References from any value to any other,** as Railway's. A link carries exactly what a need takes, with the roles a database user needs. `from` leaves room for more when something needs it.
+- **Sharing a Redis by its numbered databases.** They isolate nothing, and there are 16.
 - **Making a database on a connection's server.** It isn't Dockwell's to change. A connection is used as given until a need asks for more.
 - **A database on another server, now.** It needs a firewall rule for the app's servers and a check that holds through a server's address changing, which is a slice of its own.
 - **Guessing needs from any Compose file by its variables' names.** A wrong guess wires the wrong database. For an app from no entry, a link is a person's choice, on its Environment tab, as Connect a database.
@@ -174,17 +199,18 @@ Joining and leaving a network in place, in the container driver, and the connect
 ## Consequences
 
 - A person chooses an app's database as they install it, checked before the plan, and changes it later as a plan.
-- One database server can serve several apps, each with its own database and user, and none of them reaches the others' services.
+- One database server can serve several apps, each with its own database and user and none an administrator, and none of them reaches the others' services or databases.
 - 1Panel's apps that use another app's database can convert, and 30 of the 49 have nothing else in the way.
 - A password inside a URL is Dockwell's to write, so it follows a rotation.
 - The store indexes uses and references across environments, which is a migration, and the revision engine follows a chain of uses (a secret, a URL that names it, a service that uses the URL) until nothing more joins a change.
 - Deleting a shared database is refused while apps use it, and deleting an app leaves its database on a shared server, marked, one click from gone.
+- Restoring a shared server, or undoing its move, is a whole-server act with every linked app named, and each app restores its own database from its own dumps.
 - The agent build gains a little, which `make budgets` reports.
 
 ## Order of work
 
 1. This record.
-2. The format and its check, which Track K converts to; the link; an install whose needs are met new beside the app, by the entry's own service or the catalog's entry for another accepted engine; the install sheet's row for each need. A URL that holds a password waits for 3.
-3. One you run: values from a template and from another environment, uses and references across environments, a database and user made on a server in another project on the same server, the link's network joined in place, its checks, roles, and the refusals on delete and move. Use another database on an app's page.
+2. The format and its check, which Track K converts to; the link; an install whose needs are met new beside the app, by the entry's own service or the catalog's entry for MySQL, MariaDB or Redis, whose images make what the app signs in as; the install sheet's row for each need. A URL that holds a password waits for 3.
+3. One you run, and a new PostgreSQL or MongoDB from the catalog: a database user made in the plan, values from a template and from another environment, uses and references across environments, the link network as a resource of the app's environment joined in place, the server's pin when it's first shared, PUBLIC revoked, its checks, the roles and Dockwell's own items across projects, and the refusals on delete and move. Use another database on an app's page, copying the data. Per-database dumps and restores on an app's page.
 4. Connections: their resource, Settings, the agent's check, and Use a connection.
 5. Dockwell's own entries with needs, in Dockwell/catalog once the check it runs knows them, installs moving at their upgrade, Connect a database on any app's Environment tab, and Variables and secrets grouped by link, with Track V's work on an app's own values (#565).
