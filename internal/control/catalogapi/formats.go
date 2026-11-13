@@ -48,6 +48,7 @@ var formats = map[resourcev1.CatalogFormat]string{
 	resourcev1.CatalogFormat_CATALOG_FORMAT_ONEPANEL:    convert.FormatOnePanel,
 	resourcev1.CatalogFormat_CATALOG_FORMAT_DOKPLOY:     convert.FormatDokploy,
 	resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY:     convert.FormatCoolify,
+	resourcev1.CatalogFormat_CATALOG_FORMAT_RUNTIPI:     convert.FormatRuntipi,
 }
 
 // formatOf is how a source's folder is laid out, in the converter's word.

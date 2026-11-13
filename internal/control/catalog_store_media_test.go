@@ -87,7 +87,7 @@ func TestAStoresAppShowsItsOwnLogoAndWords(t *testing.T) {
 			t.Errorf("a store no source reads at its own repository: %v", s)
 		}
 	}
-	if len(ids) != 3 || !slices.Contains(ids, "onepanel") || !slices.Contains(ids, "dokploy") || !slices.Contains(ids, "coolify") {
+	if len(ids) != 4 || !slices.Contains(ids, "onepanel") || !slices.Contains(ids, "dokploy") || !slices.Contains(ids, "coolify") || !slices.Contains(ids, "runtipi") {
 		t.Errorf("the stores are %v", ids)
 	}
 	// A repository laid out as Coolify's is no store of Dockwell's list.

@@ -53,6 +53,7 @@ const (
 	FormatOnePanel = "1panel"
 	FormatDokploy  = "dokploy"
 	FormatCoolify  = "coolify"
+	FormatRuntipi  = "runtipi"
 	FormatDockwell = "dockwell"
 )
 
@@ -130,6 +131,26 @@ var Stores = []Store{
 		},
 		read: coolifyApps,
 	},
+	{
+		Format: FormatRuntipi, ID: "runtipi", Label: "Runtipi", Name: "Runtipi's app store", License: "GPL-3.0-only", Root: "apps",
+		Upstream: "https://github.com/runtipi/runtipi-appstore", Layout: "Runtipi's format",
+		Homepage: "https://runtipi.io", Branch: "master",
+		Measured: Measured{Commit: "e88c4a725816e2dd366c9590441b2f11e470fd48", Apps: 267, Installs: 141},
+		// apps/<id>/ with its config.json, its Compose file, and metadata/ with its
+		// logo and description.
+		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 3 },
+		Want: func(p string) bool {
+			parts := strings.Split(p, "/")
+			switch {
+			case len(parts) == 3 && parts[0] == "apps" && (parts[2] == "config.json" || parts[2] == "docker-compose.yml"):
+				return true
+			case len(parts) == 4 && parts[0] == "apps" && parts[2] == "metadata" && parts[3] == "description.md":
+				return true
+			}
+			return false
+		},
+		read: runtipiApps,
+	},
 }
 
 // SourceName is how an entry says where it comes from: the store's name for its own
@@ -197,6 +218,8 @@ func Detect(files []string) ([]Guess, map[Guess]int) {
 		switch {
 		case len(parts) == 3 && parts[0] == "apps" && parts[2] == "data.yml":
 			counts[Guess{FormatOnePanel, ""}]++
+		case len(parts) == 3 && parts[0] == "apps" && parts[2] == "config.json":
+			counts[Guess{FormatRuntipi, ""}]++
 		case len(parts) == 3 && parts[0] == "blueprints" && parts[2] == "template.toml":
 			counts[Guess{FormatDokploy, ""}]++
 		case len(parts) == 3 && parts[0] == "templates" && parts[1] == "compose" && strings.HasSuffix(parts[2], ".yaml"):

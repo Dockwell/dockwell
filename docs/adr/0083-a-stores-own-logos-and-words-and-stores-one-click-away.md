@@ -31,11 +31,20 @@ Half of Dokploy's logos and two thirds of Coolify's are SVG. Seven of their 567 
 | Store | Licence | What it would take | Decision |
 | --- | --- | --- | --- |
 | 1Panel's app store, Dokploy's templates, Coolify's templates | GPL-3.0, MIT, Apache-2.0 | Read today | Listed |
-| Runtipi's app store, runtipi/runtipi-appstore | GPL-3.0 | An adapter: `config.json` with its form, a Compose file with versioned images and Runtipi's variables (`APP_DATA_DIR`, `APP_PORT`, `APP_DOMAIN`), Traefik labels to drop; `metadata/logo.jpg` and `metadata/description.md` in the repository | Next, with Track K's converter |
+| Runtipi's app store, runtipi/runtipi-appstore | GPL-3.0 | An adapter (below): `config.json` with its form, a Compose file with versioned images and Runtipi's variables, its `metadata/logo.jpg` and `metadata/description.md` | Listed, with the third pull request |
 | CapRover's one-click apps | Apache-2.0 | An adapter for `captainVersion: 4` files and `$$cap_` variables; logos in the repository | After Runtipi |
 | CasaOS's app store | Apache-2.0 | An adapter for `x-casaos`; its icons and screenshots are links to other hosts, which Dockwell doesn't fetch | Later, without artwork |
 | Umbrel's apps | None stated | Its apps lean on `app_proxy` and `exports.sh` scripts | Not listed |
 | Portainer's templates | None stated | Its stacks name files in other repositories | Not listed |
+
+### Runtipi's app store, the fourth format
+
+- **Laid out as `apps/<id>/config.json`** beside its `docker-compose.yml`, which detection reads as Runtipi's (`CATALOG_FORMAT_RUNTIPI`). Its newer `docker-compose.json` says the same as the YAML file, which is read.
+- **What Runtipi fills in is said in an entry's own terms:** `${APP_DATA_DIR}/data/<name>` and `${APP_DATA_DIR}/<name>` become the app's folders, which the rewrite makes named volumes; `${APP_PORT}` is the port input, its default `config.json`'s port; `${APP_DOMAIN}` is `localhost:${APP_PORT}` and `${APP_PROTOCOL}` `http`, as for Coolify's address; `${TZ}` reads UTC unless set; `${ROOT_FOLDER_HOST}/media` is `MEDIA_DIR`, a folder a person names, default `/srv/media`, which the plan shows as a path on the server for them to approve. Its network `tipi_main_network` and its `runtipi.` labels go, with Traefik's.
+- **Its form is the entry's inputs:** `random` a generated secret of 32 to 64 characters, `password` a secret a person types, `boolean` a choice of true or false, options a choice, the rest text.
+- **Left out, saying why:** an app Runtipi marks unavailable or deprecated, one on amd64 alone, one whose data folder Runtipi gives to another user by running chown on the server, one it makes keys for at install, and one that uses any other value of Runtipi's.
+- **Bounds:** ADR 0078's, as for every store: each file read on the server within its size and nesting, its aliases expanded within their bounds, 2,000 apps, and the time checked once an app. Its logos are JPEG, read as the others' are.
+- **At `e88c4a72`, 141 of its 267 apps convert,** the most of the four by share: 31 use a value only Runtipi fills in, 28 ask for what Dockwell can't run yet, 21 name a moving tag, 16 run on amd64 alone, 10 have their folder given to another user.
 
 ### A store's logo is read for each app that converts
 

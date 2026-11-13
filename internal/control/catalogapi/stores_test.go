@@ -27,6 +27,7 @@ func TestStoreOf(t *testing.T) {
 		{"https://github.com/1Panel-dev/appstore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_DOCKWELL, ""},
 		{"https://github.com/coollabsio/coolify", "", resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY, "coolify"},
 		{"https://github.com/Dokploy/templates", "", resourcev1.CatalogFormat_CATALOG_FORMAT_DOKPLOY, "dokploy"},
+		{"https://github.com/runtipi/runtipi-appstore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_RUNTIPI, "runtipi"},
 		{"https://github.com/Dockwell/catalog", "entries", resourcev1.CatalogFormat_CATALOG_FORMAT_UNSPECIFIED, ""},
 	} {
 		spec := &resourcev1.CatalogSource{Repository: c.repository, Path: c.path, Format: c.format}

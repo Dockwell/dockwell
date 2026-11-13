@@ -75,6 +75,7 @@ const FORMATS: Readonly<Partial<Record<CatalogFormat, MessageDescriptor>>> = {
   [CatalogFormat.ONEPANEL]: msg`1Panel's app store`,
   [CatalogFormat.DOKPLOY]: msg`Dokploy's templates`,
   [CatalogFormat.COOLIFY]: msg`Coolify's templates`,
+  [CatalogFormat.RUNTIPI]: msg`Runtipi's app store`,
 };
 
 /** Says another store's format in the reader's words, or nothing for one the panel has no words for. */

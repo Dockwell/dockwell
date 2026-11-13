@@ -1,0 +1,8 @@
+services:
+  media:
+    image: example/media:10.0.0
+    volumes:
+      - ${APP_DATA_DIR}/config:/config
+      - ${ROOT_FOLDER_HOST}/media/data:/media
+    ports:
+      - ${APP_PORT}:8096

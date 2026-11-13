@@ -1,0 +1,35 @@
+services:
+  notes:
+    container_name: notes
+    image: example/notes:1.2.0
+    environment:
+      - DB_HOST=notes-db
+      - DB_PASSWORD=${DB_PASSWORD}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - SIGNUPS=${SIGNUPS}
+      - THEME=${THEME}
+      - PUBLIC_URL=${APP_PROTOCOL:-http}://${APP_DOMAIN}
+      - TZ=${TZ}
+    volumes:
+      - ${APP_DATA_DIR}/data/notes:/data
+    ports:
+      - ${APP_PORT}:3000
+    networks:
+      - tipi_main_network
+    depends_on:
+      - notes-db
+    labels:
+      traefik.enable: true
+      traefik.http.routers.notes.rule: Host(`${APP_DOMAIN}`)
+      runtipi.managed: true
+  notes-db:
+    container_name: notes-db
+    image: postgres:17.11
+    environment:
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - ${APP_DATA_DIR}/data/db:/var/lib/postgresql/data
+    networks:
+      - tipi_main_network
+    labels:
+      runtipi.managed: true

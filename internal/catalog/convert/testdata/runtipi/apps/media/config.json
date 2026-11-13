@@ -1,0 +1,1 @@
+{ "name": "Media", "available": true, "port": 8096, "id": "media", "version": "10.0.0", "categories": ["media"], "short_desc": "Plays your media", "description": "Media plays your media.", "source": "https://github.com/example/media", "form_fields": [], "supported_architectures": ["arm64", "amd64"] }

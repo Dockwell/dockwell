@@ -1,0 +1,3 @@
+services:
+  only:
+    image: example/only:1.0.0

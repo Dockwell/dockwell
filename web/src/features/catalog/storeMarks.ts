@@ -10,6 +10,7 @@ export const STORE_MARKS: Readonly<Record<string, { label: string; mark: string 
   onepanel: { label: "1Panel", mark: "/stores/onepanel.png" },
   dokploy: { label: "Dokploy", mark: "/stores/dokploy.svg" },
   coolify: { label: "Coolify", mark: "/stores/coolify.svg" },
+  runtipi: { label: "Runtipi", mark: "/stores/runtipi.png" },
 };
 
 /** How a person says a store a source reads, short, by the store's ID, such as "1Panel". */

@@ -59,7 +59,7 @@ What a catalog source can do to the control plane and to what's installed, and w
 
 ### Another store's catalog, converted on the server
 
-A source may be 1Panel's app store, Dokploy's templates or Coolify's (ADR 0078). The control plane then parses YAML, TOML and JSON a stranger wrote, and once a source follows a branch, it does so with nobody watching.
+A source may be 1Panel's app store, Dokploy's templates, Coolify's (ADR 0078) or Runtipi's app store (ADR 0083). The control plane then parses YAML, TOML and JSON a stranger wrote, and once a source follows a branch, it does so with nobody watching.
 
 | Threat | Mitigation |
 | --- | --- |
@@ -91,6 +91,7 @@ A source may be 1Panel's app store, Dokploy's templates or Coolify's (ADR 0078).
 | Pinning at a plan asks registries too often | Only a plan asks, never a refresh: a HEAD each, which no registry counts as a pull, 20 images a call, two calls reaching registries at once on a server, and digests kept 10 minutes, shared with a form's reads. |
 | A store says it's under one licence and isn't | The licence is read from the repository's own licence file and matched to four licences' texts; anything else is `NOASSERTION`, and the plan says Dockwell can't tell it. |
 | A store's words reach a person as markup, or as an instruction | An entry's summary is the store's line, one line of 160 characters at most, shown as text. The converter writes no first steps. |
+| Runtipi's Compose file names its own folders and network, as `${ROOT_FOLDER_HOST}` and `tipi_main_network`, to bind the server's files or join a network Dockwell didn't make | Its data folder becomes named volumes; its media folder becomes a folder a person names, which the plan shows as a path on the server for them to approve, as any typed path is; any other value of Runtipi's leaves the app out; its network goes, so each service joins its project's own. An app whose folder Runtipi gives to another user, by chown on the server, is left out, as nothing a store holds is run. |
 | A store's logo is named so it reads a file outside the app's folder, or a file that isn't one, such as `../../.git/config` or a script | A logo is a file the store's own convention names in its folder: a plain name, one level, with the extension of an image the control plane serves, and there in the commit's listing. It's read with the other files' checks, by its object's name, and must pass the image checks above. |
 | A store's logos fill the fetch, the disk or the time a read has | Logos are read in a round of their own, only for apps that convert, within the limits of a catalog's images: 1,000 at most, 1 MiB each, 32 MiB together, and within the fetch's minute. One over its limit leaves its app without one; a round that fails leaves every app without one, and no app out. |
 | A store's README carries markup, an image that tracks who reads it, or a link that runs | What's kept of a README is Markdown without its blocks of HTML, its tags and its images, outside code, which is kept as text; control characters go, within 32 KiB. The panel makes headings, paragraphs, lists, emphasis, code and links into elements, never into HTML, and opens a link only as an HTTPS address, in a new tab, with no referrer. It's shown under the store's name, as the store's words. |

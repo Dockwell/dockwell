@@ -1,0 +1,3 @@
+services:
+  retired:
+    image: example/retired:1.0.0
