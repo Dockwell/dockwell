@@ -105,17 +105,21 @@ func authFor(ctx context.Context, host string) (Auth, bool) {
 // as a login checked for the first time, any realm a read may reach is allowed,
 // and found.
 func realmAllowed(a Auth, base string, realm *url.URL, first bool) bool {
-	if sameHost(base, realm) {
-		return true
+	if first {
+		return ownHostRealm(base, realm) || realm.Scheme == "https"
 	}
-	// Another host gets a login over HTTPS alone.
-	if realm.Scheme != "https" {
+	return tokenServiceAllowed(a, base, realm)
+}
+
+// ownHostRealm says whether a realm is on the registry's own host, over a scheme
+// as safe as the one the registry is reached by: https for a registry reached over
+// https, and http only for one reached over plain http.
+func ownHostRealm(base string, realm *url.URL) bool {
+	b, err := url.Parse(base)
+	if err != nil || !strings.EqualFold(b.Host, realm.Host) {
 		return false
 	}
-	if first {
-		return true
-	}
-	return a.TokenHost != "" && strings.EqualFold(realm.Host, a.TokenHost)
+	return realm.Scheme == b.Scheme || realm.Scheme == "https"
 }
 
 func basic(a Auth) string {
@@ -170,18 +174,9 @@ func (c *Client) SignIn(ctx context.Context, a Auth, first bool) (string, error)
 		return "", fmt.Errorf("%w: it asks for a sign-in Dockwell can't read", ErrUnreachable)
 	}
 	// As Docker does: a Bearer challenge first, and every one of them checked.
-	var bearer *challenge
-	hasBasic := false
-	for i := range challenges {
-		switch challenges[i].scheme {
-		case "basic":
-			hasBasic = true
-		case "bearer":
-			if bearer != nil && bearer.params["realm"] != challenges[i].params["realm"] {
-				return "", fmt.Errorf("%w: it names two token services", ErrUnreachable)
-			}
-			bearer = &challenges[i]
-		}
+	bearer, hasBasic, err := pickBearer(challenges)
+	if err != nil {
+		return "", fmt.Errorf("%w: it names two token services", ErrUnreachable)
 	}
 	if bearer == nil {
 		if !hasBasic {
@@ -297,10 +292,31 @@ var ErrUnreadChallenge = errors.New("the registry asks for a sign-in in a way Do
 // the registry's own host, as its base is reached, or the token service the login
 // was saved with, over HTTPS alone.
 func tokenServiceAllowed(a Auth, base string, realm *url.URL) bool {
-	if sameHost(base, realm) {
+	if ownHostRealm(base, realm) {
 		return true
 	}
 	return realm.Scheme == "https" && a.TokenHost != "" && strings.EqualFold(realm.Host, a.TokenHost)
+}
+
+// pickBearer is the Bearer challenge a client answers before any Basic one, as
+// Docker does, and whether there's a Basic one. Two Bearer challenges that name
+// different realms are a challenge Dockwell can't read, as clients differ in which
+// they take.
+func pickBearer(challenges []challenge) (*challenge, bool, error) {
+	var bearer *challenge
+	basic := false
+	for i := range challenges {
+		switch challenges[i].scheme {
+		case "basic":
+			basic = true
+		case "bearer":
+			if bearer != nil && bearer.params["realm"] != challenges[i].params["realm"] {
+				return nil, false, ErrUnreadChallenge
+			}
+			bearer = &challenges[i]
+		}
+	}
+	return bearer, basic, nil
 }
 
 // Probe asks a registry's /v2/ with no login, and sends nothing that signs in:

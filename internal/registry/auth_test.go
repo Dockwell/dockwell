@@ -358,3 +358,69 @@ func TestChallengesAreParsedWhole(t *testing.T) {
 		}
 	}
 }
+
+// A realm on the registry's own host takes a login over a scheme as safe as the one
+// the registry is reached by: an https registry's realm over plain http is refused,
+// as Docker would send the login in clear, and a registry reached over http may
+// name an http realm on its own host. (Second look at #584's H1.)
+func TestARealmOnTheRegistrysOwnHostKeepsItsScheme(t *testing.T) {
+	saved := Auth{Name: "own", Username: testUser, Password: testPassword}
+
+	secure := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Www-Authenticate", `Bearer realm="http://`+r.Host+`/token"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(secure.Close)
+	a := saved
+	a.Registry = strings.TrimPrefix(secure.URL, "https://")
+	cl := New(Options{Secure: secure.Client(), Plain: secure.Client(), Public: secure.Client()})
+	if err := cl.Challenge(t.Context(), a); !errors.Is(err, ErrMoved) {
+		t.Errorf("an https registry's realm over http on its own host = %v, want ErrMoved", err)
+	}
+	if _, err := cl.Head(WithAuth(t.Context(), a), Ref{Registry: a.Registry, Repository: "acme/app", Tag: "1.0"}); !errors.Is(err, ErrMoved) {
+		t.Errorf("Dockwell's own read there = %v, want ErrMoved", err)
+	}
+
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Www-Authenticate", `Bearer realm="http://`+r.Host+`/token"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(plain.Close)
+	b := saved
+	b.Registry = strings.TrimPrefix(plain.URL, "http://")
+	cl = New(Options{Insecure: func(string) bool { return true }, Secure: plain.Client(), Plain: plain.Client(), Public: plain.Client()})
+	if err := cl.Challenge(t.Context(), b); err != nil {
+		t.Errorf("a registry reached over http naming an http realm on its own host = %v", err)
+	}
+}
+
+// Dockwell's own reads with a login read every challenge in every header, Bearer
+// first, and check its realm as Docker's pull is checked: a Basic challenge first
+// and a Bearer one to another host after it sends the login nowhere. (Second look
+// at #584's H1.)
+func TestDockwellsOwnReadsReadEveryChallenge(t *testing.T) {
+	var mu sync.Mutex
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		asked = append(asked, r.URL.Path+" "+r.Header.Get("Authorization"))
+		mu.Unlock()
+		w.Header().Add("Www-Authenticate", `Basic realm="r"`)
+		w.Header().Add("Www-Authenticate", `Bearer realm="https://attacker.example/token"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+	c := testClient(srv)
+	login := Auth{Name: "example-ci", Registry: "registry.example.com", Username: testUser, Password: testPassword, TokenHost: "auth.example.com"}
+	_, err := c.Head(WithAuth(t.Context(), login), Ref{Registry: "registry.example.com", Repository: "acme/app", Tag: "1.0"})
+	if !errors.Is(err, ErrMoved) {
+		t.Errorf("a read with a login = %v, want ErrMoved", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, a := range asked {
+		if strings.Contains(a, "Basic ") || strings.Contains(a, "/token") {
+			t.Errorf("the login went somewhere: %q", a)
+		}
+	}
+}

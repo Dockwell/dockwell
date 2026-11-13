@@ -287,18 +287,28 @@ func (c *Client) getFrom(ctx context.Context, method, base, repo, path, accept s
 			return nil, err
 		}
 		if resp.StatusCode == http.StatusUnauthorized && !away {
-			challenge := resp.Header.Get("Www-Authenticate")
+			// Every challenge in every header, as Docker reads them, Bearer first:
+			// Dockwell's own reads and Docker's pulls obey one rule (ADR 0086).
+			challenges, err := parseChallenges(resp.Header.Values("Www-Authenticate"))
 			drain(resp)
-			lower := strings.ToLower(challenge)
+			var bearer *challenge
+			hasBasic := false
+			if err == nil {
+				bearer, hasBasic, err = pickBearer(challenges)
+			}
 			switch {
-			case signs && strings.HasPrefix(lower, "basic") && !basicAuth:
+			case err != nil && signs:
+				return nil, ErrUnreadChallenge
+			case err != nil:
+				return nil, ErrNotFound
+			case signs && bearer == nil && hasBasic && !basicAuth:
 				basicAuth = true
 			case signs && (basicAuth || c.token(key) != ""):
 				return nil, ErrSignIn
-			case !strings.HasPrefix(lower, "bearer ") || c.token(key) != "":
+			case bearer == nil || c.token(key) != "":
 				return nil, ErrNotFound
 			default:
-				if err := c.authorize(ctx, base, key, repo, challenge); err != nil {
+				if err := c.authorize(ctx, base, key, repo, bearer.params); err != nil {
 					return nil, err
 				}
 			}
@@ -419,8 +429,7 @@ func (c *Client) keepToken(key string, t token) {
 // authorize gets the token a registry hands any client for pulling a
 // repository, from the realm its challenge names: on the registry's own host,
 // or on the internet over HTTPS.
-func (c *Client) authorize(ctx context.Context, base, key, repo, challenge string) error {
-	params := challengeParams(challenge[len("bearer "):])
+func (c *Client) authorize(ctx context.Context, base, key, repo string, params map[string]string) error {
 	realm, err := url.Parse(params["realm"])
 	if err != nil || realm.Host == "" || (realm.Scheme != "https" && realm.Scheme != "http") {
 		return ErrNotFound
@@ -438,7 +447,7 @@ func (c *Client) authorize(ctx context.Context, base, key, repo, challenge strin
 	// A login goes to the registry's own host, or the token service it was saved
 	// with, and nowhere else (ADR 0086): checked before the test's host stands in.
 	login, signs := authFor(ctx, hostOf(ctx, base, c.o.Test))
-	if signs && !realmAllowed(login, base, realm, false) {
+	if signs && !tokenServiceAllowed(login, base, realm) {
 		return ErrMoved
 	}
 	if c.o.Test != "" {
@@ -490,32 +499,6 @@ func (c *Client) authorize(ctx context.Context, base, key, repo, challenge strin
 	now := c.o.Now()
 	c.keepToken(key, token{value: value, until: now.Add(life - 5*time.Second), at: now})
 	return nil
-}
-
-// challengeParams reads a challenge's parameters, such as
-// realm="https://auth.docker.io/token",service="registry.docker.io".
-func challengeParams(s string) map[string]string {
-	out := map[string]string{}
-	for s != "" {
-		s = strings.TrimLeft(s, " ,")
-		key, rest, ok := strings.Cut(s, "=")
-		if !ok {
-			break
-		}
-		key = strings.ToLower(strings.TrimSpace(key))
-		var value string
-		if strings.HasPrefix(rest, `"`) {
-			end := strings.Index(rest[1:], `"`)
-			if end < 0 {
-				break
-			}
-			value, s = rest[1:1+end], rest[2+end:]
-		} else {
-			value, s, _ = strings.Cut(rest, ",")
-		}
-		out[key] = value
-	}
-	return out
 }
 
 // Head says whether a registry has an image, and its digest, with a HEAD of its
