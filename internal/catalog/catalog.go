@@ -430,6 +430,14 @@ func check(e *catalogv1.Entry, byTag bool) error {
 	if err := checkPresentation(e); err != nil {
 		return err
 	}
+	for i, a := range e.GetArchitectures() {
+		switch {
+		case a != "amd64" && a != "arm64":
+			return fmt.Errorf("it runs on %.20q, and Dockwell runs on amd64 and arm64 servers. Name either, or leave architectures out for both", a)
+		case slices.Contains(e.GetArchitectures()[:i], a):
+			return fmt.Errorf("it names %s twice in architectures. Name it once", a)
+		}
+	}
 	images := 0
 	for line := range strings.Lines(e.GetCompose()) {
 		if strings.HasPrefix(strings.TrimSpace(line), "image:") {

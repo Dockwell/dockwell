@@ -114,7 +114,11 @@ func TestOnServerConvertsWithoutAPerson(t *testing.T) {
 	if r := got["onlylatest"]; r.Entry == nil || r.Entry.GetVersion() != "latest" || !strings.Contains(r.Entry.GetCompose(), "image: example/a:latest\n") {
 		t.Errorf("onlylatest: %v, left out %q", r.Entry, r.LeftOut)
 	}
-	for id, class := range map[string]Class{"scripted": ClassScripts, "amd64only": ClassArch, "withdb": ClassAnotherApp, "shipped": ClassShipped} {
+	// One that runs on amd64 alone is offered on amd64 servers (ADR 0085).
+	if r := got["amd64only"]; r.Entry == nil || !slices.Equal(r.Entry.GetArchitectures(), []string{"amd64"}) {
+		t.Errorf("amd64only: %v, left out %q", r.Entry.GetArchitectures(), r.LeftOut)
+	}
+	for id, class := range map[string]Class{"scripted": ClassScripts, "withdb": ClassAnotherApp, "shipped": ClassShipped} {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)
 		}

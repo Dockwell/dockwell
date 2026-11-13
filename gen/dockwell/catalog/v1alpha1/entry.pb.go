@@ -459,7 +459,12 @@ type Entry struct {
 	// one Dockwell runs already, or by a connection. Empty needs nothing, as before.
 	// Numbered apart, as open work adds to this message. See
 	// docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
-	Needs         []*Need `protobuf:"bytes,40,rep,name=needs,proto3" json:"needs,omitempty"`
+	Needs []*Need `protobuf:"bytes,40,rep,name=needs,proto3" json:"needs,omitempty"`
+	// The CPU architectures its images run on, "amd64" or "arm64", as its source
+	// says, such as ["amd64"] for an app whose images have no arm64 build. Empty runs
+	// on both. A server of another is never offered for it, and an install or an
+	// upgrade there is refused (ADR 0085). Other stores' work takes 50 to 59 here.
+	Architectures []string `protobuf:"bytes,50,rep,name=architectures,proto3" json:"architectures,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -707,6 +712,13 @@ func (x *Entry) GetTranslations() map[string]*Translation {
 func (x *Entry) GetNeeds() []*Need {
 	if x != nil {
 		return x.Needs
+	}
+	return nil
+}
+
+func (x *Entry) GetArchitectures() []string {
+	if x != nil {
+		return x.Architectures
 	}
 	return nil
 }
@@ -1742,8 +1754,7 @@ var File_dockwell_catalog_v1alpha1_entry_proto protoreflect.FileDescriptor
 
 const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
-	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\xda\n" +
-	"\n" +
+	"%dockwell/catalog/v1alpha1/entry.proto\x12\x19dockwell.catalog.v1alpha1\"\x80\v\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -1782,7 +1793,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"companions\x12\x16\n" +
 	"\x06readme\x18\x1e \x01(\tR\x06readme\x12V\n" +
 	"\ftranslations\x18\x1f \x03(\v22.dockwell.catalog.v1alpha1.Entry.TranslationsEntryR\ftranslations\x125\n" +
-	"\x05needs\x18( \x03(\v2\x1f.dockwell.catalog.v1alpha1.NeedR\x05needs\x1ag\n" +
+	"\x05needs\x18( \x03(\v2\x1f.dockwell.catalog.v1alpha1.NeedR\x05needs\x12$\n" +
+	"\rarchitectures\x182 \x03(\tR\rarchitectures\x1ag\n" +
 	"\x11TranslationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
 	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\x8e\x02\n" +

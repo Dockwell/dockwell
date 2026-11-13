@@ -16,6 +16,7 @@ import {
   InputType,
   type Need,
   RestartPolicy,
+  ServerService,
 } from "@dockwell/api";
 import {
   Advanced,
@@ -50,7 +51,7 @@ import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { portRefusal, SERVICE_NAME, tidyMessage } from "../apps/app";
-import { RunsOnField } from "../apps/NewAppSheet";
+import { fitsArchitectures, RunsOnField } from "../apps/NewAppSheet";
 import { useProjectPage } from "../apps/projectPage";
 import { validCpus, validMemory } from "../apps/specEdit";
 import { usePlaces } from "../apps/useServices";
@@ -59,6 +60,7 @@ import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
+import { AddServerSheet } from "../servers/AddServerSheet";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -186,11 +188,20 @@ export function InstallSheet({
     setNameError(undefined);
   }
 
+  // The CPU architectures its images run on, when not every one, and the servers chosen
+  // that it runs on (ADR 0085): another engine's choice keeps only those.
+  const runsOn = entry?.architectures ?? [];
+  const fitting = chosenServers.filter((sid) => fitsArchitectures(servers?.find((s) => s.id === sid) ?? {}, runsOn));
+  const fittingKey = fitting.join(",");
+  const noneFits =
+    runsOn.length > 0 && (servers ?? []).length > 0 && (servers ?? []).every((s) => !fitsArchitectures(s, runsOn));
+  const mayAddServer = useMay()(ServerService.method.createJoinTicket);
+  const [addingServer, setAddingServer] = useState(false);
   // What's free is read on the servers it will run on: the one there is, or those chosen.
   const onlyId = only?.id;
   const serverIds = useMemo(
-    () => (fleet ? [...chosenServers] : onlyId ? [onlyId] : []),
-    [fleet, chosenServers, onlyId],
+    () => (fleet ? fittingKey.split(",").filter(Boolean) : onlyId ? [onlyId] : []),
+    [fleet, fittingKey, onlyId],
   );
   const ports = useServerPorts(serverIds);
   const holderName = (holder: PortHolder) => (holder.kind === "proxy" ? t`Dockwell's proxy` : holder.name);
@@ -348,7 +359,8 @@ export function InstallSheet({
     !missing &&
     !ownEmpty &&
     !ownWrong &&
-    !limitsInvalid;
+    !limitsInvalid &&
+    !noneFits;
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
   const missingLabel = (missing ?? ownEmpty)?.label ?? "";
@@ -375,7 +387,7 @@ export function InstallSheet({
           values: Object.fromEntries(
             Object.entries(values).filter(([key, v]) => v !== "" && v !== (got.data?.values[key] ?? "")),
           ),
-          servers: fleet ? [...chosenServers] : [],
+          servers: fleet ? [...fitting] : [],
           memory,
           cpus,
           restart,
@@ -442,7 +454,7 @@ export function InstallSheet({
     if (busy || !ready) return;
     setFailure(undefined);
     setNameError(undefined);
-    if (fleet && chosenServers.length === 0) {
+    if (fleet && fitting.length === 0) {
       setServersError(t`Choose where it runs.`);
       return;
     }
@@ -454,7 +466,7 @@ export function InstallSheet({
         catalog,
         project: name,
         values,
-        servers: [...chosenServers],
+        servers: [...fitting],
         memory,
         cpus,
         restart,
@@ -516,7 +528,9 @@ export function InstallSheet({
         <>
           <span className="dw-sheet-note">
             <Icon name={entry?.hostAccess ? "shield" : "commit"} size={14} />
-            {unmet ? (
+            {noneFits ? (
+              <Trans>Add an {runsOn.join(", ")} server to review the plan</Trans>
+            ) : unmet ? (
               <Trans>Nothing here can make its {unmetWord} yet</Trans>
             ) : missing || ownEmpty ? (
               <Trans>Give {missingLabel} a value to review the plan</Trans>
@@ -573,6 +587,17 @@ export function InstallSheet({
             <Trans>Reading the sources</Trans>
           </p>
         ) : null}
+        {noneFits ? (
+          <Callout tone="warning" title={t`No ${runsOn.join(", ")} server yet`}>
+            <Trans>
+              {app} runs on {runsOn.join(", ")} servers alone, as its source says.
+            </Trans>{" "}
+            <Button variant="ghost" icon="plus" onClick={() => setAddingServer(true)} {...mayAddServer.off}>
+              <Trans>Add server</Trans>
+            </Button>
+          </Callout>
+        ) : null}
+        {addingServer ? <AddServerSheet control={undefined} onClose={() => setAddingServer(false)} /> : null}
         {failure ? (
           <Callout tone="critical" title={t`Can't make a plan`}>
             {failure}
@@ -616,6 +641,7 @@ export function InstallSheet({
                   }}
                   error={serversError}
                   servers={servers ?? []}
+                  architectures={runsOn}
                 />
               ) : only ? (
                 <Chosen label={t`Runs on`} value={only.name} />

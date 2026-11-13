@@ -351,15 +351,22 @@ func TestABuildWithNoDateCountsFromFirstSight(t *testing.T) {
 }
 
 // An entry runs on amd64 and arm64 both, as the owner's servers do.
-func TestAnAmd64ImageAloneStaysOut(t *testing.T) {
+// An image with no arm64 build stays out of an entry that runs on both, and an app
+// whose source says it runs on amd64 alone converts, offered on amd64 servers
+// (ADR 0085).
+func TestAnAmd64ImageAloneStaysOutUnlessItsSourceSaysSo(t *testing.T) {
 	c := converter()
 	c.Registry = &fakeRegistry{platforms: map[string][]string{"example/a:1.0": {"linux/amd64"}}}
 	r := convertPlain(t, c, "services:\n  a:\n    image: example/a:1.0\n")
 	if r.Entry != nil || r.Class != ClassArch || !strings.Contains(r.LeftOut, "not linux/arm64") {
 		t.Errorf("%s: %q", r.Class, r.LeftOut)
 	}
-	if a := readFixture(t)["amd64only"]; a.Class != ClassArch || !strings.Contains(a.LeftOut, "1Panel says it runs on amd64 alone") {
-		t.Errorf("1Panel's own word: %s, %q", a.Class, a.LeftOut)
+	if a := readFixture(t)["amd64only"]; a.LeftOut != "" || !slices.Equal(a.Architectures, []string{"amd64"}) {
+		t.Errorf("1Panel's own word: %v, %q", a.Architectures, a.LeftOut)
+	}
+	r = convertFixture(t, converter(), "amd64only")
+	if r.Entry == nil || !slices.Equal(r.Entry.GetArchitectures(), []string{"amd64"}) {
+		t.Errorf("amd64only: %v, %q", r.Entry.GetArchitectures(), r.LeftOut)
 	}
 }
 

@@ -4434,6 +4434,9 @@ msgstr "Run {wanted} as {name}"
 msgid "Runs on {onlyName}"
 msgstr "Runs on {onlyName}"
 
+msgid "Runs on {runs} servers alone."
+msgstr "Runs on {runs} servers alone."
+
 msgid "Say where the file is to review the plan"
 msgstr "Say where the file is to review the plan"
 
@@ -6593,6 +6596,10 @@ msgstr "Your installations"
 msgid "{0, plural, one {# installation} other {# installations}}"
 msgstr "{0, plural, one {# installation} other {# installations}}"
 
+#. placeholder {0}: entry.architectures.join(", ")
+msgid "{0} servers"
+msgstr "{0} servers"
+
 msgid "Categories"
 msgstr "Categories"
 
@@ -6702,6 +6709,13 @@ msgstr "A project named {name} is here already"
 msgid "A project named {name} was here before, and its data may come back"
 msgstr "A project named {name} was here before, and its data may come back"
 
+#. placeholder {0}: runsOn.join(", ")
+msgid "Add an {0} server to review the plan"
+msgstr "Add an {0} server to review the plan"
+
+msgid "Add server"
+msgstr "Add server"
+
 msgid "App you open"
 msgstr "App you open"
 
@@ -6771,6 +6785,10 @@ msgstr "New {engine} {version} beside {app}"
 
 msgid "New {name}"
 msgstr "New {name}"
+
+#. placeholder {0}: runsOn.join(", ")
+msgid "No {0} server yet"
+msgstr "No {0} server yet"
 
 msgid "Nothing here can make its {unmetWord} yet"
 msgstr "Nothing here can make its {unmetWord} yet"
@@ -6873,6 +6891,10 @@ msgstr "{0} · Not tested by Dockwell"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} is under the {license} licence."
+
+#. placeholder {0}: runsOn.join(", ")
+msgid "{app} runs on {0} servers alone, as its source says."
+msgstr "{app} runs on {0} servers alone, as its source says."
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
@@ -11359,9 +11381,6 @@ msgstr "{0, plural, one {agents on # version} other {agents on # versions}}"
 
 msgid "{used} of {total}"
 msgstr "{used} of {total}"
-
-msgid "Add server"
-msgstr "Add server"
 
 msgid "Files"
 msgstr "Files"

@@ -84,6 +84,8 @@ export interface ServerSummary {
   dockerUnreadableSince?: number;
   /** True for one that's connected with memory or CPU past HIGH_USE. */
   strained?: boolean;
+  /** Its CPU architecture, such as amd64, once its agent has said. */
+  architecture?: string;
 }
 
 /**
@@ -149,6 +151,7 @@ function summaries(servers: readonly Server[], prev: readonly ServerSummary[] | 
         ? { dockerUnreadableSince: timestampMs(server.dockerUnreadableSince) }
         : {}),
       ...(server.connection === Connection.CONNECTED && server.strainedSince ? { strained: true } : {}),
+      ...(server.inventory?.architecture ? { architecture: server.inventory.architecture } : {}),
     };
     const old = prev?.[i];
     return old && sameSummary(old, summary) ? old : summary;
@@ -165,7 +168,8 @@ function sameSummary(a: ServerSummary, b: ServerSummary): boolean {
     a.lastSeen === b.lastSeen &&
     a.connectedAt === b.connectedAt &&
     a.dockerUnreadableSince === b.dockerUnreadableSince &&
-    a.strained === b.strained
+    a.strained === b.strained &&
+    a.architecture === b.architecture
   );
 }
 

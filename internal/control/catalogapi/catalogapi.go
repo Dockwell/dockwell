@@ -231,6 +231,9 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if len(m.GetServers()) > 0 {
 		onServer = m.GetServers()[0]
 	}
+	if err := h.checkArchitectures(ctx, entry, m.GetServers()); err != nil {
+		return nil, err
+	}
 	entry, pinNotes, err := h.pinImages(ctx, entry, onServer, nil)
 	if err != nil {
 		return nil, err
@@ -497,7 +500,13 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	for _, image := range moving {
 		delete(had, image)
 	}
-	entry, pinNotes, err := h.pinImages(ctx, entry, h.serverOf(ctx, install.GetEnvironmentId()), had)
+	on := h.serverOf(ctx, install.GetEnvironmentId())
+	if on != "" {
+		if err := h.checkArchitectures(ctx, entry, []string{on}); err != nil {
+			return nil, err
+		}
+	}
+	entry, pinNotes, err := h.pinImages(ctx, entry, on, had)
 	if err != nil {
 		return nil, err
 	}

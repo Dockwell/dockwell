@@ -172,8 +172,14 @@ func onePanelRead(t *tree, dir string) App {
 		return app
 	}
 	if arch := meta.More.Architectures; len(arch) > 0 && (!slices.Contains(arch, "amd64") || !slices.Contains(arch, "arm64")) {
-		app.LeftOut, app.Class = fmt.Sprintf("1Panel says it runs on %s alone, where an entry runs on amd64 and arm64 both", strings.Join(arch, " and ")), ClassArch
-		return app
+		// Offered on servers of the one it runs on (ADR 0085).
+		app.Architectures = slices.DeleteFunc(slices.Clone(arch), func(a string) bool { return a != "amd64" && a != "arm64" })
+		if len(app.Architectures) == 0 {
+			app.LeftOut, app.Class = fmt.Sprintf("1Panel says it runs on %s alone, where Dockwell runs on amd64 and arm64 servers", strings.Join(arch, " and ")), ClassArch
+			return app
+		}
+		slices.Sort(app.Architectures)
+		app.Architectures = slices.Compact(app.Architectures)
 	}
 	slices.SortFunc(names, compareVersions)
 	// Each version, newest first, so one that's too young can fall back to the one

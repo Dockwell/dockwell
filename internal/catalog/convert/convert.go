@@ -118,6 +118,9 @@ type App struct {
 	// Dokploy's are, so every $ in it is its own; otherwise ${NAME} in it is a
 	// variable, as in Coolify's.
 	LiteralFiles bool
+	// Architectures are the CPU architectures its source says it runs on, when not
+	// both of amd64 and arm64, such as ["amd64"] (ADR 0085).
+	Architectures []string
 	// scripts is what its store's scripts come to, read as steps Dockwell takes
 	// itself, never run (ADR 0085).
 	scripts scriptSteps
@@ -346,7 +349,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	if c.OnServer {
 		file, err = tagged(rw.file)
 	} else {
-		file, notes, err = c.pin(ctx, rw.file)
+		file, notes, err = c.pin(ctx, rw.file, app.Architectures)
 	}
 	if err != nil {
 		var young youngError
@@ -369,6 +372,8 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		Source:   &catalogv1.Source{Repository: c.Source.Repository, Path: app.Path, Commit: c.Source.Commit},
 		Compose:  string(file),
 		Inputs:   rw.inputs,
+		// An app that runs on one architecture alone is offered on servers of it.
+		Architectures: app.Architectures,
 	}
 	if svc := serviceOf(file, rw.web); svc != "" {
 		e.Web = &catalogv1.Web{Service: svc}
@@ -437,14 +442,21 @@ func same(a, b *catalogv1.Entry) bool {
 	return proto.Equal(a, b)
 }
 
-// The platforms every entry runs on: the owner's servers are amd64 and arm64.
+// The platforms an entry runs on unless it says it runs on fewer: amd64 and arm64.
 var platforms = []string{"linux/amd64", "linux/arm64"}
 
 // pin pins every image by digest, and holds back a build younger than HoldBack: a new
 // version, or a tag pushed again, whose new build waits its own 14 days while entries
 // keep the one before. A build that says no believable date counts from when the
 // converter first saw it.
-func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, error) {
+func (c *Converter) pin(ctx context.Context, file []byte, architectures []string) ([]byte, []string, error) {
+	want := platforms
+	if len(architectures) > 0 {
+		want = nil
+		for _, a := range architectures {
+			want = append(want, "linux/"+a)
+		}
+	}
 	doc, err := parseFile(file)
 	if err != nil {
 		return nil, nil, err
@@ -506,8 +518,8 @@ func (c *Converter) pin(ctx context.Context, file []byte) ([]byte, []string, err
 		if err != nil {
 			return nil, nil, leaveForNow(ClassAgeUnknown, "the platforms %s runs on aren't known: %v. It converts on a later run", image, err)
 		}
-		if missing := slices.DeleteFunc(slices.Clone(platforms), func(p string) bool { return slices.Contains(has, p) }); len(missing) > 0 {
-			return nil, nil, leave(ClassArch, "%s runs on %s, and not %s, where an entry runs on amd64 and arm64 both", image, strings.Join(has, " and "), strings.Join(missing, " or "))
+		if missing := slices.DeleteFunc(slices.Clone(want), func(p string) bool { return slices.Contains(has, p) }); len(missing) > 0 {
+			return nil, nil, leave(ClassArch, "%s runs on %s, and not %s, where its source says it runs on %s", image, strings.Join(has, " and "), strings.Join(missing, " or "), strings.Join(want, " and "))
 		}
 		// Plain, and with no comment after it, as the catalog reads a pin by its line.
 		if r.digest == "" {

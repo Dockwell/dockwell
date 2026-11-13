@@ -4434,6 +4434,9 @@ msgstr "以 {name} 运行 {wanted}"
 msgid "Runs on {onlyName}"
 msgstr "运行于 {onlyName}"
 
+msgid "Runs on {runs} servers alone."
+msgstr "只能运行在 {runs} 服务器上。"
+
 msgid "Say where the file is to review the plan"
 msgstr "请说明文件所在位置后再查看计划"
 
@@ -6593,6 +6596,10 @@ msgstr "你已安装的应用"
 msgid "{0, plural, one {# installation} other {# installations}}"
 msgstr "{0, plural, other {# 个已安装实例}}"
 
+#. placeholder {0}: entry.architectures.join(", ")
+msgid "{0} servers"
+msgstr "{0} 服务器"
+
 msgid "Categories"
 msgstr "分类"
 
@@ -6702,6 +6709,13 @@ msgstr "已有名为 {name} 的项目"
 msgid "A project named {name} was here before, and its data may come back"
 msgstr "之前有过名为 {name} 的项目，它的数据可能会回来"
 
+#. placeholder {0}: runsOn.join(", ")
+msgid "Add an {0} server to review the plan"
+msgstr "添加一台 {0} 服务器后即可审查计划"
+
+msgid "Add server"
+msgstr "添加服务器"
+
 msgid "App you open"
 msgstr "你打开的应用"
 
@@ -6771,6 +6785,10 @@ msgstr "在 {app} 旁新建 {engine} {version}"
 
 msgid "New {name}"
 msgstr "新建 {name}"
+
+#. placeholder {0}: runsOn.join(", ")
+msgid "No {0} server yet"
+msgstr "还没有 {0} 服务器"
 
 msgid "Nothing here can make its {unmetWord} yet"
 msgstr "这里还无法创建它所需的 {unmetWord}"
@@ -6873,6 +6891,10 @@ msgstr "{0} · 未经 Dockwell 测试"
 
 msgid "{app} is under the {license} licence."
 msgstr "{app} 采用 {license} 许可证。"
+
+#. placeholder {0}: runsOn.join(", ")
+msgid "{app} runs on {0} servers alone, as its source says."
+msgstr "按其来源的说法，{app} 只能运行在 {0} 服务器上。"
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
@@ -11359,9 +11381,6 @@ msgstr "{0, plural, other {代理有 # 个版本}}"
 
 msgid "{used} of {total}"
 msgstr "{used} / {total}"
-
-msgid "Add server"
-msgstr "添加服务器"
 
 msgid "Files"
 msgstr "文件"

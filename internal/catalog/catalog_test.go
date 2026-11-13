@@ -732,7 +732,9 @@ func TestCheckRefuses(t *testing.T) {
 		"a secret as all a config holds": {func(e *catalogv1.Entry) {
 			e.Compose += "configs:\n  pass:\n    content: ${POSTGRES_PASSWORD}\n"
 		}, "into a file a plan shows"},
-		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
+		"an architecture Dockwell doesn't run on": {func(e *catalogv1.Entry) { e.Architectures = []string{"s390x"} }, `it runs on "s390x"`},
+		"an architecture twice":                   {func(e *catalogv1.Entry) { e.Architectures = []string{"amd64", "amd64"} }, "names amd64 twice"},
+		"short secret":                            {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 		"a secret longer than Dockwell generates": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 1 << 30 }, "more than the 256 Dockwell generates"},
 		"a database it doesn't run":               {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
 		// M1: an owner for a server path makes a folder of the server's, whatever

@@ -140,6 +140,14 @@ export function CatalogDetailPage({
                 <dd>{entry.appLicense}</dd>
               </div>
             ) : null}
+            {entry.architectures.length > 0 ? (
+              <div>
+                <dt>
+                  <Trans>Runs on</Trans>
+                </dt>
+                <dd>{t`${entry.architectures.join(", ")} servers`}</dd>
+              </div>
+            ) : null}
             {origins.data && catalogs.length > 1 ? (
               <div className="catalog-fact-choice">
                 <dt>

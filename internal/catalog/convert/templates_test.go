@@ -5,6 +5,7 @@ package convert
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -193,6 +194,21 @@ func TestCoolifyWritesWhatItsTemplateMakes(t *testing.T) {
 	}
 	if r.Entry.GetLicense() != "Apache-2.0" || r.Entry.GetSource().GetPath() != "templates/compose/board.yaml" {
 		t.Errorf("it says it's %s, at %s", r.Entry.GetLicense(), r.Entry.GetSource().GetPath())
+	}
+}
+
+// An app Coolify says runs on amd64 alone converts, offered on amd64 servers
+// (ADR 0085).
+func TestCoolifysAmd64AloneIsOfferedOnAmd64Servers(t *testing.T) {
+	board, err := os.ReadFile("testdata/coolify/templates/compose/board.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := convertTree(t, Coolify, CoolifySource("abc"), map[string]string{
+		"templates/compose/board.yaml": strings.Replace(string(board), "# port: 8080", "# port: 8080\n# amd_only: true", 1),
+	})
+	if e := entryOf(t, results, "board"); !slices.Equal(e.GetArchitectures(), []string{"amd64"}) {
+		t.Errorf("architectures = %v", e.GetArchitectures())
 	}
 }
 

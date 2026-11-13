@@ -98,8 +98,8 @@ func coolifyRead(t *tree, dir, name string) App {
 		app.LeftOut, app.Class = "Coolify marks it as one to leave out", ClassSkipped
 		return app
 	case head["amd_only"] == "true":
-		app.LeftOut, app.Class = "Coolify says it runs on amd64 alone, where an entry runs on amd64 and arm64 both", ClassArch
-		return app
+		// Offered on amd64 servers (ADR 0085).
+		app.Architectures = []string{"amd64"}
 	}
 	app.Compose, app.Fields, err = coolifyCompose(file, head["port"])
 	if err != nil {

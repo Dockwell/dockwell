@@ -15,6 +15,8 @@ import {
   PlanAction,
   RestartPolicy,
   ScreenshotSchema,
+  type Server,
+  ServerInventorySchema,
   type UpgradeServiceRequest,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -1012,6 +1014,68 @@ describe("Installing from the catalog", () => {
     expect(await within(sheet).findByText(/a project named postgres is here already/i)).toBeVisible();
     expect(within(sheet).getByRole("textbox", { name: "Name" })).toHaveAttribute("aria-invalid", "true");
     expect(within(sheet).queryByText("Can't make a plan")).not.toBeInTheDocument();
+  });
+});
+
+describe("An app that runs on amd64 alone", () => {
+  const board = create(EntrySchema, {
+    id: "board",
+    name: "Board",
+    summary: "A board for notes",
+    category: "productivity",
+    version: "1.0.0",
+    appLicense: "MIT",
+    architectures: ["amd64"],
+  });
+  const on = (id: string, name: string, architecture: string) =>
+    aServer({ id, name, inventory: create(ServerInventorySchema, { osName: "Ubuntu 24.04.1 LTS", architecture }) });
+  function boardApi(servers: Server[], asked: InstallCatalogEntryRequest[] = []): Api {
+    const watch = feed<WatchServersResponse>();
+    watch.push(...servers.map(changed), snapshotComplete);
+    return {
+      servers: { watchServers: watch.stream },
+      catalog: {
+        listCatalogEntries: () => ({ entries: [board] }),
+        getCatalogEntry: () => ({ entry: board, project: "board", values: {}, parts: [] }),
+        installCatalogEntry: (req) => {
+          asked.push(req);
+          return { change: create(ChangeSchema, { id: "chg_board", state: ChangeState.PLANNED }) };
+        },
+      },
+      changes: { watchChange: feed<WatchChangeResponse>().stream },
+    };
+  }
+
+  it("says so on its page, and is offered on the servers it runs on", async () => {
+    const user = userEvent.setup();
+    const page = renderAt("/catalog/board", boardApi([on(SERVER, "hz-1", "amd64")]));
+    expect(await screen.findByText("amd64 servers")).toBeVisible();
+    page.unmount();
+
+    const asked: InstallCatalogEntryRequest[] = [];
+    const { container } = renderAt(
+      "/catalog/board/install",
+      boardApi([on(SERVER, "hz-1", "amd64"), on("srv_2", "hz-2", "arm64")], asked),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install Board" });
+    const where = await within(sheet).findByRole("group", { name: "Runs on" });
+    expect(where).toHaveAccessibleDescription("Runs on amd64 servers alone.");
+    expect(within(where).getByRole("checkbox", { name: /hz-2/ })).toBeDisabled();
+    await user.click(within(where).getByRole("checkbox", { name: /hz-1/ }));
+    await expectAccessible(container);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.servers).toEqual([SERVER]);
+  });
+
+  it("says when no server runs it, with a way to add one", async () => {
+    renderAt("/catalog/board/install", boardApi([on(SERVER, "hz-1", "arm64")]));
+    const sheet = await screen.findByRole("dialog", { name: "Install Board" });
+    expect(await within(sheet).findByText("No amd64 server yet")).toBeVisible();
+    expect(within(sheet).getByText(/Board runs on amd64 servers alone, as its source says/)).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Add server" })).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    expect(within(sheet).getByText("Add an amd64 server to review the plan")).toBeVisible();
   });
 });
 

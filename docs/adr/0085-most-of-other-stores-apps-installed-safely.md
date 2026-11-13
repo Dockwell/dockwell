@@ -131,9 +131,19 @@ How the agent gives a volume its owner:
 
 An upgrade's `chown -R` of data an app already wrote isn't taken: the data keeps the owner it has.
 
+### An app that runs on amd64 alone
+
+*Added with the fifth slice of #570.*
+
+25 of 1Panel's apps and one of Coolify's say their images run on amd64 alone, and an entry ran on amd64 and arm64 both, so they were left out. A server's agent says its architecture, so such an app can be offered where it runs:
+
+- **An entry says the architectures its images run on** (`Entry.architectures`, 50), "amd64" or "arm64"; empty is both, as before. The converter takes 1Panel's `architectures` and Coolify's `amd_only`, and an app that names neither amd64 nor arm64 is still left out. Building Dockwell's own catalog checks each image's platforms against what the entry says.
+- **An install or an upgrade on a server of another architecture is refused**, naming it and where to put it: "Board runs on amd64 servers alone, as its source says, and hz-2 is arm64. Install it on an amd64 server." A server that hasn't said its architecture yet is let through, as pulling the image says it then.
+- **The panel says "Runs on amd64 servers"** on the app's card and page, and its install form offers only servers it runs on.
+
 ### Numbers
 
-ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301) and `Hello.owns_volumes` (302); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
+ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301) and `Hello.owns_volumes` (302); `Entry.architectures` (50); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 13 Nov 2026
 

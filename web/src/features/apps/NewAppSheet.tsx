@@ -2666,34 +2666,49 @@ export function RunsOnField({
   onChange,
   error,
   servers,
+  architectures = [],
 }: {
   value: readonly string[];
   onChange: (next: readonly string[]) => void;
   error: string | undefined;
   servers: NonNullable<ReturnType<typeof useFleetView>["servers"]>;
+  /** The CPU architectures what it installs runs on, when not every one: a server of another is off (ADR 0085). */
+  architectures?: readonly string[];
 }) {
   const { t } = useLingui();
   const id = useId();
+  const hint = useId();
+  const runs = architectures.join(", ");
   return (
-    <fieldset className="app-section" aria-labelledby={id}>
+    <fieldset className="app-section" aria-labelledby={id} aria-describedby={runs ? hint : undefined}>
       <span id={id} className="dw-field-label">
         <Trans>Runs on</Trans>
       </span>
       <div className="app-servers">
-        {servers.map((server) => (
-          <label key={server.id} className="app-check is-server">
-            <input
-              type="checkbox"
-              checked={value.includes(server.id)}
-              onChange={(event) =>
-                onChange(event.target.checked ? [...value, server.id] : value.filter((s) => s !== server.id))
-              }
-            />
-            <code className="app-server-name">{server.name}</code>
-            {server.connection === Connection.CONNECTED ? null : <Tag words>{t`Offline`}</Tag>}
-          </label>
-        ))}
+        {servers.map((server) => {
+          const misfit = !fitsArchitectures(server, architectures);
+          return (
+            <label key={server.id} className="app-check is-server">
+              <input
+                type="checkbox"
+                checked={value.includes(server.id) && !misfit}
+                disabled={misfit}
+                onChange={(event) =>
+                  onChange(event.target.checked ? [...value, server.id] : value.filter((s) => s !== server.id))
+                }
+              />
+              <code className="app-server-name">{server.name}</code>
+              {misfit ? <Tag words>{server.architecture}</Tag> : null}
+              {server.connection === Connection.CONNECTED ? null : <Tag words>{t`Offline`}</Tag>}
+            </label>
+          );
+        })}
       </div>
+      {runs ? (
+        <span id={hint} className="dw-field-hint">
+          <Trans>Runs on {runs} servers alone.</Trans>
+        </span>
+      ) : null}
       {error ? (
         <span className="dw-field-error" role="alert">
           {error}
@@ -2701,6 +2716,14 @@ export function RunsOnField({
       ) : null}
     </fieldset>
   );
+}
+
+/**
+ * Whether what runs on architectures runs on a server: one that hasn't said its
+ * architecture yet is let through, as pulling its image says it then (ADR 0085).
+ */
+export function fitsArchitectures(server: { architecture?: string }, architectures: readonly string[]): boolean {
+  return architectures.length === 0 || !server.architecture || architectures.includes(server.architecture);
 }
 
 /** Which of a folder's fields a refusal is about, from what it says, or "" for none of them. */

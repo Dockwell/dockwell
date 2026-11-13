@@ -118,6 +118,12 @@ message Entry {
   // Numbered apart, as open work adds to this message. See
   // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
   repeated Need needs = 40;
+
+  // The CPU architectures its images run on, "amd64" or "arm64", as its source
+  // says, such as ["amd64"] for an app whose images have no arm64 build. Empty runs
+  // on both. A server of another is never offered for it, and an install or an
+  // upgrade there is refused (ADR 0085). Other stores' work takes 50 to 59 here.
+  repeated string architectures = 50;
 }
 
 // Need is something an app reads from outside its own containers, such as a
