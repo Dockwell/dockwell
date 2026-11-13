@@ -72,8 +72,10 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 		return res, nil
 	}
 	if digest != "" {
+		// Kept as a read keeps it, by the login it read with, so a read with no
+		// login never finds what a login alone could see (ADR 0086).
 		im.mu.Lock()
-		im.digests.put(ref.String(), digest, im.now())
+		im.digests.put(ref.String()+signedInAs(ctx), digest, im.now())
 		im.mu.Unlock()
 	}
 	if !call.GetTags() || !registry.IsVersion(ref.Tag) {
