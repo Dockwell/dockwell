@@ -30,3 +30,5 @@ coverage/
 
 # What tests the ingress against the real thing, in CI (scripts/ingress-tools.sh)
 /.ingress-tools/
+/fakedocker
+/gitserve

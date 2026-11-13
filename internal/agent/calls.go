@@ -27,6 +27,8 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/delivery"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -545,6 +547,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if m := d.GetMoveDatabase(); m != nil {
 				want.Move = &resource.MoveAsked{Backup: m.GetBackupId(), From: m.GetFromVolume(), To: m.GetToVolume(), Change: m.GetChangeId(), Finish: m.GetFinishOnly()}
 			}
+			if sealed := d.GetRegistryAuth(); len(sealed) > 0 {
+				prepare, err := c.signedIn(ctx, ref, sealed)
+				if err != nil {
+					return fail(err)
+				}
+				want.Prepare = prepare
+			}
 			wanted = append(wanted, want)
 			if n := d.GetScopeName(); n != "" {
 				names[ref.Scope] = n
@@ -627,7 +636,17 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			defer clear(values)
 			applyCtx = resource.WithValues(ctx, values)
 		}
-		if err := c.local.Apply(applyCtx, step, spec); err != nil {
+		// The registry login the step's pull signs in with, for this step alone: it's
+		// never kept with what the server runs.
+		pullCtx := applyCtx
+		if sealed := call.GetApply().GetDesired().GetRegistryAuth(); len(sealed) > 0 {
+			prepare, err := c.signedIn(ctx, ref, sealed)
+			if err != nil {
+				return fail(err)
+			}
+			pullCtx = prepare(applyCtx)
+		}
+		if err := c.local.Apply(pullCtx, step, spec); err != nil {
 			if step.Action == resource.ActionDelete && c.cfg.Desired != nil {
 				// What's left of it is the control plane's to finish, not the agent's to
 				// put back while it's away.
@@ -926,6 +945,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Ports{Ports: held}}
 	}
 	if call.GetImage() != nil {
+		ctx, err := c.readsAs(ctx, call.GetImage().GetRegistryAuth())
+		if err != nil {
+			return fail(err)
+		}
 		read, err := c.cfg.images.read(ctx, call.GetImage())
 		if err != nil {
 			return fail(err)
@@ -933,11 +956,25 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Image{Image: read}}
 	}
 	if call.GetImageUpdates() != nil {
+		ctx, err := c.readsAs(ctx, call.GetImageUpdates().GetRegistryAuth())
+		if err != nil {
+			return fail(err)
+		}
 		found, err := c.cfg.images.imageUpdates(ctx, call.GetImageUpdates())
 		if err != nil {
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ImageUpdates{ImageUpdates: found}}
+	}
+	if check := call.GetCheckRegistryLogin(); check != nil {
+		if host := check.GetProbe(); host != "" {
+			return &agentv1.CallResult{Result: &agentv1.CallResult_CheckRegistryLogin{CheckRegistryLogin: c.cfg.images.probeRegistry(ctx, host)}}
+		}
+		a, err := c.openLogin(resource.Ref{}, check.GetRegistryAuth())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckRegistryLogin{CheckRegistryLogin: c.cfg.images.checkLogin(ctx, a, check.GetFirst())}}
 	}
 	if call.GetReadOnepanel() != nil {
 		if c.cfg.OnePanel == nil {
@@ -1405,4 +1442,56 @@ func accessWait(w *resource.AccessWait) *agentv1.AccessWait {
 func (c *calls) guardsAccess(kind resource.Kind) bool {
 	t, err := c.cfg.Drivers.Type(kind)
 	return err == nil && resource.GuardsAccess(t)
+}
+
+// openLogin opens a registry login sent sealed for ref's call (ADR 0086). It's never
+// logged, and lives as long as the call.
+func (c *calls) openLogin(ref resource.Ref, sealed []byte) (registry.Auth, error) {
+	if len(sealed) == 0 {
+		return registry.Auth{}, errors.New("the call carries no registry login")
+	}
+	if c.delivery == nil {
+		return registry.Auth{}, errors.New("this agent has no delivery key to open the registry login sent with this call")
+	}
+	values, err := c.delivery.Open(c.server, resource.LoginRef(ref), sealed)
+	if err != nil {
+		return registry.Auth{}, err
+	}
+	defer clear(values)
+	return registry.AuthFrom(values)
+}
+
+// readsAs is ctx carrying the registry login sent sealed with an image read, if
+// any, for Dockwell's own reads: Docker isn't asked to pull with it.
+func (c *calls) readsAs(ctx context.Context, sealed []byte) (context.Context, error) {
+	if len(sealed) == 0 {
+		return ctx, nil
+	}
+	a, err := c.openLogin(resource.Ref{}, sealed)
+	if err != nil {
+		return ctx, err
+	}
+	return registry.WithAuth(ctx, a), nil
+}
+
+// signedIn opens the registry login sent for ref's plan or step, and says how a
+// call carries it: to Dockwell's reads, and to Docker's pull of an image on its
+// registry, once the registry's challenge names no token service but the one it
+// was saved with. A registry that doesn't answer gets no login from Docker.
+func (c *calls) signedIn(ctx context.Context, ref resource.Ref, sealed []byte) (func(context.Context) context.Context, error) {
+	a, err := c.openLogin(ref, sealed)
+	if err != nil {
+		return nil, err
+	}
+	toDocker, err := c.cfg.images.challenge(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context) context.Context {
+		ctx = registry.WithAuth(ctx, a)
+		if toDocker {
+			ctx = docker.WithRegistryAuth(ctx, a.Registry, a.Header())
+		}
+		return ctx
+	}, nil
 }

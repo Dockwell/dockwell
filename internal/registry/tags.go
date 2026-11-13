@@ -32,7 +32,7 @@ type Tag struct {
 // version, with the digests of "latest" and the newest versions asked with a
 // HEAD each, to tell which point where "latest" does.
 func (c *Client) Tags(ctx context.Context, r Ref) ([]Tag, error) {
-	if r.Registry == Hub {
+	if r.Registry == Hub && !signsIn(ctx) {
 		return c.hubTags(ctx, r, "", true)
 	}
 	names, err := c.tagNames(ctx, r)
@@ -171,7 +171,7 @@ func nextPage(link string) string {
 // set, such as "alpine"; any other registry's names, as its list gives them,
 // with nothing more asked of each.
 func (c *Client) TagList(ctx context.Context, r Ref, filter string) ([]Tag, error) {
-	if r.Registry == Hub {
+	if r.Registry == Hub && !signsIn(ctx) {
 		return c.hubTags(ctx, r, filter, false)
 	}
 	names, err := c.tagNames(ctx, r)
@@ -348,4 +348,11 @@ func compareVersions(x, y versioned) int {
 		return 1
 	}
 	return strings.Compare(a, b)
+}
+
+// signsIn says a read signs in at Docker Hub, whose API, a host of its own, gets
+// no login: the registry lists the tags of a repository it keeps private (ADR 0086).
+func signsIn(ctx context.Context) bool {
+	_, ok := authFor(ctx, Hub)
+	return ok
 }

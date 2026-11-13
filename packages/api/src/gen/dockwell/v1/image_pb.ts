@@ -6,6 +6,8 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { RegistryLoginEcr } from "../resource/v1alpha1/specs_pb";
+import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
@@ -16,7 +18,230 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/image.proto.
  */
 export const file_dockwell_v1_image: GenFile = /*@__PURE__*/
-  fileDesc("Chdkb2Nrd2VsbC92MS9pbWFnZS5wcm90bxILZG9ja3dlbGwudjEiWQoTU2VhcmNoSW1hZ2VzUmVxdWVzdBIMCgR0ZXJtGAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEg8KB3Byb2plY3QYAyABKAkSDgoGc2VydmVyGAQgASgJImoKFFNlYXJjaEltYWdlc1Jlc3BvbnNlEigKB21hdGNoZXMYASADKAsyFy5kb2Nrd2VsbC52MS5JbWFnZU1hdGNoEigKBmFuc3dlchgCIAEoDjIYLmRvY2t3ZWxsLnYxLkltYWdlQW5zd2VyIlAKCkltYWdlTWF0Y2gSDAoEbmFtZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIQCghvZmZpY2lhbBgDIAEoCBINCgVzdGFycxgEIAEoAyJgChRMaXN0SW1hZ2VUYWdzUmVxdWVzdBISCgpyZXBvc2l0b3J5GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEg8KB3Byb2plY3QYAyABKAkSDgoGc2VydmVyGAQgASgJImYKFUxpc3RJbWFnZVRhZ3NSZXNwb25zZRIjCgR0YWdzGAEgAygLMhUuZG9ja3dlbGwudjEuSW1hZ2VUYWcSKAoGYW5zd2VyGAIgASgOMhguZG9ja3dlbGwudjEuSW1hZ2VBbnN3ZXIiZwoISW1hZ2VUYWcSDAoEbmFtZRgBIAEoCRIOCgZkaWdlc3QYAiABKAkSLQoJcHVzaF90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZsYXRlc3QYBCABKAgiWgoPR2V0SW1hZ2VSZXF1ZXN0EhEKCXJlZmVyZW5jZRgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEg4KBnNlcnZlchgEIAEoCSKgAQoQR2V0SW1hZ2VSZXNwb25zZRIoCgZhbnN3ZXIYASABKA4yGC5kb2Nrd2VsbC52MS5JbWFnZUFuc3dlchIOCgZkaWdlc3QYAiABKAkSKAoGY29uZmlnGAMgASgLMhguZG9ja3dlbGwudjEuSW1hZ2VDb25maWcSKAoGdW5yZWFkGAQgASgOMhguZG9ja3dlbGwudjEuSW1hZ2VBbnN3ZXIi7wEKC0ltYWdlQ29uZmlnEiUKBXBvcnRzGAEgAygLMhYuZG9ja3dlbGwudjEuSW1hZ2VQb3J0EicKA2VudhgCIAMoCzIaLmRvY2t3ZWxsLnYxLkltYWdlVmFyaWFibGUSDwoHdm9sdW1lcxgDIAMoCRIPCgdjb21tYW5kGAQgAygJEhIKCmVudHJ5cG9pbnQYBSADKAkSDAoEdXNlchgGIAEoCRITCgt3b3JraW5nX2RpchgHIAEoCRITCgtoZWFsdGhjaGVjaxgIIAMoCRIQCghwbGF0Zm9ybRgJIAEoCRIQCgd2ZXJzaW9uGIQCIAEoCSImCglJbWFnZVBvcnQSDAoEcG9ydBgBIAEoDRILCgN1ZHAYAiABKAgiLAoNSW1hZ2VWYXJpYWJsZRIMCgRuYW1lGAEgASgJEg0KBXZhbHVlGAIgASgJKpkBCgtJbWFnZUFuc3dlchIcChhJTUFHRV9BTlNXRVJfVU5TUEVDSUZJRUQQABIWChJJTUFHRV9BTlNXRVJfRk9VTkQQARIaChZJTUFHRV9BTlNXRVJfTk9UX0ZPVU5EEAISHAoYSU1BR0VfQU5TV0VSX1VOUkVBQ0hBQkxFEAMSGgoWSU1BR0VfQU5TV0VSX05PVF9BU0tFRBAEMo8DCgxJbWFnZVNlcnZpY2USgQEKDFNlYXJjaEltYWdlcxIgLmRvY2t3ZWxsLnYxLlNlYXJjaEltYWdlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5TZWFyY2hJbWFnZXNSZXNwb25zZSIskAIBoLsYAcC7GAPIuxgD0LsYBILT5JMCExIRL3YxL2ltYWdlczpzZWFyY2gSggEKDUxpc3RJbWFnZVRhZ3MSIS5kb2Nrd2VsbC52MS5MaXN0SW1hZ2VUYWdzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3RJbWFnZVRhZ3NSZXNwb25zZSIqkAIBoLsYAcC7GAPIuxgD0LsYBILT5JMCERIPL3YxL2ltYWdlczp0YWdzEnYKCEdldEltYWdlEhwuZG9ja3dlbGwudjEuR2V0SW1hZ2VSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuR2V0SW1hZ2VSZXNwb25zZSItkAIBoLsYAcC7GAPIuxgD0LsYBILT5JMCFBISL3YxL2ltYWdlczppbnNwZWN0QqMBCg9jb20uZG9ja3dlbGwudjFCCkltYWdlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chdkb2Nrd2VsbC92MS9pbWFnZS5wcm90bxILZG9ja3dlbGwudjEiQQoZTGlzdFJlZ2lzdHJ5TG9naW5zUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJIkwKGkxpc3RSZWdpc3RyeUxvZ2luc1Jlc3BvbnNlEi4KBmxvZ2lucxgBIAMoCzIeLmRvY2t3ZWxsLnYxLlJlZ2lzdHJ5TG9naW5JbmZvIoQBChFSZWdpc3RyeUxvZ2luSW5mbxIMCgRuYW1lGAEgASgJEhAKCHJlZ2lzdHJ5GAIgASgJEhAKCHVzZXJuYW1lGAMgASgJEgsKA2VjchgEIAEoCBISCgp0b2tlbl9ob3N0GAUgASgJEhAKCHByb2plY3RzGAYgAygJEgoKAmlkGAcgASgJIsUBChlDaGVja1JlZ2lzdHJ5TG9naW5SZXF1ZXN0EhAKCHJlZ2lzdHJ5GAEgASgJEhAKCHVzZXJuYW1lGAIgASgJEhYKCHBhc3N3b3JkGAMgASgJQgTI8xgBEj8KA2VjchgEIAEoCzIsLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlZ2lzdHJ5TG9naW5FY3JCBMjzGAESDAoEbmFtZRgFIAEoCRIOCgZzZXJ2ZXIYBiABKAkSDQoFcHJvYmUYByABKAgiggEKGkNoZWNrUmVnaXN0cnlMb2dpblJlc3BvbnNlEi4KBXN0YXRlGAEgASgOMh8uZG9ja3dlbGwudjEuUmVnaXN0cnlMb2dpblN0YXRlEhIKCnRva2VuX2hvc3QYAiABKAkSDgoGZGV0YWlsGAMgASgJEhAKCHJlZ2lzdHJ5GAQgASgJIlkKE1NlYXJjaEltYWdlc1JlcXVlc3QSDAoEdGVybRgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEg4KBnNlcnZlchgEIAEoCSJqChRTZWFyY2hJbWFnZXNSZXNwb25zZRIoCgdtYXRjaGVzGAEgAygLMhcuZG9ja3dlbGwudjEuSW1hZ2VNYXRjaBIoCgZhbnN3ZXIYAiABKA4yGC5kb2Nrd2VsbC52MS5JbWFnZUFuc3dlciJQCgpJbWFnZU1hdGNoEgwKBG5hbWUYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSEAoIb2ZmaWNpYWwYAyABKAgSDQoFc3RhcnMYBCABKAMiiwEKFExpc3RJbWFnZVRhZ3NSZXF1ZXN0EhIKCnJlcG9zaXRvcnkYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSDwoHcHJvamVjdBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkSFgoOcmVnaXN0cnlfbG9naW4YZCABKAkSEQoJYW5vbnltb3VzGGUgASgIIn4KFUxpc3RJbWFnZVRhZ3NSZXNwb25zZRIWCg5yZWdpc3RyeV9sb2dpbhhkIAEoCRIjCgR0YWdzGAEgAygLMhUuZG9ja3dlbGwudjEuSW1hZ2VUYWcSKAoGYW5zd2VyGAIgASgOMhguZG9ja3dlbGwudjEuSW1hZ2VBbnN3ZXIiZwoISW1hZ2VUYWcSDAoEbmFtZRgBIAEoCRIOCgZkaWdlc3QYAiABKAkSLQoJcHVzaF90aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZsYXRlc3QYBCABKAgihQEKD0dldEltYWdlUmVxdWVzdBIRCglyZWZlcmVuY2UYASABKAkSEwoLZW52aXJvbm1lbnQYAiABKAkSDwoHcHJvamVjdBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkSFgoOcmVnaXN0cnlfbG9naW4YZCABKAkSEQoJYW5vbnltb3VzGGUgASgIIrgBChBHZXRJbWFnZVJlc3BvbnNlEhYKDnJlZ2lzdHJ5X2xvZ2luGGQgASgJEigKBmFuc3dlchgBIAEoDjIYLmRvY2t3ZWxsLnYxLkltYWdlQW5zd2VyEg4KBmRpZ2VzdBgCIAEoCRIoCgZjb25maWcYAyABKAsyGC5kb2Nrd2VsbC52MS5JbWFnZUNvbmZpZxIoCgZ1bnJlYWQYBCABKA4yGC5kb2Nrd2VsbC52MS5JbWFnZUFuc3dlciLvAQoLSW1hZ2VDb25maWcSJQoFcG9ydHMYASADKAsyFi5kb2Nrd2VsbC52MS5JbWFnZVBvcnQSJwoDZW52GAIgAygLMhouZG9ja3dlbGwudjEuSW1hZ2VWYXJpYWJsZRIPCgd2b2x1bWVzGAMgAygJEg8KB2NvbW1hbmQYBCADKAkSEgoKZW50cnlwb2ludBgFIAMoCRIMCgR1c2VyGAYgASgJEhMKC3dvcmtpbmdfZGlyGAcgASgJEhMKC2hlYWx0aGNoZWNrGAggAygJEhAKCHBsYXRmb3JtGAkgASgJEhAKB3ZlcnNpb24YhAIgASgJIiYKCUltYWdlUG9ydBIMCgRwb3J0GAEgASgNEgsKA3VkcBgCIAEoCCIsCg1JbWFnZVZhcmlhYmxlEgwKBG5hbWUYASABKAkSDQoFdmFsdWUYAiABKAkq4wIKElJlZ2lzdHJ5TG9naW5TdGF0ZRIkCiBSRUdJU1RSWV9MT0dJTl9TVEFURV9VTlNQRUNJRklFRBAAEjEKHlJFR0lTVFJZX0xPR0lOX1NUQVRFX1NJR05FRF9JThABGg2iuxgJU2lnbmVkIGluEkAKHFJFR0lTVFJZX0xPR0lOX1NUQVRFX1JFRlVTRUQQAhoeorsYGldyb25nIHVzZXJuYW1lIG9yIHBhc3N3b3JkEkIKIFJFR0lTVFJZX0xPR0lOX1NUQVRFX1VOUkVBQ0hBQkxFEAMaHKK7GBhDYW4ndCByZWFjaCB0aGUgcmVnaXN0cnkSNwoaUkVHSVNUUllfTE9HSU5fU1RBVEVfTU9WRUQQBBoXorsYE1Rva2VuIHNlcnZpY2UgbW92ZWQSNQoZUkVHSVNUUllfTE9HSU5fU1RBVEVfQVNLUxAFGhaiuxgSQXNrcyBmb3IgYSBzaWduLWluKroBCgtJbWFnZUFuc3dlchIcChhJTUFHRV9BTlNXRVJfVU5TUEVDSUZJRUQQABIWChJJTUFHRV9BTlNXRVJfRk9VTkQQARIaChZJTUFHRV9BTlNXRVJfTk9UX0ZPVU5EEAISHAoYSU1BR0VfQU5TV0VSX1VOUkVBQ0hBQkxFEAMSGgoWSU1BR0VfQU5TV0VSX05PVF9BU0tFRBAEEh8KG0lNQUdFX0FOU1dFUl9TSUdOX0lOX0ZBSUxFRBBkMt4MCgxJbWFnZVNlcnZpY2USgQEKDFNlYXJjaEltYWdlcxIgLmRvY2t3ZWxsLnYxLlNlYXJjaEltYWdlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5TZWFyY2hJbWFnZXNSZXNwb25zZSIskAIBoLsYAcC7GAPIuxgD0LsYBILT5JMCExIRL3YxL2ltYWdlczpzZWFyY2gSggEKDUxpc3RJbWFnZVRhZ3MSIS5kb2Nrd2VsbC52MS5MaXN0SW1hZ2VUYWdzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3RJbWFnZVRhZ3NSZXNwb25zZSIqkAIBoLsYAcC7GAPIuxgD0LsYBILT5JMCERIPL3YxL2ltYWdlczp0YWdzEnYKCEdldEltYWdlEhwuZG9ja3dlbGwudjEuR2V0SW1hZ2VSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuR2V0SW1hZ2VSZXNwb25zZSItkAIBoLsYAcC7GAPIuxgD0LsYBILT5JMCFBISL3YxL2ltYWdlczppbnNwZWN0EpQBChJMaXN0UmVnaXN0cnlMb2dpbnMSJi5kb2Nrd2VsbC52MS5MaXN0UmVnaXN0cnlMb2dpbnNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdFJlZ2lzdHJ5TG9naW5zUmVzcG9uc2UiLZACAaC7GAHAuxgCyLsYAtC7GAWC0+STAhQSEi92MS9yZWdpc3RyeUxvZ2lucxKeAQoSQ2hlY2tSZWdpc3RyeUxvZ2luEiYuZG9ja3dlbGwudjEuQ2hlY2tSZWdpc3RyeUxvZ2luUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkNoZWNrUmVnaXN0cnlMb2dpblJlc3BvbnNlIjeguxgBsLsYAcC7GATIuxgE0LsYBoLT5JMCHToBKiIYL3YxL3JlZ2lzdHJ5TG9naW5zOmNoZWNrGpQHorsYsgMKBmltYWdlcxKnA0ltYWdlcyByZWFkIGZyb20gdGhlaXIgcmVnaXN0cmllcyB0aHJvdWdoIHRoZSBzZXJ2ZXIgYW4gYXBwIHdpbGwgcnVuIG9uLCBmb3IgYSBmb3JtOiBEb2NrZXIgSHViJ3Mgc2VhcmNoLCBhIHJlcG9zaXRvcnkncyB0YWdzLCBhbmQgd2hldGhlciBhbiBpbWFnZSBpcyB0aGVyZSBhbmQgd2hhdCBpdCBkZWNsYXJlcy4gTm90aGluZyBpcyBwdWxsZWQsIGFuZCBub3RoaW5nIGNoYW5nZXMuIEFuIGltYWdlIGEgcmVnaXN0cnkga2VlcHMgcHJpdmF0ZSBpcyByZWFkIHdpdGggdGhlIHJlZ2lzdHJ5IGxvZ2luIGl0cyBhcHAncyBwdWxsIHdvdWxkIHVzZS4gU2VlIGRvY3MvYWRyLzAwNjItcmVhZGluZy1hbi1pbWFnZS1mcm9tLWl0cy1yZWdpc3RyeS5tZCBhbmQgZG9jcy9hZHIvMDA4Ni1yZWdpc3RyeS1sb2dpbnMtZm9yLXByaXZhdGUtaW1hZ2VzLm1kLqK7GNgDCg9yZWdpc3RyeS1sb2dpbnMSxANXaGF0IHNpZ25zIGluIHRvIGEgY29udGFpbmVyIHJlZ2lzdHJ5LCBzbyBhbiBhcHAgY2FuIHB1bGwgYW4gaW1hZ2UgdGhlIHJlZ2lzdHJ5IGtlZXBzIHByaXZhdGUuIEEgbG9naW4gaXMgaW5zdGFsbC13aWRlOiBhbiBhZG1pbiBzYXZlcyBpdCBhcyBhIGNoYW5nZSwgd2l0aCBhIHBsYW4sIGFuZCBkZWNpZGVzIHdoaWNoIHByb2plY3RzJyBhcHBzIG1heSBwdWxsIHdpdGggaXQuIEl0J3Mgc2VudCBvbmx5IHRvIHRoZSBzZXJ2ZXIgdGhhdCBwdWxscywgZm9yIHRoYXQgY2FsbCwgYW5kIGZyb20gdGhlcmUgdG8gaXRzIHJlZ2lzdHJ5IGFuZCB0aGUgdG9rZW4gc2VydmljZSBpdCB3YXMgc2F2ZWQgd2l0aC4gQ2hlY2tSZWdpc3RyeUxvZ2luIHNpZ25zIGluIHdpdGhvdXQgc2F2aW5nIGFueXRoaW5nLiBTZWUgZG9jcy9hZHIvMDA4Ni1yZWdpc3RyeS1sb2dpbnMtZm9yLXByaXZhdGUtaW1hZ2VzLm1kLkKjAQoPY29tLmRvY2t3ZWxsLnYxQgpJbWFnZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * ListRegistryLoginsRequest asks for the registry logins the caller may use.
+ *
+ * @generated from message dockwell.v1.ListRegistryLoginsRequest
+ */
+export type ListRegistryLoginsRequest = Message<"dockwell.v1.ListRegistryLoginsRequest"> & {
+  /**
+   * Only those this project's apps may pull with, by name or ID. Empty lists
+   * every login the caller may see.
+   *
+   * @generated from field: string project = 1;
+   */
+  project: string;
+
+  /**
+   * Only those this environment's project may pull with, by ID, in place of
+   * project.
+   *
+   * @generated from field: string environment = 2;
+   */
+  environment: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListRegistryLoginsRequest.
+ * Use `create(ListRegistryLoginsRequestSchema)` to create a new message.
+ */
+export const ListRegistryLoginsRequestSchema: GenMessage<ListRegistryLoginsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_image, 0);
+
+/**
+ * ListRegistryLoginsResponse lists registry logins.
+ *
+ * @generated from message dockwell.v1.ListRegistryLoginsResponse
+ */
+export type ListRegistryLoginsResponse = Message<"dockwell.v1.ListRegistryLoginsResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.RegistryLoginInfo logins = 1;
+   */
+  logins: RegistryLoginInfo[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListRegistryLoginsResponse.
+ * Use `create(ListRegistryLoginsResponseSchema)` to create a new message.
+ */
+export const ListRegistryLoginsResponseSchema: GenMessage<ListRegistryLoginsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_image, 1);
+
+/**
+ * RegistryLoginInfo is a registry login as a caller may see it: never what signs
+ * in. Below an admin, its name and registry alone.
+ *
+ * @generated from message dockwell.v1.RegistryLoginInfo
+ */
+export type RegistryLoginInfo = Message<"dockwell.v1.RegistryLoginInfo"> & {
+  /**
+   * Its name, such as "ghcr-ci".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * The registry it signs in to, such as "ghcr.io".
+   *
+   * @generated from field: string registry = 2;
+   */
+  registry: string;
+
+  /**
+   * Who signs in, for an admin. Empty for ECR, and below an admin.
+   *
+   * @generated from field: string username = 3;
+   */
+  username: string;
+
+  /**
+   * True for an Amazon ECR login, which signs in with an access key.
+   *
+   * @generated from field: bool ecr = 4;
+   */
+  ecr: boolean;
+
+  /**
+   * The token service it was saved with, for an admin.
+   *
+   * @generated from field: string token_host = 5;
+   */
+  tokenHost: string;
+
+  /**
+   * The projects whose apps may pull with it, by ID, for an admin; empty for every
+   * project.
+   *
+   * @generated from field: repeated string projects = 6;
+   */
+  projects: string[];
+
+  /**
+   * Its resource's ID.
+   *
+   * @generated from field: string id = 7;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RegistryLoginInfo.
+ * Use `create(RegistryLoginInfoSchema)` to create a new message.
+ */
+export const RegistryLoginInfoSchema: GenMessage<RegistryLoginInfo> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_image, 2);
+
+/**
+ * CheckRegistryLoginRequest is a login to try, as typed or as saved.
+ *
+ * @generated from message dockwell.v1.CheckRegistryLoginRequest
+ */
+export type CheckRegistryLoginRequest = Message<"dockwell.v1.CheckRegistryLoginRequest"> & {
+  /**
+   * The registry's host, such as "ghcr.io". Unset when name says which.
+   *
+   * @generated from field: string registry = 1;
+   */
+  registry: string;
+
+  /**
+   * Who signs in.
+   *
+   * @generated from field: string username = 2;
+   */
+  username: string;
+
+  /**
+   * The password or token, as typed. Unset to check a saved login's.
+   *
+   * @generated from field: string password = 3;
+   */
+  password: string;
+
+  /**
+   * For ECR, the key and its region, as typed.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.RegistryLoginEcr ecr = 4;
+   */
+  ecr?: RegistryLoginEcr | undefined;
+
+  /**
+   * A saved login to check again, by name, with what it saved for anything left
+   * unset here.
+   *
+   * @generated from field: string name = 5;
+   */
+  name: string;
+
+  /**
+   * The server whose agent signs in, by ID. It can be left out while there is one.
+   *
+   * @generated from field: string server = 6;
+   */
+  server: string;
+
+  /**
+   * Asks registry's /v2/ with no login, and sends nothing that signs in: whether
+   * it's a registry, and what it asks of a client, before a token goes there.
+   *
+   * @generated from field: bool probe = 7;
+   */
+  probe: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckRegistryLoginRequest.
+ * Use `create(CheckRegistryLoginRequestSchema)` to create a new message.
+ */
+export const CheckRegistryLoginRequestSchema: GenMessage<CheckRegistryLoginRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_image, 3);
+
+/**
+ * CheckRegistryLoginResponse says whether the login signs in.
+ *
+ * @generated from message dockwell.v1.CheckRegistryLoginResponse
+ */
+export type CheckRegistryLoginResponse = Message<"dockwell.v1.CheckRegistryLoginResponse"> & {
+  /**
+   * How the registry answered.
+   *
+   * @generated from field: dockwell.v1.RegistryLoginState state = 1;
+   */
+  state: RegistryLoginState;
+
+  /**
+   * The host the registry sends clients to for a token, which a plan saves with
+   * the login. Empty for a registry that signs in itself.
+   *
+   * @generated from field: string token_host = 2;
+   */
+  tokenHost: string;
+
+  /**
+   * The registry's own words, when it said no or couldn't be reached, in a line.
+   *
+   * @generated from field: string detail = 3;
+   */
+  detail: string;
+
+  /**
+   * For ECR, the registry the key's account and region name, which the login
+   * pulls from.
+   *
+   * @generated from field: string registry = 4;
+   */
+  registry: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckRegistryLoginResponse.
+ * Use `create(CheckRegistryLoginResponseSchema)` to create a new message.
+ */
+export const CheckRegistryLoginResponseSchema: GenMessage<CheckRegistryLoginResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_image, 4);
 
 /**
  * SearchImagesRequest says what to look for, and where.
@@ -61,7 +286,7 @@ export type SearchImagesRequest = Message<"dockwell.v1.SearchImagesRequest"> & {
  * Use `create(SearchImagesRequestSchema)` to create a new message.
  */
 export const SearchImagesRequestSchema: GenMessage<SearchImagesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 0);
+  messageDesc(file_dockwell_v1_image, 5);
 
 /**
  * SearchImagesResponse lists what was found.
@@ -89,7 +314,7 @@ export type SearchImagesResponse = Message<"dockwell.v1.SearchImagesResponse"> &
  * Use `create(SearchImagesResponseSchema)` to create a new message.
  */
 export const SearchImagesResponseSchema: GenMessage<SearchImagesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 1);
+  messageDesc(file_dockwell_v1_image, 6);
 
 /**
  * ImageMatch is one image a search found.
@@ -132,7 +357,7 @@ export type ImageMatch = Message<"dockwell.v1.ImageMatch"> & {
  * Use `create(ImageMatchSchema)` to create a new message.
  */
 export const ImageMatchSchema: GenMessage<ImageMatch> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 2);
+  messageDesc(file_dockwell_v1_image, 7);
 
 /**
  * ListImageTagsRequest names a repository.
@@ -163,6 +388,20 @@ export type ListImageTagsRequest = Message<"dockwell.v1.ListImageTagsRequest"> &
    * @generated from field: string server = 4;
    */
   server: string;
+
+  /**
+   * As GetImageRequest's. Numbered in the block registry logins hold, 100 to 109.
+   *
+   * @generated from field: string registry_login = 100;
+   */
+  registryLogin: string;
+
+  /**
+   * As GetImageRequest's.
+   *
+   * @generated from field: bool anonymous = 101;
+   */
+  anonymous: boolean;
 };
 
 /**
@@ -170,7 +409,7 @@ export type ListImageTagsRequest = Message<"dockwell.v1.ListImageTagsRequest"> &
  * Use `create(ListImageTagsRequestSchema)` to create a new message.
  */
 export const ListImageTagsRequestSchema: GenMessage<ListImageTagsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 3);
+  messageDesc(file_dockwell_v1_image, 8);
 
 /**
  * ListImageTagsResponse lists a repository's tags.
@@ -178,6 +417,13 @@ export const ListImageTagsRequestSchema: GenMessage<ListImageTagsRequest> = /*@_
  * @generated from message dockwell.v1.ListImageTagsResponse
  */
 export type ListImageTagsResponse = Message<"dockwell.v1.ListImageTagsResponse"> & {
+  /**
+   * As GetImageResponse's. Numbered in the block registry logins hold, 100 to 109.
+   *
+   * @generated from field: string registry_login = 100;
+   */
+  registryLogin: string;
+
   /**
    * The tags, newest first, at most 200.
    *
@@ -198,7 +444,7 @@ export type ListImageTagsResponse = Message<"dockwell.v1.ListImageTagsResponse">
  * Use `create(ListImageTagsResponseSchema)` to create a new message.
  */
 export const ListImageTagsResponseSchema: GenMessage<ListImageTagsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 4);
+  messageDesc(file_dockwell_v1_image, 9);
 
 /**
  * ImageTag is one of a repository's tags.
@@ -241,7 +487,7 @@ export type ImageTag = Message<"dockwell.v1.ImageTag"> & {
  * Use `create(ImageTagSchema)` to create a new message.
  */
 export const ImageTagSchema: GenMessage<ImageTag> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 5);
+  messageDesc(file_dockwell_v1_image, 10);
 
 /**
  * GetImageRequest names an image.
@@ -273,6 +519,23 @@ export type GetImageRequest = Message<"dockwell.v1.GetImageRequest"> & {
    * @generated from field: string server = 4;
    */
   server: string;
+
+  /**
+   * Read with this registry login, by name, one the project may use. Empty reads
+   * with the login an app's pull would use: the one for the image's registry the
+   * project may use, when there's exactly one (ADR 0086). Numbered in the block
+   * registry logins hold, 100 to 109.
+   *
+   * @generated from field: string registry_login = 100;
+   */
+  registryLogin: string;
+
+  /**
+   * Read with no login, whatever the project may use.
+   *
+   * @generated from field: bool anonymous = 101;
+   */
+  anonymous: boolean;
 };
 
 /**
@@ -280,7 +543,7 @@ export type GetImageRequest = Message<"dockwell.v1.GetImageRequest"> & {
  * Use `create(GetImageRequestSchema)` to create a new message.
  */
 export const GetImageRequestSchema: GenMessage<GetImageRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 6);
+  messageDesc(file_dockwell_v1_image, 11);
 
 /**
  * GetImageResponse says whether an image is there, and what it declares.
@@ -288,6 +551,14 @@ export const GetImageRequestSchema: GenMessage<GetImageRequest> = /*@__PURE__*/
  * @generated from message dockwell.v1.GetImageResponse
  */
 export type GetImageResponse = Message<"dockwell.v1.GetImageResponse"> & {
+  /**
+   * The registry login it was read with, by name, or empty for none (ADR 0086).
+   * Numbered in the block registry logins hold, 100 to 109.
+   *
+   * @generated from field: string registry_login = 100;
+   */
+  registryLogin: string;
+
   /**
    * Whether it's there.
    *
@@ -325,7 +596,7 @@ export type GetImageResponse = Message<"dockwell.v1.GetImageResponse"> & {
  * Use `create(GetImageResponseSchema)` to create a new message.
  */
 export const GetImageResponseSchema: GenMessage<GetImageResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 7);
+  messageDesc(file_dockwell_v1_image, 12);
 
 /**
  * ImageConfig is what an image declares, as its Dockerfile set it.
@@ -407,7 +678,7 @@ export type ImageConfig = Message<"dockwell.v1.ImageConfig"> & {
  * Use `create(ImageConfigSchema)` to create a new message.
  */
 export const ImageConfigSchema: GenMessage<ImageConfig> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 8);
+  messageDesc(file_dockwell_v1_image, 13);
 
 /**
  * ImagePort is a port an image exposes.
@@ -433,7 +704,7 @@ export type ImagePort = Message<"dockwell.v1.ImagePort"> & {
  * Use `create(ImagePortSchema)` to create a new message.
  */
 export const ImagePortSchema: GenMessage<ImagePort> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 9);
+  messageDesc(file_dockwell_v1_image, 14);
 
 /**
  * ImageVariable is an environment variable an image sets.
@@ -457,7 +728,61 @@ export type ImageVariable = Message<"dockwell.v1.ImageVariable"> & {
  * Use `create(ImageVariableSchema)` to create a new message.
  */
 export const ImageVariableSchema: GenMessage<ImageVariable> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_image, 10);
+  messageDesc(file_dockwell_v1_image, 15);
+
+/**
+ * RegistryLoginState is what a registry said of a login.
+ *
+ * @generated from enum dockwell.v1.RegistryLoginState
+ */
+export enum RegistryLoginState {
+  /**
+   * @generated from enum value: REGISTRY_LOGIN_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * It signed in.
+   *
+   * @generated from enum value: REGISTRY_LOGIN_STATE_SIGNED_IN = 1;
+   */
+  SIGNED_IN = 1,
+
+  /**
+   * The registry refused the username or the password.
+   *
+   * @generated from enum value: REGISTRY_LOGIN_STATE_REFUSED = 2;
+   */
+  REFUSED = 2,
+
+  /**
+   * The registry couldn't be reached, or didn't answer in time.
+   *
+   * @generated from enum value: REGISTRY_LOGIN_STATE_UNREACHABLE = 3;
+   */
+  UNREACHABLE = 3,
+
+  /**
+   * The registry sent the login to a token service on another host than the one
+   * it was saved with, so nothing was sent.
+   *
+   * @generated from enum value: REGISTRY_LOGIN_STATE_MOVED = 4;
+   */
+  MOVED = 4,
+
+  /**
+   * A probe found a registry that asks for a sign-in; nothing was sent.
+   *
+   * @generated from enum value: REGISTRY_LOGIN_STATE_ASKS = 5;
+   */
+  ASKS = 5,
+}
+
+/**
+ * Describes the enum dockwell.v1.RegistryLoginState.
+ */
+export const RegistryLoginStateSchema: GenEnum<RegistryLoginState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_image, 0);
 
 /**
  * ImageAnswer is what a registry said, or why it said nothing.
@@ -499,13 +824,22 @@ export enum ImageAnswer {
    * @generated from enum value: IMAGE_ANSWER_NOT_ASKED = 4;
    */
   NOT_ASKED = 4,
+
+  /**
+   * The registry refused the login it was read with, or sent it to a token
+   * service other than the one it was saved with (ADR 0086).
+   * Numbered in the block registry logins hold, 100 to 109.
+   *
+   * @generated from enum value: IMAGE_ANSWER_SIGN_IN_FAILED = 100;
+   */
+  SIGN_IN_FAILED = 100,
 }
 
 /**
  * Describes the enum dockwell.v1.ImageAnswer.
  */
 export const ImageAnswerSchema: GenEnum<ImageAnswer> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_image, 0);
+  enumDesc(file_dockwell_v1_image, 1);
 
 /**
  * ImageService reads images from their registries for a form, through the
@@ -556,6 +890,34 @@ export const ImageService: GenService<{
     methodKind: "unary";
     input: typeof GetImageRequestSchema;
     output: typeof GetImageResponseSchema;
+  },
+  /**
+   * ListRegistryLogins lists the registry logins the caller may use: an admin's,
+   * every login with everything but what signs in; below an admin, the logins
+   * the caller's projects may pull with, by name and registry alone. See
+   * docs/adr/0086-registry-logins-for-private-images.md.
+   *
+   * @generated from rpc dockwell.v1.ImageService.ListRegistryLogins
+   */
+  listRegistryLogins: {
+    methodKind: "unary";
+    input: typeof ListRegistryLoginsRequestSchema;
+    output: typeof ListRegistryLoginsResponseSchema;
+  },
+  /**
+   * CheckRegistryLogin signs in at a registry from a server's agent, as a pull
+   * there would, and saves nothing: with a login as typed, or a saved one again.
+   * It says whether it signed in, and the token service the registry sent it to,
+   * which a plan saves with the login so it never goes anywhere else. An admin's,
+   * signed in, as a login is install-wide. See
+   * docs/adr/0086-registry-logins-for-private-images.md.
+   *
+   * @generated from rpc dockwell.v1.ImageService.CheckRegistryLogin
+   */
+  checkRegistryLogin: {
+    methodKind: "unary";
+    input: typeof CheckRegistryLoginRequestSchema;
+    output: typeof CheckRegistryLoginResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_image, 0);

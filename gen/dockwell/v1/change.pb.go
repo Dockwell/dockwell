@@ -5594,6 +5594,9 @@ type PlanStep struct {
 	// What an action on one of its server's system services does, for a step that
 	// takes one (ADR 0082). Track S takes 70 to 79 here.
 	Unit *HostUnit `protobuf:"bytes,70,opt,name=unit,proto3" json:"unit,omitempty"`
+	// The registry login the step's pull signs in with, by name, where it pulls with
+	// one (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
+	RegistryLogin string `protobuf:"bytes,100,opt,name=registry_login,json=registryLogin,proto3" json:"registry_login,omitempty"`
 	// What a step that moves a database to a newer release does beside replacing
 	// its container, by a dump into a new volume (ADR 0080). Numbered in the
 	// updates area's block, 260 to 269.
@@ -5903,6 +5906,13 @@ func (x *PlanStep) GetUnit() *HostUnit {
 		return x.Unit
 	}
 	return nil
+}
+
+func (x *PlanStep) GetRegistryLogin() string {
+	if x != nil {
+		return x.RegistryLogin
+	}
+	return ""
 }
 
 func (x *PlanStep) GetDatabaseMove() *DatabaseMove {
@@ -8347,7 +8357,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xbe\x0e\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xe5\x0e\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -8394,7 +8404,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x04jail\x18, \x01(\v2\x15.dockwell.v1.JailPlanR\x04jail\x125\n" +
 	"\ainstall\x18- \x01(\v2\x1b.dockwell.v1.PackageInstallR\ainstall\x12/\n" +
 	"\x06reboot\x18. \x01(\v2\x17.dockwell.v1.HostRebootR\x06reboot\x12)\n" +
-	"\x04unit\x18F \x01(\v2\x15.dockwell.v1.HostUnitR\x04unit\x12?\n" +
+	"\x04unit\x18F \x01(\v2\x15.dockwell.v1.HostUnitR\x04unit\x12%\n" +
+	"\x0eregistry_login\x18d \x01(\tR\rregistryLogin\x12?\n" +
 	"\rdatabase_move\x18\x84\x02 \x01(\v2\x19.dockwell.v1.DatabaseMoveR\fdatabaseMove\"\x9c\x02\n" +
 	"\tBuildPlan\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x10\n" +

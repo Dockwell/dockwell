@@ -141,6 +141,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         searchImages: () => ({}),
         listImageTags: () => ({}),
         getImage: () => ({}),
+        listRegistryLogins: () => ({}),
         ...api.images,
       });
       service(ServiceUpdateService, api.appUpdates ?? {});

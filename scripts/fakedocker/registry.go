@@ -23,8 +23,29 @@ import (
 // declare, and their tags, newest first. Anything else isn't there. It hands
 // out no token: a test reads as anyone may.
 
+// The made-up login the stand-in keeps example/private to (ADR 0086), which the e2e
+// flow for registry logins signs in with.
+const (
+	privateUser  = "ci"
+	privateToken = "e2e-registry-token" //nolint:gosec // a made-up login for the stand-in alone
+)
+
+// signedIn says whether a request carries the stand-in's login.
+func signedIn(r *http.Request) bool {
+	user, token, ok := r.BasicAuth()
+	return ok && user == privateUser && token == privateToken
+}
+
+// refuse asks for the stand-in's login, as a registry that signs in itself does.
+func refuse(w http.ResponseWriter) {
+	w.Header().Set("Www-Authenticate", `Basic realm="stand-in"`)
+	http.Error(w, `{"errors":[{"code":"UNAUTHORIZED"}]}`, http.StatusUnauthorized)
+}
+
 // fakeRepo is a repository the stand-in has.
 type fakeRepo struct {
+	// private keeps it to the stand-in's login.
+	private bool
 	// Tags, newest first. The first is where latest points.
 	tags    []string
 	ports   []string
@@ -61,6 +82,10 @@ var fakeRepos = map[string]fakeRepo{
 	"louislam/uptime-kuma": {
 		tags: []string{"1.23.16", "1.23"}, ports: []string{"3001/tcp"}, volumes: []string{"/app/data"},
 		cmd: []string{"node", "server/server.js"},
+	},
+	"example/private": {
+		tags: []string{"1.0"}, ports: []string{"8080/tcp"}, private: true,
+		env: []string{"PORT=8080"}, cmd: []string{"serve"},
 	},
 	"example/shop": {
 		tags: []string{"3.2.0", "3.1.4"}, ports: []string{"3000/tcp"},
@@ -134,7 +159,15 @@ func configOf(repo string, r fakeRepo, tag string) (config, manifest []byte) {
 // serveRegistry serves the stand-in at addr, such as 127.0.0.1:8035.
 func serveRegistry(addr string) {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /v2/{$}", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("{}")) })
+	// Its own host signs a login in, and asks anyone else for one, as a registry
+	// that keeps some images private does; what's public reads without it.
+	mux.HandleFunc("GET /v2/{$}", func(w http.ResponseWriter, r *http.Request) {
+		if !signedIn(r) {
+			refuse(w)
+			return
+		}
+		_, _ = w.Write([]byte("{}"))
+	})
 	repoOf := func(r *http.Request) (string, fakeRepo, bool) {
 		path := strings.TrimPrefix(r.URL.Path, "/v2/")
 		for _, part := range []string{"/manifests/", "/blobs/", "/tags/list"} {
@@ -150,6 +183,10 @@ func serveRegistry(addr string) {
 		name, repo, ok := repoOf(r)
 		if !ok {
 			http.Error(w, `{"errors":[{"code":"NAME_UNKNOWN"}]}`, http.StatusNotFound)
+			return
+		}
+		if repo.private && !signedIn(r) {
+			refuse(w)
 			return
 		}
 		switch {
@@ -194,7 +231,8 @@ func serveRegistry(addr string) {
 	mux.HandleFunc("GET /v2/namespaces/{ns}/repositories/{name}/tags", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("ns") + "/" + r.PathValue("name")
 		repo, ok := fakeRepos[name]
-		if !ok {
+		// Docker Hub's API lists no repository it keeps private to anyone Dockwell sends.
+		if !ok || repo.private {
 			http.Error(w, `{"message":"object not found"}`, http.StatusNotFound)
 			return
 		}

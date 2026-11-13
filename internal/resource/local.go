@@ -53,6 +53,9 @@ type Desired struct {
 	// Unit acts on one of the server's system services as a step of this change.
 	// Its kind is a UnitActor.
 	Unit *UnitAsked
+	// Prepare gives what plans this resource, alone, what only it may use, such as
+	// the registry login its image is pulled with (ADR 0086). It's never kept.
+	Prepare func(context.Context) context.Context `json:"-"`
 }
 
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
@@ -311,13 +314,16 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Prepare: want.Prepare}, d
 	}
 	for i := range normal {
 		want := &normal[i]
 		d, spec := drivers[i], want.Spec
 		// As the step it plans will have it, once it applies.
 		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback, Run: want.Run})
+		if want.Prepare != nil {
+			ctx = want.Prepare(ctx)
+		}
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
@@ -848,4 +854,12 @@ func PathBack() {
 	for fn := range pathsBack.hear {
 		(*fn)()
 	}
+}
+
+// LoginRef is what a registry login sent with ref's step or plan is sealed to, apart
+// from the values ref's spec uses, which are sealed to ref (ADR 0086). A login sent
+// with a read of an image, which is about no resource, is sealed to LoginRef of the
+// zero Ref.
+func LoginRef(ref Ref) Ref {
+	return Ref{Kind: "registry.login", Scope: ref.Scope, Name: string(ref.Kind) + "/" + ref.Name}
 }

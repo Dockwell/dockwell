@@ -13,6 +13,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -22,7 +23,7 @@ import (
 // when it is the right one: a registry's 503 isn't a wrong tag.
 func TestPullFailuresInPlainWords(t *testing.T) {
 	const ref = "acme/web:1.0"
-	denied := ref + " can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."
+	denied := ref + " can't be pulled. The name may be wrong, or the image may be private. Check the name, or save a registry login for docker.io, then try again."
 	missing := ref + " isn't on its registry, so it can't be pulled. The tag may be wrong. Check the name and tag, then try again."
 	network := "This server can't reach the registry " + ref + " is on, so it can't be pulled. Check the server's network and DNS, then try again."
 	limited := "The registry is limiting pulls from this server, so " + ref + " can't be pulled for now. Wait a while, then try again."
@@ -56,7 +57,7 @@ func TestPullFailuresInPlainWords(t *testing.T) {
 		// What it can't place, it says so, with what Docker said beside it.
 		"the moon: is in the way.": ref + " can't be pulled, and Dockwell doesn't recognize why. Docker says: the moon: is in the way. Look at what it says, then try again.",
 	} {
-		plain, detail := resource.Explain(pullFailure(ref, errors.New(said)))
+		plain, detail := resource.Explain(pullFailure(t.Context(), ref, errors.New(said)))
 		if plain != want {
 			t.Errorf("%s\n reads %q\n want  %q", said, plain, want)
 		}
@@ -196,7 +197,7 @@ func TestFailuresSayWhatTheyComeDownTo(t *testing.T) {
 		"unauthorized: authentication required":                                                 resource.ReasonImage,
 		"the moon is in the way":                                                                "",
 	} {
-		if got := resource.ReasonOf(pullFailure("acme/web:1.0", errors.New(said))); got != want {
+		if got := resource.ReasonOf(pullFailure(t.Context(), "acme/web:1.0", errors.New(said))); got != want {
 			t.Errorf("pull: %s comes down to %q, want %q", said, got, want)
 		}
 	}
@@ -211,5 +212,23 @@ func TestFailuresSayWhatTheyComeDownTo(t *testing.T) {
 		if got := resource.ReasonOf(startFailure(at, errors.New(said))); got != want {
 			t.Errorf("start: %s comes down to %q, want %q", said, got, want)
 		}
+	}
+}
+
+// A pull that signed in with a registry login, which the registry refused, names
+// the login, and never says to save one (ADR 0086).
+func TestAPullWithALoginNamesIt(t *testing.T) {
+	ctx := registry.WithAuth(t.Context(), registry.Auth{Name: "ghcr-ci", Registry: "ghcr.io", Username: "ci", Password: "s3cret-token"})
+	plain, detail := resource.Explain(pullFailure(ctx, "ghcr.io/acme/web:1.0", errors.New("denied: requested access to the resource is denied")))
+	want := "ghcr.io/acme/web:1.0 can't be pulled with the registry login ghcr-ci. The name may be wrong, or the login may not read it. Check the name and the login, then try again."
+	if plain != want {
+		t.Errorf("reads %q, want %q", plain, want)
+	}
+	if strings.Contains(plain+detail, "s3cret-token") {
+		t.Error("the words hold the login's password")
+	}
+	plain, _ = resource.Explain(pullFailure(t.Context(), "ghcr.io/acme/web:1.0", errors.New("denied: requested access to the resource is denied")))
+	if !strings.Contains(plain, "save a registry login for ghcr.io") {
+		t.Errorf("without a login, %q doesn't say which registry a login would be for", plain)
 	}
 }

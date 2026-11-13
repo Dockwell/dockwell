@@ -11,7 +11,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useApp } from "./AppContext";
-import { environmentOf, failedAtField, imageOf, isMoving, nameOf } from "./app";
+import { appOf, environmentOf, failedAtField, imageOf, isMoving, nameOf } from "./app";
 import { ImageField } from "./ImageField";
 
 /**
@@ -142,6 +142,7 @@ export function DeploySheet({ service, onClose }: { service: ServiceInfo; onClos
           initial={current}
           environment={environmentOf(service)}
           server={service.deployments[0]?.serverId}
+          registryLogin={appOf(service)?.registryLogin ?? ""}
           error={fieldError}
           hint={
             moving && service.rolledBackChangeId !== "" ? (

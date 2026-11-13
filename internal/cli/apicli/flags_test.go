@@ -230,7 +230,37 @@ func TestInlineJSONRefusesWhatSignsInToAChannel(t *testing.T) {
 		switch {
 		case c.ok && err != nil:
 			t.Errorf("%s = %v, want it read", what, err)
-		case !c.ok && (err == nil || !strings.Contains(err.Error(), "signs in to an alert channel") || !strings.Contains(err.Error(), "pass --channel @file, or pipe it in with --channel -") || strings.Contains(err.Error(), "s3cret")):
+		case !c.ok && (err == nil || !strings.Contains(err.Error(), "an alert channel's token") || !strings.Contains(err.Error(), "pass --channel @file, or pipe it in with --channel -") || strings.Contains(err.Error(), "s3cret")):
+			t.Errorf("%s = %v, want it refused", what, err)
+		}
+	}
+}
+
+// JSON on the command line can't give a registry login's ECR key, or any message's
+// field that signs in, which shell history would keep; a file or standard input can.
+// (Security review of #584, L3.)
+func TestInlineJSONRefusesARegistryLoginsKey(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "ecr.json")
+	key := `{"accessKey":"AKIAEXAMPLE","secretKey":"s3cret","region":"eu-west-1"}`
+	if err := os.WriteFile(file, []byte(key), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fields := []Field{{Path: "ecr", Help: "The key.", Sensitive: true}}
+	for what, c := range map[string]struct {
+		value string
+		ok    bool
+	}{
+		"an ECR key inline":      {value: key},
+		"an ECR key from a file": {value: "@" + file, ok: true},
+		"a region alone inline":  {value: `{"region":"eu-west-1"}`, ok: true},
+	} {
+		env := &Env{Getenv: func(string) string { return "" }, In: strings.NewReader("")}
+		var req dockwellv1.CheckRegistryLoginRequest
+		err := parse(t, env, &req, fields, "--ecr", c.value)
+		switch {
+		case c.ok && err != nil:
+			t.Errorf("%s = %v, want it read", what, err)
+		case !c.ok && (err == nil || !strings.Contains(err.Error(), "what signs in") || strings.Contains(err.Error(), "s3cret")):
 			t.Errorf("%s = %v, want it refused", what, err)
 		}
 	}

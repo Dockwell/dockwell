@@ -1,0 +1,362 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package registry
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+// Signing in to a registry (ADR 0086): a login goes to its registry's own host,
+// and to the token service it was saved with, and nowhere else. A read with a login
+// never goes through a mirror, and nothing it reads is kept for a read without it.
+
+// Auth is a registry login as a call opens it: never logged, never kept past the
+// call.
+type Auth struct {
+	// Name is the login's name, as Dockwell keeps it, for words alone.
+	Name string
+	// Registry is the host it signs in to, such as "ghcr.io"; "docker.io" for
+	// Docker Hub.
+	Registry string
+	Username string
+	Password string
+	// TokenHost is the host the registry sent clients to for a token when the
+	// login was saved, or empty for a registry that signs in itself.
+	TokenHost string
+	// Version says which revision of which saved login it is, as the control plane
+	// keeps it, for a plan's fingerprint. It's never sent.
+	Version string
+}
+
+// The errors a read with a login can end in, beside a read's own.
+var (
+	// ErrSignIn is a registry that refused the login.
+	ErrSignIn = errors.New("the registry refused the login")
+	// ErrMoved is a registry that sends clients to a token service other than the
+	// one the login was saved with, where Dockwell sends nothing.
+	ErrMoved = errors.New("the registry sends clients to another host for its tokens, so Dockwell won't sign in there")
+)
+
+// Values is a login as values sealed to an agent stream carry it.
+func (a Auth) Values() map[string]string {
+	return map[string]string{"name": a.Name, "registry": a.Registry, "username": a.Username, "password": a.Password, "token_host": a.TokenHost}
+}
+
+// AuthFrom reads a login from the values an agent opened.
+func AuthFrom(v map[string]string) (Auth, error) {
+	a := Auth{Name: v["name"], Registry: v["registry"], Username: v["username"], Password: v["password"], TokenHost: v["token_host"]}
+	if a.Registry == "" || a.Password == "" {
+		return Auth{}, errors.New("the registry login the control plane sent is empty")
+	}
+	return a, nil
+}
+
+// Header is the login as Docker's X-Registry-Auth takes it, for one pull.
+func (a Auth) Header() string {
+	server := a.Registry
+	if server == Hub {
+		// What Docker names Docker Hub's sign-in by.
+		server = "https://index.docker.io/v1/"
+	}
+	b, _ := json.Marshal(map[string]string{"username": a.Username, "password": a.Password, "serveraddress": server})
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// key tells the tokens one login gets from those another, or none, gets.
+func (a Auth) key() string {
+	if a.Registry == "" {
+		return ""
+	}
+	return " as " + a.Name + "/" + a.Username
+}
+
+type authKey struct{}
+
+// WithAuth is ctx carrying a login for the reads made with it.
+func WithAuth(ctx context.Context, a Auth) context.Context {
+	return context.WithValue(ctx, authKey{}, a)
+}
+
+// AuthOf is the login ctx carries, if any.
+func AuthOf(ctx context.Context) (Auth, bool) {
+	a, ok := ctx.Value(authKey{}).(Auth)
+	return a, ok && a.Registry != ""
+}
+
+// authFor is the login a read of host signs in with: the one ctx carries, when it's
+// for that registry.
+func authFor(ctx context.Context, host string) (Auth, bool) {
+	a, ok := AuthOf(ctx)
+	if !ok || !strings.EqualFold(a.Registry, host) {
+		return Auth{}, false
+	}
+	return a, true
+}
+
+// realmAllowed says whether a token's realm is one a login may go to: on the
+// registry's own host, or on the host the login was saved with. With none saved,
+// as a login checked for the first time, any realm a read may reach is allowed,
+// and found.
+func realmAllowed(a Auth, base string, realm *url.URL, first bool) bool {
+	if first {
+		return ownHostRealm(base, realm) || realm.Scheme == "https"
+	}
+	return tokenServiceAllowed(a, base, realm)
+}
+
+// ownHostRealm says whether a realm is on the registry's own host, over a scheme
+// as safe as the one the registry is reached by: https for a registry reached over
+// https, and http only for one reached over plain http.
+func ownHostRealm(base string, realm *url.URL) bool {
+	b, err := url.Parse(base)
+	if err != nil || !strings.EqualFold(b.Host, realm.Host) {
+		return false
+	}
+	return realm.Scheme == b.Scheme || realm.Scheme == "https"
+}
+
+func basic(a Auth) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(a.Username+":"+a.Password))
+}
+
+// hostOf is the registry a base URL reads: Docker Hub for its own host, and in a
+// test, where every registry is the test's, the one a login names.
+func hostOf(ctx context.Context, base, test string) string {
+	if test != "" {
+		if a, ok := AuthOf(ctx); ok {
+			return a.Registry
+		}
+		return ""
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	if u.Host == "registry-1.docker.io" {
+		return Hub
+	}
+	return u.Host
+}
+
+// SignIn signs in at a login's registry, as a pull there would, and keeps nothing:
+// a Basic sign-in at /v2/, or a token from the realm the registry names, with no
+// repository in its scope. It says the token's host when it's another than the
+// registry's own. first takes a realm on any host a read may reach, for a login
+// not yet saved; otherwise only the host the login was saved with, and on ErrMoved
+// it says the host the registry names now, where nothing was sent.
+func (c *Client) SignIn(ctx context.Context, a Auth, first bool) (string, error) {
+	bases := c.bases(a.Registry)
+	base := bases[len(bases)-1]
+	ctx = WithAuth(ctx, a)
+	resp, err := c.do(ctx, http.MethodGet, base+"/v2/", "", "", false)
+	if err != nil {
+		return "", err
+	}
+	values := resp.Header.Values("Www-Authenticate")
+	code := resp.StatusCode
+	drain(resp)
+	if code == http.StatusOK {
+		// A registry that takes anyone takes this login too.
+		return "", nil
+	}
+	if code != http.StatusUnauthorized {
+		return "", fmt.Errorf("%w: it answered %d", ErrUnreachable, code)
+	}
+	challenges, err := parseChallenges(values)
+	if err != nil || len(challenges) == 0 {
+		return "", fmt.Errorf("%w: it asks for a sign-in Dockwell can't read", ErrUnreachable)
+	}
+	// As Docker does: a Bearer challenge first, and every one of them checked.
+	bearer, hasBasic, err := pickBearer(challenges)
+	if err != nil {
+		return "", fmt.Errorf("%w: it names two token services", ErrUnreachable)
+	}
+	if bearer == nil {
+		if !hasBasic {
+			return "", fmt.Errorf("%w: it asks for a sign-in Dockwell doesn't speak", ErrUnreachable)
+		}
+		resp, err := c.do(ctx, http.MethodGet, base+"/v2/", "", basic(a), false)
+		if err != nil {
+			return "", err
+		}
+		code := resp.StatusCode
+		drain(resp)
+		switch code {
+		case http.StatusOK:
+			return "", nil
+		case http.StatusUnauthorized, http.StatusForbidden:
+			return "", ErrSignIn
+		}
+		return "", fmt.Errorf("%w: it answered %d", ErrUnreachable, code)
+	}
+	params := bearer.params
+	realm, err := url.Parse(params["realm"])
+	if err != nil || realm.Host == "" || realm.User != nil || (realm.Scheme != "https" && realm.Scheme != "http") {
+		return "", fmt.Errorf("%w: its token service can't be read", ErrUnreachable)
+	}
+	if !realmAllowed(a, base, realm, first) {
+		return realm.Host, ErrMoved
+	}
+	found := ""
+	if !sameHost(base, realm) {
+		found = realm.Host
+	}
+	q := realm.Query()
+	if s := params["service"]; s != "" {
+		q.Set("service", s)
+	}
+	realm.RawQuery = q.Encode()
+	if c.o.Test != "" {
+		test, _ := url.Parse(c.o.Test)
+		realm.Scheme, realm.Host = test.Scheme, test.Host
+	}
+	away, err := c.elsewhere(base, realm, realm.Path)
+	if err != nil {
+		return "", err
+	}
+	resp, err = c.do(ctx, http.MethodGet, realm.String(), "application/json", basic(a), away)
+	if err != nil {
+		return "", err
+	}
+	code = resp.StatusCode
+	drain(resp)
+	switch code {
+	case http.StatusOK:
+		return found, nil
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return "", ErrSignIn
+	}
+	return "", fmt.Errorf("%w: its token service answered %d", ErrUnreachable, code)
+}
+
+// Challenge reads what a login's registry asks of a client, and refuses one that
+// would send it to a token service other than the one it was saved with, before
+// Docker is handed it for a pull, as Docker follows whatever realm a registry names.
+// It reads every challenge in every WWW-Authenticate header, as Docker does, and
+// tries a Bearer one before Basic: one Bearer realm anywhere that isn't the
+// registry's own host, or the saved token service over HTTPS, refuses the login
+// (ErrMoved), and so does a challenge it can't read (ErrUnreadChallenge).
+func (c *Client) Challenge(ctx context.Context, a Auth) error {
+	bases := c.bases(a.Registry)
+	base := bases[len(bases)-1]
+	resp, err := c.do(ctx, http.MethodGet, base+"/v2/", "", "", false)
+	if err != nil {
+		return err
+	}
+	values := resp.Header.Values("Www-Authenticate")
+	code := resp.StatusCode
+	drain(resp)
+	if len(values) == 0 {
+		if code == http.StatusOK {
+			// A registry that takes anyone asks for no login.
+			return nil
+		}
+		return ErrUnreadChallenge
+	}
+	challenges, err := parseChallenges(values)
+	if err != nil {
+		return ErrUnreadChallenge
+	}
+	for _, ch := range challenges {
+		switch ch.scheme {
+		case "basic":
+			// Sent to the registry's own host, where it asked for it.
+		case "bearer":
+			realm, err := url.Parse(ch.params["realm"])
+			if err != nil || realm.Host == "" || realm.User != nil || (realm.Scheme != "https" && realm.Scheme != "http") {
+				return ErrUnreadChallenge
+			}
+			if !tokenServiceAllowed(a, base, realm) {
+				return ErrMoved
+			}
+		default:
+			// A scheme Docker doesn't speak: it sends nothing for it.
+		}
+	}
+	return nil
+}
+
+// ErrUnreadChallenge is a registry whose WWW-Authenticate can't be read, or names a
+// realm that isn't a URL, so nothing says where a client would send a login, and
+// Dockwell hands Docker none.
+var ErrUnreadChallenge = errors.New("the registry asks for a sign-in in a way Dockwell can't read, so Dockwell won't hand Docker the login")
+
+// tokenServiceAllowed says whether a Bearer realm is one a saved login may go to:
+// the registry's own host, as its base is reached, or the token service the login
+// was saved with, over HTTPS alone.
+func tokenServiceAllowed(a Auth, base string, realm *url.URL) bool {
+	if ownHostRealm(base, realm) {
+		return true
+	}
+	return realm.Scheme == "https" && a.TokenHost != "" && strings.EqualFold(realm.Host, a.TokenHost)
+}
+
+// pickBearer is the Bearer challenge a client answers before any Basic one, as
+// Docker does, and whether there's a Basic one. Two Bearer challenges that name
+// different realms are a challenge Dockwell can't read, as clients differ in which
+// they take.
+func pickBearer(challenges []challenge) (*challenge, bool, error) {
+	var bearer *challenge
+	basic := false
+	for i := range challenges {
+		switch challenges[i].scheme {
+		case "basic":
+			basic = true
+		case "bearer":
+			if bearer != nil && bearer.params["realm"] != challenges[i].params["realm"] {
+				return nil, false, ErrUnreadChallenge
+			}
+			bearer = &challenges[i]
+		}
+	}
+	return bearer, basic, nil
+}
+
+// Probe asks a registry's /v2/ with no login, and sends nothing that signs in:
+// whether it asks for a sign-in, and the host of the token service it names when
+// that's another than its own. One that takes anyone asks for none.
+func (c *Client) Probe(ctx context.Context, host string) (asks bool, tokenHost string, err error) {
+	bases := c.bases(host)
+	base := bases[len(bases)-1]
+	resp, err := c.do(ctx, http.MethodGet, base+"/v2/", "", "", false)
+	if err != nil {
+		return false, "", err
+	}
+	values := resp.Header.Values("Www-Authenticate")
+	code := resp.StatusCode
+	drain(resp)
+	switch code {
+	case http.StatusOK:
+		return false, "", nil
+	case http.StatusUnauthorized:
+	default:
+		return false, "", fmt.Errorf("%w: it answered %d, as no registry does", ErrUnreachable, code)
+	}
+	challenges, err := parseChallenges(values)
+	if err != nil || len(challenges) == 0 {
+		return false, "", ErrUnreadChallenge
+	}
+	for _, ch := range challenges {
+		if ch.scheme != "bearer" {
+			continue
+		}
+		realm, err := url.Parse(ch.params["realm"])
+		if err != nil || realm.Host == "" {
+			return false, "", ErrUnreadChallenge
+		}
+		if !sameHost(base, realm) {
+			if tokenHost != "" && !strings.EqualFold(tokenHost, realm.Host) {
+				return false, "", ErrUnreadChallenge
+			}
+			tokenHost = realm.Host
+		}
+	}
+	return true, tokenHost, nil
+}

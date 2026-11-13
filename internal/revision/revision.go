@@ -2457,6 +2457,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "unit %s|%s|%s|%s|%t|%s|%s|%s|%d|%t\n", server, ref(s.Ref), u.Name, u.Action, u.WasRunning, u.WasAtBoot,
 					strings.Join(u.With, ","), strings.Join(u.Triggers, ","), u.Guard, u.DockerRestarts)
 			}
+			// Which login a pull signs in with is the control plane's pick: a login
+			// added or removed since makes the plan stale (ADR 0086).
+			if s.RegistryLogin != "" {
+				fmt.Fprintf(fp, "login %s|%s|%s|%s\n", server, ref(s.Ref), s.RegistryLogin, s.RegistryLoginVersion)
+			}
 			if s.Action == resource.ActionNone {
 				was := unfinishedOn(its, s.Ref, server)
 				if was == nil {

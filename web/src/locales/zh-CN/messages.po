@@ -4019,12 +4019,19 @@ msgstr "{name} 现在没有运行。"
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} 现在正在运行，但未通过健康检查。"
 
+msgid "Add a login for {host}"
+msgstr "为 {host} 添加登录"
+
 msgid "Can't reach the registry"
 msgstr "无法连接镜像仓库"
 
 msgctxt "an image in its registry"
 msgid "Found"
 msgstr "已找到"
+
+#. placeholder {0}: read.registryLogin
+msgid "Found, with {0}"
+msgstr "已找到，使用 {0}"
 
 msgid "Images found"
 msgstr "找到的镜像"
@@ -4035,6 +4042,15 @@ msgstr "未找到，或为私有镜像"
 msgctxt "a Docker Hub image"
 msgid "Official"
 msgstr "官方"
+
+msgid "Pick a login"
+msgstr "选择一个登录"
+
+msgid "Pull with"
+msgstr "拉取时使用"
+
+msgid "The registry refused its login"
+msgstr "镜像仓库拒绝了它的登录"
 
 msgid "Versions"
 msgstr "版本"
@@ -7439,6 +7455,9 @@ msgstr "现在不会停止任何东西，下次开机时生效"
 msgid "published ports may stop answering until Docker restarts"
 msgstr "在 Docker 重启前，发布的端口可能无法访问"
 
+msgid "pulls with <0>{loginList}</0>"
+msgstr "拉取使用 <0>{loginList}</0>"
+
 msgid "rolling, with nothing stopped"
 msgstr "滚动发布，不停止任何内容"
 
@@ -7738,6 +7757,10 @@ msgstr "它在 {server} 上安装的软件包"
 
 msgid "Pulled in"
 msgstr "随附安装"
+
+#. placeholder {0}: step.registryLogin
+msgid "Pulls with the registry login {0}"
+msgstr "拉取时使用镜像仓库登录 {0}"
 
 msgid "Reaches {reach} on {server}"
 msgstr "可访问 {server} 上的 {reach}"
@@ -11508,6 +11531,94 @@ msgstr "{0, plural, other {# 个计划任务}}"
 msgid "{0, plural, one {# volume} other {# volumes}}"
 msgstr "{0, plural, other {# 个卷}}"
 
+msgid "A deploy token with read_registry."
+msgstr "带 read_registry 权限的部署令牌。"
+
+msgid "A personal access token that can read."
+msgstr "可读取的个人访问令牌。"
+
+msgid "A token with read:packages."
+msgstr "带 read:packages 权限的令牌。"
+
+msgid "Add a registry login"
+msgstr "添加镜像仓库登录"
+
+msgid "Another registry"
+msgstr "其他镜像仓库"
+
+msgid "Change the registry login {name}"
+msgstr "修改镜像仓库登录 {name}"
+
+msgid "Check with {checkWith}"
+msgstr "用 {checkWith} 检查"
+
+msgid "Checked from"
+msgstr "检查所用服务器"
+
+msgid "Checked once you leave the field."
+msgstr "离开此栏后再检查。"
+
+msgid "Its token service moved"
+msgstr "其令牌服务已更换"
+
+msgid "Kept unless you type one"
+msgstr "不填则保留原值"
+
+msgid "Not a registry, or can't reach it"
+msgstr "不是镜像仓库，或无法连接"
+
+msgid "Not checked"
+msgstr "未检查"
+
+msgid "Only some projects"
+msgstr "仅限部分项目"
+
+msgid "Pull private images from {host}"
+msgstr "从 {host} 拉取私有镜像"
+
+msgid "Registry"
+msgstr "镜像仓库"
+
+#. placeholder {0}: editing.name
+msgid "Registry login {0}"
+msgstr "镜像仓库登录 {0}"
+
+msgid "Remove the registry login {name}"
+msgstr "移除镜像仓库登录 {name}"
+
+msgctxt "a registry login, checked"
+msgid "Signed in"
+msgstr "已登录"
+
+#. placeholder {0}: answer.registry
+msgid "Signed in to {0}"
+msgstr "已登录 {0}"
+
+msgid "Their apps alone may pull with it."
+msgstr "只有这些项目的应用可以用它拉取。"
+
+msgid "Token"
+msgstr "令牌"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "What an app names it by, in Compose and the CLI."
+msgstr "应用在 Compose 和 CLI 中用这个名称指代它。"
+
+msgid "Wrong username or password"
+msgstr "用户名或密码错误"
+
+msgid "every project"
+msgstr "所有项目"
+
+msgid "this registry"
+msgstr "此镜像仓库"
+
+#. placeholder {0}: picked.length
+msgid "{0, plural, one {# project} other {# projects}}"
+msgstr "{0, plural, other {# 个项目}}"
+
 msgid "Add a server"
 msgstr "添加服务器"
 
@@ -13228,9 +13339,6 @@ msgstr "查询所得，{when}。这是它的出站地址，不一定能从这里
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "查询所得，{when}。这可能是你路由器的地址，只能出站，不能入站"
 
-msgid "Not checked"
-msgstr "未检查"
-
 msgid "On one of this server's interfaces"
 msgstr "在此服务器的某个网络接口上"
 
@@ -13738,6 +13846,16 @@ msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
 msgid "1 connected · the services Dockwell sends backups to and routes behind"
 msgstr "已连接 1 个 · Dockwell 发送备份的服务，以及路由所在的服务"
 
+msgid "1 login · for images a registry keeps private"
+msgstr "1 个登录 · 用于镜像仓库设为私有的镜像"
+
+msgid "1 project"
+msgstr "1 个项目"
+
+#. placeholder {0}: l.name
+msgid "<0>{0}</0> for {who}"
+msgstr "<0>{0}</0>，用于{who}"
+
 msgid "A backup didn't get here {when}"
 msgstr "{when}有一份备份未能送达"
 
@@ -13751,11 +13869,17 @@ msgstr "任何 DNS 服务商"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
 
+msgid "Connect a registry"
+msgstr "连接镜像仓库"
+
 msgid "Connect storage"
 msgstr "连接存储"
 
 msgid "DNS and proxies"
 msgstr "DNS 和代理"
+
+msgid "Dockwell can't list its registry logins"
+msgstr "Dockwell 无法列出镜像仓库登录"
 
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
@@ -13763,8 +13887,8 @@ msgstr "Dockwell 无法列出备份的去向"
 msgid "Dockwell says which record to make, then gets the certificate."
 msgstr "Dockwell 会说明要创建哪条记录，然后获取证书。"
 
-msgid "Git providers, private registries and cloud providers come later."
-msgstr "Git 服务商、私有镜像仓库和云服务商将在之后推出。"
+msgid "Git providers and cloud providers come later."
+msgstr "Git 服务商和云服务商将在之后推出。"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
@@ -13772,8 +13896,14 @@ msgstr "如何在其后设置路由"
 msgid "Integrations"
 msgstr "集成"
 
+msgid "Loading registry logins"
+msgstr "正在加载镜像仓库登录"
+
 msgid "Loading where backups go"
 msgstr "正在加载备份去向"
+
+msgid "Manage"
+msgstr "管理"
 
 msgid "Manage in Backups"
 msgstr "在备份中管理"
@@ -13787,9 +13917,18 @@ msgstr "对象存储"
 msgid "Open Domains"
 msgstr "打开域名"
 
+msgid "Private images from GitHub, such as those Actions push."
+msgstr "来自 GitHub 的私有镜像，例如 Actions 推送的镜像。"
+
+msgid "Private images, and pulls past Docker Hub's limits."
+msgstr "私有镜像，以及不受 Docker Hub 拉取限制的拉取。"
+
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "{0}收到一份备份"
+
+msgid "Registries"
+msgstr "镜像仓库"
 
 msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
 msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
@@ -13805,6 +13944,14 @@ msgstr "可用于路由之前"
 
 msgid "in front of a server's routes"
 msgstr "位于服务器路由之前"
+
+#. placeholder {0}: loginList.length
+msgid "{0} logins · for images a registry keeps private"
+msgstr "{0} 个登录 · 用于镜像仓库设为私有的镜像"
+
+#. placeholder {0}: l.projects.length
+msgid "{0} projects"
+msgstr "{0} 个项目"
 
 msgid "{connected} buckets · where backups go beside each server's disk"
 msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的地方"
@@ -14262,9 +14409,6 @@ msgstr "新令牌，部分已隐藏："
 msgid "The token wasn't created"
 msgstr "令牌未创建"
 
-msgid "Token"
-msgstr "令牌"
-
 msgid "Token copied"
 msgstr "令牌已复制"
 
@@ -14297,9 +14441,6 @@ msgstr "{count} · 1 个即将过期"
 
 msgid "{count} · {soon} expire soon"
 msgstr "{count} · {soon} 个即将过期"
-
-msgid "Manage"
-msgstr "管理"
 
 msgid "None yet. Make one for each script or integration that calls the API."
 msgstr "还没有。请为每个调用 API 的脚本或集成各创建一个。"

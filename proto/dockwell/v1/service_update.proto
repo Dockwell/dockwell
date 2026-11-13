@@ -310,6 +310,10 @@ enum UpdateProblem {
   // as it does a website's web and PHP servers' (ADR 0039), so nothing is checked
   // and nobody has anything to act on.
   UPDATE_PROBLEM_KEPT_BY_DOCKWELL = 8 [(dockwell.v1.word) = "kept_by_dockwell"];
+  // The registry refused the registry login the service's pull signs in with, or
+  // sent it to a token service other than the one it was saved with (ADR 0086).
+  // Numbered in the block registry logins hold, 100 to 109.
+  UPDATE_PROBLEM_SIGN_IN_FAILED = 100 [(dockwell.v1.word) = "sign_in_failed"];
 }
 
 // UpdateSource is where what a service runs comes from, which says what's

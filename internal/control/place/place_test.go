@@ -15,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/registrylogin"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -37,6 +38,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		variable.SecretType{},
 		backuppolicy.Type{},
 		backuppolicy.Destination{},
+		registrylogin.Type{},
 		scope.ProjectType{},
 		scope.EnvironmentType{},
 		&task.Driver{},

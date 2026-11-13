@@ -1,0 +1,67 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.registry-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Two fields side by side, one above the other on a phone. */
+.registry-sheet-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+/* What the live check found, in a line, with the registry's own words under it. */
+.registry-sheet-check {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.registry-sheet-said {
+  margin: 0;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.registry-projects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.registry-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+/* Remove sits apart from Cancel and Review plan, at the footer's start. */
+.registry-remove {
+  margin-inline-end: auto;
+  color: var(--critical);
+}
+
+/* Beside an image that's private: which login read it, or one to pick or add. */
+.image-field-login {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.image-field-login .dw-field {
+  flex: 1 1 200px;
+  min-width: 0;
+}

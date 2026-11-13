@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -71,6 +72,10 @@ type Image struct {
 	// which an exec with a terminal runs as this machine's /bin/sh on a
 	// pseudo-terminal of its own. Empty has none, as a distroless image.
 	Shell string
+	// Login, as "username:password", keeps it private: a pull, and asking
+	// whether one can, find it only with that login in X-Registry-Auth, as a
+	// private image's registry does (ADR 0086).
+	Login string
 }
 
 // Engine is a fake Docker Engine.
@@ -116,6 +121,8 @@ type Engine struct {
 	// Registries are the registries /info says its daemon.json names, as insecure
 	// ones, reached over plain HTTP.
 	Registries []string
+	// Mirrors are the registry-mirrors /info says its daemon.json names.
+	Mirrors []string
 	// nextHost is how many addresses it has given out.
 	nextHost int
 
@@ -150,6 +157,8 @@ type Engine struct {
 	pids           int   // gives running containers process IDs
 	// Requests logs each request, as "METHOD /path".
 	Requests []string
+	// Logins logs each X-Registry-Auth sent, as "image as username:password".
+	Logins []string
 	// followers counts the requests following a log now.
 	followers atomic.Int64
 	// Imports counts images made with docker import, and Loads those docker load
@@ -451,7 +460,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		for _, r := range e.Registries {
 			index[r] = map[string]any{"Secure": false}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index}})
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}})
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":
@@ -463,7 +472,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	case parts[0] == "images":
 		e.serveImages(w, r, path)
 	case parts[0] == "distribution" && len(parts) > 2 && parts[len(parts)-1] == "json":
-		e.serveDistribution(w, strings.Join(parts[1:len(parts)-1], "/"))
+		e.serveDistribution(w, r, strings.Join(parts[1:len(parts)-1], "/"))
 	case parts[0] == "volumes":
 		e.serveVolumes(w, r, parts[1:])
 	case r.Method == http.MethodGet && path == "/system/df":
@@ -627,6 +636,13 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		e.Pulls++
 		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
+		if !e.signedIn(r, ref) {
+			_ = enc.Encode(map[string]any{
+				"error":       "pull access denied for " + ref + ", repository does not exist or may require 'docker login': denied: requested access to the resource is denied",
+				"errorDetail": map[string]string{"message": "pull access denied for " + ref + ", repository does not exist or may require 'docker login': denied: requested access to the resource is denied"},
+			})
+			return
+		}
 		src, ok := e.Registry[ref]
 		if _, digest, pinned := strings.Cut(ref, "@"); pinned && !ok {
 			src, ok = e.published[digest]
@@ -762,9 +778,13 @@ func (e *Engine) Forget(digest string) {
 }
 
 // serveDistribution says what a registry has of a reference, with nothing pulled.
-func (e *Engine) serveDistribution(w http.ResponseWriter, ref string) {
+func (e *Engine) serveDistribution(w http.ResponseWriter, r *http.Request, ref string) {
 	if e.RegistryDown {
 		fail(w, http.StatusInternalServerError, "Get \"https://registry-1.docker.io/v2/\": net/http: request canceled while waiting for connection")
+		return
+	}
+	if !e.signedIn(r, ref) {
+		fail(w, http.StatusUnauthorized, "Head \"https://example.invalid/v2/%s/manifests/latest\": unauthorized: authentication required", ref)
 		return
 	}
 	digest := ""
@@ -1844,6 +1864,14 @@ func (e *Engine) SetDockerRoot(root string) {
 	e.DockerRoot = root
 }
 
+// SentLogins is each X-Registry-Auth a pull or an ask was sent, as
+// "image as username:password".
+func (e *Engine) SentLogins() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.Logins...)
+}
+
 // Seen lists the requests the engine has had, as "METHOD /path".
 func (e *Engine) Seen() []string {
 	e.mu.Lock()
@@ -2376,4 +2404,22 @@ func (e *Engine) Mountinfo(pid int) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("open /proc/%d/mountinfo: no such file or directory", pid)
+}
+
+// signedIn says whether a request may have ref: one with no Login may, and one with
+// a Login may with that login in X-Registry-Auth. It logs what login came.
+func (e *Engine) signedIn(r *http.Request, ref string) bool {
+	given := ""
+	if h := r.Header.Get("X-Registry-Auth"); h != "" {
+		var a struct{ Username, Password string }
+		if raw, err := base64.URLEncoding.DecodeString(h); err == nil && json.Unmarshal(raw, &a) == nil {
+			given = a.Username + ":" + a.Password
+		}
+		e.Logins = append(e.Logins, ref+" as "+given)
+	}
+	src, ok := e.Registry[ref]
+	if !ok && e.Find != nil {
+		src, ok = e.Find(ref)
+	}
+	return !ok || src.Login == "" || src.Login == given
 }

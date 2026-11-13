@@ -310,9 +310,9 @@ func TestTags(t *testing.T) {
 }
 
 func TestChallengeParams(t *testing.T) {
-	got := challengeParams(`realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/nginx:pull,push"`)
-	if got["realm"] != "https://auth.docker.io/token" || got["service"] != "registry.docker.io" || got["scope"] != "repository:library/nginx:pull,push" {
-		t.Errorf("challengeParams = %v", got)
+	got, err := parseChallenges([]string{`Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/nginx:pull,push"`})
+	if err != nil || len(got) != 1 || got[0].params["realm"] != "https://auth.docker.io/token" || got[0].params["service"] != "registry.docker.io" || got[0].params["scope"] != "repository:library/nginx:pull,push" {
+		t.Errorf("parseChallenges = %v, %v", got, err)
 	}
 }
 

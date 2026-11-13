@@ -2,14 +2,17 @@
 
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useQuery } from "@connectrpc/connect-query";
-import { ImageAnswer, type ImageConfig, ImageService } from "@dockwell/api";
-import { cx, Glyph, STATUS, TextField, TONE } from "@dockwell/ui";
+import { ChangeService, ImageAnswer, type ImageConfig, ImageService } from "@dockwell/api";
+import { Button, cx, Glyph, SelectField, STATUS, TextField, TONE } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
+import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
+import { registryOf, useRegistryLogins } from "../registries/registries";
 import "./ImageField.css";
+import "../registries/Registries.css";
 
 /** How long typing pauses before an image is looked up. */
 const LOOK_AFTER_MS = 400;
@@ -89,6 +92,8 @@ export function ImageField({
   onRead,
   initial,
   hint,
+  registryLogin = "",
+  onRegistryLogin,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -103,6 +108,10 @@ export function ImageField({
   initial?: string;
   /** One line under the field, such as what it runs now. */
   hint?: ReactNode;
+  /** The registry login it's read with, by name: the one the app names, or empty for the one its pull would use. */
+  registryLogin?: string;
+  /** Picks the login the app pulls with, where its project may use several; without it, none is offered. */
+  onRegistryLogin?: (name: string) => void;
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
@@ -142,7 +151,7 @@ export function ImageField({
   const checks = canRead && settled !== "" && REFERENCE.test(settled) && !settled.endsWith(":");
   const image = useQuery(
     ImageService.method.getImage,
-    { reference: settled, ...where },
+    { reference: settled, registryLogin, ...where },
     { enabled: checks, staleTime: READ_FOR_MS, ...ONCE_MORE },
   );
   const read = settled === typed && checks ? image.data : undefined;
@@ -236,9 +245,13 @@ export function ImageField({
     if (!read) return undefined;
     switch (read.answer) {
       case ImageAnswer.FOUND:
-        return { kind: "found", word: t({ message: "Found", context: "an image in its registry" }) };
+        return read.registryLogin
+          ? { kind: "found", word: t`Found, with ${read.registryLogin}` }
+          : { kind: "found", word: t({ message: "Found", context: "an image in its registry" }) };
       case ImageAnswer.NOT_FOUND:
         return { kind: "missing", word: t`Not found, or private` };
+      case ImageAnswer.SIGN_IN_FAILED:
+        return { kind: "missing", word: t`The registry refused its login` };
       case ImageAnswer.UNREACHABLE:
         return { kind: "unreachable", word: t`Can't reach the registry` };
     }
@@ -246,6 +259,18 @@ export function ImageField({
   })();
 
   const shows = open && options.length > 0;
+  // An image its registry keeps private: the login that read it, one to pick, or one to add.
+  const isPrivate = read !== undefined && (read.answer !== ImageAnswer.FOUND || read.registryLogin !== "");
+  const login = (
+    <ImageLogin
+      shows={isPrivate && read?.answer !== ImageAnswer.UNREACHABLE}
+      image={settled}
+      environment={environment}
+      picked={registryLogin}
+      onPick={onRegistryLogin}
+      onSaved={() => void image.refetch()}
+    />
+  );
   const activeId = shows ? `${listId}-${active}` : undefined;
   return (
     <div ref={wrap} className="image-field">
@@ -318,6 +343,71 @@ export function ImageField({
           </div>
         ))}
       </div>
+      {login}
     </div>
+  );
+}
+
+/**
+ * Beside an image its registry keeps private (ADR 0086): where the app's project may
+ * use several logins for that registry, which one it pulls with; where it may use
+ * none, Add a login for the registry, for an admin, which opens with the registry
+ * filled. With one, the field says Found, with it, and nothing more is asked.
+ */
+function ImageLogin({
+  shows,
+  image,
+  environment,
+  picked,
+  onPick,
+  onSaved,
+}: {
+  shows: boolean;
+  image: string;
+  environment: string;
+  picked: string;
+  onPick: ((name: string) => void) | undefined;
+  onSaved: () => void;
+}) {
+  const { t } = useLingui();
+  const may = useMay();
+  const mayAdd = may(ChangeService.method.proposeChange, { install: true });
+  const mayList = may(ImageService.method.listRegistryLogins).allowed;
+  const [adding, setAdding] = useState(false);
+  const logins = useRegistryLogins(environment ? { environment } : undefined, shows && mayList);
+  const host = registryOf(image);
+  const usable = (logins.data?.logins ?? []).filter((l) => l.registry === host);
+  const all = useRegistryLogins(undefined, adding);
+  if (!shows && !adding) return null;
+  return (
+    <>
+      {shows && usable.length > 1 && onPick ? (
+        <div className="image-field-login">
+          <SelectField
+            label={t`Pull with`}
+            value={picked}
+            options={[{ value: "", label: t`Pick a login` }, ...usable.map((l) => ({ value: l.name, label: l.name }))]}
+            onChange={(event) => onPick(event.target.value)}
+          />
+        </div>
+      ) : shows && logins.data && usable.length === 0 && mayAdd.allowed ? (
+        <div className="image-field-login">
+          <Button size="sm" variant="secondary" icon="plus" onClick={() => setAdding(true)}>
+            {t`Add a login for ${host}`}
+          </Button>
+        </div>
+      ) : null}
+      {adding ? (
+        <RegistryLoginSheet
+          host={host}
+          existing={all.data?.logins ?? []}
+          onClose={() => {
+            setAdding(false);
+            void logins.refetch();
+            onSaved();
+          }}
+        />
+      ) : null}
+    </>
   );
 }

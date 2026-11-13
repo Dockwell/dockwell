@@ -118,8 +118,10 @@ FirewallService.GetServerFail2ban              read         admin      admin    
 FirewallService.GetServerFirewall              read         admin      admin      install
 FirewallService.GetServerSsh                   read         admin      admin      install
 HealthService.ListHealth                       read         viewer     viewer     project
+ImageService.CheckRegistryLogin                read         admin      admin      install  session
 ImageService.GetImage                          read         developer  developer  project
 ImageService.ListImageTags                     read         developer  developer  project
+ImageService.ListRegistryLogins                read         viewer     viewer     named
 ImageService.SearchImages                      read         developer  developer  project
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
