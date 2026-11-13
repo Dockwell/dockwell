@@ -67,7 +67,7 @@ func (m *Manager) deliver(ctx context.Context, wanted map[Holder]*want, st map[s
 		slices.Sort(holders)
 		key := make([]string, 0, len(holders))
 		for _, h := range holders {
-			key = append(key, h+"@"+st[h].Serial)
+			key = append(key, h+"@"+st[h].Serial+"/"+strings.Join(wanted[h].Serves[server], ","))
 		}
 		now := strings.Join(key, ",")
 		m.pushedMu.Lock()
@@ -86,7 +86,7 @@ func (m *Manager) deliver(ctx context.Context, wanted map[Holder]*want, st map[s
 				whole = false
 				break
 			}
-			certs = append(certs, agentapi.Certificate{ID: h, Names: names, Chain: chain, Key: k})
+			certs = append(certs, agentapi.Certificate{ID: h, Name: wanted[h].Name, Names: names, Serves: wanted[h].Serves[server], Chain: chain, Key: k})
 		}
 		if whole {
 			_, err := loader.PutCertificates(ctx, certs)

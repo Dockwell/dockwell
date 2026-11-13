@@ -78,7 +78,7 @@ func TestAServerThatGoesMarksItsKeys(t *testing.T) {
 		"srv_2":    {Gen: 1, Serial: "dd"},
 	}
 	m := &Manager{}
-	m.markGone(gv, st, map[string]bool{"srv_2": true})
+	m.markGone(gv, st, map[string]string{"srv_2": "hz-2"})
 	for serial, want := range map[string][]string{"aa": {"srv_1"}, "bb": {"srv_1"}, "cc": {"srv_1"}, "dd": nil} {
 		if !slices.Equal(gv[serial].Gone, want) {
 			t.Errorf("%s: gone %v, want %v", serial, gv[serial].Gone, want)
@@ -94,7 +94,7 @@ func TestAServerThatGoesMarksItsKeys(t *testing.T) {
 		t.Error("a key a server that's gone had waits for the hour between orders")
 	}
 	// Marking again changes nothing.
-	m.markGone(gv, st, map[string]bool{"srv_2": true})
+	m.markGone(gv, st, map[string]string{"srv_2": "hz-2"})
 	if !slices.Equal(gv["aa"].Gone, []string{"srv_1"}) {
 		t.Errorf("marked twice: %v", gv["aa"].Gone)
 	}
@@ -160,7 +160,7 @@ func TestAGoneServersKeysAreReplacedAndRevoked(t *testing.T) {
 	st, gv = read(t, m)
 	newWild := st["crt_wild"].Serial
 	if newWild == oldWild || st["crt_wild"].Rekey || st["srv_1"] != nil {
-		t.Fatalf("after srv_1 went: %+v", st)
+		t.Fatalf("after srv_1 went: wild %+v, own %+v", st["crt_wild"], st["srv_1"])
 	}
 	if got := agents["srv_2"].puts; len(got) != 2 || !slices.Equal(got[1], []string{"crt_wild"}) {
 		t.Errorf("srv_2 was given %v, want the new wildcard", got)

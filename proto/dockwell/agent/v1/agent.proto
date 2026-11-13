@@ -926,6 +926,13 @@ message PutCertificate {
   string id = 1;
   // The names it covers, such as "*.example.com" and "example.com".
   repeated string names = 2;
+  // The routes' domains on this server it serves, which the ingress gets no
+  // certificate of its own for. A shared one may cover others it doesn't serve,
+  // as their projects aren't its.
+  repeated string serves = 3;
+  // Its name, which a domain's state says it's served by: a shared certificate's
+  // own, or the server's for its own.
+  string name = 4;
 }
 
 // PutCertificatesResult says what the agent serves now.

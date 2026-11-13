@@ -61,7 +61,7 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	m.place(out, []certificate.Shared{nobody}, providers, "a.example.com", "prj_shop", "srv_1", panel)
 	m.place(out, []certificate.Shared{nobody}, providers, "b.example.com", "prj_shop", "srv_1", panel)
 	m.place(out, []certificate.Shared{nobody}, providers, "c.example.com", "prj_shop", "srv_2", panel)
-	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "a.example.com,b.example.com" || out["crt_nobody"] != nil {
+	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "a.example.com,b.example.com" || strings.Join(w.Serves["srv_1"], ",") != "a.example.com,b.example.com" || out["crt_nobody"] != nil {
 		t.Errorf("a shared certificate that names no project, or a server's own: %+v", out)
 	}
 	if w := out["srv_2"]; w == nil || strings.Join(w.Names, ",") != "c.example.com" || !slices.Equal(w.Servers, []string{"srv_2"}) {
@@ -71,7 +71,7 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	out = map[Holder]*want{}
 	m.place(out, []certificate.Shared{wild}, providers, "a.example.com", "prj_shop", "srv_control", panel)
 	m.place(out, []certificate.Shared{wild}, providers, "b.example.com", "prj_shop", "srv_1", panel)
-	if w := out["crt_wild"]; w == nil || !slices.Equal(w.Servers, []string{"srv_control"}) {
+	if w := out["crt_wild"]; w == nil || !slices.Equal(w.Servers, []string{"srv_control"}) || !slices.Equal(w.Serves["srv_control"], []string{"a.example.com"}) {
 		t.Errorf("a wildcard over the panel's domain went beyond the control server: %+v", w)
 	}
 	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "b.example.com" {

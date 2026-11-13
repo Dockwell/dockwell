@@ -132,6 +132,9 @@ type want struct {
 	// Servers are where its key goes, and Projects whose routes it serves.
 	Servers  []string
 	Projects map[string]bool
+	// Serves are the routes' domains it serves on each server, which Caddy gets no
+	// certificate of its own for there.
+	Serves map[string][]string
 }
 
 // wants reads what each holder's certificate should cover, from the routes that
@@ -140,6 +143,7 @@ type want struct {
 func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]string, error) {
 	out := map[Holder]*want{}
 	zones := map[string][]string{}
+	var live map[string]string
 	err := m.DB.View(ctx, func(tx *store.Tx) error {
 		shared, err := m.shared(ctx, tx)
 		if err != nil {
@@ -157,8 +161,7 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 			return err
 		}
 		// A server that's gone gets nothing more, whatever its routes say.
-		live, err := liveServers(ctx, tx)
-		if err != nil {
+		if live, err = liveServers(ctx, tx); err != nil {
 			return err
 		}
 		panels := m.panelDomains()
@@ -184,18 +187,26 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 				return err
 			}
 			for _, server := range placed {
-				if live[server] {
+				if _, ok := live[server]; ok {
 					m.place(out, shared, providers, rt.GetDomain(), project, server, panels)
 				}
 			}
 		}
 		return nil
 	})
-	for _, w := range out {
+	for h, w := range out {
+		// A server's own is called by the server's name.
+		if name, ok := live[h]; ok && name != "" {
+			w.Name = name
+		}
 		slices.Sort(w.Names)
 		w.Names = slices.Compact(w.Names)
 		slices.Sort(w.Servers)
 		w.Servers = slices.Compact(w.Servers)
+		for server, names := range w.Serves {
+			slices.Sort(names)
+			w.Serves[server] = slices.Compact(names)
+		}
 	}
 	return out, zones, err
 }
@@ -268,7 +279,7 @@ func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs
 		}
 		w := out[c.ID]
 		if w == nil {
-			w = &want{Holder: c.ID, Name: c.Name, Names: c.Spec.GetDomains(), Provider: map[string]string{}, Projects: map[string]bool{}}
+			w = &want{Holder: c.ID, Name: c.Name, Names: c.Spec.GetDomains(), Provider: map[string]string{}, Projects: map[string]bool{}, Serves: map[string][]string{}}
 			for _, n := range w.Names {
 				w.Provider[n] = c.Spec.GetDnsProvider()
 			}
@@ -276,6 +287,7 @@ func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs
 		}
 		w.Servers = append(w.Servers, server)
 		w.Projects[project] = true
+		w.Serves[server] = append(w.Serves[server], domain)
 		return
 	}
 	provider := ""
@@ -296,7 +308,7 @@ func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs
 	}
 	w := out[server]
 	if w == nil {
-		w = &want{Holder: server, Name: server, Provider: map[string]string{}, Projects: map[string]bool{}}
+		w = &want{Holder: server, Name: server, Provider: map[string]string{}, Projects: map[string]bool{}, Serves: map[string][]string{}}
 		out[server] = w
 	}
 	w.Projects[project] = true
@@ -306,6 +318,7 @@ func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs
 	w.Names = append(w.Names, domain)
 	w.Provider[domain] = provider
 	w.Servers = []string{server}
+	w.Serves[server] = append(w.Serves[server], domain)
 }
 
 // Tick orders what's due, renews what's in its window, and forgets what's no
@@ -327,7 +340,7 @@ func (m *Manager) tick(ctx context.Context, wanted map[Holder]*want, zones map[s
 	var st map[string]*held
 	var ordered map[string][]time.Time
 	var gv map[string]*given
-	var live map[string]bool
+	var live map[string]string
 	if err := m.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
 		if st, err = states(ctx, tx); err != nil {
@@ -407,16 +420,17 @@ func (m *Manager) tick(ctx context.Context, wanted map[Holder]*want, zones map[s
 	return nil
 }
 
-// liveServers are the servers that may connect: in the store, and not revoked.
-func liveServers(ctx context.Context, tx *store.Tx) (map[string]bool, error) {
+// liveServers are the servers that may connect, in the store and not revoked, with
+// their names, by ID.
+func liveServers(ctx context.Context, tx *store.Tx) (map[string]string, error) {
 	servers, err := tx.ListServers(ctx)
 	if err != nil {
 		return nil, err
 	}
-	live := map[string]bool{}
+	live := map[string]string{}
 	for i := range servers {
 		if servers[i].RevokedAt == nil {
-			live[servers[i].ID] = true
+			live[servers[i].ID] = servers[i].Name
 		}
 	}
 	return live, nil
@@ -424,11 +438,11 @@ func liveServers(ctx context.Context, tx *store.Tx) (map[string]bool, error) {
 
 // markGone takes each server that's gone off the keys it had, to be revoked, and
 // has the holder of each key still in use order another at once (ADR 0088).
-func (m *Manager) markGone(gv map[string]*given, st map[string]*held, live map[string]bool) {
+func (m *Manager) markGone(gv map[string]*given, st map[string]*held, live map[string]string) {
 	for serial, g := range gv {
 		var gone []string
 		g.Servers = slices.DeleteFunc(g.Servers, func(s string) bool {
-			if live[s] {
+			if _, ok := live[s]; ok {
 				return false
 			}
 			gone = append(gone, s)
@@ -552,7 +566,7 @@ func (m *Manager) forgetRemoved(ctx context.Context, tx *store.Tx) error {
 	}
 	var gone []string
 	for s := range confirmed {
-		if !live[s] {
+		if _, ok := live[s]; !ok {
 			gone = append(gone, s)
 		}
 	}

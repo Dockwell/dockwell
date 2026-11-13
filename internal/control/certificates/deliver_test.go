@@ -222,8 +222,8 @@ func TestASharedCertificateGoesWhereItWasConfirmed(t *testing.T) {
 	st := storeIssued(t, m, "srv_1", "app.example.com")
 	st["crt_wild"] = storeIssued(t, m, "crt_wild", "*.example.com")["crt_wild"]
 	wanted := map[Holder]*want{
-		"srv_1":    {Holder: "srv_1", Names: []string{"app.example.com"}, Servers: []string{"srv_1"}},
-		"crt_wild": {Holder: "crt_wild", Names: []string{"*.example.com"}, Servers: []string{"srv_1"}},
+		"srv_1":    {Holder: "srv_1", Name: "hz-1", Names: []string{"app.example.com"}, Servers: []string{"srv_1"}, Serves: map[string][]string{"srv_1": {"app.example.com"}}},
+		"crt_wild": {Holder: "crt_wild", Name: "wild", Names: []string{"*.example.com"}, Servers: []string{"srv_1"}, Serves: map[string][]string{"srv_1": {"api.example.com", "shop.example.com"}}},
 	}
 	confirm(t, m, map[string][]string{"srv_1": {"srv_1"}})
 	m.deliver(t.Context(), wanted, st)
@@ -234,6 +234,19 @@ func TestASharedCertificateGoesWhereItWasConfirmed(t *testing.T) {
 	m.deliver(t.Context(), wanted, st)
 	if got := agents["srv_1"].puts; len(got) != 2 || !slices.Equal(got[1], []string{"crt_wild", "srv_1"}) {
 		t.Errorf("once let have the wildcard, it got %v", got)
+	}
+	// Each says its name and the routes' domains it serves there.
+	for _, c := range agents["srv_1"].given[1:] {
+		w := wanted[c.ID]
+		if c.Name != w.Name || !slices.Equal(c.Serves, w.Serves["srv_1"]) {
+			t.Errorf("%s went as %q serving %v", c.ID, c.Name, c.Serves)
+		}
+	}
+	// Serving another route is news to the server, though the key isn't.
+	wanted["crt_wild"].Serves["srv_1"] = append(wanted["crt_wild"].Serves["srv_1"], "www.example.com")
+	m.deliver(t.Context(), wanted, st)
+	if got := agents["srv_1"].puts; len(got) != 3 {
+		t.Errorf("a route the wildcard serves now didn't reach the server: %v", got)
 	}
 }
 

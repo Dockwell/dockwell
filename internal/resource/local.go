@@ -882,6 +882,11 @@ func LoginRef(ref Ref) Ref {
 	return Ref{Kind: "registry.login", Scope: ref.Scope, Name: string(ref.Kind) + "/" + ref.Name}
 }
 
+// CertificatesRef is what the certificates the control plane proves by DNS-01 for
+// a server are sealed to on their way to its agent, apart from any resource's
+// values, and to in the agent's keeping (ADR 0088).
+var CertificatesRef = Ref{Kind: "certificate", Name: "put"}
+
 // BuildLoginRef is what the registry logins sent with ref's build are sealed to,
 // apart from its pull's login and its values (ADR 0086).
 func BuildLoginRef(ref Ref) Ref {

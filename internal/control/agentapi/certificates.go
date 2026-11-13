@@ -11,16 +11,15 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
-// CertificateRef is what the certificates a server is given are sealed to, apart
-// from any resource's values (ADR 0088).
-var CertificateRef = resource.Ref{Kind: "certificate", Name: "put"}
-
-// Certificate is one certificate by DNS-01 a server serves, its chain and key in PEM.
+// Certificate is one certificate by DNS-01 a server serves, its chain and key in PEM:
+// the names it covers, and the routes' domains on that server it serves.
 type Certificate struct {
-	ID    string
-	Names []string
-	Chain []byte
-	Key   []byte
+	ID     string
+	Name   string
+	Names  []string
+	Serves []string
+	Chain  []byte
+	Key    []byte
 }
 
 // putTimeout is how long an agent has to load what it's given into its ingress.
@@ -40,12 +39,12 @@ func (s *Session) PutCertificates(ctx context.Context, certs []Certificate) (int
 	call := &agentv1.PutCertificatesCall{}
 	values := make(map[string]string, 2*len(certs))
 	for _, c := range certs {
-		call.Certificates = append(call.Certificates, &agentv1.PutCertificate{Id: c.ID, Names: c.Names})
+		call.Certificates = append(call.Certificates, &agentv1.PutCertificate{Id: c.ID, Name: c.Name, Names: c.Names, Serves: c.Serves})
 		values[c.ID+".chain"], values[c.ID+".key"] = string(c.Chain), string(c.Key)
 	}
 	defer clear(values)
 	seal := func(on *Session) error {
-		sealed, err := on.seal(CertificateRef, values)
+		sealed, err := on.seal(resource.CertificatesRef, values)
 		call.Sealed = sealed
 		return err
 	}
