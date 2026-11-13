@@ -41,6 +41,9 @@ const MAX_NAME = 100;
 
 type Expiry = "30" | "90" | "365" | "never";
 
+/** The new token's name field, which an empty list's Make a token goes to. */
+const NEW_TOKEN_NAME = "new-token-name";
+
 /** A token just made, with its secret, which is shown only now. */
 export interface Made {
   id: string;
@@ -94,7 +97,23 @@ export function TokensPage() {
     );
   } else if (list.length === 0) {
     body = (
-      <EmptyState icon="key" title={<Trans>No tokens yet</Trans>}>
+      <EmptyState
+        icon="key"
+        title={<Trans>No tokens yet</Trans>}
+        action={
+          // The form is below, out of sight on a short screen: this goes there and starts it.
+          <Button
+            icon="plus"
+            onClick={() => {
+              const field = document.getElementById(NEW_TOKEN_NAME);
+              field?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+              field?.focus({ preventScroll: true });
+            }}
+          >
+            <Trans>Make a token</Trans>
+          </Button>
+        }
+      >
         <p>
           <Trans>Make one for each script or integration, so you can revoke one without stopping the rest.</Trans>
         </p>
@@ -468,6 +487,7 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
       <form id={formId} className="tokens-form" onSubmit={(e) => void create(e)} noValidate>
         <div className="tokens-fields">
           <TextField
+            id={NEW_TOKEN_NAME}
             className="tokens-name"
             label={t`Name`}
             placeholder={t`What will use this token?`}

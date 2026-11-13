@@ -209,6 +209,30 @@ describe("Audit log", () => {
     expect(await screen.findByText("1 event, all there is.")).toBeVisible();
   });
 
+  it("shows more from where it says nothing matches: the filters off, then a longer range", async () => {
+    const user = userEvent.setup();
+    const listAuditEvents = vi.fn((req: ListAuditEventsRequest) =>
+      // Only a search for nothing in particular, over everything, finds one.
+      req.query === "" && req.since === undefined ? { events: events.slice(0, 1) } : { events: [] },
+    );
+    renderAt("/settings/audit-log", { audit: { listAuditEvents } });
+    await user.type(await screen.findByRole("textbox", { name: "Filter events" }), "nobody");
+    expect(await screen.findByRole("heading", { name: "Nothing matches" })).toBeVisible();
+    // No count of nothing under it, and no sentence to do by hand what its buttons do.
+    expect(screen.queryByText(/0 events/)).toBeNull();
+    expect(screen.queryByText(/Pick a longer range/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.getByRole("textbox", { name: "Filter events" })).toHaveValue("");
+    expect(await screen.findByRole("heading", { name: "Nothing happened in this range" })).toBeVisible();
+    // A step at a time: a week, a month, then everything, each a press.
+    await user.click(screen.getByRole("button", { name: "Show the last 7 days" }));
+    await user.click(await screen.findByRole("button", { name: "Show the last 30 days" }));
+    await user.click(await screen.findByRole("button", { name: "Show everything" }));
+    expect(screen.getByRole("combobox", { name: "Time range" })).toHaveValue("all");
+    expect(await screen.findByRole("table", { name: "The audit log, newest first" })).toBeVisible();
+    expect(listAuditEvents.mock.lastCall?.[0].since).toBeUndefined();
+  });
+
   it("reads on a page at a time", async () => {
     const user = userEvent.setup();
     const listAuditEvents = vi.fn((req: ListAuditEventsRequest) =>

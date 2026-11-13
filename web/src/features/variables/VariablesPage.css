@@ -334,6 +334,11 @@
   background: var(--surface-sunken);
 }
 
+/* The keyboard's place in the list is a ring, as everywhere, drawn inside so the list's scroll doesn't cut it. */
+.variables-pick-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+
 .variables-pick-name {
   display: inline-flex;
   align-items: center;

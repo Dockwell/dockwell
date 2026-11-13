@@ -44,6 +44,7 @@ import {
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatClock } from "../../lib/format";
+import { useAppDeploy } from "../apps/deployAction";
 import { EmptyState } from "../shell/EmptyState";
 import { drawEntry } from "./draw";
 import { LogContext } from "./LogContext";
@@ -820,6 +821,8 @@ export function LogsPage({
         failedDeploy={failedDeploy && !reading ? failedDeploy : undefined}
         onDeploy={setDeploy}
         onSearchAll={searchDeep}
+        range={search.range}
+        onRange={setRange}
         hasSources={(allSources?.length ?? 0) > 0}
         filtered={levelFiltered || label !== ""}
         onClear={clearFilters}
@@ -1363,7 +1366,15 @@ function emptyOf({
   highlight,
   locale,
   sources,
+  range,
+  onRange,
+  deployApp,
 }: {
+  /** The range read, if one is, for the step longer an empty one offers. */
+  range: LogRange | undefined;
+  onRange: (value: string) => void;
+  /** The app page's Deploy, for an app with no containers yet. */
+  deployApp: (() => void) | undefined;
   sources: ReadonlyMap<string, LogSource>;
   deep: DeepSearch | undefined;
   deepPending: boolean;
@@ -1422,9 +1433,17 @@ function emptyOf({
     if (deep.reached === 0 && deep.servers.length > 0) {
       const first = deep.servers.map((s) => s.serverName).join(", ");
       return (
-        <EmptyState icon="alert" title={<Trans>{first} couldn't be searched</Trans>}>
+        <EmptyState
+          icon="alert"
+          title={<Trans>{first} couldn't be searched</Trans>}
+          action={
+            <Button icon="refresh" onClick={deep.retry}>
+              <Trans>Search again</Trans>
+            </Button>
+          }
+        >
           <p>
-            <Trans>Its agent isn't connected, so its lines weren't read. Check the server, then search again.</Trans>
+            <Trans>Its agent isn't connected, so its lines weren't read.</Trans>
           </p>
         </EmptyState>
       );
@@ -1491,9 +1510,19 @@ function emptyOf({
   }
   if (stream.caughtUp && !hasSources) {
     return (
-      <EmptyState icon="terminal" title={<Trans>{name} has no containers yet</Trans>}>
+      <EmptyState
+        icon="terminal"
+        title={<Trans>{name} has no containers yet</Trans>}
+        action={
+          deployApp ? (
+            <Button variant="primary" icon="deploy" onClick={deployApp}>
+              <Trans>Deploy</Trans>
+            </Button>
+          ) : undefined
+        }
+      >
         <p>
-          <Trans>Deploy it, and its logs show here as it starts.</Trans>
+          <Trans>Its logs show here as it starts.</Trans>
         </p>
       </EmptyState>
     );
@@ -1516,11 +1545,23 @@ function emptyOf({
         </p>
       </EmptyState>
     ) : (
-      <EmptyState icon="clock" title={<Trans>Nothing was written in this time</Trans>}>
-        <p>
-          <Trans>Choose a longer range, or follow what it writes next.</Trans>
-        </p>
-      </EmptyState>
+      <EmptyState
+        icon="clock"
+        title={<Trans>Nothing was written in this time</Trans>}
+        action={
+          // What's next is a press: follow what it writes from now, or read a step further back.
+          <>
+            <Button icon="play" onClick={() => onRange("live")}>
+              <Trans>Follow live</Trans>
+            </Button>
+            {range === "15m" || range === "1h" ? (
+              <Button variant="ghost" onClick={() => onRange(range === "15m" ? "1h" : "24h")}>
+                {range === "15m" ? <Trans>Show the last 1 h</Trans> : <Trans>Show the last 24 h</Trans>}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
     );
   }
   if (stream.error) {
@@ -1578,6 +1619,8 @@ const LogPane = memo(function LogPane({
   onClear,
   highlight,
   foot,
+  range,
+  onRange,
 }: {
   paneRef: React.RefObject<LogStreamHandle | null>;
   store: LogStore;
@@ -1614,8 +1657,13 @@ const LogPane = memo(function LogPane({
   onClear: () => void;
   highlight: string;
   foot: ReactNode;
+  /** The range read, if one is, and how to read another, for what an empty one offers. */
+  range: LogRange | undefined;
+  onRange: (value: string) => void;
 }) {
   const { t } = useLingui();
+  // The app page's Deploy, for an app with no containers yet; none for a container's logs.
+  const deployApp = useAppDeploy();
   useSyncExternalStore(store.subscribe, store.snapshot);
   // A column for the source only when there is more than one.
   const showSource = label === "" && store.labels().length > 1;
@@ -1676,6 +1724,9 @@ const LogPane = memo(function LogPane({
     highlight,
     locale,
     sources: fullSources,
+    range,
+    onRange,
+    deployApp,
   });
 
   const nothing = store.length === 0;

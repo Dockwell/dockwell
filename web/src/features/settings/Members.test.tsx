@@ -377,6 +377,18 @@ describe("Members", () => {
     await user.click(
       within(invited as HTMLElement).getByRole("button", { name: "Revoke the invite for sam@example.com" }),
     );
+    // Its link stops at once and can't come back, so a second press says so, and Keep leaves it.
+    expect(revokeInvite).not.toHaveBeenCalled();
+    await user.click(within(invited as HTMLElement).getByRole("button", { name: "Keep" }));
+    expect(revokeInvite).not.toHaveBeenCalled();
+    await user.click(
+      within(invited as HTMLElement).getByRole("button", { name: "Revoke the invite for sam@example.com" }),
+    );
+    await user.click(
+      within(invited as HTMLElement).getByRole("button", {
+        name: "Revoke the invite for sam@example.com: its link stops working",
+      }),
+    );
     await waitFor(() =>
       expect(revokeInvite).toHaveBeenCalledWith(expect.objectContaining({ id: "inv_1" }), expect.anything()),
     );

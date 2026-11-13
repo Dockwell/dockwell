@@ -36,13 +36,24 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
       title={t`Destinations`}
       flush
       actions={
-        <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
-          <Trans>Add</Trans>
-        </Button>
+        // While there's none, the empty state's Add storage is the one way in.
+        destinations.length > 0 ? (
+          <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
+            <Trans>Add</Trans>
+          </Button>
+        ) : undefined
       }
     >
       {destinations.length === 0 ? (
-        <EmptyState icon="archive" title={<Trans>Only on each server's disk</Trans>}>
+        <EmptyState
+          icon="archive"
+          title={<Trans>Only on each server's disk</Trans>}
+          action={
+            <Button size="sm" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
+              <Trans>Add storage</Trans>
+            </Button>
+          }
+        >
           <p>
             <Trans>Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server.</Trans>
           </p>

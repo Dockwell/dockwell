@@ -34,6 +34,7 @@ import {
 } from "./app";
 import { shortCommit, shownRepository } from "./Build";
 import { DeploySheet } from "./DeploySheet";
+import { AppDeployAction } from "./deployAction";
 import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
 import { useHealth } from "./health";
 import { WholeImage } from "./ImageName";
@@ -401,7 +402,12 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           </RouterTabLink>
         </TabNav>
       )}
-      <LogsSearchButton value={searchButton}>{children}</LogsSearchButton>
+      <LogsSearchButton value={searchButton}>
+        {/* A tab's empty state offers Deploy as the header does, where the reader may, and not while it moves. */}
+        <AppDeployAction.Provider value={changeable && !runtime && mayDeploy.allowed ? deploy : undefined}>
+          {children}
+        </AppDeployAction.Provider>
+      </LogsSearchButton>
       {/* The logs tab has a bar of its own on a phone: Download and Copy. */}
       {phone && !onLogs && changeable ? (
         <div className="app-actionbar">

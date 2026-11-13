@@ -855,6 +855,23 @@ describe("Activity", () => {
     expect(await screen.findByRole("row", { name: /Signed in/ })).toBeVisible();
   });
 
+  it("clears filters that leave nothing in a press, from where it says so", async () => {
+    const user = userEvent.setup();
+    const { router } = renderAt("/activity?server=srv_1&kind=backups", {
+      events: {
+        async *watchEvents(_req, ctx) {
+          yield snapshot([joined, signIn]);
+          await new Promise((resolve) => ctx.signal.addEventListener("abort", resolve));
+        },
+        listEvents: () => ({ events: [] }),
+      },
+    });
+    expect(await screen.findByText("Nothing matches these filters.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByRole("row", { name: /Signed in/ })).toBeVisible();
+  });
+
   it("shows earlier events from the page after the snapshot", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchEventsResponse>();

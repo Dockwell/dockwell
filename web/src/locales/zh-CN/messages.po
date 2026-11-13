@@ -462,6 +462,9 @@ msgstr "变更"
 msgid "Changes, servers joining and sign-ins show up here as they happen."
 msgstr "变更、服务器加入和登录会在发生时显示在这里。"
 
+msgid "Clear filters"
+msgstr "清除筛选"
+
 msgid "Close details"
 msgstr "关闭详情"
 
@@ -507,8 +510,8 @@ msgstr "无记录"
 msgid "Nothing here yet"
 msgstr "这里还没有内容"
 
-msgid "Nothing matches these filters. Clear them to see everything."
-msgstr "没有符合这些筛选条件的内容。清除筛选即可查看全部。"
+msgid "Nothing matches these filters."
+msgstr "没有符合这些筛选条件的内容。"
 
 msgid "Open plan"
 msgstr "打开计划"
@@ -6021,8 +6024,8 @@ msgstr "服务器磁盘和 {destination}"
 msgid "What it is"
 msgstr "基本信息"
 
-msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
-msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装数据库。"
+msgid "A backup is of a volume, and no app keeps one yet."
+msgstr "备份针对的是卷，目前还没有应用使用卷。"
 
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
@@ -6059,6 +6062,9 @@ msgstr "Dockwell 无法读取备份"
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
 msgstr "取回 {0} 的这个备份"
+
+msgid "Install a database"
+msgstr "安装数据库"
 
 #. placeholder {0}: b.fetchError
 msgid "It couldn't be fetched: {0}"
@@ -6287,6 +6293,9 @@ msgstr "{bucket} 在 {movedTo}"
 msgid "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
 msgstr "添加兼容 S3 的存储（例如 Cloudflare R2），在服务器之外保留一份副本。"
 
+msgid "Add storage"
+msgstr "添加存储"
+
 msgid "Destinations"
 msgstr "目的地"
 
@@ -6314,6 +6323,9 @@ msgstr "{0} 份备份，{1}"
 
 msgid "A backup you take by hand stays until you delete it."
 msgstr "手动备份会一直保留，直到你删除它。"
+
+msgid "Add a schedule"
+msgstr "添加备份计划"
 
 msgid "Checks a restore monthly"
 msgstr "每月检查恢复"
@@ -10958,12 +10970,6 @@ msgstr "服务器保留的全部日志"
 msgid "Can't read these logs now"
 msgstr "现在无法读取这些日志"
 
-msgid "Choose a longer range, or follow what it writes next."
-msgstr "请选择更长的时间范围，或跟随它接下来写入的内容。"
-
-msgid "Clear filters"
-msgstr "清除筛选"
-
 msgid "Close the search"
 msgstr "关闭搜索"
 
@@ -10981,9 +10987,6 @@ msgstr "复制这些日志"
 
 msgid "Copy this line"
 msgstr "复制这一行"
-
-msgid "Deploy it, and its logs show here as it starts."
-msgstr "部署后，它启动时日志就会显示在这里。"
 
 msgid "Deployment"
 msgstr "部署"
@@ -11003,6 +11006,9 @@ msgstr "此日志中的错误"
 msgid "Filter log lines"
 msgstr "筛选日志"
 
+msgid "Follow live"
+msgstr "实时跟随"
+
 msgid "From {spanWords}"
 msgstr "从 {spanWords} 起"
 
@@ -11018,8 +11024,11 @@ msgstr "它可能已被移除。容器的日志只随容器一同保留。"
 msgid "It reads each container's log, at most for 30 s."
 msgstr "它会读取每个容器的日志，最长 30 秒。"
 
-msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
-msgstr "它的 Agent 未连接，所以没有读取它的日志。请检查服务器，然后再次搜索。"
+msgid "Its agent isn't connected, so its lines weren't read."
+msgstr "它的代理未连接，因此没有读取到它的日志行。"
+
+msgid "Its logs show here as it starts."
+msgstr "它启动后，日志会显示在这里。"
 
 msgid "Its logs show here once they can be read."
 msgstr "能读取时，它的日志就会显示在这里。"
@@ -11087,6 +11096,9 @@ msgstr "正在读取日志"
 msgid "Running now"
 msgstr "正在运行"
 
+msgid "Search again"
+msgstr "重新搜索"
+
 msgid "Search all the servers keep"
 msgstr "搜索服务器保留的全部内容"
 
@@ -11107,6 +11119,12 @@ msgstr "显示更早的匹配项"
 
 msgid "Show the current logs"
 msgstr "显示当前日志"
+
+msgid "Show the last 1 h"
+msgstr "显示最近 1 小时"
+
+msgid "Show the last 24 h"
+msgstr "显示最近 24 小时"
 
 msgid "Start of the log"
 msgstr "日志开头"
@@ -13613,14 +13631,8 @@ msgstr "面板"
 msgid "People"
 msgstr "人员"
 
-msgid "Pick a longer one to see more."
-msgstr "选择更长的范围以查看更多。"
-
 msgid "Pick a longer range to see more."
 msgstr "选择更长的范围以查看更多。"
-
-msgid "Pick a longer range, or clear the filters."
-msgstr "请选择更长的范围，或清除筛选条件。"
 
 msgid "Recorded"
 msgstr "记录内容"
@@ -13641,6 +13653,15 @@ msgstr "控制服务器上的 Shell"
 #. placeholder {0}: event.action
 msgid "Show details for {0} at {time}"
 msgstr "显示 {time} 的 {0} 详情"
+
+msgid "Show everything"
+msgstr "显示全部"
+
+msgid "Show the last 30 days"
+msgstr "显示最近 30 天"
+
+msgid "Show the last 7 days"
+msgstr "显示最近 7 天"
 
 msgid "Target"
 msgstr "对象"
@@ -14229,6 +14250,10 @@ msgstr "撤销"
 msgid "Revoke the invite for {0}"
 msgstr "撤销给 {0} 的邀请"
 
+#. placeholder {0}: invite.email
+msgid "Revoke the invite for {0}: its link stops working"
+msgstr "撤销给 {0} 的邀请：其链接将失效"
+
 #. placeholder {0}: sent.email
 msgid "Send this link to {0}"
 msgstr "把此链接发给 {0}"
@@ -14465,6 +14490,9 @@ msgstr "上次使用"
 
 msgid "Loading tokens"
 msgstr "正在加载令牌"
+
+msgid "Make a token"
+msgstr "创建令牌"
 
 msgid "Make one for each script or integration, so you can revoke one without stopping the rest."
 msgstr "为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"

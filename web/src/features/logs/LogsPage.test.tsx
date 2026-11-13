@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { anApp } from "../../test/apps";
 import { type Api, onPhone, renderAt, untilAborted } from "../../test/render";
 import { deploysOf, replicaLabel } from "./LogsPage";
 import { instanceName, withLabels } from "./words";
@@ -329,10 +330,19 @@ describe("LogsPage", () => {
 
   it("says when there are no containers yet, and when nothing was written", async () => {
     const empty = api(sourcesOf());
-    const first = renderAt(URL, { logs: empty.logs });
+    // On the app's own page, whose Deploy its empty state offers too.
+    const web = anApp("web", "ghcr.io/acme/web:1.5", {}, { id: SERVICE });
+    const first = renderAt(URL, {
+      logs: empty.logs,
+      services: { listServices: () => ({ services: [web] }) },
+    });
     await screen.findByRole("log");
     await act(() => empty.stream.send(message({ caughtUp: true })));
-    await screen.findByRole("heading", { name: "web has no containers yet" });
+    const none = await screen.findByRole("heading", { name: "web has no containers yet" });
+    // Its Deploy is there, where it says so, as the header's is.
+    const deploy = within(none.closest(".empty-state") as HTMLElement).getByRole("button", { name: "Deploy" });
+    await userEvent.setup().click(deploy);
+    expect(await screen.findByRole("dialog", { name: /^Deploy/ })).toBeVisible();
     first.unmount();
 
     const quiet = api();
@@ -534,6 +544,13 @@ describe("LogsPage", () => {
     await act(() => stream.end());
     await screen.findByRole("heading", { name: "Nothing was written in this time" });
     expect(screen.queryByText("Paused")).toBeNull();
+    // A step further back, or what it writes from now, each a press.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Show the last 24 h" }));
+    await waitFor(() => expect(requests.some((r) => r.once && r.last?.seconds === 86_400n)).toBe(true));
+    await act(() => stream.end());
+    await user.click(await screen.findByRole("button", { name: "Follow live" }));
+    expect(await screen.findByRole("radio", { name: "Live" })).toBeChecked();
   });
 
   it("carries on after the last line when its stream drops", async () => {
@@ -768,6 +785,9 @@ describe("what a view says of itself", () => {
     await screen.findByRole("heading", { name: "hz-2 couldn't be searched" });
     expect(screen.queryByText(/Nothing in all the servers keep/)).toBeNull();
     expect(screen.queryByText(/no lines/)).toBeNull();
+    const asked = readLogs.mock.calls.length;
+    await userEvent.setup().click(screen.getByRole("button", { name: "Search again" }));
+    await waitFor(() => expect(readLogs.mock.calls.length).toBeGreaterThan(asked));
   });
 
   it("shows a search that failed as a failure, with a way to try again", async () => {

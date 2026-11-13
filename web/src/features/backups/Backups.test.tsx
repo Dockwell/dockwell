@@ -88,12 +88,27 @@ describe("the backups page", () => {
     expect(screen.getByRole("button", { name: "Back up now" })).toBeVisible();
   });
 
-  it("says there's nothing to back up, with no volume", async () => {
+  it("says there's nothing to back up, with no volume, and offers the two ways one comes", async () => {
     const empty = api([]);
     empty.resources = { listResources: () => ({ resources: [] }) };
     renderAt("/backups", empty);
     expect(await screen.findByRole("heading", { level: 2, name: "Nothing to back up yet" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Install a database" })).toHaveAttribute(
+      "href",
+      "/catalog?category=databases",
+    );
+    expect(screen.getByRole("link", { name: "New app" })).toHaveAttribute("href", "/apps/new");
+  });
+
+  it("offers one Add for schedules and for storage while there's none, in the empty state", async () => {
+    renderAt("/backups", api([]));
+    const schedules = await screen.findByRole("region", { name: "Schedules" });
+    expect(within(schedules).getByRole("button", { name: "Add a schedule" })).toBeVisible();
+    expect(within(schedules).queryByRole("button", { name: "Add" })).toBeNull();
+    const storage = await screen.findByRole("region", { name: "Destinations" });
+    expect(within(storage).getByRole("button", { name: "Add storage" })).toBeVisible();
+    expect(within(storage).queryByRole("button", { name: "Add" })).toBeNull();
   });
 
   it("lists backups with how each was taken, and what a failure said", async () => {
@@ -366,7 +381,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
     );
     expect(await screen.findByText(/keeping 7, about 960 MB\. The disk has 9 GB to give\./)).toBeVisible();
     expect(screen.getByRole("switch", { name: "Stop web for each backup" })).toBeChecked();
@@ -409,7 +426,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
     );
     expect(await screen.findByText("In Asia/Kolkata")).toBeVisible();
     // An hour's minutes depend on the zone too, in one half an hour off UTC.
@@ -434,7 +453,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", { name: "Add" }),
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
     );
     expect(await screen.findByText("In UTC. Set the install's time zone in Settings to use another.")).toBeVisible();
   });
@@ -458,7 +479,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
+      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
     );
     expect(await screen.findByText(/can't size a backup yet.*The disk has 9 GB\./)).toBeVisible();
   });
@@ -487,7 +510,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", { name: "Add" }),
+      await within(await screen.findByRole("region", { name: "Schedules" })).findByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
     );
     expect(await screen.findByRole("dialog", { name: "Back up on a schedule" })).toBeVisible();
     expect(await screen.findByText(/keeping 7, about 960 MB/)).toBeVisible();
@@ -659,7 +684,7 @@ describe("the backups page", () => {
       }),
     );
     const panel = await screen.findByRole("region", { name: "Destinations" });
-    await user.click(within(panel).getByRole("button", { name: "Add" }));
+    await user.click(within(panel).getByRole("button", { name: /^Add( storage)?$/ }));
     const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
     expect(within(sheet).getByLabelText("Storage")).toHaveValue("r2");
     // Only what can't be picked is typed: R2's account, and the keys.
@@ -708,7 +733,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", { name: "Add" }),
+      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", {
+        name: /^Add( storage)?$/,
+      }),
     );
     const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
     await user.selectOptions(within(sheet).getByLabelText("Storage"), "b2");
@@ -735,7 +762,9 @@ describe("the backups page", () => {
       }),
     );
     await user.click(
-      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", { name: "Add" }),
+      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", {
+        name: /^Add( storage)?$/,
+      }),
     );
     const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
     await user.selectOptions(within(sheet).getByLabelText("Storage"), "s3");
@@ -1061,7 +1090,8 @@ describe("the backups page", () => {
     expect(within(panel).getByText(/the storage refused it/)).toBeVisible();
   });
 
-  async function addDestination(user: ReturnType<typeof userEvent.setup>, add: string) {
+  // With no destinations yet, Add is the empty state's Add storage.
+  async function addDestination(user: ReturnType<typeof userEvent.setup>, add: string | RegExp) {
     const panel = await screen.findByRole("region", { name: /Destinations|目的地/ });
     await user.click(within(panel).getByRole("button", { name: add }));
   }
@@ -1075,7 +1105,7 @@ describe("the backups page", () => {
       "/backups",
       copies([aBackup()], {}, { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream }),
     );
-    await addDestination(user, "Add");
+    await addDestination(user, "Add storage");
     await user.selectOptions(await screen.findByLabelText("Storage"), "other");
     await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
     await user.type(screen.getByLabelText("Bucket"), "acme-backups");
@@ -1099,7 +1129,7 @@ describe("the backups page", () => {
     onPhone();
     const user = userEvent.setup();
     const { container } = renderAt("/backups", copies([aBackup()]));
-    await addDestination(user, "Add");
+    await addDestination(user, "Add storage");
     expect(await screen.findByRole("dialog", { name: "Add a destination" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Copy the passphrase" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Review plan" })).toBeVisible();
@@ -1110,7 +1140,7 @@ describe("the backups page", () => {
     await activateLocale("zh-CN");
     const user = userEvent.setup();
     renderAt("/backups", copies([aBackup()]));
-    await addDestination(user, "添加");
+    await addDestination(user, "添加存储");
     expect(await screen.findByRole("dialog", { name: "添加目的地" })).toBeVisible();
     expect(screen.getByRole("button", { name: "复制密码短语" })).toBeVisible();
     await activateLocale("en");
