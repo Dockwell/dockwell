@@ -1452,7 +1452,9 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
               target: r.target.trim(),
               readOnly: r.readOnly,
               relabel: r.rest.relabel,
-              makeOwner: r.rest.makeOwner,
+              // Whom a volume is made for goes with the volume it was given for: a row
+              // that now names another source makes nothing for anyone.
+              makeOwner: r.source.trim() === first.find((f) => f.key === r.key)?.source ? r.rest.makeOwner : "",
               external: r.rest.external,
             }),
           ),

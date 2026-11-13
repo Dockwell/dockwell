@@ -623,6 +623,29 @@ describe("an app's settings, where it could go wrong", () => {
     expect(data?.makeOwner).toBe("1000:1000");
   });
 
+  // L1: an owner goes with the volume it was given for, never to a source typed in its place.
+  it("makes a row's new source for nobody, where its old one was made for a user", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app") {
+      const data = service.spec.runs.value.mounts[0];
+      if (data) data.makeOwner = "1000:1000";
+    }
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    const source = within(form).getByLabelText("Mount 1: volume or server path");
+    await user.clear(source);
+    await user.type(source, "/srv/web");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const data = appOf(proposals[0])?.mounts.find((m) => m.target === "/data");
+    expect(data?.source.case === "hostPath" ? data.source.value : "").toBe("/srv/web");
+    expect(data?.makeOwner).toBe("");
+  });
+
   it("says a mount that's as good as root asks for the passkey, even on an app that isn't yet", async () => {
     const user = userEvent.setup();
     renderAt("/apps/svc_web/settings", api(anEditedApp()));

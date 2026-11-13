@@ -237,24 +237,26 @@ func TestAVolumesFolder(t *testing.T) {
 
 // Only a volume Dockwell made, kept where Docker keeps volumes and empty before the
 // container is made, is given its owner, once the container is made: one with data,
-// one Docker's own, and one a driver keeps elsewhere are left alone, and one Docker
-// makes with the container is given its owner too.
+// one Docker's own, one another container mounts, and one a driver keeps elsewhere
+// are left alone, and one Docker makes with the container is given its owner too.
 func TestOnlyANewVolumeIsGivenItsOwner(t *testing.T) {
 	e := dockertest.New(t)
 	at := Target{Name: "env_x-api-1", Project: "env_x", Service: "api", Scoped: true}
 	owned := func(name string) *resourcev1.Mount {
 		return &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: name}, Target: "/" + name, MakeOwner: "1000:1000"}
 	}
-	for _, v := range []string{"data", "kept"} {
+	for _, v := range []string{"data", "kept", "shared"} {
 		e.AddVolume(docker.Volume{Name: at.VolumeName(owned(v)), Driver: "local", Mountpoint: "/var/lib/docker/volumes/" + v + "/_data"})
 	}
+	// L2: an empty volume another container mounts is that container's to fill.
+	e.AddContainer(docker.Container{Name: "/other", Mounts: []docker.MountPoint{{Type: "volume", Name: at.VolumeName(owned("shared")), Destination: "/shared"}}})
 	e.AddVolume(docker.Volume{Name: at.VolumeName(owned("share")), Driver: "local", Options: map[string]string{"type": "nfs"}, Mountpoint: "/var/lib/docker/volumes/share/_data"})
 	f := &folders{full: map[string]bool{"/var/lib/docker/volumes/kept/_data": true}}
 	d := &Docker{Client: e.Client(), Folders: f}
 	theirs := owned("theirs")
 	theirs.External = true
 	spec := &resourcev1.Container{Mounts: []*resourcev1.Mount{
-		owned("data"), owned("kept"), owned("share"), theirs, owned("made"),
+		owned("data"), owned("kept"), owned("share"), theirs, owned("made"), owned("shared"),
 		{Source: &resourcev1.Mount_Volume{Volume: "plain"}, Target: "/plain"},
 	}}
 	give, err := d.ownVolumes(t.Context(), at, spec)

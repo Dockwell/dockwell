@@ -235,8 +235,8 @@ func (d *Docker) makeFolders(spec *resourcev1.Container) error {
 // copies in what the image has at the mount's target, with that folder's owner, so an
 // app that runs as another user can't write it; 1Panel's scripts give the folder
 // away for that. A volume with anything in it keeps its owner, so an app's data is
-// never given away, and so does one a driver keeps elsewhere, such as an NFS share
-// (ADR 0085).
+// never given away, and so do one another container mounts and one a driver keeps
+// elsewhere, such as an NFS share (ADR 0085).
 func (d *Docker) ownVolumes(ctx context.Context, t Target, spec *resourcev1.Container) (func(context.Context) error, error) {
 	type fresh struct {
 		name, volume string
@@ -267,6 +267,15 @@ func (d *Docker) ownVolumes(ctx context.Context, t Target, spec *resourcev1.Cont
 					return nil, fmt.Errorf("the volume %s: %w", m.GetVolume(), err)
 				}
 				if !empty {
+					continue
+				}
+				// An empty volume another container mounts is that container's to fill,
+				// as it may be about to, so it keeps its owner too.
+				in, err := d.Client.ListContainers(ctx, map[string][]string{"volume": {name}})
+				if err != nil {
+					return nil, fmt.Errorf("can't read which containers mount the volume %s: %w", m.GetVolume(), err)
+				}
+				if len(in) > 0 {
 					continue
 				}
 			}
