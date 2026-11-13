@@ -3,10 +3,12 @@
 package catalogapi
 
 import (
+	"strings"
 	"testing"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog/convert"
 )
 
 // A source reads one of the stores Dockwell knows only at the store's own
@@ -27,6 +29,9 @@ func TestStoreOf(t *testing.T) {
 		{"https://github.com/1Panel-dev/appstore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_DOCKWELL, ""},
 		{"https://github.com/coollabsio/coolify", "", resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY, "coolify"},
 		{"https://github.com/Dokploy/templates", "", resourcev1.CatalogFormat_CATALOG_FORMAT_DOKPLOY, "dokploy"},
+		{"https://github.com/runtipi/runtipi-appstore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_RUNTIPI, "runtipi"},
+		{"https://github.com/IceWhaleTech/CasaOS-AppStore", "", resourcev1.CatalogFormat_CATALOG_FORMAT_CASAOS, "casaos"},
+		{"https://github.com/getumbrel/umbrel-apps", "", resourcev1.CatalogFormat_CATALOG_FORMAT_UMBREL, "umbrel"},
 		{"https://github.com/Dockwell/catalog", "entries", resourcev1.CatalogFormat_CATALOG_FORMAT_UNSPECIFIED, ""},
 	} {
 		spec := &resourcev1.CatalogSource{Repository: c.repository, Path: c.path, Format: c.format}
@@ -57,5 +62,33 @@ func TestListedLeavesOutLongWords(t *testing.T) {
 	plain := &catalogv1.Entry{Id: "plain"}
 	if listed(plain) != plain {
 		t.Error("listed copied an entry with nothing to leave out")
+	}
+}
+
+// A store whose repository states no licence reads so in its plan, as it is, never as an
+// identifier, one whose licence file Dockwell doesn't recognise says that, and one
+// that states one names it (the review of #589, L1).
+func TestConvertedWordsSayTheLicence(t *testing.T) {
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/apps", Commit: strings.Repeat("a", 40), Format: resourcev1.CatalogFormat_CATALOG_FORMAT_UMBREL}
+	if got := convertedWords(spec, nil, "NONE"); !strings.HasSuffix(got, ", and its repository states no licence.") {
+		t.Errorf("with no licence: %q", got)
+	}
+	if got := convertedWords(spec, nil, "NOASSERTION"); !strings.HasSuffix(got, ", under a licence Dockwell doesn't recognise.") {
+		t.Errorf("with a licence it doesn't recognise: %q", got)
+	}
+	for want, file := range map[string]struct {
+		has  bool
+		text string
+	}{
+		"NONE":        {false, ""},
+		"NOASSERTION": {true, "All rights reserved, except as our lawyers say."},
+		"Apache-2.0":  {true, "                                 Apache License\n                           Version 2.0, January 2004\n"},
+	} {
+		if got := convert.RepositoryLicense(file.has, []byte(file.text)); got != want {
+			t.Errorf("RepositoryLicense(%t, %q) = %q, want %q", file.has, file.text, got, want)
+		}
+	}
+	if got := convertedWords(spec, nil, "Apache-2.0"); !strings.HasSuffix(got, ", under Apache-2.0.") {
+		t.Errorf("with a licence: %q", got)
 	}
 }

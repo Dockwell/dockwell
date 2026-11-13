@@ -374,6 +374,12 @@ const (
 	CatalogFormat_CATALOG_FORMAT_DOKPLOY CatalogFormat = 3
 	// Coolify's templates: templates/compose/<id>.yaml.
 	CatalogFormat_CATALOG_FORMAT_COOLIFY CatalogFormat = 4
+	// Runtipi's app store: apps/<id>/config.json beside its docker-compose.yml (ADR 0083).
+	CatalogFormat_CATALOG_FORMAT_RUNTIPI CatalogFormat = 5
+	// CasaOS's app store: Apps/<name>/docker-compose.yml, with x-casaos (ADR 0083).
+	CatalogFormat_CATALOG_FORMAT_CASAOS CatalogFormat = 6
+	// Umbrel's app store: <id>/umbrel-app.yml beside its docker-compose.yml (ADR 0083).
+	CatalogFormat_CATALOG_FORMAT_UMBREL CatalogFormat = 7
 )
 
 // Enum value maps for CatalogFormat.
@@ -384,6 +390,9 @@ var (
 		2: "CATALOG_FORMAT_ONEPANEL",
 		3: "CATALOG_FORMAT_DOKPLOY",
 		4: "CATALOG_FORMAT_COOLIFY",
+		5: "CATALOG_FORMAT_RUNTIPI",
+		6: "CATALOG_FORMAT_CASAOS",
+		7: "CATALOG_FORMAT_UMBREL",
 	}
 	CatalogFormat_value = map[string]int32{
 		"CATALOG_FORMAT_UNSPECIFIED": 0,
@@ -391,6 +400,9 @@ var (
 		"CATALOG_FORMAT_ONEPANEL":    2,
 		"CATALOG_FORMAT_DOKPLOY":     3,
 		"CATALOG_FORMAT_COOLIFY":     4,
+		"CATALOG_FORMAT_RUNTIPI":     5,
+		"CATALOG_FORMAT_CASAOS":      6,
+		"CATALOG_FORMAT_UMBREL":      7,
 	}
 )
 
@@ -7233,13 +7245,16 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"Protection\x12\x1a\n" +
 	"\x16PROTECTION_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PROTECTION_PROTECTED\x10\x01\x12\x13\n" +
-	"\x0fPROTECTION_OPEN\x10\x02*\xa1\x01\n" +
+	"\x0fPROTECTION_OPEN\x10\x02*\xf3\x01\n" +
 	"\rCatalogFormat\x12\x1e\n" +
 	"\x1aCATALOG_FORMAT_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CATALOG_FORMAT_DOCKWELL\x10\x01\x12\x1b\n" +
 	"\x17CATALOG_FORMAT_ONEPANEL\x10\x02\x12\x1a\n" +
 	"\x16CATALOG_FORMAT_DOKPLOY\x10\x03\x12\x1a\n" +
-	"\x16CATALOG_FORMAT_COOLIFY\x10\x04*\xd9\x01\n" +
+	"\x16CATALOG_FORMAT_COOLIFY\x10\x04\x12\x1a\n" +
+	"\x16CATALOG_FORMAT_RUNTIPI\x10\x05\x12\x19\n" +
+	"\x15CATALOG_FORMAT_CASAOS\x10\x06\x12\x19\n" +
+	"\x15CATALOG_FORMAT_UMBREL\x10\a*\xd9\x01\n" +
 	"\n" +
 	"LinkEngine\x12\x1b\n" +
 	"\x17LINK_ENGINE_UNSPECIFIED\x10\x00\x12\x1a\n" +

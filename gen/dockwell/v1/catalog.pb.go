@@ -1523,7 +1523,13 @@ type CatalogSourceInfo struct {
 	// where it reads one at that store's own repository, in its format. Empty for
 	// any other source. Numbered in the block catalog sources' presentation holds
 	// (ADR 0083).
-	Store         string `protobuf:"bytes,30,opt,name=store,proto3" json:"store,omitempty"`
+	Store string `protobuf:"bytes,30,opt,name=store,proto3" json:"store,omitempty"`
+	// For another store's catalog, the licence its repository states, as an SPDX
+	// identifier: NONE where it has no licence file, which the panel says as "None
+	// stated", or NOASSERTION where its licence file is none Dockwell recognises,
+	// "Not recognised". Empty for a catalog of Dockwell's own format, whose entries
+	// each say theirs (ADR 0083).
+	License       string `protobuf:"bytes,31,opt,name=license,proto3" json:"license,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1638,6 +1644,13 @@ func (x *CatalogSourceInfo) GetAlso() []string {
 func (x *CatalogSourceInfo) GetStore() string {
 	if x != nil {
 		return x.Store
+	}
+	return ""
+}
+
+func (x *CatalogSourceInfo) GetLicense() string {
+	if x != nil {
+		return x.License
 	}
 	return ""
 }
@@ -2542,7 +2555,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x1b\n" +
 	"\x19ListCatalogSourcesRequest\"V\n" +
 	"\x1aListCatalogSourcesResponse\x128\n" +
-	"\asources\x18\x01 \x03(\v2\x1e.dockwell.v1.CatalogSourceInfoR\asources\"\xc5\x03\n" +
+	"\asources\x18\x01 \x03(\v2\x1e.dockwell.v1.CatalogSourceInfoR\asources\"\xdf\x03\n" +
 	"\x11CatalogSourceInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12A\n" +
 	"\x06source\x18\x02 \x01(\v2).dockwell.resource.v1alpha1.CatalogSourceR\x06source\x12\x18\n" +
@@ -2557,7 +2570,8 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"next_check\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tnextCheck\x12\x10\n" +
 	"\x03own\x18\x0e \x01(\bR\x03own\x12\x12\n" +
 	"\x04also\x18\x14 \x03(\tR\x04also\x12\x14\n" +
-	"\x05store\x18\x1e \x01(\tR\x05store\"f\n" +
+	"\x05store\x18\x1e \x01(\tR\x05store\x12\x18\n" +
+	"\alicense\x18\x1f \x01(\tR\alicense\"f\n" +
 	"\x14CatalogSourceRefusal\x12\x12\n" +
 	"\x04file\x18\x01 \x01(\tR\x04file\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x12\n" +

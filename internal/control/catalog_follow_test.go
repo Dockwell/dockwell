@@ -199,7 +199,7 @@ func TestACatalogFollowsOnItsOwn(t *testing.T) {
 func TestACatalogSourcesImagesAreServed(t *testing.T) {
 	repo := gitfetchtest.New(t)
 	entry := strings.Replace(sourceEntry("notes-src", 1), "name: Thing\n", "name: Thing\nicon: media/notes-icon.png\n", 1)
-	icon := "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+	icon := onePixelPNG
 	commit := repo.Commit(map[string]string{"entries/notes-src.yaml": entry, "entries/media/notes-icon.png": icon, "entries/media/notes.svg": "<svg/>"})
 	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.CatalogSources = t.TempDir() })
 	b := signedIn(t, f)

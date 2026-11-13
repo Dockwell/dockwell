@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -64,6 +65,9 @@ type Snapshot struct {
 	tree   string // the commit's tree
 	whole  bool   // the first round's pack holds every file, as the host can't filter
 	closed bool
+	// fetched is what the reads after the first round have taken from the host, in
+	// bytes of their packs.
+	fetched atomic.Int64
 }
 
 // An Entry is a file or folder a walk lists.
@@ -253,11 +257,17 @@ func (s *Snapshot) Read(ctx context.Context, files []Entry) (out map[string][]by
 }
 
 // ReadLimits bound one Read: how many files it asks for, how large each may be, and
-// all of them together.
+// all of them together, and the most the pack it fetches may be. Pack is held to the
+// snapshot's own; 0 takes that.
 type ReadLimits struct {
-	Files       int
-	File, Total int64
+	Files             int
+	File, Total, Pack int64
 }
+
+// Fetched is what the reads after the first round have taken from the host so far,
+// in bytes of their packs, so a caller that reads in rounds can hold them all to one
+// budget.
+func (s *Snapshot) Fetched() int64 { return s.fetched.Load() }
 
 // ReadWithin is Read within limits of its own, such as a catalog's images', which
 // count apart from the files an adapter reads. The pack it fetches is held to the
@@ -285,7 +295,11 @@ func (s *Snapshot) ReadWithin(ctx context.Context, files []Entry, lim ReadLimits
 		slices.Sort(names)
 		names = slices.Compact(names)
 		if len(names) > 0 {
-			p, closeIt, err := s.fetchBlobs(ctx, names)
+			most := s.lim.Pack
+			if lim.Pack > 0 {
+				most = min(most, lim.Pack)
+			}
+			p, closeIt, err := s.fetchBlobs(ctx, names, most)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -318,7 +332,7 @@ func (s *Snapshot) ReadWithin(ctx context.Context, files []Entry, lim ReadLimits
 
 // fetchBlobs asks for objects by name, as Git's partial clone fetches what its first
 // round left out, and indexes what comes back.
-func (s *Snapshot) fetchBlobs(ctx context.Context, names []string) (*pack, func(), error) {
+func (s *Snapshot) fetchBlobs(ctx context.Context, names []string, most int64) (*pack, func(), error) {
 	var body bytes.Buffer
 	for _, line := range []string{"command=fetch\n", "agent=dockwell\n"} {
 		writePkt(&body, line)
@@ -356,12 +370,13 @@ func (s *Snapshot) fetchBlobs(ctx context.Context, names []string) (*pack, func(
 		_ = f.Close()
 		_ = os.Remove(f.Name())
 	}
-	size, err := receivePack(io.LimitReader(resp.Body, s.lim.Pack+1<<20), f, s.u, what, s.lim.Pack)
+	size, err := receivePack(io.LimitReader(resp.Body, most+1<<20), f, s.u, what, most)
 	if err != nil {
 		closeIt()
 		return nil, nil, err
 	}
-	p, err := indexPack(ctx, f, size, 4*s.lim.Pack)
+	s.fetched.Add(size)
+	p, err := indexPack(ctx, f, size, 4*most)
 	if err != nil {
 		closeIt()
 		return nil, nil, fmt.Errorf("reading what %s sent: %w", s.u.Host, err)

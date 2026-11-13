@@ -517,6 +517,12 @@ message CatalogSourceInfo {
   // any other source. Numbered in the block catalog sources' presentation holds
   // (ADR 0083).
   string store = 30;
+  // For another store's catalog, the licence its repository states, as an SPDX
+  // identifier: NONE where it has no licence file, which the panel says as "None
+  // stated", or NOASSERTION where its licence file is none Dockwell recognises,
+  // "Not recognised". Empty for a catalog of Dockwell's own format, whose entries
+  // each say theirs (ADR 0083).
+  string license = 31;
 }
 
 // CatalogSourceRefusal is a file of a source the catalog leaves out, and why.

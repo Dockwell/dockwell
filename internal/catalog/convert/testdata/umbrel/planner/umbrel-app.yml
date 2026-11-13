@@ -1,0 +1,13 @@
+manifestVersion: 1
+id: planner
+name: Planner
+tagline: A stand-in app for the converter's tests
+description: Planner plans.
+version: "2.3.1"
+category: files
+port: 8546
+website: https://planner.example.com
+repo: https://github.com/example/planner
+dependencies: []
+gallery:
+  - 1.webp

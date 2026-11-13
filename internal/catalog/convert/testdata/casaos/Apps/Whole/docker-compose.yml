@@ -1,0 +1,11 @@
+name: whole
+services:
+  whole:
+    image: example/whole:1.0.0
+    volumes:
+      - /DATA:/DATA
+x-casaos:
+  architectures: [amd64, arm64]
+  main: whole
+  title:
+    en_US: Whole

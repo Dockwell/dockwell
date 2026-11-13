@@ -14,8 +14,10 @@ var sockets = []string{"/var/run/docker.sock", "/run/docker.sock", "/var/run/con
 
 // ControlsDocker reports a server path that is, or holds, Docker's or
 // containerd's socket: whoever reaches it controls Docker, which is the same as
-// root.
+// root. It reads the path as the server resolves it, so /srv/../var/run is
+// /var/run.
 func ControlsDocker(p string) bool {
+	p = path.Clean(p)
 	if base := path.Base(p); base == "docker.sock" || base == "containerd.sock" {
 		return true
 	}

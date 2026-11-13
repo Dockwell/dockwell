@@ -35,6 +35,25 @@ export function useStoreName(): (store: CatalogStore) => string {
   return (store) => formatWords(store.format) ?? store.name;
 }
 
+/**
+ * A licence as a person reads it: its SPDX identifier, "None stated" where the
+ * repository has no licence file, and "Not recognised" where its licence file is
+ * none Dockwell recognises, as honest states (ADR 0083).
+ */
+export function useLicenceWords(): (license: string) => string {
+  const { t } = useLingui();
+  return (license) => {
+    switch (license) {
+      case "NONE":
+        return t`None stated`;
+      case "NOASSERTION":
+        return t({ message: "Not recognised", context: "licence" });
+      default:
+        return license;
+    }
+  };
+}
+
 /** A name for a store's source: the store's ID, or the next one no source has. */
 export function storeSourceName(store: CatalogStore, taken: readonly string[]): string {
   if (!taken.includes(store.id)) return store.id;
@@ -73,6 +92,7 @@ export function useAddStore(sources: readonly CatalogSourceInfo[]): (store: Cata
  */
 export function StoreFacts({ store }: { store: CatalogStore }) {
   const { t } = useLingui();
+  const licence = useLicenceWords();
   const at = store.commit.slice(0, 12);
   return (
     <span className="store-facts">
@@ -93,7 +113,7 @@ export function StoreFacts({ store }: { store: CatalogStore }) {
               other: `About ${store.installs} of # apps install`,
             })}
       </span>
-      <span className="store-licence">{store.license}</span>
+      <span className="store-licence">{licence(store.license)}</span>
     </span>
   );
 }

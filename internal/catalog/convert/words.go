@@ -3,6 +3,7 @@
 package convert
 
 import (
+	"fmt"
 	"path"
 	"regexp"
 	"strings"
@@ -51,6 +52,19 @@ func storeIcon(t *tree, dir, name string) string {
 func IconName(id, from string) string {
 	ext := strings.ToLower(path.Ext(from))
 	return id + ext
+}
+
+// ShotName is the name a screenshot is kept by in the folder media: the entry's ID,
+// its place, and its extension, lowercased, such as memos_shot-2.png. An ID has no
+// underscore, so no screenshot is named as an app's logo, IconName, is.
+func ShotName(id string, n int, from string) string {
+	return fmt.Sprintf("%s_shot-%d%s", id, n, strings.ToLower(path.Ext(from)))
+}
+
+// ShotCaption is what a screenshot from a store says it shows, where the store gives
+// it no words: the app, and which of its screens it is.
+func ShotCaption(app string, n int) string {
+	return fmt.Sprintf("%s, screen %d", app, n)
 }
 
 // readmeTag is how a README's language reads: Chinese where Han characters are a

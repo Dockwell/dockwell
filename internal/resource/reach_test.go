@@ -150,3 +150,16 @@ func TestAccessWordsSayWhereAPathLeads(t *testing.T) {
 		}
 	}
 }
+
+// A path to Docker's socket controls Docker however it's written, as the server
+// resolves it (the review of #589, M1).
+func TestADottedPathToDockerControlsIt(t *testing.T) {
+	for _, p := range []string{"/var/run/docker.sock/.", "/srv/../var/run/docker.sock/.", "/run/user/1000/x/..", "/srv/../run/user/1000"} {
+		if !resource.ControlsDocker(p) {
+			t.Errorf("%s doesn't control Docker", p)
+		}
+	}
+	if resource.ControlsDocker("/srv/media/..") {
+		t.Error("/srv controls Docker")
+	}
+}

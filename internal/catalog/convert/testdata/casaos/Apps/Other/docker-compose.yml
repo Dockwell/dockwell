@@ -1,0 +1,11 @@
+name: other
+services:
+  other:
+    image: example/other:1.0.0
+    volumes:
+      - /DATA/AppData/notes/data:/data
+x-casaos:
+  architectures: [amd64, arm64]
+  main: other
+  title:
+    en_US: Other

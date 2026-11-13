@@ -1054,6 +1054,12 @@ enum CatalogFormat {
   CATALOG_FORMAT_DOKPLOY = 3;
   // Coolify's templates: templates/compose/<id>.yaml.
   CATALOG_FORMAT_COOLIFY = 4;
+  // Runtipi's app store: apps/<id>/config.json beside its docker-compose.yml (ADR 0083).
+  CATALOG_FORMAT_RUNTIPI = 5;
+  // CasaOS's app store: Apps/<name>/docker-compose.yml, with x-casaos (ADR 0083).
+  CATALOG_FORMAT_CASAOS = 6;
+  // Umbrel's app store: <id>/umbrel-app.yml beside its docker-compose.yml (ADR 0083).
+  CATALOG_FORMAT_UMBREL = 7;
 }
 
 // Spec is the desired state of one resource, of any kind: the field that is

@@ -14,10 +14,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/jpeg" // for image.DecodeConfig, which reads a JPEG image's size
+	_ "image/png"  // and a PNG image's
 	"maps"
 	"regexp"
 	"slices"
 	"strings"
+
+	_ "golang.org/x/image/webp" // and a WebP image's
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
@@ -62,15 +67,65 @@ func MediaFile(path string) (string, bool) {
 // raster image is told by its first bytes.
 func Vector(name string) bool { return strings.HasSuffix(name, ".svg") }
 
-// Sniffed is how many of a raster image's first bytes Image needs. An SVG image it
+// Sniffed is how many of a raster image's first bytes Sniff needs. An SVG image it
 // reads whole.
 const Sniffed = 12
 
-// Image says what an image is by its bytes, as its content type: WebP, PNG or JPEG
+// Pixels bound a raster image's size, as its header names it: a browser decodes an
+// image it shows whole, so a file of a few hundred KiB that names 30000 by 30000
+// pixels would cost it gigabytes.
+type Pixels struct {
+	// Side is the most either side may be, and Area the most pixels in all.
+	Side, Area int
+}
+
+var (
+	// ImagePixels bound every raster image a catalog keeps, a screenshot the largest
+	// of them: 4096 a side, and 16 MP.
+	ImagePixels = Pixels{Side: 4096, Area: 16_000_000}
+	// LogoPixels bound a logo, which the panel draws a few dozen pixels wide.
+	LogoPixels = Pixels{Side: 1024, Area: 1024 * 1024}
+)
+
+// Within says a raster image's header names a size within p, read as its format
+// reads it. An SVG image is drawn at the size the page gives it, and passes.
+func Within(name string, data []byte, p Pixels) error {
+	if Vector(name) {
+		return nil
+	}
+	c, _, err := image.DecodeConfig(bytes.NewReader(data))
+	switch {
+	case err != nil:
+		return fmt.Errorf("its size can't be read from it: %w. Save it again as a WebP, PNG or JPEG", err)
+	case c.Width <= 0 || c.Height <= 0:
+		return fmt.Errorf("it says it's %d by %d pixels, which no image is. Save it again", c.Width, c.Height)
+	case c.Width > p.Side || c.Height > p.Side:
+		return fmt.Errorf("it's %d by %d pixels, over the %d a side an image may be. Save it smaller", c.Width, c.Height, p.Side)
+	case c.Width*c.Height > p.Area:
+		return fmt.Errorf("it's %d by %d pixels, over the %.0f MP an image may be. Save it smaller", c.Width, c.Height, float64(p.Area)/1e6)
+	}
+	return nil
+}
+
+// Image says what an image is by the whole of its file, as its content type: what
+// Sniff says of it, and, for a raster image, a size within ImagePixels.
+func Image(name string, data []byte) (string, error) {
+	kind, err := Sniff(name, data)
+	if err != nil {
+		return "", err
+	}
+	if err := Within(name, data, ImagePixels); err != nil {
+		return "", err
+	}
+	return kind, nil
+}
+
+// Sniff says what an image is by its bytes, as its content type: WebP, PNG or JPEG
 // by its first bytes, or an SVG image svgclean takes, by the whole file, and that its
 // name's extension says the same. Anything else is refused, as a stranger's file
-// could be a page a browser runs, whatever it's called.
-func Image(name string, data []byte) (string, error) {
+// could be a page a browser runs, whatever it's called. It reads the first bytes
+// of an image kept already, which Image read whole when it was kept.
+func Sniff(name string, data []byte) (string, error) {
 	if Vector(name) {
 		if _, err := svgclean.Clean(data); err != nil {
 			return "", fmt.Errorf("it can't be shown as an SVG image: %w. Save it as a plain SVG, WebP, PNG or JPEG", err)
@@ -264,12 +319,12 @@ func ReadsAsInstall(ctx context.Context, e *catalogv1.Entry, tagged bool) error 
 	}
 	plain := catalog.TaggedImages(e.GetCompose())
 	for _, s := range stack.Services {
-		image := s.Spec.GetApp().GetImage()
-		if tagged && slices.Contains(plain, image) {
+		ref := s.Spec.GetApp().GetImage()
+		if tagged && slices.Contains(plain, ref) {
 			continue
 		}
-		if !pinnedImage.MatchString(image) {
-			return fmt.Errorf("its service %s runs %s, which isn't pinned by its digest, as image@sha256:<digest>, so what it runs could change under it. Pin it", s.Name, image)
+		if !pinnedImage.MatchString(ref) {
+			return fmt.Errorf("its service %s runs %s, which isn't pinned by its digest, as image@sha256:<digest>, so what it runs could change under it. Pin it", s.Name, ref)
 		}
 	}
 	return nil

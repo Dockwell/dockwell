@@ -1,0 +1,1 @@
+{ "name": "Retired", "available": false, "port": 8102, "id": "retired", "version": "1.0.0", "categories": [], "short_desc": "x", "description": "x", "source": "https://example.com", "form_fields": [], "supported_architectures": ["amd64", "arm64"] }

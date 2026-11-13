@@ -1,0 +1,5 @@
+services:
+  netif:
+    image: example/netif:1.0.0
+    environment:
+      - IFACE=${NETWORK_INTERFACE}

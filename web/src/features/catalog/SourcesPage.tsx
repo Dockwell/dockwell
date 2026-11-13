@@ -31,7 +31,15 @@ import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import { AppIcon } from "./media";
 import { converted, FormatLine, LeftOut, repositoryKey, useFormatWords } from "./SourceFormats";
-import { StoreGallery, StoreMark, StoreTile, storeSourceName, useStoreName, useStores } from "./Stores";
+import {
+  StoreGallery,
+  StoreMark,
+  StoreTile,
+  storeSourceName,
+  useLicenceWords,
+  useStoreName,
+  useStores,
+} from "./Stores";
 import { monogram, useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
@@ -245,6 +253,7 @@ function SourceCard({
   const follow = source.source?.follow ?? "";
   const repository = source.source?.repository ?? "";
   const formatWords = useFormatWords();
+  const licence = useLicenceWords();
   // Every app it brings, those listed from a catalog before it included, which it offers as another choice.
   const apps = [...source.entries, ...source.also];
   const count = apps.length;
@@ -279,6 +288,14 @@ function SourceCard({
             <span title={repository}>{where}</span>
             {converted(source) && !source.store ? (
               <span>{formatWords(source.source?.format ?? CatalogFormat.UNSPECIFIED)}</span>
+            ) : null}
+            {/* Another store's licence, as its repository states it, or that it states none. */}
+            {source.license ? (
+              <span>
+                <span className="store-licence" title={t`Licence`}>
+                  {licence(source.license)}
+                </span>
+              </span>
             ) : null}
             <span className="source-card-commit">
               <code title={commit}>{commit.slice(0, 12)}</code>

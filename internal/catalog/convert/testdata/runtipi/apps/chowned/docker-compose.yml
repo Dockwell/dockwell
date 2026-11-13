@@ -1,0 +1,3 @@
+services:
+  chowned:
+    image: example/chowned:1.0.0

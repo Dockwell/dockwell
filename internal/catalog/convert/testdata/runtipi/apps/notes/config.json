@@ -1,0 +1,19 @@
+{
+  "name": "Notes",
+  "available": true,
+  "port": 8213,
+  "id": "notes",
+  "version": "1.2.0",
+  "categories": ["social"],
+  "short_desc": "A stand-in app for the converter's tests",
+  "description": "Notes keeps your notes.",
+  "source": "https://github.com/example/notes",
+  "website": "https://notes.example.com",
+  "form_fields": [
+    { "type": "random", "label": "Database password", "min": 32, "env_variable": "DB_PASSWORD" },
+    { "type": "password", "label": "Admin password", "required": true, "env_variable": "ADMIN_PASSWORD" },
+    { "type": "boolean", "label": "Open sign-ups", "env_variable": "SIGNUPS" },
+    { "type": "text", "label": "Theme", "env_variable": "THEME", "default": "light", "options": [{ "label": "Light", "value": "light" }, { "label": "Dark", "value": "dark" }] }
+  ],
+  "supported_architectures": ["amd64", "arm64"]
+}

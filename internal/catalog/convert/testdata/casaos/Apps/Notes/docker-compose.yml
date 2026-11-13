@@ -1,0 +1,47 @@
+name: notes
+services:
+  notes:
+    image: example/notes:1.2.0
+    environment:
+      TZ: $TZ
+      PUID: $PUID
+    network_mode: bridge
+    ports:
+      - target: 3000
+        published: "8123"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/data
+        target: /data
+      - type: bind
+        source: /DATA/Media
+        target: /media
+    x-casaos:
+      envs:
+        - container: TZ
+          description:
+            en_US: TimeZone
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: notes
+  category: Media
+  title:
+    en_US: Notes
+  tagline:
+    en_US: A stand-in app for the converter's tests
+    zh_CN: 转换器测试用的替身应用
+  description:
+    en_US: Notes keeps your notes.
+    zh_CN: Notes 保存你的笔记。
+  icon: https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Notes/icon.png
+  screenshot_link:
+    - https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Notes/screenshot-1.png
+    - https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Other/screenshot-1.png
+    - https://example.com/elsewhere.png
+    - https://raw.githubusercontent.com/IceWhaleTech/CasaOS-AppStore/main/Apps/Notes/screenshot-2.png
+  port_map: "8123"
+  version: "1.2.0"
+  website: https://notes.example.com

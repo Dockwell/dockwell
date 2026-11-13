@@ -8471,6 +8471,9 @@ components:
                         - CATALOG_FORMAT_ONEPANEL
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
+                        - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: |-
                         How its folder is laid out: Dockwell's own entries, or another store's, which
@@ -8497,6 +8500,9 @@ components:
                         - CATALOG_FORMAT_ONEPANEL
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
+                        - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: The format.
                     format: enum
@@ -8574,6 +8580,14 @@ components:
                          where it reads one at that store's own repository, in its format. Empty for
                          any other source. Numbered in the block catalog sources' presentation holds
                          (ADR 0083).
+                license:
+                    type: string
+                    description: |-
+                        For another store's catalog, the licence its repository states, as an SPDX
+                         identifier: NONE where it has no licence file, which the panel says as "None
+                         stated", or NOASSERTION where its licence file is none Dockwell recognises,
+                         "Not recognised". Empty for a catalog of Dockwell's own format, whose entries
+                         each say theirs (ADR 0083).
             description: CatalogSourceInfo is a source, and what Dockwell made of it.
         CatalogSourceRef:
             type: object
@@ -8630,6 +8644,9 @@ components:
                         - CATALOG_FORMAT_ONEPANEL
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
+                        - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: How its folder is laid out.
                     format: enum
@@ -19363,6 +19380,9 @@ components:
                         - CATALOG_FORMAT_ONEPANEL
                         - CATALOG_FORMAT_DOKPLOY
                         - CATALOG_FORMAT_COOLIFY
+                        - CATALOG_FORMAT_RUNTIPI
+                        - CATALOG_FORMAT_CASAOS
+                        - CATALOG_FORMAT_UMBREL
                     type: string
                     description: |-
                         How its folder is laid out. Left out, Dockwell tells from the commit, and the

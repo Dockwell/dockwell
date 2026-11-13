@@ -40,9 +40,11 @@ const (
 	maxSummary = 160
 	// Version is the converter's version, which goes up whenever what it writes
 	// changes, so a commit converted by an older one is converted again. 2 reads a
-	// store's logos and words (ADR 0083), 3 takes a tag that moves, and 4 a container's
-	// own settings and a secret inside a command's word (ADR 0085).
-	Version = 4
+	// store's logos and words (ADR 0083), 3 takes a tag that moves, 4 a container's
+	// own settings and a secret inside a command's word (ADR 0085), and 5 leaves out
+	// a path that climbs out of a folder a person names, and says whether a
+	// repository states no licence or one Dockwell doesn't recognise (ADR 0083).
+	Version = 5
 	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
 	// entries reads 16 MiB of a commit at most.
 	MaxConverted = 16 << 20
@@ -53,6 +55,9 @@ const (
 	FormatOnePanel = "1panel"
 	FormatDokploy  = "dokploy"
 	FormatCoolify  = "coolify"
+	FormatRuntipi  = "runtipi"
+	FormatCasaOS   = "casaos"
+	FormatUmbrel   = "umbrel"
 	FormatDockwell = "dockwell"
 )
 
@@ -68,6 +73,11 @@ type Store struct {
 	// Homepage is the store's own project site, and Branch the branch a source of it
 	// follows, its repository's default.
 	Homepage, Branch string
+	// Unlisted keeps it out of the stores a person adds in one click, though a link to
+	// it reads as it: Umbrel's repository states no licence, and a repository with no
+	// licence grants no rights to use its files, so Dockwell doesn't promote it
+	// (ADR 0083).
+	Unlisted bool
 	// License is what its upstream publishes under.
 	License string
 	// Root is the folder it keeps its apps in, such as apps.
@@ -130,6 +140,51 @@ var Stores = []Store{
 		},
 		read: coolifyApps,
 	},
+	{
+		Format: FormatRuntipi, ID: "runtipi", Label: "Runtipi", Name: "Runtipi's app store", License: "GPL-3.0-only", Root: "apps",
+		Upstream: "https://github.com/runtipi/runtipi-appstore", Layout: "Runtipi's format",
+		Homepage: "https://runtipi.io", Branch: "master",
+		// apps/<id>/ with its config.json, its Compose file, and metadata/ with its
+		// logo and description.
+		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 3 },
+		Want: func(p string) bool {
+			parts := strings.Split(p, "/")
+			switch {
+			case len(parts) == 3 && parts[0] == "apps" && (parts[2] == "config.json" || parts[2] == "docker-compose.yml"):
+				return true
+			case len(parts) == 4 && parts[0] == "apps" && parts[2] == "metadata" && parts[3] == "description.md":
+				return true
+			}
+			return false
+		},
+		read: runtipiApps,
+	},
+	{
+		Format: FormatCasaOS, ID: "casaos", Label: "CasaOS", Name: "CasaOS's app store", License: "Apache-2.0", Root: "Apps",
+		Upstream: "https://github.com/IceWhaleTech/CasaOS-AppStore", Layout: "CasaOS's format",
+		Homepage: "https://casaos.zimaspace.com", Branch: "main",
+		// Apps/<name>/ with its docker-compose.yml, whose x-casaos says the rest, and the
+		// logo and screenshots beside it that it links to.
+		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "Apps/") && depth <= 2 },
+		Want: func(p string) bool {
+			parts := strings.Split(p, "/")
+			return len(parts) == 3 && parts[0] == "Apps" && parts[2] == "docker-compose.yml"
+		},
+		read: casaosApps,
+	},
+	{
+		Format: FormatUmbrel, ID: "umbrel", Label: "Umbrel", Name: "Umbrel's app store", License: "NONE", Root: ".",
+		Upstream: "https://github.com/getumbrel/umbrel-apps", Layout: "Umbrel's format",
+		Homepage: "https://umbrel.com", Branch: "master", Unlisted: true,
+		// <id>/ at its top, with umbrel-app.yml and its Compose file, and whether it has
+		// hooks or exports.sh, which leave it out.
+		Descend: func(_ string, depth int) bool { return depth <= 2 },
+		Want: func(p string) bool {
+			parts := strings.Split(p, "/")
+			return len(parts) == 2 && (parts[1] == "umbrel-app.yml" || parts[1] == "docker-compose.yml")
+		},
+		read: umbrelApps,
+	},
 }
 
 // SourceName is how an entry says where it comes from: the store's name for its own
@@ -180,7 +235,7 @@ func DetectDescend(p string, depth int) bool {
 		return true
 	case 2:
 		top, _, _ := strings.Cut(p, "/")
-		return slices.Contains([]string{"apps", "blueprints", "templates", "entries"}, top)
+		return slices.Contains([]string{"apps", "Apps", "blueprints", "templates", "entries"}, top)
 	}
 	return false
 }
@@ -197,6 +252,12 @@ func Detect(files []string) ([]Guess, map[Guess]int) {
 		switch {
 		case len(parts) == 3 && parts[0] == "apps" && parts[2] == "data.yml":
 			counts[Guess{FormatOnePanel, ""}]++
+		case len(parts) == 3 && parts[0] == "apps" && parts[2] == "config.json":
+			counts[Guess{FormatRuntipi, ""}]++
+		case len(parts) == 3 && parts[0] == "Apps" && parts[2] == "docker-compose.yml":
+			counts[Guess{FormatCasaOS, ""}]++
+		case len(parts) == 2 && parts[1] == "umbrel-app.yml":
+			counts[Guess{FormatUmbrel, ""}]++
 		case len(parts) == 3 && parts[0] == "blueprints" && parts[2] == "template.toml":
 			counts[Guess{FormatDokploy, ""}]++
 		case len(parts) == 3 && parts[0] == "templates" && parts[1] == "compose" && strings.HasSuffix(parts[2], ".yaml"):
@@ -327,7 +388,7 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		}
 		r := c.convertSafely(ctx, apps[i])
 		if r.Entry != nil {
-			r.Icon = apps[i].Icon
+			r.Icon, r.Screenshots = apps[i].Icon, apps[i].Screenshots
 			if size += proto.Size(r.Entry); size > MaxConverted {
 				return Run{}, fmt.Errorf("what it converts to comes to over %d MiB, more than a source keeps of one commit", MaxConverted>>20)
 			}
@@ -466,7 +527,7 @@ func (c *Converter) serverWords(ctx context.Context, e *catalogv1.Entry, app App
 	if catalog.Link(app.Code) {
 		e.AppSource = app.Code
 	}
-	e.Notes = append([]string{"From " + c.Source.Name + ", under " + e.GetLicense()}, e.GetNotes()...)
+	e.Notes = append([]string{fromNote(c.Source.Name, e.GetLicense())}, e.GetNotes()...)
 	reaches, err := reachesOf(ctx, e, rw.reaches, rw.typed)
 	if err != nil {
 		return err
@@ -477,6 +538,19 @@ func (c *Converter) serverWords(ctx context.Context, e *catalogv1.Entry, app App
 		overlay.Reaches = reaches
 	}
 	return nil
+}
+
+// fromNote says where an entry comes from, and under which licence, or that its
+// repository states none, or one Dockwell doesn't recognise, as an honest state
+// rather than an identifier.
+func fromNote(source, license string) string {
+	switch license {
+	case "", "NONE":
+		return "From " + source + ", whose repository states no licence"
+	case "NOASSERTION":
+		return "From " + source + ", under a licence Dockwell doesn't recognise"
+	}
+	return "From " + source + ", under " + license
 }
 
 // hostAccessWords says what an app reaches on its server, as an entry's host_access.

@@ -1,0 +1,1 @@
+{ "name": "Chowned", "available": true, "port": 8101, "id": "chowned", "version": "1.0.0", "categories": [], "short_desc": "x", "description": "x", "source": "https://example.com", "uid": 1000, "gid": 1000, "form_fields": [], "supported_architectures": ["amd64", "arm64"] }

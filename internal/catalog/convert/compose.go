@@ -773,6 +773,9 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 			return mounted{dropped: "the server's " + source + ", which only set the container's time zone"}, nil
 		}
 		return mounted{}, nil
+	case strings.HasPrefix(source, "$") && climbs(source):
+		// A folder a person names, then out of it, as ${MEDIA_DIR}/../../var/run.
+		return mounted{}, leave(ClassCantSay, "it binds %s, which climbs out of the folder a person names", source)
 	case strings.HasPrefix(source, "$"):
 		return mounted{reaches: "a server path a person names, " + source}, nil
 	case strings.HasPrefix(source, "~"):
@@ -804,6 +807,30 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 
 // volumeLike is a named volume's name, as Compose tells one from a path.
 var volumeLike = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// climbs says a path, or what follows a folder in a value, has a .. segment, which
+// leaves the folder it starts in. A volume's target, after a colon, counts too.
+func climbs(rest string) bool {
+	return slices.Contains(strings.FieldsFunc(rest, func(r rune) bool { return r == '/' || r == ':' }), "..")
+}
+
+// climbsAfter says what follows a match of a folder in a value climbs out of it, as
+// ${ROOT_FOLDER_HOST}/media/../../etc does.
+func climbsAfter(folder *regexp.Regexp, value string) bool {
+	return slices.ContainsFunc(folder.FindAllStringIndex(value, -1), func(at []int) bool { return climbs(value[at[1]:]) })
+}
+
+// inFolder is a value with each match of a folder written as to. A match ends where
+// the folder's name does: at a slash, at the colon before a volume's target, or at
+// the value's end, and keeps that slash or colon.
+func inFolder(folder *regexp.Regexp, value, to string) string {
+	return folder.ReplaceAllStringFunc(value, func(m string) string {
+		if end := m[len(m)-1]; end == '/' || end == ':' {
+			return to + string(end)
+		}
+		return to
+	})
+}
 
 // dropLabels drops the labels a platform reads, which nothing in Dockwell does:
 // 1Panel's, Coolify's, and Traefik's, as Dockwell's proxy is Caddy.
