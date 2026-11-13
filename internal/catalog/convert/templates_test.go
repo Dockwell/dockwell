@@ -18,7 +18,7 @@ func templateConverter(src Source) *Converter {
 	c.Source = src
 	c.Overlays = map[string]Overlay{
 		"wiki": written("Keeps a wiki", "notes"), "board": written("Keeps a board", "notes"),
-		"files": written("Stands in", "ai"), "urlsecret": written("Stands in", "ai"), "supa": written("Stands in", "ai"),
+		"files": written("Stands in", "ai"), "urlsecret": written("Stands in", "ai"), "tracker": written("Stands in", "ai"), "supa": written("Stands in", "ai"),
 	}
 	return c
 }
@@ -119,10 +119,11 @@ func TestDokployWritesWhatItsTemplateMakes(t *testing.T) {
 func TestDokployLeavesOutWhatAnEntryCantSay(t *testing.T) {
 	apps := appsOf(t, Dokploy, "testdata/dokploy")
 	for id, want := range map[string]string{
-		"urlsecret": "puts a value it makes up, db_password, inside a longer one",
+		// A URL of a database the file doesn't run, so no need of its own meets it.
+		"urlsecret": "its app's DATABASE_URL puts the secret DB_PASSWORD inside a longer value",
 	} {
 		r := templateConverter(DokploySource("abc")).Convert(t.Context(), apps[id])
-		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
+		if r.Entry != nil || !strings.Contains(r.LeftOut, want) || r.Class != ClassInside {
 			t.Errorf("%s: %q, want it left out as %q", id, r.LeftOut, want)
 		}
 	}
@@ -396,5 +397,27 @@ func TestADokployTemplatesFilesAreFilesDockwellWrites(t *testing.T) {
 	}
 	if r := results["huge"]; r.Entry != nil || r.Class != ClassShipped || !strings.Contains(r.LeftOut, "broker.conf: it holds over 128 KiB") {
 		t.Errorf("a file of 150 KiB: %s, %q", r.Class, r.LeftOut)
+	}
+}
+
+// Dokploy's template makes a database's password up in a variable, which its URL
+// names before the database's own value does. The URL names the password's input,
+// so the database is the app's need, with a user and a database of the app's own,
+// as PostgreSQL keeps postgres for itself (ADR 0084).
+func TestDokployADatabasesURLIsItsNeed(t *testing.T) {
+	apps := appsOf(t, Dokploy, "testdata/dokploy")
+	r := templateConverter(DokploySource("abc")).Convert(t.Context(), apps["tracker"])
+	if !writesURLs() {
+		if r.Entry != nil || r.Class != ClassURL || !strings.Contains(r.LeftOut, "its database tracker-db by a URL with its password in it, DATABASE_URL") {
+			t.Fatalf("it's left out as %s: %s", r.Class, r.LeftOut)
+		}
+		return
+	}
+	if r.Entry == nil {
+		t.Fatalf("it's left out: %s", r.LeftOut)
+	}
+	n := r.Entry.GetNeeds()[0]
+	if n.GetUser() != "tracker" || n.GetDatabase() != "tracker" || n.GetSets()[3].GetTemplate() != "postgresql://{user}:{password}@{host}:{port}/{database}" {
+		t.Errorf("its need is %v", n)
 	}
 }

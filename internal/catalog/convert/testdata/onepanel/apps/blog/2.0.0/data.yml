@@ -1,0 +1,44 @@
+additionalProperties:
+  formFields:
+    - child:
+        default: ""
+        envKey: PANEL_DB_HOST
+        required: true
+        type: service
+      default: mysql
+      envKey: PANEL_DB_TYPE
+      labelEn: Database Service
+      required: true
+      type: apps
+      values:
+        - label: MySQL
+          value: mysql
+        - label: MariaDB
+          value: mariadb
+    - default: blog
+      envKey: PANEL_DB_NAME
+      labelEn: Database
+      random: true
+      required: true
+      rule: paramCommon
+      type: text
+    - default: blog
+      envKey: PANEL_DB_USER
+      labelEn: Database User
+      random: true
+      required: true
+      rule: paramCommon
+      type: text
+    - default: blog
+      envKey: PANEL_DB_USER_PASSWORD
+      labelEn: Database Password
+      random: true
+      required: true
+      rule: paramComplexity
+      type: password
+    - default: 8080
+      envKey: PANEL_APP_PORT_HTTP
+      labelEn: Port
+      required: true
+      rule: paramPort
+      type: number

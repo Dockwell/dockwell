@@ -6976,11 +6976,17 @@ msgstr "Install once Dockwell connects them to a database"
 msgid "Install once Dockwell fills in what their store does"
 msgstr "Install once Dockwell fills in what their store does"
 
+msgid "Install once Dockwell makes that database beside an app"
+msgstr "Install once Dockwell makes that database beside an app"
+
 msgid "Install once Dockwell runs on their architecture"
 msgstr "Install once Dockwell runs on their architecture"
 
 msgid "Install once Dockwell runs their setup steps itself"
 msgstr "Install once Dockwell runs their setup steps itself"
+
+msgid "Install once Dockwell writes a database URL with its password"
+msgstr "Install once Dockwell writes a database URL with its password"
 
 msgid "Marked by their store to leave out"
 msgstr "Marked by their store to leave out"
@@ -6988,11 +6994,17 @@ msgstr "Marked by their store to leave out"
 msgid "Name no version that stays put"
 msgstr "Name no version that stays put"
 
+msgid "Need a database Dockwell doesn't make beside them yet"
+msgstr "Need a database Dockwell doesn't make beside them yet"
+
 msgid "Other reasons"
 msgstr "Other reasons"
 
 msgid "Put a secret inside a longer value"
 msgstr "Put a secret inside a longer value"
+
+msgid "Reach their database by a URL with its password"
+msgstr "Reach their database by a URL with its password"
 
 msgid "Read it as"
 msgstr "Read it as"

@@ -122,7 +122,8 @@ func TestASecretTheTemplateWritesIsGenerated(t *testing.T) {
 	if r := dokploy["inside"]; r.Entry != nil || r.Class != ClassInside || !strings.Contains(r.LeftOut, `"serve --password example"`) {
 		t.Errorf("a secret written in a command too: %s, %q", r.Class, r.LeftOut)
 	}
-	if r := dokploy["inurl"]; r.Entry != nil || r.Class != ClassInside || !strings.Contains(r.LeftOut, "postgres://app:example@db/app") {
+	// A URL of a database the file doesn't run names the secret, which stays inside it.
+	if r := dokploy["inurl"]; r.Entry != nil || r.Class != ClassInside || !strings.Contains(r.LeftOut, "its web's DATABASE_URL puts the secret DB_PASSWORD inside a longer value") {
 		t.Errorf("a secret written in a URL too: %s, %q", r.Class, r.LeftOut)
 	}
 

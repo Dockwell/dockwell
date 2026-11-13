@@ -46,9 +46,10 @@ const (
 	// path that climbs out of a folder a person names, and says whether a repository
 	// states no licence or one Dockwell doesn't recognise (ADR 0083), 6 the files an
 	// app ships beside its Compose file, 7 1Panel's scripts read as steps, 8 an app
-	// that runs on amd64 alone, 9 common cases that left apps out, and 10 a volume's
-	// mode and the files it starts with (ADR 0085).
-	Version = 10
+	// that runs on amd64 alone, 9 common cases that left apps out, 10 a volume's mode
+	// and the files it starts with (ADR 0085), and 11 a database an app reaches, as
+	// its need (ADR 0084).
+	Version = 11
 	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
 	// entries reads 16 MiB of a commit at most.
 	MaxConverted = 16 << 20

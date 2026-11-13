@@ -6976,11 +6976,17 @@ msgstr "Dockwell 支持连接数据库后即可安装"
 msgid "Install once Dockwell fills in what their store does"
 msgstr "Dockwell 能填入其商店提供的值后即可安装"
 
+msgid "Install once Dockwell makes that database beside an app"
+msgstr "Dockwell 能在应用旁创建该数据库后即可安装"
+
 msgid "Install once Dockwell runs on their architecture"
 msgstr "待 Dockwell 支持其架构后即可安装"
 
 msgid "Install once Dockwell runs their setup steps itself"
 msgstr "Dockwell 自行执行其安装步骤后即可安装"
+
+msgid "Install once Dockwell writes a database URL with its password"
+msgstr "Dockwell 能写出含密码的数据库 URL 后即可安装"
 
 msgid "Marked by their store to leave out"
 msgstr "被其商店标记为不收录"
@@ -6988,11 +6994,17 @@ msgstr "被其商店标记为不收录"
 msgid "Name no version that stays put"
 msgstr "未指定固定的版本"
 
+msgid "Need a database Dockwell doesn't make beside them yet"
+msgstr "需要 Dockwell 尚不能在其旁创建的数据库"
+
 msgid "Other reasons"
 msgstr "其他原因"
 
 msgid "Put a secret inside a longer value"
 msgstr "把密钥写在更长的值里"
+
+msgid "Reach their database by a URL with its password"
+msgstr "通过含密码的 URL 连接数据库"
 
 msgid "Read it as"
 msgstr "读取为"

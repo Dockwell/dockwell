@@ -183,7 +183,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		return nil, nil, nil, err
 	}
 	walkScalars(doc.Content[0], func(n *yaml.Node) { n.Value = braceVars(n.Value) })
-	ev := &dokployEval{vars: t.Variables, hosts: map[string]string{}}
+	ev := &dokployEval{vars: t.Variables, hosts: map[string]string{}, claimed: map[string]string{}}
 	env, err := envPairs(t.Config.Env)
 	if err != nil {
 		return nil, nil, nil, err
@@ -191,8 +191,10 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 	// A routed port's input takes a name nothing in the template or its file has, so
 	// a template's own PORT stays the app's.
 	taken := usedNames(doc.Content[0])
+	ev.envKeys = map[string]bool{}
 	for _, kv := range env {
 		taken[kv[0]] = true
+		ev.envKeys[kv[0]] = true
 	}
 	for v := range t.Variables {
 		taken[strings.ToUpper(v)] = true
@@ -226,10 +228,19 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		}
 	}
 	literal := map[string]string{}
-	claimed := map[string]string{}
+	claimed := ev.claimed
 	var keys []string
 	for _, kv := range env {
 		keys = append(keys, kv[0])
+	}
+	// A value made up whole comes first, so a longer one that uses it names its input.
+	ordered := slices.Clone(env)
+	slices.SortStableFunc(ordered, func(a, b [2]string) int {
+		_, wa := soleVar(a[1])
+		_, wb := soleVar(b[1])
+		return boolInt(!wa) - boolInt(!wb)
+	})
+	for _, kv := range ordered {
 		key, value := kv[0], kv[1]
 		text, made, err := ev.value(value)
 		if err != nil {
@@ -332,6 +343,10 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		// loopback until a person adds one.
 		n.Value = localHTTP(n.Value)
 	})
+	fields = append(fields, ev.fields...)
+	// What a file it writes holds is no environment's value, so a value made up
+	// inside one stays out of reach.
+	ev.envKeys = nil
 	// A variable the template doesn't set, which Dokploy lets a person set.
 	asked := askedFields(doc.Content[0], fields)
 	walkScalars(doc.Content[0], func(n *yaml.Node) {
@@ -468,6 +483,37 @@ type dokployEval struct {
 	// variables that each name another ten times stand for gigabytes in a template of
 	// a few hundred bytes.
 	calls, written int
+	// claimed are the inputs that hold each value made up, by what makes them one,
+	// so a use of one inside a longer value names its input: a URL with a password
+	// in it may become a need's (ADR 0084), and the catalog's checks refuse the rest.
+	claimed map[string]string
+	// envKeys are the template's env's names, and fields the inputs a value made up
+	// inside a longer one takes first.
+	envKeys map[string]bool
+	fields  []Field
+}
+
+// claim gives a value made up an input of its own, by its variable's name, for a
+// use inside a longer value, where no whole use has given it one yet. It says ""
+// where the name can't be an input's.
+func (ev *dokployEval) claim(m *made, variable string) string {
+	if ev.envKeys == nil {
+		return ""
+	}
+	if in := ev.claimed[m.id]; in != "" {
+		return in
+	}
+	// The variable's own name, which no other value takes: an input of the env's
+	// own name would be that value's.
+	input := envInputName(variable)
+	if !inputLike.MatchString(input) || ev.envKeys[input] || slices.Contains(slices.Collect(maps.Values(ev.claimed)), input) {
+		return ""
+	}
+	ev.claimed[m.id] = input
+	f := m.field
+	f.Name, f.Label = input, labelOf(input)
+	ev.fields = append(ev.fields, f)
+	return input
 }
 
 // What working out one template's values may take: a value is a variable's text, a
@@ -558,6 +604,8 @@ func (ev *dokployEval) expandOnce(expr, holder string, depth int) (string, *made
 			switch {
 			case err != nil:
 				failed = err
+			case m != nil && ev.claim(m, name) != "":
+				return "${" + ev.claimed[m.id] + "}"
 			case m != nil:
 				failed = leave(ClassInside, "puts a value it makes up, %s, inside a longer one, which an upgrade and a rotation couldn't reach", name)
 			}

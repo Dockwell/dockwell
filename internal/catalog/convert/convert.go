@@ -121,6 +121,9 @@ type App struct {
 	// Architectures are the CPU architectures its source says it runs on, when not
 	// both of amd64 and arm64, such as ["amd64"] (ADR 0085).
 	Architectures []string
+	// Needs are what it reads from outside its own containers, such as a database
+	// another app runs in its store (ADR 0084).
+	Needs []*catalogv1.Need
 	// scripts is what its store's scripts come to, read as steps Dockwell takes
 	// itself, never run (ADR 0085).
 	scripts scriptSteps
@@ -379,6 +382,7 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 		Inputs:   rw.inputs,
 		// An app that runs on one architecture alone is offered on servers of it.
 		Architectures: app.Architectures,
+		Needs:         app.Needs,
 	}
 	if svc := serviceOf(file, rw.web); svc != "" {
 		e.Web = &catalogv1.Web{Service: svc}
@@ -395,6 +399,14 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	}
 	if err := applyOverlay(e, overlay); err != nil {
 		return fail(err, ClassOverlay)
+	}
+	// A database the app reaches by a URL with its password in it is the app's need,
+	// which that database meets (ADR 0084).
+	if err := bundledNeeds(e); err != nil {
+		return fail(err, ClassFile)
+	}
+	if err := secretInside(e); err != nil {
+		return fail(err, ClassFile)
 	}
 	// How it's reached is the panel's to show, as state and actions (ADR 0029): on this
 	// server alone until a domain, with Open, or a port to add. What's left is a note
@@ -418,6 +430,9 @@ func (c *Converter) convert(ctx context.Context, app App) Result {
 	}
 	if err := check(ctx, e, overlay, rw.reaches, rw.typed, c.OnServer); err != nil {
 		return fail(err, ClassCheck)
+	}
+	if err := needsWait(e); err != nil {
+		return fail(err, "")
 	}
 	if len(needs) > 0 {
 		return fail(leave(ClassWords, "it needs %s, in its overlay", strings.Join(needs, ", and ")), "")

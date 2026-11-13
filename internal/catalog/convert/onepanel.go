@@ -60,7 +60,9 @@ type onePanelField struct {
 	Random   bool              `yaml:"random"`
 	Rule     string            `yaml:"rule"`
 	Type     string            `yaml:"type"`
-	Values   []struct {
+	// Child is the service an apps field's choice of app fills in, such as its host.
+	Child  *onePanelField `yaml:"child"`
+	Values []struct {
 		Label string `yaml:"label"`
 		Value any    `yaml:"value"`
 	} `yaml:"values"`
@@ -297,17 +299,29 @@ func onePanelVersion(t *tree, app App, appDir, version string) App {
 		app.LeftOut, app.Class = err.Error(), ClassFile
 		return app
 	}
+	var other []*onePanelField
 	for i := range form.More.Fields {
 		f := &form.More.Fields[i]
+		if f.Type == "apps" && f.Child != nil && f.Child.EnvKey != "" {
+			other = append(other, f, f.Child)
+			continue
+		}
 		if f.Disabled || f.EnvKey == "" {
 			continue
 		}
 		if f.Type == "service" || f.Type == "apps" {
-			what := cmp.Or(f.Key, f.LabelEn, f.EnvKey)
-			app.LeftOut, app.Class = fmt.Sprintf("it uses %s from another app, for its %s, which the converter can't bring into its own project yet", what, f.EnvKey), ClassAnotherApp
-			return app
+			other = append(other, f)
+			continue
 		}
 		app.Fields = append(app.Fields, onePanelFieldOf(f, app.Web))
+	}
+	if len(other) > 0 {
+		// A database another app runs is the app's need, which an install meets
+		// beside it (ADR 0084).
+		if err := onePanelNeed(&app, other); err != nil {
+			app.LeftOut, app.Class = err.Error(), classOf(err, ClassAnotherApp)
+			return app
+		}
 	}
 	return app
 }

@@ -34,6 +34,8 @@ const (
 	ClassMajor      Class = "Moves to a new major version, which waits for the breaking marker"
 	ClassBack       Class = "Would go back to an older version"
 	ClassInside     Class = "Puts a secret inside a longer value, such as a connection URL"
+	ClassURL        Class = "Reaches its database by a URL with its password, which Dockwell doesn't write yet"
+	ClassNewEngine  Class = "Needs a database Dockwell doesn't make beside an app yet"
 	ClassMadeUp     Class = "Asks for a value Dockwell doesn't make yet"
 	ClassSkipped    Class = "Its source marks it as one to leave out"
 	ClassTerms      Class = "Comes under terms of its own"
@@ -92,7 +94,7 @@ var classKeys = map[Class]string{
 	ClassWords: "words", ClassOverlay: "overlay", ClassYoung: "young", ClassAgeUnknown: "age-unknown",
 	ClassNoVersion: "no-version", ClassArch: "arch", ClassOwn: "own", ClassPlatform: "platform", ClassPin: "pin",
 	ClassCantSay: "cant-say", ClassCantRun: "cant-run", ClassCheck: "check", ClassFile: "file", ClassMajor: "major",
-	ClassBack: "back", ClassInside: "inside", ClassMadeUp: "made-up", ClassSkipped: "skipped", ClassTerms: "terms",
+	ClassBack: "back", ClassInside: "inside", ClassURL: "url", ClassNewEngine: "new-engine", ClassMadeUp: "made-up", ClassSkipped: "skipped", ClassTerms: "terms",
 }
 
 // Key is a class's word, such as "scripts", as the API says it.

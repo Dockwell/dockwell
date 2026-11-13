@@ -1,0 +1,17 @@
+services:
+  tracker:
+    image: example/tracker:1.0.0
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      - tracker-db
+  tracker-db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+volumes:
+  db-data: {}

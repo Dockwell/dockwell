@@ -118,7 +118,11 @@ func TestOnServerConvertsWithoutAPerson(t *testing.T) {
 	if r := got["amd64only"]; r.Entry == nil || !slices.Equal(r.Entry.GetArchitectures(), []string{"amd64"}) {
 		t.Errorf("amd64only: %v, left out %q", r.Entry.GetArchitectures(), r.LeftOut)
 	}
-	for id, class := range map[string]Class{"scripted": ClassScripts, "withdb": ClassAnotherApp, "shipped": ClassShipped} {
+	classes := map[string]Class{"scripted": ClassScripts, "shipped": ClassShipped}
+	if !catalogMakes()[catalogv1.Engine_ENGINE_POSTGRESQL] {
+		classes["withdb"] = ClassNewEngine
+	}
+	for id, class := range classes {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)
 		}

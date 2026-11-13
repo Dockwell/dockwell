@@ -274,6 +274,12 @@ func rewrite(app App) (rewritten, error) {
 	if !asked[out.web] {
 		out.web = ""
 	}
+	// What its needs set an install gives it (ADR 0084).
+	for _, n := range app.Needs {
+		for _, s := range n.GetSets() {
+			asked[s.GetName()] = true
+		}
+	}
 	var missing []string
 	walkScalars(root, func(n *yaml.Node) {
 		for _, u := range usesOf(n.Value) {
@@ -417,9 +423,18 @@ func sharedSecrets(root *yaml.Node, fields []Field, images map[*yaml.Node]bool) 
 			}
 			// The same value whole, as a database named as its password is, is another
 			// value that happens to match.
-			if elsewhere == "" && !names[n] && strings.TrimSpace(whole) != value && holdsSecret(n.Value, value) {
-				elsewhere = n.Value
+			if elsewhere != "" || names[n] || strings.TrimSpace(whole) == value || !holdsSecret(n.Value, value) {
+				return
 			}
+			// A URL's password in an environment names the secret, as a database the
+			// file runs may be the app's need, which writes that URL (ADR 0084).
+			if _, inEnv := keyOf[n]; inEnv {
+				if url := urlPassword(n.Value, value, input); url != n.Value {
+					n.Value = url
+					return
+				}
+			}
+			elsewhere = n.Value
 		})
 		if elsewhere != "" {
 			return nil, leave(ClassInside, "its secret %s's value is written elsewhere in the file too, in %q, which a generated secret couldn't follow", input, nodeText(&yaml.Node{Kind: yaml.ScalarNode, Value: elsewhere}))

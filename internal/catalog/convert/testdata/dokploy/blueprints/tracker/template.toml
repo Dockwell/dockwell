@@ -1,0 +1,13 @@
+[variables]
+postgres_password = "${password:32}"
+
+[[config.domains]]
+serviceName = "tracker"
+port = 3000
+host = "${domain}"
+
+[config]
+env = [
+  "DATABASE_URL=postgresql://postgres:${postgres_password}@tracker-db:5432/postgres",
+  "POSTGRES_PASSWORD=${postgres_password}",
+]

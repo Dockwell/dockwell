@@ -154,6 +154,8 @@ const KINDS: Readonly<Record<string, MessageDescriptor>> = {
   check: msg`Fail the catalog's checks`,
   file: msg`Have files that can't be read`,
   inside: msg`Put a secret inside a longer value`,
+  url: msg`Reach their database by a URL with its password`,
+  "new-engine": msg`Need a database Dockwell doesn't make beside them yet`,
   "made-up": msg`Ask for a value Dockwell doesn't make yet`,
   skipped: msg`Marked by their store to leave out`,
   terms: msg`Come under terms of their own`,
@@ -170,6 +172,8 @@ const NEEDS: Readonly<Record<string, MessageDescriptor>> = {
   "another-app": msg`Install once Dockwell connects them to a database`,
   arch: msg`Install once Dockwell runs on their architecture`,
   platform: msg`Install once Dockwell fills in what their store does`,
+  url: msg`Install once Dockwell writes a database URL with its password`,
+  "new-engine": msg`Install once Dockwell makes that database beside an app`,
   skipped: msg`Their store keeps them out of its own list`,
 };
 

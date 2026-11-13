@@ -1,0 +1,16 @@
+services:
+  blog:
+    image: example/blog:2.0.0
+    container_name: ${CONTAINER_NAME}
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:80
+    networks:
+      - 1panel-network
+    environment:
+      BLOG_DB_HOST: ${PANEL_DB_HOST}:${PANEL_DB_PORT}
+      BLOG_DB_NAME: ${PANEL_DB_NAME}
+      BLOG_DB_USER: ${PANEL_DB_USER}
+      BLOG_DB_PASSWORD: ${PANEL_DB_USER_PASSWORD}
+networks:
+  1panel-network:
+    external: true

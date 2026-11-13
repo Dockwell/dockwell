@@ -164,17 +164,32 @@ Two of the left-out reasons were small: 1Panel's scripts that give a folder a mo
 - **An agent says it does both, in its `Hello` (`prepares_volumes`, 303).**
 - **The sample on real Docker takes 1Panel's Gatus,** which won't start without the config its store ships into the folder it writes to.
 
+### A database the app reaches, as its need
+
+*Added with the eighth slice of #570.*
+
+The largest reason left was a database's password inside a URL: Dokploy's and Coolify's apps run their own database beside them and reach it by `postgresql://umami:${DB_PASSWORD}@db:5432/umami`, and 1Panel's use a database another app runs, by what its form fills in (`PANEL_DB_HOST` and on). ADR 0029 keeps a password out of a longer value, as neither an upgrade nor a rotation reaches it there. ADR 0084 gives the way through: the app's need, whose URL is a template of its parts that Dockwell writes.
+
+- **A database the file runs, which another service reaches by a URL with its password,** becomes the app's need, met by that same service (`Need.service`). It reads as one only where the URL names the database's own host, its engine's port or none, its user and its database, with the password a variable of the app's secrets alone. The need then sets the user, the password and the database the image is made with, and each URL, as a template such as `postgresql://{user}:{password}@{host}:{port}/{database}?sslmode=disable`, which the app reads whole. PostgreSQL, MySQL, MariaDB, Redis and Valkey, by the images ADR 0084 knows them by.
+- **A user or a database an engine keeps for itself,** as `postgres` is, becomes one of the app's ID: the app reaches what the URL says, which Dockwell writes from the need.
+- **What the shell reads stays the shell's.** A check such as `pg_isready -U $${POSTGRES_USER}` reads the container's environment, where the database has its user, so the converter writes it `$$POSTGRES_USER`, and a check in exec form that names one becomes the shell's. Anything else that names a part inside a longer value leaves the app out, as before.
+- **A secret inside a longer value that no need takes** leaves the app out, naming the service and the variable that hold it. Dokploy's template that makes a password up and names it inside a URL names its input there, and a password a store writes out, in a database's value and in its URL's password, becomes one generated secret the URL names, so the same reading applies to both.
+- **1Panel's database fields are a need with no service of its own:** the engines its form offers, a database and a user named for the app, and what 1Panel fills in as the parts, with `${PANEL_DB_HOST}:${PANEL_DB_PORT}` as the address. Where the file names the engine (`KC_DB=${PANEL_DB_TYPE}`), the need takes one, and the file names it as 1Panel would.
+- **An entry converts only where an install meets its needs today,** which the converter asks of the catalog itself: an app whose need is a URL with its password waits for Dockwell to write one ("url"), and one whose database the catalog doesn't make beside an app waits for that ("new-engine"). Each converts once the catalog does, as a new converter version converts kept commits again.
+
 ### Numbers
 
 ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301), `Hello.owns_volumes` (302) and `Hello.prepares_volumes` (303); `Mount.make_mode` (91), `Mount.seed` (92) and its `MountSeed`; `Entry.architectures` (50); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 13 Nov 2026
 
-| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | On amd64 alone | Common cases | With a volume's mode and files | Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 156 | 156 | 161 | 59% |
-| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 374 | 388 | 386 | 63% |
-| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 240 | 246 | 246 | 64% |
+| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | On amd64 alone | Common cases | With a volume's mode and files | With needs | Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 156 | 156 | 161 | 172 | 63% |
+| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 374 | 388 | 386 | 386 | 63% |
+| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 240 | 246 | 246 | 246 | 64% |
+
+With needs, 73 of Dokploy's apps and 38 of Coolify's wait only for Dockwell to write a URL with a password, and 8 of 1Panel's for a PostgreSQL the catalog makes beside an app, both ADR 0084's third slice.
 
 The columns between were measured as each slice was built, before a review left out a store's app that locks memory with no limit, which takes out 1Panel's comfyui, elasticsearch and manticoresearch and Dokploy's dragonfly-db and graylog; the last column counts it.
 

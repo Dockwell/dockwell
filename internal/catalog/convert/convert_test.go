@@ -73,7 +73,7 @@ func converter() *Converter {
 			"notes": written("Keeps notes", "notes"), "my-app": written("Stands in", "developer tools"),
 			"scripted": written("Stands in", "ai"), "shipped": written("Stands in", "ai"), "withdb": written("Stands in", "ai"),
 			"agent": written("Reports to a monitor", "monitoring"), "keep": written("Stands in", "ai"), "amd64only": written("Stands in", "ai"),
-			"owned": written("Stands in", "ai"), "seeded": written("Stands in", "ai"),
+			"owned": written("Stands in", "ai"), "seeded": written("Stands in", "ai"), "blog": written("Stands in", "ai"),
 		},
 		Now: now,
 	}
@@ -115,9 +115,12 @@ func TestOnePanelReadsEachAppAtItsNewestVersion(t *testing.T) {
 	if _, ok := apps["my-app"]; !ok {
 		t.Error("my_app's ID doesn't take a dash, as an entry's must")
 	}
+	// A database another app runs is a need (ADR 0084).
+	if w := apps["withdb"]; w.LeftOut != "" || len(w.Needs) != 1 || w.Needs[0].GetAccepts()[0].GetEngine() != catalogv1.Engine_ENGINE_POSTGRESQL {
+		t.Errorf("withdb reads as %v, left out %q", w.Needs, w.LeftOut)
+	}
 	for id, want := range map[string]string{
 		"scripted": "its init.sh runs sed on the server",
-		"withdb":   "uses postgresql from another app",
 	} {
 		if got := apps[id].LeftOut; !strings.Contains(got, want) {
 			t.Errorf("%s is left out as %q, want %q", id, got, want)
@@ -242,10 +245,11 @@ func TestWhatItWritesTheCatalogReads(t *testing.T) {
 
 // An app is left out, with the reason, for what an entry can't say or do.
 func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
-	for id, want := range map[string]string{
-		"scripted": "its init.sh runs sed on the server",
-		"withdb":   "uses postgresql from another app",
-	} {
+	waits := map[string]string{"scripted": "its init.sh runs sed on the server"}
+	if !catalogMakes()[catalogv1.Engine_ENGINE_POSTGRESQL] {
+		waits["withdb"] = "it needs PostgreSQL, which Dockwell doesn't make beside an app yet"
+	}
+	for id, want := range waits {
 		r := convertFixture(t, converter(), id)
 		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
 			t.Errorf("%s: %q, want it left out as %q", id, r.LeftOut, want)
@@ -629,5 +633,28 @@ func TestAFileOnePanelShipsIsAFileDockwellWrites(t *testing.T) {
 	m := stack.Services[0].Spec.GetApp().GetMounts()
 	if len(m) != 1 || m[0].GetTarget() != "/etc/app.conf" || m[0].GetFile().GetContent() != string(content) || !m[0].GetReadOnly() {
 		t.Errorf("it mounts %v, where 1Panel ships %q", m, content)
+	}
+}
+
+// A 1Panel app that uses another app's MySQL or MariaDB needs one, which an install
+// makes beside it: what 1Panel fills in is what the need sets, its host and port
+// together its address, and none of it is an input (ADR 0084).
+func TestAOnePanelAppNeedsTheDatabaseItUsed(t *testing.T) {
+	r := convertFixture(t, converter(), "blog")
+	if r.Entry == nil {
+		t.Fatalf("it's left out: %s", r.LeftOut)
+	}
+	n := r.Entry.GetNeeds()
+	if len(n) != 1 || len(n[0].GetAccepts()) != 2 || n[0].GetService() != "" || n[0].GetDatabase() != "blog" || n[0].GetUser() != "blog" ||
+		!slices.Equal(setsOf(n[0]), []string{"PANEL_DB_ADDRESS=ADDRESS", "PANEL_DB_NAME=DATABASE", "PANEL_DB_USER=USER", "PANEL_DB_USER_PASSWORD=PASSWORD"}) {
+		t.Fatalf("its needs are %v, setting %q", n, setsOf(n[0]))
+	}
+	if !strings.Contains(r.Entry.GetCompose(), "BLOG_DB_HOST: ${PANEL_DB_ADDRESS}") {
+		t.Errorf("its file reads:\n%s", r.Entry.GetCompose())
+	}
+	for _, in := range r.Entry.GetInputs() {
+		if strings.HasPrefix(in.GetName(), "PANEL_DB_") {
+			t.Errorf("it asks for %s", in.GetName())
+		}
 	}
 }

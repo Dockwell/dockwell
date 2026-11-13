@@ -48,13 +48,17 @@
         "domain-admin",
         "dosgame",
         "drawio",
+        "dvwa",
         "easyimage2",
+        "emlog",
         "excalidraw",
         "ezbookkeeping",
         "filecodebox",
+        "flarum",
         "focalboard",
         "freshrss",
         "gatus",
+        "ghost",
         "gitlab",
         "glance",
         "grafana",
@@ -93,6 +97,7 @@
         "mcsmanager-web",
         "memcached",
         "memos",
+        "metabase",
         "metersphere",
         "mkdocs-material",
         "mongodb",
@@ -108,6 +113,7 @@
         "nextcloud",
         "nexus",
         "nginx-proxy-manager",
+        "nocobase",
         "node-red",
         "nodebb",
         "npc",
@@ -148,6 +154,7 @@
         "stirling-pdf",
         "sun-panel",
         "tdengine",
+        "teamspeak",
         "tinyrdm",
         "tomcat",
         "trilium",
@@ -162,18 +169,25 @@
         "wallos",
         "web-check",
         "wechatmarkdowneditor",
+        "wordpress",
         "xiaomusic",
         "yesplaymusic",
+        "yourls",
         "zabbix-agent",
+        "zabbix-proxy",
+        "zabbix-server",
         "zentao",
         "zfile"
       ],
       "leftOut": {
-        "another-app": 33,
-        "cant-run": 16,
+        "another-app": 12,
+        "cant-run": 18,
         "cant-say": 5,
-        "check": 3,
-        "platform": 15,
+        "check": 1,
+        "file": 1,
+        "inside": 2,
+        "new-engine": 8,
+        "platform": 14,
         "scripts": 32,
         "shipped": 4
       }
@@ -573,12 +587,13 @@
       ],
       "leftOut": {
         "cant-run": 34,
-        "cant-say": 16,
-        "check": 79,
+        "cant-say": 19,
+        "check": 6,
         "file": 1,
-        "inside": 86,
-        "made-up": 9,
-        "terms": 1
+        "inside": 81,
+        "made-up": 11,
+        "terms": 1,
+        "url": 73
       }
     },
     {
@@ -835,12 +850,14 @@
         "yamtrack-with-postgresql"
       ],
       "leftOut": {
-        "cant-run": 24,
+        "cant-run": 23,
         "cant-say": 6,
-        "check": 65,
+        "check": 6,
+        "inside": 22,
         "made-up": 8,
         "platform": 1,
-        "skipped": 34
+        "skipped": 34,
+        "url": 38
       }
     },
     {
@@ -1018,12 +1035,12 @@
         "arch": 16,
         "cant-run": 17,
         "cant-say": 6,
-        "check": 15,
-        "inside": 2,
+        "inside": 7,
         "made-up": 1,
         "platform": 30,
         "scripts": 10,
-        "skipped": 6
+        "skipped": 6,
+        "url": 10
       }
     },
     {
@@ -1144,10 +1161,11 @@
       "leftOut": {
         "another-app": 2,
         "arch": 27,
-        "cant-run": 27,
+        "cant-run": 28,
         "cant-say": 7,
-        "inside": 8,
-        "platform": 4
+        "inside": 2,
+        "platform": 4,
+        "url": 5
       }
     },
     {
@@ -1340,9 +1358,10 @@
         "another-app": 46,
         "cant-run": 4,
         "cant-say": 4,
-        "inside": 12,
+        "inside": 2,
         "platform": 11,
-        "scripts": 147
+        "scripts": 147,
+        "url": 10
       }
     }
   ]
