@@ -3234,6 +3234,10 @@ msgctxt "a limit typed in"
 msgid "Other"
 msgstr "Other"
 
+#. placeholder {0}: m.makeOwner
+msgid "Owned by {0}"
+msgstr "Owned by {0}"
+
 msgid "Patch updates"
 msgstr "Patch updates"
 

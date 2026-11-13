@@ -114,8 +114,9 @@ type (
 		Order string `yaml:"order"`
 	}
 	dockwellEntry struct {
-		Healthcheck *agentCheckEntry `yaml:"healthcheck,omitempty"`
-		Drain       string           `yaml:"drain,omitempty"`
+		Healthcheck *agentCheckEntry  `yaml:"healthcheck,omitempty"`
+		Drain       string            `yaml:"drain,omitempty"`
+		MakeOwner   map[string]quoted `yaml:"make_owner,omitempty"`
 	}
 	agentCheckEntry struct {
 		HTTP        *httpCheckEntry `yaml:"http,omitempty"`
@@ -331,6 +332,18 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		if d := c.GetRollout().GetDrain(); d != "" {
 			entry.Dockwell = &dockwellEntry{Drain: d}
+		}
+		for _, m := range c.GetMounts() {
+			if o := m.GetMakeOwner(); o != "" && m.GetFile() == nil {
+				if entry.Dockwell == nil {
+					entry.Dockwell = &dockwellEntry{}
+				}
+				if entry.Dockwell.MakeOwner == nil {
+					entry.Dockwell.MakeOwner = map[string]quoted{}
+				}
+				// Quoted, as a YAML 1.1 reader takes 1000:1000 for a number in base 60.
+				entry.Dockwell.MakeOwner[m.GetTarget()] = quoted(o)
+			}
 		}
 		if hc := c.GetHealthcheck(); hc != nil {
 			switch {

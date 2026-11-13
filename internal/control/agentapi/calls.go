@@ -479,7 +479,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -559,8 +559,9 @@ type Session struct {
 	// makesFolders says the agent makes a mount's missing folder as its owner.
 	makesFolders bool
 	// ownSettings says the agent sets what a container asks of itself, and
-	// writesFiles that it writes the files a container mounts (ADR 0085).
-	ownSettings, writesFiles bool
+	// writesFiles that it writes the files a container mounts, and ownsVolumes that
+	// it gives a volume's empty folder its owner (ADR 0085).
+	ownSettings, writesFiles, ownsVolumes bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -1335,6 +1336,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkFiles(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkVolumeOwners(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
@@ -1603,6 +1607,9 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 		if err := s.checkFiles(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkVolumeOwners(d.Ref, d.Spec); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1637,6 +1644,24 @@ func (s *Session) checkFiles(ref resource.Ref, spec proto.Message) error {
 	}
 	return fmt.Errorf("%w: the agent on %s is from before Dockwell wrote the files a container mounts, which %s does, so it would run without them. Update the agent on %s",
 		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// checkVolumeOwners refuses a spec that names a volume's owner, for an agent that
+// doesn't say it gives one: it would leave the volume root's, which what runs as
+// that owner can't write (ADR 0085).
+func (s *Session) checkVolumeOwners(ref resource.Ref, spec proto.Message) error {
+	if s.ownsVolumes || spec == nil || !ownsVolume(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell gave a new volume the owner its mount names, which %s asks for, so it would be root's. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// ownsVolume reports a spec with a container that names a volume's owner.
+func ownsVolume(m protoreflect.Message) bool {
+	return anyContainer(m, func(c *resourcev1.Container) bool {
+		return slices.ContainsFunc(c.GetMounts(), func(mount *resourcev1.Mount) bool { return mount.GetVolume() != "" && mount.GetMakeOwner() != "" })
+	})
 }
 
 // mountsFile reports a spec with a container that mounts a file Dockwell writes.

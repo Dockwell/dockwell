@@ -105,17 +105,42 @@ Many stores' apps mount a config file their store ships: 1Panel's beside the Com
 - **The panel shows a file in Volumes and mounts** as "A file Dockwell writes, 12 lines", opening to what it holds, and editing the volumes and mounts keeps each file as it is.
 - **The sample on real Docker takes 1Panel's Glance,** which won't start without the config file its store ships.
 
+### 1Panel's scripts, read as steps
+
+*Added with the fourth slice of #570.*
+
+68 of 1Panel's apps ship scripts: `init.sh` runs on the server as an app installs, `upgrade.sh` as it upgrades and `uninstall.sh` as it goes, as root. Dockwell runs none of them. Most do one of a few things, which Dockwell does itself, so the converter reads each script as text, line by line, and takes it only when every line is one of these:
+
+- **Make a folder the app binds and give it to the user its image runs as** (`mkdir -p data`, `chown -R 1000:1000 data`, 40 apps, also through a variable the script sets to a path). Docker makes a new volume's folder root's, and an app that runs as another user can't write it. The folder becomes a volume, as any the app binds does, and the volume is made for that user: `Mount.make_owner`, which a server path took already, now takes a volume too, written in Compose as the service's `x-dockwell: {make_owner: {/var/lib/app: "1000:1000"}}`, by the mount's target, as Compose has no field for it.
+- **Run `init.sh` again on an upgrade**, which is read as `init.sh` is.
+- **Add a variable to `.env` with its value on an upgrade**, which an upgrade does for a new input with its default, and the Compose file's own default stands for.
+- **Remove the app with its volumes as it goes** (`docker compose down --volumes`), which Dockwell's own removal of a project asks about.
+- **Say something** with `echo`, or set the shell's options.
+
+Anything else, such as `sed` on `.env`, `chmod`, a value made up into `.env`, or reading the database the app is given, leaves the app out, naming the script and the command. A folder the script gives away inside a volume, rather than the volume's own, leaves it out too.
+
+How the agent gives a volume its owner:
+
+- **Only a volume Dockwell made, kept by Docker's local driver,** with no options, is given one. A volume a driver keeps elsewhere, such as an NFS share, keeps what its server gives, and Docker's own volume (`external`) takes no `make_owner`.
+- **Only while it holds nothing.** Before a container is made, the agent reads whether each such volume's folder is empty, opening the folder itself and refusing a link in its place. A volume with anything in it keeps its owner, so an app's data is never given away.
+- **After Docker makes the container, before it starts.** Docker copies into a new volume what the image has at the mount's target, with that folder's owner, as it makes the container, which would undo an owner given before. So the agent gives the volume's folder, and nothing inside it, its owner then, through a handle on it, while nothing of the app has run.
+- **An agent says it does, in its `Hello` (`owns_volumes`, 302).** The control plane plans no volume with an owner on an agent that doesn't, which would leave it root's: "the agent on hz-2 is from before Dockwell gave a new volume the owner its mount names, which web asks for, so it would be root's. Update the agent on hz-2."
+- **The panel says it**, in Volumes and mounts, as "Owned by 1000:1000", and editing the mounts keeps it.
+- **The sample on real Docker takes 1Panel's Navidrome,** which runs as user 1000 and writes its volume.
+
+An upgrade's `chown -R` of data an app already wrote isn't taken: the data keeps the owner it has.
+
 ### Numbers
 
-ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300) and `Hello.writes_files` (301); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
+ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301) and `Hello.owns_volumes` (302); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 13 Nov 2026
 
-| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | Rate |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 112 | 123 | 45% |
-| Dokploy's templates | 612 | 299 | 331 | 374 | 61% |
-| Coolify's templates | 384 | 199 | 224 | 240 | 62% |
+| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 52% |
+| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 61% |
+| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 62% |
 
 ## What we turned down
 
@@ -131,4 +156,4 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 - Over 250 more apps from Dokploy and Coolify install, with each new build offered as an update.
 - Each store's pinned commit is a person's to move. Until it moves, what upstream adds is measured only by a server reading the store.
 - CI reaches GitHub, and the registries of the sample's images.
-- Still to come in #570: a shipped folder the app writes to, copied into its volume; 1Panel's scripts as steps Dockwell runs itself; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).
+- Still to come in #570: a shipped folder the app writes to, copied into its volume; a volume's mode, as 1Panel's `chmod` gives one; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).

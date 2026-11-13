@@ -169,6 +169,9 @@ func rewrite(app App) (rewritten, error) {
 				case vol.reaches != "":
 					out.reaches = append(out.reaches, name+": "+vol.reaches)
 				case vol.named != "":
+					if vol.owner != "" {
+						addOwner(svc, vol.target, vol.owner)
+					}
 					if volumes == nil {
 						volumes = &yaml.Node{Kind: yaml.MappingNode}
 						root.Content = append(root.Content, scalar("volumes"), volumes)
@@ -190,6 +193,9 @@ func rewrite(app App) (rewritten, error) {
 		return out, unreadError(slices.Compact(out.unread))
 	}
 	if err := nested(folders); err != nil {
+		return out, err
+	}
+	if err := ownedInside(app.scripts, folders); err != nil {
 		return out, err
 	}
 	out.reaches, out.typed = append(out.reaches, typedAccess(root)...), typedResources(root)
@@ -761,8 +767,9 @@ type mounted struct {
 	// Dockwell writes (ADR 0085), and unread the shipped ones that weren't fetched.
 	files  []shippedFile
 	unread []string
-	// named is the volume a folder became, which the file declares.
-	named string
+	// named is the volume a folder became, which the file declares, and owner whom
+	// its scripts give it to, mounted at target.
+	named, owner, target string
 	// dropped says what the converter took away, and why.
 	dropped string
 	// reaches says what it reaches on the server through a value a person types.
@@ -834,7 +841,46 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	}
 	folders[named] = rel
 	set(named)
-	return mounted{named: named}, nil
+	out := mounted{named: named}
+	if owner := app.scripts.ownerOf(rel); owner != "" {
+		target := volumeTarget(v)
+		if !strings.HasPrefix(target, "/") || strings.Contains(target, "$") {
+			return mounted{}, leave(ClassScripts, "its scripts give %s to %s, and it mounts that at a place a variable names, so an entry can't say whom it's made for", rel, owner)
+		}
+		out.owner, out.target = owner, path.Clean(target)
+	}
+	return out, nil
+}
+
+// volumeTarget is where a volume is mounted in the container, as the file says it.
+func volumeTarget(v *yaml.Node) string {
+	if v.Kind == yaml.MappingNode {
+		if t := mapGet(v, "target"); t != nil {
+			return t.Value
+		}
+		return ""
+	}
+	if parts := splitPort(v.Value); len(parts) >= 2 {
+		return parts[1]
+	}
+	return ""
+}
+
+// addOwner says in a service's x-dockwell whom the volume it mounts at target is
+// made for, as its store's scripts gave the folder to that user (ADR 0085).
+func addOwner(svc *yaml.Node, target, owner string) {
+	x := mapGet(svc, "x-dockwell")
+	if x == nil {
+		x = &yaml.Node{Kind: yaml.MappingNode}
+		svc.Content = append(svc.Content, scalar("x-dockwell"), x)
+	}
+	owners := mapGet(x, "make_owner")
+	if owners == nil {
+		owners = &yaml.Node{Kind: yaml.MappingNode}
+		x.Content = append(x.Content, scalar("make_owner"), owners)
+	}
+	mapDel(owners, target)
+	owners.Content = append(owners.Content, scalar(target), &yaml.Node{Kind: yaml.ScalarNode, Value: owner, Style: yaml.DoubleQuotedStyle})
 }
 
 // volumeLike is a named volume's name, as Compose tells one from a path.
@@ -1435,4 +1481,24 @@ func addConfigs(root, svc *yaml.Node, service string, files []shippedFile) {
 			{Kind: yaml.ScalarNode, Value: mode, Style: yaml.DoubleQuotedStyle},
 		}})
 	}
+}
+
+// ownedInside refuses scripts that give a folder inside a volume to a user: Dockwell
+// gives a volume's own folder an owner, as it makes it, and nothing inside it.
+func ownedInside(steps scriptSteps, folders map[string]string) error {
+	for _, dir := range slices.Sorted(maps.Keys(steps.owners)) {
+		bound, inside := false, ""
+		for _, rel := range folders {
+			switch {
+			case rel == dir || strings.HasPrefix(rel, dir+"/"):
+				bound = true
+			case strings.HasPrefix(dir, rel+"/"):
+				inside = rel
+			}
+		}
+		if !bound && inside != "" {
+			return leave(ClassScripts, "its scripts give %s, a folder inside the volume for %s, to %s, and Dockwell gives a volume's own folder an owner, not one inside it", dir, inside, steps.owners[dir])
+		}
+	}
+	return nil
 }

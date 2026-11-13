@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -71,6 +72,7 @@ func converter() *Converter {
 			"notes": written("Keeps notes", "notes"), "my-app": written("Stands in", "developer tools"),
 			"scripted": written("Stands in", "ai"), "shipped": written("Stands in", "ai"), "withdb": written("Stands in", "ai"),
 			"agent": written("Reports to a monitor", "monitoring"), "keep": written("Stands in", "ai"), "amd64only": written("Stands in", "ai"),
+			"owned": written("Stands in", "ai"),
 		},
 		Now: now,
 	}
@@ -113,7 +115,7 @@ func TestOnePanelReadsEachAppAtItsNewestVersion(t *testing.T) {
 		t.Error("my_app's ID doesn't take a dash, as an entry's must")
 	}
 	for id, want := range map[string]string{
-		"scripted": "runs scripts on the server",
+		"scripted": "its init.sh runs sed on the server",
 		"withdb":   "uses postgresql from another app",
 	} {
 		if got := apps[id].LeftOut; !strings.Contains(got, want) {
@@ -240,7 +242,7 @@ func TestWhatItWritesTheCatalogReads(t *testing.T) {
 // An app is left out, with the reason, for what an entry can't say or do.
 func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
 	for id, want := range map[string]string{
-		"scripted": "runs scripts on the server",
+		"scripted": "its init.sh runs sed on the server",
 		"withdb":   "uses postgresql from another app",
 	} {
 		r := convertFixture(t, converter(), id)
@@ -501,6 +503,84 @@ func TestHelpers(t *testing.T) {
 
 // A file 1Panel ships beside an app's Compose file, which the app mounts, is a file
 // Dockwell writes, read-only, as 1Panel ships it (ADR 0085).
+// 1Panel's scripts that make a folder the app binds and give it to the user its
+// image runs as, run init.sh again on an upgrade, or remove the app's volumes, are
+// steps Dockwell takes itself: the volume is made for that user (ADR 0085). Nothing in
+// them runs.
+func TestOnePanelsScriptsAreStepsDockwellTakes(t *testing.T) {
+	r := convertFixture(t, converter(), "owned")
+	if r.Entry == nil {
+		t.Fatalf("owned was left out: %s", r.LeftOut)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(r.Entry.GetCompose()), Variables: map[string]string{"PORT": "8080"}})
+	if err != nil {
+		t.Fatalf("its file doesn't read: %v\n%s", err, r.Entry.GetCompose())
+	}
+	owners := map[string]string{}
+	for _, m := range stack.Services[0].Spec.GetApp().GetMounts() {
+		owners[m.GetTarget()] = m.GetMakeOwner()
+	}
+	if owners["/var/lib/owned"] != "1000:1000" || owners["/var/log/owned"] != "" {
+		t.Errorf("owners = %v, want /var/lib/owned made for 1000:1000 alone\n%s", owners, r.Entry.GetCompose())
+	}
+}
+
+// What a script does that isn't one of those steps leaves its app out, naming the
+// command, as Dockwell runs nothing a store holds.
+func TestWhatAScriptDoes(t *testing.T) {
+	for name, tc := range map[string]struct {
+		scripts map[string]string
+		owners  map[string]string
+		why     string
+	}{
+		"a folder given away": {scripts: map[string]string{"init.sh": "#!/bin/bash\n\nchown -R 1000:1000 data\n"}, owners: map[string]string{"data": "1000:1000"}},
+		"folders made and given away": {
+			scripts: map[string]string{"init.sh": "mkdir config\nchown -R 1000:1000 config\nmkdir database\nchown -R 1001:1001 ./database\n"},
+			owners:  map[string]string{"config": "1000:1000", "database": "1001:1001"},
+		},
+		"by a variable, made if it isn't there": {
+			scripts: map[string]string{"init.sh": "DIR=\"./data/data\"\n\nif [ -d \"$DIR\" ]; then\n  echo \"there\"\nelse\n  mkdir -p \"$DIR\"\n  if [ $? -eq 0 ]; then\n    echo \"made\"\n  fi\nfi\n\nchown -R 65534:65534 $DIR\n"},
+			owners:  map[string]string{"data/data": "65534:65534"},
+		},
+		"quietly": {scripts: map[string]string{"init.sh": "chown -R 1000:1000 data >/dev/null 2>&1 || true\n"}, owners: map[string]string{"data": "1000:1000"}},
+		"a variable an upgrade adds": {
+			scripts: map[string]string{"upgrade.sh": "if [[ -f ./.env ]]; then\n  if grep -q 'PANEL_APP_PORT_S3' ./.env; then\n    echo \"there\"\n  else\n    echo 'PANEL_APP_PORT_S3=5426' >> ./.env\n  fi\nelse\n  echo \"no .env\"\nfi\n"},
+			owners:  map[string]string{},
+		},
+		"a variable added, quoted":  {scripts: map[string]string{"upgrade.sh": "echo 'SKIP_BOOTSTRAP=\"yes\"' >> ./.env\necho \"WHITE_LIST=\" >> ./.env\n"}, owners: map[string]string{}},
+		"an echo naming a variable": {scripts: map[string]string{"init.sh": "DIR=\"./data/\"\necho \"made $DIR\"\necho \"made ${DIR}\"\nchown -R 1001:1001 $DIR\n"}, owners: map[string]string{"data": "1001:1001"}},
+		"an echo running a command": {scripts: map[string]string{"init.sh": "echo \"$(id -u)\"\n"}, why: "its init.sh runs echo"},
+		"a value made up for .env":  {scripts: map[string]string{"init.sh": "echo \"KEY=$(head -c 9 /dev/urandom)\" >> ./.env\n"}, why: "its init.sh runs echo"},
+		"a command":                 {scripts: map[string]string{"init.sh": "source ./.env\n"}, why: "its init.sh runs source on the server"},
+		"a secret made up":          {scripts: map[string]string{"init.sh": "NEW=$(cat /dev/urandom | head -c 32)\n"}, why: "its init.sh runs a command on the server"},
+		"a folder elsewhere":        {scripts: map[string]string{"init.sh": "chown -R 1000:1000 /etc\n"}, why: "outside the app's own folder"},
+		"a folder above":            {scripts: map[string]string{"init.sh": "chown -R 1000:1000 ../other\n"}, why: "outside the app's own folder"},
+		"a variable it never set":   {scripts: map[string]string{"init.sh": "chown -R 1000:1000 $DATA\n"}, why: "by a variable it doesn't set, DATA"},
+		"a mode":                    {scripts: map[string]string{"init.sh": "chmod -R 777 data\n"}, why: "its init.sh runs chmod"},
+		"an echo into a file":       {scripts: map[string]string{"init.sh": "echo \"IMAGE=x\" >> .env\n"}, why: "its init.sh runs echo"},
+	} {
+		steps, err := readScripts(tc.scripts)
+		switch {
+		case tc.why != "" && (err == nil || !strings.Contains(err.Error(), tc.why) || classOf(err, ClassFile) != ClassScripts):
+			t.Errorf("%s: %v, want it left out as %q", name, err, tc.why)
+		case tc.why == "" && err != nil:
+			t.Errorf("%s: %v", name, err)
+		case tc.why == "" && !maps.Equal(steps.owners, tc.owners):
+			t.Errorf("%s: owners %v, want %v", name, steps.owners, tc.owners)
+		}
+	}
+	steps := scriptSteps{owners: map[string]string{"data": "1000:1000"}}
+	if steps.ownerOf("data/conf") != "1000:1000" || steps.ownerOf("data") != "1000:1000" || steps.ownerOf("logs") != "" {
+		t.Errorf("chown -R gives what's inside too")
+	}
+	if err := ownedInside(scriptSteps{owners: map[string]string{"data/data": "65534:65534"}}, map[string]string{"data": "data"}); err == nil || !strings.Contains(err.Error(), "a folder inside the volume for data") {
+		t.Errorf("a folder inside a volume = %v", err)
+	}
+	if err := ownedInside(scriptSteps{owners: map[string]string{"data": "1000:1000"}}, map[string]string{"data-conf": "data/conf"}); err != nil {
+		t.Errorf("a folder above a volume = %v", err)
+	}
+}
+
 func TestAFileOnePanelShipsIsAFileDockwellWrites(t *testing.T) {
 	r := convertFixture(t, converter(), "shipped")
 	if r.Entry == nil {

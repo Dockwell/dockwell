@@ -1361,6 +1361,7 @@ function MountsFacts({ app }: { app: Container }) {
             <Icon name="arrow-right" size={12} />
             <code>{m.target}</code>
             {m.readOnly ? <span className="app-muted">{t`Read-only`}</span> : null}
+            {m.makeOwner ? <span className="app-muted">{t`Owned by ${m.makeOwner}`}</span> : null}
           </li>
         );
       })}
@@ -1374,7 +1375,7 @@ interface MountRow {
   target: string;
   readOnly: boolean;
   /** What the form doesn't show, kept as it is. */
-  rest: { relabel: number; external: boolean };
+  rest: { relabel: number; external: boolean; makeOwner: string };
 }
 
 function MountsForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
@@ -1398,7 +1399,7 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
         source: m.source.case === "hostPath" || m.source.case === "volume" ? m.source.value : "",
         target: m.target,
         readOnly: m.readOnly,
-        rest: { relabel: m.relabel, external: m.external },
+        rest: { relabel: m.relabel, external: m.external, makeOwner: m.makeOwner },
       }),
     );
   const [rows, setRows] = useState<MountRow[]>(first);
@@ -1451,6 +1452,7 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
               target: r.target.trim(),
               readOnly: r.readOnly,
               relabel: r.rest.relabel,
+              makeOwner: r.rest.makeOwner,
               external: r.rest.external,
             }),
           ),
@@ -1503,7 +1505,13 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
           onClick={() => {
             setRows((was) => [
               ...was,
-              { key: next, source: "", target: "", readOnly: false, rest: { relabel: 0, external: false } },
+              {
+                key: next,
+                source: "",
+                target: "",
+                readOnly: false,
+                rest: { relabel: 0, external: false, makeOwner: "" },
+              },
             ]);
             setNext(next + 1);
           }}

@@ -118,6 +118,9 @@ type App struct {
 	// Dokploy's are, so every $ in it is its own; otherwise ${NAME} in it is a
 	// variable, as in Coolify's.
 	LiteralFiles bool
+	// scripts is what its store's scripts come to, read as steps Dockwell takes
+	// itself, never run (ADR 0085).
+	scripts scriptSteps
 	// LeftOut is why the adapter couldn't read the app, when it couldn't, and Class
 	// what the report counts it as.
 	LeftOut string

@@ -5,22 +5,25 @@ package compose
 import (
 	"errors"
 	"maps"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // extensionKey is Dockwell's own extension on a service, for what a service runs
-// with that Compose has no field for: a check the agent makes, and how long to
-// let what is in flight finish. docker compose reads past any x- key, so a file
+// with that Compose has no field for: a check the agent makes, how long to let
+// what is in flight finish, and whom a volume or a server path it mounts is made
+// for (make_owner, by the mount's target, ADR 0085). docker compose reads past any x- key, so a file
 // means the same to it with this as without, and importing an export gives the
 // same specs.
 const extensionKey = "x-dockwell"
 
 var (
-	extensionKeys = keys("healthcheck", "drain")
+	extensionKeys = keys("healthcheck", "drain", "make_owner")
 	agentKeys     = keys("http", "tcp", "interval", "timeout", "start_period", "retries")
 	httpKeys      = keys("port", "path", "host")
 	tcpKeys       = keys("port")
@@ -30,6 +33,8 @@ var (
 type extension struct {
 	health *resourcev1.Healthcheck
 	drain  string
+	// owners is whom each mount is made for, by its target.
+	owners map[string]string
 }
 
 // takeExtensions reads each service's x-dockwell out of a file, once its
@@ -64,7 +69,34 @@ func takeExtensions(dict map[string]any) (map[string]*extension, error) {
 				return nil, err
 			}
 		}
+		if o, ok := m["make_owner"]; ok {
+			if e.owners, err = readOwners(what+"'s make_owner", o); err != nil {
+				return nil, err
+			}
+		}
 		out[name] = e
+	}
+	return out, nil
+}
+
+// readOwners reads whom each mount is made for, by its target, such as
+// make_owner: {/data: "1000:1000"}.
+func readOwners(what string, raw any) (map[string]string, error) {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, invalid("%s should be a mapping of each mount's target to its owner, such as make_owner: {/data: \"1000:1000\"}", what)
+	}
+	out := make(map[string]string, len(m))
+	for _, target := range slices.Sorted(maps.Keys(m)) {
+		owner, err := extString(what, target, m[target])
+		if err != nil {
+			return nil, err
+		}
+		uid, gid, err := resource.ParseOwner(owner)
+		if err != nil {
+			return nil, invalid("%s for %s: %v", what, target, err)
+		}
+		out[path.Clean(target)] = resource.FormatOwner(uid, gid)
 	}
 	return out, nil
 }
@@ -186,6 +218,13 @@ func (e *extension) apply(what string, c *resourcev1.Container) error {
 			c.Rollout = &resourcev1.Rollout{}
 		}
 		c.Rollout.Drain = e.drain
+	}
+	for _, target := range slices.Sorted(maps.Keys(e.owners)) {
+		i := slices.IndexFunc(c.GetMounts(), func(m *resourcev1.Mount) bool { return path.Clean(m.GetTarget()) == target })
+		if i < 0 || c.GetMounts()[i].GetFile() != nil {
+			return invalid("%s's make_owner names %s, which no volume or server path of it mounts. Name a mount's target, such as /data", what, target)
+		}
+		c.Mounts[i].MakeOwner = e.owners[target]
 	}
 	return nil
 }

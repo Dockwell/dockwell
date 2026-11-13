@@ -1997,7 +1997,11 @@ type Hello struct {
 	// True when the agent writes the files a container mounts (Mount.file), and
 	// binds them in, read-only (ADR 0085). The control plane plans no such mount on
 	// an agent that doesn't say so.
-	WritesFiles   bool `protobuf:"varint,301,opt,name=writes_files,json=writesFiles,proto3" json:"writes_files,omitempty"`
+	WritesFiles bool `protobuf:"varint,301,opt,name=writes_files,json=writesFiles,proto3" json:"writes_files,omitempty"`
+	// True when the agent gives a volume's empty folder the owner its mount names
+	// (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
+	// on an agent that doesn't say so, which would leave the folder root's.
+	OwnsVolumes   bool `protobuf:"varint,302,opt,name=owns_volumes,json=ownsVolumes,proto3" json:"owns_volumes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2224,6 +2228,13 @@ func (x *Hello) GetLinks() bool {
 func (x *Hello) GetWritesFiles() bool {
 	if x != nil {
 		return x.WritesFiles
+	}
+	return false
+}
+
+func (x *Hello) GetOwnsVolumes() bool {
+	if x != nil {
+		return x.OwnsVolumes
 	}
 	return false
 }
@@ -13790,7 +13801,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xc0\b\n" +
+	"\bDraining\"\xe4\b\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -13819,7 +13830,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +
-	"\fwrites_files\x18\xad\x02 \x01(\bR\vwritesFiles\"r\n" +
+	"\fwrites_files\x18\xad\x02 \x01(\bR\vwritesFiles\x12\"\n" +
+	"\fowns_volumes\x18\xae\x02 \x01(\bR\vownsVolumes\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
 	"\adamaged\x18\x02 \x01(\rR\adamaged\x12\x14\n" +

@@ -522,6 +522,10 @@ message Hello {
   // binds them in, read-only (ADR 0085). The control plane plans no such mount on
   // an agent that doesn't say so.
   bool writes_files = 301;
+  // True when the agent gives a volume's empty folder the owner its mount names
+  // (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
+  // on an agent that doesn't say so, which would leave the folder root's.
+  bool owns_volumes = 302;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
