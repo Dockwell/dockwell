@@ -164,6 +164,9 @@ func partsOf(ctx context.Context, e *catalogv1.Entry, values map[string]string) 
 			Cpus:       app.GetResources().GetCpus(),
 			Restart:    app.GetRestart(),
 		}
+		if part.GetDatabase() {
+			part.Engine = catalog.EngineOfImage(app.GetImage())
+		}
 		for _, m := range app.GetMounts() {
 			if v := m.GetVolume(); v != "" && !m.GetExternal() {
 				part.Volumes = append(part.Volumes, v)
@@ -204,8 +207,12 @@ func tagged(image string) string {
 // an entry that marks none of its services as one.
 var databases = []string{"postgres", "mysql", "mariadb", "redis", "clickhouse/clickhouse-server"}
 
-// isDatabase reports an image of a database, by its repository.
+// isDatabase reports an image of a database, by its repository: one of these, or
+// any engine Dockwell knows, such as MongoDB or Valkey.
 func isDatabase(image string) bool {
+	if catalog.EngineOfImage(image) != catalogv1.Engine_ENGINE_UNSPECIFIED {
+		return true
+	}
 	repo := tagged(image)
 	if i := strings.LastIndex(repo, ":"); i > strings.LastIndex(repo, "/") {
 		repo = repo[:i]

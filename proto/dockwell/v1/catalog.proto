@@ -316,6 +316,11 @@ message CatalogPart {
   // When Docker restarts it, as the entry gives it. Unspecified is the driver's
   // default, unless-stopped.
   dockwell.resource.v1alpha1.RestartPolicy restart = 10;
+  // For a database, the engine Dockwell knows it runs, by its image, such as
+  // PostgreSQL for postgres:17.11. Unspecified for any other part, and for a
+  // database whose image Dockwell doesn't know. Numbered in the block catalog
+  // sources' presentation holds (ADR 0083).
+  dockwell.catalog.v1alpha1.Engine engine = 30;
 }
 
 // ListCatalogInstallsRequest asks for everything installed.
