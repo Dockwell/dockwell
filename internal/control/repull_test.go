@@ -274,7 +274,7 @@ func TestAPullThatFailsLeavesWhatRuns(t *testing.T) {
 	delete(b.e.Registry, latest)
 	got := applied(t, b.c, b.deploy(t, web.GetId(), latest))
 	want := latest + " can't be pulled. Nothing was replaced, and what runs goes on running. " +
-		"The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."
+		"The name may be wrong, or the image may be private. Check the name, or save a registry login for ghcr.io, then try again."
 	if got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_FAILED || got.GetError() != want {
 		t.Fatalf("the deploy ended %v: %s", got.GetState(), got.GetError())
 	}

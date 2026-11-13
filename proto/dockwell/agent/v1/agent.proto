@@ -490,6 +490,12 @@ message Hello {
   // True when the agent carries a connection to a port a service publishes
   // (ForwardCall), so the panel opens an app's web UI through it (ADR 0061).
   bool forwards = 202;
+  // True when the agent signs in to a registry with a login it's sent
+  // (registry_auth), only at the registry's host and the token service the login
+  // was saved with (ADR 0086). The control plane sends no login to one that
+  // doesn't, which would pull without it. Numbered in the block registry logins
+  // hold, 310 to 319.
+  bool registry_logins = 314;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.
@@ -780,6 +786,9 @@ message Call {
     // Read the server's system log back, a page at a time, narrowed to a unit
     // and a level (ADR 0082).
     SystemLogCall system_log = 281;
+    // Sign in at a registry with a login, saving nothing (ADR 0086). Numbered in the
+    // block registry logins hold, 310 to 319.
+    CheckRegistryLoginCall check_registry_login = 313;
     // Say what's newer than an image the server runs (ADR 0079). Knowing an
     // app's updates takes 250 to 259.
     ImageUpdatesCall image_updates = 250;
@@ -852,6 +861,29 @@ message ProcessesCall {}
 message ProcessesResult {
   // What runs.
   dockwell.v1.ProcessList list = 1;
+}
+
+// CheckRegistryLoginCall asks the agent to sign in at a registry, as its pull would,
+// and save nothing.
+message CheckRegistryLoginCall {
+  // The login, sealed to this stream's delivery key as a step's values are.
+  bytes registry_auth = 1;
+  // True for a login as typed, not yet saved, which may go to the token service
+  // the registry names, wherever that is; the answer says where. A saved login goes
+  // only to the one it was saved with.
+  bool first = 2;
+  // A registry's host to ask /v2/ of with no login, in place of registry_auth:
+  // whether it's a registry, and what it asks of a client. Nothing signs in.
+  string probe = 3;
+}
+
+// CheckRegistryLoginResult says how a registry answered a login.
+message CheckRegistryLoginResult {
+  dockwell.v1.RegistryLoginState state = 1;
+  // The host the registry sent the client to for a token, or empty.
+  string token_host = 2;
+  // The registry's own words, in a line.
+  string detail = 3;
 }
 
 // SystemServicesCall asks for the server's system services, read now with its
@@ -1197,6 +1229,9 @@ message ImageCall {
     // formats work holds (ADR 0078).
     ImageDigestsCall digests = 270;
   }
+  // The registry login the read signs in with, sealed as a step's values are
+  // (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
+  bytes registry_auth = 312;
 }
 
 // ImageDigestsCall asks for the digests images' tags point at now, each with a HEAD
@@ -1247,6 +1282,10 @@ message ImageUpdatesCall {
   // labels the server's own copy says, with no network. Empty when it isn't
   // known.
   string running = 3;
+  // The registry login the check signs in with, sealed as a step's values are:
+  // what the service's pull uses (ADR 0086). Numbered in the block registry logins
+  // hold, 310 to 319.
+  bytes registry_auth = 311;
 }
 
 // ImageUpdatesResult is what an ImageUpdatesCall found.
@@ -1984,6 +2023,10 @@ message DesiredResource {
   // Acts on one of the server's system services, for its host (ADR 0082).
   // Numbered in Track S's block, 280 to 289.
   UnitAction unit = 280;
+  // The registry login the resource's image is pulled with, sealed to this
+  // stream's delivery key as a step's values are, for a plan's ask and a step's
+  // pull (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
+  bytes registry_auth = 310;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.
@@ -2175,6 +2218,8 @@ message CallResult {
     SystemServicesResult system_services = 235;
     // What system_log read.
     SystemLogResult system_log = 281;
+    // How check_registry_login signed in.
+    CheckRegistryLoginResult check_registry_login = 313;
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
   }

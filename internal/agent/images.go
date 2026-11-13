@@ -252,6 +252,8 @@ func answer(err error) dockwellv1.ImageAnswer {
 		return dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND
 	case errors.Is(err, registry.ErrLimited):
 		return dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_ASKED
+	case errors.Is(err, registry.ErrSignIn), errors.Is(err, registry.ErrMoved):
+		return dockwellv1.ImageAnswer_IMAGE_ANSWER_SIGN_IN_FAILED
 	}
 	return dockwellv1.ImageAnswer_IMAGE_ANSWER_UNREACHABLE
 }
@@ -345,10 +347,10 @@ func (im *images) listTags(ctx context.Context, client *registry.Client, reposit
 	if err != nil {
 		return nil, err
 	}
-	key := ref.Registry + "/" + ref.Repository
+	key := ref.Registry + "/" + ref.Repository + signedInAs(ctx)
 	// Docker Hub's tags come from its API, which a mirror doesn't stand in for.
 	endpoint := ref.Registry
-	if ref.Registry == registry.Hub {
+	if ref.Registry == registry.Hub && signedInAs(ctx) == "" {
 		endpoint = hubAPIEndpoint
 	}
 	res := &dockwellv1.ListImageTagsResponse{}
@@ -392,7 +394,7 @@ func (im *images) listTags(ctx context.Context, client *registry.Client, reposit
 // its manifest, which no registry counts as a pull, kept for imageReadFor. take
 // waits for a turn to reach the registry, which only a lookup that isn't kept needs.
 func (im *images) digest(ctx context.Context, client *registry.Client, ref registry.Ref, take func() error) (string, dockwellv1.ImageAnswer, error) {
-	key := ref.String()
+	key := ref.String() + signedInAs(ctx)
 	im.mu.Lock()
 	digest, ok := im.digests.get(key, im.now())
 	im.mu.Unlock()
@@ -517,7 +519,7 @@ func (im *images) image(ctx context.Context, client *registry.Client, platform r
 	res.Answer, res.Digest = dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND, digest
 	if digest != "" {
 		im.mu.Lock()
-		cfg, ok := im.configs.get(digest, im.now())
+		cfg, ok := im.configs.get(digest+signedInAs(ctx), im.now())
 		im.mu.Unlock()
 		if ok {
 			res.Config = configProto(cfg)
@@ -535,7 +537,7 @@ func (im *images) image(ctx context.Context, client *registry.Client, platform r
 			}
 			if configSize(cfg) <= registry.MaxConfig {
 				im.mu.Lock()
-				im.configs.put(digest, cfg, im.now())
+				im.configs.put(digest+signedInAs(ctx), cfg, im.now())
 				im.mu.Unlock()
 				res.Config = configProto(cfg)
 				return res, nil
@@ -564,7 +566,7 @@ func (im *images) image(ctx context.Context, client *registry.Client, platform r
 	}
 	if digest != "" {
 		im.mu.Lock()
-		im.configs.put(digest, read, im.now())
+		im.configs.put(digest+signedInAs(ctx), read, im.now())
 		im.mu.Unlock()
 	}
 	res.Config = configProto(read)
@@ -716,4 +718,95 @@ func foundSize(found []docker.Found) int {
 		n += len(f.Name) + len(f.Description) + 48
 	}
 	return n
+}
+
+// signedInAs tells what a read signed in with a login keeps from what a read
+// without it, or with another, keeps: nothing a login read is given to a read
+// without it (ADR 0086).
+func signedInAs(ctx context.Context) string {
+	a, ok := registry.AuthOf(ctx)
+	if !ok {
+		return ""
+	}
+	return " as " + a.Registry + "/" + a.Name + "/" + a.Username
+}
+
+// challenge refuses a login whose registry would send it to a token service other
+// than the one it was saved with, before Docker is handed it, as Docker follows
+// whatever realm a registry names (ADR 0086). A registry that doesn't answer says
+// nothing either way: the login isn't handed to Docker, and what the server has
+// stands.
+func (im *images) challenge(ctx context.Context, a registry.Auth) (bool, error) {
+	if im.o.Off != "" || im.docker == nil {
+		return false, nil
+	}
+	// Docker sends a Docker Hub login to the mirrors its daemon.json names too, so
+	// with any, Docker is handed none: what it pulls from Docker Hub, it pulls as
+	// anyone. Dockwell's own reads go to Docker Hub alone, with it.
+	if a.Registry == registry.Hub {
+		if info, err := im.docker.Info(ctx); err != nil || info.RegistryConfig != nil && len(info.RegistryConfig.Mirrors) > 0 {
+			return false, nil
+		}
+	}
+	ctx, cancel := context.WithTimeout(ctx, registry.RequestTimeout)
+	defer cancel()
+	client, _ := im.ready(ctx)
+	err := client.Challenge(ctx, a)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, registry.ErrMoved):
+		return false, fmt.Errorf("%s now sends clients to another host for its tokens, or to its own over plain HTTP, so Dockwell won't sign in there with the registry login %s. Check the login again", a.Registry, a.Name)
+	case errors.Is(err, registry.ErrUnreadChallenge):
+		return false, fmt.Errorf("%s asks for a sign-in in a way Dockwell can't read, so Dockwell won't hand Docker the registry login %s, as Docker could send it where Dockwell can't see", a.Registry, a.Name)
+	}
+	return false, nil
+}
+
+// checkLogin signs in at a login's registry, as a pull would, and keeps nothing.
+// first lets a login not yet saved go to the token service the registry names.
+func (im *images) checkLogin(ctx context.Context, a registry.Auth, first bool) *agentv1.CheckRegistryLoginResult {
+	out := &agentv1.CheckRegistryLoginResult{}
+	if im.o.Off != "" || im.docker == nil {
+		out.State, out.Detail = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_UNREACHABLE, "This agent reads no registry"
+		return out
+	}
+	ctx, cancel := context.WithTimeout(ctx, imageReadTimeout)
+	defer cancel()
+	client, _ := im.ready(ctx)
+	host, err := client.SignIn(ctx, a, first)
+	switch {
+	case err == nil:
+		out.State, out.TokenHost = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_SIGNED_IN, host
+	case errors.Is(err, registry.ErrSignIn):
+		out.State = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_REFUSED
+	case errors.Is(err, registry.ErrMoved):
+		out.State, out.TokenHost = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_MOVED, host
+	default:
+		out.State, out.Detail = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_UNREACHABLE, line(err.Error())
+	}
+	return out
+}
+
+// probeRegistry asks a registry's /v2/ with no login, as the panel does before a
+// token typed for it goes there (ADR 0086).
+func (im *images) probeRegistry(ctx context.Context, host string) *agentv1.CheckRegistryLoginResult {
+	out := &agentv1.CheckRegistryLoginResult{}
+	if im.o.Off != "" || im.docker == nil {
+		out.State, out.Detail = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_UNREACHABLE, "This agent reads no registry"
+		return out
+	}
+	ctx, cancel := context.WithTimeout(ctx, imageReadTimeout)
+	defer cancel()
+	client, _ := im.ready(ctx)
+	asks, tokenHost, err := client.Probe(ctx, host)
+	switch {
+	case err != nil:
+		out.State, out.Detail = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_UNREACHABLE, line(err.Error())
+	case asks:
+		out.State, out.TokenHost = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_ASKS, tokenHost
+	default:
+		out.State = dockwellv1.RegistryLoginState_REGISTRY_LOGIN_STATE_SIGNED_IN
+	}
+	return out
 }

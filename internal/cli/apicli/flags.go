@@ -461,14 +461,19 @@ func scalarOrMessage(fd protoreflect.FieldDescriptor, s string, env *Env, blank 
 	if inline(s) && givesVolumePassword(v.Message()) {
 		return protoreflect.Value{}, errInlinePassword
 	}
-	if inline(s) && fd.Message().FullName() == alertChannelName && resource.SetsSensitive(v.Message().Interface()) {
+	if inline(s) && resource.SetsSensitiveIn(v.Message().Interface(), sealedMessages...) {
 		return protoreflect.Value{}, errInlineSealed
 	}
 	return v, nil
 }
 
-// alertChannelName is an alert channel's message, whose JSON may hold what signs in.
-var alertChannelName = (&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().FullName()
+// sealedMessages are the messages whose sensitive fields sign in to something:
+// an alert channel's token, a registry login's password and its ECR key.
+var sealedMessages = []protoreflect.FullName{
+	(&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().FullName(),
+	(&resourcev1.RegistryLogin{}).ProtoReflect().Descriptor().FullName(),
+	(&resourcev1.RegistryLoginEcr{}).ProtoReflect().Descriptor().FullName(),
+}
 
 // errInlineSecret refuses JSON on the command line that sets a secret,
 // errInlinePassword JSON that gives a volume a password, and errInlineSealed
@@ -476,7 +481,7 @@ var alertChannelName = (&resourcev1.AlertChannel{}).ProtoReflect().Descriptor().
 var (
 	errInlineSecret   = errors.New("the JSON sets a secret's value, so it would stay in your shell history and the process list")
 	errInlinePassword = errors.New("the JSON gives a volume a password in its options, so it would stay in your shell history and the process list")
-	errInlineSealed   = errors.New("the JSON holds what signs in to an alert channel, so it would stay in your shell history and the process list")
+	errInlineSealed   = errors.New("the JSON holds what signs in, such as an alert channel's token or a registry login's key, so it would stay in your shell history and the process list")
 )
 
 // volumeOptions is the field that holds a volume's options.

@@ -108,8 +108,13 @@ const (
 // rollback names one image someone asked for, and a pin rests on the answer, so it
 // asks past Docker Hub's limit and a registry's silence, which are there for files.
 // It still counts against Docker Hub's limit, and waits within the plan's time.
-func (d *Docker) askRegistry(ctx context.Context, ref string) registryAnswer {
-	host, now, named := registryOf(ref), d.now(), resource.DeployOf(ctx).Run
+func (d *Docker) askRegistry(ctx context.Context, image string) registryAnswer {
+	host, now, named := registryOf(image), d.now(), resource.DeployOf(ctx).Run
+	// What a pull with a login may get says nothing of one without it (ADR 0086).
+	ref := image
+	if login := loginOf(ctx); login != "" {
+		ref += " as " + login
+	}
 	wait := pullableWait
 	if until, ok := resource.WaitsUntil(ctx); ok {
 		wait = min(wait, time.Until(until))
@@ -135,7 +140,7 @@ func (d *Docker) askRegistry(ctx context.Context, ref string) registryAnswer {
 
 	asking, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
-	err := d.Client.CheckPullable(asking, ref)
+	err := d.Client.CheckPullable(asking, image)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -167,7 +172,9 @@ func (d *Docker) askRegistry(ctx context.Context, ref string) registryAnswer {
 func (d *Docker) pulled(ref string) {
 	d.registries.mu.Lock()
 	defer d.registries.mu.Unlock()
-	delete(d.registries.pullable, ref)
+	maps.DeleteFunc(d.registries.pullable, func(asked string, _ time.Time) bool {
+		return asked == ref || strings.HasPrefix(asked, ref+" as ")
+	})
 }
 
 // trimBefore drops the times before from, from a list kept oldest first.

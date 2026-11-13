@@ -1000,7 +1000,9 @@ function ImageFields({
         environment={environment}
         server={server}
         onRead={onRead}
-        onChange={(image) => update({ image }, "image")}
+        onChange={(image) => update({ image, registryLogin: "" }, "image")}
+        registryLogin={form.registryLogin ?? ""}
+        onRegistryLogin={(registryLogin) => update({ registryLogin })}
       />
       <TextField
         label={t`Name`}

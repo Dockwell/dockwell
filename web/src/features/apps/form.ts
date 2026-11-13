@@ -78,6 +78,8 @@ export interface ImageForm {
   mounts: MountRow[];
   /** What Advanced holds; leaving it out leaves each at its default. */
   more?: MoreSettings;
+  /** The registry login its pull signs in with, by name, where its project may use several (ADR 0086). Empty takes the one there is. */
+  registryLogin?: string;
 }
 
 /** How many of Advanced's settings differ from their defaults. */
@@ -260,6 +262,7 @@ export function appEdits(
               // An app that builds runs what its build makes, which the plan names, and one
               // from a folder runs its runtime's image.
               image: git || folder ? "" : form.image.trim(),
+              registryLogin: git || folder ? "" : (form.registryLogin ?? ""),
               env,
               ports: form.ports
                 .filter((p) => p.host.trim() !== "" || p.container.trim() !== "")

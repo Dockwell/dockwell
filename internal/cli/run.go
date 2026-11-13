@@ -355,6 +355,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	containers := container.Driver{Runtime: &container.Docker{
 		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive,
 		BeforeReplace: database.Reader{Client: client}.BeforeReplace, Room: dockerRoom(client), Kept: keptImages,
+		PullLogins: &container.PullLogins{Path: filepath.Join(dir.Agent(), "pull-logins.json")},
 	}}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)

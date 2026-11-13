@@ -22,11 +22,14 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"google.golang.org/protobuf/proto"
+
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/registry"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
@@ -56,8 +59,15 @@ const (
 type Agents interface {
 	// Connected reports a server whose agent is connected now.
 	Connected(server string) bool
-	// ImageUpdates asks a server's agent what's newer than an image it runs.
-	ImageUpdates(ctx context.Context, server string, call *agentv1.ImageUpdatesCall) (*agentv1.ImageUpdatesResult, error)
+	// ImageUpdates asks a server's agent what's newer than an image it runs,
+	// signed in with login, or none for the zero Auth.
+	ImageUpdates(ctx context.Context, server string, call *agentv1.ImageUpdatesCall, login registry.Auth) (*agentv1.ImageUpdatesResult, error)
+}
+
+// Logins picks the registry login a service's pull signs in with, which its check
+// signs in with too (ADR 0086): registrylogins.Logins.
+type Logins interface {
+	For(ctx context.Context, ref resource.Ref, spec proto.Message, planned string) (registry.Auth, bool, error)
 }
 
 // CatalogInstall is what a catalog install can move to.
@@ -75,6 +85,9 @@ type Keeper struct {
 	DB      *store.DB
 	Secrets *secrets.Keeper
 	Agents  Agents
+	// Logins are what a check signs in with, as the service's pull would. Nil
+	// signs in with none.
+	Logins Logins
 	// Catalog says, of each catalog install, by project ID, what it can move to.
 	// Nil knows no catalog.
 	Catalog func(ctx context.Context) (map[string]CatalogInstall, error)
@@ -473,10 +486,13 @@ func (s sessions) Connected(server string) bool {
 	return ok
 }
 
-func (s sessions) ImageUpdates(ctx context.Context, server string, call *agentv1.ImageUpdatesCall) (*agentv1.ImageUpdatesResult, error) {
+func (s sessions) ImageUpdates(ctx context.Context, server string, call *agentv1.ImageUpdatesCall, login registry.Auth) (*agentv1.ImageUpdatesResult, error) {
 	session, ok := s.agents.Session(server)
 	if !ok {
 		return nil, errors.New("its agent isn't connected")
+	}
+	if login.Registry != "" {
+		return session.ImageUpdatesAs(ctx, call, login)
 	}
 	return session.ImageUpdates(ctx, call)
 }

@@ -43,6 +43,12 @@ const (
 	ImageServiceListImageTagsProcedure = "/dockwell.v1.ImageService/ListImageTags"
 	// ImageServiceGetImageProcedure is the fully-qualified name of the ImageService's GetImage RPC.
 	ImageServiceGetImageProcedure = "/dockwell.v1.ImageService/GetImage"
+	// ImageServiceListRegistryLoginsProcedure is the fully-qualified name of the ImageService's
+	// ListRegistryLogins RPC.
+	ImageServiceListRegistryLoginsProcedure = "/dockwell.v1.ImageService/ListRegistryLogins"
+	// ImageServiceCheckRegistryLoginProcedure is the fully-qualified name of the ImageService's
+	// CheckRegistryLogin RPC.
+	ImageServiceCheckRegistryLoginProcedure = "/dockwell.v1.ImageService/CheckRegistryLogin"
 )
 
 // ImageServiceClient is a client for the dockwell.v1.ImageService service.
@@ -60,6 +66,18 @@ type ImageServiceClient interface {
 	// environment variables with their defaults, the paths it keeps data at, its
 	// command and its health check.
 	GetImage(context.Context, *connect.Request[v1.GetImageRequest]) (*connect.Response[v1.GetImageResponse], error)
+	// ListRegistryLogins lists the registry logins the caller may use: an admin's,
+	// every login with everything but what signs in; below an admin, the logins
+	// the caller's projects may pull with, by name and registry alone. See
+	// docs/adr/0086-registry-logins-for-private-images.md.
+	ListRegistryLogins(context.Context, *connect.Request[v1.ListRegistryLoginsRequest]) (*connect.Response[v1.ListRegistryLoginsResponse], error)
+	// CheckRegistryLogin signs in at a registry from a server's agent, as a pull
+	// there would, and saves nothing: with a login as typed, or a saved one again.
+	// It says whether it signed in, and the token service the registry sent it to,
+	// which a plan saves with the login so it never goes anywhere else. An admin's,
+	// signed in, as a login is install-wide. See
+	// docs/adr/0086-registry-logins-for-private-images.md.
+	CheckRegistryLogin(context.Context, *connect.Request[v1.CheckRegistryLoginRequest]) (*connect.Response[v1.CheckRegistryLoginResponse], error)
 }
 
 // NewImageServiceClient constructs a client for the dockwell.v1.ImageService service. By default,
@@ -94,14 +112,29 @@ func NewImageServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listRegistryLogins: connect.NewClient[v1.ListRegistryLoginsRequest, v1.ListRegistryLoginsResponse](
+			httpClient,
+			baseURL+ImageServiceListRegistryLoginsProcedure,
+			connect.WithSchema(imageServiceMethods.ByName("ListRegistryLogins")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		checkRegistryLogin: connect.NewClient[v1.CheckRegistryLoginRequest, v1.CheckRegistryLoginResponse](
+			httpClient,
+			baseURL+ImageServiceCheckRegistryLoginProcedure,
+			connect.WithSchema(imageServiceMethods.ByName("CheckRegistryLogin")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // imageServiceClient implements ImageServiceClient.
 type imageServiceClient struct {
-	searchImages  *connect.Client[v1.SearchImagesRequest, v1.SearchImagesResponse]
-	listImageTags *connect.Client[v1.ListImageTagsRequest, v1.ListImageTagsResponse]
-	getImage      *connect.Client[v1.GetImageRequest, v1.GetImageResponse]
+	searchImages       *connect.Client[v1.SearchImagesRequest, v1.SearchImagesResponse]
+	listImageTags      *connect.Client[v1.ListImageTagsRequest, v1.ListImageTagsResponse]
+	getImage           *connect.Client[v1.GetImageRequest, v1.GetImageResponse]
+	listRegistryLogins *connect.Client[v1.ListRegistryLoginsRequest, v1.ListRegistryLoginsResponse]
+	checkRegistryLogin *connect.Client[v1.CheckRegistryLoginRequest, v1.CheckRegistryLoginResponse]
 }
 
 // SearchImages calls dockwell.v1.ImageService.SearchImages.
@@ -119,6 +152,16 @@ func (c *imageServiceClient) GetImage(ctx context.Context, req *connect.Request[
 	return c.getImage.CallUnary(ctx, req)
 }
 
+// ListRegistryLogins calls dockwell.v1.ImageService.ListRegistryLogins.
+func (c *imageServiceClient) ListRegistryLogins(ctx context.Context, req *connect.Request[v1.ListRegistryLoginsRequest]) (*connect.Response[v1.ListRegistryLoginsResponse], error) {
+	return c.listRegistryLogins.CallUnary(ctx, req)
+}
+
+// CheckRegistryLogin calls dockwell.v1.ImageService.CheckRegistryLogin.
+func (c *imageServiceClient) CheckRegistryLogin(ctx context.Context, req *connect.Request[v1.CheckRegistryLoginRequest]) (*connect.Response[v1.CheckRegistryLoginResponse], error) {
+	return c.checkRegistryLogin.CallUnary(ctx, req)
+}
+
 // ImageServiceHandler is an implementation of the dockwell.v1.ImageService service.
 type ImageServiceHandler interface {
 	// SearchImages returns Docker Hub's images whose names hold a term, its
@@ -134,6 +177,18 @@ type ImageServiceHandler interface {
 	// environment variables with their defaults, the paths it keeps data at, its
 	// command and its health check.
 	GetImage(context.Context, *connect.Request[v1.GetImageRequest]) (*connect.Response[v1.GetImageResponse], error)
+	// ListRegistryLogins lists the registry logins the caller may use: an admin's,
+	// every login with everything but what signs in; below an admin, the logins
+	// the caller's projects may pull with, by name and registry alone. See
+	// docs/adr/0086-registry-logins-for-private-images.md.
+	ListRegistryLogins(context.Context, *connect.Request[v1.ListRegistryLoginsRequest]) (*connect.Response[v1.ListRegistryLoginsResponse], error)
+	// CheckRegistryLogin signs in at a registry from a server's agent, as a pull
+	// there would, and saves nothing: with a login as typed, or a saved one again.
+	// It says whether it signed in, and the token service the registry sent it to,
+	// which a plan saves with the login so it never goes anywhere else. An admin's,
+	// signed in, as a login is install-wide. See
+	// docs/adr/0086-registry-logins-for-private-images.md.
+	CheckRegistryLogin(context.Context, *connect.Request[v1.CheckRegistryLoginRequest]) (*connect.Response[v1.CheckRegistryLoginResponse], error)
 }
 
 // NewImageServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -164,6 +219,19 @@ func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOpti
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	imageServiceListRegistryLoginsHandler := connect.NewUnaryHandler(
+		ImageServiceListRegistryLoginsProcedure,
+		svc.ListRegistryLogins,
+		connect.WithSchema(imageServiceMethods.ByName("ListRegistryLogins")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	imageServiceCheckRegistryLoginHandler := connect.NewUnaryHandler(
+		ImageServiceCheckRegistryLoginProcedure,
+		svc.CheckRegistryLogin,
+		connect.WithSchema(imageServiceMethods.ByName("CheckRegistryLogin")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ImageService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ImageServiceSearchImagesProcedure:
@@ -172,6 +240,10 @@ func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOpti
 			imageServiceListImageTagsHandler.ServeHTTP(w, r)
 		case ImageServiceGetImageProcedure:
 			imageServiceGetImageHandler.ServeHTTP(w, r)
+		case ImageServiceListRegistryLoginsProcedure:
+			imageServiceListRegistryLoginsHandler.ServeHTTP(w, r)
+		case ImageServiceCheckRegistryLoginProcedure:
+			imageServiceCheckRegistryLoginHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -191,4 +263,12 @@ func (UnimplementedImageServiceHandler) ListImageTags(context.Context, *connect.
 
 func (UnimplementedImageServiceHandler) GetImage(context.Context, *connect.Request[v1.GetImageRequest]) (*connect.Response[v1.GetImageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImageService.GetImage is not implemented"))
+}
+
+func (UnimplementedImageServiceHandler) ListRegistryLogins(context.Context, *connect.Request[v1.ListRegistryLoginsRequest]) (*connect.Response[v1.ListRegistryLoginsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImageService.ListRegistryLogins is not implemented"))
+}
+
+func (UnimplementedImageServiceHandler) CheckRegistryLogin(context.Context, *connect.Request[v1.CheckRegistryLoginRequest]) (*connect.Response[v1.CheckRegistryLoginResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImageService.CheckRegistryLogin is not implemented"))
 }

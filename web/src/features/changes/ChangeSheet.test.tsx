@@ -703,6 +703,18 @@ describe("the plan sheet", () => {
     expect(sheet).not.toHaveTextContent("takes over once it has been healthy");
   });
 
+  it("says which registry login its pulls sign in with, and nothing that signs in", async () => {
+    const pulling = webPlanned();
+    const step = pulling.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.registryLogin = "ghcr-ci";
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: pulling }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    await waitFor(() => expect(sheet).toHaveTextContent("hz-1 · about 2 s down · pulls with ghcr-ci"));
+  });
+
   it("makes two writers on shared data the plan's first risk", async () => {
     const chosen = webPlanned();
     const step = chosen.plan?.servers[0]?.steps[0];

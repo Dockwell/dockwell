@@ -74,7 +74,7 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 		return res, nil
 	}
 	endpoint := ref.Registry
-	if ref.Registry == registry.Hub {
+	if ref.Registry == registry.Hub && signedInAs(ctx) == "" {
 		endpoint = hubAPIEndpoint
 	}
 	if im.isSilent(endpoint) {

@@ -9,6 +9,7 @@
 package dockwellv1
 
 import (
+	v1alpha1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -25,6 +26,71 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// RegistryLoginState is what a registry said of a login.
+type RegistryLoginState int32
+
+const (
+	RegistryLoginState_REGISTRY_LOGIN_STATE_UNSPECIFIED RegistryLoginState = 0
+	// It signed in.
+	RegistryLoginState_REGISTRY_LOGIN_STATE_SIGNED_IN RegistryLoginState = 1
+	// The registry refused the username or the password.
+	RegistryLoginState_REGISTRY_LOGIN_STATE_REFUSED RegistryLoginState = 2
+	// The registry couldn't be reached, or didn't answer in time.
+	RegistryLoginState_REGISTRY_LOGIN_STATE_UNREACHABLE RegistryLoginState = 3
+	// The registry sent the login to a token service on another host than the one
+	// it was saved with, so nothing was sent.
+	RegistryLoginState_REGISTRY_LOGIN_STATE_MOVED RegistryLoginState = 4
+	// A probe found a registry that asks for a sign-in; nothing was sent.
+	RegistryLoginState_REGISTRY_LOGIN_STATE_ASKS RegistryLoginState = 5
+)
+
+// Enum value maps for RegistryLoginState.
+var (
+	RegistryLoginState_name = map[int32]string{
+		0: "REGISTRY_LOGIN_STATE_UNSPECIFIED",
+		1: "REGISTRY_LOGIN_STATE_SIGNED_IN",
+		2: "REGISTRY_LOGIN_STATE_REFUSED",
+		3: "REGISTRY_LOGIN_STATE_UNREACHABLE",
+		4: "REGISTRY_LOGIN_STATE_MOVED",
+		5: "REGISTRY_LOGIN_STATE_ASKS",
+	}
+	RegistryLoginState_value = map[string]int32{
+		"REGISTRY_LOGIN_STATE_UNSPECIFIED": 0,
+		"REGISTRY_LOGIN_STATE_SIGNED_IN":   1,
+		"REGISTRY_LOGIN_STATE_REFUSED":     2,
+		"REGISTRY_LOGIN_STATE_UNREACHABLE": 3,
+		"REGISTRY_LOGIN_STATE_MOVED":       4,
+		"REGISTRY_LOGIN_STATE_ASKS":        5,
+	}
+)
+
+func (x RegistryLoginState) Enum() *RegistryLoginState {
+	p := new(RegistryLoginState)
+	*p = x
+	return p
+}
+
+func (x RegistryLoginState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RegistryLoginState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_image_proto_enumTypes[0].Descriptor()
+}
+
+func (RegistryLoginState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_image_proto_enumTypes[0]
+}
+
+func (x RegistryLoginState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RegistryLoginState.Descriptor instead.
+func (RegistryLoginState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{0}
+}
+
 // ImageAnswer is what a registry said, or why it said nothing.
 type ImageAnswer int32
 
@@ -40,23 +106,29 @@ const (
 	// A limit held the question back, such as what the server may ask of Docker
 	// Hub in six hours. It says nothing of the image.
 	ImageAnswer_IMAGE_ANSWER_NOT_ASKED ImageAnswer = 4
+	// The registry refused the login it was read with, or sent it to a token
+	// service other than the one it was saved with (ADR 0086).
+	// Numbered in the block registry logins hold, 100 to 109.
+	ImageAnswer_IMAGE_ANSWER_SIGN_IN_FAILED ImageAnswer = 100
 )
 
 // Enum value maps for ImageAnswer.
 var (
 	ImageAnswer_name = map[int32]string{
-		0: "IMAGE_ANSWER_UNSPECIFIED",
-		1: "IMAGE_ANSWER_FOUND",
-		2: "IMAGE_ANSWER_NOT_FOUND",
-		3: "IMAGE_ANSWER_UNREACHABLE",
-		4: "IMAGE_ANSWER_NOT_ASKED",
+		0:   "IMAGE_ANSWER_UNSPECIFIED",
+		1:   "IMAGE_ANSWER_FOUND",
+		2:   "IMAGE_ANSWER_NOT_FOUND",
+		3:   "IMAGE_ANSWER_UNREACHABLE",
+		4:   "IMAGE_ANSWER_NOT_ASKED",
+		100: "IMAGE_ANSWER_SIGN_IN_FAILED",
 	}
 	ImageAnswer_value = map[string]int32{
-		"IMAGE_ANSWER_UNSPECIFIED": 0,
-		"IMAGE_ANSWER_FOUND":       1,
-		"IMAGE_ANSWER_NOT_FOUND":   2,
-		"IMAGE_ANSWER_UNREACHABLE": 3,
-		"IMAGE_ANSWER_NOT_ASKED":   4,
+		"IMAGE_ANSWER_UNSPECIFIED":    0,
+		"IMAGE_ANSWER_FOUND":          1,
+		"IMAGE_ANSWER_NOT_FOUND":      2,
+		"IMAGE_ANSWER_UNREACHABLE":    3,
+		"IMAGE_ANSWER_NOT_ASKED":      4,
+		"IMAGE_ANSWER_SIGN_IN_FAILED": 100,
 	}
 )
 
@@ -71,11 +143,11 @@ func (x ImageAnswer) String() string {
 }
 
 func (ImageAnswer) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_image_proto_enumTypes[0].Descriptor()
+	return file_dockwell_v1_image_proto_enumTypes[1].Descriptor()
 }
 
 func (ImageAnswer) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_image_proto_enumTypes[0]
+	return &file_dockwell_v1_image_proto_enumTypes[1]
 }
 
 func (x ImageAnswer) Number() protoreflect.EnumNumber {
@@ -84,7 +156,388 @@ func (x ImageAnswer) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ImageAnswer.Descriptor instead.
 func (ImageAnswer) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{1}
+}
+
+// ListRegistryLoginsRequest asks for the registry logins the caller may use.
+type ListRegistryLoginsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Only those this project's apps may pull with, by name or ID. Empty lists
+	// every login the caller may see.
+	Project string `protobuf:"bytes,1,opt,name=project,proto3" json:"project,omitempty"`
+	// Only those this environment's project may pull with, by ID, in place of
+	// project.
+	Environment   string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRegistryLoginsRequest) Reset() {
+	*x = ListRegistryLoginsRequest{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRegistryLoginsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRegistryLoginsRequest) ProtoMessage() {}
+
+func (x *ListRegistryLoginsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRegistryLoginsRequest.ProtoReflect.Descriptor instead.
+func (*ListRegistryLoginsRequest) Descriptor() ([]byte, []int) {
 	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ListRegistryLoginsRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *ListRegistryLoginsRequest) GetEnvironment() string {
+	if x != nil {
+		return x.Environment
+	}
+	return ""
+}
+
+// ListRegistryLoginsResponse lists registry logins.
+type ListRegistryLoginsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Logins        []*RegistryLoginInfo   `protobuf:"bytes,1,rep,name=logins,proto3" json:"logins,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRegistryLoginsResponse) Reset() {
+	*x = ListRegistryLoginsResponse{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRegistryLoginsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRegistryLoginsResponse) ProtoMessage() {}
+
+func (x *ListRegistryLoginsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRegistryLoginsResponse.ProtoReflect.Descriptor instead.
+func (*ListRegistryLoginsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListRegistryLoginsResponse) GetLogins() []*RegistryLoginInfo {
+	if x != nil {
+		return x.Logins
+	}
+	return nil
+}
+
+// RegistryLoginInfo is a registry login as a caller may see it: never what signs
+// in. Below an admin, its name and registry alone.
+type RegistryLoginInfo struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its name, such as "ghcr-ci".
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The registry it signs in to, such as "ghcr.io".
+	Registry string `protobuf:"bytes,2,opt,name=registry,proto3" json:"registry,omitempty"`
+	// Who signs in, for an admin. Empty for ECR, and below an admin.
+	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	// True for an Amazon ECR login, which signs in with an access key.
+	Ecr bool `protobuf:"varint,4,opt,name=ecr,proto3" json:"ecr,omitempty"`
+	// The token service it was saved with, for an admin.
+	TokenHost string `protobuf:"bytes,5,opt,name=token_host,json=tokenHost,proto3" json:"token_host,omitempty"`
+	// The projects whose apps may pull with it, by ID, for an admin; empty for every
+	// project.
+	Projects []string `protobuf:"bytes,6,rep,name=projects,proto3" json:"projects,omitempty"`
+	// Its resource's ID.
+	Id            string `protobuf:"bytes,7,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegistryLoginInfo) Reset() {
+	*x = RegistryLoginInfo{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegistryLoginInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegistryLoginInfo) ProtoMessage() {}
+
+func (x *RegistryLoginInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegistryLoginInfo.ProtoReflect.Descriptor instead.
+func (*RegistryLoginInfo) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *RegistryLoginInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RegistryLoginInfo) GetRegistry() string {
+	if x != nil {
+		return x.Registry
+	}
+	return ""
+}
+
+func (x *RegistryLoginInfo) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *RegistryLoginInfo) GetEcr() bool {
+	if x != nil {
+		return x.Ecr
+	}
+	return false
+}
+
+func (x *RegistryLoginInfo) GetTokenHost() string {
+	if x != nil {
+		return x.TokenHost
+	}
+	return ""
+}
+
+func (x *RegistryLoginInfo) GetProjects() []string {
+	if x != nil {
+		return x.Projects
+	}
+	return nil
+}
+
+func (x *RegistryLoginInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// CheckRegistryLoginRequest is a login to try, as typed or as saved.
+type CheckRegistryLoginRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The registry's host, such as "ghcr.io". Unset when name says which.
+	Registry string `protobuf:"bytes,1,opt,name=registry,proto3" json:"registry,omitempty"`
+	// Who signs in.
+	Username string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	// The password or token, as typed. Unset to check a saved login's.
+	Password string `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	// For ECR, the key and its region, as typed.
+	Ecr *v1alpha1.RegistryLoginEcr `protobuf:"bytes,4,opt,name=ecr,proto3" json:"ecr,omitempty"`
+	// A saved login to check again, by name, with what it saved for anything left
+	// unset here.
+	Name string `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
+	// The server whose agent signs in, by ID. It can be left out while there is one.
+	Server string `protobuf:"bytes,6,opt,name=server,proto3" json:"server,omitempty"`
+	// Asks registry's /v2/ with no login, and sends nothing that signs in: whether
+	// it's a registry, and what it asks of a client, before a token goes there.
+	Probe         bool `protobuf:"varint,7,opt,name=probe,proto3" json:"probe,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckRegistryLoginRequest) Reset() {
+	*x = CheckRegistryLoginRequest{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckRegistryLoginRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckRegistryLoginRequest) ProtoMessage() {}
+
+func (x *CheckRegistryLoginRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckRegistryLoginRequest.ProtoReflect.Descriptor instead.
+func (*CheckRegistryLoginRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *CheckRegistryLoginRequest) GetRegistry() string {
+	if x != nil {
+		return x.Registry
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginRequest) GetEcr() *v1alpha1.RegistryLoginEcr {
+	if x != nil {
+		return x.Ecr
+	}
+	return nil
+}
+
+func (x *CheckRegistryLoginRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginRequest) GetProbe() bool {
+	if x != nil {
+		return x.Probe
+	}
+	return false
+}
+
+// CheckRegistryLoginResponse says whether the login signs in.
+type CheckRegistryLoginResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How the registry answered.
+	State RegistryLoginState `protobuf:"varint,1,opt,name=state,proto3,enum=dockwell.v1.RegistryLoginState" json:"state,omitempty"`
+	// The host the registry sends clients to for a token, which a plan saves with
+	// the login. Empty for a registry that signs in itself.
+	TokenHost string `protobuf:"bytes,2,opt,name=token_host,json=tokenHost,proto3" json:"token_host,omitempty"`
+	// The registry's own words, when it said no or couldn't be reached, in a line.
+	Detail string `protobuf:"bytes,3,opt,name=detail,proto3" json:"detail,omitempty"`
+	// For ECR, the registry the key's account and region name, which the login
+	// pulls from.
+	Registry      string `protobuf:"bytes,4,opt,name=registry,proto3" json:"registry,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CheckRegistryLoginResponse) Reset() {
+	*x = CheckRegistryLoginResponse{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CheckRegistryLoginResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CheckRegistryLoginResponse) ProtoMessage() {}
+
+func (x *CheckRegistryLoginResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CheckRegistryLoginResponse.ProtoReflect.Descriptor instead.
+func (*CheckRegistryLoginResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CheckRegistryLoginResponse) GetState() RegistryLoginState {
+	if x != nil {
+		return x.State
+	}
+	return RegistryLoginState_REGISTRY_LOGIN_STATE_UNSPECIFIED
+}
+
+func (x *CheckRegistryLoginResponse) GetTokenHost() string {
+	if x != nil {
+		return x.TokenHost
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginResponse) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
+}
+
+func (x *CheckRegistryLoginResponse) GetRegistry() string {
+	if x != nil {
+		return x.Registry
+	}
+	return ""
 }
 
 // SearchImagesRequest says what to look for, and where.
@@ -107,7 +560,7 @@ type SearchImagesRequest struct {
 
 func (x *SearchImagesRequest) Reset() {
 	*x = SearchImagesRequest{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[0]
+	mi := &file_dockwell_v1_image_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -119,7 +572,7 @@ func (x *SearchImagesRequest) String() string {
 func (*SearchImagesRequest) ProtoMessage() {}
 
 func (x *SearchImagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[0]
+	mi := &file_dockwell_v1_image_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -132,7 +585,7 @@ func (x *SearchImagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchImagesRequest.ProtoReflect.Descriptor instead.
 func (*SearchImagesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SearchImagesRequest) GetTerm() string {
@@ -176,7 +629,7 @@ type SearchImagesResponse struct {
 
 func (x *SearchImagesResponse) Reset() {
 	*x = SearchImagesResponse{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[1]
+	mi := &file_dockwell_v1_image_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -188,7 +641,7 @@ func (x *SearchImagesResponse) String() string {
 func (*SearchImagesResponse) ProtoMessage() {}
 
 func (x *SearchImagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[1]
+	mi := &file_dockwell_v1_image_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -201,7 +654,7 @@ func (x *SearchImagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchImagesResponse.ProtoReflect.Descriptor instead.
 func (*SearchImagesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SearchImagesResponse) GetMatches() []*ImageMatch {
@@ -236,7 +689,7 @@ type ImageMatch struct {
 
 func (x *ImageMatch) Reset() {
 	*x = ImageMatch{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[2]
+	mi := &file_dockwell_v1_image_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -248,7 +701,7 @@ func (x *ImageMatch) String() string {
 func (*ImageMatch) ProtoMessage() {}
 
 func (x *ImageMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[2]
+	mi := &file_dockwell_v1_image_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -261,7 +714,7 @@ func (x *ImageMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageMatch.ProtoReflect.Descriptor instead.
 func (*ImageMatch) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ImageMatch) GetName() string {
@@ -298,16 +751,20 @@ type ListImageTagsRequest struct {
 	// The repository, such as "nginx" or "ghcr.io/acme/web", with no tag.
 	Repository string `protobuf:"bytes,1,opt,name=repository,proto3" json:"repository,omitempty"`
 	// As SearchImagesRequest's.
-	Environment   string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
-	Project       string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
-	Server        string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
+	Environment string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	Project     string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	Server      string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
+	// As GetImageRequest's. Numbered in the block registry logins hold, 100 to 109.
+	RegistryLogin string `protobuf:"bytes,100,opt,name=registry_login,json=registryLogin,proto3" json:"registry_login,omitempty"`
+	// As GetImageRequest's.
+	Anonymous     bool `protobuf:"varint,101,opt,name=anonymous,proto3" json:"anonymous,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListImageTagsRequest) Reset() {
 	*x = ListImageTagsRequest{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[3]
+	mi := &file_dockwell_v1_image_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -319,7 +776,7 @@ func (x *ListImageTagsRequest) String() string {
 func (*ListImageTagsRequest) ProtoMessage() {}
 
 func (x *ListImageTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[3]
+	mi := &file_dockwell_v1_image_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -332,7 +789,7 @@ func (x *ListImageTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListImageTagsRequest.ProtoReflect.Descriptor instead.
 func (*ListImageTagsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListImageTagsRequest) GetRepository() string {
@@ -363,9 +820,25 @@ func (x *ListImageTagsRequest) GetServer() string {
 	return ""
 }
 
+func (x *ListImageTagsRequest) GetRegistryLogin() string {
+	if x != nil {
+		return x.RegistryLogin
+	}
+	return ""
+}
+
+func (x *ListImageTagsRequest) GetAnonymous() bool {
+	if x != nil {
+		return x.Anonymous
+	}
+	return false
+}
+
 // ListImageTagsResponse lists a repository's tags.
 type ListImageTagsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// As GetImageResponse's. Numbered in the block registry logins hold, 100 to 109.
+	RegistryLogin string `protobuf:"bytes,100,opt,name=registry_login,json=registryLogin,proto3" json:"registry_login,omitempty"`
 	// The tags, newest first, at most 200.
 	Tags []*ImageTag `protobuf:"bytes,1,rep,name=tags,proto3" json:"tags,omitempty"`
 	// How the registry answered.
@@ -376,7 +849,7 @@ type ListImageTagsResponse struct {
 
 func (x *ListImageTagsResponse) Reset() {
 	*x = ListImageTagsResponse{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[4]
+	mi := &file_dockwell_v1_image_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -388,7 +861,7 @@ func (x *ListImageTagsResponse) String() string {
 func (*ListImageTagsResponse) ProtoMessage() {}
 
 func (x *ListImageTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[4]
+	mi := &file_dockwell_v1_image_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -401,7 +874,14 @@ func (x *ListImageTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListImageTagsResponse.ProtoReflect.Descriptor instead.
 func (*ListImageTagsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListImageTagsResponse) GetRegistryLogin() string {
+	if x != nil {
+		return x.RegistryLogin
+	}
+	return ""
 }
 
 func (x *ListImageTagsResponse) GetTags() []*ImageTag {
@@ -436,7 +916,7 @@ type ImageTag struct {
 
 func (x *ImageTag) Reset() {
 	*x = ImageTag{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[5]
+	mi := &file_dockwell_v1_image_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -448,7 +928,7 @@ func (x *ImageTag) String() string {
 func (*ImageTag) ProtoMessage() {}
 
 func (x *ImageTag) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[5]
+	mi := &file_dockwell_v1_image_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -461,7 +941,7 @@ func (x *ImageTag) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageTag.ProtoReflect.Descriptor instead.
 func (*ImageTag) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ImageTag) GetName() string {
@@ -499,16 +979,23 @@ type GetImageRequest struct {
 	// no tag, it's "latest".
 	Reference string `protobuf:"bytes,1,opt,name=reference,proto3" json:"reference,omitempty"`
 	// As SearchImagesRequest's.
-	Environment   string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
-	Project       string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
-	Server        string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
+	Environment string `protobuf:"bytes,2,opt,name=environment,proto3" json:"environment,omitempty"`
+	Project     string `protobuf:"bytes,3,opt,name=project,proto3" json:"project,omitempty"`
+	Server      string `protobuf:"bytes,4,opt,name=server,proto3" json:"server,omitempty"`
+	// Read with this registry login, by name, one the project may use. Empty reads
+	// with the login an app's pull would use: the one for the image's registry the
+	// project may use, when there's exactly one (ADR 0086). Numbered in the block
+	// registry logins hold, 100 to 109.
+	RegistryLogin string `protobuf:"bytes,100,opt,name=registry_login,json=registryLogin,proto3" json:"registry_login,omitempty"`
+	// Read with no login, whatever the project may use.
+	Anonymous     bool `protobuf:"varint,101,opt,name=anonymous,proto3" json:"anonymous,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetImageRequest) Reset() {
 	*x = GetImageRequest{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[6]
+	mi := &file_dockwell_v1_image_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -520,7 +1007,7 @@ func (x *GetImageRequest) String() string {
 func (*GetImageRequest) ProtoMessage() {}
 
 func (x *GetImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[6]
+	mi := &file_dockwell_v1_image_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -533,7 +1020,7 @@ func (x *GetImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetImageRequest.ProtoReflect.Descriptor instead.
 func (*GetImageRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{6}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetImageRequest) GetReference() string {
@@ -564,9 +1051,26 @@ func (x *GetImageRequest) GetServer() string {
 	return ""
 }
 
+func (x *GetImageRequest) GetRegistryLogin() string {
+	if x != nil {
+		return x.RegistryLogin
+	}
+	return ""
+}
+
+func (x *GetImageRequest) GetAnonymous() bool {
+	if x != nil {
+		return x.Anonymous
+	}
+	return false
+}
+
 // GetImageResponse says whether an image is there, and what it declares.
 type GetImageResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// The registry login it was read with, by name, or empty for none (ADR 0086).
+	// Numbered in the block registry logins hold, 100 to 109.
+	RegistryLogin string `protobuf:"bytes,100,opt,name=registry_login,json=registryLogin,proto3" json:"registry_login,omitempty"`
 	// Whether it's there.
 	Answer ImageAnswer `protobuf:"varint,1,opt,name=answer,proto3,enum=dockwell.v1.ImageAnswer" json:"answer,omitempty"`
 	// What its registry calls it, such as "sha256:ab12…". Empty unless found.
@@ -584,7 +1088,7 @@ type GetImageResponse struct {
 
 func (x *GetImageResponse) Reset() {
 	*x = GetImageResponse{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[7]
+	mi := &file_dockwell_v1_image_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -596,7 +1100,7 @@ func (x *GetImageResponse) String() string {
 func (*GetImageResponse) ProtoMessage() {}
 
 func (x *GetImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[7]
+	mi := &file_dockwell_v1_image_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -609,7 +1113,14 @@ func (x *GetImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetImageResponse.ProtoReflect.Descriptor instead.
 func (*GetImageResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{7}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetImageResponse) GetRegistryLogin() string {
+	if x != nil {
+		return x.RegistryLogin
+	}
+	return ""
 }
 
 func (x *GetImageResponse) GetAnswer() ImageAnswer {
@@ -669,7 +1180,7 @@ type ImageConfig struct {
 
 func (x *ImageConfig) Reset() {
 	*x = ImageConfig{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[8]
+	mi := &file_dockwell_v1_image_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -681,7 +1192,7 @@ func (x *ImageConfig) String() string {
 func (*ImageConfig) ProtoMessage() {}
 
 func (x *ImageConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[8]
+	mi := &file_dockwell_v1_image_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -694,7 +1205,7 @@ func (x *ImageConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageConfig.ProtoReflect.Descriptor instead.
 func (*ImageConfig) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{8}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ImageConfig) GetPorts() []*ImagePort {
@@ -779,7 +1290,7 @@ type ImagePort struct {
 
 func (x *ImagePort) Reset() {
 	*x = ImagePort{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[9]
+	mi := &file_dockwell_v1_image_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -791,7 +1302,7 @@ func (x *ImagePort) String() string {
 func (*ImagePort) ProtoMessage() {}
 
 func (x *ImagePort) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[9]
+	mi := &file_dockwell_v1_image_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -804,7 +1315,7 @@ func (x *ImagePort) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImagePort.ProtoReflect.Descriptor instead.
 func (*ImagePort) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{9}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ImagePort) GetPort() uint32 {
@@ -832,7 +1343,7 @@ type ImageVariable struct {
 
 func (x *ImageVariable) Reset() {
 	*x = ImageVariable{}
-	mi := &file_dockwell_v1_image_proto_msgTypes[10]
+	mi := &file_dockwell_v1_image_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -844,7 +1355,7 @@ func (x *ImageVariable) String() string {
 func (*ImageVariable) ProtoMessage() {}
 
 func (x *ImageVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_image_proto_msgTypes[10]
+	mi := &file_dockwell_v1_image_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -857,7 +1368,7 @@ func (x *ImageVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageVariable.ProtoReflect.Descriptor instead.
 func (*ImageVariable) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ImageVariable) GetName() string {
@@ -878,7 +1389,35 @@ var File_dockwell_v1_image_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/image.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"}\n" +
+	"\x17dockwell/v1/image.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"W\n" +
+	"\x19ListRegistryLoginsRequest\x12\x18\n" +
+	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
+	"\venvironment\x18\x02 \x01(\tR\venvironment\"T\n" +
+	"\x1aListRegistryLoginsResponse\x126\n" +
+	"\x06logins\x18\x01 \x03(\v2\x1e.dockwell.v1.RegistryLoginInfoR\x06logins\"\xbc\x01\n" +
+	"\x11RegistryLoginInfo\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
+	"\bregistry\x18\x02 \x01(\tR\bregistry\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12\x10\n" +
+	"\x03ecr\x18\x04 \x01(\bR\x03ecr\x12\x1d\n" +
+	"\n" +
+	"token_host\x18\x05 \x01(\tR\ttokenHost\x12\x1a\n" +
+	"\bprojects\x18\x06 \x03(\tR\bprojects\x12\x0e\n" +
+	"\x02id\x18\a \x01(\tR\x02id\"\xfd\x01\n" +
+	"\x19CheckRegistryLoginRequest\x12\x1a\n" +
+	"\bregistry\x18\x01 \x01(\tR\bregistry\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12 \n" +
+	"\bpassword\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\bpassword\x12D\n" +
+	"\x03ecr\x18\x04 \x01(\v2,.dockwell.resource.v1alpha1.RegistryLoginEcrB\x04\xc8\xf3\x18\x01R\x03ecr\x12\x12\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\x12\x16\n" +
+	"\x06server\x18\x06 \x01(\tR\x06server\x12\x14\n" +
+	"\x05probe\x18\a \x01(\bR\x05probe\"\xa6\x01\n" +
+	"\x1aCheckRegistryLoginResponse\x125\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x1f.dockwell.v1.RegistryLoginStateR\x05state\x12\x1d\n" +
+	"\n" +
+	"token_host\x18\x02 \x01(\tR\ttokenHost\x12\x16\n" +
+	"\x06detail\x18\x03 \x01(\tR\x06detail\x12\x1a\n" +
+	"\bregistry\x18\x04 \x01(\tR\bregistry\"}\n" +
 	"\x13SearchImagesRequest\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\tR\x04term\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x18\n" +
@@ -892,28 +1431,34 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x1a\n" +
 	"\bofficial\x18\x03 \x01(\bR\bofficial\x12\x14\n" +
-	"\x05stars\x18\x04 \x01(\x03R\x05stars\"\x8a\x01\n" +
+	"\x05stars\x18\x04 \x01(\x03R\x05stars\"\xcf\x01\n" +
 	"\x14ListImageTagsRequest\x12\x1e\n" +
 	"\n" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06server\x18\x04 \x01(\tR\x06server\"t\n" +
-	"\x15ListImageTagsResponse\x12)\n" +
+	"\x06server\x18\x04 \x01(\tR\x06server\x12%\n" +
+	"\x0eregistry_login\x18d \x01(\tR\rregistryLogin\x12\x1c\n" +
+	"\tanonymous\x18e \x01(\bR\tanonymous\"\x9b\x01\n" +
+	"\x15ListImageTagsResponse\x12%\n" +
+	"\x0eregistry_login\x18d \x01(\tR\rregistryLogin\x12)\n" +
 	"\x04tags\x18\x01 \x03(\v2\x15.dockwell.v1.ImageTagR\x04tags\x120\n" +
 	"\x06answer\x18\x02 \x01(\x0e2\x18.dockwell.v1.ImageAnswerR\x06answer\"\x87\x01\n" +
 	"\bImageTag\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\x127\n" +
 	"\tpush_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bpushTime\x12\x16\n" +
-	"\x06latest\x18\x04 \x01(\bR\x06latest\"\x83\x01\n" +
+	"\x06latest\x18\x04 \x01(\bR\x06latest\"\xc8\x01\n" +
 	"\x0fGetImageRequest\x12\x1c\n" +
 	"\treference\x18\x01 \x01(\tR\treference\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06server\x18\x04 \x01(\tR\x06server\"\xc0\x01\n" +
-	"\x10GetImageResponse\x120\n" +
+	"\x06server\x18\x04 \x01(\tR\x06server\x12%\n" +
+	"\x0eregistry_login\x18d \x01(\tR\rregistryLogin\x12\x1c\n" +
+	"\tanonymous\x18e \x01(\bR\tanonymous\"\xe7\x01\n" +
+	"\x10GetImageResponse\x12%\n" +
+	"\x0eregistry_login\x18d \x01(\tR\rregistryLogin\x120\n" +
 	"\x06answer\x18\x01 \x01(\x0e2\x18.dockwell.v1.ImageAnswerR\x06answer\x12\x16\n" +
 	"\x06digest\x18\x02 \x01(\tR\x06digest\x120\n" +
 	"\x06config\x18\x03 \x01(\v2\x18.dockwell.v1.ImageConfigR\x06config\x120\n" +
@@ -937,17 +1482,29 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\x03udp\x18\x02 \x01(\bR\x03udp\"9\n" +
 	"\rImageVariable\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value*\x99\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value*\xe3\x02\n" +
+	"\x12RegistryLoginState\x12$\n" +
+	" REGISTRY_LOGIN_STATE_UNSPECIFIED\x10\x00\x121\n" +
+	"\x1eREGISTRY_LOGIN_STATE_SIGNED_IN\x10\x01\x1a\r\xa2\xbb\x18\tSigned in\x12@\n" +
+	"\x1cREGISTRY_LOGIN_STATE_REFUSED\x10\x02\x1a\x1e\xa2\xbb\x18\x1aWrong username or password\x12B\n" +
+	" REGISTRY_LOGIN_STATE_UNREACHABLE\x10\x03\x1a\x1c\xa2\xbb\x18\x18Can't reach the registry\x127\n" +
+	"\x1aREGISTRY_LOGIN_STATE_MOVED\x10\x04\x1a\x17\xa2\xbb\x18\x13Token service moved\x125\n" +
+	"\x19REGISTRY_LOGIN_STATE_ASKS\x10\x05\x1a\x16\xa2\xbb\x18\x12Asks for a sign-in*\xba\x01\n" +
 	"\vImageAnswer\x12\x1c\n" +
 	"\x18IMAGE_ANSWER_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12IMAGE_ANSWER_FOUND\x10\x01\x12\x1a\n" +
 	"\x16IMAGE_ANSWER_NOT_FOUND\x10\x02\x12\x1c\n" +
 	"\x18IMAGE_ANSWER_UNREACHABLE\x10\x03\x12\x1a\n" +
-	"\x16IMAGE_ANSWER_NOT_ASKED\x10\x042\x8f\x03\n" +
+	"\x16IMAGE_ANSWER_NOT_ASKED\x10\x04\x12\x1f\n" +
+	"\x1bIMAGE_ANSWER_SIGN_IN_FAILED\x10d2\xde\f\n" +
 	"\fImageService\x12\x81\x01\n" +
 	"\fSearchImages\x12 .dockwell.v1.SearchImagesRequest\x1a!.dockwell.v1.SearchImagesResponse\",\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x13\x12\x11/v1/images:search\x90\x02\x01\x12\x82\x01\n" +
 	"\rListImageTags\x12!.dockwell.v1.ListImageTagsRequest\x1a\".dockwell.v1.ListImageTagsResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/images:tags\x90\x02\x01\x12v\n" +
-	"\bGetImage\x12\x1c.dockwell.v1.GetImageRequest\x1a\x1d.dockwell.v1.GetImageResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/images:inspect\x90\x02\x01B\xa3\x01\n" +
+	"\bGetImage\x12\x1c.dockwell.v1.GetImageRequest\x1a\x1d.dockwell.v1.GetImageResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/images:inspect\x90\x02\x01\x12\x94\x01\n" +
+	"\x12ListRegistryLogins\x12&.dockwell.v1.ListRegistryLoginsRequest\x1a'.dockwell.v1.ListRegistryLoginsResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/registryLogins\x90\x02\x01\x12\x9e\x01\n" +
+	"\x12CheckRegistryLogin\x12&.dockwell.v1.CheckRegistryLoginRequest\x1a'.dockwell.v1.CheckRegistryLoginResponse\"7\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/registryLogins:check\x1a\x94\a\xa2\xbb\x18\xb2\x03\n" +
+	"\x06images\x12\xa7\x03Images read from their registries through the server an app will run on, for a form: Docker Hub's search, a repository's tags, and whether an image is there and what it declares. Nothing is pulled, and nothing changes. An image a registry keeps private is read with the registry login its app's pull would use. See docs/adr/0062-reading-an-image-from-its-registry.md and docs/adr/0086-registry-logins-for-private-images.md.\xa2\xbb\x18\xd8\x03\n" +
+	"\x0fregistry-logins\x12\xc4\x03What signs in to a container registry, so an app can pull an image the registry keeps private. A login is install-wide: an admin saves it as a change, with a plan, and decides which projects' apps may pull with it. It's sent only to the server that pulls, for that call, and from there to its registry and the token service it was saved with. CheckRegistryLogin signs in without saving anything. See docs/adr/0086-registry-logins-for-private-images.md.B\xa3\x01\n" +
 	"\x0fcom.dockwell.v1B\n" +
 	"ImageProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -963,45 +1520,59 @@ func file_dockwell_v1_image_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_image_proto_rawDescData
 }
 
-var file_dockwell_v1_image_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_dockwell_v1_image_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_dockwell_v1_image_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_dockwell_v1_image_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_dockwell_v1_image_proto_goTypes = []any{
-	(ImageAnswer)(0),              // 0: dockwell.v1.ImageAnswer
-	(*SearchImagesRequest)(nil),   // 1: dockwell.v1.SearchImagesRequest
-	(*SearchImagesResponse)(nil),  // 2: dockwell.v1.SearchImagesResponse
-	(*ImageMatch)(nil),            // 3: dockwell.v1.ImageMatch
-	(*ListImageTagsRequest)(nil),  // 4: dockwell.v1.ListImageTagsRequest
-	(*ListImageTagsResponse)(nil), // 5: dockwell.v1.ListImageTagsResponse
-	(*ImageTag)(nil),              // 6: dockwell.v1.ImageTag
-	(*GetImageRequest)(nil),       // 7: dockwell.v1.GetImageRequest
-	(*GetImageResponse)(nil),      // 8: dockwell.v1.GetImageResponse
-	(*ImageConfig)(nil),           // 9: dockwell.v1.ImageConfig
-	(*ImagePort)(nil),             // 10: dockwell.v1.ImagePort
-	(*ImageVariable)(nil),         // 11: dockwell.v1.ImageVariable
-	(*timestamppb.Timestamp)(nil), // 12: google.protobuf.Timestamp
+	(RegistryLoginState)(0),            // 0: dockwell.v1.RegistryLoginState
+	(ImageAnswer)(0),                   // 1: dockwell.v1.ImageAnswer
+	(*ListRegistryLoginsRequest)(nil),  // 2: dockwell.v1.ListRegistryLoginsRequest
+	(*ListRegistryLoginsResponse)(nil), // 3: dockwell.v1.ListRegistryLoginsResponse
+	(*RegistryLoginInfo)(nil),          // 4: dockwell.v1.RegistryLoginInfo
+	(*CheckRegistryLoginRequest)(nil),  // 5: dockwell.v1.CheckRegistryLoginRequest
+	(*CheckRegistryLoginResponse)(nil), // 6: dockwell.v1.CheckRegistryLoginResponse
+	(*SearchImagesRequest)(nil),        // 7: dockwell.v1.SearchImagesRequest
+	(*SearchImagesResponse)(nil),       // 8: dockwell.v1.SearchImagesResponse
+	(*ImageMatch)(nil),                 // 9: dockwell.v1.ImageMatch
+	(*ListImageTagsRequest)(nil),       // 10: dockwell.v1.ListImageTagsRequest
+	(*ListImageTagsResponse)(nil),      // 11: dockwell.v1.ListImageTagsResponse
+	(*ImageTag)(nil),                   // 12: dockwell.v1.ImageTag
+	(*GetImageRequest)(nil),            // 13: dockwell.v1.GetImageRequest
+	(*GetImageResponse)(nil),           // 14: dockwell.v1.GetImageResponse
+	(*ImageConfig)(nil),                // 15: dockwell.v1.ImageConfig
+	(*ImagePort)(nil),                  // 16: dockwell.v1.ImagePort
+	(*ImageVariable)(nil),              // 17: dockwell.v1.ImageVariable
+	(*v1alpha1.RegistryLoginEcr)(nil),  // 18: dockwell.resource.v1alpha1.RegistryLoginEcr
+	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
 }
 var file_dockwell_v1_image_proto_depIdxs = []int32{
-	3,  // 0: dockwell.v1.SearchImagesResponse.matches:type_name -> dockwell.v1.ImageMatch
-	0,  // 1: dockwell.v1.SearchImagesResponse.answer:type_name -> dockwell.v1.ImageAnswer
-	6,  // 2: dockwell.v1.ListImageTagsResponse.tags:type_name -> dockwell.v1.ImageTag
-	0,  // 3: dockwell.v1.ListImageTagsResponse.answer:type_name -> dockwell.v1.ImageAnswer
-	12, // 4: dockwell.v1.ImageTag.push_time:type_name -> google.protobuf.Timestamp
-	0,  // 5: dockwell.v1.GetImageResponse.answer:type_name -> dockwell.v1.ImageAnswer
-	9,  // 6: dockwell.v1.GetImageResponse.config:type_name -> dockwell.v1.ImageConfig
-	0,  // 7: dockwell.v1.GetImageResponse.unread:type_name -> dockwell.v1.ImageAnswer
-	10, // 8: dockwell.v1.ImageConfig.ports:type_name -> dockwell.v1.ImagePort
-	11, // 9: dockwell.v1.ImageConfig.env:type_name -> dockwell.v1.ImageVariable
-	1,  // 10: dockwell.v1.ImageService.SearchImages:input_type -> dockwell.v1.SearchImagesRequest
-	4,  // 11: dockwell.v1.ImageService.ListImageTags:input_type -> dockwell.v1.ListImageTagsRequest
-	7,  // 12: dockwell.v1.ImageService.GetImage:input_type -> dockwell.v1.GetImageRequest
-	2,  // 13: dockwell.v1.ImageService.SearchImages:output_type -> dockwell.v1.SearchImagesResponse
-	5,  // 14: dockwell.v1.ImageService.ListImageTags:output_type -> dockwell.v1.ListImageTagsResponse
-	8,  // 15: dockwell.v1.ImageService.GetImage:output_type -> dockwell.v1.GetImageResponse
-	13, // [13:16] is the sub-list for method output_type
-	10, // [10:13] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	4,  // 0: dockwell.v1.ListRegistryLoginsResponse.logins:type_name -> dockwell.v1.RegistryLoginInfo
+	18, // 1: dockwell.v1.CheckRegistryLoginRequest.ecr:type_name -> dockwell.resource.v1alpha1.RegistryLoginEcr
+	0,  // 2: dockwell.v1.CheckRegistryLoginResponse.state:type_name -> dockwell.v1.RegistryLoginState
+	9,  // 3: dockwell.v1.SearchImagesResponse.matches:type_name -> dockwell.v1.ImageMatch
+	1,  // 4: dockwell.v1.SearchImagesResponse.answer:type_name -> dockwell.v1.ImageAnswer
+	12, // 5: dockwell.v1.ListImageTagsResponse.tags:type_name -> dockwell.v1.ImageTag
+	1,  // 6: dockwell.v1.ListImageTagsResponse.answer:type_name -> dockwell.v1.ImageAnswer
+	19, // 7: dockwell.v1.ImageTag.push_time:type_name -> google.protobuf.Timestamp
+	1,  // 8: dockwell.v1.GetImageResponse.answer:type_name -> dockwell.v1.ImageAnswer
+	15, // 9: dockwell.v1.GetImageResponse.config:type_name -> dockwell.v1.ImageConfig
+	1,  // 10: dockwell.v1.GetImageResponse.unread:type_name -> dockwell.v1.ImageAnswer
+	16, // 11: dockwell.v1.ImageConfig.ports:type_name -> dockwell.v1.ImagePort
+	17, // 12: dockwell.v1.ImageConfig.env:type_name -> dockwell.v1.ImageVariable
+	7,  // 13: dockwell.v1.ImageService.SearchImages:input_type -> dockwell.v1.SearchImagesRequest
+	10, // 14: dockwell.v1.ImageService.ListImageTags:input_type -> dockwell.v1.ListImageTagsRequest
+	13, // 15: dockwell.v1.ImageService.GetImage:input_type -> dockwell.v1.GetImageRequest
+	2,  // 16: dockwell.v1.ImageService.ListRegistryLogins:input_type -> dockwell.v1.ListRegistryLoginsRequest
+	5,  // 17: dockwell.v1.ImageService.CheckRegistryLogin:input_type -> dockwell.v1.CheckRegistryLoginRequest
+	8,  // 18: dockwell.v1.ImageService.SearchImages:output_type -> dockwell.v1.SearchImagesResponse
+	11, // 19: dockwell.v1.ImageService.ListImageTags:output_type -> dockwell.v1.ListImageTagsResponse
+	14, // 20: dockwell.v1.ImageService.GetImage:output_type -> dockwell.v1.GetImageResponse
+	3,  // 21: dockwell.v1.ImageService.ListRegistryLogins:output_type -> dockwell.v1.ListRegistryLoginsResponse
+	6,  // 22: dockwell.v1.ImageService.CheckRegistryLogin:output_type -> dockwell.v1.CheckRegistryLoginResponse
+	18, // [18:23] is the sub-list for method output_type
+	13, // [13:18] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_image_proto_init() }
@@ -1015,8 +1586,8 @@ func file_dockwell_v1_image_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_image_proto_rawDesc), len(file_dockwell_v1_image_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   11,
+			NumEnums:      2,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

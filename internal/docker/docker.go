@@ -24,6 +24,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/registry"
 )
 
 // DefaultSocket is where the Docker Engine listens on Linux.
@@ -402,6 +404,11 @@ func (c *Client) send(ctx context.Context, method, path string, query url.Values
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	// A registry login goes with a pull of an image on its registry, and with asking
+	// whether one can be pulled, alone (ADR 0086).
+	if auth := registryAuthFor(ctx, path, query); auth != "" {
+		req.Header.Set("X-Registry-Auth", auth)
+	}
 	res, err := c.http.Do(req)
 	if err != nil {
 		switch cerr := ctx.Err(); {
@@ -456,4 +463,48 @@ func SocketFrom(getenv func(string) string) (string, error) {
 	}
 	return "", fmt.Errorf("DOCKER_HOST is %s, but the agent reaches Docker over its unix socket only. "+
 		"Unset DOCKER_HOST, or point it at the socket, such as unix:///var/run/docker.sock", host)
+}
+
+type registryAuthKey struct{}
+
+// registryAuth is a registry login as Docker's X-Registry-Auth header takes it,
+// and the registry it's for.
+type registryAuth struct{ registry, header string }
+
+// WithRegistryAuth is ctx carrying a login for the registry named, as Docker's
+// X-Registry-Auth header takes it, for a pull of an image there, or for asking
+// whether one can be pulled, made with ctx (ADR 0086). An image on any other
+// registry is pulled without it, as Docker sends a login to the registry of the
+// image it pulls, whatever the login says it's for. Docker keeps none of it.
+func WithRegistryAuth(ctx context.Context, registryHost, header string) context.Context {
+	return context.WithValue(ctx, registryAuthKey{}, registryAuth{registry: registryHost, header: header})
+}
+
+// registryAuthFor is the login a request to Docker's API carries: one ctx holds,
+// for a pull of an image on its registry, or asking about one, and for nothing
+// else.
+func registryAuthFor(ctx context.Context, path string, query url.Values) string {
+	a, ok := ctx.Value(registryAuthKey{}).(registryAuth)
+	if !ok || a.header == "" {
+		return ""
+	}
+	var ref string
+	switch {
+	case strings.HasSuffix(path, "/images/create"):
+		ref = query.Get("fromImage")
+	case strings.Contains(path, "/distribution/") && strings.HasSuffix(path, "/json"):
+		_, rest, _ := strings.Cut(path, "/distribution/")
+		unescaped, err := url.PathUnescape(strings.TrimSuffix(rest, "/json"))
+		if err != nil {
+			return ""
+		}
+		ref = unescaped
+	default:
+		return ""
+	}
+	r, err := registry.Parse(ref)
+	if err != nil || r.Registry != a.registry {
+		return ""
+	}
+	return a.header
 }

@@ -1513,6 +1513,9 @@ message PlanStep {
   // What an action on one of its server's system services does, for a step that
   // takes one (ADR 0082). Track S takes 70 to 79 here.
   HostUnit unit = 70;
+  // The registry login the step's pull signs in with, by name, where it pulls with
+  // one (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
+  string registry_login = 100;
   // What a step that moves a database to a newer release does beside replacing
   // its container, by a dump into a new volume (ADR 0080). Numbered in the
   // updates area's block, 260 to 269.

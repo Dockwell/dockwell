@@ -285,6 +285,14 @@ type Decision struct {
 	// Unit says what a step does to one of its server's system services, for a
 	// server's host (ADR 0082). Its fingerprint covers it.
 	Unit *Unit `json:",omitempty"`
+	// RegistryLogin names the registry login the step's pull signs in with, as the
+	// control plane picked it (ADR 0086). Its fingerprint covers it, so a login
+	// added between a plan and its apply makes the plan stale.
+	RegistryLogin string `json:",omitempty"`
+	// RegistryLoginVersion says which revision of which saved login that is, for
+	// the fingerprint alone, so a login saved again under its name between a plan
+	// and its apply makes the plan stale. It isn't kept.
+	RegistryLoginVersion string `json:"-"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.

@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/control/registrylogins"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -29,13 +30,17 @@ import (
 type Service struct {
 	fleet  *fleet.Hub
 	agents *agentapi.Agents
+	// logins are the registry logins a read signs in with (ADR 0086); nil reads
+	// with none.
+	logins *registrylogins.Logins
 }
 
 var _ dockwellv1connect.ImageServiceHandler = (*Service)(nil)
 
-// New returns a Service that reads through the agents of hub's servers.
-func New(hub *fleet.Hub, agents *agentapi.Agents) *Service {
-	return &Service{fleet: hub, agents: agents}
+// New returns a Service that reads through the agents of hub's servers, signed in
+// with logins where an image's registry keeps it private.
+func New(hub *fleet.Hub, agents *agentapi.Agents, logins *registrylogins.Logins) *Service {
+	return &Service{fleet: hub, agents: agents, logins: logins}
 }
 
 // SearchImages asks Docker Hub, through a server, for images whose names hold a
@@ -71,14 +76,19 @@ func (s *Service) ListImageTags(ctx context.Context, req *connect.Request[dockwe
 	if ref.Tag != "" || ref.Digest != "" {
 		return nil, authapi.Invalid(fmt.Errorf("%s names one image. Name its repository alone, such as %s", req.Msg.GetRepository(), ref.Name()))
 	}
-	got, err := s.read(ctx, req.Msg.GetServer(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Tags{Tags: &dockwellv1.ListImageTagsRequest{Repository: ref.Name()}}})
+	call := func() *agentv1.ImageCall {
+		return &agentv1.ImageCall{Ask: &agentv1.ImageCall_Tags{Tags: &dockwellv1.ListImageTagsRequest{Repository: ref.Name()}}}
+	}
+	got, login, err := s.readSignedIn(ctx, req.Msg.GetServer(), ref, req.Msg, call, func(r *agentv1.ImageResult) dockwellv1.ImageAnswer { return r.GetTags().GetAnswer() })
 	if err != nil {
 		return nil, err
 	}
 	if got.GetTags() == nil {
 		return nil, s.unexpected()
 	}
-	return connect.NewResponse(got.GetTags()), nil
+	out := got.GetTags()
+	out.RegistryLogin = login
+	return connect.NewResponse(out), nil
 }
 
 // GetImage says whether an image is there, and what it declares.
@@ -87,14 +97,74 @@ func (s *Service) GetImage(ctx context.Context, req *connect.Request[dockwellv1.
 	if err != nil {
 		return nil, authapi.Invalid(fmt.Errorf("%w. Write it as nginx:1.27, or ghcr.io/acme/web:1.4", err))
 	}
-	got, err := s.read(ctx, req.Msg.GetServer(), &agentv1.ImageCall{Ask: &agentv1.ImageCall_Image{Image: &dockwellv1.GetImageRequest{Reference: ref.String()}}})
+	call := func() *agentv1.ImageCall {
+		return &agentv1.ImageCall{Ask: &agentv1.ImageCall_Image{Image: &dockwellv1.GetImageRequest{Reference: ref.String()}}}
+	}
+	got, login, err := s.readSignedIn(ctx, req.Msg.GetServer(), ref, req.Msg, call, func(r *agentv1.ImageResult) dockwellv1.ImageAnswer { return r.GetImage().GetAnswer() })
 	if err != nil {
 		return nil, err
 	}
 	if got.GetImage() == nil {
 		return nil, s.unexpected()
 	}
-	return connect.NewResponse(got.GetImage()), nil
+	out := got.GetImage()
+	out.RegistryLogin = login
+	return connect.NewResponse(out), nil
+}
+
+// asked is what a read for a form says of the login it signs in with.
+type asked interface {
+	GetEnvironment() string
+	GetProject() string
+	GetRegistryLogin() string
+	GetAnonymous() bool
+}
+
+// readSignedIn reads as an app's pull would (ADR 0086): with the login asked for;
+// or with none asked for, without one first, and again with the login the project's
+// pull would use where the registry says it hasn't got the image, as one it keeps
+// private reads. It says which login it read with, by name.
+func (s *Service) readSignedIn(ctx context.Context, server string, ref registry.Ref, req asked, call func() *agentv1.ImageCall, answer func(*agentv1.ImageResult) dockwellv1.ImageAnswer) (*agentv1.ImageResult, string, error) {
+	named := req.GetRegistryLogin()
+	if s.logins == nil || req.GetAnonymous() {
+		if named != "" {
+			return nil, "", authapi.Invalid(errors.New("a read is signed in with a registry login or anonymous, not both. Leave one out"))
+		}
+		got, err := s.read(ctx, server, call())
+		return got, "", err
+	}
+	project, err := s.logins.ProjectFor(ctx, req.GetEnvironment(), req.GetProject())
+	if err != nil {
+		return nil, "", err
+	}
+	if named == "" {
+		got, err := s.read(ctx, server, call())
+		if err != nil || answer(got) != dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND {
+			return got, "", err
+		}
+	}
+	saved, ok, err := s.logins.Pick(ctx, project, ref.String(), named)
+	if err != nil {
+		return nil, "", err
+	}
+	if !ok {
+		// Not found, and there's no login, or several to pick from.
+		return notFound(call()), "", nil
+	}
+	a, err := s.logins.Open(ctx, saved)
+	if err != nil {
+		return nil, "", authapi.ReasonError(connect.CodeUnavailable, err, authapi.ReasonUnavailable)
+	}
+	got, err := s.readAs(ctx, server, call(), a)
+	return got, saved.Name, err
+}
+
+// notFound is a read's answer that the registry hasn't got it, or keeps it private.
+func notFound(call *agentv1.ImageCall) *agentv1.ImageResult {
+	if call.GetTags() != nil {
+		return &agentv1.ImageResult{Answer: &agentv1.ImageResult_Tags{Tags: &dockwellv1.ListImageTagsResponse{Answer: dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND}}}
+	}
+	return &agentv1.ImageResult{Answer: &agentv1.ImageResult_Image{Image: &dockwellv1.GetImageResponse{Answer: dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND}}}
 }
 
 // Config is what an image declares, as the server's pull would find it, for the
@@ -115,19 +185,38 @@ func (s *Service) Config(ctx context.Context, server, reference string) (*dockwe
 
 // read sends a read to the agent on the server named, or the only one.
 func (s *Service) read(ctx context.Context, named string, call *agentv1.ImageCall) (*agentv1.ImageResult, error) {
+	return s.readAs(ctx, named, call, registry.Auth{})
+}
+
+// session is the stream to the agent on the server named, or the only one.
+func (s *Service) session(ctx context.Context, named string) (*agentapi.Session, *dockwellv1.Server, error) {
 	srv, err := s.server(named)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var session *agentapi.Session
 	if s.agents != nil && srv.GetConnection() == dockwellv1.Connection_CONNECTION_CONNECTED {
 		session, _ = s.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
 	}
 	if session == nil {
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
+		return nil, srv, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
 			"the agent on %s isn't connected, so it can't read images now. Type the image, and the plan checks it; this works again when its agent reconnects", srv.GetName()), authapi.ReasonUnavailable)
 	}
-	got, err := session.Image(ctx, call)
+	return session, srv, nil
+}
+
+// readAs sends a read signed in with a login, or none for the zero Auth.
+func (s *Service) readAs(ctx context.Context, named string, call *agentv1.ImageCall, a registry.Auth) (*agentv1.ImageResult, error) {
+	session, srv, err := s.session(ctx, named)
+	if err != nil {
+		return nil, err
+	}
+	var got *agentv1.ImageResult
+	if a.Registry != "" {
+		got, err = session.ImageAs(ctx, call, a)
+	} else {
+		got, err = session.Image(ctx, call)
+	}
 	switch {
 	case errors.Is(err, agentapi.ErrOlderAgent):
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("%s can't read images: %w", srv.GetName(), err))

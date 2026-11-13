@@ -76,7 +76,7 @@ describe("Integrations", () => {
     );
     // What doesn't connect yet is a line, never a card or a panel of its own.
     expect(screen.queryByRole("region", { name: "Coming later" })).toBeNull();
-    expect(screen.getByText("Git providers, private registries and cloud providers come later.")).toBeVisible();
+    expect(screen.getByText("Git providers and cloud providers come later.")).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -143,6 +143,6 @@ describe("Integrations", () => {
     await activateLocale("zh-CN");
     renderAt("/settings/integrations", { backups: { listBackupDestinations: () => ({ destinations: [r2] }) } });
     expect(await screen.findByRole("heading", { level: 1, name: "集成" })).toBeVisible();
-    expect(await screen.findByText("Git 服务商、私有镜像仓库和云服务商将在之后推出。")).toBeVisible();
+    expect(await screen.findByText("Git 服务商和云服务商将在之后推出。")).toBeVisible();
   });
 });

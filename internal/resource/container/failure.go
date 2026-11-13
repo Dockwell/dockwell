@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -236,22 +237,29 @@ func builtOverFailure(t Target, old *docker.Container, ref string, err error) er
 }
 
 // pullFailure says why an image can't be pulled, and says so if it can't tell.
-func pullFailure(ref string, err error) error {
-	plain, reason := pullWords(ref, messageOf(err))
+func pullFailure(ctx context.Context, ref string, err error) error {
+	plain, reason := pullWords(ref, messageOf(err), loginOf(ctx))
 	return resource.PlainlyBecause(reason, plain, fmt.Errorf("can't pull %s: %w", ref, err))
 }
 
 // pullAgainFailure is pullFailure for an image that runs now, as a deploy of its
 // own tag pulls it again: after why, it says what that left as it was.
-func pullAgainFailure(ref string, err error) error {
-	plain, reason := pullWords(ref, messageOf(err))
+func pullAgainFailure(ctx context.Context, ref string, err error) error {
+	plain, reason := pullWords(ref, messageOf(err), loginOf(ctx))
 	// The first full stop that a space follows, as an image's own have none after.
 	why, fix, _ := strings.Cut(plain, ". ")
 	return resource.PlainlyBecause(reason, why+". Nothing was replaced, and what runs goes on running. "+fix, fmt.Errorf("can't pull %s again: %w", ref, err))
 }
 
-// pullWords says why a pull failed, from what Docker said, and what that comes down to.
-func pullWords(ref, message string) (plain, reason string) {
+// loginOf names the registry login a pull signs in with, or "" for none.
+func loginOf(ctx context.Context) string {
+	a, _ := registry.AuthOf(ctx)
+	return a.Name
+}
+
+// pullWords says why a pull failed, from what Docker said, and what that comes down
+// to. login names the registry login it signed in with, if any (ADR 0086).
+func pullWords(ref, message, login string) (plain, reason string) {
 	switch {
 	case pullPlatform(message):
 		reason = resource.ReasonImage
@@ -262,7 +270,12 @@ func pullWords(ref, message string) (plain, reason string) {
 		plain = fmt.Sprintf("The registry is limiting pulls from this server, so %s can't be pulled for now. Wait a while, then try again.", ref)
 	case pullDenied(message), endsWith(message, "denied"):
 		reason = resource.ReasonImage
-		plain = ref + " can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."
+		switch {
+		case login != "":
+			plain = ref + " can't be pulled with the registry login " + login + ". The name may be wrong, or the login may not read it. Check the name and the login, then try again."
+		default:
+			plain = ref + " can't be pulled. The name may be wrong, or the image may be private. Check the name, or save a registry login for " + registryOf(ref) + ", then try again."
+		}
 	case pullMissing(message), endsWith(message, "not found"):
 		reason = resource.ReasonImage
 		plain = ref + " isn't on its registry, so it can't be pulled. The tag may be wrong. Check the name and tag, then try again."

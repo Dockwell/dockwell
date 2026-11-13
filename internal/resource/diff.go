@@ -98,6 +98,20 @@ func SetsSensitiveOf(t Type, m proto.Message) bool {
 	return setsSensitiveOf(t.New().ProtoReflect().Descriptor().FullName(), m.ProtoReflect())
 }
 
+// SetsSensitiveIn reports whether a message holds one of the messages named, at any
+// depth, that sets a sensitive field, as SetsSensitiveOf does for a kind's spec.
+func SetsSensitiveIn(m proto.Message, names ...protoreflect.FullName) bool {
+	if m == nil {
+		return false
+	}
+	for _, name := range names {
+		if setsSensitiveOf(name, m.ProtoReflect()) {
+			return true
+		}
+	}
+	return false
+}
+
 func setsSensitiveOf(name protoreflect.FullName, m protoreflect.Message) bool {
 	if m.Descriptor().FullName() == name {
 		return setsSensitive(m)

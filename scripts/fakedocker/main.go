@@ -262,6 +262,10 @@ func main() {
 		}
 		// What the stand-in registry has, the engine pulls as the registry names it.
 		img.Digest = registryDigest(ref)
+		// What it keeps private, a pull gets only with its login.
+		if strings.Contains(name, "example/private") {
+			img.Login = privateUser + ":" + privateToken
+		}
 		// A shell, run as this machine's /bin/sh, unless it's made to run one program.
 		if !strings.HasSuffix(ref, ":distroless") {
 			img.Shell = "/bin/sh"

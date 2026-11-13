@@ -4019,12 +4019,19 @@ msgstr "{name} isn't running now."
 msgid "{name} runs now, and fails its health check."
 msgstr "{name} runs now, and fails its health check."
 
+msgid "Add a login for {host}"
+msgstr "Add a login for {host}"
+
 msgid "Can't reach the registry"
 msgstr "Can't reach the registry"
 
 msgctxt "an image in its registry"
 msgid "Found"
 msgstr "Found"
+
+#. placeholder {0}: read.registryLogin
+msgid "Found, with {0}"
+msgstr "Found, with {0}"
 
 msgid "Images found"
 msgstr "Images found"
@@ -4035,6 +4042,15 @@ msgstr "Not found, or private"
 msgctxt "a Docker Hub image"
 msgid "Official"
 msgstr "Official"
+
+msgid "Pick a login"
+msgstr "Pick a login"
+
+msgid "Pull with"
+msgstr "Pull with"
+
+msgid "The registry refused its login"
+msgstr "The registry refused its login"
 
 msgid "Versions"
 msgstr "Versions"
@@ -7439,6 +7455,9 @@ msgstr "nothing stops now; it counts at the next boot"
 msgid "published ports may stop answering until Docker restarts"
 msgstr "published ports may stop answering until Docker restarts"
 
+msgid "pulls with <0>{loginList}</0>"
+msgstr "pulls with <0>{loginList}</0>"
+
 msgid "rolling, with nothing stopped"
 msgstr "rolling, with nothing stopped"
 
@@ -7738,6 +7757,10 @@ msgstr "Packages it installs on {server}"
 
 msgid "Pulled in"
 msgstr "Pulled in"
+
+#. placeholder {0}: step.registryLogin
+msgid "Pulls with the registry login {0}"
+msgstr "Pulls with the registry login {0}"
 
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
@@ -11508,6 +11531,94 @@ msgstr "{0, plural, one {# scheduled task} other {# scheduled tasks}}"
 msgid "{0, plural, one {# volume} other {# volumes}}"
 msgstr "{0, plural, one {# volume} other {# volumes}}"
 
+msgid "A deploy token with read_registry."
+msgstr "A deploy token with read_registry."
+
+msgid "A personal access token that can read."
+msgstr "A personal access token that can read."
+
+msgid "A token with read:packages."
+msgstr "A token with read:packages."
+
+msgid "Add a registry login"
+msgstr "Add a registry login"
+
+msgid "Another registry"
+msgstr "Another registry"
+
+msgid "Change the registry login {name}"
+msgstr "Change the registry login {name}"
+
+msgid "Check with {checkWith}"
+msgstr "Check with {checkWith}"
+
+msgid "Checked from"
+msgstr "Checked from"
+
+msgid "Checked once you leave the field."
+msgstr "Checked once you leave the field."
+
+msgid "Its token service moved"
+msgstr "Its token service moved"
+
+msgid "Kept unless you type one"
+msgstr "Kept unless you type one"
+
+msgid "Not a registry, or can't reach it"
+msgstr "Not a registry, or can't reach it"
+
+msgid "Not checked"
+msgstr "Not checked"
+
+msgid "Only some projects"
+msgstr "Only some projects"
+
+msgid "Pull private images from {host}"
+msgstr "Pull private images from {host}"
+
+msgid "Registry"
+msgstr "Registry"
+
+#. placeholder {0}: editing.name
+msgid "Registry login {0}"
+msgstr "Registry login {0}"
+
+msgid "Remove the registry login {name}"
+msgstr "Remove the registry login {name}"
+
+msgctxt "a registry login, checked"
+msgid "Signed in"
+msgstr "Signed in"
+
+#. placeholder {0}: answer.registry
+msgid "Signed in to {0}"
+msgstr "Signed in to {0}"
+
+msgid "Their apps alone may pull with it."
+msgstr "Their apps alone may pull with it."
+
+msgid "Token"
+msgstr "Token"
+
+msgid "Username"
+msgstr "Username"
+
+msgid "What an app names it by, in Compose and the CLI."
+msgstr "What an app names it by, in Compose and the CLI."
+
+msgid "Wrong username or password"
+msgstr "Wrong username or password"
+
+msgid "every project"
+msgstr "every project"
+
+msgid "this registry"
+msgstr "this registry"
+
+#. placeholder {0}: picked.length
+msgid "{0, plural, one {# project} other {# projects}}"
+msgstr "{0, plural, one {# project} other {# projects}}"
+
 msgid "Add a server"
 msgstr "Add a server"
 
@@ -13228,9 +13339,6 @@ msgstr "Looked up, {when}. That's its way out, and may not be a way in"
 msgid "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 msgstr "Looked up, {when}. That's likely your router's address, a way out and not a way in"
 
-msgid "Not checked"
-msgstr "Not checked"
-
 msgid "On one of this server's interfaces"
 msgstr "On one of this server's interfaces"
 
@@ -13738,6 +13846,16 @@ msgstr "1 bucket · where backups go beside each server's disk"
 msgid "1 connected · the services Dockwell sends backups to and routes behind"
 msgstr "1 connected · the services Dockwell sends backups to and routes behind"
 
+msgid "1 login · for images a registry keeps private"
+msgstr "1 login · for images a registry keeps private"
+
+msgid "1 project"
+msgstr "1 project"
+
+#. placeholder {0}: l.name
+msgid "<0>{0}</0> for {who}"
+msgstr "<0>{0}</0> for {who}"
+
 msgid "A backup didn't get here {when}"
 msgstr "A backup didn't get here {when}"
 
@@ -13751,11 +13869,17 @@ msgstr "Any DNS provider"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
 
+msgid "Connect a registry"
+msgstr "Connect a registry"
+
 msgid "Connect storage"
 msgstr "Connect storage"
 
 msgid "DNS and proxies"
 msgstr "DNS and proxies"
+
+msgid "Dockwell can't list its registry logins"
+msgstr "Dockwell can't list its registry logins"
 
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell can't list where backups go"
@@ -13763,8 +13887,8 @@ msgstr "Dockwell can't list where backups go"
 msgid "Dockwell says which record to make, then gets the certificate."
 msgstr "Dockwell says which record to make, then gets the certificate."
 
-msgid "Git providers, private registries and cloud providers come later."
-msgstr "Git providers, private registries and cloud providers come later."
+msgid "Git providers and cloud providers come later."
+msgstr "Git providers and cloud providers come later."
 
 msgid "How to route behind it"
 msgstr "How to route behind it"
@@ -13772,8 +13896,14 @@ msgstr "How to route behind it"
 msgid "Integrations"
 msgstr "Integrations"
 
+msgid "Loading registry logins"
+msgstr "Loading registry logins"
+
 msgid "Loading where backups go"
 msgstr "Loading where backups go"
+
+msgid "Manage"
+msgstr "Manage"
 
 msgid "Manage in Backups"
 msgstr "Manage in Backups"
@@ -13787,9 +13917,18 @@ msgstr "Object storage"
 msgid "Open Domains"
 msgstr "Open Domains"
 
+msgid "Private images from GitHub, such as those Actions push."
+msgstr "Private images from GitHub, such as those Actions push."
+
+msgid "Private images, and pulls past Docker Hub's limits."
+msgstr "Private images, and pulls past Docker Hub's limits."
+
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
 msgstr "Received a backup {0}"
+
+msgid "Registries"
+msgstr "Registries"
 
 msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
 msgstr "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
@@ -13805,6 +13944,14 @@ msgstr "Works in front of routes"
 
 msgid "in front of a server's routes"
 msgstr "in front of a server's routes"
+
+#. placeholder {0}: loginList.length
+msgid "{0} logins · for images a registry keeps private"
+msgstr "{0} logins · for images a registry keeps private"
+
+#. placeholder {0}: l.projects.length
+msgid "{0} projects"
+msgstr "{0} projects"
 
 msgid "{connected} buckets · where backups go beside each server's disk"
 msgstr "{connected} buckets · where backups go beside each server's disk"
@@ -14262,9 +14409,6 @@ msgstr "The new token, partly hidden:"
 msgid "The token wasn't created"
 msgstr "The token wasn't created"
 
-msgid "Token"
-msgstr "Token"
-
 msgid "Token copied"
 msgstr "Token copied"
 
@@ -14297,9 +14441,6 @@ msgstr "{count} · 1 expires soon"
 
 msgid "{count} · {soon} expire soon"
 msgstr "{count} · {soon} expire soon"
-
-msgid "Manage"
-msgstr "Manage"
 
 msgid "None yet. Make one for each script or integration that calls the API."
 msgstr "None yet. Make one for each script or integration that calls the API."

@@ -2341,6 +2341,20 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: registryLogin
+                  in: query
+                  description: |-
+                    Read with this registry login, by name, one the project may use. Empty reads
+                     with the login an app's pull would use: the one for the image's registry the
+                     project may use, when there's exactly one (ADR 0086). Numbered in the block
+                     registry logins hold, 100 to 109.
+                  schema:
+                    type: string
+                - name: anonymous
+                  in: query
+                  description: Read with no login, whatever the project may use.
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK
@@ -2431,6 +2445,16 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: registryLogin
+                  in: query
+                  description: As GetImageRequest's. Numbered in the block registry logins hold, 100 to 109.
+                  schema:
+                    type: string
+                - name: anonymous
+                  in: query
+                  description: As GetImageRequest's.
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK
@@ -2781,6 +2805,75 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/FinishAddPasskeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/registryLogins:
+        get:
+            tags:
+                - ImageService
+            description: |-
+                ListRegistryLogins lists the registry logins the caller may use: an admin's,
+                 every login with everything but what signs in; below an admin, the logins
+                 the caller's projects may pull with, by name and registry alone. See
+                 docs/adr/0086-registry-logins-for-private-images.md.
+            operationId: ImageService_ListRegistryLogins
+            parameters:
+                - name: project
+                  in: query
+                  description: |-
+                    Only those this project's apps may pull with, by name or ID. Empty lists
+                     every login the caller may see.
+                  schema:
+                    type: string
+                - name: environment
+                  in: query
+                  description: |-
+                    Only those this environment's project may pull with, by ID, in place of
+                     project.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRegistryLoginsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/registryLogins:check:
+        post:
+            tags:
+                - ImageService
+            description: |-
+                CheckRegistryLogin signs in at a registry from a server's agent, as a pull
+                 there would, and saves nothing: with a login as typed, or a saved one again.
+                 It says whether it signed in, and the token service the registry sent it to,
+                 which a plan saves with the login so it never goes anywhere else. An admin's,
+                 signed in, as a login is install-wide. See
+                 docs/adr/0086-registry-logins-for-private-images.md.
+            operationId: ImageService_CheckRegistryLogin
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckRegistryLoginRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckRegistryLoginResponse'
                 default:
                     description: Default error response
                     content:
@@ -8993,6 +9086,64 @@ components:
             description: |-
                 CheckPanelDomainResponse says whether the panel can take a domain, and what
                  stands in the way of a certificate for it.
+        CheckRegistryLoginRequest:
+            type: object
+            properties:
+                registry:
+                    type: string
+                    description: The registry's host, such as "ghcr.io". Unset when name says which.
+                username:
+                    type: string
+                    description: Who signs in.
+                password:
+                    type: string
+                    description: The password or token, as typed. Unset to check a saved login's.
+                ecr:
+                    allOf:
+                        - $ref: '#/components/schemas/RegistryLoginEcr'
+                    description: For ECR, the key and its region, as typed.
+                name:
+                    type: string
+                    description: |-
+                        A saved login to check again, by name, with what it saved for anything left
+                         unset here.
+                server:
+                    type: string
+                    description: The server whose agent signs in, by ID. It can be left out while there is one.
+                probe:
+                    type: boolean
+                    description: |-
+                        Asks registry's /v2/ with no login, and sends nothing that signs in: whether
+                         it's a registry, and what it asks of a client, before a token goes there.
+            description: CheckRegistryLoginRequest is a login to try, as typed or as saved.
+        CheckRegistryLoginResponse:
+            type: object
+            properties:
+                state:
+                    enum:
+                        - REGISTRY_LOGIN_STATE_UNSPECIFIED
+                        - REGISTRY_LOGIN_STATE_SIGNED_IN
+                        - REGISTRY_LOGIN_STATE_REFUSED
+                        - REGISTRY_LOGIN_STATE_UNREACHABLE
+                        - REGISTRY_LOGIN_STATE_MOVED
+                        - REGISTRY_LOGIN_STATE_ASKS
+                    type: string
+                    description: How the registry answered.
+                    format: enum
+                tokenHost:
+                    type: string
+                    description: |-
+                        The host the registry sends clients to for a token, which a plan saves with
+                         the login. Empty for a registry that signs in itself.
+                detail:
+                    type: string
+                    description: The registry's own words, when it said no or couldn't be reached, in a line.
+                registry:
+                    type: string
+                    description: |-
+                        For ECR, the registry the key's account and region name, which the login
+                         pulls from.
+            description: CheckRegistryLoginResponse says whether the login signs in.
         CheckServerPortsResponse:
             type: object
             properties:
@@ -9367,6 +9518,14 @@ components:
                          server as its containers reach it. It adds to the container's /etc/hosts,
                          and reaches nothing a container couldn't without it. Numbered in the
                          catalog's block, 80 to 89, apart from fields other work adds.
+                registryLogin:
+                    type: string
+                    description: |-
+                        The registry login its image is pulled with, by name, a login its project may
+                         use. Empty pulls with the one login for the image's registry its project may
+                         use, when there's exactly one, and with none otherwise. See
+                         docs/adr/0086-registry-logins-for-private-images.md. Numbered in the block
+                         registry logins hold, 100 to 109.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
@@ -12212,6 +12371,11 @@ components:
         GetImageResponse:
             type: object
             properties:
+                registryLogin:
+                    type: string
+                    description: |-
+                        The registry login it was read with, by name, or empty for none (ADR 0086).
+                         Numbered in the block registry logins hold, 100 to 109.
                 answer:
                     enum:
                         - IMAGE_ANSWER_UNSPECIFIED
@@ -12219,6 +12383,7 @@ components:
                         - IMAGE_ANSWER_NOT_FOUND
                         - IMAGE_ANSWER_UNREACHABLE
                         - IMAGE_ANSWER_NOT_ASKED
+                        - IMAGE_ANSWER_SIGN_IN_FAILED
                     type: string
                     description: Whether it's there.
                     format: enum
@@ -12238,6 +12403,7 @@ components:
                         - IMAGE_ANSWER_NOT_FOUND
                         - IMAGE_ANSWER_UNREACHABLE
                         - IMAGE_ANSWER_NOT_ASKED
+                        - IMAGE_ANSWER_SIGN_IN_FAILED
                     type: string
                     description: |-
                         Why config is unset for an image that was found, such as the server's
@@ -14090,6 +14256,9 @@ components:
         ListImageTagsResponse:
             type: object
             properties:
+                registryLogin:
+                    type: string
+                    description: As GetImageResponse's. Numbered in the block registry logins hold, 100 to 109.
                 tags:
                     type: array
                     items:
@@ -14102,6 +14271,7 @@ components:
                         - IMAGE_ANSWER_NOT_FOUND
                         - IMAGE_ANSWER_UNREACHABLE
                         - IMAGE_ANSWER_NOT_ASKED
+                        - IMAGE_ANSWER_SIGN_IN_FAILED
                     type: string
                     description: How the registry answered.
                     format: enum
@@ -14147,6 +14317,14 @@ components:
                         $ref: '#/components/schemas/Passkey'
                     description: Passkeys, oldest first.
             description: ListPasskeysResponse lists passkeys.
+        ListRegistryLoginsResponse:
+            type: object
+            properties:
+                logins:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RegistryLoginInfo'
+            description: ListRegistryLoginsResponse lists registry logins.
         ListRepositoryBranchesRequest:
             type: object
             properties:
@@ -16061,6 +16239,11 @@ components:
                     description: |-
                         What an action on one of its server's system services does, for a step that
                          takes one (ADR 0082). Track S takes 70 to 79 here.
+                registryLogin:
+                    type: string
+                    description: |-
+                        The registry login the step's pull signs in with, by name, where it pulls with
+                         one (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
                 databaseMove:
                     allOf:
                         - $ref: '#/components/schemas/DatabaseMove'
@@ -16569,6 +16752,93 @@ components:
                         type: string
                     description: Ten one-time recovery codes. They are shown only now.
             description: RegenerateRecoveryCodesResponse carries the new codes.
+        RegistryLogin:
+            type: object
+            properties:
+                registry:
+                    type: string
+                    description: |-
+                        The registry's host, as an image names it, such as "docker.io", "ghcr.io",
+                         "registry.gitlab.com" or "registry.example.com:5000"; for Amazon ECR,
+                         "<account>.dkr.ecr.<region>.amazonaws.com".
+                username:
+                    type: string
+                    description: Who signs in. Unset for ECR, which signs in as AWS.
+                password:
+                    type: string
+                    description: |-
+                        A password, or better a token that only reads images. Unset for ECR. Leave it
+                         out of an update to keep it.
+                ecr:
+                    allOf:
+                        - $ref: '#/components/schemas/RegistryLoginEcr'
+                    description: |-
+                        For Amazon ECR, in place of username and password: an access key that may
+                         get ECR's sign-in token, which stays on the control plane.
+                tokenHost:
+                    type: string
+                    description: |-
+                        The host the registry sent a client to for its token when the login was
+                         checked, such as "auth.docker.io": the only place beside the registry the
+                         login is sent. Empty for a registry that signs in itself.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: The projects whose apps may pull with it, by ID. Empty for every project.
+            description: |-
+                RegistryLogin is what signs in to a container registry, so an app can pull an
+                 image the registry keeps private, and its update check and the image field can
+                 read it, kind "registry.login". It lives in the organization; an admin decides
+                 which projects' apps may pull with it. Dockwell keeps it encrypted, and sends it
+                 only to the server that pulls or reads an image from that registry, for that one
+                 call; from there it goes to the registry and to the token service it was saved
+                 with, and nowhere else. See
+                 docs/adr/0086-registry-logins-for-private-images.md.
+        RegistryLoginEcr:
+            type: object
+            properties:
+                accessKey:
+                    type: string
+                    description: The key's ID.
+                secretKey:
+                    type: string
+                    description: The key's secret. Leave it out of an update to keep it.
+                region:
+                    type: string
+                    description: The region the registry is in, such as "eu-west-1".
+            description: RegistryLoginEcr is an AWS access key that may call ECR's GetAuthorizationToken.
+        RegistryLoginInfo:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "ghcr-ci".
+                registry:
+                    type: string
+                    description: The registry it signs in to, such as "ghcr.io".
+                username:
+                    type: string
+                    description: Who signs in, for an admin. Empty for ECR, and below an admin.
+                ecr:
+                    type: boolean
+                    description: True for an Amazon ECR login, which signs in with an access key.
+                tokenHost:
+                    type: string
+                    description: The token service it was saved with, for an admin.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The projects whose apps may pull with it, by ID, for an admin; empty for every
+                         project.
+                id:
+                    type: string
+                    description: Its resource's ID.
+            description: |-
+                RegistryLoginInfo is a registry login as a caller may see it: never what signs
+                 in. Below an admin, its name and registry alone.
         RemoveCatalogSourceRequest:
             type: object
             properties:
@@ -17419,6 +17689,7 @@ components:
                         - IMAGE_ANSWER_NOT_FOUND
                         - IMAGE_ANSWER_UNREACHABLE
                         - IMAGE_ANSWER_NOT_ASKED
+                        - IMAGE_ANSWER_SIGN_IN_FAILED
                     type: string
                     description: How Docker Hub answered the search.
                     format: enum
@@ -18706,6 +18977,7 @@ components:
                         - UPDATE_PROBLEM_NOT_RUNNING
                         - UPDATE_PROBLEM_LOCAL_IMAGE
                         - UPDATE_PROBLEM_KEPT_BY_DOCKWELL
+                        - UPDATE_PROBLEM_SIGN_IN_FAILED
                     type: string
                     description: |-
                         Why it couldn't be checked, or isn't, when check is failed or not checked.
@@ -19334,6 +19606,12 @@ components:
                     description: |-
                         How one of an app's needs is met, kind "link" (ADR 0084). Numbered apart,
                          as open work adds to this message.
+                registryLogin:
+                    allOf:
+                        - $ref: '#/components/schemas/RegistryLogin'
+                    description: |-
+                        What signs in to a container registry, kind "registry.login". Numbered in
+                         the block registry logins hold, 100 to 109.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes

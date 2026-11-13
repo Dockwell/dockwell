@@ -70,6 +70,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/members"
 	"github.com/dockwell/dockwell/internal/control/opener"
 	"github.com/dockwell/dockwell/internal/control/processes"
+	"github.com/dockwell/dockwell/internal/control/registrylogins"
 	"github.com/dockwell/dockwell/internal/control/resources"
 	"github.com/dockwell/dockwell/internal/control/servers"
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
@@ -175,6 +176,11 @@ type Config struct {
 	// a person who confirms it with a passkey. With Changes and Auth, it
 	// serves VariableService.
 	Secrets *secrets.Keeper
+	// ECR gets Amazon ECR's sign-in tokens for registry logins (ADR 0086): AWS's
+	// own unless a test passes one that reaches its own server.
+	ECR *registrylogins.ECR
+	// logins are the registry logins, read with Secrets from Store.
+	logins *registrylogins.Logins
 	// Logs changes the limits of reading logs, as tests do.
 	Logs logapi.Options
 	// EventPoll is how often a watch of the timeline reads the store again,
@@ -273,6 +279,13 @@ func New(cfg Config) (*Server, error) {
 	var updateKeeper *serviceupdates.Keeper
 	var autoupdates *autoupdate.Runner
 	var follower *catalogapi.Follower
+	// A pull signs in with the registry login its app's project may use (ADR 0086).
+	if cfg.Store != nil && cfg.Secrets != nil {
+		cfg.logins = registrylogins.New(cfg.Store, cfg.Secrets)
+		if cfg.ECR != nil {
+			cfg.logins.ECR = cfg.ECR
+		}
+	}
 	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower)
 	if err != nil {
 		return nil, err
@@ -311,6 +324,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Agents != nil && cfg.Secrets != nil {
 		cfg.Agents.SendValues(cfg.Secrets)
 		cfg.Agents.CheckNaming(cfg.Secrets)
+		if cfg.logins != nil {
+			cfg.Agents.SendLogins(cfg.logins)
+		}
 	}
 	// A service's containers are named after what people call its environment.
 	if cfg.Changes != nil && cfg.Agents != nil && cfg.Store != nil {
@@ -407,7 +423,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			cfg.Changes.OnUnit(serverHandler.ReadSystemAgain)
 		}
 		handle(dockwellv1connect.NewServerServiceHandler(serverHandler, opts...))
-		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents), opts...))
+		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents, cfg.logins), opts...))
 		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
 	}
 	if cfg.Changes != nil {
@@ -422,7 +438,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		follower := *followOut
 		if cfg.Fleet != nil {
 			// Another store's entry pins its images through the agent it goes on.
-			catalogHandler.PinWith(images.New(cfg.Fleet, cfg.Agents))
+			catalogHandler.PinWith(images.New(cfg.Fleet, cfg.Agents, cfg.logins))
 		}
 		handle(dockwellv1connect.NewCatalogServiceHandler(catalogHandler, opts...))
 		// A source's images, for whoever may read the catalog, as an image's request
@@ -473,7 +489,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			DB: cfg.Store, Keeper: cfg.Secrets, Planner: serviceHandler, Engine: cfg.Changes, Logger: cfg.Logger,
 		}
 		if cfg.Fleet != nil {
-			(*autoupdates).Images = images.New(cfg.Fleet, cfg.Agents)
+			(*autoupdates).Images = images.New(cfg.Fleet, cfg.Agents, cfg.logins)
 		}
 		if cfg.Agents != nil {
 			buildHandler := builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
@@ -509,6 +525,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Agents != nil && cfg.Fleet != nil && cfg.Secrets != nil {
 			keeper := &serviceupdates.Keeper{
 				DB: cfg.Store, Secrets: cfg.Secrets, Agents: serviceupdates.FromAgents(cfg.Agents), Sources: sources, Logger: cfg.Logger,
+				Logins: loginsOrNil(cfg.logins),
 				Catalog: func(ctx context.Context) (map[string]serviceupdates.CatalogInstall, error) {
 					upgrades, err := catalogHandler.InstallUpgrades(ctx)
 					if err != nil {
@@ -1048,4 +1065,12 @@ func appUpdates(keeper *serviceupdates.Keeper) func(ctx context.Context) ([]aler
 		}
 		return out, nil
 	}
+}
+
+// loginsOrNil is logins as an interface that's nil for none, not a nil pointer.
+func loginsOrNil(logins *registrylogins.Logins) serviceupdates.Logins {
+	if logins == nil {
+		return nil
+	}
+	return logins
 }

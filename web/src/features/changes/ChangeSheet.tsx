@@ -21,6 +21,7 @@ import {
   type EditSchema,
   EventService,
   FieldOp,
+  ImageService,
   IntentKind,
   type Plan,
   PlanAction,
@@ -356,7 +357,7 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
   }, 0);
 }
 
-/** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the tasks, the timeline's pages and the changes. */
+/** Reads what a change applied or undone may have changed again: the resources, the services and their domains, the tasks, the registry logins and what they read, the timeline's pages and the changes. */
 function refreshAfter(queryClient: QueryClient): void {
   void readServicesAgain(queryClient);
   for (const schema of [
@@ -370,6 +371,7 @@ function refreshAfter(queryClient: QueryClient): void {
     WebsiteService,
     AlertService,
     TaskService,
+    ImageService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
@@ -1751,6 +1753,11 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       stopWords(count, undoable ? deadline : "")
     ) : null;
   const others = changing(plan).length > away.length;
+  // Which registry logins its pulls sign in with, by name, as the control plane picked them (ADR 0086).
+  const logins = [
+    ...new Set(servers.flatMap((s) => s.steps).flatMap((s) => (s.registryLogin ? [s.registryLogin] : []))),
+  ];
+  const loginList = logins.join(", ");
   return (
     <>
       {where} ·{" "}
@@ -1765,6 +1772,15 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       ) : (
         running
       )}
+      {logins.length > 0 ? (
+        <>
+          {" "}
+          ·{" "}
+          <Trans>
+            pulls with <code>{loginList}</code>
+          </Trans>
+        </>
+      ) : null}
     </>
   );
 }

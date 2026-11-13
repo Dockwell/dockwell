@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type BackupDestinationInfo, ChangeService } from "@dockwell/api";
+import { type BackupDestinationInfo, ChangeService, type RegistryLoginInfo } from "@dockwell/api";
 import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -11,6 +11,8 @@ import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { DestinationSheet } from "../backups/DestinationSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
+import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
+import { REGISTRY_NAMES, registryKind, useRegistryLogins } from "../registries/registries";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import "../backups/Backups.css";
@@ -32,6 +34,10 @@ export function IntegrationsPage() {
   const phone = useMediaQuery(PHONE_QUERY);
   const destinations = useDestinations();
   const [adding, setAdding] = useState(false);
+  const logins = useRegistryLogins();
+  // A registry login to add, from a card's registry, or to change.
+  const [login, setLogin] = useState<{ host?: string; editing?: RegistryLoginInfo }>();
+  const loginList = logins.data?.logins ?? [];
   // A destination belongs to no project, so connecting one is an admin's: off, with why, otherwise (ADR 0059).
   const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   const read = destinations.data !== undefined;
@@ -124,6 +130,80 @@ export function IntegrationsPage() {
         )}
       </section>
 
+      <section className="integrations-section" aria-labelledby="integrations-registries">
+        <div className="cp-section-head">
+          <h2 id="integrations-registries" className="dw-text-heading">
+            <Trans>Registries</Trans>
+          </h2>
+          {logins.data ? (
+            <span className="settings-meta">
+              {loginList.length === 1
+                ? t`1 login · for images a registry keeps private`
+                : t`${loginList.length} logins · for images a registry keeps private`}
+            </span>
+          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            icon="plus"
+            className="integrations-more"
+            onClick={() => setLogin({})}
+            {...mayPlan.off}
+          >
+            <Trans>Connect a registry</Trans>
+          </Button>
+        </div>
+        {logins.error && !logins.data ? (
+          <ReadFailed
+            error={logins.error}
+            title={t`Dockwell can't list its registry logins`}
+            actions={
+              <Button size="sm" icon="refresh" loading={logins.isFetching} onClick={() => void logins.refetch()}>
+                <Trans>Try again</Trans>
+              </Button>
+            }
+          />
+        ) : !logins.data ? (
+          <div className="integrations-grid" aria-busy="true">
+            <div className="dw-panel integrations-card integrations-skeleton" />
+            <span className="dw-sr">{t`Loading registry logins`}</span>
+          </div>
+        ) : (
+          <div className="integrations-grid">
+            {loginList.map((l) => (
+              <LoginCard key={l.id} login={l} onManage={() => setLogin({ editing: l })} manage={mayPlan.off} />
+            ))}
+            {/* Docker Hub and GitHub's, the registries most images come from, until one is connected. */}
+            {loginList.some((l) => l.registry === "docker.io") ? null : (
+              <Card
+                icon="layers"
+                name="Docker Hub"
+                state={<span className="settings-meta">{t`Not connected`}</span>}
+                text={t`Private images, and pulls past Docker Hub's limits.`}
+                action={
+                  <Button size="sm" icon="plus" onClick={() => setLogin({ host: "docker.io" })} {...mayPlan.off}>
+                    <Trans>Connect</Trans>
+                  </Button>
+                }
+              />
+            )}
+            {loginList.some((l) => l.registry === "ghcr.io") ? null : (
+              <Card
+                icon="layers"
+                name="GitHub Container Registry"
+                state={<span className="settings-meta">{t`Not connected`}</span>}
+                text={t`Private images from GitHub, such as those Actions push.`}
+                action={
+                  <Button size="sm" icon="plus" onClick={() => setLogin({ host: "ghcr.io" })} {...mayPlan.off}>
+                    <Trans>Connect</Trans>
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        )}
+      </section>
+
       <section className="integrations-section" aria-labelledby="integrations-dns">
         <div className="cp-section-head">
           <h2 id="integrations-dns" className="dw-text-heading">
@@ -162,11 +242,19 @@ export function IntegrationsPage() {
         </div>
       </section>
 
-      <p className="settings-meta integrations-later">{t`Git providers, private registries and cloud providers come later.`}</p>
+      <p className="settings-meta integrations-later">{t`Git providers and cloud providers come later.`}</p>
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}
       {adding ? <DestinationSheet existing={list} onClose={() => setAdding(false)} /> : null}
+      {login ? (
+        <RegistryLoginSheet
+          existing={loginList}
+          editing={login.editing}
+          host={login.host}
+          onClose={() => setLogin(undefined)}
+        />
+      ) : null}
     </Page>
   );
 }
@@ -251,6 +339,48 @@ function DestinationCard({ destination: d }: { destination: BackupDestinationInf
             <Trans>Manage in Backups</Trans>
           </span>
         </Link>
+      }
+    />
+  );
+}
+
+/** A registry login: its registry, its name, and which projects may pull with it. */
+function LoginCard({
+  login: l,
+  onManage,
+  manage,
+}: {
+  login: RegistryLoginInfo;
+  onManage: () => void;
+  manage: { off?: string; disabled?: true };
+}) {
+  const { t } = useLingui();
+  const kind = registryKind(l.registry);
+  const who =
+    l.projects.length === 0
+      ? t`every project`
+      : l.projects.length === 1
+        ? t`1 project`
+        : t`${l.projects.length} projects`;
+  return (
+    <Card
+      icon="layers"
+      name={REGISTRY_NAMES[kind] ?? l.registry}
+      state={<StatusBadge status="healthy" label={t`Connected`} />}
+      text={
+        <>
+          <Trans>
+            <code>{l.name}</code> for {who}
+          </Trans>
+          <span className="integrations-sub">
+            <code>{l.registry}</code>
+          </span>
+        </>
+      }
+      action={
+        <Button size="sm" variant="secondary" icon="settings" onClick={onManage} {...manage}>
+          <Trans>Manage</Trans>
+        </Button>
       }
     />
   );

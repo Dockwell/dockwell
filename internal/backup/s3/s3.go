@@ -213,7 +213,13 @@ func hmacSHA256(key []byte, data string) []byte {
 
 // sign adds what Signature Version 4 asks of a request.
 func (b *Bucket) sign(req *http.Request, payload string) {
-	now := b.now()
+	SignV4(req, payload, b.AccessKey, b.SecretKey, b.region(), "s3", b.now())
+}
+
+// SignV4 adds what AWS Signature Version 4 asks of a request to service in region,
+// as of now, with payload the SHA-256 of its body in hex.
+func SignV4(req *http.Request, payload, accessKey, secretKey, region, service string, now time.Time) {
+	now = now.UTC()
 	stamp, day := now.Format("20060102T150405Z"), now.Format("20060102")
 	req.Header.Set("X-Amz-Date", stamp)
 	req.Header.Set("X-Amz-Content-Sha256", payload)
@@ -225,18 +231,22 @@ func (b *Bucket) sign(req *http.Request, payload string) {
 		canonical.WriteString(n + ":" + headers[n] + "\n")
 	}
 	signed := strings.Join(names, ";")
+	path := req.URL.EscapedPath()
+	if path == "" {
+		path = "/"
+	}
 	request := strings.Join([]string{
-		req.Method, req.URL.EscapedPath(), canonicalQuery(req.URL.Query()), canonical.String(), signed, payload,
+		req.Method, path, canonicalQuery(req.URL.Query()), canonical.String(), signed, payload,
 	}, "\n")
 	sum := sha256.Sum256([]byte(request))
-	scope := strings.Join([]string{day, b.region(), "s3", "aws4_request"}, "/")
+	scope := strings.Join([]string{day, region, service, "aws4_request"}, "/")
 	toSign := strings.Join([]string{"AWS4-HMAC-SHA256", stamp, scope, hex.EncodeToString(sum[:])}, "\n")
-	key := hmacSHA256([]byte("AWS4"+b.SecretKey), day)
-	key = hmacSHA256(key, b.region())
-	key = hmacSHA256(key, "s3")
+	key := hmacSHA256([]byte("AWS4"+secretKey), day)
+	key = hmacSHA256(key, region)
+	key = hmacSHA256(key, service)
 	key = hmacSHA256(key, "aws4_request")
 	req.Header.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		b.AccessKey, scope, signed, hex.EncodeToString(hmacSHA256(key, toSign))))
+		accessKey, scope, signed, hex.EncodeToString(hmacSHA256(key, toSign))))
 }
 
 // do sends a signed request to an object, and returns the answer of one that went

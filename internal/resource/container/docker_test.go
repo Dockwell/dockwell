@@ -461,7 +461,7 @@ func TestFailuresReadPlainly(t *testing.T) {
 		spec  *resourcev1.Container
 		plain string
 	}{
-		{"ghost", &resourcev1.Container{Image: "ghost:1"}, "ghost:1 can't be pulled. The name may be wrong, or it may be private, which Dockwell can't pull yet. Check the name, then try again."},
+		{"ghost", &resourcev1.Container{Image: "ghost:1"}, "ghost:1 can't be pulled. The name may be wrong, or the image may be private. Check the name, or save a registry login for docker.io, then try again."},
 		{"tagged", &resourcev1.Container{Image: "ghost:nosuchtag"}, "ghost:nosuchtag isn't on its registry, so it can't be pulled. The tag may be wrong. Check the name and tag, then try again."},
 		{"crash", &resourcev1.Container{Image: "crash:1"}, "crash stopped right after it started, with exit code 1. Check its command and variables, then try again."},
 		{"sick", &resourcev1.Container{Image: "sick:1"}, `sick runs, but fails its health check: the command exited with 1: "` + sickSays + `". Fix what it reports, or the check, then try again.`},

@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -79,6 +80,8 @@ type Agents struct {
 	values resource.Values
 	// naming says what names values on a server, for agents that don't write them in.
 	naming Naming
+	// logins picks the registry login a pull signs in with (ADR 0086).
+	logins Logins
 	// scopes says what people call an environment, which its services'
 	// containers are named after.
 	scopes ScopeNamer
@@ -474,7 +477,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(),
+		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -562,6 +565,9 @@ type Session struct {
 	// actsOnUnits says the agent acts on the server's system services and reads its
 	// system log (ADR 0082).
 	actsOnUnits bool
+	// registryLogins says the agent signs in to registries with the logins it's
+	// sent (ADR 0086).
+	registryLogins bool
 	// followsPace says the agent sends stats at the pace each Pace says. One
 	// that doesn't is never told one.
 	followsPace bool
@@ -1168,6 +1174,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		return nil, err
 	}
 	call := &agentv1.PlanCall{}
+	// The login each pull signs in with, by its place in desired, sealed to the
+	// stream the plan goes out on.
+	logins := map[int]registry.Auth{}
 	for i := range desired {
 		d := &desired[i]
 		if err := s.supports(d.Ref); err != nil {
@@ -1176,6 +1185,11 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		dr, err := desiredProto(d.Ref, s.agents.kinds.OnServer(d.Ref.Kind, d.Spec))
 		if err != nil {
 			return nil, err
+		}
+		if a, ok, err := s.login(ctx, d.Ref, d.Spec, ""); err != nil {
+			return nil, err
+		} else if ok {
+			logins[i] = a
 		}
 		dr.Pull, dr.Run = d.Pull, d.Run
 		dr.Restart = d.Restart
@@ -1210,7 +1224,20 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		call.Desired = append(call.Desired, dr)
 	}
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, nil)
+	var seal func(*Session) error
+	if len(logins) > 0 {
+		seal = func(on *Session) error {
+			for i, a := range logins {
+				sealed, err := on.sealLogin(desired[i].Ref, a)
+				if err != nil {
+					return err
+				}
+				call.Desired[i].RegistryAuth = sealed
+			}
+			return nil
+		}
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: call}}, PlanTimeout, seal)
 	if err != nil {
 		return nil, err
 	}
@@ -1231,24 +1258,26 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		via[v.GetPath()] = v.GetLinks()
 	}
 	for i, p := range got {
-		want := desired[i].Ref //nolint:gosec // got has as many as desired, as checked above
+		want := desired[i].Ref
 		if steps[i], err = resourcepb.FromStep(p); err != nil {
 			// Read as anything else, the step would be skipped or
 			// misstated, so the plan fails.
 			return nil, fmt.Errorf("%s's agent planned a step for %s that this control plane can't read: %w. "+
 				"The agent is newer than the control plane, so upgrade the control plane to the agent's version", s.name, want, err)
 		}
-		// The step is about the resource asked for, whatever the agent says.
+		// The step is about the resource asked for, whatever the agent says, and
+		// pulls with the login the control plane sent, by name.
 		steps[i].Ref, steps[i].Alongside, steps[i].Via = want, alongside, via
+		steps[i].RegistryLogin, steps[i].RegistryLoginVersion = logins[i].Name, logins[i].Version
 		// An agent from before installs could be picked reads past the names, and
 		// plans the security fixes: it never says them back, so its plan is refused.
-		if in := desired[i].Install; in != nil && len(in.Names) > 0 && len(in.Packages) == 0 && steps[i].Install != nil && len(steps[i].Install.Asked) == 0 { //nolint:gosec // as above
+		if in := desired[i].Install; in != nil && len(in.Names) > 0 && len(in.Packages) == 0 && steps[i].Install != nil && len(steps[i].Install.Asked) == 0 {
 			return nil, fault.New(ErrOlderAgent, "%s's agent installs only the security fixes or every update, not packages picked one by one. "+
 				"Update its agent by running the install script on the server again", s.name)
 		}
 		// An agent from before databases moved by a dump reads past the move, and
 		// would start the new release on the empty volume: its plan is refused.
-		if m := desired[i].Move; m != nil && !m.Finish && steps[i].Action == resource.ActionReplace && steps[i].Move == nil { //nolint:gosec // as above
+		if m := desired[i].Move; m != nil && !m.Finish && steps[i].Action == resource.ActionReplace && steps[i].Move == nil {
 			return nil, fault.New(ErrOlderAgent, "%s's agent can't move a database to a new release by a dump into a new volume, so nothing was planned. "+
 				"Update its agent by running the install script on the server again", s.name)
 		}
@@ -1296,16 +1325,35 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	defer clear(values)
+	// A step pulls with the login its plan said, and none where it said none.
+	var login registry.Auth
+	if step.RegistryLogin != "" {
+		if login, _, err = s.login(ctx, step.Ref, desired, step.RegistryLogin); err != nil {
+			return err
+		}
+	}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
-	if uses {
+	if uses || login.Registry != "" {
 		seal = func(on *Session) error {
-			sealed, err := on.seal(step.Ref, values)
-			call.Values = sealed
-			return err
+			if uses {
+				sealed, err := on.seal(step.Ref, values)
+				if err != nil {
+					return err
+				}
+				call.Values = sealed
+			}
+			if login.Registry != "" {
+				sealed, err := on.sealLogin(step.Ref, login)
+				if err != nil {
+					return err
+				}
+				call.Desired.RegistryAuth = sealed
+			}
+			return nil
 		}
 	}
 	if step.Install != nil {

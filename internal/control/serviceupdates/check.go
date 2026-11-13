@@ -19,6 +19,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/registry"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -335,7 +336,16 @@ func (k *Keeper) websiteEnvironments(ctx context.Context, tx *store.Tx) (map[str
 // readImage asks a server's agent what's newer than an image, once for every
 // service that runs it, unless the registry is being left alone.
 func (k *Keeper) readImage(ctx context.Context, server string, ref registry.Ref, image string, s *subject, images map[string]*agentv1.ImageUpdatesResult, failed map[string]error, now time.Time) (*agentv1.ImageUpdatesResult, error) {
-	key := ref.Name() + ":" + ref.Tag
+	// A check signs in as the service's pull would, and what one login reads is
+	// kept for that login's checks alone.
+	var login registry.Auth
+	if k.Logins != nil && s.Spec != nil {
+		var err error
+		if login, _, err = k.Logins.For(ctx, resource.Ref{Kind: service.Kind, Scope: s.Environment, Name: s.Name}, s.Spec, ""); err != nil {
+			return nil, err
+		}
+	}
+	key := ref.Name() + ":" + ref.Tag + " as " + login.Name
 	if res, ok := images[key]; ok {
 		return res, nil
 	}
@@ -351,7 +361,7 @@ func (k *Keeper) readImage(ctx context.Context, server string, ref registry.Ref,
 	if d := s.Digests[server]; d != "" {
 		call.Running = ref.Name() + "@" + d
 	}
-	res, err := k.Agents.ImageUpdates(ctx, server, call)
+	res, err := k.Agents.ImageUpdates(ctx, server, call, login)
 	if err != nil {
 		failed[key] = err
 		return nil, err
@@ -396,7 +406,7 @@ func (k *Keeper) heard(server, reg string, a dockwellv1.ImageAnswer, now time.Ti
 		h := k.limits[key]
 		h.until, h.why = now.Add(silentFor), dockwellv1.UpdateProblem_UPDATE_PROBLEM_UNREACHABLE
 		k.limits[key] = h
-	case dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND, dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND, dockwellv1.ImageAnswer_IMAGE_ANSWER_UNSPECIFIED:
+	case dockwellv1.ImageAnswer_IMAGE_ANSWER_FOUND, dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_FOUND, dockwellv1.ImageAnswer_IMAGE_ANSWER_SIGN_IN_FAILED, dockwellv1.ImageAnswer_IMAGE_ANSWER_UNSPECIFIED:
 		delete(k.limits, key)
 	}
 }
@@ -429,6 +439,9 @@ func (k *Keeper) compose(row *store.ServiceUpdate, s *subject, ref registry.Ref,
 			return
 		}
 		failedWith(dockwellv1.UpdateProblem_UPDATE_PROBLEM_PRIVATE_OR_NOT_FOUND, res.GetDetail())
+		return
+	case dockwellv1.ImageAnswer_IMAGE_ANSWER_SIGN_IN_FAILED:
+		failedWith(dockwellv1.UpdateProblem_UPDATE_PROBLEM_SIGN_IN_FAILED, res.GetDetail())
 		return
 	case dockwellv1.ImageAnswer_IMAGE_ANSWER_NOT_ASKED:
 		failedWith(dockwellv1.UpdateProblem_UPDATE_PROBLEM_RATE_LIMITED, res.GetDetail())

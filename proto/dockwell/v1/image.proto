@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
@@ -17,6 +18,14 @@ import "google/protobuf/timestamp.proto";
 // server, such as which images it has, which is the install's (ADR 0048). See
 // docs/adr/0062-reading-an-image-from-its-registry.md.
 service ImageService {
+  option (dockwell.v1.nouns) = {
+    name: "images"
+    help: "Images read from their registries through the server an app will run on, for a form: Docker Hub's search, a repository's tags, and whether an image is there and what it declares. Nothing is pulled, and nothing changes. An image a registry keeps private is read with the registry login its app's pull would use. See docs/adr/0062-reading-an-image-from-its-registry.md and docs/adr/0086-registry-logins-for-private-images.md."
+  };
+  option (dockwell.v1.nouns) = {
+    name: "registry-logins"
+    help: "What signs in to a container registry, so an app can pull an image the registry keeps private. A login is install-wide: an admin saves it as a change, with a plan, and decides which projects' apps may pull with it. It's sent only to the server that pulls, for that call, and from there to its registry and the token service it was saved with. CheckRegistryLogin signs in without saving anything. See docs/adr/0086-registry-logins-for-private-images.md."
+  };
   // SearchImages returns Docker Hub's images whose names hold a term, its
   // official ones first.
   rpc SearchImages(SearchImagesRequest) returns (SearchImagesResponse) {
@@ -53,6 +62,120 @@ service ImageService {
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (google.api.http) = {get: "/v1/images:inspect"};
   }
+  // ListRegistryLogins lists the registry logins the caller may use: an admin's,
+  // every login with everything but what signs in; below an admin, the logins
+  // the caller's projects may pull with, by name and registry alone. See
+  // docs/adr/0086-registry-logins-for-private-images.md.
+  rpc ListRegistryLogins(ListRegistryLoginsRequest) returns (ListRegistryLoginsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (google.api.http) = {get: "/v1/registryLogins"};
+  }
+  // CheckRegistryLogin signs in at a registry from a server's agent, as a pull
+  // there would, and saves nothing: with a login as typed, or a saved one again.
+  // It says whether it signed in, and the token service the registry sent it to,
+  // which a plan saves with the login so it never goes anywhere else. An admin's,
+  // signed in, as a login is install-wide. See
+  // docs/adr/0086-registry-logins-for-private-images.md.
+  rpc CheckRegistryLogin(CheckRegistryLoginRequest) returns (CheckRegistryLoginResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/registryLogins:check"
+      body: "*"
+    };
+  }
+}
+
+// ListRegistryLoginsRequest asks for the registry logins the caller may use.
+message ListRegistryLoginsRequest {
+  // Only those this project's apps may pull with, by name or ID. Empty lists
+  // every login the caller may see.
+  string project = 1;
+  // Only those this environment's project may pull with, by ID, in place of
+  // project.
+  string environment = 2;
+}
+
+// ListRegistryLoginsResponse lists registry logins.
+message ListRegistryLoginsResponse {
+  repeated RegistryLoginInfo logins = 1;
+}
+
+// RegistryLoginInfo is a registry login as a caller may see it: never what signs
+// in. Below an admin, its name and registry alone.
+message RegistryLoginInfo {
+  // Its name, such as "ghcr-ci".
+  string name = 1;
+  // The registry it signs in to, such as "ghcr.io".
+  string registry = 2;
+  // Who signs in, for an admin. Empty for ECR, and below an admin.
+  string username = 3;
+  // True for an Amazon ECR login, which signs in with an access key.
+  bool ecr = 4;
+  // The token service it was saved with, for an admin.
+  string token_host = 5;
+  // The projects whose apps may pull with it, by ID, for an admin; empty for every
+  // project.
+  repeated string projects = 6;
+  // Its resource's ID.
+  string id = 7;
+}
+
+// CheckRegistryLoginRequest is a login to try, as typed or as saved.
+message CheckRegistryLoginRequest {
+  // The registry's host, such as "ghcr.io". Unset when name says which.
+  string registry = 1;
+  // Who signs in.
+  string username = 2;
+  // The password or token, as typed. Unset to check a saved login's.
+  string password = 3 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // For ECR, the key and its region, as typed.
+  dockwell.resource.v1alpha1.RegistryLoginEcr ecr = 4 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // A saved login to check again, by name, with what it saved for anything left
+  // unset here.
+  string name = 5;
+  // The server whose agent signs in, by ID. It can be left out while there is one.
+  string server = 6;
+  // Asks registry's /v2/ with no login, and sends nothing that signs in: whether
+  // it's a registry, and what it asks of a client, before a token goes there.
+  bool probe = 7;
+}
+
+// CheckRegistryLoginResponse says whether the login signs in.
+message CheckRegistryLoginResponse {
+  // How the registry answered.
+  RegistryLoginState state = 1;
+  // The host the registry sends clients to for a token, which a plan saves with
+  // the login. Empty for a registry that signs in itself.
+  string token_host = 2;
+  // The registry's own words, when it said no or couldn't be reached, in a line.
+  string detail = 3;
+  // For ECR, the registry the key's account and region name, which the login
+  // pulls from.
+  string registry = 4;
+}
+
+// RegistryLoginState is what a registry said of a login.
+enum RegistryLoginState {
+  REGISTRY_LOGIN_STATE_UNSPECIFIED = 0;
+  // It signed in.
+  REGISTRY_LOGIN_STATE_SIGNED_IN = 1 [(dockwell.v1.word) = "Signed in"];
+  // The registry refused the username or the password.
+  REGISTRY_LOGIN_STATE_REFUSED = 2 [(dockwell.v1.word) = "Wrong username or password"];
+  // The registry couldn't be reached, or didn't answer in time.
+  REGISTRY_LOGIN_STATE_UNREACHABLE = 3 [(dockwell.v1.word) = "Can't reach the registry"];
+  // The registry sent the login to a token service on another host than the one
+  // it was saved with, so nothing was sent.
+  REGISTRY_LOGIN_STATE_MOVED = 4 [(dockwell.v1.word) = "Token service moved"];
+  // A probe found a registry that asks for a sign-in; nothing was sent.
+  REGISTRY_LOGIN_STATE_ASKS = 5 [(dockwell.v1.word) = "Asks for a sign-in"];
 }
 
 // ImageAnswer is what a registry said, or why it said nothing.
@@ -68,6 +191,10 @@ enum ImageAnswer {
   // A limit held the question back, such as what the server may ask of Docker
   // Hub in six hours. It says nothing of the image.
   IMAGE_ANSWER_NOT_ASKED = 4;
+  // The registry refused the login it was read with, or sent it to a token
+  // service other than the one it was saved with (ADR 0086).
+  // Numbered in the block registry logins hold, 100 to 109.
+  IMAGE_ANSWER_SIGN_IN_FAILED = 100;
 }
 
 // SearchImagesRequest says what to look for, and where.
@@ -114,10 +241,16 @@ message ListImageTagsRequest {
   string environment = 2;
   string project = 3;
   string server = 4;
+  // As GetImageRequest's. Numbered in the block registry logins hold, 100 to 109.
+  string registry_login = 100;
+  // As GetImageRequest's.
+  bool anonymous = 101;
 }
 
 // ListImageTagsResponse lists a repository's tags.
 message ListImageTagsResponse {
+  // As GetImageResponse's. Numbered in the block registry logins hold, 100 to 109.
+  string registry_login = 100;
   // The tags, newest first, at most 200.
   repeated ImageTag tags = 1;
   // How the registry answered.
@@ -146,10 +279,20 @@ message GetImageRequest {
   string environment = 2;
   string project = 3;
   string server = 4;
+  // Read with this registry login, by name, one the project may use. Empty reads
+  // with the login an app's pull would use: the one for the image's registry the
+  // project may use, when there's exactly one (ADR 0086). Numbered in the block
+  // registry logins hold, 100 to 109.
+  string registry_login = 100;
+  // Read with no login, whatever the project may use.
+  bool anonymous = 101;
 }
 
 // GetImageResponse says whether an image is there, and what it declares.
 message GetImageResponse {
+  // The registry login it was read with, by name, or empty for none (ADR 0086).
+  // Numbered in the block registry logins hold, 100 to 109.
+  string registry_login = 100;
   // Whether it's there.
   ImageAnswer answer = 1;
   // What its registry calls it, such as "sha256:ab12…". Empty unless found.

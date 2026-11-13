@@ -26,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 )
@@ -41,6 +42,10 @@ const LabelSet = docker.OwnPrefix + "set"
 // Docker is a Runtime on the Docker Engine.
 type Docker struct {
 	Client *docker.Client
+	// PullLogins remembers which registry login pulled each image, so a copy one
+	// app pulled with a login isn't run by another without asking its registry
+	// (ADR 0086). Nil remembers in memory alone.
+	PullLogins *PullLogins
 	// Settle is how long a container without a health check must keep
 	// running after it starts to count as healthy. Zero means 2 s.
 	Settle time.Duration
@@ -1358,7 +1363,10 @@ func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (
 // with its tag: Docker takes a name without one, made of hex digits such
 // as cafe, as a prefix of any image's ID too.
 func (d *Docker) ensureImage(ctx context.Context, ref string) error {
-	_, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	if err == nil {
+		return d.mayReuse(ctx, ref, img.ID, "")
+	}
 	if !docker.IsNotFound(err) {
 		return err
 	}
@@ -1372,7 +1380,10 @@ func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	})
 	d.pulled(ref)
 	if err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
-		return pullFailure(ref, err)
+		return pullFailure(ctx, ref, err)
+	}
+	if err == nil {
+		d.notePull(ctx, ref)
 	}
 	return err
 }
@@ -1442,6 +1453,9 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 		resource.Tell(ctx, resource.Activity{Message: "Pulling " + ref + " again, " + docker.SizeOf(done, total), Phase: resource.PhasePulling, Done: done, Total: total})
 	})
 	d.pulled(ref)
+	if err == nil {
+		d.notePull(ctx, ref)
+	}
 	if err == nil || docker.IsUnavailable(err) || ctx.Err() != nil {
 		return err
 	}
@@ -1457,7 +1471,7 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 	if old != nil && notRunning(old) == "" {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
-		return pullAgainFailure(ref, err)
+		return pullAgainFailure(ctx, ref, err)
 	}
 	switch _, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); {
 	case have == nil:
@@ -1584,16 +1598,20 @@ func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
 		// No registry has it: the service's step builds it (ADR 0046).
 		return nil
 	}
-	_, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	switch {
 	case err == nil:
-		return nil
+		return d.mayReuse(ctx, ref, img.ID, t.Service)
 	case !docker.IsNotFound(err):
 		return err
 	}
 	if d.askRegistry(ctx, ref) == cantPull {
-		return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull, so %s can't run: it has no such image, or wants credentials, which Dockwell can't send yet. "+
-			"Build or load the image on this server, or push it where a pull can get it, then plan again", ref, t.Service)
+		if login := loginOf(ctx); login != "" {
+			return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull with the registry login %s, so %s can't run: it has no such image, or the login can't read it. "+
+				"Check the image's name and the login, then plan again", ref, login, t.Service)
+		}
+		return fmt.Errorf("the image %s isn't on this server, and its registry won't give it to a pull, so %s can't run: it has no such image, or keeps it private. "+
+			"Check the image's name, or save a registry login for %s, then plan again", ref, t.Service, registryOf(ref))
 	}
 	return nil
 }
@@ -2307,3 +2325,46 @@ func (d *Docker) Ready(ctx context.Context) error { return d.Client.Ping(ctx) }
 
 // ReadyKey is the client: whether its Docker answers.
 func (d *Docker) ReadyKey() any { return d.Client }
+
+// pullLogins is where the runtime remembers which login pulled each image.
+func (d *Docker) pullLogins() *PullLogins {
+	d.registries.mu.Lock()
+	defer d.registries.mu.Unlock()
+	if d.PullLogins == nil {
+		d.PullLogins = &PullLogins{}
+	}
+	return d.PullLogins
+}
+
+// notePull remembers which login, if any, pulled the image ref names now.
+func (d *Docker) notePull(ctx context.Context, ref string) {
+	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
+	if err != nil {
+		return
+	}
+	if err := d.pullLogins().Record(img.ID, pullIdentity(registry.AuthOf(ctx))); err != nil {
+		d.logger().Warn("can't note which registry login pulled an image; an app of another project then asks its registry before running it", "image", ref, "error", err.Error())
+	}
+}
+
+// mayReuse lets a step run the copy of ref the server has, id, unless a registry
+// login pulled it that this step doesn't sign in with: then the step's own pull
+// has to be able to get it, as its registry says, or an app of a project that may
+// not use that login would run the image with no pull and no login (ADR 0086).
+// A registry that doesn't answer leaves the copy to run, as one an older agent
+// pulled does.
+func (d *Docker) mayReuse(ctx context.Context, ref, id, service string) error {
+	who, known := d.pullLogins().Who(id)
+	if !known || who == "" || who == pullIdentity(registry.AuthOf(ctx)) {
+		return nil
+	}
+	if d.askRegistry(ctx, ref) != cantPull {
+		return nil
+	}
+	if service == "" {
+		service = "this app"
+	}
+	return resource.PlainlyBecause(resource.ReasonImage,
+		fmt.Sprintf("The image %s on this server came with a registry login %s doesn't pull with, and its registry won't give it to %s's own pull. Name a registry login this app may use, then try again", ref, service, service),
+		fmt.Errorf("the image %s on this server came with a registry login %s doesn't pull with, and its registry won't give it to %s's own pull. Name a registry login this app may use, then try again", ref, service, service))
+}
