@@ -824,7 +824,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	moves = slices.DeleteFunc(moves, func(n Note) bool {
 		return (n.Reason == "backup_first" || n.Reason == "no_backup") && slices.ContainsFunc(p.Notes, func(m Note) bool { return m.Reason == n.Reason })
 	})
-	p.Notes = append(p.Notes, moves...)
+	p.Notes = moveNotes(plan, append(p.Notes, moves...))
 	if p.Unpinned != nil && plan.imageGone() {
 		return e.propose(ctx, *p.Unpinned, reverts, rotate)
 	}

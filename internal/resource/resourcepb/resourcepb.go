@@ -186,7 +186,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if m := s.Move; m != nil {
 		p.DatabaseMove = &dockwellv1.DatabaseMove{
 			BackupId: m.Backup, Database: m.Database, FromSeries: m.FromSeries, ToSeries: m.ToSeries, FromVolume: m.From, ToVolume: m.To,
-			Stops: m.Stops, EstimateBytes: m.Estimate, Unmeasured: m.Unmeasured, Finishing: m.Finishing, ChangeId: m.Change,
+			Stops: m.Stops, EstimateBytes: m.Estimate, Unmeasured: m.Unmeasured, Finishing: m.Finishing, ChangeId: m.Change, StaysStopped: m.StaysStopped,
 		}
 	}
 	if b := s.Build; b != nil {
@@ -535,7 +535,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	if m := p.GetDatabaseMove(); m != nil {
 		s.Move = &resource.MovePlan{
 			Backup: m.GetBackupId(), Database: m.GetDatabase(), FromSeries: m.GetFromSeries(), ToSeries: m.GetToSeries(), From: m.GetFromVolume(), To: m.GetToVolume(),
-			Stops: m.GetStops(), Estimate: m.GetEstimateBytes(), Unmeasured: m.GetUnmeasured(), Finishing: m.GetFinishing(), Change: m.GetChangeId(),
+			Stops: m.GetStops(), Estimate: m.GetEstimateBytes(), Unmeasured: m.GetUnmeasured(), Finishing: m.GetFinishing(), Change: m.GetChangeId(), StaysStopped: m.GetStaysStopped(),
 		}
 	}
 	if b := p.GetBuild(); b != nil {

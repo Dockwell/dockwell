@@ -401,17 +401,6 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 			steps = append(steps, step)
 			continue
 		}
-		// A move to do replaces what runs. One that's done may have left what it
-		// stopped to start, and its dump to report, which a step finishes.
-		if want.Move != nil && (step.Action == ActionReplace || step.Action == ActionNone) {
-			m, ok := d.(Mover)
-			if !ok {
-				return nil, fmt.Errorf("can't plan %s: this agent can't move a database to a new release", want.Ref)
-			}
-			if step.Decision, err = m.JudgeMove(ctx, want.Ref, step, spec, *want.Move); err != nil {
-				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
-			}
-		}
 		if want.Backup != nil && step.Action == ActionNone {
 			b, ok := d.(BackerUp)
 			if !ok {
@@ -472,6 +461,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				step.Decision = dec
 			}
 			step.Pull = step.Action != ActionNone
+		}
+		// A move judges what's left once Settle and the run's own checks have: a spec
+		// that's what runs already means the move replaced it, and a step finishes
+		// it, with what a replace cut short left first, as those found it. Otherwise
+		// a replace has the move to do (ADR 0080).
+		if want.Move != nil {
+			m, ok := d.(Mover)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't move a database to a new release", want.Ref)
+			}
+			move := *want.Move
+			move.Finish = move.Finish || Equal(actual, spec)
+			if step.Decision, err = m.JudgeMove(ctx, want.Ref, step, spec, move); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
 		}
 		// Nothing is mounted for a step with nothing to do, and a dead path on what's
 		// left as it is shouldn't refuse a plan for something else.

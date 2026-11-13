@@ -6134,7 +6134,10 @@ type DatabaseMove struct {
 	// starts what the move stopped and records its dump.
 	Finishing bool `protobuf:"varint,10,opt,name=finishing,proto3" json:"finishing,omitempty"`
 	// The change that moves it, which names what the move stopped.
-	ChangeId      string `protobuf:"bytes,11,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
+	ChangeId string `protobuf:"bytes,11,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
+	// Containers Dockwell doesn't manage on the old volume, by name, which stop for
+	// the move and stay stopped after it, as they'd go on with the old data.
+	StaysStopped  []string `protobuf:"bytes,12,rep,name=stays_stopped,json=staysStopped,proto3" json:"stays_stopped,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6244,6 +6247,13 @@ func (x *DatabaseMove) GetChangeId() string {
 		return x.ChangeId
 	}
 	return ""
+}
+
+func (x *DatabaseMove) GetStaysStopped() []string {
+	if x != nil {
+		return x.StaysStopped
+	}
+	return nil
 }
 
 // SharedName is a name more than one container answers to on a network.
@@ -7952,7 +7962,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\x05 \x01(\x03R\restimateBytes\x12\x1e\n" +
 	"\n" +
 	"unmeasured\x18\x06 \x01(\bR\n" +
-	"unmeasured\"\xdb\x02\n" +
+	"unmeasured\"\x80\x03\n" +
 	"\fDatabaseMove\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1f\n" +
@@ -7969,7 +7979,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"unmeasured\x12\x1c\n" +
 	"\tfinishing\x18\n" +
 	" \x01(\bR\tfinishing\x12\x1b\n" +
-	"\tchange_id\x18\v \x01(\tR\bchangeId\"R\n" +
+	"\tchange_id\x18\v \x01(\tR\bchangeId\x12#\n" +
+	"\rstays_stopped\x18\f \x03(\tR\fstaysStopped\"R\n" +
 	"\n" +
 	"SharedName\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +

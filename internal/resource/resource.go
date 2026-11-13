@@ -880,6 +880,9 @@ type MovePlan struct {
 	Finishing bool `json:",omitempty"`
 	// Change is the change that moves it, which names what it stopped.
 	Change string `json:",omitempty"`
+	// StaysStopped names containers Dockwell doesn't manage on the old volume, which
+	// stop for the move and stay stopped after it, as they'd go on with the old data.
+	StaysStopped []string `json:",omitempty"`
 }
 
 // BackupTaken is a backup a step took, whole on its server.

@@ -1562,6 +1562,9 @@ message DatabaseMove {
   bool finishing = 10;
   // The change that moves it, which names what the move stopped.
   string change_id = 11;
+  // Containers Dockwell doesn't manage on the old volume, by name, which stop for
+  // the move and stay stopped after it, as they'd go on with the old data.
+  repeated string stays_stopped = 12;
 }
 
 // SharedName is a name more than one container answers to on a network.

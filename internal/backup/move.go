@@ -84,7 +84,7 @@ func moveRun(change string) string { return "move-" + change }
 // what moves it, with room for the dump and the new release's copy, and nothing
 // in the way that a dump would lose, such as replication.
 func (r *Runner) JudgeMove(ctx context.Context, mv Move) (resource.MovePlan, time.Duration, error) {
-	_, db, stops, err := r.moving(ctx, mv)
+	u, db, stops, err := r.moving(ctx, mv)
 	if err != nil {
 		return resource.MovePlan{}, 0, err
 	}
@@ -105,6 +105,14 @@ func (r *Runner) JudgeMove(ctx context.Context, mv Move) (resource.MovePlan, tim
 		Backup: mv.Asked.Backup, Database: db.kind.name, From: mv.Asked.From, To: mv.Asked.To,
 		Stops: namesOf(slices.DeleteFunc(stops, func(c *user) bool { return c.id == db.id })), Estimate: p.Estimate, Unmeasured: p.Unmeasured,
 	}
+	// What else is on the old volume, which no service of Dockwell's is, as a plan
+	// refuses those, stays stopped after the move: it would go on with the old data.
+	for _, c := range u.list {
+		if c.id != db.id {
+			plan.StaysStopped = append(plan.StaysStopped, c.name)
+		}
+	}
+	slices.Sort(plan.StaysStopped)
 	if e := engines.Recognise(mv.App.GetImage()); e != nil && e.MovesBySeries() {
 		plan.FromSeries, plan.ToSeries = engines.Series(e, db.image), engines.Series(e, mv.App.GetImage())
 	}
@@ -129,12 +137,30 @@ func (r *Runner) MoveFinishes(mv Move) (bool, error) {
 }
 
 // FinishMove starts what a move stopped and reports its dump, for a move whose
-// replace is done.
+// replace is done. Nothing on the old volume starts: that's the old release, or
+// what would go on with its data, and only a step of the service starts the old
+// release, as a rollback's does.
 func (r *Runner) FinishMove(ctx context.Context, mv Move) error {
 	if m, err := readManifest(filepath.Join(r.dir(mv.from()), mv.Asked.Backup+".json")); err == nil {
 		resource.Report(ctx, resource.Outcome{Backup: &resource.BackupTaken{ID: m.ID, Method: m.Method, Database: m.Database, SHA256: m.SHA256, Size: m.Size, Changed: m.Changed}})
 	}
 	r.forgetMarker(mv)
+	old, err := r.users(ctx, volume.TargetOf(mv.from()))
+	if err != nil {
+		return err
+	}
+	if err := r.noteStopped(func(l stoppedFile) {
+		run, ok := l[moveRun(mv.change())]
+		if !ok {
+			return
+		}
+		run.Containers = slices.DeleteFunc(run.Containers, func(id string) bool {
+			return slices.ContainsFunc(old.list, func(u *user) bool { return u.id == id })
+		})
+		l[moveRun(mv.change())] = run
+	}); err != nil {
+		return err
+	}
 	if err := r.startAll(ctx, moveRun(mv.change()), &users{}, nil); err != nil {
 		var down downList
 		if errors.As(err, &down) {
@@ -416,9 +442,15 @@ func (r *Runner) dumpOld(ctx context.Context, mv Move, db *database) (*Manifest,
 			mounts = append(mounts, docker.Mount{Type: "bind", Source: m.Source, Target: m.Destination, ReadOnly: !m.RW})
 		}
 	}
+	// What the old release would run on its own while it's dumped, such as MySQL's
+	// events, would land only on the old volume.
+	cmd := slices.Clone(old.Config.Cmd)
+	if db.kind.name == "MySQL" || db.kind.name == "MariaDB" {
+		cmd = append(cmd, "--event-scheduler=OFF")
+	}
 	req := &docker.CreateRequest{
 		Config: docker.Config{
-			Image: old.Image, Env: old.Config.Env, Entrypoint: old.Config.Entrypoint, Cmd: old.Config.Cmd, User: old.Config.User,
+			Image: old.Image, Env: old.Config.Env, Entrypoint: old.Config.Entrypoint, Cmd: cmd, User: old.Config.User,
 			Labels: map[string]string{labelHelper: "1"},
 		},
 		HostConfig: docker.HostConfig{NetworkMode: "none", Mounts: mounts},

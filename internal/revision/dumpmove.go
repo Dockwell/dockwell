@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
@@ -366,7 +367,13 @@ func (e *Engine) goingBack(ctx context.Context, items []item) ([]Note, error) {
 		m := moves[k]
 		when := m.At.UTC().Format("2006-01-02 15:04 UTC")
 		to := database.Series(now.Engine, desired.GetApp().GetImage())
-		if to != "" && m.FromSeries != "" && database.Newer(to, m.FromSeries) {
+		if backRefused(now.Engine, to, m.FromSeries) {
+			if to == "" {
+				return nil, fault.New(ErrInvalid, "%s's data moved from %s to %s when it moved to %s %s on %s, so %s holds %s %s's data from before then. "+
+					"%s doesn't name the release it runs, and %s upgrades older data in place, so its mount stays as it is. "+
+					"Keep %s mounted, or name %s %s to go back to that data", it.ref.Name, m.From, m.To, now.Engine.Name, m.ToSeries, when, m.From, now.Engine.Name, m.FromSeries,
+					desired.GetApp().GetImage(), now.Engine.Name, was.Volume, now.Engine.Name, m.FromSeries)
+			}
 			return nil, fault.New(ErrInvalid, "%s's data moved from %s to %s when it moved to %s %s on %s, so %s holds %s %s's data from before then, which %s %s would take as it is, and its mount stays as it is. "+
 				"Keep %s mounted, or undo that move to go back to %s %s", it.ref.Name, m.From, m.To, now.Engine.Name, m.ToSeries, when, m.From, now.Engine.Name, m.FromSeries,
 				now.Engine.Name, to, was.Volume, now.Engine.Name, m.FromSeries)
@@ -415,4 +422,60 @@ func afterMove(c store.Change, progress *Progress) string {
 			r.Ref.Name, r.Move.Database, r.Move.ToSeries, r.Move.To, r.Move.Database, r.Move.FromSeries, r.Move.From, r.Move.To))
 	}
 	return strings.Join(out, ". ")
+}
+
+// backRefused says going back to a volume a move left, which holds data of the
+// release series from, can't go with a release series to: a later one would take
+// that data as it is, and for MySQL and MariaDB, which upgrade older data in place,
+// one whose tag doesn't say its release, such as mysql:8 or latest, can't be told
+// apart from a later one.
+func backRefused(e *database.Engine, to, from string) bool {
+	if from == "" {
+		return false
+	}
+	if to == "" {
+		return e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL || e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB
+	}
+	return database.Newer(to, from)
+}
+
+// moveNotes say, for each move a plan's steps make, what else on its old volume
+// stays stopped after it, as Dockwell doesn't manage it.
+func moveNotes(plan *Plan, notes []Note) []Note {
+	for i := range plan.Servers {
+		for j := range plan.Servers[i].Steps {
+			step := &plan.Servers[i].Steps[j]
+			if step.Move == nil || len(step.Move.StaysStopped) == 0 || step.Move.Finishing {
+				continue
+			}
+			notes = append(notes, Note{
+				Reason: "database_move_stays", Ref: step.Ref, Names: step.Move.StaysStopped, Named: true, IfItChanges: true,
+				Message: fmt.Sprintf("%s mount%s %s too, and Dockwell doesn't manage %s, so %s stop%s for the move and stay%s stopped after it: started again, %s go on with the old data",
+					human.List(step.Move.StaysStopped), sOf(step.Move.StaysStopped), step.Move.From, itOrThem(len(step.Move.StaysStopped)), itOrThey(step.Move.StaysStopped),
+					sOf(step.Move.StaysStopped), sOf(step.Move.StaysStopped), wouldOf(step.Move.StaysStopped)),
+			})
+		}
+	}
+	return notes
+}
+
+func sOf(names []string) string {
+	if len(names) == 1 {
+		return "s"
+	}
+	return ""
+}
+
+func itOrThey(names []string) string {
+	if len(names) == 1 {
+		return "it"
+	}
+	return "they"
+}
+
+func wouldOf(names []string) string {
+	if len(names) == 1 {
+		return "it would"
+	}
+	return "they would"
 }

@@ -733,9 +733,11 @@ func (d *Driver) JudgeMove(ctx context.Context, ref resource.Ref, step resource.
 		return step.Decision, errors.New("this agent can't move a database to a new release")
 	}
 	mv := backup.Move{Service: ref, Asked: move, App: planned(desired).(*resourcev1.Container)}
-	// A move that's done, or a rollback of its change, may have left what it stopped,
-	// and its dump to report, which a step finishes, beside what else it does.
-	if step.Action == resource.ActionNone || move.Finish {
+	// A move that's done, as a resume finds one whose replace was made, or a
+	// rollback of its change, may have left what it stopped, and its dump to report,
+	// which a step finishes, after what else the step does: what a replace cut short
+	// left, as Settle found it, or the rollback's own replace.
+	if move.Finish {
 		left, err := d.Movers.MoveFinishes(mv)
 		if err != nil || !left {
 			return step.Decision, err
@@ -746,6 +748,9 @@ func (d *Driver) JudgeMove(ctx context.Context, ref resource.Ref, step resource.
 		}
 		dec.Move = &resource.MovePlan{Backup: move.Backup, From: move.From, To: move.To, Change: move.Change, Finishing: true}
 		return dec, nil
+	}
+	if step.Action != resource.ActionReplace {
+		return step.Decision, nil
 	}
 	plan, downtime, err := d.Movers.JudgeMove(ctx, mv)
 	if err != nil {
@@ -764,13 +769,16 @@ func (d *Driver) finishMove(ctx context.Context, step resource.Step, app *resour
 	if d.Movers == nil {
 		return errors.New("this agent can't finish moving a database")
 	}
-	if step.Action == resource.ActionReplace || step.Action == resource.ActionCreate {
+	// What the step does beside finishing, such as a replace a crash cut short, or a
+	// rollback's, comes first. Only a step that does nothing else does nothing.
+	if step.Action != resource.ActionUpdate || len(step.Changes) > 0 || step.Rollout != nil {
 		if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
 			return err
 		}
-		if err := d.Containers.VerifyAt(ctx, t); err != nil {
-			return err
-		}
+	}
+	// What stopped starts again only on a database that's up and healthy.
+	if err := d.Containers.VerifyAt(ctx, t); err != nil {
+		return err
 	}
 	return d.Movers.FinishMove(ctx, moveOf(ctx, step, app))
 }

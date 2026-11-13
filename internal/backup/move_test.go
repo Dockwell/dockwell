@@ -452,3 +452,52 @@ func TestAMariaDBDumpKeepsHistoryOrIsCopied(t *testing.T) {
 		t.Error("MariaDB's dump doesn't ask for its history")
 	}
 }
+
+// The old MySQL or MariaDB is dumped with its event scheduler off, so no event it
+// holds writes to the old volume during the dump.
+func TestAMoveDumpsSQLWithItsEventsOff(t *testing.T) {
+	b, mv := sqlBench(t, "mysql", "8.0", "8.4")
+	old, err := b.client.InspectContainer(t.Context(), docker.ContainerName(b.target.Project, "db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	made := creates(b)
+	if err := b.runner.MoveDatabase(t.Context(), mv, func(context.Context) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(made(), func(r docker.CreateRequest) bool {
+		return r.Image == old.Image && slices.Contains(r.Cmd, "--event-scheduler=OFF") && r.HostConfig.NetworkMode == "none"
+	}) {
+		t.Errorf("the old MySQL was dumped with its events on: %+v", made())
+	}
+}
+
+// What Dockwell doesn't manage on the old volume stops for the move and stays
+// stopped after it, as it would go on with the old data, and the plan says so.
+func TestWhatElseIsOnTheOldVolumeStaysStopped(t *testing.T) {
+	b, mv, web := moveBench(t)
+	ctx := t.Context()
+	id, err := b.client.CreateContainer(ctx, "exporter", &docker.CreateRequest{
+		Config:     docker.Config{Image: "nginx:1"},
+		HostConfig: docker.HostConfig{Mounts: []docker.Mount{{Type: "volume", Source: b.target.Name, Target: "/srv/pg", ReadOnly: true}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.client.StartContainer(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	plan, _, err := b.runner.JudgeMove(ctx, mv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(plan.StaysStopped, []string{"exporter"}) {
+		t.Errorf("the plan says %v stays stopped", plan.StaysStopped)
+	}
+	if err := b.runner.MoveDatabase(ctx, mv, func(context.Context) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if b.running(id) || !b.running(web) {
+		t.Errorf("after the move, the exporter runs %v and web %v", b.running(id), b.running(web))
+	}
+}
