@@ -2042,14 +2042,20 @@ var noSite = []map[string]any{{
 // segments: "*", or a path, in origin form or after a scheme and host, with any query.
 // Each segment is letters, digits, "-_~.!$&'()*+,=:@|^[]" and percent-encoded bytes
 // of 0x80 and up, and doesn't end in ".". So it has no ";", "\", "#", control byte,
-// raw byte past ASCII, ASCII byte written as %XX, "." or ".." segment, or segment
-// with a trailing dot. Caddy's matchers see the path cleaned, as /x/;/../admin is
+// raw byte past ASCII, ASCII byte written as %XX, "." or ".." segment, segment with
+// a trailing dot, or "//" to start. Caddy's matchers see the path cleaned, as /x/;/../admin is
 // /admin to a path matcher and /x/..;/admin goes on as it is, while Tomcat, Jetty and
 // Undertow take ";x" off each segment before they resolve "..", IIS reads "\" as "/",
 // and Windows takes trailing dots off, so an app behind can read either as another
 // route's path (#606's review, H2). Checked on Caddy 2.11.7, whose vars_regexp reads
 // the placeholder as it is, with nothing in it expanded.
-const asSentFine = `^(?:\*|(?:[A-Za-z][A-Za-z0-9+.\-]*://[^/?#]*)?(?:/(?:(?:` + segmentByte + `|\.)*` + segmentByte + `)?)+(?:\?.*)?)$`
+const asSentFine = `^(?:\*|(?:[A-Za-z][A-Za-z0-9+.\-]*://[^/?#]*)?/(?:` + segment + `(?:/(?:` + segment + `)?)*)?(?:\?.*)?)$`
+
+// segment is a path segment as asSentFine takes it: not empty, and not ending in ".".
+// Only the root is "/" with nothing after it, so a path never starts "//", which
+// Python's urlparse and Node's URL read as a host and the rest as the path, as
+// //a/admin is /admin to them (#606's last check, M1).
+const segment = `(?:` + segmentByte + `|\.)*` + segmentByte
 
 // segmentByte is a byte of a path segment, as asSentFine takes it, other than ".".
 const segmentByte = `(?:[A-Za-z0-9\-_~!$&'()*+,=:@|^\[\]]|%[89A-Fa-f][0-9A-Fa-f])`
@@ -2058,12 +2064,15 @@ const segmentByte = `(?:[A-Za-z0-9\-_~!$&'()*+,=:@|^\[\]]|%[89A-Fa-f][0-9A-Fa-f]
 // may read as something else, which asSentFine can't see in its percent-encoding:
 // bytes that aren't UTF-8, such as an overlong "/" (%c0%af), which Go reads as
 // U+FFFD; a control character; a character no one sees, such as a zero-width space;
-// a full-width or other look-alike of "/", "\\" or ".", which some servers fold to
-// ASCII; Unicode white space at the end of a segment, which Windows takes off; and
-// ":$", as NTFS names a file's stream. Joiners (U+200C, U+200D) are letters' own in
-// Persian and Indic text, so they stay.
+// a full-width or other look-alike of "/", "\\", "." or "..", which some servers
+// fold to ASCII, "‥", "︰", "…" and "︙" among them (#606's last check, L1); tag
+// characters, variation selectors and Hangul fillers, which show as nothing; Unicode
+// white space at the end of a segment, which Windows takes off; and ":$", as NTFS
+// names a file's stream. Joiners (U+200C, U+200D) are letters' own in Persian and
+// Indic text, and U+FE0E and U+FE0F an emoji's, so they stay.
 const decodedOdd = `[\x{FFFD}\p{Cc}\x{00AD}\x{061C}\x{180E}\x{200B}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2060}-\x{206F}\x{FEFF}\x{FFF9}-\x{FFFB}` +
-	`\x{FF0F}\x{FF3C}\x{FF0E}\x{2215}\x{2216}\x{2044}\x{FE68}\x{FE52}\x{29F5}\x{29F8}\x{29F9}\x{2024}\x{2025}\x{00A5}\x{20A9}]|\p{Z}(?:/|$)|:\$`
+	`\x{FF0F}\x{FF3C}\x{FF0E}\x{2215}\x{2216}\x{2044}\x{FE68}\x{FE52}\x{29F5}\x{29F8}\x{29F9}\x{2024}\x{2025}\x{2026}\x{FE19}\x{FE30}\x{00A5}\x{20A9}` +
+	`\x{E0001}\x{E0020}-\x{E007F}\x{FE00}-\x{FE0D}\x{E0100}-\x{E01EF}\x{115F}\x{1160}\x{3164}\x{FFA0}]|\p{Z}(?:/|$)|:\$`
 
 // spelledOdd is the 400 for a request target asSentFine refuses, or decodedOdd finds.
 var spelledOdd = []map[string]any{{

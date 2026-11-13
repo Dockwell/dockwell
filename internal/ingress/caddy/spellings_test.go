@@ -54,17 +54,23 @@ func TestADomainWithAPrivateRouteRefusesWhatAnAppCouldReadAsAnotherPath(t *testi
 		// NTFS's streams, and what's no path.
 		"/admin::$DATA", "/admin:$I30:$INDEX_ALLOCATION",
 		"http://app.example.net/x/;/../admin", "https://app.example.net/x/..;/admin?a=1", "app.example.net:443",
+		// A host to Python's urlparse and Node's URL, with the rest as the path (#606's last check, M1).
+		"//admin", "//a/admin", "//app.example.net/admin", "///admin", "//api/secret", "http://app.example.net//a/admin", "//",
+		// ".." and "..." under NFKC (L1), and what shows as nothing: tags, variation selectors, Hangul fillers.
+		"/x/%ef%b8%b0/admin", "/api/%ef%b8%b0/secret", "/x/%e2%80%a6/admin", "/x/%ef%b8%99/admin", "/x/%e2%80%a5/admin",
+		"/admin%f3%a0%80%a0", "/admin%f3%a0%81%bf", "/adm%ef%b8%80in", "/admin%f3%a0%84%80", "/admin%e3%85%a4", "/admin%ef%be%a0",
+		"/admin%e1%85%9f", "/admin%e1%85%a0",
 	} {
 		if !refusedAsSent(t, target) {
 			t.Errorf("%q is taken", target)
 		}
 	}
 	for _, target := range []string{
-		"/", "/admin", "/admin/", "/ADMIN", "//admin", "/who", "/a.b/c", "/..x", "/.well-known/acme-challenge/x-Y_z0",
+		"/", "/admin", "/admin/", "/ADMIN", "/x//admin", "/a/", "/who", "/a.b/c", "/..x", "/.well-known/acme-challenge/x-Y_z0",
 		"/.well-known/security.txt", "/api/v1/items(3)", "/x/a,b", "/search?q=a;b&r=%2f..%2f&s=%3b", "/x?",
 		"/caf%C3%A9", "/%E4%B8%AD%E6%96%87/%E6%96%87%E4%BB%B6.txt", "/%D9%85%DB%8C%E2%80%8C%D8%AE%D9%88%D8%A7%D9%87%D9%85",
 		"/%E3%80%80x", "/~user/", "/@scope/pkg", "/a+b=c:d!$&'()*", "/x[1]|y^", "*", "http://app.example.net/x?y=1",
-		"/emoji/%F0%9F%91%8D",
+		"/emoji/%F0%9F%91%8D", "/emoji/%E2%9D%A4%EF%B8%8F", "/emoji/%E2%98%BA%EF%B8%8E",
 	} {
 		if refusedAsSent(t, target) {
 			t.Errorf("%q is refused", target)

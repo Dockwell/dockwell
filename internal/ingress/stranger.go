@@ -28,9 +28,10 @@ const strangerAddress = "192.0.2.1"
 // Spellings are what the stranger check also asks a private route as, written as a
 // stranger would send them, of its path, or "/" for a root: Tomcat, Jetty and
 // Undertow take ";x" off each segment and then resolve "..", IIS reads "\\" as "/",
-// and a server that doesn't check UTF-8 reads an overlong "/" as one, so each reads as
-// the path there. Caddy's matchers see the path cleaned, so a target that resolves to
-// a public path above it, or one beside, goes there unless the domain refuses it.
+// a server that doesn't check UTF-8 reads an overlong "/" as one, Python's urlparse
+// and Node's URL read //x as a host, and NFKC folds "︰" to "..", so each reads as the
+// path there. Caddy's matchers see the path cleaned, so a target that resolves to a
+// public path above it, or one beside, goes there unless the domain refuses it.
 // Each other path on the domain is asked from below it too, as /api/..;/ would reach
 // a private root through a public /api (#606's review and its final check, H2).
 func Spellings(path string, beside []string) []string {
@@ -39,7 +40,10 @@ func Spellings(path string, beside []string) []string {
 		target = "/"
 	}
 	rest := strings.TrimPrefix(target, "/")
-	out := []string{"/;x" + target, "/x/..;" + target, "/%5c" + rest, "/x/;/.." + target, "/x/.;/.." + target, "/x/%3b/.." + target, "/x%c0%af..%c0%af" + rest}
+	out := []string{
+		"/;x" + target, "/x/..;" + target, "/%5c" + rest, "/x/;/.." + target, "/x/.;/.." + target, "/x/%3b/.." + target,
+		"/x%c0%af..%c0%af" + rest, "//x" + target, "/x/%ef%b8%b0" + target,
+	}
 	if path != "" {
 		out = append([]string{path + ";x"}, out...)
 	}

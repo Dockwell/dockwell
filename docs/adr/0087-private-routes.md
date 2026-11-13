@@ -103,8 +103,9 @@ The plan says each way in as a fact (`list-off`, `allow:<range>`, `users-off`, `
   - `;`, `\` or `#` anywhere in the path, or a control byte;
   - an ASCII character written as `%XX`, such as `%2e`, `%2f`, `%3b`, `%5c`, `%20`, `%23`, `%3f` or `%25`, and a byte past ASCII written raw;
   - a `.` or `..` segment, or a segment that ends in a dot (`.well-known` is fine);
+  - a path that starts with `//`, which Python's `urlparse` and Node's `URL` read as a host, so `//a/admin` is `/admin` to them;
   - bytes that aren't UTF-8 once decoded, overlong ones among them;
-  - a character no one sees (a zero-width space, a byte order mark, a bidirectional control), Unicode white space at the end of a segment, and look-alikes of `/`, `\` and `.` (full-width `／` `＼` `．`, `∕`, `∖`, `⁄`, `﹨`, `¥`, `₩` and the like), which some servers fold to ASCII;
+  - a character no one sees (a zero-width space, a byte order mark, a bidirectional control, a tag character, a variation selector other than an emoji's U+FE0E and U+FE0F, a Hangul filler), Unicode white space at the end of a segment, and look-alikes of `/`, `\`, `.` and `..` (full-width `／` `＼` `．`, `∕`, `∖`, `⁄`, `﹨`, `‥`, `︰`, `…`, `︙`, `¥`, `₩` and the like), which some servers fold to ASCII;
   - `:$`, as NTFS names a file's stream;
   - anything that isn't `*` or a path, as after a scheme and host.
 
@@ -159,4 +160,5 @@ From a lock beside each route, on Domains and on an app's page, **Make it privat
 - **The stranger check,** on real Caddy: 403 off a list over HTTPS, 401 for a password over plain HTTP, through a tunnel on the server as a documentation address, can't tell where the server is on the list, and a change read at once.
 - **From #606's review:** a private path or its root moved alone to another server is refused, and moving them together isn't (both stores); a moved route with kept hashes says why it can't go; each of a private path's other spellings gets 403 on real Caddy, and a sibling that only starts the same doesn't; five names that aren't users cost no hash; a private route's answers say `Cache-Control: private`; the stranger check reads a public `;x` spelling as let in; the panel names a published port and another public route, and pairs a network with a password.
 - **From #606's final check:** on real Caddy, each target that Caddy cleans to a public path and Tomcat reads as a private one gets 400 or 403, as does each below a public path to a private root, and each low (a trailing dot or space in a segment, overlong UTF-8, full-width `／` `＼`, `%23`, `%3f`, a zero-width space); a domain with one route, or none private, takes them as before; the stranger check reads `/x/;/../admin` and `/api/.;/../` as let in on a build without the 400.
+- **From #606's last check:** on real Caddy, a target that starts with `//` gets 400, as `//a/admin` and `//api/secret` below a public path to a private root would reach the private path in an app that reads them with `urlparse` or `URL`, and so does `︰`, `…` or `︙` between segments; the stranger check asks `//x/P` and `/x/︰/P`.
 - **The panel:** your address first and its `/64`, a password shown once that gates the plan, kept users, the list off behind Cloudflare, the live reading on a row and in the sheet, and an e2e flow to the plan, which shows neither the password nor its hash.

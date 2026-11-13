@@ -111,6 +111,7 @@ func TestAPrivatePathIsAskedAsAnotherSpellingToo(t *testing.T) {
 	routes := []Route{{Domain: "a.example.com", Path: "/admin", Allow: []string{"203.0.113.0/24"}}, {Domain: "a.example.com"}}
 	for _, spelling := range []string{
 		"/admin;x", "/;x/admin", "/x/..;/admin", "/%5cadmin", "/x/;/../admin", "/x/.;/../admin", "/x/%3b/../admin", "/x%c0%af..%c0%afadmin",
+		"//x/admin", "/x/%ef%b8%b0/admin",
 	} {
 		a := &asked{answers: map[string]int{"a.example.com/admin": 403, "a.example.com" + spelling: 200}}
 		got := AskStrangers(t.Context(), a, routes)["a.example.com"]
@@ -138,7 +139,7 @@ func TestAPrivateRootIsAskedFromBelowAPublicPath(t *testing.T) {
 		{Domain: "a.example.com", Path: "/hooks/"},
 		{Domain: "b.example.com", Path: "/elsewhere"},
 	}
-	for _, spelling := range []string{"/api/..;/", "/api/.;/../", "/api/x%5c..%5c..%5c", "/hooks/..;/", "/x/;/../", "/x%c0%af..%c0%af"} {
+	for _, spelling := range []string{"/api/..;/", "/api/.;/../", "/api/x%5c..%5c..%5c", "/hooks/..;/", "/x/;/../", "/x%c0%af..%c0%af", "//x/", "/x/%ef%b8%b0/"} {
 		a := &asked{answers: map[string]int{"a.example.com/": 403, "a.example.com" + spelling: 200}}
 		got := AskStrangers(t.Context(), a, routes)["a.example.com"]
 		if len(got) != 1 || got[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN || !strings.Contains(got[0].GetSaid(), spelling) {

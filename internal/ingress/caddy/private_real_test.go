@@ -451,7 +451,7 @@ func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 		_ = res.Body.Close()
 		return res.StatusCode
 	}
-	for _, p := range []string{"/admin", "/admin/x", "/ADMIN", "//admin"} {
+	for _, p := range []string{"/admin", "/admin/x", "/ADMIN"} {
 		if got := status(privateDomain, p); got != http.StatusForbidden {
 			t.Errorf("%s reaches %d, want the private path's 403", p, got)
 		}
@@ -469,6 +469,8 @@ func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 		// The lows: a trailing dot or space in a segment, overlong UTF-8, look-alikes, "#" and "?" encoded, what no one sees.
 		"/admin./x", "/admin%20/x", "/x%c0%af..%c0%afadmin", "/%c0%afadmin", "/%ef%bc%8fadmin", "/x%ef%bc%bc..%ef%bc%bcadmin",
 		"/admin%23", "/admin%3f", "/admin%e2%80%8b",
+		// A host to Python's urlparse and Node's URL, and ".." under NFKC (#606's last check, M1 and L1).
+		"//admin", "//a/admin", "//" + privateDomain + "/admin", "/x/%ef%b8%b0/admin", "/x/%e2%80%a6/admin", "/x/%ef%b8%99/admin",
 	} {
 		if got := status(privateDomain, p); got != http.StatusBadRequest && got != http.StatusForbidden {
 			t.Errorf("%s reaches %d, want 400 or the private path's 403", p, got)
@@ -477,14 +479,14 @@ func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 	// The public route answers these, whatever its app says of them.
 	for _, p := range []string{
 		"/", "/adminx", "/admin.php", "/admin2", "/administrator", "/who", "/.well-known/security.txt", "/a.b/c", "/..x",
-		"/caf%C3%A9", "/x?q=a;b&r=%2f..%2f", "/~user/a(1)",
+		"/caf%C3%A9", "/x?q=a;b&r=%2f..%2f", "/~user/a(1)", "/x//admin",
 	} {
 		if got := status(privateDomain, p); got == http.StatusForbidden || got == http.StatusBadRequest {
 			t.Errorf("%s answers %d, want the public route", p, got)
 		}
 	}
 	// Below a public path to a private root: an app reads these as the root's.
-	for _, p := range []string{"/api/..;/secret", "/api/.;/../secret", "/api/x%5c..%5c..%5csecret", "/api/;/../secret", "/api/%2e%2e/secret", "/api/x/..%c0%afsecret"} {
+	for _, p := range []string{"/api/..;/secret", "/api/.;/../secret", "/api/x%5c..%5c..%5csecret", "/api/;/../secret", "/api/%2e%2e/secret", "/api/x/..%c0%afsecret", "//api/secret", "/api/%ef%b8%b0/secret"} {
 		if got := status("root.example.net", p); got != http.StatusBadRequest && got != http.StatusForbidden {
 			t.Errorf("%s on a private root reaches %d, want 400 or its 403", p, got)
 		}
