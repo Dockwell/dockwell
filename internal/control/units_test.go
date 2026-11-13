@@ -3,6 +3,7 @@
 package control
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/system/systemtest"
 	"github.com/dockwell/dockwell/internal/control/servers"
@@ -41,6 +43,7 @@ func (f *fullServer) addUnitServer(t *testing.T, stand *systemtest.Stand, hello 
 		id:      enroll.New(joined.Server.ID, joined.Server.Name, "https://"+f.agentAddr, key, joined.Cert, f.ident.CA().Certificate()),
 		system:  r,
 		drivers: resource.NewRegistry(&host.Driver{Units: r}),
+		logs:    &logs.Reader{Journal: r},
 		dataDir: t.TempDir(),
 		hello:   hello,
 	}
@@ -328,7 +331,62 @@ func TestADeveloperCantActOnAUnit(t *testing.T) {
 	sc := dockwellv1connect.NewServerServiceClient(b, b.origin, connect.WithProtoJSON())
 	_, err = sc.ReadSystemLog(t.Context(), connect.NewRequest(&dockwellv1.ReadSystemLogRequest{ServerId: s.id.ServerID}))
 	needsRole(t, "a developer reading the system log", err)
+	w, err := sc.WatchSystemLog(t.Context(), connect.NewRequest(&dockwellv1.WatchSystemLogRequest{ServerId: s.id.ServerID}))
+	if err == nil {
+		for w.Receive() {
+		}
+		err = w.Err()
+	}
+	needsRole(t, "a developer following the system log", err)
 	if slices.ContainsFunc(stand.Calls(), func(c string) bool { return strings.HasPrefix(c, "systemctl restart") }) {
 		t.Errorf("a developer restarted a unit: %q", stand.Calls())
 	}
+}
+
+// A follow of the system log carries what the journal writes, narrowed to a unit,
+// through the agent's log plumbing, and goes on record as it starts and as it ends
+// (ADR 0067).
+func TestTheSystemLogIsFollowedOnRecord(t *testing.T) {
+	was := servers.HeartbeatEvery
+	servers.HeartbeatEvery = 100 * time.Millisecond
+	t.Cleanup(func() { servers.HeartbeatEvery = was })
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	stand := systemtest.New(t, systemtest.Unit{Props: systemtest.Running("nginx.service")})
+	s := f.addUnitServer(t, stand, nil)
+	sc := dockwellv1connect.NewServerServiceClient(b, b.origin, connect.WithProtoJSON())
+	ctx, cancel := context.WithCancel(t.Context())
+	w, err := sc.WatchSystemLog(ctx, connect.NewRequest(&dockwellv1.WatchSystemLogRequest{ServerId: s.id.ServerID, Unit: "nginx.service"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The first heartbeat says the follow is open; the journal's lines come after.
+	if !w.Receive() {
+		t.Fatal(w.Err())
+	}
+	time.Sleep(500 * time.Millisecond)
+	stand.Append(t,
+		systemtest.Entry("w1", "cron.service", "41", "cron: ran"),
+		systemtest.Entry("w2", "nginx.service", "40", "nginx: reloaded"),
+	)
+	var lines []string
+	for deadline := time.Now().Add(10 * time.Second); len(lines) == 0 && time.Now().Before(deadline); {
+		if !w.Receive() {
+			t.Fatal(w.Err())
+		}
+		for _, l := range w.Msg().GetLines() {
+			lines = append(lines, l.GetMessage())
+		}
+	}
+	if !slices.Equal(lines, []string{"nginx: reloaded"}) {
+		t.Errorf("the follow of nginx.service carried %q", lines)
+	}
+	cancel()
+	_ = w.Close()
+	if n := countLogEvents(t, f, "followed the system log on web-1"); n != 1 {
+		t.Errorf("following went on record %d times, want once", n)
+	}
+	eventually(t, "the end of the follow to go on record", func() bool {
+		return countLogEvents(t, f, "stopped following the system log on web-1") == 1
+	})
 }

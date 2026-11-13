@@ -186,6 +186,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.watchServers": "read",
   "ServerService.watchSystemServices": "may",
   "ServerService.readSystemLog": { within: "ServerService.watchSystemServices" },
+  "ServerService.watchSystemLog": { within: "ServerService.watchSystemServices" },
 
   "ServiceService.addServicePort": "may",
   "ServiceService.changeServiceRuntime": "may",

@@ -67,6 +67,7 @@ import { Route as ShellServersServerIdIndexRouteImport } from './routes/_shell/s
 import { Route as ShellServersServerIdFilesRouteImport } from './routes/_shell/servers.$serverId.files'
 import { Route as ShellServersServerIdFirewallRouteImport } from './routes/_shell/servers.$serverId.firewall'
 import { Route as ShellServersServerIdImportRouteImport } from './routes/_shell/servers.$serverId.import'
+import { Route as ShellServersServerIdLogRouteImport } from './routes/_shell/servers.$serverId.log'
 import { Route as ShellServersServerIdProcessesRouteImport } from './routes/_shell/servers.$serverId.processes'
 import { Route as ShellServersServerIdServicesRouteImport } from './routes/_shell/servers.$serverId.services'
 import { Route as ShellServersServerIdTerminalRouteImport } from './routes/_shell/servers.$serverId.terminal'
@@ -385,6 +386,11 @@ const ShellServersServerIdImportRoute =
     path: '/servers/$serverId/import',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdLogRoute = ShellServersServerIdLogRouteImport.update({
+  id: '/servers/$serverId/log',
+  path: '/servers/$serverId/log',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellServersServerIdProcessesRoute =
   ShellServersServerIdProcessesRouteImport.update({
     id: '/servers/$serverId/processes',
@@ -499,6 +505,7 @@ export interface FileRoutesByFullPath {
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
   '/servers/$serverId/import': typeof ShellServersServerIdImportRoute
+  '/servers/$serverId/log': typeof ShellServersServerIdLogRoute
   '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/services': typeof ShellServersServerIdServicesRoute
   '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
@@ -564,6 +571,7 @@ export interface FileRoutesByTo {
   '/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
   '/servers/$serverId/import': typeof ShellServersServerIdImportRoute
+  '/servers/$serverId/log': typeof ShellServersServerIdLogRoute
   '/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/servers/$serverId/services': typeof ShellServersServerIdServicesRoute
   '/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
@@ -635,6 +643,7 @@ export interface FileRoutesById {
   '/_shell/servers/$serverId/files': typeof ShellServersServerIdFilesRoute
   '/_shell/servers/$serverId/firewall': typeof ShellServersServerIdFirewallRoute
   '/_shell/servers/$serverId/import': typeof ShellServersServerIdImportRoute
+  '/_shell/servers/$serverId/log': typeof ShellServersServerIdLogRoute
   '/_shell/servers/$serverId/processes': typeof ShellServersServerIdProcessesRoute
   '/_shell/servers/$serverId/services': typeof ShellServersServerIdServicesRoute
   '/_shell/servers/$serverId/terminal': typeof ShellServersServerIdTerminalRoute
@@ -705,6 +714,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId/files'
     | '/servers/$serverId/firewall'
     | '/servers/$serverId/import'
+    | '/servers/$serverId/log'
     | '/servers/$serverId/processes'
     | '/servers/$serverId/services'
     | '/servers/$serverId/terminal'
@@ -770,6 +780,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId/files'
     | '/servers/$serverId/firewall'
     | '/servers/$serverId/import'
+    | '/servers/$serverId/log'
     | '/servers/$serverId/processes'
     | '/servers/$serverId/services'
     | '/servers/$serverId/terminal'
@@ -840,6 +851,7 @@ export interface FileRouteTypes {
     | '/_shell/servers/$serverId/files'
     | '/_shell/servers/$serverId/firewall'
     | '/_shell/servers/$serverId/import'
+    | '/_shell/servers/$serverId/log'
     | '/_shell/servers/$serverId/processes'
     | '/_shell/servers/$serverId/services'
     | '/_shell/servers/$serverId/terminal'
@@ -1273,6 +1285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdImportRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/log': {
+      id: '/_shell/servers/$serverId/log'
+      path: '/servers/$serverId/log'
+      fullPath: '/servers/$serverId/log'
+      preLoaderRoute: typeof ShellServersServerIdLogRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/$serverId/processes': {
       id: '/_shell/servers/$serverId/processes'
       path: '/servers/$serverId/processes'
@@ -1482,6 +1501,7 @@ interface ShellRouteChildren {
   ShellServersServerIdFilesRoute: typeof ShellServersServerIdFilesRoute
   ShellServersServerIdFirewallRoute: typeof ShellServersServerIdFirewallRoute
   ShellServersServerIdImportRoute: typeof ShellServersServerIdImportRoute
+  ShellServersServerIdLogRoute: typeof ShellServersServerIdLogRoute
   ShellServersServerIdProcessesRoute: typeof ShellServersServerIdProcessesRoute
   ShellServersServerIdServicesRoute: typeof ShellServersServerIdServicesRoute
   ShellServersServerIdTerminalRoute: typeof ShellServersServerIdTerminalRoute
@@ -1524,6 +1544,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersServerIdFilesRoute: ShellServersServerIdFilesRoute,
   ShellServersServerIdFirewallRoute: ShellServersServerIdFirewallRoute,
   ShellServersServerIdImportRoute: ShellServersServerIdImportRoute,
+  ShellServersServerIdLogRoute: ShellServersServerIdLogRoute,
   ShellServersServerIdProcessesRoute: ShellServersServerIdProcessesRoute,
   ShellServersServerIdServicesRoute: ShellServersServerIdServicesRoute,
   ShellServersServerIdTerminalRoute: ShellServersServerIdTerminalRoute,

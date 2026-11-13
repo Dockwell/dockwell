@@ -120,7 +120,13 @@ export function hostTools(dir: string): string {
       entry("c1", "4242", "nginx: [emerg] unknown directive in /etc/nginx/sites-enabled/default:12"),
     ].join("\n")}\n`,
   );
-  writeFileSync(join(dir, "usr", "bin", "journalctl"), `#!/bin/sh\ncat '${state}/journal'\n`, { mode: 0o755 });
+  // A follow reads what's written to follow as it comes, as journald gives it (ADR 0067).
+  writeFileSync(join(state, "follow"), "");
+  writeFileSync(
+    join(dir, "usr", "bin", "journalctl"),
+    `#!/bin/sh\ncase " $* " in\n*" --follow "*) exec tail -n 0 -F '${state}/follow' ;;\n*" --after-cursor="*) exit 0 ;;\nesac\ncat '${state}/journal'\n`,
+    { mode: 0o755 },
+  );
   return dir;
 }
 

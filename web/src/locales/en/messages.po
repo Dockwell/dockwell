@@ -12544,6 +12544,9 @@ msgstr "Runs the control plane"
 msgid "Server {0}"
 msgstr "Server {0}"
 
+msgid "System log"
+msgstr "System log"
+
 msgid "System services"
 msgstr "System services"
 
@@ -12787,6 +12790,9 @@ msgstr "Nothing from {unit} in the system log."
 msgid "Older lines"
 msgstr "Older lines"
 
+msgid "Open in the system log"
+msgstr "Open in the system log"
+
 msgid "System log of {unit}"
 msgstr "System log of {unit}"
 
@@ -12796,6 +12802,62 @@ msgstr "Warnings and up"
 
 msgid "{server} keeps no system log Dockwell reads."
 msgstr "{server} keeps no system log Dockwell reads."
+
+msgctxt "a time range of seven days"
+msgid "7 d"
+msgstr "7 d"
+
+msgid "Every other"
+msgstr "Every other"
+
+msgid "Every system service"
+msgstr "Every system service"
+
+msgctxt "system services"
+msgid "Failed"
+msgstr "Failed"
+
+msgid "It's older than the control plane, so it can't read its system log."
+msgstr "It's older than the control plane, so it can't read its system log."
+
+msgid "More came here than a follow carries on with. Pick a time range to read them"
+msgstr "More came here than a follow carries on with. Pick a time range to read them"
+
+msgid "No line holds that."
+msgstr "No line holds that."
+
+msgid "Nothing from {unitName} here."
+msgstr "Nothing from {unitName} here."
+
+msgid "Nothing here."
+msgstr "Nothing here."
+
+msgid "Search older"
+msgstr "Search older"
+
+msgid "Search the system log"
+msgstr "Search the system log"
+
+msgid "Searched back to {searchedWords}"
+msgstr "Searched back to {searchedWords}"
+
+msgid "System log filters"
+msgstr "System log filters"
+
+msgid "System service"
+msgstr "System service"
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected, so its system log can't be read now. This reads again when it reconnects."
+msgstr "The agent on {0} isn't connected, so its system log can't be read now. This reads again when it reconnects."
+
+#. placeholder {0}: e.count
+msgid "{0, plural, one {{n} line dropped here, past this follow's share of the server's rate} other {{n} lines dropped here, past this follow's share of the server's rate}}"
+msgstr "{0, plural, one {{n} line dropped here, past this follow's share of the server's rate} other {{n} lines dropped here, past this follow's share of the server's rate}}"
+
+#. placeholder {0}: server.name
+msgid "{0} keeps no system log Dockwell reads."
+msgstr "{0} keeps no system log Dockwell reads."
 
 msgctxt "system services"
 msgid "All"
@@ -12828,10 +12890,6 @@ msgstr "Enabling…"
 
 msgid "Every app on {name} runs in Docker"
 msgstr "Every app on {name} runs in Docker"
-
-msgctxt "system services"
-msgid "Failed"
-msgstr "Failed"
 
 msgid "Failed {failedAgo}"
 msgstr "Failed {failedAgo}"

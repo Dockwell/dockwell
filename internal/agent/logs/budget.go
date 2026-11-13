@@ -106,6 +106,14 @@ func checkCall(call *agentv1.LogsCall) error {
 	if n := len(call.GetQuery()); n > maxQuery {
 		return refuse("bytes of search", n, maxQuery)
 	}
+	if sys := call.GetSystem(); sys != nil {
+		if n := len(sys.GetQuery()); n > maxQuery {
+			return refuse("bytes of search", n, maxQuery)
+		}
+		if len(sys.GetUnit()) > 256 || len(sys.GetAfter()) > 4096 {
+			return errors.New("this call names a unit or a place in the journal that isn't one, so it read nothing. The control plane checks this first, so check that the two are the same version")
+		}
+	}
 	for _, c := range slices.Concat(call.GetAfter(), call.GetBefore()) {
 		if !ValidSourceID(c.GetSourceId()) {
 			return errors.New("this call names a source that isn't one, so it read nothing. The control plane checks this first, so check that the two are the same version")

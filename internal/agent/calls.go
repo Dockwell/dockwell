@@ -25,6 +25,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/files"
+	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
@@ -719,11 +720,22 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(errors.New("this agent doesn't read the system log"))
 		}
 		ask := call.GetSystemLog()
-		page, err := c.cfg.System.Journal(ctx, ask.GetUnit(), ask.GetLevel(), ask.GetBefore(), int(ask.GetLimit()))
+		want := system.Ask{Unit: ask.GetUnit(), Level: ask.GetLevel(), Before: ask.GetBefore(), Limit: int(ask.GetLimit()), Query: ask.GetQuery()}
+		if t := ask.GetSince(); t != nil {
+			want.Since = t.AsTime()
+		}
+		if t := ask.GetUntil(); t != nil {
+			want.Until = t.AsTime()
+		}
+		page, err := c.cfg.System.Journal(ctx, want)
 		if err != nil {
 			return fail(err)
 		}
-		return &agentv1.CallResult{Result: &agentv1.CallResult_SystemLog{SystemLog: &agentv1.SystemLogResult{Lines: page.Lines, More: page.More, Source: page.Source}}}
+		res := &agentv1.SystemLogResult{Lines: page.Lines, More: page.More, Source: page.Source, CutShort: page.CutShort}
+		if !page.SearchedTo.IsZero() {
+			res.SearchedTo = timestamppb.New(page.SearchedTo)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SystemLog{SystemLog: res}}
 	case call.GetProcesses() != nil:
 		list, err := c.cfg.procs.list(ctx)
 		if err != nil {

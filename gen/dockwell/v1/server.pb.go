@@ -3244,7 +3244,14 @@ type ReadSystemLogRequest struct {
 	// Empty reads the newest.
 	Before string `protobuf:"bytes,4,opt,name=before,proto3" json:"before,omitempty"`
 	// How many lines, at most: 1 to 200. 0 reads 50.
-	Limit         uint32 `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
+	Limit uint32 `protobuf:"varint,5,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Only lines whose message holds this text, in any case: a search, which reads
+	// back until it has limit lines or reaches its bound, and says how far it got.
+	Query string `protobuf:"bytes,6,opt,name=query,proto3" json:"query,omitempty"`
+	// Only lines written at or after this time.
+	Since *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=since,proto3" json:"since,omitempty"`
+	// Only lines written before this time.
+	Until         *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=until,proto3" json:"until,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3314,6 +3321,27 @@ func (x *ReadSystemLogRequest) GetLimit() uint32 {
 	return 0
 }
 
+func (x *ReadSystemLogRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ReadSystemLogRequest) GetSince() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Since
+	}
+	return nil
+}
+
+func (x *ReadSystemLogRequest) GetUntil() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Until
+	}
+	return nil
+}
+
 // ReadSystemLogResponse is a page of a server's system log, newest first.
 type ReadSystemLogResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3322,7 +3350,12 @@ type ReadSystemLogResponse struct {
 	// True when there are older lines, which before reads.
 	More bool `protobuf:"varint,2,opt,name=more,proto3" json:"more,omitempty"`
 	// Where they're read from.
-	Source        SystemLogSource `protobuf:"varint,3,opt,name=source,proto3,enum=dockwell.v1.SystemLogSource" json:"source,omitempty"`
+	Source SystemLogSource `protobuf:"varint,3,opt,name=source,proto3,enum=dockwell.v1.SystemLogSource" json:"source,omitempty"`
+	// For a search that stopped at its bound before since or the oldest line, the
+	// oldest line it read: before reads on from the last line it sent.
+	SearchedTo *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=searched_to,json=searchedTo,proto3" json:"searched_to,omitempty"`
+	// True when a search stopped at its bound, so older lines may match.
+	CutShort      bool `protobuf:"varint,5,opt,name=cut_short,json=cutShort,proto3" json:"cut_short,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3378,6 +3411,172 @@ func (x *ReadSystemLogResponse) GetSource() SystemLogSource {
 	return SystemLogSource_SYSTEM_LOG_SOURCE_UNSPECIFIED
 }
 
+func (x *ReadSystemLogResponse) GetSearchedTo() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SearchedTo
+	}
+	return nil
+}
+
+func (x *ReadSystemLogResponse) GetCutShort() bool {
+	if x != nil {
+		return x.CutShort
+	}
+	return false
+}
+
+// WatchSystemLogRequest names a server, and what of its system log to follow.
+type WatchSystemLogRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID.
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Only what this system service wrote, or what systemd wrote of it. Empty
+	// follows the whole log.
+	Unit string `protobuf:"bytes,2,opt,name=unit,proto3" json:"unit,omitempty"`
+	// Only lines at this level or worse. Unset follows every level.
+	Level LogLevel `protobuf:"varint,3,opt,name=level,proto3,enum=dockwell.v1.LogLevel" json:"level,omitempty"`
+	// Only lines whose message holds this text, in any case.
+	Query string `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
+	// Carry on after the line with this cursor, as ReadSystemLog gave it: what
+	// came since comes first, a bounded number of lines. Empty starts with what
+	// comes next.
+	After         string `protobuf:"bytes,5,opt,name=after,proto3" json:"after,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchSystemLogRequest) Reset() {
+	*x = WatchSystemLogRequest{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchSystemLogRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchSystemLogRequest) ProtoMessage() {}
+
+func (x *WatchSystemLogRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchSystemLogRequest.ProtoReflect.Descriptor instead.
+func (*WatchSystemLogRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *WatchSystemLogRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *WatchSystemLogRequest) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *WatchSystemLogRequest) GetLevel() LogLevel {
+	if x != nil {
+		return x.Level
+	}
+	return LogLevel_LOG_LEVEL_UNSPECIFIED
+}
+
+func (x *WatchSystemLogRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *WatchSystemLogRequest) GetAfter() string {
+	if x != nil {
+		return x.After
+	}
+	return ""
+}
+
+// WatchSystemLogResponse is what a follow of a server's system log has next.
+// An empty one says the follow is alive.
+type WatchSystemLogResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The lines, oldest first.
+	Lines []*SystemLogLine `protobuf:"bytes,1,rep,name=lines,proto3" json:"lines,omitempty"`
+	// How many lines the server dropped since the last message, past this
+	// follow's share of its rate, or as this follow fell behind.
+	Dropped uint64 `protobuf:"varint,2,opt,name=dropped,proto3" json:"dropped,omitempty"`
+	// True when more came after the cursor asked for than a follow carries on
+	// with: read them back with ReadSystemLog.
+	Gap           bool `protobuf:"varint,3,opt,name=gap,proto3" json:"gap,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchSystemLogResponse) Reset() {
+	*x = WatchSystemLogResponse{}
+	mi := &file_dockwell_v1_server_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchSystemLogResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchSystemLogResponse) ProtoMessage() {}
+
+func (x *WatchSystemLogResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_server_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchSystemLogResponse.ProtoReflect.Descriptor instead.
+func (*WatchSystemLogResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *WatchSystemLogResponse) GetLines() []*SystemLogLine {
+	if x != nil {
+		return x.Lines
+	}
+	return nil
+}
+
+func (x *WatchSystemLogResponse) GetDropped() uint64 {
+	if x != nil {
+		return x.Dropped
+	}
+	return 0
+}
+
+func (x *WatchSystemLogResponse) GetGap() bool {
+	if x != nil {
+		return x.Gap
+	}
+	return false
+}
+
 // SystemLogLine is one line of a server's system log.
 type SystemLogLine struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3403,7 +3602,7 @@ type SystemLogLine struct {
 
 func (x *SystemLogLine) Reset() {
 	*x = SystemLogLine{}
-	mi := &file_dockwell_v1_server_proto_msgTypes[34]
+	mi := &file_dockwell_v1_server_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3415,7 +3614,7 @@ func (x *SystemLogLine) String() string {
 func (*SystemLogLine) ProtoMessage() {}
 
 func (x *SystemLogLine) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_server_proto_msgTypes[34]
+	mi := &file_dockwell_v1_server_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3428,7 +3627,7 @@ func (x *SystemLogLine) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SystemLogLine.ProtoReflect.Descriptor instead.
 func (*SystemLogLine) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{34}
+	return file_dockwell_v1_server_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *SystemLogLine) GetTime() *timestamppb.Timestamp {
@@ -3685,17 +3884,33 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\fstop_refused\x18I \x01(\bR\vstopRefused\x12\x1d\n" +
 	"\n" +
 	"can_reload\x18J \x01(\bR\tcanReloadB\x0f\n" +
-	"\r_memory_bytes\"\xa2\x01\n" +
+	"\r_memory_bytes\"\x9c\x02\n" +
 	"\x14ReadSystemLogRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
 	"\x04unit\x18\x02 \x01(\tR\x04unit\x12+\n" +
 	"\x05level\x18\x03 \x01(\x0e2\x15.dockwell.v1.LogLevelR\x05level\x12\x16\n" +
 	"\x06before\x18\x04 \x01(\tR\x06before\x12\x14\n" +
-	"\x05limit\x18\x05 \x01(\rR\x05limit\"\x93\x01\n" +
+	"\x05limit\x18\x05 \x01(\rR\x05limit\x12\x14\n" +
+	"\x05query\x18\x06 \x01(\tR\x05query\x120\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\x120\n" +
+	"\x05until\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x05until\"\xed\x01\n" +
 	"\x15ReadSystemLogResponse\x120\n" +
 	"\x05lines\x18\x01 \x03(\v2\x1a.dockwell.v1.SystemLogLineR\x05lines\x12\x12\n" +
 	"\x04more\x18\x02 \x01(\bR\x04more\x124\n" +
-	"\x06source\x18\x03 \x01(\x0e2\x1c.dockwell.v1.SystemLogSourceR\x06source\"\xc4\x01\n" +
+	"\x06source\x18\x03 \x01(\x0e2\x1c.dockwell.v1.SystemLogSourceR\x06source\x12;\n" +
+	"\vsearched_to\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"searchedTo\x12\x1b\n" +
+	"\tcut_short\x18\x05 \x01(\bR\bcutShort\"\xa1\x01\n" +
+	"\x15WatchSystemLogRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04unit\x18\x02 \x01(\tR\x04unit\x12+\n" +
+	"\x05level\x18\x03 \x01(\x0e2\x15.dockwell.v1.LogLevelR\x05level\x12\x14\n" +
+	"\x05query\x18\x04 \x01(\tR\x05query\x12\x14\n" +
+	"\x05after\x18\x05 \x01(\tR\x05after\"v\n" +
+	"\x16WatchSystemLogResponse\x120\n" +
+	"\x05lines\x18\x01 \x03(\v2\x1a.dockwell.v1.SystemLogLineR\x05lines\x12\x18\n" +
+	"\adropped\x18\x02 \x01(\x04R\adropped\x12\x10\n" +
+	"\x03gap\x18\x03 \x01(\bR\x03gap\"\xc4\x01\n" +
 	"\rSystemLogLine\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12+\n" +
 	"\x05level\x18\x02 \x01(\x0e2\x15.dockwell.v1.LogLevelR\x05level\x12\x12\n" +
@@ -3772,7 +3987,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x1dSYSTEM_LOG_SOURCE_UNSPECIFIED\x10\x00\x12*\n" +
 	"\x19SYSTEM_LOG_SOURCE_JOURNAL\x10\x01\x1a\v\xa2\xbb\x18\ajournal\x121\n" +
 	"\x16SYSTEM_LOG_SOURCE_FILE\x10\x02\x1a\x15\xa2\xbb\x18\x11/var/log/messages\x12$\n" +
-	"\x16SYSTEM_LOG_SOURCE_NONE\x10\x03\x1a\b\xa2\xbb\x18\x04none2\xc2\x14\n" +
+	"\x16SYSTEM_LOG_SOURCE_NONE\x10\x03\x1a\b\xa2\xbb\x18\x04none2\xa9\x19\n" +
 	"\rServerService\x12x\n" +
 	"\vListServers\x12\x1f.dockwell.v1.ListServersRequest\x1a .dockwell.v1.ListServersResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\r\x12\v/v1/servers\x90\x02\x01\x12w\n" +
 	"\tGetServer\x12\x1d.dockwell.v1.GetServerRequest\x1a\x1e.dockwell.v1.GetServerResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/servers/{id}\x90\x02\x01\x12g\n" +
@@ -3787,9 +4002,11 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\rGetJoinTicket\x12!.dockwell.v1.GetJoinTicketRequest\x1a\".dockwell.v1.GetJoinTicketResponse\"F\xa0\xbb\x18\x01\xaa\xbb\x18\x13\n" +
 	"\fjoin-tickets\x12\x03get\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16\x12\x14/v1/joinTickets/{id}\x90\x02\x01\x12\x80\x01\n" +
 	"\x13WatchSystemServices\x12'.dockwell.v1.WatchSystemServicesRequest\x1a(.dockwell.v1.WatchSystemServicesResponse\"\x14\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x060\x01\x12\x98\x01\n" +
-	"\rReadSystemLog\x12!.dockwell.v1.ReadSystemLogRequest\x1a\".dockwell.v1.ReadSystemLogResponse\"@\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02#\x12!/v1/servers/{server_id}/systemLog\x90\x02\x01\x1a\xcb\b\xa2\xbb\x18\xe1\x02\n" +
+	"\rReadSystemLog\x12!.dockwell.v1.ReadSystemLogRequest\x1a\".dockwell.v1.ReadSystemLogResponse\"@\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02#\x12!/v1/servers/{server_id}/systemLog\x90\x02\x01\x12q\n" +
+	"\x0eWatchSystemLog\x12\".dockwell.v1.WatchSystemLogRequest\x1a#.dockwell.v1.WatchSystemLogResponse\"\x14\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x060\x01\x1a\xbf\f\xa2\xbb\x18\xe1\x02\n" +
 	"\aservers\x12\xd5\x02The servers Dockwell manages, with their live state as each server's agent reports it. WatchServers has no REST path: REST has no way to stream messages, so a REST client polls ListServers or GetServer instead, and anything that wants the stream opens it with Connect, gRPC or gRPC-Web. See docs/adr/0015-rest-and-openapi-from-the-schema.md.\xa2\xbb\x18\x9b\x03\n" +
-	"\x0fsystem-services\x12\x87\x03A server's system services: its systemd units, or its OpenRC services, each with its state, whether it starts at boot and since when. The panel shows them on a server's System services tab, to an admin signed in. No API token reads them, so the CLI, which signs in with one, is refused, and a script runs systemctl over SSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md.\xa2\xbb\x18\xc0\x02\n" +
+	"\x0fsystem-services\x12\x87\x03A server's system services: its systemd units, or its OpenRC services, each with its state, whether it starts at boot and since when. The panel shows them on a server's System services tab, to an admin signed in. No API token reads them, so the CLI, which signs in with one, is refused, and a script runs systemctl over SSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md.\xa2\xbb\x18\xef\x03\n" +
+	"\vsystem-logs\x12\xdf\x03A server's system log: its journal, or /var/log/messages on a server with none, read back a page at a time or followed, narrowed to a system service, a level, a search and a time. The panel shows it on a server's System log tab, to an admin signed in. Reading it goes on the activity log as logs.read. No API token reads it, so the CLI, which signs in with one, is refused, and a script runs journalctl over SSH. See docs/adr/0067-a-servers-system-services-and-its-system-log.md.\xa2\xbb\x18\xc0\x02\n" +
 	"\fjoin-tickets\x12\xaf\x02A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server.B\xa4\x01\n" +
 	"\x0fcom.dockwell.v1B\vServerProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -3806,7 +4023,7 @@ func file_dockwell_v1_server_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 11)
-var file_dockwell_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_dockwell_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_dockwell_v1_server_proto_goTypes = []any{
 	(JoinTicketState)(0),                   // 0: dockwell.v1.JoinTicketState
 	(JoinReach)(0),                         // 1: dockwell.v1.JoinReach
@@ -3853,20 +4070,22 @@ var file_dockwell_v1_server_proto_goTypes = []any{
 	(*SystemServiceInfo)(nil),              // 42: dockwell.v1.SystemServiceInfo
 	(*ReadSystemLogRequest)(nil),           // 43: dockwell.v1.ReadSystemLogRequest
 	(*ReadSystemLogResponse)(nil),          // 44: dockwell.v1.ReadSystemLogResponse
-	(*SystemLogLine)(nil),                  // 45: dockwell.v1.SystemLogLine
-	(*timestamppb.Timestamp)(nil),          // 46: google.protobuf.Timestamp
-	(*BuildInfo)(nil),                      // 47: dockwell.v1.BuildInfo
-	(*IngressStatus)(nil),                  // 48: dockwell.v1.IngressStatus
-	(*Actor)(nil),                          // 49: dockwell.v1.Actor
-	(*durationpb.Duration)(nil),            // 50: google.protobuf.Duration
-	(SystemServiceGuard)(0),                // 51: dockwell.v1.SystemServiceGuard
-	(LogLevel)(0),                          // 52: dockwell.v1.LogLevel
+	(*WatchSystemLogRequest)(nil),          // 45: dockwell.v1.WatchSystemLogRequest
+	(*WatchSystemLogResponse)(nil),         // 46: dockwell.v1.WatchSystemLogResponse
+	(*SystemLogLine)(nil),                  // 47: dockwell.v1.SystemLogLine
+	(*timestamppb.Timestamp)(nil),          // 48: google.protobuf.Timestamp
+	(*BuildInfo)(nil),                      // 49: dockwell.v1.BuildInfo
+	(*IngressStatus)(nil),                  // 50: dockwell.v1.IngressStatus
+	(*Actor)(nil),                          // 51: dockwell.v1.Actor
+	(*durationpb.Duration)(nil),            // 52: google.protobuf.Duration
+	(SystemServiceGuard)(0),                // 53: dockwell.v1.SystemServiceGuard
+	(LogLevel)(0),                          // 54: dockwell.v1.LogLevel
 }
 var file_dockwell_v1_server_proto_depIdxs = []int32{
 	15, // 0: dockwell.v1.CreateJoinTicketResponse.ticket:type_name -> dockwell.v1.JoinTicket
 	15, // 1: dockwell.v1.GetJoinTicketResponse.ticket:type_name -> dockwell.v1.JoinTicket
 	0,  // 2: dockwell.v1.JoinTicket.state:type_name -> dockwell.v1.JoinTicketState
-	46, // 3: dockwell.v1.JoinTicket.expire_time:type_name -> google.protobuf.Timestamp
+	48, // 3: dockwell.v1.JoinTicket.expire_time:type_name -> google.protobuf.Timestamp
 	16, // 4: dockwell.v1.JoinTicket.addresses:type_name -> dockwell.v1.JoinAddress
 	1,  // 5: dockwell.v1.JoinAddress.reach:type_name -> dockwell.v1.JoinReach
 	32, // 6: dockwell.v1.ListServersResponse.servers:type_name -> dockwell.v1.Server
@@ -3874,73 +4093,80 @@ var file_dockwell_v1_server_proto_depIdxs = []int32{
 	22, // 8: dockwell.v1.CheckServerPortsRequest.ports:type_name -> dockwell.v1.ServerPortAsk
 	24, // 9: dockwell.v1.CheckServerPortsResponse.ports:type_name -> dockwell.v1.ServerPortHeld
 	27, // 10: dockwell.v1.GetServerDiskUseResponse.disk_use:type_name -> dockwell.v1.ServerDiskUse
-	46, // 11: dockwell.v1.ServerDiskUse.time:type_name -> google.protobuf.Timestamp
+	48, // 11: dockwell.v1.ServerDiskUse.time:type_name -> google.protobuf.Timestamp
 	32, // 12: dockwell.v1.SetServerPublicAddressResponse.server:type_name -> dockwell.v1.Server
 	32, // 13: dockwell.v1.WatchServersResponse.server:type_name -> dockwell.v1.Server
-	46, // 14: dockwell.v1.Server.create_time:type_name -> google.protobuf.Timestamp
+	48, // 14: dockwell.v1.Server.create_time:type_name -> google.protobuf.Timestamp
 	2,  // 15: dockwell.v1.Server.connection:type_name -> dockwell.v1.Connection
-	46, // 16: dockwell.v1.Server.last_seen_time:type_name -> google.protobuf.Timestamp
+	48, // 16: dockwell.v1.Server.last_seen_time:type_name -> google.protobuf.Timestamp
 	35, // 17: dockwell.v1.Server.inventory:type_name -> dockwell.v1.ServerInventory
 	37, // 18: dockwell.v1.Server.stats:type_name -> dockwell.v1.ServerStats
 	37, // 19: dockwell.v1.Server.history:type_name -> dockwell.v1.ServerStats
-	47, // 20: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
-	46, // 21: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
-	48, // 22: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
-	46, // 23: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	49, // 20: dockwell.v1.Server.agent_build:type_name -> dockwell.v1.BuildInfo
+	48, // 21: dockwell.v1.Server.connect_time:type_name -> google.protobuf.Timestamp
+	50, // 22: dockwell.v1.Server.ingress:type_name -> dockwell.v1.IngressStatus
+	48, // 23: dockwell.v1.Server.docker_unreadable_since:type_name -> google.protobuf.Timestamp
 	33, // 24: dockwell.v1.Server.network:type_name -> dockwell.v1.ServerNetwork
-	46, // 25: dockwell.v1.Server.strained_since:type_name -> google.protobuf.Timestamp
+	48, // 25: dockwell.v1.Server.strained_since:type_name -> google.protobuf.Timestamp
 	3,  // 26: dockwell.v1.Server.strain:type_name -> dockwell.v1.ServerStrain
 	34, // 27: dockwell.v1.ServerNetwork.ipv4:type_name -> dockwell.v1.PublicAddress
 	34, // 28: dockwell.v1.ServerNetwork.ipv6:type_name -> dockwell.v1.PublicAddress
 	6,  // 29: dockwell.v1.ServerNetwork.reachable:type_name -> dockwell.v1.Reachable
-	46, // 30: dockwell.v1.ServerNetwork.reachable_time:type_name -> google.protobuf.Timestamp
+	48, // 30: dockwell.v1.ServerNetwork.reachable_time:type_name -> google.protobuf.Timestamp
 	7,  // 31: dockwell.v1.ServerNetwork.provider:type_name -> dockwell.v1.CloudProvider
 	4,  // 32: dockwell.v1.ServerNetwork.shape:type_name -> dockwell.v1.NetworkShape
 	5,  // 33: dockwell.v1.PublicAddress.source:type_name -> dockwell.v1.PublicAddressSource
-	46, // 34: dockwell.v1.PublicAddress.known_time:type_name -> google.protobuf.Timestamp
-	49, // 35: dockwell.v1.PublicAddress.set_by:type_name -> dockwell.v1.Actor
+	48, // 34: dockwell.v1.PublicAddress.known_time:type_name -> google.protobuf.Timestamp
+	51, // 35: dockwell.v1.PublicAddress.set_by:type_name -> dockwell.v1.Actor
 	36, // 36: dockwell.v1.ServerInventory.disks:type_name -> dockwell.v1.Disk
-	46, // 37: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
+	48, // 37: dockwell.v1.ServerStats.time:type_name -> google.protobuf.Timestamp
 	38, // 38: dockwell.v1.ServerStats.disks:type_name -> dockwell.v1.DiskUsage
-	50, // 39: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
-	50, // 40: dockwell.v1.ServerStats.interval:type_name -> google.protobuf.Duration
+	52, // 39: dockwell.v1.ServerStats.uptime:type_name -> google.protobuf.Duration
+	52, // 40: dockwell.v1.ServerStats.interval:type_name -> google.protobuf.Duration
 	41, // 41: dockwell.v1.WatchSystemServicesResponse.list:type_name -> dockwell.v1.SystemServiceList
-	46, // 42: dockwell.v1.SystemServiceList.time:type_name -> google.protobuf.Timestamp
+	48, // 42: dockwell.v1.SystemServiceList.time:type_name -> google.protobuf.Timestamp
 	8,  // 43: dockwell.v1.SystemServiceList.init:type_name -> dockwell.v1.SystemInit
 	42, // 44: dockwell.v1.SystemServiceList.services:type_name -> dockwell.v1.SystemServiceInfo
 	9,  // 45: dockwell.v1.SystemServiceInfo.state:type_name -> dockwell.v1.SystemServiceState
-	46, // 46: dockwell.v1.SystemServiceInfo.since:type_name -> google.protobuf.Timestamp
-	51, // 47: dockwell.v1.SystemServiceInfo.guard:type_name -> dockwell.v1.SystemServiceGuard
-	52, // 48: dockwell.v1.ReadSystemLogRequest.level:type_name -> dockwell.v1.LogLevel
-	45, // 49: dockwell.v1.ReadSystemLogResponse.lines:type_name -> dockwell.v1.SystemLogLine
-	10, // 50: dockwell.v1.ReadSystemLogResponse.source:type_name -> dockwell.v1.SystemLogSource
-	46, // 51: dockwell.v1.SystemLogLine.time:type_name -> google.protobuf.Timestamp
-	52, // 52: dockwell.v1.SystemLogLine.level:type_name -> dockwell.v1.LogLevel
-	17, // 53: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
-	19, // 54: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
-	30, // 55: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
-	25, // 56: dockwell.v1.ServerService.GetServerDiskUse:input_type -> dockwell.v1.GetServerDiskUseRequest
-	21, // 57: dockwell.v1.ServerService.CheckServerPorts:input_type -> dockwell.v1.CheckServerPortsRequest
-	28, // 58: dockwell.v1.ServerService.SetServerPublicAddress:input_type -> dockwell.v1.SetServerPublicAddressRequest
-	11, // 59: dockwell.v1.ServerService.CreateJoinTicket:input_type -> dockwell.v1.CreateJoinTicketRequest
-	13, // 60: dockwell.v1.ServerService.GetJoinTicket:input_type -> dockwell.v1.GetJoinTicketRequest
-	39, // 61: dockwell.v1.ServerService.WatchSystemServices:input_type -> dockwell.v1.WatchSystemServicesRequest
-	43, // 62: dockwell.v1.ServerService.ReadSystemLog:input_type -> dockwell.v1.ReadSystemLogRequest
-	18, // 63: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
-	20, // 64: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
-	31, // 65: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
-	26, // 66: dockwell.v1.ServerService.GetServerDiskUse:output_type -> dockwell.v1.GetServerDiskUseResponse
-	23, // 67: dockwell.v1.ServerService.CheckServerPorts:output_type -> dockwell.v1.CheckServerPortsResponse
-	29, // 68: dockwell.v1.ServerService.SetServerPublicAddress:output_type -> dockwell.v1.SetServerPublicAddressResponse
-	12, // 69: dockwell.v1.ServerService.CreateJoinTicket:output_type -> dockwell.v1.CreateJoinTicketResponse
-	14, // 70: dockwell.v1.ServerService.GetJoinTicket:output_type -> dockwell.v1.GetJoinTicketResponse
-	40, // 71: dockwell.v1.ServerService.WatchSystemServices:output_type -> dockwell.v1.WatchSystemServicesResponse
-	44, // 72: dockwell.v1.ServerService.ReadSystemLog:output_type -> dockwell.v1.ReadSystemLogResponse
-	63, // [63:73] is the sub-list for method output_type
-	53, // [53:63] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	48, // 46: dockwell.v1.SystemServiceInfo.since:type_name -> google.protobuf.Timestamp
+	53, // 47: dockwell.v1.SystemServiceInfo.guard:type_name -> dockwell.v1.SystemServiceGuard
+	54, // 48: dockwell.v1.ReadSystemLogRequest.level:type_name -> dockwell.v1.LogLevel
+	48, // 49: dockwell.v1.ReadSystemLogRequest.since:type_name -> google.protobuf.Timestamp
+	48, // 50: dockwell.v1.ReadSystemLogRequest.until:type_name -> google.protobuf.Timestamp
+	47, // 51: dockwell.v1.ReadSystemLogResponse.lines:type_name -> dockwell.v1.SystemLogLine
+	10, // 52: dockwell.v1.ReadSystemLogResponse.source:type_name -> dockwell.v1.SystemLogSource
+	48, // 53: dockwell.v1.ReadSystemLogResponse.searched_to:type_name -> google.protobuf.Timestamp
+	54, // 54: dockwell.v1.WatchSystemLogRequest.level:type_name -> dockwell.v1.LogLevel
+	47, // 55: dockwell.v1.WatchSystemLogResponse.lines:type_name -> dockwell.v1.SystemLogLine
+	48, // 56: dockwell.v1.SystemLogLine.time:type_name -> google.protobuf.Timestamp
+	54, // 57: dockwell.v1.SystemLogLine.level:type_name -> dockwell.v1.LogLevel
+	17, // 58: dockwell.v1.ServerService.ListServers:input_type -> dockwell.v1.ListServersRequest
+	19, // 59: dockwell.v1.ServerService.GetServer:input_type -> dockwell.v1.GetServerRequest
+	30, // 60: dockwell.v1.ServerService.WatchServers:input_type -> dockwell.v1.WatchServersRequest
+	25, // 61: dockwell.v1.ServerService.GetServerDiskUse:input_type -> dockwell.v1.GetServerDiskUseRequest
+	21, // 62: dockwell.v1.ServerService.CheckServerPorts:input_type -> dockwell.v1.CheckServerPortsRequest
+	28, // 63: dockwell.v1.ServerService.SetServerPublicAddress:input_type -> dockwell.v1.SetServerPublicAddressRequest
+	11, // 64: dockwell.v1.ServerService.CreateJoinTicket:input_type -> dockwell.v1.CreateJoinTicketRequest
+	13, // 65: dockwell.v1.ServerService.GetJoinTicket:input_type -> dockwell.v1.GetJoinTicketRequest
+	39, // 66: dockwell.v1.ServerService.WatchSystemServices:input_type -> dockwell.v1.WatchSystemServicesRequest
+	43, // 67: dockwell.v1.ServerService.ReadSystemLog:input_type -> dockwell.v1.ReadSystemLogRequest
+	45, // 68: dockwell.v1.ServerService.WatchSystemLog:input_type -> dockwell.v1.WatchSystemLogRequest
+	18, // 69: dockwell.v1.ServerService.ListServers:output_type -> dockwell.v1.ListServersResponse
+	20, // 70: dockwell.v1.ServerService.GetServer:output_type -> dockwell.v1.GetServerResponse
+	31, // 71: dockwell.v1.ServerService.WatchServers:output_type -> dockwell.v1.WatchServersResponse
+	26, // 72: dockwell.v1.ServerService.GetServerDiskUse:output_type -> dockwell.v1.GetServerDiskUseResponse
+	23, // 73: dockwell.v1.ServerService.CheckServerPorts:output_type -> dockwell.v1.CheckServerPortsResponse
+	29, // 74: dockwell.v1.ServerService.SetServerPublicAddress:output_type -> dockwell.v1.SetServerPublicAddressResponse
+	12, // 75: dockwell.v1.ServerService.CreateJoinTicket:output_type -> dockwell.v1.CreateJoinTicketResponse
+	14, // 76: dockwell.v1.ServerService.GetJoinTicket:output_type -> dockwell.v1.GetJoinTicketResponse
+	40, // 77: dockwell.v1.ServerService.WatchSystemServices:output_type -> dockwell.v1.WatchSystemServicesResponse
+	44, // 78: dockwell.v1.ServerService.ReadSystemLog:output_type -> dockwell.v1.ReadSystemLogResponse
+	46, // 79: dockwell.v1.ServerService.WatchSystemLog:output_type -> dockwell.v1.WatchSystemLogResponse
+	69, // [69:80] is the sub-list for method output_type
+	58, // [58:69] is the sub-list for method input_type
+	58, // [58:58] is the sub-list for extension type_name
+	58, // [58:58] is the sub-list for extension extendee
+	0,  // [0:58] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_server_proto_init() }
@@ -3960,7 +4186,7 @@ func file_dockwell_v1_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_server_proto_rawDesc), len(file_dockwell_v1_server_proto_rawDesc)),
 			NumEnums:      11,
-			NumMessages:   35,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

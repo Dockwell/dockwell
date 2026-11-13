@@ -96,6 +96,9 @@ type Reader struct {
 	// RefusedLooks replaces how many looks Docker can refuse a log before a reader
 	// hears why, in tests.
 	RefusedLooks int
+	// Journal follows the server's system log, for a call that asks for it
+	// (ADR 0067). Nil follows none.
+	Journal Journal
 
 	placesMu sync.Mutex
 	places   map[*stream]bool
@@ -291,6 +294,10 @@ func (r *Reader) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*
 		open: map[string]*openChunk{}, gaps: map[string]*gap{}, states: map[string]*sourceState{},
 		said: map[string]string{}, goneSaid: map[string]bool{},
 	}
+	if call.GetSystem() != nil {
+		// The journal is one more thing followed, in the server's shares.
+		s.project, s.service = "", "system log"
+	}
 	s.from = timeOf(call.GetSince())
 	if last := call.GetLast(); last != nil {
 		// By this server's clock, which its lines' times are on.
@@ -334,8 +341,13 @@ func (r *Reader) Stream(ctx context.Context, call *agentv1.LogsCall, send func(*
 			}
 		}
 	}()
-	err := s.run()
-	s.flush(true)
+	var err error
+	if call.GetSystem() != nil {
+		err = s.runJournal()
+	} else {
+		err = s.run()
+		s.flush(true)
+	}
 	close(s.out)
 	if errors.Is(context.Cause(ctx), ErrStuck) {
 		return ErrStuck

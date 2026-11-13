@@ -4,10 +4,12 @@
 # Measures an agent under what log readers can ask of it, on the fake Docker
 # Engine, so it needs no Docker: a container that writes as fast as it can be read,
 # with a reader following, one following with a filter, many following, one that
-# has stopped reading; then searches of a million short lines at once. Its memory
-# and CPU have limits below, and it fails past them. Each log stream's lines are
-# limited and dropped on the agent, so this should read about the same whatever
-# the flood's length. See docs/adr/0025-logs-per-deploy.md.
+# has stopped reading; then searches of a million short lines at once; then a
+# system journal that floods, with a follow of it and one with a search nothing
+# matches. Its memory and CPU have limits below, and it fails past them. Each log
+# stream's lines are limited and dropped on the agent, so this should read about
+# the same whatever the flood's length. See docs/adr/0025-logs-per-deploy.md and
+# docs/adr/0067-a-servers-system-services-and-its-system-log.md.
 #
 #   scripts/logs-load.sh bin/dockwell bin/dockwell-agent [seconds]
 set -euo pipefail
@@ -77,7 +79,16 @@ sample() {
 
 said() { echo "median $median MB, largest $largest MB, $cpu% of a CPU"; }
 
-(cd "$root" && go build -o "$work/logload" ./scripts/logload && go build -o "$work/claim" ./scripts/claim)
+(cd "$root" && go build -o "$work/logload" ./scripts/logload && go build -o "$work/claim" ./scripts/claim &&
+  go build -o "$work/syslogfollow" ./scripts/syslogfollow)
+
+# The agent's journal: a stand-in journalctl whose follow writes as fast as it's
+# read, as a journal flooding would, and whose reads give a line.
+tools=$work/tools
+mkdir -p "$tools/run/systemd/journal" "$tools/usr/bin"
+entry='{"__CURSOR":"s=1;i=1","__REALTIME_TIMESTAMP":"1762963200000000","_SYSTEMD_UNIT":"flood.service","_PID":"4242","PRIORITY":"6","MESSAGE":"GET /api/v1/items?page=3 200 1532 bytes in 4 ms from 192.0.2.10 with a user agent that runs on and on"}'
+printf '#!/bin/sh\ncase " $* " in\n*" --follow "*) exec yes %s ;;\n*) echo %s ;;\nesac\n' "'$entry'" "'$entry'" >"$tools/usr/bin/journalctl"
+chmod +x "$tools/usr/bin/journalctl"
 # Ports that are free, as on one someone else holds, this would measure their server,
 # and read its own log for what that server did.
 "$work/logload" "$work/docker" 127.0.0.1:0 >"$work/logload.log" 2>&1 &
@@ -107,7 +118,8 @@ fi
 # dockwell run prints a claim link only to a terminal.
 link=$("$full" claim 2>>"$work/control.log" | grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' | head -1) || true
 [[ -n "$link" ]] || fail "dockwell claim printed no claim link"
-"$work/claim" "$link" >/dev/null || fail "can't claim the install"
+"$work/claim" "$link" "$work/cookie" >/dev/null || fail "can't claim the install"
+panel=${link%%/claim*}
 "$full" login --local >/dev/null 2>&1 || fail "can't sign in on the control server"
 ticket=$("$full" token create 2>>"$work/control.log" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
 [[ -n "$ticket" ]] || fail "dockwell token create printed no ticket"
@@ -115,7 +127,7 @@ ticket=$("$full" token create 2>>"$work/control.log" | awk '$1 == "dockwell" && 
 # A limit a real server's process wouldn't reach, which holding a search to its bound
 # has to stay well within: without one, Go's collector lets a heap grow to twice
 # what it holds.
-GOMEMLIMIT=200MiB DOCKER_HOST=unix://$work/docker/docker.sock "$agent" run --data-dir "$work/agent.d" --log-format json >"$work/agent.log" 2>&1 &
+GOMEMLIMIT=200MiB DOCKWELL_TEST_TOOLS=$tools DOCKER_HOST=unix://$work/docker/docker.sock "$agent" run --data-dir "$work/agent.d" --log-format json >"$work/agent.log" 2>&1 &
 agent_pid=$!
 pids+=("$agent_pid")
 for _ in $(seq 150); do
@@ -194,6 +206,33 @@ for pid in "${many[@]}"; do kill "$pid" 2>/dev/null || true; done
 wait "${many[@]}" 2>/dev/null || true
 
 flood 0
+
+# The journal floods: one journalctl for every follow, read at its pace, each follow
+# held to its share and dropping past it, and nothing running once nobody follows.
+"$work/syslogfollow" "$panel" "$work/cookie" load-agent >"$work/syslog.out" 2>"$work/syslog.log" &
+syslog=$!
+pids+=("$syslog")
+"$work/syslogfollow" "$panel" "$work/cookie" load-agent never-printed >"$work/syslog-filtered.out" 2>"$work/syslog-filtered.log" &
+syslog_filtered=$!
+pids+=("$syslog_filtered")
+sleep 3
+journals=$(pgrep -c -f "^yes .*flood.service" || true)
+sample "$agent_pid" "$seconds"
+echo "two follows of a flooding journal, one with a search nothing matches: agent $(said)"
+under "the agent's memory with its journal flooding" "$largest" "$max_flood_mb"
+under "the agent's CPU with its journal flooding" "$cpu" "$max_follow_cpu"
+[[ "$journals" == 1 ]] || fail "two follows ran $journals journalctl processes, want the one they share"
+kill "$syslog" "$syslog_filtered" 2>/dev/null || true
+wait "$syslog" "$syslog_filtered" 2>/dev/null || true
+echo "  the follow: $(cat "$work/syslog.out"); the filtered one: $(cat "$work/syslog-filtered.out")"
+dropped=$(awk '{ print $4 }' "$work/syslog.out")
+[[ "${dropped:-0}" -gt 0 ]] || fail "a flooding journal's follow dropped nothing, so nothing held it to its share"
+sleep 3
+if pgrep -f "^yes .*flood.service" >/dev/null; then
+  fail "journalctl still runs with nobody following"
+fi
+echo "  one journalctl while followed, none once nobody follows"
+
 echo "after the flood, readers gone:"
 sleep 5
 echo "  agent $(rss "$agent_pid") MB, control plane $(rss "$control") MB; readers left on Docker: $(curl -fsS "http://$load/followers")"

@@ -139,6 +139,7 @@ ServerService.ListServers                      read         viewer     viewer   
 ServerService.ReadSystemLog                    read         admin      admin      install  session
 ServerService.SetServerPublicAddress           apply        admin      admin      install
 ServerService.WatchServers                     read         viewer     viewer     named
+ServerService.WatchSystemLog                   read         admin      admin      install  session
 ServerService.WatchSystemServices              read         admin      admin      install  session
 ServiceService.AddServicePort                  plan         developer  developer  project
 ServiceService.ChangeServiceRuntime            plan         developer  developer  project

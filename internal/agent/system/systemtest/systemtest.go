@@ -51,6 +51,27 @@ func (s *Stand) Prop(t *testing.T, id, key string) string {
 	return ""
 }
 
+// Append writes entries to the journal a follow reads, as journald does as they come.
+func (s *Stand) Append(t *testing.T, entries ...string) {
+	t.Helper()
+	f, err := os.OpenFile(filepath.Join(s.Root, "state", "follow"), os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	for _, e := range entries {
+		if _, err := f.WriteString(e + "\n"); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// After sets what a read after a cursor gives, oldest first.
+func (s *Stand) After(t *testing.T, entries ...string) {
+	t.Helper()
+	write(t, filepath.Join(s.Root, "state", "after"), strings.Join(entries, "\n")+"\n", 0o644)
+}
+
 // Own says the agent runs in unit, as /proc/self/cgroup says it.
 func (s *Stand) Own(t *testing.T, unit string) {
 	t.Helper()
@@ -174,15 +195,28 @@ case "$verb" in
     for n in $names; do id=$(resolve "$n"); set_prop "$id" UnitFileState disabled; set_prop "$id" LoadState loaded; done ;;
 esac
 `, 0o755)
+	write(t, filepath.Join(state, "follow"), "", 0o644)
+	write(t, filepath.Join(state, "after"), "", 0o644)
 	write(t, filepath.Join(root, "usr", "bin", "journalctl"), `#!/bin/sh
 echo "journalctl $*" >> '`+calls+`'
 state='`+state+`'
 unit=""
+follow=""
+after=""
 for a in "$@"; do
   case "$a" in
     --unit=*) unit="${a#--unit=}" ;;
+    --follow) follow=1 ;;
+    --after-cursor=*) after=1 ;;
   esac
 done
+if [ -n "$follow" ]; then
+  exec tail -n 0 -F "$state/follow"
+fi
+if [ -n "$after" ]; then
+  cat "$state/after"
+  exit 0
+fi
 if [ -n "$unit" ]; then
   [ -f "$state/alias/$unit" ] && unit=$(cat "$state/alias/$unit")
   cat "$state/journal/$unit" 2>/dev/null

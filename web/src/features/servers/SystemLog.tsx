@@ -4,8 +4,9 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { type ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { LogLevel, ServerService, type SystemLogLine, SystemLogSource } from "@dockwell/api";
-import { Button, type LogLine, LogStream, SegmentedControl } from "@dockwell/ui";
+import { Button, Icon, type LogLine, LogStream, SegmentedControl } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -106,7 +107,9 @@ export function SystemLog({ serverId, server, unit }: { serverId: string; server
           id: l.cursor,
           time,
           timeTitle: ms ? `${dayOf(ms, i18n.locale)}, ${time}` : "",
-          source: l.pid ? `${l.unit}[${l.pid}]` : l.unit,
+          // A unit's name without .service, which the column has room for; the whole in its title.
+          source: l.unit.replace(/\.service$/, ""),
+          sourceTitle: l.pid ? `${l.unit}[${l.pid}]` : l.unit,
           level: l.level === LogLevel.ERROR ? "error" : l.level === LogLevel.WARN ? "warn" : "info",
           text: l.message,
           at: ms || undefined,
@@ -159,6 +162,10 @@ export function SystemLog({ serverId, server, unit }: { serverId: string; server
         }
       />
       {read && error ? <p className="procs-note">{sentence(error)}</p> : null}
+      <Link className="syslog-open" to="/servers/$serverId/log" params={{ serverId }} search={{ unit }}>
+        <Trans>Open in the system log</Trans>
+        <Icon name="arrow-right" size={14} />
+      </Link>
     </section>
   );
 }
