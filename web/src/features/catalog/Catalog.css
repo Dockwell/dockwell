@@ -668,6 +668,11 @@
   color: var(--cobalt);
 }
 
+/* Where a link really goes, where its words name another host. */
+.catalog-readme .dw-markdown-host {
+  color: var(--ink-muted);
+}
+
 .catalog-readme a:focus-visible {
   border-radius: var(--radius-xs);
   outline: none;

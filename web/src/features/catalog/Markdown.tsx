@@ -185,6 +185,18 @@ function list(ordered: boolean, items: Item[], key: string): ReactNode {
   return ordered ? <ol key={key}>{children}</ol> : <ul key={key}>{children}</ul>;
 }
 
+/** A host as written, such as example.com in "https://www.example.com/docs" or "example.com". */
+const HOST = /(?:^|[\s/@(])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63})(?=$|[\s/:)?#.,])/i;
+
+/** The address's host where a link's words name another, as "example.org" for [example.com](https://example.org). */
+export function otherHost(words: string, href: string): string | undefined {
+  const named = HOST.exec(` ${words}`)?.[1]?.toLowerCase();
+  if (!named) return undefined;
+  const real = new URL(href).hostname.toLowerCase();
+  const bare = (host: string) => host.replace(/^www\./, "");
+  return bare(named) === bare(real) ? undefined : real;
+}
+
 /** What the text says inline: code, links, strong and emphasised words, and the rest as text. */
 export function inline(text: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -218,10 +230,13 @@ export function inline(text: string): ReactNode[] {
         flush();
         const href = projectLink(link[2] ?? "");
         const words = inline(link[1] || link[2] || "");
+        // Words that name one host over an address of another say where it really goes.
+        const other = href ? otherHost(link[1] ?? "", href) : undefined;
         out.push(
           href ? (
-            <a key={out.length} href={href} target="_blank" rel="noreferrer noopener nofollow">
+            <a key={out.length} href={href} title={href} target="_blank" rel="noreferrer noopener nofollow">
               {words}
+              {other ? <span className="dw-markdown-host"> ({other})</span> : null}
             </a>
           ) : (
             <span key={out.length}>{words}</span>

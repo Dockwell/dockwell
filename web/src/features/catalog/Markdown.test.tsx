@@ -27,7 +27,7 @@ describe("A README, as the panel shows it", () => {
 
   it("opens only an HTTPS link, in a new tab with no referrer, and shows anything else as text", () => {
     expect(html("[Docs](https://example.com/docs) and <https://example.com>")).toBe(
-      '<p><a href="https://example.com/docs" target="_blank" rel="noreferrer noopener nofollow">Docs</a> and ' +
+      '<p><a href="https://example.com/docs" title="https://example.com/docs" target="_blank" rel="noreferrer noopener nofollow">Docs</a> and ' +
         '<a href="https://example.com/" target="_blank" rel="noreferrer noopener nofollow">https://example.com</a></p>',
     );
     for (const href of [
@@ -46,7 +46,7 @@ describe("A README, as the panel shows it", () => {
       '<p>&lt;img src="https://example.com/a.png" onerror="alert(1)"&gt;</p>',
     );
     expect(html("![alt](https://example.com/a.png)")).toBe(
-      '<p>!<a href="https://example.com/a.png" target="_blank" rel="noreferrer noopener nofollow">alt</a></p>',
+      '<p>!<a href="https://example.com/a.png" title="https://example.com/a.png" target="_blank" rel="noreferrer noopener nofollow">alt</a></p>',
     );
     expect(html("<script>alert(1)</script>")).toBe("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
   });
@@ -60,5 +60,16 @@ describe("A README, as the panel shows it", () => {
 
   it("drops a rule and keeps an unclosed fence's code to the end", () => {
     expect(html("one\n\n---\n\n```\ncode")).toBe("<p>one</p><pre><code>code</code></pre>");
+  });
+
+  it("says where a link really goes when its words name another host", () => {
+    expect(html("[https://bank.example.com/login](https://evil.example.net/x)")).toBe(
+      '<p><a href="https://evil.example.net/x" title="https://evil.example.net/x" target="_blank" rel="noreferrer noopener nofollow">' +
+        'https://bank.example.com/login<span class="dw-markdown-host"> (evil.example.net)</span></a></p>',
+    );
+    expect(html("[the docs at example.com](https://www.example.com/docs)")).toBe(
+      '<p><a href="https://www.example.com/docs" title="https://www.example.com/docs" target="_blank" rel="noreferrer noopener nofollow">the docs at example.com</a></p>',
+    );
+    expect(html("[Read the docs](https://example.net/docs)")).not.toContain("dw-markdown-host");
   });
 });
