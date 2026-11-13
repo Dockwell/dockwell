@@ -602,6 +602,27 @@ describe("an app's settings, where it could go wrong", () => {
     expect(file?.case === "file" ? file.value.content : "").toBe("listen 80;\nroot /srv;\n");
   });
 
+  it("says whom a volume is made for, and keeps it when the mounts change", async () => {
+    const user = userEvent.setup();
+    const service = anEditedApp();
+    if (service.spec?.runs.case === "app") {
+      const data = service.spec.runs.value.mounts[0];
+      if (data) data.makeOwner = "1000:1000";
+    }
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", api(service, proposals));
+    await ready();
+    expect(within(section("Volumes and mounts")).getByText("Owned by 1000:1000")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
+    const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
+    await user.click(within(form).getAllByRole("checkbox")[0] as HTMLElement);
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const data = appOf(proposals[0])?.mounts.find((m) => m.target === "/data");
+    expect(data?.readOnly).toBe(true);
+    expect(data?.makeOwner).toBe("1000:1000");
+  });
+
   it("says a mount that's as good as root asks for the passkey, even on an app that isn't yet", async () => {
     const user = userEvent.setup();
     renderAt("/apps/svc_web/settings", api(anEditedApp()));

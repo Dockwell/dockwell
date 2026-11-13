@@ -1744,7 +1744,9 @@ type Mount struct {
 	// For a server path: when it isn't there, the folder Dockwell makes for it
 	// before the container starts, owned by this user and group, as "uid:gid", such
 	// as "82:82", with mode 0755. Docker would make it root's. A folder that's there
-	// keeps its owner. Numbered apart, as open work adds to this message.
+	// keeps its owner. For a volume Dockwell made: whom its folder is given to while
+	// it holds nothing, once the container is made and before it starts, as Docker
+	// makes it root's (ADR 0085). Numbered apart, as open work adds to this message.
 	MakeOwner     string `protobuf:"bytes,60,opt,name=make_owner,json=makeOwner,proto3" json:"make_owner,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

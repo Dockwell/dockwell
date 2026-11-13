@@ -1123,7 +1123,8 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 }
 
 // LabelMakeOwners holds whom each server path a container mounts was to be made
-// for, where it wasn't there, by the mount's target, as Docker keeps nothing of it.
+// for, where it wasn't there, and each volume while it was empty, by the mount's
+// target, as Docker keeps nothing of it.
 const LabelMakeOwners = docker.OwnPrefix + "make-owners"
 
 // makeOwnersLabel is LabelMakeOwners for a spec, such as "/var/www/html=82:82", or
@@ -1131,7 +1132,7 @@ const LabelMakeOwners = docker.OwnPrefix + "make-owners"
 func makeOwnersLabel(spec *resourcev1.Container) string {
 	var out []string
 	for _, m := range spec.GetMounts() {
-		if m.GetHostPath() != "" && m.GetMakeOwner() != "" {
+		if (m.GetHostPath() != "" || m.GetVolume() != "") && m.GetMakeOwner() != "" {
 			out = append(out, m.GetTarget()+"="+m.GetMakeOwner())
 		}
 	}
@@ -1152,7 +1153,7 @@ func readMakeOwners(c *docker.Container, out *resourcev1.Container) {
 		}
 	}
 	for _, m := range out.GetMounts() {
-		if m.GetHostPath() != "" {
+		if m.GetHostPath() != "" || m.GetVolume() != "" {
 			m.MakeOwner = owners[m.GetTarget()]
 		}
 	}

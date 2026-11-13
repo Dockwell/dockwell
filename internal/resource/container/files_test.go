@@ -75,6 +75,29 @@ func TestAFileMountRunsAndReadsBackAsItsSpec(t *testing.T) {
 	}
 }
 
+// A volume's make_owner reads back as its spec says, so it's no drift (ADR 0085).
+func TestAVolumesOwnerReadsBackAsItsSpec(t *testing.T) {
+	e, l, _ := filesEngine(t)
+	for _, v := range []string{"data", "cache"} {
+		e.AddVolume(docker.Volume{Name: shapesEnv + "_" + v, Driver: "local"})
+	}
+	spec := svc(&resourcev1.Container{Mounts: []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", MakeOwner: "1000:1000"},
+		{Source: &resourcev1.Mount_Volume{Volume: "cache"}, Target: "/cache"},
+	}})
+	planAndApply(t, l, webRef(), spec)
+	if got := e.Container(service.ContainerName(webRef())).Config.Labels[container.LabelMakeOwners]; got != "/data=1000:1000" {
+		t.Errorf("the label says %q", got)
+	}
+	got, err := l.Observe(t.Context(), []resource.Ref{webRef()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(got[0], spec) {
+		t.Errorf("reads back as a different spec, which would show as drift: %v", resource.Diff(spec, got[0]))
+	}
+}
+
 // filesEngine is shapesEngine, with the folder its runtime keeps files in.
 func filesEngine(t *testing.T) (*dockertest.Engine, resource.Local, *container.Files) {
 	t.Helper()

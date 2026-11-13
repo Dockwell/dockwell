@@ -6,11 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -176,11 +179,103 @@ func TestALinkOnTheWayIsNotFollowed(t *testing.T) {
 	}
 }
 
-type folders struct{ made []string }
+type folders struct {
+	made, owned []string
+	// full are the volume folders with something in them.
+	full map[string]bool
+}
 
 func (f *folders) Make(path string, uid, gid uint32) error {
 	f.made = append(f.made, path+" "+resource.FormatOwner(uid, gid))
 	return nil
+}
+
+func (f *folders) Empty(path string) (bool, error) { return !f.full[path], nil }
+
+func (f *folders) Own(path string, uid, gid uint32) error {
+	f.owned = append(f.owned, path+" "+resource.FormatOwner(uid, gid))
+	return nil
+}
+
+// A volume's folder is read for whether it holds anything, and given its owner,
+// through a handle on it, refusing a link in its place (ADR 0085).
+func TestAVolumesFolder(t *testing.T) {
+	uid, gid := uint32(os.Getuid()), uint32(os.Getgid())
+	empty := t.TempDir()
+	if is, err := (HostFolders{}).Empty(empty); err != nil || !is {
+		t.Errorf("an empty folder = %v, %v", is, err)
+	}
+	full := t.TempDir()
+	if err := os.WriteFile(filepath.Join(full, "app.db"), []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if is, err := (HostFolders{}).Empty(full); err != nil || is {
+		t.Errorf("a folder with data = %v, %v", is, err)
+	}
+	if err := (HostFolders{}).Own(empty, uid, gid); err != nil {
+		t.Errorf("giving a folder to its owner: %v", err)
+	}
+	if other := uid + 1; os.Geteuid() != 0 {
+		if err := (HostFolders{}).Own(empty, other, other); err == nil || !strings.Contains(err.Error(), "sudo chown") {
+			t.Errorf("giving away a folder without root = %v, want how to do it by hand", err)
+		}
+	}
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(empty, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (HostFolders{}).Empty(link); err == nil {
+		t.Errorf("a link in a volume's place was followed")
+	}
+	if err := (HostFolders{}).Own(link, uid, gid); err == nil {
+		t.Errorf("a link in a volume's place was followed")
+	}
+	if err := (HostFolders{}).Own("relative", uid, gid); err == nil {
+		t.Errorf("a relative path was taken")
+	}
+}
+
+// Only a volume Dockwell made, kept where Docker keeps volumes and empty before the
+// container is made, is given its owner, once the container is made: one with data,
+// one Docker's own, and one a driver keeps elsewhere are left alone, and one Docker
+// makes with the container is given its owner too.
+func TestOnlyANewVolumeIsGivenItsOwner(t *testing.T) {
+	e := dockertest.New(t)
+	at := Target{Name: "env_x-api-1", Project: "env_x", Service: "api", Scoped: true}
+	owned := func(name string) *resourcev1.Mount {
+		return &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: name}, Target: "/" + name, MakeOwner: "1000:1000"}
+	}
+	for _, v := range []string{"data", "kept"} {
+		e.AddVolume(docker.Volume{Name: at.VolumeName(owned(v)), Driver: "local", Mountpoint: "/var/lib/docker/volumes/" + v + "/_data"})
+	}
+	e.AddVolume(docker.Volume{Name: at.VolumeName(owned("share")), Driver: "local", Options: map[string]string{"type": "nfs"}, Mountpoint: "/var/lib/docker/volumes/share/_data"})
+	f := &folders{full: map[string]bool{"/var/lib/docker/volumes/kept/_data": true}}
+	d := &Docker{Client: e.Client(), Folders: f}
+	theirs := owned("theirs")
+	theirs.External = true
+	spec := &resourcev1.Container{Mounts: []*resourcev1.Mount{
+		owned("data"), owned("kept"), owned("share"), theirs, owned("made"),
+		{Source: &resourcev1.Mount_Volume{Volume: "plain"}, Target: "/plain"},
+	}}
+	give, err := d.ownVolumes(t.Context(), at, spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.owned) != 0 {
+		t.Errorf("owned %v before the container is made, which Docker would undo", f.owned)
+	}
+	// As Docker makes the container, it makes the volume that wasn't there.
+	e.AddVolume(docker.Volume{Name: at.VolumeName(owned("made")), Driver: "local", Mountpoint: "/var/lib/docker/volumes/made/_data"})
+	if err := give(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/var/lib/docker/volumes/data/_data 1000:1000", "/var/lib/docker/volumes/made/_data 1000:1000"}
+	if !slices.Equal(f.owned, want) {
+		t.Errorf("owned %v, want %v", f.owned, want)
+	}
+	if give, err := (&Docker{Client: e.Client()}).ownVolumes(t.Context(), at, spec); err != nil || give(t.Context()) != nil {
+		t.Errorf("with no folder maker, %v", err)
+	}
 }
 
 func TestOnlyAServerPathWithAnOwnerIsMade(t *testing.T) {
@@ -215,9 +310,13 @@ func TestAnOwner(t *testing.T) {
 			t.Errorf("resource.ParseOwner(%q) took it", in)
 		}
 	}
-	spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", MakeOwner: "82:82"}}}
-	if err := validateMounts(spec); err == nil {
-		t.Errorf("a volume with a make_owner was taken")
+	spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", MakeOwner: "0082:82"}}}
+	if err := validateMounts(spec); err != nil || spec.GetMounts()[0].GetMakeOwner() != "82:82" {
+		t.Errorf("a volume's make_owner = %q, %v; want 82:82", spec.GetMounts()[0].GetMakeOwner(), err)
+	}
+	spec = &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", External: true, MakeOwner: "82:82"}}}
+	if err := validateMounts(spec); err == nil || !strings.Contains(err.Error(), "Docker's own") {
+		t.Errorf("Docker's own volume with a make_owner = %v", err)
 	}
 	spec = &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/site"}, Target: "/srv", MakeOwner: "0082:0082"}}}
 	if err := validateMounts(spec); err != nil || spec.GetMounts()[0].GetMakeOwner() != "82:82" {
