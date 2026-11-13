@@ -7,6 +7,8 @@ import { VariablesPage } from "../../features/variables/VariablesPage";
 interface VariablesSearch {
   environment?: string;
   q?: string;
+  /** An app, by ID: only what it runs with. */
+  app?: string;
 }
 
 /**
@@ -19,19 +21,25 @@ export const Route = createFileRoute("/_shell/variables")({
     if (typeof search["environment"] === "string" && search["environment"] !== "")
       out.environment = search["environment"];
     if (typeof search["q"] === "string" && search["q"] !== "") out.q = search["q"];
+    if (typeof search["app"] === "string" && search["app"] !== "") out.app = search["app"];
     return out;
   },
   component: function Variables() {
-    const { environment, q } = Route.useSearch();
+    const { environment, q, app } = Route.useSearch();
     const navigate = useNavigate();
     return (
       <VariablesPage
         environment={environment}
         query={q}
-        onEnvironment={(id, query) =>
+        app={app}
+        onEnvironment={(id, query, only) =>
           void navigate({
             to: "/variables",
-            search: { ...(id ? { environment: id } : {}), ...(query ? { q: query } : {}) },
+            search: {
+              ...(id ? { environment: id } : {}),
+              ...(query ? { q: query } : {}),
+              ...(only ? { app: only } : {}),
+            },
             replace: true,
           })
         }

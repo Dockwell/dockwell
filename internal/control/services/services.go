@@ -811,10 +811,19 @@ func (n *serverNames) deployments(ctx context.Context, list []store.Deployment) 
 }
 
 // Blanked is a copy of a service's spec with each sensitive value blanked. A
-// sensitive map keeps its keys, so an environment variable shows by name.
+// sensitive map keeps its keys, so an environment variable shows by name. The
+// app's own values its shown_env names hold no secret, so they show as they are
+// (ADR 0081).
 func Blanked(spec *resourcev1.Service) *resourcev1.Service {
 	out := proto.CloneOf(spec)
 	blank(out.ProtoReflect())
+	if app := out.GetApp(); app != nil {
+		for _, name := range spec.GetShownEnv() {
+			if v, ok := spec.GetApp().GetEnv()[name]; ok {
+				app.Env[name] = v
+			}
+		}
+	}
 	return out
 }
 

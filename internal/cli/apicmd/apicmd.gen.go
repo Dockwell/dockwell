@@ -3000,6 +3000,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "auto_update.minutes", Help: "How long its window stays open, in minutes: 120 unless set, from 15 to 1440. An update starts only while it's open, and runs to its end after."},
 				{Path: "auto_update.time_zone", Help: "The time zone at is in, such as \"Europe/Amsterdam\". Left out, a change that sets it takes the install's time zone, from Settings, and UTC where the install has none."},
 				{Path: "auto_update.skip_backup", Help: "Leaves out the backup of its volumes that comes first."},
+				{Path: "shown_env", Help: "Which of its app's own environment variables hold no secret, by name, so a read, a plan and an export show their values as they are. Every other value of app.env stays hidden, as it may be a secret. A catalog install sets it for the values its entry writes that can't be one, by the input that gives each, its name and its shape. An edit that names one here gives its value, and can't keep it without reading it (keep_env), so nobody shows a value they never saw. Names app.env doesn't have are dropped. Only the control plane keeps it: its servers never see it, so changing it alone restarts nothing. See docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md. Numbered apart, as open work adds to this message."},
 			},
 		},
 		{

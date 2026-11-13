@@ -162,11 +162,14 @@ describe("What an installed app says of itself", () => {
     const panel = await screen.findByRole("region", { name: "From the catalog" });
     await user.click(await within(panel).findByRole("button", { name: "Close sign-ups" }));
     await waitFor(() => expect(proposed).toHaveLength(1));
+    // The setting is the app's own, shown as it is (ADR 0081), not a variable every app shares.
     const signups = proposed[0]?.edits ?? [];
-    expect(signups.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual([
-      "variable GITEA__service__DISABLE_REGISTRATION",
-      "service gitea",
-    ]);
+    expect(signups.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual(["service gitea"]);
+    const closing = signups[0]?.spec?.kind;
+    expect(closing?.case === "service" && closing.value.runs.case === "app" && closing.value.runs.value.env).toEqual({
+      GITEA__service__DISABLE_REGISTRATION: "true",
+    });
+    expect(closing?.case === "service" && closing.value.shownEnv).toContain("GITEA__service__DISABLE_REGISTRATION");
     await user.keyboard("{Escape}");
     await user.click(await within(panel).findByRole("button", { name: "Set to git.example.com" }));
     await waitFor(() => expect(proposed).toHaveLength(2));

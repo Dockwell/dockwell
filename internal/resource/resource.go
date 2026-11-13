@@ -1797,6 +1797,59 @@ func (r *Registry) Readopted(kind Kind, current, observed proto.Message) proto.M
 	return observed
 }
 
+// Shower is a kind whose spec says some of its sensitive values hold no secret, as
+// a service's shown_env does of its app's own values (ADR 0081). A plan shows such a
+// value where both sides of a change show it, and masks it where either doesn't.
+type Shower interface {
+	// Shown is each value spec shows, by the path Diff names it by, such as
+	// "app.env[DB_HOST]".
+	Shown(spec proto.Message) map[string]string
+}
+
+// Shown is each value spec shows, by its path (Shower), or nil.
+func (r *Registry) Shown(kind Kind, spec proto.Message) map[string]string {
+	if spec == nil {
+		return nil
+	}
+	if s, ok := r.types[kind].(Shower); ok {
+		return s.Shown(spec)
+	}
+	return nil
+}
+
+// ShowChanges puts back into changes the values a plan may show: a sensitive
+// field's change whose every side that has a value shows it, by from and to,
+// what Shown said of the specs on each side. A value one side hides stays
+// masked, so a change that shows a hidden value, or hides a shown one, never
+// says it.
+func ShowChanges(changes []Change, from, to map[string]string) {
+	if len(from) == 0 && len(to) == 0 {
+		return
+	}
+	for i := range changes {
+		c := &changes[i]
+		if !c.Sensitive {
+			continue
+		}
+		was, wasShown := from[c.Path]
+		now, nowShown := to[c.Path]
+		switch c.Op {
+		case OpAdded:
+			if nowShown {
+				c.To, c.Sensitive = now, false
+			}
+		case OpRemoved:
+			if wasShown {
+				c.From, c.Sensitive = was, false
+			}
+		case OpModified:
+			if wasShown && nowShown {
+				c.From, c.To, c.Sensitive = was, now, false
+			}
+		}
+	}
+}
+
 // notHere is why a driver can't run on a server that doesn't have what its
 // kind needs, and may never: nftables, fail2ban. That's the server as it is,
 // not a fault, so it isn't said as a warning.

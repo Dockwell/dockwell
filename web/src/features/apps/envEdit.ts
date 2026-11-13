@@ -14,16 +14,21 @@ import { runtimeEnv } from "./runtime";
 /**
  * One edit to an app's environment, not yet planned, by the name the app sees
  * it under:
- * - add makes a variable, or a secret, in the app's environment, and has the app use it;
+ * - add sets a value on the app, shown as it is, or, as a secret, makes one in
+ *   the app's environment and has the app use it;
  * - use has the app use one its environment has already;
  * - change gives a value the app has a new one: its environment's, for every app
- *   that uses it, or the app's own;
+ *   that uses it, or the app's own, which stays the app's, shown, or becomes a
+ *   secret of its environment the app uses, as secret says;
+ * - share makes one of the app's own, shown, a variable of its environment the
+ *   app uses, which other apps can use too;
  * - remove takes one out of the app. One of its environment's stays there.
  */
 export type EnvEdit =
   | { op: "add"; name: string; value: string; secret: boolean }
   | { op: "use"; name: string; from: string; secret: boolean }
-  | { op: "change"; name: string; value: string }
+  | { op: "change"; name: string; value: string; secret?: boolean }
+  | { op: "share"; name: string; value: string }
   | { op: "remove"; name: string };
 
 /** A row of the editor: what the app has, with what's pending on it. */
@@ -71,10 +76,26 @@ export function envCounts(pending: ReadonlyMap<string, EnvEdit>): { added: numbe
   let removed = 0;
   for (const edit of pending.values()) {
     if (edit.op === "add" || edit.op === "use") added++;
-    else if (edit.op === "change") changed++;
+    else if (edit.op === "change" || edit.op === "share") changed++;
     else removed++;
   }
   return { added, changed, removed };
+}
+
+/**
+ * Why one of the app's own values can't be made a variable of its environment
+ * as it is, or undefined when it can: one of that name there already holds
+ * something else, or is a secret.
+ */
+export function cantShare(
+  row: EnvRow,
+  store: readonly EnvironmentVariable[] | undefined,
+): "hidden" | "secret" | "other" | undefined {
+  if (row.now?.value === undefined) return "hidden";
+  const there = store?.find((v) => v.name === row.name);
+  if (!there) return undefined;
+  if (there.secret) return "secret";
+  return there.value === row.now.value ? undefined : "other";
 }
 
 /**
@@ -111,12 +132,17 @@ export function valueEdit(
  * The edits that plan what's pending: one for each variable or secret of the
  * environment it makes or changes, then the app's own, from the spec as it was
  * read and at the revision it was read at, so a change that landed meanwhile
- * makes it stale rather than undone. The app's own values never come back from
- * the API, so the edit names those it keeps, and sets only the new ones.
+ * makes it stale rather than undone. An app's own value that may be a secret
+ * never comes back from the API, so the edit names those it keeps, and sets
+ * only the new ones. A value it sets on the app is one a person typed, as not a
+ * secret, so it shows (ADR 0081). A secret moves to the environment instead, as
+ * there it takes a passkey to reveal; store is what the environment has, so an
+ * own value made a variable of the same value uses that one as it is.
  */
 export function envEdits(
   service: ServiceInfo,
   pending: ReadonlyMap<string, EnvEdit>,
+  store?: readonly EnvironmentVariable[],
 ): MessageInitShape<typeof EditSchema>[] {
   const scope = environmentOf(service);
   const now = new Map(valuesOf(service).map((v) => [v.name, v] as const));
@@ -125,14 +151,24 @@ export function envEdits(
   const app = spec.runs.case === "app" ? spec.runs.value : undefined;
   const own: Record<string, string> = {};
   const dropped = new Set<string>();
+  const shown = new Set(spec.shownEnv);
   let touched = false;
+  const setOwn = (name: string, value: string) => {
+    own[name] = value;
+    shown.add(name);
+    touched = true;
+  };
+  const toSecret = (name: string, value: string) => {
+    edits.push(valueEdit("secret", scope, name, value));
+    spec.secrets[name] = "";
+    touched = true;
+  };
   for (const [name, edit] of pending) {
     const was = now.get(name);
     switch (edit.op) {
       case "add":
-        edits.push(valueEdit(edit.secret ? "secret" : "variable", scope, name, edit.value));
-        (edit.secret ? spec.secrets : spec.variables)[name] = "";
-        touched = true;
+        if (edit.secret) toSecret(name, edit.value);
+        else setOwn(name, edit.value);
         break;
       case "use":
         (edit.secret ? spec.secrets : spec.variables)[name] = edit.from === name ? "" : edit.from;
@@ -141,10 +177,21 @@ export function envEdits(
       case "change":
         if (!was) break;
         if (was.kind === "own" || was.kind === "runtime") {
-          own[name] = edit.value;
-          touched = true;
+          if (edit.secret) {
+            dropped.add(name);
+            toSecret(name, edit.value);
+          } else setOwn(name, edit.value);
         } else edits.push(valueEdit(was.kind, scope, was.from, edit.value));
         break;
+      case "share": {
+        if (was?.kind !== "own") break;
+        const there = store?.find((v) => v.name === name && !v.secret);
+        if (there?.value !== edit.value) edits.push(valueEdit("variable", scope, name, edit.value));
+        dropped.add(name);
+        spec.variables[name] = "";
+        touched = true;
+        break;
+      }
       case "remove":
         if (!was) break;
         if (was.kind === "own" || was.kind === "runtime") dropped.add(name);
@@ -156,6 +203,8 @@ export function envEdits(
   if (touched && app) {
     const keepEnv = Object.keys(app.env).filter((name) => !(name in own) && !dropped.has(name));
     app.env = own;
+    for (const name of dropped) shown.delete(name);
+    spec.shownEnv = [...shown].sort();
     edits.push({
       resource: service.resource,
       spec: { kind: { case: "service", value: spec } },

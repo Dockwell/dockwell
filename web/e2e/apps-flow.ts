@@ -774,6 +774,19 @@ export async function appsFlow(
   }
   await shoot(page, "apps-environment");
 
+  step("apps: Variables and secrets lists what the app sets on itself beside what it shares, as its tab does");
+  await page.getByRole("link", { name: "Variables and secrets", exact: true }).click();
+  const ownRow = page.getByRole("row", { name: /^GREETING/ });
+  await ownRow.getByText("hello").waitFor();
+  await ownRow.getByText("Set on the app").waitFor();
+  if (!(await ownRow.getByRole("link", { name: "nginx", exact: true }).isVisible()))
+    fail("Variables and secrets doesn't link GREETING to nginx");
+  await page
+    .getByRole("row", { name: /^SIGNING_KEY/ })
+    .getByRole("img", { name: "Hidden" })
+    .waitFor();
+  await shoot(page, "apps-variables-own");
+
   step("apps: Settings changes a limit as a plan, and its tab is in sight on a phone");
   await page.goto(`${origin}/apps`);
   await page.getByRole("link", { name: "nginx", exact: true }).first().click();

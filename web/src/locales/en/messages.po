@@ -2235,6 +2235,9 @@ msgstr "A change is applying to {name}. Review this once it ends."
 msgid "A name the app has gets the new value."
 msgstr "A name the app has gets the new value."
 
+msgid "A secret needs a value."
+msgstr "A secret needs a value."
+
 msgid "A variable or secret of the environment"
 msgstr "A variable or secret of the environment"
 
@@ -2249,9 +2252,6 @@ msgstr "Add {key} to {name}"
 
 msgid "Can't read the environment's variables and secrets"
 msgstr "Can't read the environment's variables and secrets"
-
-msgid "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
-msgstr "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
 
 msgid "Change the environment of {name}"
 msgstr "Change the environment of {name}"
@@ -2280,14 +2280,26 @@ msgstr "Every app that uses this variable gets the new value."
 msgid "Import .env"
 msgstr "Import .env"
 
+msgid "It becomes a secret of the environment, which takes a passkey to reveal."
+msgstr "It becomes a secret of the environment, which takes a passkey to reveal."
+
 msgid "It runs with only what its image sets."
 msgstr "It runs with only what its image sets."
+
+msgid "It's hidden, as it may be a secret, so type the whole value it should have."
+msgstr "It's hidden, as it may be a secret, so type the whole value it should have."
 
 msgid "Keep the new ones as secrets"
 msgstr "Keep the new ones as secrets"
 
 msgid "Key"
 msgstr "Key"
+
+msgid "Make {key} on {name} a shared variable"
+msgstr "Make {key} on {name} a shared variable"
+
+msgid "Make {name} shared"
+msgstr "Make {name} shared"
 
 msgid "New secret"
 msgstr "New secret"
@@ -2298,9 +2310,6 @@ msgstr "New value"
 msgid "New value of {target}"
 msgstr "New value of {target}"
 
-msgid "New variable"
-msgstr "New variable"
-
 msgid "No variables yet"
 msgstr "No variables yet"
 
@@ -2309,6 +2318,9 @@ msgstr "Not applied"
 
 msgid "Not loaded"
 msgstr "Not loaded"
+
+msgid "Only this app has it."
+msgstr "Only this app has it."
 
 msgid "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
 msgstr "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
@@ -2346,11 +2358,29 @@ msgstr "Set by its runtime"
 msgid "Set on this app"
 msgstr "Set on this app"
 
+msgid "Shared values change in <0>Variables and secrets</0>, for every app that uses them."
+msgstr "Shared values change in <0>Variables and secrets</0>, for every app that uses them."
+
+msgid "Shared variable"
+msgstr "Shared variable"
+
 msgid "Source"
 msgstr "Source"
 
+msgid "The environment has a secret {name} already. Rename one to share this."
+msgstr "The environment has a secret {name} already. Rename one to share this."
+
+msgid "The environment has a secret {target} already. Rename one to keep this as a secret."
+msgstr "The environment has a secret {target} already. Rename one to keep this as a secret."
+
 msgid "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
+
+msgid "The environment has a variable {name} with another value. Rename one to share this."
+msgstr "The environment has a variable {name} with another value. Rename one to share this."
+
+msgid "The environment has a variable {target} already. Rename one to keep this as a secret."
+msgstr "The environment has a variable {target} already. Rename one to keep this as a secret."
 
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
@@ -2396,9 +2426,6 @@ msgstr "Variable"
 
 msgid "Variable {from}"
 msgstr "Variable {from}"
-
-msgid "What's set on this app isn't shown, so type the whole value it should have."
-msgstr "What's set on this app isn't shown, so type the whole value it should have."
 
 msgid "added, not applied"
 msgstr "added, not applied"
@@ -15546,9 +15573,6 @@ msgstr "Project, or a variable's name"
 msgid ", secret"
 msgstr ", secret"
 
-msgid "A secret needs a value."
-msgstr "A secret needs a value."
-
 msgid "Add a variable or secret to {envName}"
 msgstr "Add a variable or secret to {envName}"
 
@@ -15561,11 +15585,17 @@ msgstr "Add the secret {trimmed}"
 msgid "Add the variable {trimmed}"
 msgstr "Add the variable {trimmed}"
 
+msgid "All apps"
+msgstr "All apps"
+
 msgid "Change the secret {trimmed}"
 msgstr "Change the secret {trimmed}"
 
 msgid "Change the variable {trimmed}"
 msgstr "Change the variable {trimmed}"
+
+msgid "Change {name} on {app}"
+msgstr "Change {name} on {app}"
 
 msgid "Change {trimmed}"
 msgstr "Change {trimmed}"
@@ -15576,6 +15606,9 @@ msgstr "Copied {name}"
 msgid "Copy {name}"
 msgstr "Copy {name}"
 
+msgid "Hidden, as it may be a secret"
+msgstr "Hidden, as it may be a secret"
+
 msgid "Hide {name}"
 msgstr "Hide {name}"
 
@@ -15584,6 +15617,12 @@ msgstr "It was a plain variable, so anyone who can read this environment can sti
 
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
+
+msgid "Make {name} on {app} a shared variable"
+msgstr "Make {name} on {app} a shared variable"
+
+msgid "Make {name} on {app} shared"
+msgstr "Make {name} on {app} shared"
 
 msgid "Make {trimmed} a secret"
 msgstr "Make {trimmed} a secret"
@@ -15616,6 +15655,12 @@ msgstr "Remove the variable {name}"
 msgid "Reveal {name}"
 msgstr "Reveal {name}"
 
+msgid "Set on the app"
+msgstr "Set on the app"
+
+msgid "Shared"
+msgstr "Shared"
+
 msgid "The old value stays in this variable's history"
 msgstr "The old value stays in this variable's history"
 
@@ -15625,12 +15670,18 @@ msgstr "Use letters, digits and underscores, starting with a letter or an unders
 msgid "Variables and secrets in {envName}"
 msgstr "Variables and secrets in {envName}"
 
-msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
-msgstr "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
+msgid "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
+msgstr "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
 
 #. placeholder {0}: use.name
 msgid "as {0}"
 msgstr "as {0}"
+
+msgid "{onlyName} runs with nothing of its own or shared"
+msgstr "{onlyName} runs with nothing of its own or shared"
+
+msgid "{own, plural, one {# set on an app} other {# set on apps}}"
+msgstr "{own, plural, one {# set on an app} other {# set on apps}}"
 
 msgid "A static site, sent as its files are."
 msgstr "A static site, sent as its files are."

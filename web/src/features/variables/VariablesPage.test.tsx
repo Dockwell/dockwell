@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { anApp } from "../../test/apps";
 import { authError, stubPasskeys } from "../../test/auth";
 import { type Api, onPhone, quietWatch, renderAt } from "../../test/render";
 import { REVEALED_FOR } from "./useReveal";
@@ -102,7 +103,24 @@ function api(environments = [production], more: Api = {}): Api & { proposals: Pr
       discardChange: () => ({ change: planned }),
     },
     auth: more.auth ?? {},
+    ...(more.services ? { services: more.services } : {}),
   };
+}
+
+/** api, which uses LOG_LEVEL and DB_PASSWORD, with values of its own: one it shows, one it hides (ADR 0081). */
+function withApps(): Api {
+  const apiApp = anApp("api", "ghcr.io/acme/api:1", { env: { DB_HOST: "db", DB_TOKEN: "" } });
+  if (apiApp.spec) {
+    apiApp.spec.variables = { LOG_LEVEL: "" };
+    apiApp.spec.secrets = { DATABASE_PASSWORD: "DB_PASSWORD" };
+    apiApp.spec.shownEnv = ["DB_HOST"];
+  }
+  const worker = anApp("worker", "ghcr.io/acme/worker:1", { env: { QUEUE: "jobs" } });
+  if (worker.spec) {
+    worker.spec.secrets = { DB_PASSWORD: "" };
+    worker.spec.shownEnv = ["QUEUE"];
+  }
+  return { services: { listServices: () => ({ services: [apiApp, worker] }) } };
 }
 
 afterEach(() => {
@@ -447,6 +465,70 @@ describe("the variables and secrets page", () => {
     } finally {
       await activateLocale("en");
     }
+  });
+});
+
+describe("each app's own values beside the shared ones", () => {
+  it("lists what each app sets on itself, shown where it holds no secret, with where it comes from and who uses it", async () => {
+    const { container } = renderAt("/variables", api([production], withApps()));
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
+    const row = (name: string) => within(table).getByRole("row", { name: new RegExp(`^${name}`) });
+    expect(within(row("DB_HOST")).getByText("db")).toBeVisible();
+    expect(within(row("DB_HOST")).getByText("Set on the app")).toBeVisible();
+    expect(within(row("DB_HOST")).getByRole("link", { name: "api" })).toHaveAttribute("href", "/apps/svc_api");
+    expect(within(row("DB_TOKEN")).getByRole("img", { name: "Hidden" })).toBeVisible();
+    expect(within(row("LOG_LEVEL")).getByText("Shared")).toBeVisible();
+    // Every app a shared value names is a link to it.
+    expect(within(row("DB_PASSWORD")).getByRole("link", { name: "worker" })).toHaveAttribute(
+      "href",
+      "/apps/svc_worker",
+    );
+    expect(screen.getByText("1 variable · 1 secret · 3 set on apps")).toBeVisible();
+    // Change goes to the app's page, opened on that value.
+    expect(within(row("QUEUE")).getByRole("link", { name: "Change QUEUE on worker" })).toHaveAttribute(
+      "href",
+      "/apps/svc_worker/environment?change=QUEUE",
+    );
+    await expectAccessible(container);
+  });
+
+  it("shows only what one app runs with, as its Environment tab does", async () => {
+    const user = userEvent.setup();
+    renderAt("/variables?app=svc_worker", api([production], withApps()));
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    await waitFor(() =>
+      expect(
+        within(table)
+          .getAllByRole("row")
+          .slice(1)
+          .map((r) => r.querySelector("code")?.textContent),
+      ).toEqual(["DB_PASSWORD", "QUEUE"]),
+    );
+    expect(screen.getByRole("combobox", { name: "App" })).toHaveValue("svc_worker");
+    await user.selectOptions(screen.getByRole("combobox", { name: "App" }), "");
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
+  });
+
+  it("makes an app's own value shared in one plan", async () => {
+    const user = userEvent.setup();
+    const stand = api([production], withApps());
+    renderAt("/variables", stand);
+    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
+    // One it hides isn't here to share.
+    expect(screen.queryByRole("button", { name: "Make DB_TOKEN on api shared" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Make QUEUE on worker shared" }));
+    await waitFor(() => expect(stand.proposals).toHaveLength(1));
+    const [request] = stand.proposals;
+    expect(request?.summary).toBe("Make QUEUE on worker a shared variable");
+    expect(request?.edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual([
+      "variable QUEUE",
+      "service worker",
+    ]);
+    const spec = request?.edits[1]?.spec?.kind.case === "service" ? request.edits[1].spec.kind.value : undefined;
+    expect(spec?.variables).toEqual({ QUEUE: "" });
+    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({});
   });
 });
 

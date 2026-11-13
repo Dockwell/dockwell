@@ -22,6 +22,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
@@ -208,6 +209,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	}
 	place.made[0].Spec = &resourcev1.Project{DisplayName: in.Name, Catalog: in.Pin}
 	useSecrets(stack, in.Stands)
+	showPlain(stack)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
 	var notes []revision.Note
 	if in.FirstSteps != "" {
@@ -261,6 +263,18 @@ func useSecrets(stack *compose.Stack, values map[string]string) {
 		if len(app.GetEnv()) == 0 {
 			app.Env = nil
 		}
+	}
+}
+
+// showPlain has each service of a catalog entry's file show the values of its own
+// environment that can't be a secret. Each secret the entry asks for is used by
+// reference already (useSecrets), so what's left came from the entry's own text and
+// its inputs that aren't secrets; ShownEnv leaves out what's named or shaped like a
+// secret all the same (ADR 0081). A person's own file never comes here: what they
+// wrote in it could be anything.
+func showPlain(stack *compose.Stack) {
+	for _, s := range stack.Services {
+		s.Spec.ShownEnv = catalog.ShownEnv(s.Spec.GetApp())
 	}
 }
 

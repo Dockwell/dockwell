@@ -1180,10 +1180,11 @@ describe("an app's overview", () => {
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toHaveLength(1));
     expect(asked[0]?.summary).toBe("Send blog.example.com to ghost, and point Ghost at it");
-    expect(asked[0]?.edits).toHaveLength(3);
-    expect(JSON.stringify(asked[0]?.edits.slice(1), (_, v) => (typeof v === "bigint" ? Number(v) : v))).toContain(
-      "https://blog.example.com",
-    );
+    // The route, and the app with its address as its own value, shown (ADR 0081).
+    expect(asked[0]?.edits).toHaveLength(2);
+    const app = JSON.stringify(asked[0]?.edits[1], (_, v) => (typeof v === "bigint" ? Number(v) : v));
+    expect(app).toContain('"url":"https://blog.example.com"');
+    expect(app).toContain('"shownEnv":["url"]');
   });
 
   it("leaves a catalog app's links alone when it has a domain already", async () => {

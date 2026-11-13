@@ -2235,6 +2235,9 @@ msgstr "正在向 {name} 应用一项更改。等它结束后再审查这里。"
 msgid "A name the app has gets the new value."
 msgstr "应用已有的名称会得到新值。"
 
+msgid "A secret needs a value."
+msgstr "密钥需要一个值。"
+
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
 
@@ -2249,9 +2252,6 @@ msgstr "把 {key} 添加到 {name}"
 
 msgid "Can't read the environment's variables and secrets"
 msgstr "无法读取环境中的变量和密钥"
-
-msgid "Change a shared one in <0>Variables and secrets</0>. A value set here is never shown again."
-msgstr "共享的变量请在<0>变量和密钥</0>中修改。在此设置的值不会再次显示。"
 
 msgid "Change the environment of {name}"
 msgstr "更改 {name} 的环境变量"
@@ -2280,14 +2280,26 @@ msgstr "每个使用这个变量的应用都会得到新值。"
 msgid "Import .env"
 msgstr "导入 .env"
 
+msgid "It becomes a secret of the environment, which takes a passkey to reveal."
+msgstr "它会成为环境的密钥，查看它需要通行密钥。"
+
 msgid "It runs with only what its image sets."
 msgstr "它只使用镜像里设置的值运行。"
+
+msgid "It's hidden, as it may be a secret, so type the whole value it should have."
+msgstr "它可能是密钥，所以已隐藏，请输入它应有的完整值。"
 
 msgid "Keep the new ones as secrets"
 msgstr "把新的保存为密钥"
 
 msgid "Key"
 msgstr "键"
+
+msgid "Make {key} on {name} a shared variable"
+msgstr "将 {name} 上的 {key} 改为共享变量"
+
+msgid "Make {name} shared"
+msgstr "共享 {name}"
 
 msgid "New secret"
 msgstr "新密钥"
@@ -2298,9 +2310,6 @@ msgstr "新值"
 msgid "New value of {target}"
 msgstr "{target} 的新值"
 
-msgid "New variable"
-msgstr "新变量"
-
 msgid "No variables yet"
 msgstr "还没有变量"
 
@@ -2309,6 +2318,9 @@ msgstr "未应用"
 
 msgid "Not loaded"
 msgstr "未加载"
+
+msgid "Only this app has it."
+msgstr "只有此应用使用它。"
 
 msgid "PORT is set by its runtime, so it can't be imported. Remove PORT from this file."
 msgstr "PORT 由它的运行时设置，无法导入。请从此文件中移除 PORT。"
@@ -2346,11 +2358,29 @@ msgstr "由它的运行时设置"
 msgid "Set on this app"
 msgstr "在此应用上设置"
 
+msgid "Shared values change in <0>Variables and secrets</0>, for every app that uses them."
+msgstr "共享的值在<0>变量和密钥</0>中更改，对使用它们的每个应用生效。"
+
+msgid "Shared variable"
+msgstr "共享变量"
+
 msgid "Source"
 msgstr "来源"
 
+msgid "The environment has a secret {name} already. Rename one to share this."
+msgstr "环境中已有密钥 {name}。重命名其中一个后才能共享。"
+
+msgid "The environment has a secret {target} already. Rename one to keep this as a secret."
+msgstr "环境中已有密钥 {target}。重命名其中一个后才能将它保存为密钥。"
+
 msgid "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有密钥 {trimmed}。可以直接使用它，或换一个名称。"
+
+msgid "The environment has a variable {name} with another value. Rename one to share this."
+msgstr "环境中已有值不同的变量 {name}。重命名其中一个后才能共享。"
+
+msgid "The environment has a variable {target} already. Rename one to keep this as a secret."
+msgstr "环境中已有变量 {target}。重命名其中一个后才能将它保存为密钥。"
 
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有变量 {trimmed}。可以直接使用它，或换一个名称。"
@@ -2396,9 +2426,6 @@ msgstr "变量"
 
 msgid "Variable {from}"
 msgstr "变量 {from}"
-
-msgid "What's set on this app isn't shown, so type the whole value it should have."
-msgstr "在此应用上设置的值不会显示，所以请输入它应有的完整值。"
 
 msgid "added, not applied"
 msgstr "已添加，未应用"
@@ -15546,9 +15573,6 @@ msgstr "项目，或变量名称"
 msgid ", secret"
 msgstr "，密钥"
 
-msgid "A secret needs a value."
-msgstr "密钥需要一个值。"
-
 msgid "Add a variable or secret to {envName}"
 msgstr "向 {envName} 添加变量或密钥"
 
@@ -15561,11 +15585,17 @@ msgstr "添加密钥 {trimmed}"
 msgid "Add the variable {trimmed}"
 msgstr "添加变量 {trimmed}"
 
+msgid "All apps"
+msgstr "所有应用"
+
 msgid "Change the secret {trimmed}"
 msgstr "更改密钥 {trimmed}"
 
 msgid "Change the variable {trimmed}"
 msgstr "更改变量 {trimmed}"
+
+msgid "Change {name} on {app}"
+msgstr "更改 {app} 上的 {name}"
 
 msgid "Change {trimmed}"
 msgstr "更改 {trimmed}"
@@ -15576,6 +15606,9 @@ msgstr "已复制 {name}"
 msgid "Copy {name}"
 msgstr "复制 {name}"
 
+msgid "Hidden, as it may be a secret"
+msgstr "可能是密钥，已隐藏"
+
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
 
@@ -15584,6 +15617,12 @@ msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为
 
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
+
+msgid "Make {name} on {app} a shared variable"
+msgstr "将 {app} 上的 {name} 改为共享变量"
+
+msgid "Make {name} on {app} shared"
+msgstr "共享 {app} 上的 {name}"
 
 msgid "Make {trimmed} a secret"
 msgstr "将 {trimmed} 改为密钥"
@@ -15616,6 +15655,12 @@ msgstr "移除变量 {name}"
 msgid "Reveal {name}"
 msgstr "显示 {name}"
 
+msgid "Set on the app"
+msgstr "在应用上设置"
+
+msgid "Shared"
+msgstr "共享"
+
 msgid "The old value stays in this variable's history"
 msgstr "旧值仍保留在该变量的历史中"
 
@@ -15625,12 +15670,18 @@ msgstr "请使用字母、数字和下划线，并以字母或下划线开头，
 msgid "Variables and secrets in {envName}"
 msgstr "{envName} 中的变量和密钥"
 
-msgid "What the services in {envName} use, by name. Changing a value restarts every service that uses it, once you apply its plan."
-msgstr "{envName} 中的服务按名称使用这些值。更改一个值后，应用其计划时，所有使用它的服务都会重启。"
+msgid "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
+msgstr "{envName} 中的应用运行时使用的值，包括共享的和各自的。更改一个值后，应用其计划时会重启使用它的每个应用。"
 
 #. placeholder {0}: use.name
 msgid "as {0}"
 msgstr "作为 {0}"
+
+msgid "{onlyName} runs with nothing of its own or shared"
+msgstr "{onlyName} 没有自己的值，也没有使用共享的值"
+
+msgid "{own, plural, one {# set on an app} other {# set on apps}}"
+msgstr "{own, plural, other {# 个在应用上设置}}"
 
 msgid "A static site, sent as its files are."
 msgstr "静态网站，文件原样发送。"

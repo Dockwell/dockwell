@@ -237,6 +237,8 @@ type Server struct {
 	// follower moves the catalog sources that follow a branch along it (ADR 0077),
 	// when Config.CatalogFollow asks it to.
 	follower *catalogapi.Follower
+	// connected reports a server whose agent is connected now, for what waits on one.
+	connected func(server string) bool
 	// catalogs gives the install Dockwell's own catalog at its first start (ADR 0077).
 	catalogs  *catalogapi.Follower
 	store     *store.DB
@@ -282,6 +284,13 @@ func New(cfg Config) (*Server, error) {
 	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates}
 	s.catalogs = follower
+	if cfg.Agents != nil {
+		agents := cfg.Agents
+		s.connected = func(server string) bool {
+			_, ok := agents.Session(server)
+			return ok
+		}
+	}
 	if cfg.CatalogFollow {
 		s.follower = follower
 	}
@@ -859,6 +868,11 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.hosts != nil {
 		api.Go(func() { s.hosts.Run(apiCtx) })
+	}
+	// Installs from before Dockwell showed an app's plain values show them, once its
+	// servers' agents are back (ADR 0081).
+	if s.catalogs != nil && s.connected != nil {
+		api.Go(func() { s.catalogs.KeepShowing(apiCtx, s.connected) })
 	}
 	if s.follower != nil {
 		api.Go(func() { s.follower.Run(apiCtx) })
