@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// A server's system services (ADR 0067), on a real control plane whose own agent
-// reads them with a stand-in systemctl (firewall-flow.ts's hostTools): the failed one
-// first, found by name, its facts a row away, and the list on a phone.
+// A server's system services (ADR 0067, ADR 0082), on a real control plane whose own
+// agent reads them with a stand-in systemctl (firewall-flow.ts's hostTools): the failed
+// one first, with why, found by name; Docker guarded; the failed one restarted from its
+// row through a plan; its journal and facts a row away; and the list on a phone.
 
 import type { Page } from "playwright-core";
 
@@ -53,6 +54,47 @@ export async function systemServicesFlow(page: Page, { origin, step, shoot }: Sy
   await table.getByText("redis-server.service").waitFor();
   if ((await table.locator("tbody tr").count()) !== 1) fail("the search for key-value found more than the one unit");
   await page.getByRole("textbox", { name: "Filter system services" }).fill("");
+
+  // A failed unit says why in its row, from what its own process wrote (ADR 0082).
+  await first.getByText(/unknown directive in \/etc\/nginx/).waitFor();
+  // What Dockwell needs can't be stopped: the sheet offers Stop off, with why.
+  await table.getByRole("row", { name: /docker\.service/ }).click();
+  const dockerSheet = page.getByRole("dialog", { name: "docker.service" });
+  const stop = dockerSheet.getByRole("button", { name: "Stop" });
+  await stop.waitFor();
+  if ((await stop.getAttribute("aria-disabled")) !== "true") fail("docker.service's Stop is offered");
+  await page.keyboard.press("Escape");
+  await dockerSheet.waitFor({ state: "hidden" });
+
+  step("a failed unit restarts from its row, through a plan, and its row reads running after");
+  await first.getByRole("button", { name: "Restart nginx.service" }).click();
+  const plan = page.getByRole("dialog", { name: "Review plan" });
+  // The step says it; the sheet's subtitle, the change's summary, does too.
+  await plan
+    .locator(".plan-step-line")
+    .getByText(/Restart\s*nginx\.service on /)
+    .waitFor({ timeout: 20_000 });
+  await shoot(page, "server-system-service-plan");
+  await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page
+    .getByRole("button", { name: /^(Done|Close)$/ })
+    .first()
+    .click({ timeout: 30_000 });
+  await table
+    .getByRole("row", { name: /nginx\.service/ })
+    .getByText("Running", { exact: true })
+    .waitFor({ timeout: 20_000 })
+    .catch(() => fail("nginx.service doesn't read running after its restart"));
+  await table.getByRole("row", { name: /nginx\.service/ }).click();
+  const nginx = page.getByRole("dialog", { name: "nginx.service" });
+  await nginx
+    .getByRole("region", { name: "System log of nginx.service" })
+    .getByText(/test failed/)
+    .first()
+    .waitFor({ timeout: 15_000 });
+  await shoot(page, "server-system-service-journal");
+  await page.keyboard.press("Escape");
+  await nginx.waitFor({ state: "hidden" });
 
   await table.getByRole("row", { name: /containerd\.service/ }).click();
   const sheet = page.getByRole("dialog", { name: "containerd.service" });

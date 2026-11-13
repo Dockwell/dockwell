@@ -79,6 +79,7 @@ ChangeService.ListChanges                      read         viewer     viewer   
 ChangeService.ListDrift                        read         viewer     viewer     project
 ChangeService.PlanInstallUpdates               plan         admin      admin      install  session
 ChangeService.PlanReboot                       plan         admin      admin      install  session
+ChangeService.PlanSystemServiceAction          plan         admin      admin      install  session
 ChangeService.ProposeChange                    plan         developer  developer  project
 ChangeService.RestartService                   plan         developer  developer  project
 ChangeService.RevertDrift                      plan         developer  developer  project
@@ -135,6 +136,7 @@ ServerService.GetJoinTicket                    read         admin      admin    
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named
+ServerService.ReadSystemLog                    read         admin      admin      install  session
 ServerService.SetServerPublicAddress           apply        admin      admin      install
 ServerService.WatchServers                     read         viewer     viewer     named
 ServerService.WatchSystemServices              read         admin      admin      install  session

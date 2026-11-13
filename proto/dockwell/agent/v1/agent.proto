@@ -471,6 +471,12 @@ message Hello {
   // reboot's step passes once the agent connects from another (ADR 0064). Empty
   // from an agent that doesn't reboot, which the control plane sends none.
   string boot_id = 231;
+  // True when the agent acts on the server's system services as a server's
+  // host plans and applies them (DesiredResource.unit), and reads its system
+  // log (SystemLogCall). The control plane plans no action on a unit through
+  // one that doesn't, which would ignore it (ADR 0082). Track S takes 280 to 289
+  // in agent messages.
+  bool acts_on_units = 282;
   // True when the agent changes a database's first user's password in the
   // database as its service restarts with a new one (ADR 0038), so the control
   // plane plans a new one only through an agent that does. Catalog and
@@ -771,6 +777,9 @@ message Call {
     // List the server's system services (ADR 0067). This area's block is 230
     // to 239.
     SystemServicesCall system_services = 235;
+    // Read the server's system log back, a page at a time, narrowed to a unit
+    // and a level (ADR 0082).
+    SystemLogCall system_log = 281;
     // Say what's newer than an image the server runs (ADR 0079). Knowing an
     // app's updates takes 250 to 259.
     ImageUpdatesCall image_updates = 250;
@@ -855,6 +864,30 @@ message SystemServicesCall {}
 message SystemServicesResult {
   // Its services.
   dockwell.v1.SystemServiceList list = 1;
+}
+
+// SystemLogCall asks for a page of the server's system log, newest first: its
+// journal, or /var/log/messages where it keeps none (ADR 0082).
+message SystemLogCall {
+  // Only what this unit wrote, by its name; empty reads everything. It goes to
+  // journalctl as --unit=NAME, never as a match.
+  string unit = 1;
+  // Only lines at this level or worse; unset reads every level.
+  dockwell.v1.LogLevel level = 2;
+  // Lines older than the one at this cursor; empty reads the newest.
+  string before = 3;
+  // How many lines, at most, 1 to 200.
+  uint32 limit = 4;
+}
+
+// SystemLogResult is a page of the server's system log.
+message SystemLogResult {
+  // The lines, newest first.
+  repeated dockwell.v1.SystemLogLine lines = 1;
+  // True when there are older lines.
+  bool more = 2;
+  // Where they were read from.
+  dockwell.v1.SystemLogSource source = 3;
 }
 
 // EndProcessCall ends a process: SIGTERM, then SIGKILL 10 s later if it's still
@@ -1910,6 +1943,19 @@ message DesiredResource {
   // volume, as its step replaces its container (ADR 0080). Numbered in the updates
   // area's block, 260 to 269.
   MoveDatabase move_database = 260;
+  // Acts on one of the server's system services, for its host (ADR 0082).
+  // Numbered in Track S's block, 280 to 289.
+  UnitAction unit = 280;
+}
+
+// UnitAction is an action a change asks of one of the server's system services.
+message UnitAction {
+  // The change, as an install names it.
+  string change_id = 1;
+  // The unit's name, as asked: the agent acts on the unit it resolves to.
+  string name = 2;
+  // What to do to it.
+  dockwell.v1.SystemServiceAction action = 3;
 }
 
 // MoveDatabase is a database a change moves to a newer release on a server.
@@ -2089,6 +2135,8 @@ message CallResult {
     RememberResult remember = 161;
     // What system_services read.
     SystemServicesResult system_services = 235;
+    // What system_log read.
+    SystemLogResult system_log = 281;
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
   }

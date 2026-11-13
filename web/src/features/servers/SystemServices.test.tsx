@@ -71,7 +71,9 @@ const services = [
 ];
 
 const listOf = (init: SystemInit, list: SystemServiceInfo[]) =>
-  create(WatchSystemServicesResponseSchema, { list: create(SystemServiceListSchema, { init, services: list }) });
+  create(WatchSystemServicesResponseSchema, {
+    list: create(SystemServiceListSchema, { init, services: list, acts: true }),
+  });
 
 const hz1 = aServer({ id: "srv_1", name: "hz-1" });
 
@@ -99,7 +101,7 @@ describe("SystemServicesPage", () => {
     system.push(listOf(SystemInit.SYSTEMD, services));
     await screen.findByRole("table", { name: "System services on hz-1" });
     expect(rows()[0]).toHaveTextContent(
-      /^nginx\.serviceA high performance web serverFailed25 min ago · exit-code, status 1Starts––$/,
+      /^nginx\.serviceA high performance web serverFailed25 min ago · exit-code, status 1Starts––Restart$/,
     );
     expect(rows()[1]).toHaveTextContent("docker.serviceDockwell needs itDocker Application Container EngineRunning");
     expect(rows()[1]).toHaveTextContent("84 MB1024");

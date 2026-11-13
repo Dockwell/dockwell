@@ -28,6 +28,7 @@ import {
   ResourceService,
   StepState,
   StepUpAction,
+  SystemServiceAction,
   TaskService,
   VariableService,
   WebsiteService,
@@ -116,6 +117,8 @@ import {
   shortFingerprint,
   shownName,
   startsStopped,
+  unitOf,
+  unitWithoutUndo,
   wentOffline,
   withoutIds,
 } from "./plan";
@@ -691,7 +694,7 @@ function ChangeSheet({
   const undoNote = (
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
-      {restarts(plan) || installs(plan) || reboots(plan) ? (
+      {restarts(plan) || installs(plan) || reboots(plan) || unitWithoutUndo(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -999,6 +1002,30 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     if (phase === "failed") return t`Rebooting ${server} failed`;
     if (phase === "history" || phase === "arrived") return t`${server} is back after its reboot`;
   }
+  // An action on a system service says what it does to the unit (ADR 0082).
+  const unit = unitOf(plan);
+  if (unit) {
+    const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
+    const name = unit.name;
+    const doing: Record<SystemServiceAction, [string, string]> = {
+      [SystemServiceAction.UNSPECIFIED]: [t`Acting on ${name} on ${server}`, t`Acted on ${name} on ${server}`],
+      [SystemServiceAction.START]: [t`Starting ${name} on ${server}`, t`Started ${name} on ${server}`],
+      [SystemServiceAction.STOP]: [t`Stopping ${name} on ${server}`, t`Stopped ${name} on ${server}`],
+      [SystemServiceAction.RESTART]: [t`Restarting ${name} on ${server}`, t`Restarted ${name} on ${server}`],
+      [SystemServiceAction.RELOAD]: [t`Reloading ${name} on ${server}`, t`Reloaded ${name} on ${server}`],
+      [SystemServiceAction.ENABLE]: [t`Enabling ${name} at boot on ${server}`, t`${name} starts at boot on ${server}`],
+      [SystemServiceAction.DISABLE]: [
+        t`Disabling ${name} at boot on ${server}`,
+        t`${name} no longer starts at boot on ${server}`,
+      ],
+      [SystemServiceAction.MASK]: [t`Masking ${name} on ${server}`, t`Masked ${name} on ${server}`],
+      [SystemServiceAction.UNMASK]: [t`Unmasking ${name} on ${server}`, t`Unmasked ${name} on ${server}`],
+    };
+    const [ing, ed] = doing[unit.action];
+    if (phase === "applying") return ing;
+    if (phase === "failed") return t`${ing} failed`;
+    if (phase === "history" || phase === "arrived") return ed;
+  }
   // An install says what it does, not that its server's host is changed.
   if (installs(plan)) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
@@ -1218,7 +1245,8 @@ function PlanBody({
   // say nothing more once it has landed, and a person reading a plan has the plan.
   // An install's packages are its plan (ADR 0064): its step lists them as it's reviewed. So is what a
   // reboot takes offline.
-  const installs = plan?.servers.some((s) => s.steps.some((st) => st.install || st.reboot)) ?? false;
+  const installs = plan?.servers.some((s) => s.steps.some((st) => st.install || st.reboot || st.unit)) ?? false;
+  const unitOnly = (plan?.resources.length ?? 0) > 0 && (plan?.resources.every((r) => r.unit !== undefined) ?? false);
   // An update on one server says how it goes as its phases, which say what its steps would (ADR 0080).
   const upgrade = upgradeOf(plan);
   const phased = upgrade !== undefined && !fleet;
@@ -1325,31 +1353,34 @@ function PlanBody({
       ) : null}
       {phase === "history" && change ? <OnRecord change={change} /> : null}
       {phase !== "discarded" ? <Places plan={plan} /> : null}
-      <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
-        {cameToNothing ? (
-          <h3 className="dw-text-label plan-heading">{setOut}</h3>
-        ) : phone && phase === "review" ? (
-          <h3 className="dw-text-heading plan-heading">
-            <Trans>Plan</Trans>
-          </h3>
-        ) : null}
-        <PlanDiff
-          resources={fold.shown}
-          done={landed}
-          noSummary={cameToNothing || nothingNewer !== ""}
-          also={
-            fold.folded.length > 0
-              ? {
-                  label: (
-                    <MachineWords names={[fold.project, fold.environment]}>{alsoWords(fold, landed)}</MachineWords>
-                  ),
-                  action: "create",
-                  resources: fold.folded,
-                }
-              : undefined
-          }
-        />
-      </section>
+      {/* An action on a system service is its step (ADR 0082): the host it edits says nothing more. */}
+      {unitOnly ? null : (
+        <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
+          {cameToNothing ? (
+            <h3 className="dw-text-label plan-heading">{setOut}</h3>
+          ) : phone && phase === "review" ? (
+            <h3 className="dw-text-heading plan-heading">
+              <Trans>Plan</Trans>
+            </h3>
+          ) : null}
+          <PlanDiff
+            resources={fold.shown}
+            done={landed}
+            noSummary={cameToNothing || nothingNewer !== ""}
+            also={
+              fold.folded.length > 0
+                ? {
+                    label: (
+                      <MachineWords names={[fold.project, fold.environment]}>{alsoWords(fold, landed)}</MachineWords>
+                    ),
+                    action: "create",
+                    resources: fold.folded,
+                  }
+                : undefined
+            }
+          />
+        </section>
+      )}
       {showSteps ? <PlanSteps plan={plan} progress={steps} /> : null}
       {phase === "review" ? (
         <Effects
@@ -1621,11 +1652,27 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   // An install that restarts Docker stops every container there, unless Docker keeps them running (ADR 0064).
   const dockerStops = servers
     .flatMap((s) => s.steps)
-    .some((s) => s.install?.dockerRestarts === true && !s.install.keepsRunning);
+    .some((s) => (s.install?.dockerRestarts === true && !s.install.keepsRunning) || s.unit?.dockerRestarts === true);
   // A reboot takes down everything on its server until it's back (ADR 0064).
   const rebooting = servers.flatMap((s) => s.steps).some((s) => s.reboot !== undefined);
+  // An action on a system service says what it does to what that unit serves (ADR 0082).
+  const unit = servers.flatMap((s) => s.steps).find((s) => s.unit !== undefined)?.unit;
   const running = rebooting ? (
     <Trans>everything there is offline until it's back</Trans>
+  ) : unit?.replacesRules ? (
+    <Trans>published ports may stop answering until Docker restarts</Trans>
+  ) : unit && !unit.dockerRestarts ? (
+    unit.action === SystemServiceAction.RESTART ? (
+      <Trans>what it serves pauses while it restarts</Trans>
+    ) : unit.action === SystemServiceAction.STOP ? (
+      <Trans>what it serves stops until it's started</Trans>
+    ) : unit.action === SystemServiceAction.START ? (
+      <Trans>nothing stops</Trans>
+    ) : unit.action === SystemServiceAction.RELOAD ? (
+      <Trans>no downtime expected</Trans>
+    ) : (
+      <Trans>nothing stops now; it counts at the next boot</Trans>
+    )
   ) : going.length > 1 ? (
     <Trans>visitors lose {going.length} addresses</Trans>
   ) : going.length === 1 ? (

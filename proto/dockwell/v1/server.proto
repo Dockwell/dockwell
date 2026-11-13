@@ -6,6 +6,7 @@ package dockwell.v1;
 
 import "dockwell/v1/change.proto";
 import "dockwell/v1/domain.proto";
+import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/system.proto";
 import "google/api/annotations.proto";
@@ -169,6 +170,24 @@ service ServerService {
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
+  }
+  // ReadSystemLog reads a server's system log back, newest first, a page at a
+  // time: its journal, or /var/log/messages on a server with none, narrowed to
+  // one system service and to a level. Each line says when, at what level,
+  // which unit or program wrote it, and its process. Reading it goes on the
+  // activity log as logs.read, at most once an hour for one reader and one
+  // server, never what was read for, and a reading that can't be recorded isn't
+  // served. No API token reads it, as a system log holds what every program on
+  // the server writes, sudo's command lines among it.
+  // See docs/adr/0082-acting-on-a-servers-system-services.md.
+  rpc ReadSystemLog(ReadSystemLogRequest) returns (ReadSystemLogResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/servers/{server_id}/systemLog"};
   }
 }
 
@@ -720,6 +739,9 @@ message SystemServiceList {
   // Each service, failed ones first, then running ones, then the rest, each
   // by name.
   repeated SystemServiceInfo services = 3;
+  // True when the server's agent acts on its services (ADR 0082). An older one
+  // only lists them. Track S takes 70 to 79 here.
+  bool acts = 70;
 }
 
 // SystemServiceState is how a system service stands.
@@ -771,4 +793,78 @@ message SystemServiceInfo {
   // True for what Dockwell needs to run on the server: its agent and the access
   // that guards it, Docker and containerd, and the SSH server.
   bool needed = 11;
+  // How Dockwell guards it: what it refuses to do to it, and what takes a
+  // passkey (ADR 0082). Track S takes 70 to 79 here.
+  SystemServiceGuard guard = 70;
+  // Why a failed one failed: the last lines its own process wrote to the system
+  // log before it did, oldest first, at most three. Empty when it hasn't failed,
+  // when nothing it wrote is kept, or past the first ten failed services.
+  repeated string why = 71;
+  // True when its init refuses to start it by hand: systemd's CanStart=no or
+  // RefuseManualStart=yes. It starts when another unit needs it.
+  bool start_refused = 72;
+  // True when its init refuses to stop it by hand: systemd's CanStop=no or
+  // RefuseManualStop=yes.
+  bool stop_refused = 73;
+  // True when it can read its configuration again without stopping: systemd's
+  // CanReload=yes.
+  bool can_reload = 74;
+}
+
+// ReadSystemLogRequest names a server, and what of its system log to read.
+message ReadSystemLogRequest {
+  // The server's ID.
+  string server_id = 1;
+  // Only what this system service wrote, by its name, such as "nginx.service".
+  // Empty reads the whole log.
+  string unit = 2;
+  // Only lines at this level or worse: an error, or a warning and up. Unset
+  // reads every level.
+  LogLevel level = 3;
+  // Lines older than this one, by the cursor a line carries, for the page before.
+  // Empty reads the newest.
+  string before = 4;
+  // How many lines, at most: 1 to 200. 0 reads 50.
+  uint32 limit = 5;
+}
+
+// ReadSystemLogResponse is a page of a server's system log, newest first.
+message ReadSystemLogResponse {
+  // The lines, newest first.
+  repeated SystemLogLine lines = 1;
+  // True when there are older lines, which before reads.
+  bool more = 2;
+  // Where they're read from.
+  SystemLogSource source = 3;
+}
+
+// SystemLogSource is where a server keeps its system log.
+enum SystemLogSource {
+  SYSTEM_LOG_SOURCE_UNSPECIFIED = 0;
+  // systemd's journal, read with journalctl.
+  SYSTEM_LOG_SOURCE_JOURNAL = 1 [(dockwell.v1.word) = "journal"];
+  // A file syslog writes, /var/log/messages, as on Alpine.
+  SYSTEM_LOG_SOURCE_FILE = 2 [(dockwell.v1.word) = "/var/log/messages"];
+  // Neither: the server keeps no system log Dockwell reads.
+  SYSTEM_LOG_SOURCE_NONE = 3 [(dockwell.v1.word) = "none"];
+}
+
+// SystemLogLine is one line of a server's system log.
+message SystemLogLine {
+  // When it was written, on the server's clock.
+  google.protobuf.Timestamp time = 1;
+  // How bad, from the journal's priority: emergency to error read as errors,
+  // warning as warnings, notice and info as info, debug as debug. From a file,
+  // inferred from its words.
+  LogLevel level = 2;
+  // The system service it's from, such as "nginx.service", or else the program
+  // that wrote it, such as "kernel" or "sudo".
+  string unit = 3;
+  // The process that wrote it, or 0.
+  uint32 pid = 4;
+  // What it says. A message the journal keeps as bytes reads "a binary message
+  // of N bytes". Cut at 16 KiB.
+  string message = 5;
+  // Where it is, for the page before it. Opaque.
+  string cursor = 6;
 }

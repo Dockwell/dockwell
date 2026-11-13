@@ -2,7 +2,8 @@
 
 // Package host is a server's host, kind "server.host": what Dockwell does to the
 // server itself. Its spec is empty; installing the server's updates is a flagged
-// edit of it, which makes no revision (ADR 0064).
+// edit of it, which makes no revision (ADR 0064), and so is an action on one of
+// its system services (ADR 0082).
 package host
 
 import (
@@ -58,15 +59,30 @@ const (
 	RebootFailed
 )
 
+// Units acts on the server's system services (ADR 0082): the agent's reader of
+// them, with the init system's own tools. Nil on the control plane.
+type Units interface {
+	// PlanUnit reads how the unit stands and plans the action: what it would stop
+	// or restart, and what starts it again. It reports false when the unit stands
+	// as asked already, and refuses what the unit's guard or its init refuses.
+	PlanUnit(ctx context.Context, name string, action resource.UnitAction) (*resource.Unit, bool, error)
+	// ApplyUnit takes the action, saying each line, then reads the unit again and
+	// fails when it doesn't stand as asked.
+	ApplyUnit(ctx context.Context, unit resource.Unit, say func(string)) error
+}
+
 // Driver is a server's host.
 type Driver struct {
 	Backend Backend
+	// Units acts on the server's system services; nil acts on none.
+	Units Units
 }
 
 var (
 	_ resource.Driver    = (*Driver)(nil)
 	_ resource.Installer = (*Driver)(nil)
 	_ resource.Rebooter  = (*Driver)(nil)
+	_ resource.UnitActor = (*Driver)(nil)
 )
 
 // Kind returns "server.host".
@@ -188,3 +204,34 @@ func (d *Driver) ApplyReboot(ctx context.Context, _ resource.Step) error {
 }
 
 var errCantReboot = errors.New("this agent can't reboot its server")
+
+var errNoUnits = errors.New("this agent can't act on system services")
+
+// JudgeUnit plans an action on one of the server's system services, and nothing
+// when the unit stands as asked already, so a resume of one that finished has
+// nothing left to do.
+func (d *Driver) JudgeUnit(ctx context.Context, _ resource.Ref, ask resource.UnitAsked) (resource.Decision, bool, error) {
+	if d.Units == nil {
+		return resource.Decision{}, false, errNoUnits
+	}
+	u, left, err := d.Units.PlanUnit(ctx, ask.Name, ask.Action)
+	if err != nil {
+		return resource.Decision{}, false, err
+	}
+	if !left {
+		return resource.Decision{}, false, nil
+	}
+	effect := resource.EffectNone
+	if u.Action == resource.UnitStop || u.Action == resource.UnitRestart {
+		effect = resource.EffectRestart
+	}
+	return resource.Decision{Action: resource.ActionUpdate, Effect: effect, Unit: u}, true, nil
+}
+
+// ApplyUnit takes the step's action on the unit it planned.
+func (d *Driver) ApplyUnit(ctx context.Context, step resource.Step) error {
+	if d.Units == nil {
+		return errNoUnits
+	}
+	return d.Units.ApplyUnit(ctx, *step.Unit, func(line string) { resource.Progress(ctx, line) })
+}

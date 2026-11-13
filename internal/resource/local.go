@@ -50,6 +50,9 @@ type Desired struct {
 	Install *InstallAsked
 	// Reboot reboots the server as a step of this change. Its kind is a Rebooter.
 	Reboot *RebootAsked
+	// Unit acts on one of the server's system services as a step of this change.
+	// Its kind is a UnitActor.
+	Unit *UnitAsked
 }
 
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
@@ -308,7 +311,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -367,6 +370,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
 					return nil, err
 				}
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Unit != nil {
+			u, ok := d.(UnitActor)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't act on system services for a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := u.JudgeUnit(ctx, want.Ref, *want.Unit)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
 			}
 			steps = append(steps, step)
 			continue
@@ -646,6 +664,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return Plainly(fmt.Sprintf("Dockwell can't back up %s, so nothing else in this change ran: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't back up %s: %w", step.Ref, err))
 		}
 		return nil
+	}
+	if step.Unit != nil {
+		u, ok := d.(UnitActor)
+		if !ok {
+			return cantApply(step, fmt.Errorf("this agent can't act on system services for a %s", step.Ref.Kind))
+		}
+		return u.ApplyUnit(ctx, step)
 	}
 	if step.Reboot != nil {
 		r, ok := d.(Rebooter)

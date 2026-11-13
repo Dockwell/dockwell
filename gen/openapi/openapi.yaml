@@ -3653,6 +3653,75 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/systemLog:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                ReadSystemLog reads a server's system log back, newest first, a page at a
+                 time: its journal, or /var/log/messages on a server with none, narrowed to
+                 one system service and to a level. Each line says when, at what level,
+                 which unit or program wrote it, and its process. Reading it goes on the
+                 activity log as logs.read, at most once an hour for one reader and one
+                 server, never what was read for, and a reading that can't be recorded isn't
+                 served. No API token reads it, as a system log holds what every program on
+                 the server writes, sudo's command lines among it.
+                 See docs/adr/0082-acting-on-a-servers-system-services.md.
+            operationId: ServerService_ReadSystemLog
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: unit
+                  in: query
+                  description: |-
+                    Only what this system service wrote, by its name, such as "nginx.service".
+                     Empty reads the whole log.
+                  schema:
+                    type: string
+                - name: level
+                  in: query
+                  description: |-
+                    Only lines at this level or worse: an error, or a warning and up. Unset
+                     reads every level.
+                  schema:
+                    enum:
+                        - LOG_LEVEL_UNSPECIFIED
+                        - LOG_LEVEL_DEBUG
+                        - LOG_LEVEL_INFO
+                        - LOG_LEVEL_WARN
+                        - LOG_LEVEL_ERROR
+                    type: string
+                    format: enum
+                - name: before
+                  in: query
+                  description: |-
+                    Lines older than this one, by the cursor a line carries, for the page before.
+                     Empty reads the newest.
+                  schema:
+                    type: string
+                - name: limit
+                  in: query
+                  description: 'How many lines, at most: 1 to 200. 0 reads 50.'
+                  schema:
+                    type: integer
+                    format: uint32
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ReadSystemLogResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/terminals:
         get:
             tags:
@@ -3916,6 +3985,43 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/PlanRebootResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers:planSystemServiceAction:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                PlanSystemServiceAction plans an action on one of a server's system
+                 services, its systemd units or OpenRC services: starting, stopping,
+                 restarting or reloading it, or enabling, disabling, masking or unmasking it
+                 at boot, on each server named. Each is an edit of the server's host that
+                 makes no revision, as a reboot is: Dockwell keeps no desired state for a
+                 unit, which the server's packages own, and undoing an action plans the one
+                 that puts back how the unit stood. The plan says how the unit stands, what
+                 stops or restarts with it and what starts it again. What Dockwell needs on
+                 the server is guarded: its own units refuse every action, and Docker, SSH
+                 and the network refuse a stop, a disable and a mask. A risky action, such as
+                 restarting SSH or Docker, takes a person's passkey to apply. See
+                 docs/adr/0082-acting-on-a-servers-system-services.md.
+            operationId: ChangeService_PlanSystemServiceAction
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanSystemServiceActionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanSystemServiceActionResponse'
                 default:
                     description: Default error response
                     content:
@@ -12338,6 +12444,95 @@ components:
             description: |-
                 HostReboot is what rebooting a server does (ADR 0064): everything on it goes
                  offline until it's back, and Docker starts again what its restart policies say.
+        HostUnit:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        The unit's own name, as its init knows it: an alias reads as the unit it
+                         names.
+                action:
+                    enum:
+                        - SYSTEM_SERVICE_ACTION_UNSPECIFIED
+                        - SYSTEM_SERVICE_ACTION_START
+                        - SYSTEM_SERVICE_ACTION_STOP
+                        - SYSTEM_SERVICE_ACTION_RESTART
+                        - SYSTEM_SERVICE_ACTION_RELOAD
+                        - SYSTEM_SERVICE_ACTION_ENABLE
+                        - SYSTEM_SERVICE_ACTION_DISABLE
+                        - SYSTEM_SERVICE_ACTION_MASK
+                        - SYSTEM_SERVICE_ACTION_UNMASK
+                    type: string
+                    description: What the change does to it.
+                    format: enum
+                wasRunning:
+                    type: boolean
+                    description: True when it ran as the plan was made.
+                wasState:
+                    type: string
+                    description: |-
+                        How it stood, in its init's own word, such as "active", "failed" or
+                         "inactive" under systemd, or "started" under OpenRC.
+                wasAtBoot:
+                    type: string
+                    description: |-
+                        Whether it started at boot, in its init's own word, such as "enabled",
+                         "disabled" or "masked", or an OpenRC runlevel, or empty for none: what an
+                         undo puts back.
+                with:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Each running unit that stops or restarts with it, for a stop or a restart:
+                         those that need it, are bound to it or are part of it.
+                triggers:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Each active unit that starts it again, for a stop, such as its socket, which
+                         starts it on the next connection, or its timer.
+                guard:
+                    enum:
+                        - SYSTEM_SERVICE_GUARD_UNSPECIFIED
+                        - SYSTEM_SERVICE_GUARD_DOCKWELL
+                        - SYSTEM_SERVICE_GUARD_DOCKER
+                        - SYSTEM_SERVICE_GUARD_SSH
+                        - SYSTEM_SERVICE_GUARD_NETWORK
+                        - SYSTEM_SERVICE_GUARD_FIREWALL
+                        - SYSTEM_SERVICE_GUARD_SYSTEM
+                    type: string
+                    description: How Dockwell guards it.
+                    format: enum
+                confirm:
+                    type: boolean
+                    description: |-
+                        True when applying it takes the plan's typed code as well as the passkey:
+                         it stops everything on the server, may cut the agent off, or opens every
+                         port the firewall closes.
+                dockerRestarts:
+                    type: boolean
+                    description: True when it restarts Docker, with every container on the server.
+                openrc:
+                    type: boolean
+                    description: True under OpenRC.
+                passkey:
+                    type: boolean
+                    description: |-
+                        True when applying it takes a person's passkey, as it's as good as root:
+                         restarting SSH, Docker or the network, or stopping the firewall.
+                replacesRules:
+                    type: boolean
+                    description: |-
+                        True when it has the server's firewall load its own rules, which can
+                         replace Docker's and Dockwell's table: Dockwell puts its table back after,
+                         and Docker's rules come back only when Docker restarts. It holds the server
+                         while it runs, as a Docker restart does.
+            description: |-
+                HostUnit is what an action on one of a server's system services does, as its
+                 agent planned it (ADR 0082).
         HttpCheck:
             type: object
             properties:
@@ -15368,6 +15563,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/HostReboot'
                     description: What rebooting does, for a step that reboots its server.
+                unit:
+                    allOf:
+                        - $ref: '#/components/schemas/HostUnit'
+                    description: |-
+                        What an action on one of its server's system services does, for a step that
+                         takes one (ADR 0082). Track S takes 70 to 79 here.
                 databaseMove:
                     allOf:
                         - $ref: '#/components/schemas/DatabaseMove'
@@ -15398,6 +15599,47 @@ components:
                     description: Resources deleted.
                     format: int32
             description: PlanSummary counts the resources a plan touches by what it does to them.
+        PlanSystemServiceActionRequest:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers, by ID. One server is a set of one.
+                name:
+                    type: string
+                    description: |-
+                        The unit's name, such as "nginx.service", or an OpenRC service's, such as
+                         "nginx". An alias acts on the unit it names, and meets that unit's guard.
+                action:
+                    enum:
+                        - SYSTEM_SERVICE_ACTION_UNSPECIFIED
+                        - SYSTEM_SERVICE_ACTION_START
+                        - SYSTEM_SERVICE_ACTION_STOP
+                        - SYSTEM_SERVICE_ACTION_RESTART
+                        - SYSTEM_SERVICE_ACTION_RELOAD
+                        - SYSTEM_SERVICE_ACTION_ENABLE
+                        - SYSTEM_SERVICE_ACTION_DISABLE
+                        - SYSTEM_SERVICE_ACTION_MASK
+                        - SYSTEM_SERVICE_ACTION_UNMASK
+                    type: string
+                    description: What to do to it.
+                    format: enum
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it does.
+            description: |-
+                PlanSystemServiceActionRequest names a system service, what to do to it, and
+                 the servers to do it on.
+        PlanSystemServiceActionResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanSystemServiceActionResponse carries the planned action.
         PlannedResource:
             type: object
             properties:
@@ -15460,6 +15702,12 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/HostReboot'
                     description: What rebooting its server does, for a server's host the change reboots.
+                unit:
+                    allOf:
+                        - $ref: '#/components/schemas/HostUnit'
+                    description: |-
+                        What an action on one of its server's system services does, for a server's
+                         host the change acts on a unit of (ADR 0082). Track S takes 70 to 79 here.
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object
@@ -15783,6 +16031,27 @@ components:
                         True when what stopped it was its limit of time, 30 seconds, rather than
                          the most lines it reads.
             description: ReadLogsResponse is a page of log lines.
+        ReadSystemLogResponse:
+            type: object
+            properties:
+                lines:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SystemLogLine'
+                    description: The lines, newest first.
+                more:
+                    type: boolean
+                    description: True when there are older lines, which before reads.
+                source:
+                    enum:
+                        - SYSTEM_LOG_SOURCE_UNSPECIFIED
+                        - SYSTEM_LOG_SOURCE_JOURNAL
+                        - SYSTEM_LOG_SOURCE_FILE
+                        - SYSTEM_LOG_SOURCE_NONE
+                    type: string
+                    description: Where they're read from.
+                    format: enum
+            description: ReadSystemLogResponse is a page of a server's system log, newest first.
         RegenerateRecoveryCodesRequest:
             type: object
             properties:
@@ -18806,6 +19075,44 @@ components:
             description: |-
                 StepUpChoice is how often someone is asked for their passkey again, and
                  what that comes to in this session.
+        SystemLogLine:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When it was written, on the server's clock.
+                    format: date-time
+                level:
+                    enum:
+                        - LOG_LEVEL_UNSPECIFIED
+                        - LOG_LEVEL_DEBUG
+                        - LOG_LEVEL_INFO
+                        - LOG_LEVEL_WARN
+                        - LOG_LEVEL_ERROR
+                    type: string
+                    description: |-
+                        How bad, from the journal's priority: emergency to error read as errors,
+                         warning as warnings, notice and info as info, debug as debug. From a file,
+                         inferred from its words.
+                    format: enum
+                unit:
+                    type: string
+                    description: |-
+                        The system service it's from, such as "nginx.service", or else the program
+                         that wrote it, such as "kernel" or "sudo".
+                pid:
+                    type: integer
+                    description: The process that wrote it, or 0.
+                    format: uint32
+                message:
+                    type: string
+                    description: |-
+                        What it says. A message the journal keeps as bytes reads "a binary message
+                         of N bytes". Cut at 16 KiB.
+                cursor:
+                    type: string
+                    description: Where it is, for the page before it. Opaque.
+            description: SystemLogLine is one line of a server's system log.
         Task:
             type: object
             properties:

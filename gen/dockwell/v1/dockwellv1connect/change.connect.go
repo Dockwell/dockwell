@@ -67,6 +67,9 @@ const (
 	// ChangeServicePlanRebootProcedure is the fully-qualified name of the ChangeService's PlanReboot
 	// RPC.
 	ChangeServicePlanRebootProcedure = "/dockwell.v1.ChangeService/PlanReboot"
+	// ChangeServicePlanSystemServiceActionProcedure is the fully-qualified name of the ChangeService's
+	// PlanSystemServiceAction RPC.
+	ChangeServicePlanSystemServiceActionProcedure = "/dockwell.v1.ChangeService/PlanSystemServiceAction"
 	// ChangeServiceListDriftProcedure is the fully-qualified name of the ChangeService's ListDrift RPC.
 	ChangeServiceListDriftProcedure = "/dockwell.v1.ChangeService/ListDrift"
 	// ChangeServiceRevertDriftProcedure is the fully-qualified name of the ChangeService's RevertDrift
@@ -162,6 +165,19 @@ type ChangeServiceClient interface {
 	// agent connects from another boot, and fails if none has after 15 minutes.
 	// See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error)
+	// PlanSystemServiceAction plans an action on one of a server's system
+	// services, its systemd units or OpenRC services: starting, stopping,
+	// restarting or reloading it, or enabling, disabling, masking or unmasking it
+	// at boot, on each server named. Each is an edit of the server's host that
+	// makes no revision, as a reboot is: Dockwell keeps no desired state for a
+	// unit, which the server's packages own, and undoing an action plans the one
+	// that puts back how the unit stood. The plan says how the unit stands, what
+	// stops or restarts with it and what starts it again. What Dockwell needs on
+	// the server is guarded: its own units refuse every action, and Docker, SSH
+	// and the network refuse a stop, a disable and a mask. A risky action, such as
+	// restarting SSH or Docker, takes a person's passkey to apply. See
+	// docs/adr/0082-acting-on-a-servers-system-services.md.
+	PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -254,6 +270,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("PlanReboot")),
 			connect.WithClientOptions(opts...),
 		),
+		planSystemServiceAction: connect.NewClient[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse](
+			httpClient,
+			baseURL+ChangeServicePlanSystemServiceActionProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("PlanSystemServiceAction")),
+			connect.WithClientOptions(opts...),
+		),
 		listDrift: connect.NewClient[v1.ListDriftRequest, v1.ListDriftResponse](
 			httpClient,
 			baseURL+ChangeServiceListDriftProcedure,
@@ -278,20 +300,21 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // changeServiceClient implements ChangeServiceClient.
 type changeServiceClient struct {
-	proposeChange      *connect.Client[v1.ProposeChangeRequest, v1.ProposeChangeResponse]
-	getChange          *connect.Client[v1.GetChangeRequest, v1.GetChangeResponse]
-	listChanges        *connect.Client[v1.ListChangesRequest, v1.ListChangesResponse]
-	applyChange        *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
-	watchChange        *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
-	undoChange         *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
-	confirmChange      *connect.Client[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse]
-	discardChange      *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
-	restartService     *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
-	planInstallUpdates *connect.Client[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse]
-	planReboot         *connect.Client[v1.PlanRebootRequest, v1.PlanRebootResponse]
-	listDrift          *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
-	revertDrift        *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
-	adoptDrift         *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
+	proposeChange           *connect.Client[v1.ProposeChangeRequest, v1.ProposeChangeResponse]
+	getChange               *connect.Client[v1.GetChangeRequest, v1.GetChangeResponse]
+	listChanges             *connect.Client[v1.ListChangesRequest, v1.ListChangesResponse]
+	applyChange             *connect.Client[v1.ApplyChangeRequest, v1.ApplyChangeResponse]
+	watchChange             *connect.Client[v1.WatchChangeRequest, v1.WatchChangeResponse]
+	undoChange              *connect.Client[v1.UndoChangeRequest, v1.UndoChangeResponse]
+	confirmChange           *connect.Client[v1.ConfirmChangeRequest, v1.ConfirmChangeResponse]
+	discardChange           *connect.Client[v1.DiscardChangeRequest, v1.DiscardChangeResponse]
+	restartService          *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
+	planInstallUpdates      *connect.Client[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse]
+	planReboot              *connect.Client[v1.PlanRebootRequest, v1.PlanRebootResponse]
+	planSystemServiceAction *connect.Client[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse]
+	listDrift               *connect.Client[v1.ListDriftRequest, v1.ListDriftResponse]
+	revertDrift             *connect.Client[v1.RevertDriftRequest, v1.RevertDriftResponse]
+	adoptDrift              *connect.Client[v1.AdoptDriftRequest, v1.AdoptDriftResponse]
 }
 
 // ProposeChange calls dockwell.v1.ChangeService.ProposeChange.
@@ -347,6 +370,11 @@ func (c *changeServiceClient) PlanInstallUpdates(ctx context.Context, req *conne
 // PlanReboot calls dockwell.v1.ChangeService.PlanReboot.
 func (c *changeServiceClient) PlanReboot(ctx context.Context, req *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error) {
 	return c.planReboot.CallUnary(ctx, req)
+}
+
+// PlanSystemServiceAction calls dockwell.v1.ChangeService.PlanSystemServiceAction.
+func (c *changeServiceClient) PlanSystemServiceAction(ctx context.Context, req *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error) {
+	return c.planSystemServiceAction.CallUnary(ctx, req)
 }
 
 // ListDrift calls dockwell.v1.ChangeService.ListDrift.
@@ -449,6 +477,19 @@ type ChangeServiceHandler interface {
 	// agent connects from another boot, and fails if none has after 15 minutes.
 	// See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error)
+	// PlanSystemServiceAction plans an action on one of a server's system
+	// services, its systemd units or OpenRC services: starting, stopping,
+	// restarting or reloading it, or enabling, disabling, masking or unmasking it
+	// at boot, on each server named. Each is an edit of the server's host that
+	// makes no revision, as a reboot is: Dockwell keeps no desired state for a
+	// unit, which the server's packages own, and undoing an action plans the one
+	// that puts back how the unit stood. The plan says how the unit stands, what
+	// stops or restarts with it and what starts it again. What Dockwell needs on
+	// the server is guarded: its own units refuse every action, and Docker, SSH
+	// and the network refuse a stop, a disable and a mask. A risky action, such as
+	// restarting SSH or Docker, takes a person's passkey to apply. See
+	// docs/adr/0082-acting-on-a-servers-system-services.md.
+	PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error)
 	// ListDrift compares what servers have with the latest revision of each
 	// resource they should have, and returns every difference. It asks each
 	// connected server's agent, and changes nothing.
@@ -537,6 +578,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("PlanReboot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServicePlanSystemServiceActionHandler := connect.NewUnaryHandler(
+		ChangeServicePlanSystemServiceActionProcedure,
+		svc.PlanSystemServiceAction,
+		connect.WithSchema(changeServiceMethods.ByName("PlanSystemServiceAction")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServiceListDriftHandler := connect.NewUnaryHandler(
 		ChangeServiceListDriftProcedure,
 		svc.ListDrift,
@@ -580,6 +627,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServicePlanInstallUpdatesHandler.ServeHTTP(w, r)
 		case ChangeServicePlanRebootProcedure:
 			changeServicePlanRebootHandler.ServeHTTP(w, r)
+		case ChangeServicePlanSystemServiceActionProcedure:
+			changeServicePlanSystemServiceActionHandler.ServeHTTP(w, r)
 		case ChangeServiceListDriftProcedure:
 			changeServiceListDriftHandler.ServeHTTP(w, r)
 		case ChangeServiceRevertDriftProcedure:
@@ -637,6 +686,10 @@ func (UnimplementedChangeServiceHandler) PlanInstallUpdates(context.Context, *co
 
 func (UnimplementedChangeServiceHandler) PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanReboot is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) PlanSystemServiceAction(context.Context, *connect.Request[v1.PlanSystemServiceActionRequest]) (*connect.Response[v1.PlanSystemServiceActionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanSystemServiceAction is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) ListDrift(context.Context, *connect.Request[v1.ListDriftRequest]) (*connect.Response[v1.ListDriftResponse], error) {

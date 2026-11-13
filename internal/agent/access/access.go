@@ -418,6 +418,21 @@ func (m *Manager) KeepCurrent(ctx context.Context) {
 	}
 }
 
+// Reload loads the confirmed table again, as after the server's own firewall
+// loaded its rules (ADR 0082): Debian's nftables.conf starts with flush ruleset,
+// which takes Dockwell's table with it. Nothing loads while a change waits for its
+// confirmation, as its confirmation or revert renders the table.
+func (m *Manager) Reload(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.probed || m.waiting != nil || m.unrestored != nil || m.confirmed.empty() {
+		return nil
+	}
+	loaded, err := m.Table.Load(ctx, m.confirmed.table)
+	m.skipped(ctx, loaded)
+	return err
+}
+
 // refresh renders the confirmed table again if Docker's networks have changed.
 func (m *Manager) refresh(ctx context.Context) error {
 	if m.Docker == nil {

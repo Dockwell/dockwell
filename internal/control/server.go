@@ -392,7 +392,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
 	}
 	if cfg.Fleet != nil {
-		handle(dockwellv1connect.NewServerServiceHandler(servers.New(cfg.Fleet, cfg.Store, cfg.Agents).Tickets(cfg.Identity, cfg.Auth), opts...))
+		serverHandler := servers.New(cfg.Fleet, cfg.Store, cfg.Agents).Tickets(cfg.Identity, cfg.Auth)
+		if cfg.Changes != nil {
+			// A unit an action moved reads anew for whoever watches its server (ADR 0082).
+			cfg.Changes.OnUnit(serverHandler.ReadSystemAgain)
+		}
+		handle(dockwellv1connect.NewServerServiceHandler(serverHandler, opts...))
 		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents), opts...))
 		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
 	}

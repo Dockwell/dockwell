@@ -77,6 +77,10 @@ export function needsConfirming(plan: Plan | undefined): boolean {
   const access = accessOf(plan);
   if (access.some(asGoodAsRoot)) return true;
   if (quietInstall(plan)) return false;
+  // An action on a system service says what it reaches: the typed code only for what stops everything, may cut
+  // the server off, or opens the firewall (ADR 0082).
+  const units = plan.resources.filter((r) => r.unit !== undefined);
+  if (units.length > 0 && units.length === plan.resources.length) return units.some((r) => r.unit?.confirm === true);
   return plan.hostAccess && access.length === 0;
 }
 
@@ -96,7 +100,13 @@ function quietInstall(plan: Plan): boolean {
 /** Whether applying a plan asks for a passkey, as the control plane decides it: anything as good as root does. */
 export function needsPasskey(plan: Plan | undefined): boolean {
   // An install's maintainer scripts run as root, which its plan says by what it installs.
-  return plan !== undefined && (accessOf(plan).some(asGoodAsRoot) || installs(plan) || reboots(plan));
+  return (
+    plan !== undefined &&
+    (accessOf(plan).some(asGoodAsRoot) ||
+      installs(plan) ||
+      reboots(plan) ||
+      plan.resources.some((r) => r.unit?.passkey === true))
+  );
 }
 
 /** How much worse one reach is than another, so the worst leads. */

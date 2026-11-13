@@ -180,6 +180,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	}
 	p.Install = Install(s.Install)
 	p.Reboot = Reboot(s.Reboot)
+	p.Unit = Unit(s.Unit)
 	if b := s.BackupFirst; b != nil {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
 	}
@@ -529,6 +530,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	}
 	s.Install = InstallFrom(p.GetInstall())
 	s.Reboot = RebootFrom(p.GetReboot())
+	s.Unit = UnitFrom(p.GetUnit())
 	if b := p.GetBackupFirst(); b != nil {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
 	}
@@ -585,6 +587,56 @@ func RebootFrom(p *dockwellv1.HostReboot) *resource.Reboot {
 		return nil
 	}
 	return &resource.Reboot{ControlServer: p.GetControlServer(), LastTook: p.GetLastTook().AsDuration()}
+}
+
+// unitActions are the API's names for an action on a system service.
+var unitActions = map[resource.UnitAction]dockwellv1.SystemServiceAction{
+	resource.UnitStart:   dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_START,
+	resource.UnitStop:    dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_STOP,
+	resource.UnitRestart: dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_RESTART,
+	resource.UnitReload:  dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_RELOAD,
+	resource.UnitEnable:  dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_ENABLE,
+	resource.UnitDisable: dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_DISABLE,
+	resource.UnitMask:    dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_MASK,
+	resource.UnitUnmask:  dockwellv1.SystemServiceAction_SYSTEM_SERVICE_ACTION_UNMASK,
+}
+
+// UnitAction is an action on a system service as the API says it.
+func UnitAction(a resource.UnitAction) dockwellv1.SystemServiceAction { return unitActions[a] }
+
+// UnitActionFrom reads an action on a system service as the API says it; "" for
+// none Dockwell knows.
+func UnitActionFrom(a dockwellv1.SystemServiceAction) resource.UnitAction {
+	for k, v := range unitActions {
+		if v == a {
+			return k
+		}
+	}
+	return ""
+}
+
+// Unit is what an action on a system service does, as the API says it; nil for
+// none (ADR 0082).
+func Unit(u *resource.Unit) *dockwellv1.HostUnit {
+	if u == nil {
+		return nil
+	}
+	return &dockwellv1.HostUnit{
+		Name: u.Name, Action: UnitAction(u.Action), WasRunning: u.WasRunning, WasState: u.WasState, WasAtBoot: u.WasAtBoot,
+		With: u.With, Triggers: u.Triggers, Guard: dockwellv1.SystemServiceGuard(u.Guard), Confirm: u.Confirm(), DockerRestarts: u.DockerRestarts, Openrc: u.OpenRC, Passkey: u.Passkey(), ReplacesRules: u.ReplacesRules(),
+	}
+}
+
+// UnitFrom reads what an action on a system service does, as the API says it; nil
+// for none.
+func UnitFrom(p *dockwellv1.HostUnit) *resource.Unit {
+	if p == nil {
+		return nil
+	}
+	return &resource.Unit{
+		Name: p.GetName(), Action: UnitActionFrom(p.GetAction()), WasRunning: p.GetWasRunning(), WasState: p.GetWasState(), WasAtBoot: p.GetWasAtBoot(),
+		With: p.GetWith(), Triggers: p.GetTriggers(), Guard: resource.UnitGuard(p.GetGuard()), DockerRestarts: p.GetDockerRestarts(), OpenRC: p.GetOpenrc(),
+	}
 }
 
 // Packages are an install's packages as the API says them.

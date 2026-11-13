@@ -31,6 +31,8 @@ type Feed[T any] struct {
 	watchers map[chan struct{}]struct{}
 	stop     context.CancelFunc
 	stopped  bool
+	// again asks the feed's read to read now, rather than at its next time.
+	again chan struct{}
 }
 
 // Watch is one watch of a server's feed.
@@ -60,7 +62,7 @@ func (h *Hub[T]) Join(ctx context.Context, session, server string, read func(con
 	f, ok := h.feeds[server]
 	if !ok {
 		reading, stop := context.WithCancel(context.WithoutCancel(ctx)) //nolint:gosec // the feed keeps stop, and its last watch leaving calls it
-		f = &Feed[T]{watchers: map[chan struct{}]struct{}{}, stop: stop}
+		f = &Feed[T]{watchers: map[chan struct{}]struct{}{}, stop: stop, again: make(chan struct{}, 1)}
 		h.feeds[server] = f
 		go read(reading, f)
 	}
@@ -132,6 +134,24 @@ func (f *Feed[T]) Tell(v *T, err error) {
 		}
 	}
 }
+
+// Again asks server's feed, if anyone watches it, to read now: something moved
+// that every watch should see at once, such as a unit an action restarted.
+func (h *Hub[T]) Again(server string) {
+	h.mu.Lock()
+	f := h.feeds[server]
+	h.mu.Unlock()
+	if f == nil {
+		return
+	}
+	select {
+	case f.again <- struct{}{}:
+	default:
+	}
+}
+
+// Again is where a feed's read hears it's asked to read now.
+func (f *Feed[T]) Again() <-chan struct{} { return f.again }
 
 // Drop forgets a feed whose read failed, after Tell said why, so the next watch
 // of its server starts anew.
