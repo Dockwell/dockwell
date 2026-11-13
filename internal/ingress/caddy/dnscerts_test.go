@@ -69,7 +69,7 @@ func (r *realCaddy) waitSerial(t *testing.T, name string, serial *big.Int, is bo
 	var got *big.Int
 	var last error
 	for range 100 {
-		d := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, ServerName: name, NextProtos: []string{"http/1.1"}}} //nolint:gosec // reads which certificate is served
+		d := tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, ServerName: name, NextProtos: []string{"http/1.1"}}}
 		conn, err := d.DialContext(t.Context(), "tcp", fmt.Sprintf("127.0.0.1:%d", r.tls))
 		if err == nil {
 			certs := conn.(*tls.Conn).ConnectionState().PeerCertificates

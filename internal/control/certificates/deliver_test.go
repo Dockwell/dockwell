@@ -42,7 +42,8 @@ func (f *fakeAgent) PutCertificates(_ context.Context, certs []agentapi.Certific
 		return 0, errors.New("the stream went away")
 	}
 	var ids []string
-	for _, c := range certs {
+	for i := range certs {
+		c := &certs[i]
 		if len(c.Key) == 0 || len(c.Chain) == 0 {
 			ids = append(ids, c.ID+":empty")
 			continue

@@ -560,6 +560,20 @@ func (p *Plan) AsGoodAsRoot() bool {
 // first time, which an admin confirms with a passkey (ADR 0088).
 func (p *Plan) SendsKeys() bool { return len(p.KeyPairs()) > 0 }
 
+// Proofs are how each route left automatic in the plan is proven, by its scope and
+// name: "dns" or "http" (ADR 0088).
+func (p *Plan) Proofs() map[string]string {
+	out := map[string]string{}
+	for si := range p.Servers {
+		for i := range p.Servers[si].Steps {
+			if s := &p.Servers[si].Steps[i]; s.Proof != "" {
+				out[s.Ref.Scope+"/"+s.Ref.Name] = s.Proof
+			}
+		}
+	}
+	return out
+}
+
 // KeyPairs are, for each server, the certificates whose keys a plan sends it for the
 // first time: the server's own by its ID, a shared one by its own.
 func (p *Plan) KeyPairs() map[string][]string {
@@ -2558,22 +2572,40 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				gained = append(gained, a)
 				access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{a})...)
 			}
-			// A route proven by DNS on a server that has never had a certificate's
-			// key: an admin confirms it, with a passkey (ADR 0088).
+			// A route left automatic is proven by DNS where HTTP can't reach its
+			// server; a route proven by DNS on a server that has never had its
+			// certificate's key has an admin confirm it, with a passkey (ADR 0088).
 			if it := itemOf(its, s.Ref); it != nil && s.Action != resource.ActionDelete {
-				if rt, ok := it.spec.(*resourcev1.Route); ok && rt.GetProof() == "dns" && rt.GetTls() == "" {
+				if rt, ok := it.spec.(*resourcev1.Route); ok && rt.GetTls() == "" {
 					if keys == nil {
 						keys = e.keys(ctx)
 					}
-					a, note := e.keyFor(ctx, keys, rt, s.Ref, server)
-					if a != nil {
-						gained = append(gained, *a)
-						access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{*a})...)
+					proof := rt.GetProof()
+					if proof == "" {
+						var note *Note
+						proof, note = e.autoProof(ctx, keys, rt, s.Ref, s.Domain)
+						s.Proof = proof
+						if note != nil {
+							keyNotes = append(keyNotes, *note)
+						}
 					}
-					if note != nil {
-						keyNotes = append(keyNotes, *note)
+					if proof == "dns" {
+						a, note, err := e.keyFor(ctx, keys, rt, s.Ref, server)
+						if err != nil {
+							return nil, err
+						}
+						if a != nil {
+							gained = append(gained, *a)
+							access[ids[s.Ref]] = append(access[ids[s.Ref]], resource.NewAccess(access[ids[s.Ref]], []resource.Access{*a})...)
+						}
+						if note != nil {
+							keyNotes = append(keyNotes, *note)
+						}
 					}
 				}
+			}
+			if s.Proof != "" {
+				fmt.Fprintf(fp, "proof %s|%s|%s\n", server, ref(s.Ref), s.Proof)
 			}
 			s.HostAccess = gained
 			sp.Steps = append(sp.Steps, *s)
@@ -3589,6 +3621,11 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 			if err := tx.PlaceRevision(ctx, rev.ID, rev.Revision, it.servers, now); err != nil {
 				return err
 			}
+		}
+		// How the routes it leaves automatic prove their domains, as it decided,
+		// with the revisions that make them (ADR 0088).
+		if err := KeepProofs(ctx, tx.Tx, plan.Proofs()); err != nil {
+			return err
 		}
 		return tx.StartApplying(ctx, c.ID, by.Actor, by.Via, record, now)
 	})

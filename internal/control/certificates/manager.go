@@ -164,6 +164,11 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 		if live, err = liveServers(ctx, tx); err != nil {
 			return err
 		}
+		// A route left automatic is proven as its last plan applied decided.
+		autos, err := revision.Proofs(ctx, tx)
+		if err != nil {
+			return err
+		}
 		panels := m.panelDomains()
 		for i := range routes {
 			r := &routes[i]
@@ -175,7 +180,7 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 				return err
 			}
 			rt, ok := spec.(*resourcev1.Route)
-			if !ok || rt.GetTls() == ingress.TLSOff || rt.GetProof() != route.ProofDNS {
+			if !ok || rt.GetTls() == ingress.TLSOff || cmp.Or(rt.GetProof(), autos[r.Scope+"/"+r.Name]) != route.ProofDNS {
 				continue
 			}
 			project, err := registrylogins.ProjectOf(ctx, tx, r.Scope)

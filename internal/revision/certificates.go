@@ -3,9 +3,11 @@
 package revision
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 
@@ -92,8 +94,10 @@ type keyContext struct {
 	providers map[string]*resourcev1.DnsProvider
 	panels    []string
 	projects  map[string]string
-	// own counts the names each server's own certificate holds now.
-	own map[string]map[string]bool
+	// own counts the names each server's own certificate holds now, once ownRead
+	// has it read from the store.
+	own     map[string]map[string]bool
+	ownRead bool
 }
 
 // keys reads what a plan needs to say which key goes where.
@@ -133,7 +137,7 @@ func (e *Engine) keys(ctx context.Context) *keyContext {
 			}
 		}
 		slices.SortFunc(k.shared, func(a, b certificate.Shared) int { return strings.Compare(a.Name, b.Name) })
-		return e.ownNames(ctx, tx, k)
+		return nil
 	})
 	return k
 }
@@ -149,9 +153,22 @@ func (k *keyContext) proven(domain, project string) bool {
 }
 
 // ownNames counts, for each server, the names its own certificate holds now: those
-// of its routes proven by DNS that a provider proves and no shared certificate serves.
-func (e *Engine) ownNames(ctx context.Context, tx *store.Tx, k *keyContext) error {
+// of its routes proven by DNS that a provider proves and no shared certificate
+// serves. It reads them once, as the first route that needs them asks.
+func (e *Engine) ownNames(ctx context.Context, k *keyContext) error {
+	if k.ownRead {
+		return nil
+	}
+	k.ownRead = true
+	return e.db.View(ctx, func(tx *store.Tx) error { return e.readOwnNames(ctx, tx, k) })
+}
+
+func (e *Engine) readOwnNames(ctx context.Context, tx *store.Tx, k *keyContext) error {
 	routes, err := tx.ListKind(ctx, "route")
+	if err != nil {
+		return err
+	}
+	autos, err := Proofs(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -165,7 +182,7 @@ func (e *Engine) ownNames(ctx context.Context, tx *store.Tx, k *keyContext) erro
 			return err
 		}
 		rt, ok := spec.(*resourcev1.Route)
-		if !ok || rt.GetProof() != "dns" || rt.GetTls() == ingress.TLSOff {
+		if !ok || rt.GetTls() == ingress.TLSOff || cmp.Or(rt.GetProof(), autos[r.Scope+"/"+r.Name]) != "dns" {
 			continue
 		}
 		project := ""
@@ -211,8 +228,10 @@ func (e *Engine) projectOf(ctx context.Context, k *keyContext, env string) strin
 }
 
 // keyFor says what a route proven by DNS on server takes: the access an admin
-// confirms, or a note where no key goes, or neither where the server has its key.
-func (e *Engine) keyFor(ctx context.Context, k *keyContext, rt *resourcev1.Route, ref resource.Ref, server string) (*resource.Access, *Note) {
+// confirms, or a note where no key goes, or neither where the server has its key. A
+// name no provider proves for its project refuses the plan, as it could get no
+// certificate.
+func (e *Engine) keyFor(ctx context.Context, k *keyContext, rt *resourcev1.Route, ref resource.Ref, server string) (*resource.Access, *Note, error) {
 	domain := rt.GetDomain()
 	project := e.projectOf(ctx, k, ref.Scope)
 	holder, names := server, []string{domain}
@@ -220,10 +239,11 @@ func (e *Engine) keyFor(ctx context.Context, k *keyContext, rt *resourcev1.Route
 		holder, names = c.ID, c.Spec.GetDomains()
 	} else {
 		if !k.proven(domain, project) {
-			return nil, &Note{
-				Reason: "no_dns_provider", Ref: ref, Names: []string{domain},
-				Message: domain + " is proven by DNS, and no DNS provider proves it for its project, so it gets no certificate until an admin connects one that does",
-			}
+			return nil, nil, fault.New(ErrInvalid, "%s is proven by DNS, and no DNS provider proves it for its project, so it can't get a certificate. "+
+				"Have an admin connect one whose zones hold it and that names the project, or prove it by HTTP", domain)
+		}
+		if err := e.ownNames(ctx, k); err != nil {
+			return nil, nil, err
 		}
 		if k.own[server] == nil {
 			k.own[server] = map[string]bool{}
@@ -233,17 +253,82 @@ func (e *Engine) keyFor(ctx context.Context, k *keyContext, rt *resourcev1.Route
 			return nil, &Note{
 				Reason: "too_many_dns_names", Ref: ref, Names: []string{domain},
 				Message: domain + " is proven by DNS, and its server's certificate holds the 100 names a certificate can, so it gets none. Share a wildcard for its zone",
-			}
+			}, nil
 		}
 	}
 	if k.confirmed[server][holder] {
-		return nil, nil
+		return nil, nil, nil
 	}
 	a := resource.Access{Kind: resource.AccessCertificateKey, Path: domain, Address: holder}
 	if holder != server {
 		a.Detail = strings.Join(names, ", ")
 	}
-	return &a, nil
+	return &a, nil, nil
+}
+
+// autoProof is how a route left automatic proves its domain: by DNS where HTTP
+// can't reach its server, as DNS says as this is planned, and a provider proves the
+// name for its project; by HTTP otherwise (ADR 0088). Proof by DNS comes with a
+// note saying why.
+func (e *Engine) autoProof(ctx context.Context, k *keyContext, rt *resourcev1.Route, ref resource.Ref, check *resource.DomainCheck) (string, *Note) {
+	if len(k.providers) == 0 || check == nil {
+		return "http", nil
+	}
+	var why string
+	switch {
+	case check.State == resource.DomainNoRecord:
+		why = "it has no DNS record yet"
+	case check.State == resource.DomainElsewhere:
+		why = "its DNS points elsewhere, as at a tunnel or a proxy"
+	case check.State == resource.DomainCantTell, check.Carrier:
+		why = "its server has private addresses alone"
+	default:
+		return "http", nil
+	}
+	if !k.proven(rt.GetDomain(), e.projectOf(ctx, k, ref.Scope)) {
+		return "http", nil
+	}
+	return "dns", &Note{
+		Reason: "proof_by_dns", Ref: ref, Names: []string{rt.GetDomain()},
+		Message: rt.GetDomain() + " gets its certificate by DNS, as " + why + ", so the certificate authority can't reach this server over HTTP",
+	}
+}
+
+// proofsSetting is how each route left automatic was last planned to prove its
+// domain, by its scope and name, as the certificates by DNS read it (ADR 0088).
+const proofsSetting = "certificates.proofs"
+
+// Proofs are how each route left automatic proves its domain, as its last plan
+// applied decided: "dns" or "http", by its scope and name.
+func Proofs(ctx context.Context, tx *store.Tx) (map[string]string, error) {
+	out := map[string]string{}
+	b, err := tx.GetSetting(ctx, proofsSetting)
+	if errors.Is(err, store.ErrNotFound) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(b, &out)
+	return out, err
+}
+
+// KeepProofs keeps how the routes left automatic in a plan the engine took prove
+// their domains.
+func KeepProofs(ctx context.Context, tx *store.Tx, proofs map[string]string) error {
+	if len(proofs) == 0 {
+		return nil
+	}
+	had, err := Proofs(ctx, tx)
+	if err != nil {
+		return err
+	}
+	maps.Copy(had, proofs)
+	b, err := json.Marshal(had)
+	if err != nil {
+		return err
+	}
+	return tx.PutSetting(ctx, proofsSetting, b)
 }
 
 // checkCertificates refuses a shared certificate with a name none of its provider's

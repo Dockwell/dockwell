@@ -38,7 +38,8 @@ func (s *Session) PutCertificates(ctx context.Context, certs []Certificate) (int
 	}
 	call := &agentv1.PutCertificatesCall{}
 	values := make(map[string]string, 2*len(certs))
-	for _, c := range certs {
+	for i := range certs {
+		c := &certs[i]
 		call.Certificates = append(call.Certificates, &agentv1.PutCertificate{Id: c.ID, Name: c.Name, Names: c.Names, Serves: c.Serves})
 		values[c.ID+".chain"], values[c.ID+".key"] = string(c.Chain), string(c.Key)
 	}

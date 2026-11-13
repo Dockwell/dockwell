@@ -136,13 +136,15 @@ func (p fileProxy) DeleteRoute(_ context.Context, id string) error {
 func (fileProxy) Recover(context.Context) (bool, error)              { return false, nil }
 func (fileProxy) SetClosed(context.Context, bool) error              { return nil }
 func (fileProxy) SetPanel(context.Context, *ingress.PanelSite) error { return nil }
-
-func (fileProxy) SetCertificates(context.Context, []ingress.DNSCert, []string) error { return nil }
-func (fileProxy) InFlight(context.Context, string) (int, error)                      { return 0, nil }
+func (fileProxy) InFlight(context.Context, string) (int, error)      { return 0, nil }
 func (fileProxy) Certificates(context.Context, []string) (map[string]ingress.CertState, error) {
 	return nil, nil
 }
 func (fileProxy) Retry(context.Context) error { return nil }
+
+func (fileProxy) SetCertificates(context.Context, []ingress.DNSCert, []string) error {
+	return nil
+}
 
 // agent is what comes up on a server: nothing in memory but what it read.
 type agent struct {
