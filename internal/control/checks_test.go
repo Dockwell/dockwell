@@ -396,7 +396,9 @@ func TestAnInstallKeepsAtMost200Checks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	apply(t, c, first.Msg.GetChange())
+	// 199 items take longer to apply than most changes, the more so on a busy
+	// machine, so this one waits as long as CI's slowest runner needs (#585).
+	applyWithin(t, c, first.Msg.GetChange(), 3*time.Minute)
 	var plans []*dockwellv1.Change
 	for i := range 5 {
 		p, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Watch one more", Edits: []*dockwellv1.Edit{{
