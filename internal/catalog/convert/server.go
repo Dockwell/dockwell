@@ -72,8 +72,9 @@ type Store struct {
 	// follows, its repository's default.
 	Homepage, Branch string
 	// Unlisted keeps it out of the stores a person adds in one click, though a link to
-	// it reads as it: Umbrel's repository states no licence, so whether Dockwell
-	// offers it is the owner's to decide (ADR 0083).
+	// it reads as it: Umbrel's repository states no licence, and a repository with no
+	// licence grants no rights to use its files, so Dockwell doesn't promote it
+	// (ADR 0083).
 	Unlisted bool
 	// License is what its upstream publishes under.
 	License string
@@ -524,7 +525,7 @@ func (c *Converter) serverWords(ctx context.Context, e *catalogv1.Entry, app App
 	if catalog.Link(app.Code) {
 		e.AppSource = app.Code
 	}
-	e.Notes = append([]string{"From " + c.Source.Name + ", under " + e.GetLicense()}, e.GetNotes()...)
+	e.Notes = append([]string{fromNote(c.Source.Name, e.GetLicense())}, e.GetNotes()...)
 	reaches, err := reachesOf(ctx, e, rw.reaches, rw.typed)
 	if err != nil {
 		return err
@@ -535,6 +536,15 @@ func (c *Converter) serverWords(ctx context.Context, e *catalogv1.Entry, app App
 		overlay.Reaches = reaches
 	}
 	return nil
+}
+
+// fromNote says where an entry comes from, and under which licence, or that its
+// repository states none, as an honest state rather than an identifier.
+func fromNote(source, license string) string {
+	if license == "" || license == "NOASSERTION" {
+		return "From " + source + ", whose repository states no licence"
+	}
+	return "From " + source + ", under " + license
 }
 
 // hostAccessWords says what an app reaches on its server, as an entry's host_access.

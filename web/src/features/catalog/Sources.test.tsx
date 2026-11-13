@@ -1216,6 +1216,22 @@ describe("Other stores' catalogs", () => {
     expect(asked?.format).toBe(CatalogFormat.ONEPANEL);
   });
 
+  it("says a store's licence, or None stated where its repository states none", async () => {
+    const unlicensed = create(CatalogSourceInfoSchema, {
+      name: "apps",
+      source: { repository: "https://github.com/example/apps", commit: COMMIT, format: CatalogFormat.UMBREL },
+      entries: ["notes-src"],
+      license: "NOASSERTION",
+    });
+    const licensed = create(CatalogSourceInfoSchema, { ...store, license: "GPL-3.0-only" });
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [licensed, unlicensed] }) }));
+    const none = (await screen.findByRole("heading", { name: "example/apps" })).closest("section") as HTMLElement;
+    expect(within(none).getByText("None stated")).toBeVisible();
+    expect(within(none).queryByText("NOASSERTION")).toBeNull();
+    const gpl = screen.getByRole("heading", { name: "1Panel" }).closest("section") as HTMLElement;
+    expect(within(gpl).getByText("GPL-3.0-only")).toBeVisible();
+  });
+
   it("says which store a source is, how many apps it brings with a few icons, and what it leaves out by why, the most first", async () => {
     const user = userEvent.setup();
     const iconed = create(EntrySchema, {

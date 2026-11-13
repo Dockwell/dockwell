@@ -1431,7 +1431,7 @@ func (h *Handler) sourceInfos(ctx context.Context) ([]*dockwellv1.CatalogSourceI
 			info.Unread = err.Error()
 		}
 		if got, ok := reads[s.name]; ok {
-			info.Entries, info.Refused, info.Also = ids(got.entries), got.refused, ids(got.also)
+			info.Entries, info.Refused, info.Also, info.License = ids(got.entries), got.refused, ids(got.also), got.license
 		}
 		h.follower.info(info)
 		out = append(out, info)

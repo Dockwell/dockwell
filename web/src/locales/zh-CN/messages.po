@@ -7090,6 +7090,9 @@ msgstr "前往"
 msgid "Go to {0}"
 msgstr "前往 {0}"
 
+msgid "None stated"
+msgstr "未声明"
+
 #. placeholder {0}: store.apps
 #. placeholder {1}: store.installs
 #. placeholder {2}: store.installs

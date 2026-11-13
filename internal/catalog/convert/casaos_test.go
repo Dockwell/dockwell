@@ -98,6 +98,10 @@ func TestOnServerReadsUmbrelsStore(t *testing.T) {
 			t.Errorf("its Compose file keeps %q:\n%s", gone, compose)
 		}
 	}
+	// A repository that states no licence grants no rights to its files, and the entry says so as it is.
+	if !slices.Contains(e.GetNotes(), "From Umbrel's app store, whose repository states no licence") {
+		t.Errorf("planner's notes = %q", e.GetNotes())
+	}
 	generated := map[string]uint32{}
 	for _, in := range e.GetInputs() {
 		generated[in.GetName()] = in.GetGenerate()

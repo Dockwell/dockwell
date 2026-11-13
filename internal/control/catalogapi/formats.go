@@ -467,11 +467,13 @@ func convertedWords(spec *resourcev1.CatalogSource, entries []*catalogv1.Entry, 
 	if spec.GetPath() != "" {
 		where = "the folder " + spec.GetPath() + " in " + where
 	}
-	if license == "NOASSERTION" || license == "" {
-		license = "a licence Dockwell can't tell from its LICENSE file"
-	}
 	n := len(entries)
-	return fmt.Sprintf("It reads %d %s from %s, at %s, as %s, under %s.", n, plural(n, "app", "apps"), where, spec.GetCommit()[:12], formatWords(spec), license)
+	reads := fmt.Sprintf("It reads %d %s from %s, at %s, as %s", n, plural(n, "app", "apps"), where, spec.GetCommit()[:12], formatWords(spec))
+	if license == "NOASSERTION" || license == "" {
+		// A repository with no licence grants no rights to its files: the plan says so as it is.
+		return reads + ", and its repository states no licence Dockwell can tell."
+	}
+	return reads + ", under " + license + "."
 }
 
 // mostDigests is how many images one call to an agent asks the digests of, as it

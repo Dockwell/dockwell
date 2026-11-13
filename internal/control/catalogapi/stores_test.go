@@ -3,6 +3,7 @@
 package catalogapi
 
 import (
+	"strings"
 	"testing"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
@@ -60,5 +61,17 @@ func TestListedLeavesOutLongWords(t *testing.T) {
 	plain := &catalogv1.Entry{Id: "plain"}
 	if listed(plain) != plain {
 		t.Error("listed copied an entry with nothing to leave out")
+	}
+}
+
+// A store whose repository states no licence reads so in its plan, as it is, never as an
+// identifier, and one that states one names it.
+func TestConvertedWordsSayTheLicence(t *testing.T) {
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/apps", Commit: strings.Repeat("a", 40), Format: resourcev1.CatalogFormat_CATALOG_FORMAT_UMBREL}
+	if got := convertedWords(spec, nil, "NOASSERTION"); !strings.HasSuffix(got, ", and its repository states no licence Dockwell can tell.") {
+		t.Errorf("with no licence: %q", got)
+	}
+	if got := convertedWords(spec, nil, "Apache-2.0"); !strings.HasSuffix(got, ", under Apache-2.0.") {
+		t.Errorf("with a licence: %q", got)
 	}
 }

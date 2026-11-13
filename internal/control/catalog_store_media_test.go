@@ -92,9 +92,9 @@ func TestAStoresAppShowsItsOwnLogoAndWords(t *testing.T) {
 		!slices.Contains(ids, "runtipi") || !slices.Contains(ids, "casaos") || slices.Contains(ids, "umbrel") {
 		t.Errorf("the stores are %v", ids)
 	}
-	// A repository laid out as Coolify's is no store of Dockwell's list.
-	if s := communitySourceNamed(t, cat, "coolify"); s.GetStore() != "" {
-		t.Errorf("a copy of Coolify's layout reads as the store %q", s.GetStore())
+	// A repository laid out as Coolify's is no store of Dockwell's list, and says the licence its repository states.
+	if s := communitySourceNamed(t, cat, "coolify"); s.GetStore() != "" || s.GetLicense() != "Apache-2.0" {
+		t.Errorf("a copy of Coolify's layout reads as the store %q, under %q", s.GetStore(), s.GetLicense())
 	}
 }
 

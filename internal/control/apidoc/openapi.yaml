@@ -8504,6 +8504,13 @@ components:
                          where it reads one at that store's own repository, in its format. Empty for
                          any other source. Numbered in the block catalog sources' presentation holds
                          (ADR 0083).
+                license:
+                    type: string
+                    description: |-
+                        For another store's catalog, the licence its repository states, as an SPDX
+                         identifier, or NOASSERTION where it states none Dockwell can tell, which the
+                         panel says as "None stated". Empty for a catalog of Dockwell's own format, whose
+                         entries each say theirs (ADR 0083).
             description: CatalogSourceInfo is a source, and what Dockwell made of it.
         CatalogSourceRef:
             type: object
