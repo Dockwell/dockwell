@@ -114,6 +114,8 @@ export interface GitForm {
   /** With Railpack, the commands that build and start it, in place of what it finds. */
   buildCommand: string;
   startCommand: string;
+  /** The registry logins its Dockerfile's images pull with, by name: none unless picked (ADR 0086). */
+  registryLogins?: string[];
 }
 
 /** A Git form with nothing in it yet. */
@@ -157,6 +159,8 @@ export function buildOf(git: GitForm) {
     builder,
     buildCommand: git.builder === "dockerfile" ? "" : git.buildCommand.trim(),
     startCommand: git.builder === "dockerfile" ? "" : git.startCommand.trim(),
+    // Railpack's images are Railpack's: a login goes with a Dockerfile's alone.
+    registryLogins: git.builder === "railpack" ? [] : (git.registryLogins ?? []),
   };
 }
 

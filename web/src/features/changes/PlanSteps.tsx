@@ -176,6 +176,7 @@ function StepRow({
   const httpsOff = step.hostAccess.filter((a) => a.kind === HostAccessKind.HTTPS_OFF);
   const dns = words.domain(step.domainCheck);
   const returning = words.returning(step.returningContainers, server);
+  const buildLogins = step.buildLogins.join(", ");
   const activity = live?.state === StepState.RUNNING ? live.activity : "";
   // Why it waits is the step's own to say; every other state its badge says, and a failure is said above.
   const said = live?.state === StepState.WAITING ? live.message : "";
@@ -226,6 +227,9 @@ function StepRow({
           ) : null}
           {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
           {step.registryLogin ? <span>{t`Pulls with the registry login ${step.registryLogin}`}</span> : null}
+          {buildLogins ? (
+            <span className="plan-step-warn">{t`Its Dockerfile can read any image ${buildLogins} can read`}</span>
+          ) : null}
           {step.hidesLogs ? (
             <span>{t`Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back`}</span>
           ) : null}

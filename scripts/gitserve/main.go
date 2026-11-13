@@ -13,6 +13,11 @@
 //     profile it runs under, for a build on each of two servers;
 //   - secret reads the build secret NPM_TOKEN in two steps, and prints it in one;
 //   - secret-fails prints NPM_TOKEN in a step that then fails;
+//   - private-base starts from ghcr.io/example/private:1.0, which fakedocker's
+//     stand-in registry keeps to its login (ADR 0086);
+//   - private-arg starts from the image its build argument BASE names, which make
+//     docker-e2e keeps in a registry that asks for a login, and serves on port 80,
+//     as nginx does;
 //   - node is a Node app with no Dockerfile, which Railpack builds;
 //   - docs has nothing Railpack knows how to build;
 //   - library is a Node app with nothing that starts it, which Railpack refuses;
@@ -121,6 +126,22 @@ COPY . .
 RUN --mount=type=secret,id=NPM_TOKEN,required=true cat /run/secrets/NPM_TOKEN && exit 1
 CMD ["httpd", "-f", "-p", "8080", "-h", "/app"]
 `, "index.html": "Print the token, then fail\n"}},
+	// A build whose base image its registry keeps private, which pulls with the
+	// registry login its project may use.
+	{"private-base", "Start from our own base", map[string]string{"Dockerfile": `FROM ghcr.io/example/private:1.0
+WORKDIR /app
+COPY . .
+RUN echo "built on our own base"
+EXPOSE 8080
+CMD ["serve"]
+`, "index.html": "Start from our own base\n"}},
+	// A build whose base image a build argument names: make docker-e2e names an
+	// nginx it keeps in a registry that asks for a login, for real BuildKit to pull
+	// with the login the build names.
+	{"private-arg", "Start from the base we keep", map[string]string{"Dockerfile": `ARG BASE
+FROM ${BASE}
+COPY index.html /usr/share/nginx/html/index.html
+`, "index.html": "Start from the base we keep\n"}},
 	{"node", "Serve the storefront with Railpack", node},
 	{"docs", "Write the storefront's docs", map[string]string{"Dockerfile": "", "index.html": "", "README.md": "# storefront\n"}},
 	{"library", "Ship the pricing library", map[string]string{

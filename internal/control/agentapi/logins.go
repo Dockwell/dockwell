@@ -5,6 +5,7 @@ package agentapi
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
@@ -19,6 +20,10 @@ import (
 // picked, which its apply uses and no other.
 type Logins interface {
 	For(ctx context.Context, ref resource.Ref, spec proto.Message, planned string) (registry.Auth, bool, error)
+	// BuildNames names the logins ref's build may pull its base images with, for
+	// its plan, and ForBuild opens those a plan named, for its step.
+	BuildNames(ctx context.Context, ref resource.Ref, spec proto.Message) (names, versions []string, err error)
+	ForBuild(ctx context.Context, ref resource.Ref, spec proto.Message, planned, versions []string) ([]registry.Auth, error)
 }
 
 // SendLogins has plans and steps carry the registry login their image is pulled
@@ -153,4 +158,61 @@ func (s *Session) ProbeRegistry(ctx context.Context, host string) (*agentv1.Chec
 		return nil, ErrOlderAgent
 	}
 	return r.GetCheckRegistryLogin(), nil
+}
+
+// buildLoginNames names the logins ref's build may pull its base images with, for a
+// plan through this agent: one that can't hand them to BuildKit is refused them.
+func (s *Session) buildLoginNames(ctx context.Context, ref resource.Ref, spec proto.Message) (names, versions []string, err error) {
+	s.agents.mu.Lock()
+	logins := s.agents.logins
+	s.agents.mu.Unlock()
+	if logins == nil || spec == nil {
+		return nil, nil, nil
+	}
+	names, versions, err = logins.BuildNames(ctx, ref, spec)
+	if err != nil || len(names) == 0 {
+		return nil, nil, err
+	}
+	if err := s.takesBuildLogins(names); err != nil {
+		return nil, nil, err
+	}
+	return names, versions, nil
+}
+
+// takesBuildLogins refuses an agent that doesn't hand a build's logins to BuildKit,
+// which would build without them.
+func (s *Session) takesBuildLogins(names []string) error {
+	if s.handsBuildLogins {
+		return nil
+	}
+	return fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't pull a build's base images with the registry logins %s. "+
+		"Update its agent by running the install script on the server again", s.name, strings.Join(names, ", "))
+}
+
+// buildAuths opens the logins a step's build pulls its base images with, as its
+// plan named them.
+func (s *Session) buildAuths(ctx context.Context, step resource.Step, spec proto.Message) ([]registry.Auth, error) {
+	if step.Build == nil || len(step.BuildLogins) == 0 {
+		return nil, nil
+	}
+	s.agents.mu.Lock()
+	logins := s.agents.logins
+	s.agents.mu.Unlock()
+	if logins == nil {
+		return nil, fault.New(ErrNoLogins, "the plan builds %s with the registry logins %s, which this control plane can't read. Plan it again", step.Ref.Name, strings.Join(step.BuildLogins, ", "))
+	}
+	if err := s.takesBuildLogins(step.BuildLogins); err != nil {
+		return nil, err
+	}
+	if len(s.deliveryKey) == 0 {
+		return nil, s.noDeliveryKey(step.Ref)
+	}
+	return logins.ForBuild(ctx, step.Ref, spec, step.BuildLogins, step.BuildLoginVersions)
+}
+
+// sealBuildLogins seals a build's logins for ref to this stream's delivery key.
+func (s *Session) sealBuildLogins(ref resource.Ref, auths []registry.Auth) ([]byte, error) {
+	values := registry.AuthsValues(auths)
+	defer clear(values)
+	return s.seal(resource.BuildLoginRef(ref), values)
 }

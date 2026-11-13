@@ -13158,6 +13158,17 @@ components:
                     description: |-
                         With Railpack, the command the image starts with, such as "node server.js",
                          in place of the one it finds.
+                registryLogins:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The registry logins its Dockerfile's images pull with, by name, one for each
+                         registry: its FROM lines', COPY --from's and RUN --mount from='s. None unless
+                         named, as its Dockerfile can read any image a login it's given can read. A
+                         login for a registry on the server's loopback can't be given, and a build with
+                         logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in
+                         the block registry logins hold, 100 to 109.
             description: |-
                 ImageBuild says how Dockwell builds a service's image from source, with
                  BuildKit and a Dockerfile.
@@ -16440,6 +16451,22 @@ components:
                     description: |-
                         The registry login the step's pull signs in with, by name, where it pulls with
                          one (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
+                buildLogins:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The registry logins the step's build may pull its base images with, by name:
+                         BuildKit signs in with the one for each registry its Dockerfile pulls from
+                         (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
+                buildLoginVersions:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Which revision of which saved login each of build_logins is, as the plan saw
+                         them: an apply refuses one saved again since (ADR 0086). Numbered in the block
+                         registry logins hold, 100 to 109.
                 databaseMove:
                     allOf:
                         - $ref: '#/components/schemas/DatabaseMove'

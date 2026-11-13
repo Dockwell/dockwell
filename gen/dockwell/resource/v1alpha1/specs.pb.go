@@ -3499,9 +3499,16 @@ type ImageBuild struct {
 	BuildCommand string `protobuf:"bytes,8,opt,name=build_command,json=buildCommand,proto3" json:"build_command,omitempty"`
 	// With Railpack, the command the image starts with, such as "node server.js",
 	// in place of the one it finds.
-	StartCommand  string `protobuf:"bytes,9,opt,name=start_command,json=startCommand,proto3" json:"start_command,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	StartCommand string `protobuf:"bytes,9,opt,name=start_command,json=startCommand,proto3" json:"start_command,omitempty"`
+	// The registry logins its Dockerfile's images pull with, by name, one for each
+	// registry: its FROM lines', COPY --from's and RUN --mount from='s. None unless
+	// named, as its Dockerfile can read any image a login it's given can read. A
+	// login for a registry on the server's loopback can't be given, and a build with
+	// logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in
+	// the block registry logins hold, 100 to 109.
+	RegistryLogins []string `protobuf:"bytes,100,rep,name=registry_logins,json=registryLogins,proto3" json:"registry_logins,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *ImageBuild) Reset() {
@@ -3604,6 +3611,13 @@ func (x *ImageBuild) GetStartCommand() string {
 		return x.StartCommand
 	}
 	return ""
+}
+
+func (x *ImageBuild) GetRegistryLogins() []string {
+	if x != nil {
+		return x.RegistryLogins
+	}
+	return nil
 }
 
 type isImageBuild_Source interface {
@@ -6923,7 +6937,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x11LEVEL_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vLEVEL_PATCH\x10\x01\x12\x0f\n" +
 	"\vLEVEL_MINOR\x10\x02\x12\r\n" +
-	"\tLEVEL_ANY\x10\x03\"\x93\x05\n" +
+	"\tLEVEL_ANY\x10\x03\"\xbc\x05\n" +
 	"\n" +
 	"ImageBuild\x129\n" +
 	"\x03git\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.GitSourceH\x00R\x03git\x12\x18\n" +
@@ -6936,7 +6950,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x06target\x18\x06 \x01(\tR\x06target\x12H\n" +
 	"\abuilder\x18\a \x01(\x0e2..dockwell.resource.v1alpha1.ImageBuild.BuilderR\abuilder\x12#\n" +
 	"\rbuild_command\x18\b \x01(\tR\fbuildCommand\x12#\n" +
-	"\rstart_command\x18\t \x01(\tR\fstartCommand\x1a7\n" +
+	"\rstart_command\x18\t \x01(\tR\fstartCommand\x12'\n" +
+	"\x0fregistry_logins\x18d \x03(\tR\x0eregistryLogins\x1a7\n" +
 	"\tArgsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a:\n" +

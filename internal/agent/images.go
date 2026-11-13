@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -737,13 +738,19 @@ func signedInAs(ctx context.Context) string {
 // nothing either way: the login isn't handed to Docker, and what the server has
 // stands.
 func (im *images) challenge(ctx context.Context, a registry.Auth) (bool, error) {
+	return im.challengeFor(ctx, a, true)
+}
+
+// challengeFor is challenge for Docker's pull, or with docker false, for a build's
+// BuildKit, which reads none of Docker's mirrors.
+func (im *images) challengeFor(ctx context.Context, a registry.Auth, viaDocker bool) (bool, error) {
 	if im.o.Off != "" || im.docker == nil {
 		return false, nil
 	}
 	// Docker sends a Docker Hub login to the mirrors its daemon.json names too, so
 	// with any, Docker is handed none: what it pulls from Docker Hub, it pulls as
 	// anyone. Dockwell's own reads go to Docker Hub alone, with it.
-	if a.Registry == registry.Hub {
+	if viaDocker && a.Registry == registry.Hub {
 		if info, err := im.docker.Info(ctx); err != nil || info.RegistryConfig != nil && len(info.RegistryConfig.Mirrors) > 0 {
 			return false, nil
 		}
@@ -761,6 +768,33 @@ func (im *images) challenge(ctx context.Context, a registry.Auth) (bool, error) 
 		return false, fmt.Errorf("%s asks for a sign-in in a way Dockwell can't read, so Dockwell won't hand Docker the registry login %s, as Docker could send it where Dockwell can't see", a.Registry, a.Name)
 	}
 	return false, nil
+}
+
+// forBuild keeps the logins a build may hand BuildKit: none for a registry on the
+// loopback, by its name or what it resolves to, as a build's steps share the
+// builder's, and none whose registry's challenge doesn't answer; one that moved its
+// token service refuses the build (ADR 0086).
+func (im *images) forBuild(ctx context.Context, auths []registry.Auth, logger *slog.Logger) ([]registry.Auth, error) {
+	var kept []registry.Auth
+	for _, a := range auths {
+		// A test's registries are the test's, and a test resolves no name.
+		loopback := registry.OnLoopback(a.Registry)
+		if !loopback && im.o.Test == "" {
+			loopback = registry.ResolvesToLoopback(ctx, a.Registry)
+		}
+		if loopback {
+			logger.Warn("a build isn't given a registry login whose registry is on this server's loopback, which a build's steps share", "login", a.Name, "registry", a.Registry)
+			continue
+		}
+		ok, err := im.challengeFor(ctx, a, false)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			kept = append(kept, a)
+		}
+	}
+	return kept, nil
 }
 
 // checkLogin signs in at a login's registry, as a pull would, and keeps nothing.

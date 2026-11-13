@@ -1758,6 +1758,8 @@ function Impact({ plan }: { plan: Plan | undefined }) {
     ...new Set(servers.flatMap((s) => s.steps).flatMap((s) => (s.registryLogin ? [s.registryLogin] : []))),
   ];
   const loginList = logins.join(", ");
+  // A build's Dockerfile can read whatever the logins it's given can (ADR 0086).
+  const buildLogins = [...new Set(servers.flatMap((s) => s.steps).flatMap((s) => s.buildLogins))].join(", ");
   return (
     <>
       {where} ·{" "}
@@ -1778,6 +1780,15 @@ function Impact({ plan }: { plan: Plan | undefined }) {
           ·{" "}
           <Trans>
             pulls with <code>{loginList}</code>
+          </Trans>
+        </>
+      ) : null}
+      {buildLogins ? (
+        <>
+          {" "}
+          ·{" "}
+          <Trans>
+            its Dockerfile can read any image <code>{buildLogins}</code> can read
           </Trans>
         </>
       ) : null}

@@ -134,6 +134,12 @@ func (e *Engine) detectBuilds(ctx context.Context, plan *Plan, items []item) err
 			}
 		}
 		st.Build.Detection = d
+		if d.Builder == resource.BuilderRailpack {
+			// Railpack's builder and runtime images are Railpack's: its build pulls
+			// with no registry login, so it plans with none, and its apply checks
+			// none (ADR 0086).
+			st.BuildLogins, st.BuildLoginVersions = nil, nil
+		}
 	}
 	return nil
 }

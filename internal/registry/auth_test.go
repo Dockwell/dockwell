@@ -424,3 +424,38 @@ func TestDockwellsOwnReadsReadEveryChallenge(t *testing.T) {
 		}
 	}
 }
+
+// A build's logins read back whole, in their order, and Docker's config.json names
+// Docker Hub as docker login does, with each login's username and password.
+func TestABuildsLoginsAreWhatBuildKitReads(t *testing.T) {
+	auths := []Auth{
+		{Name: "hub", Registry: Hub, Username: "acme", Password: "hub-token"},
+		{Name: "ghcr-ci", Registry: "ghcr.io", Username: testUser, Password: testPassword, TokenHost: "ghcr.io"},
+	}
+	got, err := AuthsFrom(AuthsValues(auths))
+	if err != nil || len(got) != 2 || got[0] != auths[0] || got[1] != auths[1] {
+		t.Errorf("AuthsFrom(AuthsValues) = %+v, %v", got, err)
+	}
+	if _, err := AuthsFrom(map[string]string{"x/registry": "ghcr.io"}); err == nil {
+		t.Error("values that aren't numbered were read as logins")
+	}
+	raw, err := DockerConfig(auths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Auths map[string]struct{ Auth string } `json:"auths"`
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	hub, _ := base64.StdEncoding.DecodeString(cfg.Auths["https://index.docker.io/v1/"].Auth)
+	ghcr, _ := base64.StdEncoding.DecodeString(cfg.Auths["ghcr.io"].Auth)
+	if string(hub) != "acme:hub-token" || string(ghcr) != testUser+":"+testPassword || len(cfg.Auths) != 2 {
+		t.Errorf("Docker's config.json holds %s", raw)
+	}
+	ctx := WithBuildAuths(context.Background(), auths)
+	if len(BuildAuthsOf(ctx)) != 2 || len(BuildAuthsOf(context.Background())) != 0 {
+		t.Error("a context doesn't carry a build's logins as given")
+	}
+}

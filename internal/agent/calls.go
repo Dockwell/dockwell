@@ -646,6 +646,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}
 			pullCtx = prepare(applyCtx)
 		}
+		if sealed := call.GetApply().GetDesired().GetBuildRegistryAuths(); len(sealed) > 0 {
+			auths, err := c.buildLogins(ctx, ref, sealed)
+			if err != nil {
+				return fail(err)
+			}
+			pullCtx = registry.WithBuildRecheck(registry.WithBuildAuths(pullCtx, auths), c.checkBuildLogins)
+		}
 		if err := c.local.Apply(pullCtx, step, spec); err != nil {
 			if step.Action == resource.ActionDelete && c.cfg.Desired != nil {
 				// What's left of it is the control plane's to finish, not the agent's to
@@ -1494,4 +1501,31 @@ func (c *calls) signedIn(ctx context.Context, ref resource.Ref, sealed []byte) (
 		}
 		return ctx
 	}, nil
+}
+
+// buildLogins opens the registry logins sent for ref's build, and keeps those whose
+// registry's challenge names no token service but the one each was saved with, as
+// BuildKit's client, like Docker, follows whatever realm a registry names (ADR
+// 0086). A registry that doesn't answer gets no login, and its base images pull
+// without one.
+func (c *calls) buildLogins(ctx context.Context, ref resource.Ref, sealed []byte) ([]registry.Auth, error) {
+	if c.delivery == nil {
+		return nil, errors.New("this agent has no delivery key to open the registry logins sent with this build")
+	}
+	values, err := c.delivery.Open(c.server, resource.BuildLoginRef(ref), sealed)
+	if err != nil {
+		return nil, err
+	}
+	defer clear(values)
+	auths, err := registry.AuthsFrom(values)
+	if err != nil {
+		return nil, err
+	}
+	return c.checkBuildLogins(ctx, auths)
+}
+
+// checkBuildLogins is images.forBuild, with this agent's log. It runs as the step
+// starts, and again as the build leaves the queue.
+func (c *calls) checkBuildLogins(ctx context.Context, auths []registry.Auth) ([]registry.Auth, error) {
+	return c.cfg.images.forBuild(ctx, auths, c.logger)
 }

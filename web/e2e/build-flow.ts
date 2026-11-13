@@ -199,7 +199,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
  * Starts scripts/gitserve on a folder of repositories, and says where it serves and
  * how to stop it.
  */
-async function startGitServer(path: string, dir: string): Promise<{ url: string; stop: () => void }> {
+export async function startGitServer(path: string, dir: string): Promise<{ url: string; stop: () => void }> {
   const server: ChildProcess = spawn(resolve(path), [dir], { stdio: ["ignore", "pipe", "inherit"] });
   const url = await new Promise<string>((done, refused) => {
     const silent = setTimeout(() => refused(new Error(`${path} said nothing for 15 s, so it isn't serving`)), 15_000);

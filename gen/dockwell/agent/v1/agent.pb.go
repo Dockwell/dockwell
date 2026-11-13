@@ -1972,6 +1972,11 @@ type Hello struct {
 	// doesn't, which would pull without it. Numbered in the block registry logins
 	// hold, 310 to 319.
 	RegistryLogins bool `protobuf:"varint,314,opt,name=registry_logins,json=registryLogins,proto3" json:"registry_logins,omitempty"`
+	// True when the agent hands a build's BuildKit the registry logins it's sent
+	// (DesiredResource.build_registry_auths), so its base images pull with them
+	// (ADR 0086). The control plane sends a build none through one that doesn't.
+	// Numbered in the block registry logins hold, 310 to 319.
+	BuildLogins bool `protobuf:"varint,316,opt,name=build_logins,json=buildLogins,proto3" json:"build_logins,omitempty"`
 	// What the agent keeps of what its server should run (ADR 0054), so the
 	// control plane sends what it lacks. An agent that sends none keeps nothing,
 	// and is sent nothing to keep.
@@ -2174,6 +2179,13 @@ func (x *Hello) GetForwards() bool {
 func (x *Hello) GetRegistryLogins() bool {
 	if x != nil {
 		return x.RegistryLogins
+	}
+	return false
+}
+
+func (x *Hello) GetBuildLogins() bool {
+	if x != nil {
+		return x.BuildLogins
 	}
 	return false
 }
@@ -10852,9 +10864,13 @@ type DesiredResource struct {
 	// The registry login the resource's image is pulled with, sealed to this
 	// stream's delivery key as a step's values are, for a plan's ask and a step's
 	// pull (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
-	RegistryAuth  []byte `protobuf:"bytes,310,opt,name=registry_auth,json=registryAuth,proto3" json:"registry_auth,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RegistryAuth []byte `protobuf:"bytes,310,opt,name=registry_auth,json=registryAuth,proto3" json:"registry_auth,omitempty"`
+	// The registry logins a step's build may pull its base images with, one for
+	// each registry, sealed to this stream's delivery key as a step's values are
+	// (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
+	BuildRegistryAuths []byte `protobuf:"bytes,315,opt,name=build_registry_auths,json=buildRegistryAuths,proto3" json:"build_registry_auths,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *DesiredResource) Reset() {
@@ -10988,6 +11004,13 @@ func (x *DesiredResource) GetUnit() *UnitAction {
 func (x *DesiredResource) GetRegistryAuth() []byte {
 	if x != nil {
 		return x.RegistryAuth
+	}
+	return nil
+}
+
+func (x *DesiredResource) GetBuildRegistryAuths() []byte {
+	if x != nil {
+		return x.BuildRegistryAuths
 	}
 	return nil
 }
@@ -13743,7 +13766,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xe1\a\n" +
+	"\bDraining\"\x85\b\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -13767,7 +13790,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0ffirst_passwords\x18\xc8\x01 \x01(\bR\x0efirstPasswords\x12\x17\n" +
 	"\x06drills\x18\xdd\x01 \x01(\bR\x06drills\x12\x1b\n" +
 	"\bforwards\x18\xca\x01 \x01(\bR\bforwards\x12(\n" +
-	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x129\n" +
+	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
+	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\"r\n" +
 	"\vDesiredHeld\x123\n" +
@@ -14324,7 +14348,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xda\x04\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\x8d\x05\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -14342,7 +14366,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06reboot\x18\xe9\x01 \x01(\tR\x06reboot\x12E\n" +
 	"\rmove_database\x18\x84\x02 \x01(\v2\x1f.dockwell.agent.v1.MoveDatabaseR\fmoveDatabase\x122\n" +
 	"\x04unit\x18\x98\x02 \x01(\v2\x1d.dockwell.agent.v1.UnitActionR\x04unit\x12$\n" +
-	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuthB\a\n" +
+	"\rregistry_auth\x18\xb6\x02 \x01(\fR\fregistryAuth\x121\n" +
+	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuthsB\a\n" +
 	"\x05_spec\"w\n" +
 	"\n" +
 	"UnitAction\x12\x1b\n" +

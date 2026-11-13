@@ -715,6 +715,18 @@ describe("the plan sheet", () => {
     await waitFor(() => expect(sheet).toHaveTextContent("hz-1 · about 2 s down · pulls with ghcr-ci"));
   });
 
+  it("says a build's Dockerfile can read any image the logins it's given can", async () => {
+    const building = webPlanned();
+    const step = building.plan?.servers[0]?.steps[0];
+    if (!step) throw new Error("webPlanned has no step");
+    step.buildLogins = ["ghcr-ci", "hub"];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: building }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: /plan/i });
+    await waitFor(() => expect(sheet).toHaveTextContent("its Dockerfile can read any image ghcr-ci, hub can read"));
+  });
+
   it("makes two writers on shared data the plan's first risk", async () => {
     const chosen = webPlanned();
     const step = chosen.plan?.servers[0]?.steps[0];

@@ -293,6 +293,13 @@ type Decision struct {
 	// the fingerprint alone, so a login saved again under its name between a plan
 	// and its apply makes the plan stale. It isn't kept.
 	RegistryLoginVersion string `json:"-"`
+	// BuildLogins name the registry logins the step's build may pull its base images
+	// with, one for each registry, as the control plane picked them (ADR 0086). Its
+	// fingerprint covers them.
+	BuildLogins []string `json:",omitempty"`
+	// BuildLoginVersions say which revision of which saved login each of those is,
+	// which its fingerprint covers, and its apply holds to.
+	BuildLoginVersions []string `json:",omitempty"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.
@@ -389,6 +396,10 @@ type BuildDetection struct {
 	Error       string `json:",omitempty"`
 	Problem     string `json:",omitempty"`
 	ProblemTool string `json:",omitempty"`
+	// Text is the Dockerfile as the reading found it, its first MiB, for the agent's
+	// own checks of what a build with registry logins pulls (ADR 0086). It goes
+	// nowhere else.
+	Text string `json:"-"`
 }
 
 // What stops Railpack building a commit, by what it said (RailpackProblem).

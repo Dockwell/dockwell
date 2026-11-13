@@ -756,6 +756,13 @@ message ImageBuild {
   // With Railpack, the command the image starts with, such as "node server.js",
   // in place of the one it finds.
   string start_command = 9;
+  // The registry logins its Dockerfile's images pull with, by name, one for each
+  // registry: its FROM lines', COPY --from's and RUN --mount from='s. None unless
+  // named, as its Dockerfile can read any image a login it's given can read. A
+  // login for a registry on the server's loopback can't be given, and a build with
+  // logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in
+  // the block registry logins hold, 100 to 109.
+  repeated string registry_logins = 100;
 }
 
 // GitSource is a Git repository Dockwell builds from.

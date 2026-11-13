@@ -198,13 +198,23 @@ func (b *Builder) copyRailpack(ctx context.Context) error {
 	return nil
 }
 
-// runOnce runs a container to its end, says what it printed to out, and removes it.
+// runOnce runs a container to its end, says what it printed to out, up to outputCap,
+// and removes it.
 func (b *Builder) runOnce(ctx context.Context, name string, create *docker.CreateRequest, out *bytes.Buffer) (int, error) {
-	return b.run2(ctx, name, create, out, out)
+	return b.run2(ctx, name, create, out, out, outputCap)
 }
 
-// run2 is runOnce with what the container printed to stdout and to stderr apart.
-func (b *Builder) run2(ctx context.Context, name string, create *docker.CreateRequest, stdout, stderr *bytes.Buffer) (int, error) {
+// outputCap is what a container a build runs may print that's kept, and readingSays
+// what a reading may say on stdout: a Dockerfile of up to maxDockerfileText, twice,
+// once its FROM and EXPOSE lines and once whole, in base64, with room to spare.
+const (
+	outputCap   = 1 << 20
+	readingSays = 4 << 20
+)
+
+// run2 is runOnce with what the container printed to stdout, up to stdoutCap, and
+// to stderr, up to outputCap, apart.
+func (b *Builder) run2(ctx context.Context, name string, create *docker.CreateRequest, stdout, stderr *bytes.Buffer, stdoutCap int) (int, error) {
 	id, err := b.Client.CreateContainer(ctx, name, create)
 	if err != nil {
 		return 0, fmt.Errorf("docker can't make the container %s: %w", name, err)
@@ -216,7 +226,7 @@ func (b *Builder) run2(ctx context.Context, name string, create *docker.CreateRe
 			b.logger().Warn("can't remove a container a build used; the agent removes it when it next starts", "container", id, "error", err.Error())
 		}
 	}()
-	var o, e io.Writer = &capped{buf: stdout, max: 1 << 20}, &capped{buf: stderr, max: 1 << 20}
+	var o, e io.Writer = &capped{buf: stdout, max: stdoutCap}, &capped{buf: stderr, max: outputCap}
 	if stdout == stderr {
 		e = o
 	}
@@ -300,6 +310,7 @@ if [ "$DW_BUILDER" = dockerfile ] && [ -z "$dfobj" ]; then say fail dockerfile; 
 if [ -n "$dfobj" ] && [ "$DW_BUILDER" != railpack ]; then
   say dockerfile yes
   say from "$(git cat-file blob "$dfobj" 3>&- | head -c 1048576 | grep -iE '^[[:space:]]*(from|expose)[[:space:]]' | head -n 100 | base64 | tr -d '\n')"
+  say dockerfile-text "$(git cat-file blob "$dfobj" 3>&- | head -c 1048577 | base64 | tr -d '\n')"
   exit 0
 fi
 if [ ! -x "` + detectBin + `" ]; then say fail need-railpack; exit 4; fi
@@ -463,7 +474,7 @@ func (b *Builder) detect(ctx context.Context, req service.BuildRequest) (*resour
 	// What the script says of itself is on stdout, and all else on stderr.
 	var says, said bytes.Buffer
 	name := "dockwell-detect-" + randomHex()
-	code, err := b.run2(ctx, name, create, &says, &said)
+	code, err := b.run2(ctx, name, create, &says, &said, readingSays)
 	if err != nil {
 		return nil, nil, false, b.readTimedOut(ctx, err)
 	}
@@ -489,7 +500,7 @@ func markerLines(s string) []string {
 // readDetection reads what a detect container said: says, its markers, from its
 // stdout, and said, git's and Railpack's words, from its stderr.
 func readDetection(req service.BuildRequest, says, said string, code int) (*resource.BuildDetection, []byte, error) {
-	var info, plan, from []byte
+	var info, plan, from, text []byte
 	var failed string
 	hasDockerfile := false
 	var tail []string
@@ -514,6 +525,8 @@ func readDetection(req service.BuildRequest, says, said string, code int) (*reso
 			plan, _ = base64.StdEncoding.DecodeString(arg)
 		case "from":
 			from, _ = base64.StdEncoding.DecodeString(arg)
+		case "dockerfile-text":
+			text, _ = base64.StdEncoding.DecodeString(arg)
 		}
 	}
 	f := facts{failed: failed, tail: tail}
@@ -537,6 +550,7 @@ func readDetection(req service.BuildRequest, says, said string, code int) (*reso
 	if hasDockerfile {
 		return &resource.BuildDetection{
 			Builder: resource.BuilderDockerfile, Dockerfile: filepath.Join(req.Context, dockerfile(req.Dockerfile)), BaseImage: baseImage(string(from)), Ports: exposedPorts(string(from)),
+			Text: string(text),
 		}, nil, nil
 	}
 	d := railpackDetection(info, plan)

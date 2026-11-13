@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -359,4 +361,141 @@ func (c *Client) Probe(ctx context.Context, host string) (asks bool, tokenHost s
 		}
 	}
 	return true, tokenHost, nil
+}
+
+// AuthsValues are several logins as values sealed to an agent stream carry them,
+// as a build's are, numbered from 0.
+func AuthsValues(auths []Auth) map[string]string {
+	out := map[string]string{}
+	for i, a := range auths {
+		for k, v := range a.Values() {
+			out[strconv.Itoa(i)+"/"+k] = v
+		}
+	}
+	return out
+}
+
+// AuthsFrom reads several logins from the values an agent opened, in their order.
+func AuthsFrom(v map[string]string) ([]Auth, error) {
+	byIndex := map[int]map[string]string{}
+	for k, val := range v {
+		n, field, ok := strings.Cut(k, "/")
+		i, err := strconv.Atoi(n)
+		if !ok || err != nil || i < 0 || i >= maxAuths {
+			return nil, errors.New("the registry logins the control plane sent can't be read")
+		}
+		if byIndex[i] == nil {
+			byIndex[i] = map[string]string{}
+		}
+		byIndex[i][field] = val
+	}
+	out := make([]Auth, 0, len(byIndex))
+	for i := range len(byIndex) {
+		a, err := AuthFrom(byIndex[i])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
+// maxAuths is the most logins one call carries: one for each registry a build may
+// pull from.
+const maxAuths = 32
+
+type buildAuthsKey struct{}
+
+// WithBuildAuths is ctx carrying the logins a build's base images pull with, one
+// for each registry (ADR 0086).
+func WithBuildAuths(ctx context.Context, auths []Auth) context.Context {
+	return context.WithValue(ctx, buildAuthsKey{}, auths)
+}
+
+type buildRecheckKey struct{}
+
+// WithBuildRecheck is ctx carrying how a build's logins are checked again, as it
+// leaves the queue.
+func WithBuildRecheck(ctx context.Context, fn func(context.Context, []Auth) ([]Auth, error)) context.Context {
+	return context.WithValue(ctx, buildRecheckKey{}, fn)
+}
+
+// BuildRecheckOf is how ctx says a build's logins are checked again, or nil.
+func BuildRecheckOf(ctx context.Context) func(context.Context, []Auth) ([]Auth, error) {
+	fn, _ := ctx.Value(buildRecheckKey{}).(func(context.Context, []Auth) ([]Auth, error))
+	return fn
+}
+
+// BuildAuthsOf are the logins ctx carries for a build's base images.
+func BuildAuthsOf(ctx context.Context) []Auth {
+	a, _ := ctx.Value(buildAuthsKey{}).([]Auth)
+	return a
+}
+
+// DockerConfig is logins as Docker's config.json holds them, which BuildKit's
+// client reads to answer the builder's ask for the login of the registry it pulls
+// from, and of no other.
+func DockerConfig(auths []Auth) ([]byte, error) {
+	type entry struct {
+		Auth string `json:"auth"`
+	}
+	all := map[string]entry{}
+	for _, a := range auths {
+		server := a.Registry
+		if server == Hub {
+			server = "https://index.docker.io/v1/"
+		}
+		all[server] = entry{Auth: base64.StdEncoding.EncodeToString([]byte(a.Username + ":" + a.Password))}
+	}
+	return json.Marshal(map[string]any{"auths": all})
+}
+
+// OnLoopback says whether a registry's host is the machine's own loopback, by its
+// name or its address: localhost, 127.0.0.0/8, ::1 or an unspecified address. A
+// build's steps share the builder's loopback, so a login for a registry there would
+// go to whatever a step listens on (ADR 0086).
+func OnLoopback(host string) bool {
+	h := host
+	if strings.HasPrefix(h, "[") {
+		if end := strings.Index(h, "]"); end > 0 {
+			h = h[1:end]
+		}
+	} else if name, _, err := net.SplitHostPort(h); err == nil {
+		h = name
+	}
+	h = strings.TrimSuffix(strings.ToLower(h), ".")
+	if h == "localhost" || strings.HasSuffix(h, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && (ip.IsLoopback() || ip.IsUnspecified())
+}
+
+// lookupIPAddr resolves a name, as the builder would. Tests stand in for it.
+var lookupIPAddr = net.DefaultResolver.LookupIPAddr
+
+// ResolvesToLoopback says whether a registry's host is on the loopback, or a name
+// any of whose addresses is, as the builder would dial it. A name that can't be
+// resolved reads as on it, as nothing says where it leads.
+func ResolvesToLoopback(ctx context.Context, host string) bool {
+	if OnLoopback(host) {
+		return true
+	}
+	h := host
+	if name, _, err := net.SplitHostPort(h); err == nil {
+		h = name
+	}
+	if net.ParseIP(h) != nil {
+		return false
+	}
+	addrs, err := lookupIPAddr(ctx, h)
+	if err != nil || len(addrs) == 0 {
+		return true
+	}
+	for _, a := range addrs {
+		if a.IP.IsLoopback() || a.IP.IsUnspecified() {
+			return true
+		}
+	}
+	return false
 }

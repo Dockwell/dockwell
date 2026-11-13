@@ -159,6 +159,9 @@ type Engine struct {
 	Requests []string
 	// Logins logs each X-Registry-Auth sent, as "image as username:password".
 	Logins []string
+	// BuilderLogins logs each login a builder's Docker config.json held, as
+	// "registry as username:password".
+	BuilderLogins []string
 	// followers counts the requests following a log now.
 	followers atomic.Int64
 	// Imports counts images made with docker import, and Loads those docker load
@@ -1870,6 +1873,14 @@ func (e *Engine) SentLogins() []string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return append([]string(nil), e.Logins...)
+}
+
+// GivenBuilders is each login a builder was given in Docker's config.json, as
+// "registry as username:password", Docker Hub as "docker.io".
+func (e *Engine) GivenBuilders() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]string(nil), e.BuilderLogins...)
 }
 
 // Seen lists the requests the engine has had, as "METHOD /path".

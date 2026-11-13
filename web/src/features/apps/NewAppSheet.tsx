@@ -12,7 +12,9 @@ import {
   Connection,
   DetectionProblem,
   type ExposedVariable,
+  ImageAnswer,
   ImageBuild_Builder,
+  ImageService,
   ResourceService,
   RestartPolicy,
 } from "@dockwell/api";
@@ -64,6 +66,7 @@ import { onApple } from "../../lib/platform";
 import { useMay } from "../auth/may";
 import { nextFree } from "../catalog/freeName";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
+import { registryOf, useRegistryLogins } from "../registries/registries";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -1180,6 +1183,7 @@ function GitFields({
         onShowBuild={onShowBuild}
         onExposed={setExposed}
         checked={repository.checked}
+        onRegistryLogins={(registryLogins) => onGit({ registryLogins })}
       />
       {showBuild ? (
         <div className="git-build-fields">
@@ -1387,12 +1391,15 @@ function BuildRow({
   onShowBuild,
   onExposed,
   checked,
+  onRegistryLogins,
 }: {
   git: GitForm;
   server: string;
   waitForServer: boolean;
   showBuild: boolean;
   onShowBuild: (shown: boolean) => void;
+  /** Picks the registry logins its Dockerfile's images pull with. */
+  onRegistryLogins: (names: string[]) => void;
   /** Hears which ports a reading that answered says the Dockerfile exposes. */
   onExposed: (ports: readonly number[]) => void;
   /** True once the repository is known to be there: its own field says when it isn't, and nothing reads how it builds until it is. */
@@ -1518,6 +1525,62 @@ function BuildRow({
           <span>{detail}</span>
         </p>
       ) : null}
+      {d && d.builder === ImageBuild_Builder.DOCKERFILE && d.baseImage ? (
+        <BaseImageLogin base={d.baseImage} server={on} picked={git.registryLogins ?? []} onPick={onRegistryLogins} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Where a Dockerfile starts from an image its registry keeps private, which login
+ * its images pull with (ADR 0086): none unless picked, as the Dockerfile can read any
+ * image the login can, and the only one the project may use for that registry,
+ * picked already, as someone reads the plan before it builds.
+ */
+function BaseImageLogin({
+  base,
+  server,
+  picked,
+  onPick,
+}: {
+  base: string;
+  server: string;
+  picked: readonly string[];
+  onPick: (names: string[]) => void;
+}) {
+  const { t } = useLingui();
+  const may = useMay();
+  const mayRead = may(ImageService.method.getImage).allowed && may(ImageService.method.listRegistryLogins).allowed;
+  const host = registryOf(base);
+  const image = useQuery(
+    ImageService.method.getImage,
+    { reference: base, anonymous: true, server },
+    { enabled: mayRead, staleTime: 5 * 60_000, retry: false },
+  );
+  const hidden = image.data?.answer === ImageAnswer.NOT_FOUND;
+  const logins = useRegistryLogins(undefined, mayRead && hidden);
+  const usable = (logins.data?.logins ?? []).filter((l) => l.registry === host);
+  const current = picked.find((n) => usable.some((l) => l.name === n)) ?? "";
+  const others = picked.filter((n) => !usable.some((l) => l.name === n));
+  const first = usable.length === 1 ? (usable[0]?.name ?? "") : "";
+  const offered = useRef(false);
+  useEffect(() => {
+    // The only login for the registry, picked once, and left as a person leaves it.
+    if (offered.current || !first || current) return;
+    offered.current = true;
+    onPick([...others, first]);
+  }, [first, current, others, onPick]);
+  if (!hidden || usable.length === 0) return null;
+  return (
+    <div className="git-build-login">
+      <SelectField
+        label={t`Pull ${host} images with`}
+        hint={t`Its Dockerfile can read any image the login can.`}
+        value={current}
+        options={[{ value: "", label: t`No login` }, ...usable.map((l) => ({ value: l.name, label: l.name }))]}
+        onChange={(event) => onPick(event.target.value ? [...others, event.target.value] : others)}
+      />
     </div>
   );
 }

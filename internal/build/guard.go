@@ -4,6 +4,8 @@ package build
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -126,13 +128,26 @@ func (b *Builder) watchEvery() time.Duration {
 	return watchEvery
 }
 
-// cacheVolume is the volume a build's environment keeps its cache in.
+// cacheVolume is the volume a build keeps its cache in: its environment's, or for a
+// build given registry logins, one of its own, for that service and those logins,
+// shared with nothing else. BuildKit serves an image pinned by digest from the
+// content its cache holds, whatever pulled it, so a private image a login pulled
+// stays where only a build with that same login reads (ADR 0086).
 func cacheVolume(req service.BuildRequest) string {
 	env := strings.ToLower(req.Service.Scope)
 	if env == "" {
 		env = "none"
 	}
-	return CacheVolume + "-" + env
+	if len(req.Logins) == 0 {
+		return CacheVolume + "-" + env
+	}
+	logins := make([]string, 0, len(req.Logins))
+	for _, a := range req.Logins {
+		logins = append(logins, a.Name+"\x00"+a.Registry+"\x00"+a.Username)
+	}
+	slices.Sort(logins)
+	sum := sha256.Sum256([]byte(req.Service.Scope + "\x00" + req.Service.Name + "\x00" + strings.Join(logins, "\x01")))
+	return CacheVolume + "-" + env + "-logins-" + hex.EncodeToString(sum[:8])
 }
 
 // cacheShare readies the build's cache volume, and gives its share of the bound:

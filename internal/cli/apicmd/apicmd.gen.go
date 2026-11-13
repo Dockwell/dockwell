@@ -3104,6 +3104,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "build.builder", Help: "What builds the image. Unset takes the Dockerfile when there is one."},
 				{Path: "build.build_command", Help: "With Railpack, the command that builds the app, such as \"npm run build\", in place of the one it finds."},
 				{Path: "build.start_command", Help: "With Railpack, the command the image starts with, such as \"node server.js\", in place of the one it finds."},
+				{Path: "build.registry_logins", Help: "The registry logins its Dockerfile's images pull with, by name, one for each registry: its FROM lines', COPY --from's and RUN --mount from='s. None unless named, as its Dockerfile can read any image a login it's given can read. A login for a registry on the server's loopback can't be given, and a build with logins reads its Dockerfile with Docker's own frontend (ADR 0086). Numbered in the block registry logins hold, 100 to 109."},
 				{Path: "runtime.language", Help: "The language: \"node\", \"python\", \"go\" or \"java\"."},
 				{Path: "runtime.version", Help: "Its version, such as \"24\" for Node.js or \"3.14\" for Python. Empty takes the newest, and is written as it."},
 				{Path: "runtime.folder", Help: "The folder on the server that holds the app, such as \"/srv/shop\". It's mounted at /app, read-write, as what the app installs goes there. A folder that isn't there is made as user's."},

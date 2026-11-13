@@ -20,6 +20,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -59,6 +60,12 @@ type BuildRequest struct {
 	// OwnCommand says the service starts with a command of its own, so the
 	// commit needn't say what starts it.
 	OwnCommand bool
+	// Logins are the registry logins its base images may pull with, one for each
+	// registry, which go no further than the build (ADR 0086). Recheck checks each
+	// registry's challenge again, as a build leaves the queue, and keeps those it
+	// still may hand BuildKit.
+	Logins  []registry.Auth
+	Recheck func(context.Context, []registry.Auth) ([]registry.Auth, error)
 }
 
 // Request is what a build of svc asks its server to build, all but its secrets.
@@ -201,6 +208,9 @@ func checkBuild(svc *resourcev1.Service) error {
 	}
 	if len(b.GetSecrets()) > maxSecrets {
 		return fmt.Errorf("a build takes up to %d secrets, and this has %d", maxSecrets, len(b.GetSecrets()))
+	}
+	if err := checkBuildLogins(b.GetRegistryLogins()); err != nil {
+		return err
 	}
 	for id, name := range b.GetSecrets() {
 		if len(id) > maxArgName || !secretID.MatchString(id) {
@@ -420,9 +430,32 @@ func (d *Driver) build(ctx context.Context, step resource.Step, svc *resourcev1.
 	defer clear(secrets)
 	req := Request(svc)
 	req.Service, req.Change, req.Secrets = step.Ref, resource.DeployOf(ctx).Change, secrets
+	req.Logins, req.Recheck = registry.BuildAuthsOf(ctx), registry.BuildRecheckOf(ctx)
 	err = d.Builds.Build(ctx, req)
 	if err != nil {
 		resource.Report(ctx, resource.Outcome{Untouched: true})
 	}
 	return err
+}
+
+// maxBuildLogins is the most registry logins a build names.
+const maxBuildLogins = 8
+
+// checkBuildLogins checks the registry logins a build names for its base images:
+// each a login's name, once (ADR 0086).
+func checkBuildLogins(names []string) error {
+	if len(names) > maxBuildLogins {
+		return fmt.Errorf("a build names up to %d registry logins, and this names %d", maxBuildLogins, len(names))
+	}
+	seen := map[string]bool{}
+	for _, n := range names {
+		if err := resource.CheckLabel("registry login", n, "ghcr-ci"); err != nil {
+			return err
+		}
+		if seen[n] {
+			return fmt.Errorf("a build names the registry login %s twice. Name it once", n)
+		}
+		seen[n] = true
+	}
+	return nil
 }

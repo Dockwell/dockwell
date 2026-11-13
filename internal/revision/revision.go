@@ -2472,6 +2472,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			if s.RegistryLogin != "" {
 				fmt.Fprintf(fp, "login %s|%s|%s|%s\n", server, ref(s.Ref), s.RegistryLogin, s.RegistryLoginVersion)
 			}
+			if len(s.BuildLogins) > 0 {
+				fmt.Fprintf(fp, "build-logins %s|%s|%s|%s\n", server, ref(s.Ref), strings.Join(s.BuildLogins, ","), strings.Join(s.BuildLoginVersions, ","))
+			}
 			if s.Action == resource.ActionNone {
 				was := unfinishedOn(its, s.Ref, server)
 				if was == nil {

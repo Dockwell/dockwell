@@ -263,3 +263,125 @@ func (l *Logins) ProjectFor(ctx context.Context, environment, project string) (s
 	}
 	return out, err
 }
+
+// BuildLogins are the logins ref's build may pull its base images with: those it
+// names in ImageBuild.registry_logins, and no other, as a build's Dockerfile can read
+// any image a login it's given can (ADR 0086). Naming none gives it none; one the
+// project may not use, two for one registry, or one for a registry on the loopback,
+// which a build's steps share, refuses the plan. A build Railpack makes is given
+// none, as its images are Railpack's. planned, when set, is what the plan named,
+// which an apply uses and no other.
+func (l *Logins) BuildLogins(ctx context.Context, ref resource.Ref, spec proto.Message, planned []string) ([]Saved, error) {
+	svc, ok := spec.(*resourcev1.Service)
+	if !ok || svc.GetBuild() == nil || svc.GetBuild().GetBuilder() == resourcev1.ImageBuild_BUILDER_RAILPACK {
+		return nil, nil
+	}
+	named := svc.GetBuild().GetRegistryLogins()
+	if planned != nil {
+		named = planned
+	}
+	if len(named) == 0 {
+		return nil, nil
+	}
+	var project string
+	err := l.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		project, err = ProjectOf(ctx, tx, ref.Scope)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	all, err := l.All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return pickBuild(all, project, named, planned != nil)
+}
+
+func pickBuild(all []Saved, project string, named []string, applying bool) ([]Saved, error) {
+	usable := map[string]Saved{}
+	for _, s := range all {
+		if Allows(s.Spec, project) {
+			usable[s.Name] = s
+		}
+	}
+	chosen := map[string]Saved{}
+	out := make([]Saved, 0, len(named))
+	for _, n := range named {
+		s, ok := usable[n]
+		switch {
+		case !ok && applying:
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("the plan builds with the registry login %s, which this app may no longer use. Plan it again", n), "registry_login_not_found")
+		case !ok:
+			return nil, authapi.ReasonError(connect.CodeNotFound,
+				fmt.Errorf("there's no registry login %s this app may use. List them with ListRegistryLogins, or ask an admin to let its project use one", n), "registry_login_not_found")
+		case registry.OnLoopback(s.Spec.GetRegistry()):
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("the registry login %s signs in to %s, on the server's own loopback, which a build's steps share, so a build can't use it: a step listening there would get it. Name another, or none", n, s.Spec.GetRegistry()), "registry_login_loopback")
+		}
+		if was, twice := chosen[s.Spec.GetRegistry()]; twice {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("the build names %s and %s, which both sign in to %s. Name one", was.Name, n, s.Spec.GetRegistry()), "registry_login_twice")
+		}
+		chosen[s.Spec.GetRegistry()] = s
+		out = append(out, s)
+	}
+	slices.SortFunc(out, func(a, b Saved) int { return strings.Compare(a.Name, b.Name) })
+	return out, nil
+}
+
+// BuildNames names the logins ref's build may pull its base images with, for its
+// plan, without opening any, and says which revision of which saved login each is.
+func (l *Logins) BuildNames(ctx context.Context, ref resource.Ref, spec proto.Message) (names, versions []string, err error) {
+	saved, err := l.BuildLogins(ctx, ref, spec, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, s := range saved {
+		names = append(names, s.Name)
+		versions = append(versions, s.ID+"@"+strconv.Itoa(s.Revision))
+	}
+	return names, versions, nil
+}
+
+// ForBuild opens the logins a step's build pulls its base images with: those its
+// plan named, and no other.
+func (l *Logins) ForBuild(ctx context.Context, ref resource.Ref, spec proto.Message, planned, versions []string) ([]registry.Auth, error) {
+	saved, err := l.BuildLogins(ctx, ref, spec, planned)
+	if err != nil {
+		return nil, err
+	}
+	if err := samePlanned(saved, planned, versions); err != nil {
+		return nil, err
+	}
+	out := make([]registry.Auth, 0, len(saved))
+	for _, s := range saved {
+		a, err := l.Open(ctx, s)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, nil
+}
+
+// samePlanned refuses a login saved again since its plan, under its name: each is
+// the revision of the login the plan saw, and another is another login as far as
+// the plan goes.
+func samePlanned(saved []Saved, planned, versions []string) error {
+	byName := map[string]string{}
+	for i, n := range planned {
+		if i < len(versions) {
+			byName[n] = versions[i]
+		}
+	}
+	for _, s := range saved {
+		if want, ok := byName[s.Name]; !ok || want != s.ID+"@"+strconv.Itoa(s.Revision) {
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("the registry login %s changed since this plan was made. Plan it again", s.Name), "registry_login_changed")
+		}
+	}
+	return nil
+}

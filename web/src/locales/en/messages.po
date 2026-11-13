@@ -4283,6 +4283,9 @@ msgstr "In that folder."
 msgid "It writes more variables in plain sight. Check before you pass one a secret."
 msgstr "It writes more variables in plain sight. Check before you pass one a secret."
 
+msgid "Its Dockerfile can read any image the login can."
+msgstr "Its Dockerfile can read any image the login can."
+
 msgid "Its apps show as one row with this name."
 msgstr "Its apps show as one row with this name."
 
@@ -4317,6 +4320,9 @@ msgstr "No health check"
 
 msgid "No limits"
 msgstr "No limits"
+
+msgid "No login"
+msgstr "No login"
 
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "Nothing outside the server reaches it until you publish a port."
@@ -4359,6 +4365,9 @@ msgstr "Project"
 
 msgid "Project name"
 msgstr "Project name"
+
+msgid "Pull {host} images with"
+msgstr "Pull {host} images with"
 
 msgid "Railpack"
 msgstr "Railpack"
@@ -7554,6 +7563,9 @@ msgstr "apps and websites stop while Docker restarts"
 msgid "everything there is offline until it's back"
 msgstr "everything there is offline until it's back"
 
+msgid "its Dockerfile can read any image <0>{buildLogins}</0> can read"
+msgstr "its Dockerfile can read any image <0>{buildLogins}</0> can read"
+
 msgid "no downtime expected"
 msgstr "no downtime expected"
 
@@ -7847,6 +7859,9 @@ msgstr "Docker restarts, and keeps containers running while it does: it's a patc
 
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
+
+msgid "Its Dockerfile can read any image {buildLogins} can read"
+msgstr "Its Dockerfile can read any image {buildLogins} can read"
 
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"

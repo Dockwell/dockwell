@@ -59,6 +59,11 @@ agent=$(realpath "${2:?$usage}")
 # A Git server for builds (ADR 0046), which make docker-e2e builds.
 gitserve=$(realpath "${GITSERVE:-bin/gitserve}")
 gitserve_pid=""
+# What writes the htpasswd of a registry that asks for a login (ADR 0086), and the
+# folders that step keeps that registry's and its builds' files in.
+htpasswd=$(realpath "${HTPASSWD:-bin/htpasswd}")
+private_dir=""
+private_secrets=""
 git_dir=$(mktemp -d)
 addr=127.0.0.1:${E2E_PORT:-7697}
 web_port=${E2E_WEB_PORT:-18080}
@@ -160,6 +165,9 @@ cleanup() {
   docker network rm dockwell_ingress e2e-took-subnet e2e-edge e2e-lan e2e-tunnel e2e-other >/dev/null 2>&1 || true
   [[ -z "$agent_pid" ]] || kill "$agent_pid" 2>/dev/null || true
   [[ -z "$gitserve_pid" ]] || kill "$gitserve_pid" 2>/dev/null || true
+  docker rm --force e2e-private-registry >/dev/null 2>&1 || true
+  [[ -z "$private_dir" ]] || rm -rf "$private_dir"
+  [[ -z "$private_secrets" ]] || rm -rf "$private_secrets"
   docker ps --all --quiet --filter label=dev.dockwell.builder | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
   docker images --format '{{.Repository}}:{{.Tag}}' | grep '^dockwell.invalid/' | xargs --no-run-if-empty docker rmi --force >/dev/null 2>&1 || true
   docker volume ls --quiet --filter label=dockwell.build-cache | xargs --no-run-if-empty docker volume rm >/dev/null 2>&1 || true
@@ -4994,6 +5002,120 @@ jq -e '.state == "BUILD_STATE_FAILED"' <<<"$failed_build" >/dev/null || fail "th
 [[ "$(dw builds log "$(jq -r .id <<<"$failed_build")")" != *e2e-npm-secret-value* ]] || fail "the failed build's log holds its secret"
 dw services delete e2e-secret --environment "$build_env" --yes || fail "deleting e2e-secret failed"
 dw secrets delete NPM --environment "$build_env" --yes || fail "deleting the secret NPM failed"
+
+step "Builds: real BuildKit pulls a base image a registry keeps to a login with the login the build names, and can't without it"
+# A registry that asks for a login, registry:2 with htpasswd, at Docker's bridge's
+# gateway, where a builder reaches this machine, and at 127.0.0.1 for docker push.
+# The agent build reads it as its test's registry, DOCKWELL_TEST_REGISTRY, which its
+# builds reach over plain HTTP, and keeps their logins in /dev/shm, as it isn't root.
+private_dir=$(mktemp -d)
+private_secrets=$(mktemp -d /dev/shm/dockwell-e2e-logins-XXXXXX 2>/dev/null || mktemp -d)
+private_token=$(openssl rand -hex 16)
+"$htpasswd" ci <<<"$private_token" >"$private_dir/htpasswd" || fail "can't write the htpasswd of a registry that asks for a login"
+private_port=""
+for p in $(seq 15101 15200); do
+  if [[ -z "$(ss -ltnH "sport = :$p")" ]]; then
+    private_port=$p
+    break
+  fi
+done
+[[ -n "$private_port" ]] || fail "no port is free for a registry that asks for a login between 15101 and 15200"
+docker run -d --name e2e-private-registry -p "127.0.0.1:$private_port:5000" -p "$gateway:$private_port:5000" \
+  -v "$private_dir/htpasswd:/auth/htpasswd:ro" -e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=e2e \
+  -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd "$registry_image" >/dev/null || fail "can't run a registry that asks for a login"
+asks=""
+for _ in $(seq 100); do
+  asks=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$private_port/v2/" || true)
+  [[ "$asks" == 401 ]] && break
+  sleep 0.1
+done
+[[ "$asks" == 401 ]] || fail "the registry that asks for a login answers $asks to anyone"
+private_base=$gateway:$private_port/e2e/base:1
+pushed=127.0.0.1:$private_port/e2e/base:1
+docker image inspect nginx:1.27-alpine >/dev/null 2>&1 || docker pull -q nginx:1.27-alpine >/dev/null || fail "can't pull nginx:1.27-alpine"
+docker tag nginx:1.27-alpine "$pushed" || fail "can't tag nginx:1.27-alpine for the registry that asks for a login"
+# Docker's own login for the push goes in a folder of this step's, not this user's.
+DOCKER_CONFIG=$private_dir/docker docker login --username ci --password-stdin "127.0.0.1:$private_port" <<<"$private_token" >/dev/null 2>&1 ||
+  fail "docker login to the registry that asks for a login failed"
+DOCKER_CONFIG=$private_dir/docker docker push -q "$pushed" >/dev/null || fail "docker push to the registry that asks for a login failed"
+docker rmi "$pushed" >/dev/null 2>&1 || true
+# restart_agent VAR=VALUE... starts the agent build again with what it's given.
+restart_agent() {
+  local state=""
+  kill "$agent_pid"
+  wait "$agent_pid" || true
+  for _ in $(seq 100); do
+    state=$(agent_server | jq -r '.server.connection // empty')
+    [[ -n "$state" && "$state" != CONNECTION_CONNECTED ]] && break
+    sleep 0.1
+  done
+  [[ -n "$state" && "$state" != CONNECTION_CONNECTED ]] || fail "with its agent stopped, the agent build's server reads '$state'"
+  env "$@" "$agent" run --data-dir "$agent_data" --log-format json >>"$agent_log" 2>&1 &
+  agent_pid=$!
+  for _ in $(seq 300); do
+    state=$(agent_server | jq -r '.server.connection // empty')
+    [[ "$state" == CONNECTION_CONNECTED ]] && break
+    sleep 0.1
+  done
+  [[ "$state" == CONNECTION_CONNECTED ]] || fail "the agent build didn't come back within 30 s: it reads '$state'"
+}
+restart_agent DOCKWELL_TEST_REGISTRY="http://$gateway:$private_port" DOCKWELL_TEST_BUILD_SECRETS="$private_secrets"
+private_app=18094
+create_private() {
+  dw services create e2e-private --environment "$build_env" --on "$agent_id" --build-git-url "$git_url/web.git" --build-git-ref private-arg \
+    --build-args "BASE=$private_base" --app-ports "{\"host_port\":$private_app,\"container_port\":80}" "$@"
+}
+# With no login named, BuildKit asks the registry as anyone, and it says no, which
+# the build's log says: a creation that fails rolls the service back out of the
+# list, and its build's record stays.
+create_private --yes >"$private_dir/anonymous" 2>&1 &
+anonymous_pid=$!
+anonymous_build=""
+for _ in $(seq 300); do
+  anonymous_build=$(dw builds list e2e-private --environment "$build_env" --json 2>/dev/null | jq -r '.builds[0].id // empty') || true
+  [[ "$anonymous_build" == bld_* ]] && break
+  kill -0 "$anonymous_pid" 2>/dev/null || break
+  sleep 0.1
+done
+if wait "$anonymous_pid"; then fail "a build whose base image needs a login deployed with none: $(cat "$private_dir/anonymous")"; fi
+said=$(cat "$private_dir/anonymous")
+if [[ "$anonymous_build" == bld_* ]]; then said+=$'\n'$(dw builds log "$anonymous_build" 2>&1 || true); fi
+shopt -s nocasematch
+if [[ ! "$said" =~ 401|unauthori|authoriz|credentials|denied ]]; then
+  shopt -u nocasematch
+  fail "a build with no login for its base image failed, but not for the login: $said"
+fi
+shopt -u nocasematch
+[[ -z "$(docker ps --quiet --filter label=com.docker.compose.service=e2e-private)" ]] || fail "a build that couldn't pull its base image runs"
+# An admin saves the login, and the build names it: the plan says so, and real BuildKit
+# pulls the base with it, from Docker's config.json, read-only.
+dw registry-logins create e2e-private --registry "$gateway:$private_port" --username ci --password-file - --yes <<<"$private_token" >/dev/null ||
+  fail "saving the registry login e2e-private failed"
+planned=$(create_private --build-registry-logins e2e-private --plan-only --json) || fail "planning a build that names the login e2e-private failed"
+jq -e '[.change.plan.servers[].steps[] | select(.buildLogins) | .buildLogins] == [["e2e-private"]]' <<<"$planned" >/dev/null ||
+  fail "the plan doesn't say the build pulls with e2e-private: $planned"
+[[ "$planned" != *"$private_token"* ]] || fail "the plan holds the login's password"
+building e2e-private dw changes apply "$(jq -r '.change.id' <<<"$planned")" --yes || fail "a build that names the login for its private base image didn't deploy"
+served=$(curl -fsS --retry 10 --retry-connrefused --retry-delay 1 "http://127.0.0.1:$private_app/") || fail "what the build made from its private base doesn't answer on $private_app"
+[[ "$served" == "Start from the base we keep" ]] || fail "what runs answers '$served', not what the build put on its private base"
+private_id=$(service_id e2e-private)
+[[ "$private_id" == svc_* ]] || fail "e2e-private isn't in $build_env: $(dw services list --json)"
+private_log=$(dw builds log "$(dw builds list "$private_id" --json | jq -r '.builds[0].id')") || fail "builds log failed"
+[[ "$private_log" != *"$private_token"* ]] || fail "the build's log holds the login's password"
+[[ -z "$(ls -A "$private_secrets")" ]] || fail "the build's logins are left on the server: $(ls -A "$private_secrets")"
+# Its cache is its own, as BuildKit serves an image pinned by digest from what a
+# cache holds: a build with no login keeps to its environment's.
+caches=$(docker volume ls --quiet --filter label=dockwell.build-cache) || fail "docker volume ls failed"
+[[ $'\n'"$caches" == *$'\n'"dockwell-build-cache-${build_env,,}-logins-"* ]] ||
+  fail "the build with a login kept its cache in a volume another build uses: $caches"
+[[ -z "$(docker ps --all --quiet --filter label=dev.dockwell.builder)" ]] || fail "a builder is left once its build ended"
+dw services delete e2e-private --environment "$build_env" --yes || fail "deleting e2e-private failed"
+dw registry-logins delete e2e-private --yes || fail "deleting the registry login e2e-private failed"
+restart_agent
+docker rm --force e2e-private-registry >/dev/null || true
+rm -rf "$private_dir" "$private_secrets"
+private_dir=""
+private_secrets=""
 
 step "One change reaches two servers, each with its own agent"
 # Both on this one Docker, so each container has a name of its own. What runs the same
