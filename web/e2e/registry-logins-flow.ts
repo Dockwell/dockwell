@@ -61,7 +61,12 @@ export const flow: Flow = {
     await page.goto(`${origin}/apps/new?source=image`);
     const form = page.getByRole("dialog", { name: "New app" });
     await form.waitFor();
-    // With a second server, as earlier flows leave one, the image is read where the app runs.
+    // With a second server, as earlier flows leave one, the image is read where the app
+    // runs, once the sheet knows the servers: its subtitle names the one, or it asks.
+    await form
+      .getByText(/Runs on/)
+      .first()
+      .waitFor();
     const runsOn = form.getByRole("group", { name: "Runs on" });
     if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
     await form.getByLabel("Image", { exact: true }).fill(IMAGE);
