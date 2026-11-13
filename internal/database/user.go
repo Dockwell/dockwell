@@ -591,13 +591,15 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 		// shared by several apps keeps each to its own (ADR 0084, which amends ADR
 		// 0038). Before 15, PUBLIC may also make things in template1's public schema,
 		// which every later database would copy, so that's taken away too, last, in
-		// template1 itself. An owner keeps what it owns.
+		// template1 itself; and as the new database's public schema is then no one's
+		// to make things in but the server's administrator's, its owner owns it, as
+		// from 15 a database's owner does. An owner keeps what it owns.
 		return "SELECT 'CREATE ROLE " + pgName(user) + " LOGIN' WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + user + "')\n\\gexec\n" +
 			alter +
 			"SELECT 'CREATE DATABASE " + pgName(db) + " OWNER " + pgName(user) + "' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '" + db + "')\n\\gexec\n" +
 			"REVOKE ALL ON DATABASE " + pgName(db) + " FROM PUBLIC;\n" +
 			"SELECT format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', datname) FROM pg_database WHERE (NOT datistemplate OR datname = 'template1') AND datname <> '" + db + "'\n\\gexec\n" +
-			pgOldPublic, nil
+			pgOldPublic(user, db), nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		identified := "IDENTIFIED BY PASSWORD '" + mysqlNative(password) + "'"
 		if !create {
@@ -620,10 +622,15 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 	return "", fmt.Errorf("%s has no users of its own", e.Name)
 }
 
-// pgOldPublic takes away PUBLIC's CREATE on template1's public schema, on a server
-// before 15, where it has it. It connects to template1, so it comes last.
-const pgOldPublic = "SELECT current_setting('server_version_num')::int < 150000 AS dw_old_public\n\\gset\n" +
-	"\\if :dw_old_public\n\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n"
+// pgOldPublic, on a server before 15, gives user db's public schema, where only the
+// server's administrator may make things once template1's is closed to PUBLIC, as
+// from 15 a database's owner has it, and closes it and template1's to PUBLIC, where
+// they're open. It connects to each database, so it comes last.
+func pgOldPublic(user, db string) string {
+	return "SELECT current_setting('server_version_num')::int < 150000 AS dw_old_public\n\\gset\n" +
+		"\\if :dw_old_public\n\\connect " + pgName(db) + "\nALTER SCHEMA public OWNER TO " + pgName(user) + ";\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n" +
+		"\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n"
+}
 
 // myCreate makes a MySQL or MariaDB user who can do anything in a new database, or
 // finishes one a step began. A grant reads _ in a database's name as any character,

@@ -161,7 +161,21 @@ jobs:
         if: steps.pick.outputs.run == 'true'
         env:
           DOCKWELL_TEST_SMALL_DISK: /mnt/dockwell-small
-        run: go test -race -run 'OnRealDocker' -v ./internal/...
+        run: |
+          set -o pipefail
+          go test -race -run 'OnRealDocker' -v ./internal/... | tee "$RUNNER_TEMP/docker.out"
+      # Two apps share a real PostgreSQL 14 and a real 17, each making a table in its
+      # own database, as a database user Dockwell made (ADR 0084). It has to pass,
+      # not skip: this machine's own PostgreSQL is no older than 15.
+      - name: Two apps share a PostgreSQL 14 and 17
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          for v in 14 17; do
+            grep -q -- "--- PASS: TestTwoAppsShareAPostgresOnRealDocker/postgres:$v-alpine" "$RUNNER_TEMP/docker.out" || {
+              echo "TestTwoAppsShareAPostgresOnRealDocker didn't pass on postgres:$v-alpine"
+              exit 1
+            }
+          done
       # Dockwell's nftables table against the runner's kernel, as root, in a
       # network namespace of its own, so the runner's own firewall is never
       # touched (ADR 0052). It has to pass, not skip.
