@@ -47,6 +47,7 @@ This record says what the converter now accepts and why each is safe. It grows a
 - **On the server, an image named by a tag that moves, such as `latest`, `stable` or `main`, converts,** as a version's tag does: the entry names it by its tag, and the plan pins the build it points at then, through the agent of the app's server, and shows the digest (ADR 0078). An image named with no tag is written out as `latest`, which is what Docker pulls for it, so the plan names the tag it pins. A 1Panel app whose only version folder is `latest` converts at version `latest`.
 - **It's as safe as a version's tag, which can be pushed again too.** What runs is the digest a person saw in the plan and approved. No registry is asked at a refresh, and nothing about the image is trusted that a version's tag isn't.
 - **The offline converter still leaves such an app out.** It pins each image as it converts, for a catalog that's published, where a moving tag would never move on.
+- **The converter's version goes up with each slice that changes which apps convert** (`convert.Version`, 2 here), so a server converts a commit it kept again, and a store that's pinned shows the new apps once Dockwell is updated, not only once the store moves.
 
 ### A new build of a moving tag is an update, through the install's catalog
 
