@@ -40,8 +40,8 @@ const (
 	maxSummary = 160
 	// Version is the converter's version, which goes up whenever what it writes
 	// changes, so a commit converted by an older one is converted again. 2 reads a
-	// store's logos and words (ADR 0083).
-	Version = 2
+	// store's logos and words (ADR 0083), and 3 takes a tag that moves (ADR 0085).
+	Version = 3
 	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
 	// entries reads 16 MiB of a commit at most.
 	MaxConverted = 16 << 20
