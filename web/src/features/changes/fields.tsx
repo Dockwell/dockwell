@@ -89,6 +89,8 @@ export function useFieldRows(): FieldRows {
     };
     const kinds: Readonly<Record<string, string>> = {
       "database.user": t`database user`,
+      // How one of an app's needs is met, such as its database (ADR 0084).
+      link: t({ message: "link", context: "an app's need, met" }),
     };
     const yesNo = (value: string) => (value === "true" ? t`yes` : value === "false" ? t`no` : value);
     const protocol = (value: string) => value.toUpperCase();

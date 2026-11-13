@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIuYHCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkaWwoRVHJhbnNsYXRpb25zRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgLMiYuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5UcmFuc2xhdGlvbjoCOAEiQwoLVHJhbnNsYXRpb24SDwoHc3VtbWFyeRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIOCgZyZWFkbWUYAyABKAkiZwoJQ29tcGFuaW9uEg8KB3NlcnZpY2UYASABKAkSDQoFbGFiZWwYAiABKAkSDwoHcHVycG9zZRgDIAEoCRIKCgJvbhgEIAEoCBIOCgZpbnB1dHMYBSADKAkSDQoFbm90ZXMYBiADKAkiZgoGU2lnbkluEgwKBHVzZXIYASABKAkSEgoKdXNlcl9pbnB1dBgCIAEoCRIWCg5wYXNzd29yZF9pbnB1dBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkSEgoKY2hhbmdlZF9pbhgFIAEoCSI8CgdTaWdudXBzEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDgoGY2xvc2VkGAMgASgJIkMKD0FkZHJlc3NWYXJpYWJsZRIPCgdzZXJ2aWNlGAEgASgJEhAKCHZhcmlhYmxlGAIgASgJEg0KBXZhbHVlGAMgASgJIjsKClNjcmVlbnNob3QSDAoEcGF0aBgBIAEoCRIPCgdjYXB0aW9uGAIgASgJEg4KBnNvdXJjZRgDIAEoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSLOAgoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCBI6CgtnZW5lcmF0ZV9hcxhQIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuR2VuZXJhdGVBcxISCgptaW5fbGVuZ3RoGFEgASgNEjkKCmNoYXJhY3RlcnMYUiABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkNoYXJhY3RlcnMSEAoIc2V0X29uY2UYCSABKAgiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqQQoKQ2hhcmFjdGVycxIaChZDSEFSQUNURVJTX1VOU1BFQ0lGSUVEEAASFwoTQ0hBUkFDVEVSU19VUkxfU0FGRRABKlYKCkdlbmVyYXRlQXMSGwoXR0VORVJBVEVfQVNfVU5TUEVDSUZJRUQQABITCg9HRU5FUkFURV9BU19IRVgQARIWChJHRU5FUkFURV9BU19CQVNFNjQQAip+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIpYICgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkSLgoFbmVlZHMYKCADKAsyHy5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLk5lZWQaWwoRVHJhbnNsYXRpb25zRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgLMiYuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5UcmFuc2xhdGlvbjoCOAEi0AEKBE5lZWQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRI2CgdhY2NlcHRzGAMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkQWNjZXB0Eg8KB3NlcnZpY2UYBCABKAkSEAoIZGF0YWJhc2UYBSABKAkSDAoEdXNlchgGIAEoCRIwCgRzZXRzGAcgAygLMiIuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5OZWVkU2V0EhAKCHNldF9vbmNlGAggASgIIlEKCk5lZWRBY2NlcHQSMQoGZW5naW5lGAEgASgOMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5FbmdpbmUSEAoIdmVyc2lvbnMYAiABKAkiiQEKB05lZWRTZXQSDAoEbmFtZRgBIAEoCRItCgRwYXJ0GAIgASgOMh8uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5QYXJ0EhAKCHRlbXBsYXRlGAMgASgJEi8KA3RscxgEIAEoCzIiLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuTmVlZFRscyIiCgdOZWVkVGxzEgoKAm9uGAEgASgJEgsKA29mZhgCIAEoCSJDCgtUcmFuc2xhdGlvbhIPCgdzdW1tYXJ5GAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEg4KBnJlYWRtZRgDIAEoCSJnCglDb21wYW5pb24SDwoHc2VydmljZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIPCgdwdXJwb3NlGAMgASgJEgoKAm9uGAQgASgIEg4KBmlucHV0cxgFIAMoCRINCgVub3RlcxgGIAMoCSJmCgZTaWduSW4SDAoEdXNlchgBIAEoCRISCgp1c2VyX2lucHV0GAIgASgJEhYKDnBhc3N3b3JkX2lucHV0GAMgASgJEg4KBnNlcnZlchgEIAEoCRISCgpjaGFuZ2VkX2luGAUgASgJIjwKB1NpZ251cHMSDwoHc2VydmljZRgBIAEoCRIQCgh2YXJpYWJsZRgCIAEoCRIOCgZjbG9zZWQYAyABKAkiQwoPQWRkcmVzc1ZhcmlhYmxlEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDQoFdmFsdWUYAyABKAkiOwoKU2NyZWVuc2hvdBIMCgRwYXRoGAEgASgJEg8KB2NhcHRpb24YAiABKAkSDgoGc291cmNlGAMgASgJIjoKBlNvdXJjZRISCgpyZXBvc2l0b3J5GAEgASgJEgwKBHBhdGgYAiABKAkSDgoGY29tbWl0GAMgASgJIs4CCgVJbnB1dBIMCgRuYW1lGAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBGhpbnQYAyABKAkSMgoEdHlwZRgEIAEoDjIkLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuSW5wdXRUeXBlEhUKDWRlZmF1bHRfdmFsdWUYBSABKAkSEAoIb3B0aW9uYWwYBiABKAgSEAoIZ2VuZXJhdGUYByABKA0SDgoGbG9nZ2VkGAggASgIEjoKC2dlbmVyYXRlX2FzGFAgASgOMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5HZW5lcmF0ZUFzEhIKCm1pbl9sZW5ndGgYUSABKA0SOQoKY2hhcmFjdGVycxhSIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuQ2hhcmFjdGVycxIQCghzZXRfb25jZRgJIAEoCCIWCgNXZWISDwoHc2VydmljZRgBIAEoCSqtAQoGRW5naW5lEhYKEkVOR0lORV9VTlNQRUNJRklFRBAAEhUKEUVOR0lORV9QT1NUR1JFU1FMEAESEAoMRU5HSU5FX01ZU1FMEAISEgoORU5HSU5FX01BUklBREIQAxIQCgxFTkdJTkVfUkVESVMQBBIRCg1FTkdJTkVfVkFMS0VZEAUSEgoORU5HSU5FX01PTkdPREIQBhIVChFFTkdJTkVfQ0xJQ0tIT1VTRRAHKp0BCgRQYXJ0EhQKEFBBUlRfVU5TUEVDSUZJRUQQABINCglQQVJUX0hPU1QQARINCglQQVJUX1BPUlQQAhIQCgxQQVJUX0FERFJFU1MQAxIRCg1QQVJUX0RBVEFCQVNFEAQSDQoJUEFSVF9VU0VSEAUSEQoNUEFSVF9QQVNTV09SRBAGEgwKCFBBUlRfVVJMEAcSDAoIUEFSVF9UTFMQCCpBCgpDaGFyYWN0ZXJzEhoKFkNIQVJBQ1RFUlNfVU5TUEVDSUZJRUQQABIXChNDSEFSQUNURVJTX1VSTF9TQUZFEAEqVgoKR2VuZXJhdGVBcxIbChdHRU5FUkFURV9BU19VTlNQRUNJRklFRBAAEhMKD0dFTkVSQVRFX0FTX0hFWBABEhYKEkdFTkVSQVRFX0FTX0JBU0U2NBACKn4KCUlucHV0VHlwZRIaChZJTlBVVF9UWVBFX1VOU1BFQ0lGSUVEEAASEwoPSU5QVVRfVFlQRV9URVhUEAESFAoQSU5QVVRfVFlQRV9FTUFJTBACEhMKD0lOUFVUX1RZUEVfUE9SVBADEhUKEUlOUFVUX1RZUEVfU0VDUkVUEARC/QEKHWNvbS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExQgpFbnRyeVByb3RvUAFaSmdpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL2NhdGFsb2cvdjFhbHBoYTE7Y2F0YWxvZ3YxYWxwaGExogIDRENYqgIZRG9ja3dlbGwuQ2F0YWxvZy5WMWFscGhhMcoCGURvY2t3ZWxsXENhdGFsb2dcVjFhbHBoYTHiAiVEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGExXEdQQk1ldGFkYXRh6gIbRG9ja3dlbGw6OkNhdGFsb2c6OlYxYWxwaGExYgZwcm90bzM");
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -276,6 +276,17 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
    * @generated from field: map<string, dockwell.catalog.v1alpha1.Translation> translations = 31;
    */
   translations: { [key: string]: Translation };
+
+  /**
+   * What the app reads from outside its own containers, such as a MySQL-compatible
+   * database, each met as a person installs it: by a new one beside the app, by
+   * one Dockwell runs already, or by a connection. Empty needs nothing, as before.
+   * Numbered apart, as open work adds to this message. See
+   * docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+   *
+   * @generated from field: repeated dockwell.catalog.v1alpha1.Need needs = 40;
+   */
+  needs: Need[];
 };
 
 /**
@@ -284,6 +295,193 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
  */
 export const EntrySchema: GenMessage<Entry> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * Need is something an app reads from outside its own containers, such as a
+ * database, by the names it sets in the app's environment.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.Need
+ */
+export type Need = Message<"dockwell.catalog.v1alpha1.Need"> & {
+  /**
+   * Its name in the entry, such as "db": lowercase letters, digits and dashes,
+   * as a service's.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * What people call it, such as "Database".
+   *
+   * @generated from field: string label = 2;
+   */
+  label: string;
+
+  /**
+   * What meets it: any of these engines, each at the versions the app takes. At
+   * least one.
+   *
+   * @generated from field: repeated dockwell.catalog.v1alpha1.NeedAccept accepts = 3;
+   */
+  accepts: NeedAccept[];
+
+  /**
+   * The service of the entry's Compose file that meets it when a person takes a
+   * new one, such as "db", which is one of databases and reads the need's names.
+   * It's left out of the install when the need is met otherwise, with the
+   * volumes and inputs only it uses. Empty: the entry brings none, and a new one
+   * comes from the catalog's entry for the engine.
+   *
+   * @generated from field: string service = 4;
+   */
+  service: string;
+
+  /**
+   * The database to make for it, such as "wordpress". Empty takes the need's
+   * name, with underscores for dashes.
+   *
+   * @generated from field: string database = 5;
+   */
+  database: string;
+
+  /**
+   * The user to make for it, who owns that database. Empty takes the
+   * database's name.
+   *
+   * @generated from field: string user = 6;
+   */
+  user: string;
+
+  /**
+   * The names it sets in the app's environment, which the Compose file uses as
+   * ${NAME}, each a whole environment value. At least one.
+   *
+   * @generated from field: repeated dockwell.catalog.v1alpha1.NeedSet sets = 7;
+   */
+  sets: NeedSet[];
+
+  /**
+   * The app keeps the password it installed with, as Nextcloud does in its
+   * config.php, so setting it anew would leave the app with the old one: a
+   * rotation of it is refused.
+   *
+   * @generated from field: bool set_once = 8;
+   */
+  setOnce: boolean;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.Need.
+ * Use `create(NeedSchema)` to create a new message.
+ */
+export const NeedSchema: GenMessage<Need> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+
+/**
+ * NeedAccept is an engine that meets a need, at the versions the app takes.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.NeedAccept
+ */
+export type NeedAccept = Message<"dockwell.catalog.v1alpha1.NeedAccept"> & {
+  /**
+   * The engine.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.Engine engine = 1;
+   */
+  engine: Engine;
+
+  /**
+   * The versions, as comparators on dotted numbers separated by spaces, such as
+   * ">=8.0" or ">=10.6 <12". Empty takes any.
+   *
+   * @generated from field: string versions = 2;
+   */
+  versions: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.NeedAccept.
+ * Use `create(NeedAcceptSchema)` to create a new message.
+ */
+export const NeedAcceptSchema: GenMessage<NeedAccept> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+
+/**
+ * NeedSet is a name a need sets in the app's environment, and what it holds.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.NeedSet
+ */
+export type NeedSet = Message<"dockwell.catalog.v1alpha1.NeedSet"> & {
+  /**
+   * The name, as its Compose file uses it, such as "DB_HOST".
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * What it holds.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.Part part = 2;
+   */
+  part: Part;
+
+  /**
+   * How a URL is written, with {host}, {port}, {address}, {database}, {user} and
+   * {password} where each goes, such as
+   * "postgres://{user}:{password}@{host}:{port}/{database}?schema=public", and
+   * {tls} where TLS goes, written as tls says. Each part is percent-encoded for
+   * its place. Only for a URL; empty writes the engine's own form.
+   *
+   * @generated from field: string template = 3;
+   */
+  template: string;
+
+  /**
+   * How the app reads whether to use TLS, for a TLS part or {tls} in a template:
+   * its words for on and off, such as "require" and "disable" for libpq, or
+   * "true" and "false" for node-postgres or Go's MySQL driver.
+   *
+   * @generated from field: dockwell.catalog.v1alpha1.NeedTls tls = 4;
+   */
+  tls?: NeedTls | undefined;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.NeedSet.
+ * Use `create(NeedSetSchema)` to create a new message.
+ */
+export const NeedSetSchema: GenMessage<NeedSet> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+
+/**
+ * NeedTls is how an app reads whether to use TLS.
+ *
+ * @generated from message dockwell.catalog.v1alpha1.NeedTls
+ */
+export type NeedTls = Message<"dockwell.catalog.v1alpha1.NeedTls"> & {
+  /**
+   * What it reads as on, such as "require".
+   *
+   * @generated from field: string on = 1;
+   */
+  on: string;
+
+  /**
+   * What it reads as off, such as "disable".
+   *
+   * @generated from field: string off = 2;
+   */
+  off: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.NeedTls.
+ * Use `create(NeedTlsSchema)` to create a new message.
+ */
+export const NeedTlsSchema: GenMessage<NeedTls> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
 
 /**
  * Translation is what an entry says in another language than its own, as its
@@ -319,7 +517,7 @@ export type Translation = Message<"dockwell.catalog.v1alpha1.Translation"> & {
  * Use `create(TranslationSchema)` to create a new message.
  */
 export const TranslationSchema: GenMessage<Translation> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
 
 /**
  * Companion is a service an app runs without, such as a database's admin tool,
@@ -382,7 +580,7 @@ export type Companion = Message<"dockwell.catalog.v1alpha1.Companion"> & {
  * Use `create(CompanionSchema)` to create a new message.
  */
 export const CompanionSchema: GenMessage<Companion> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
 
 /**
  * SignIn is how a person signs in to an app once it's installed.
@@ -434,7 +632,7 @@ export type SignIn = Message<"dockwell.catalog.v1alpha1.SignIn"> & {
  * Use `create(SignInSchema)` to create a new message.
  */
 export const SignInSchema: GenMessage<SignIn> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
 
 /**
  * Signups is the variable that closes an app's sign-ups.
@@ -469,7 +667,7 @@ export type Signups = Message<"dockwell.catalog.v1alpha1.Signups"> & {
  * Use `create(SignupsSchema)` to create a new message.
  */
 export const SignupsSchema: GenMessage<Signups> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 8);
 
 /**
  * AddressVariable is a variable that follows the domain an app is reached at.
@@ -506,7 +704,7 @@ export type AddressVariable = Message<"dockwell.catalog.v1alpha1.AddressVariable
  * Use `create(AddressVariableSchema)` to create a new message.
  */
 export const AddressVariableSchema: GenMessage<AddressVariable> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 9);
 
 /**
  * Screenshot is a preview a person can read before starting an installation.
@@ -543,7 +741,7 @@ export type Screenshot = Message<"dockwell.catalog.v1alpha1.Screenshot"> & {
  * Use `create(ScreenshotSchema)` to create a new message.
  */
 export const ScreenshotSchema: GenMessage<Screenshot> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 10);
 
 /**
  * Source is where an entry came from.
@@ -578,7 +776,7 @@ export type Source = Message<"dockwell.catalog.v1alpha1.Source"> & {
  * Use `create(SourceSchema)` to create a new message.
  */
 export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 11);
 
 /**
  * Input is one thing an entry needs to know to install, named by the ${NAME}
@@ -693,7 +891,7 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
  * Use `create(InputSchema)` to create a new message.
  */
 export const InputSchema: GenMessage<Input> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 8);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 12);
 
 /**
  * Web says what a person opens once an entry is installed.
@@ -714,7 +912,149 @@ export type Web = Message<"dockwell.catalog.v1alpha1.Web"> & {
  * Use `create(WebSchema)` to create a new message.
  */
 export const WebSchema: GenMessage<Web> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 9);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 13);
+
+/**
+ * Engine is what runs a database, as Dockwell knows it (ADR 0038).
+ *
+ * @generated from enum dockwell.catalog.v1alpha1.Engine
+ */
+export enum Engine {
+  /**
+   * @generated from enum value: ENGINE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * PostgreSQL.
+   *
+   * @generated from enum value: ENGINE_POSTGRESQL = 1;
+   */
+  POSTGRESQL = 1,
+
+  /**
+   * MySQL, and Percona Server for MySQL through a connection.
+   *
+   * @generated from enum value: ENGINE_MYSQL = 2;
+   */
+  MYSQL = 2,
+
+  /**
+   * MariaDB.
+   *
+   * @generated from enum value: ENGINE_MARIADB = 3;
+   */
+  MARIADB = 3,
+
+  /**
+   * Redis.
+   *
+   * @generated from enum value: ENGINE_REDIS = 4;
+   */
+  REDIS = 4,
+
+  /**
+   * Valkey.
+   *
+   * @generated from enum value: ENGINE_VALKEY = 5;
+   */
+  VALKEY = 5,
+
+  /**
+   * MongoDB.
+   *
+   * @generated from enum value: ENGINE_MONGODB = 6;
+   */
+  MONGODB = 6,
+
+  /**
+   * ClickHouse.
+   *
+   * @generated from enum value: ENGINE_CLICKHOUSE = 7;
+   */
+  CLICKHOUSE = 7,
+}
+
+/**
+ * Describes the enum dockwell.catalog.v1alpha1.Engine.
+ */
+export const EngineSchema: GenEnum<Engine> = /*@__PURE__*/
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * Part is what a name a need sets holds.
+ *
+ * @generated from enum dockwell.catalog.v1alpha1.Part
+ */
+export enum Part {
+  /**
+   * @generated from enum value: PART_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The host the app reaches it at, such as "db".
+   *
+   * @generated from enum value: PART_HOST = 1;
+   */
+  HOST = 1,
+
+  /**
+   * Its port, such as "3306".
+   *
+   * @generated from enum value: PART_PORT = 2;
+   */
+  PORT = 2,
+
+  /**
+   * The host and port together, such as "db:3306".
+   *
+   * @generated from enum value: PART_ADDRESS = 3;
+   */
+  ADDRESS = 3,
+
+  /**
+   * The database's name. For Redis and Valkey, the number of the logical
+   * database.
+   *
+   * @generated from enum value: PART_DATABASE = 4;
+   */
+  DATABASE = 4,
+
+  /**
+   * The user it signs in as.
+   *
+   * @generated from enum value: PART_USER = 5;
+   */
+  USER = 5,
+
+  /**
+   * The user's password, kept as a secret.
+   *
+   * @generated from enum value: PART_PASSWORD = 6;
+   */
+  PASSWORD = 6,
+
+  /**
+   * A URL with all of it, the password among it, kept as a secret.
+   *
+   * @generated from enum value: PART_URL = 7;
+   */
+  URL = 7,
+
+  /**
+   * Whether to use TLS, in the app's own words, as the set's tls gives them.
+   *
+   * @generated from enum value: PART_TLS = 8;
+   */
+  TLS = 8,
+}
+
+/**
+ * Describes the enum dockwell.catalog.v1alpha1.Part.
+ */
+export const PartSchema: GenEnum<Part> = /*@__PURE__*/
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 1);
 
 /**
  * Characters are what a value a person gives may hold.
@@ -743,7 +1083,7 @@ export enum Characters {
  * Describes the enum dockwell.catalog.v1alpha1.Characters.
  */
 export const CharactersSchema: GenEnum<Characters> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 2);
 
 /**
  * GenerateAs is how a generated secret is written.
@@ -779,7 +1119,7 @@ export enum GenerateAs {
  * Describes the enum dockwell.catalog.v1alpha1.GenerateAs.
  */
 export const GenerateAsSchema: GenEnum<GenerateAs> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 3);
 
 /**
  * InputType is what an input takes.
@@ -832,5 +1172,5 @@ export enum InputType {
  * Describes the enum dockwell.catalog.v1alpha1.InputType.
  */
 export const InputTypeSchema: GenEnum<InputType> = /*@__PURE__*/
-  enumDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  enumDesc(file_dockwell_catalog_v1alpha1_entry, 4);
 

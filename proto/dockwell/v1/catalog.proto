@@ -262,6 +262,27 @@ message GetCatalogEntryResponse {
   // The catalogs that have the app, the one it's listed from first, by their
   // sources' names, empty for Dockwell's own. One alone has nothing to choose.
   repeated string catalogs = 20;
+  // What can meet each of the entry's needs as it's installed, as a person picks:
+  // for now a new one beside the app, of each engine it takes that the entry or
+  // the catalog brings. The first for each need is what an install takes unless
+  // told otherwise. Numbered apart, as open work adds to this message. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  repeated CatalogNeedOption needs = 80;
+}
+
+// CatalogNeedOption is one way to meet an entry's need.
+message CatalogNeedOption {
+  // The need, by its name in the entry, such as "db".
+  string need = 1;
+  // What InstallCatalogEntryRequest.needs takes for it, such as "new:mysql".
+  string choice = 2;
+  // The engine, and the version it installs.
+  dockwell.catalog.v1alpha1.Engine engine = 3;
+  string version = 4;
+  // The catalog entry a new one comes from, such as "mysql", with its name, where
+  // it isn't the entry's own service. Empty: the entry's own.
+  string entry = 5;
+  string entry_name = 6;
 }
 
 // CatalogPart is one service an entry installs.
@@ -375,6 +396,12 @@ message InstallCatalogEntryRequest {
   // the app. Left out, the one it's listed from. It upgrades from that catalog
   // alone.
   string catalog = 20;
+  // How to meet each of the entry's needs, by the need's name: "new" for a new one
+  // beside the app, of the engine its first option has, or "new:<engine>" for one
+  // of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb
+  // or clickhouse), as GetCatalogEntry lists. A need left out takes its first
+  // option. Numbered apart, as open work adds to this message.
+  map<string, string> needs = 80;
 }
 
 // InstallCatalogEntryResponse carries the planned change.

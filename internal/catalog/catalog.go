@@ -462,7 +462,10 @@ func check(e *catalogv1.Entry, byTag bool) error {
 			}
 		}
 	}
-	return checkCompanions(e)
+	if err := checkCompanions(e); err != nil {
+		return err
+	}
+	return checkNeeds(e)
 }
 
 // checkDatabases refuses a database the entry marks that its Compose file doesn't run.
@@ -667,6 +670,43 @@ type Filled struct {
 	// meaning, so nothing reads them to upgrade it. No service keeps that value: each
 	// uses the secret by reference.
 	Held map[string]string
+	// Linked are the values of the names needs set that hold no password, by name,
+	// which the install keeps as its environment's variables, and LinkStands what
+	// stands for each among Variables, which a service then uses by reference (Link).
+	Linked, LinkStands map[string]string
+}
+
+// Link has the app's services use each of names, which its needs set, as the
+// environment's variable rather than hold the value: each takes a value of no meaning
+// in the file's reading, as a secret does, and keeps its own in Linked. Plain still
+// has it, so the install's pin keeps it for an upgrade.
+func (f *Filled) Link(names []string) error {
+	stands, err := StandFor(f.Variables, names)
+	if err != nil {
+		return err
+	}
+	f.Linked, f.LinkStands = map[string]string{}, stands
+	for name := range stands {
+		f.Linked[name] = f.Plain[name]
+	}
+	return nil
+}
+
+// StandFor puts a value of no meaning in place of each of names among variables, and
+// says what stands for each, by name. A name variables doesn't have is left out.
+func StandFor(variables map[string]string, names []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, name := range names {
+		if _, ok := variables[name]; !ok {
+			continue
+		}
+		stand, err := generate(32)
+		if err != nil {
+			return nil, err
+		}
+		variables[name], out[name] = stand, stand
+	}
+	return out, nil
 }
 
 // Upgrades reports whether an entry would change what an install runs. A release goes

@@ -1901,6 +1901,36 @@ type Referrer interface {
 	ReferenceKinds() []Kind
 }
 
+// Tied is a kind that stands for what reads the values it sets, as a link stands for
+// an app's need, met (ADR 0084). A change that deletes what it names, or a service
+// that reads those values, takes it in when nothing left reads them, with each of them
+// nothing left uses; and what it names can't go while something left reads them.
+type Tied interface {
+	Referrer
+	// Ties are the values it sets, by kind and name, in its own scope.
+	Ties(spec proto.Message) []Ref
+}
+
+// Ties are the values a spec of kind sets, where its kind is Tied.
+func (r *Registry) Ties(kind Kind, spec proto.Message) []Ref {
+	if t, ok := r.types[kind].(Tied); ok && spec != nil {
+		return t.Ties(spec)
+	}
+	return nil
+}
+
+// TiedKinds are the kinds that are Tied.
+func (r *Registry) TiedKinds() []Kind {
+	var out []Kind
+	for kind, t := range r.types {
+		if _, ok := t.(Tied); ok {
+			out = append(out, kind)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // Reference is a resource a spec names, in the spec's own scope.
 type Reference struct {
 	Kind Kind

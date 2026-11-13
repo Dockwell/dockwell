@@ -278,6 +278,8 @@ func ReadsAsInstall(ctx context.Context, e *catalogv1.Entry, tagged bool) error 
 // ReadStack reads an entry's Compose file as an install would, with stand-ins for
 // what a person types.
 func ReadStack(ctx context.Context, e *catalogv1.Entry) (*compose.Stack, error) {
+	// What its needs set reads as the default meets them (ADR 0084).
+	e = catalog.Standing(e)
 	given := map[string]string{}
 	for _, in := range e.GetInputs() {
 		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {

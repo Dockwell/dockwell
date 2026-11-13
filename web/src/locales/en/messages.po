@@ -6639,6 +6639,21 @@ msgstr "Limits and restarts"
 msgid "New database"
 msgstr "New database"
 
+msgid "New {engine} beside {app}"
+msgstr "New {engine} beside {app}"
+
+msgid "New {engine} {version} beside {app}"
+msgstr "New {engine} {version} beside {app}"
+
+msgid "New {name}"
+msgstr "New {name}"
+
+msgid "Nothing here can make its {unmetWord} yet"
+msgstr "Nothing here can make its {unmetWord} yet"
+
+msgid "Nothing here can make one yet"
+msgstr "Nothing here can make one yet"
+
 msgid "Open {app}"
 msgstr "Open {app}"
 
@@ -6737,6 +6752,9 @@ msgstr "{app} is under the {license} licence."
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
+
+msgid "{name} in the catalog"
+msgstr "{name} in the catalog"
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
@@ -8082,6 +8100,10 @@ msgstr "kept 7 days, then deleted"
 
 msgid "label"
 msgstr "label"
+
+msgctxt "an app's need, met"
+msgid "link"
+msgstr "link"
 
 msgid "mounted at"
 msgstr "mounted at"

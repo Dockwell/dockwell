@@ -590,6 +590,8 @@ func (u unreadable) Unwrap() error { return u.error }
 // services reach, what its volumes and networks reach, as the plan counts them, and
 // typed, what a value a person types can reach.
 func reachesOf(ctx context.Context, e *catalogv1.Entry, typed []string, typedResources map[string]bool) ([]string, error) {
+	// What its needs set reads as the default meets them (ADR 0084).
+	e = catalog.Standing(e)
 	given := map[string]string{}
 	for _, in := range e.GetInputs() {
 		if catalog.Asks(in) && in.GetDefaultValue() == "" && !in.GetOptional() {

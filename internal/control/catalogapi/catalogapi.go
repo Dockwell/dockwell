@@ -121,12 +121,15 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 	}
 	// What it installs is something to read before the plan, which says it again, so
 	// an entry this can't read still opens, and says nothing of its parts.
-	parts, err := partsOf(ctx, entry, free.values)
+	parts, err := partsOf(ctx, catalog.Standing(entry), free.values)
 	if err != nil {
 		h.logger.WarnContext(ctx, "couldn't say what a catalog entry installs", slog.String("entry", entry.GetId()), slog.String("error", err.Error()))
 		parts = nil
 	}
-	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{Entry: entry, Project: free.project, Values: free.values, Parts: parts, Catalogs: s.catalogsOf(entry.GetId())}), nil
+	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{
+		Entry: entry, Project: free.project, Values: free.values, Parts: parts, Catalogs: s.catalogsOf(entry.GetId()),
+		Needs: needOptions(entry, catalog.Ways(entry, s.lookup())),
+	}), nil
 }
 
 // partsOf reads what an entry's Compose file runs, from the values an install starts
@@ -232,26 +235,37 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	free, err := h.whatsFree(ctx, entry, "")
+	// What meets each need, as asked, or each need's first way (ADR 0084).
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), m.GetNeeds(), nil, onServer)
+	if err != nil {
+		return nil, err
+	}
+	pinNotes = append(pinNotes, needNotes...)
+	free, err := h.whatsFree(ctx, needed.Entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	// What it installs is the entry without the companions left out.
-	choice, err := catalog.Chosen(entry, m.GetCompanions())
+	choice, err := catalog.Chosen(needed.Entry, m.GetCompanions())
 	if err == nil {
-		err = catalog.LeftOut(entry, choice, m.GetValues())
+		err = catalog.LeftOut(needed.Entry, choice, m.GetValues())
 	}
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
-	chosen, err := catalog.Choose(entry, choice)
+	chosen, err := catalog.Choose(needed.Entry, choice)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	filled, err := catalog.Fill(chosen, m.GetValues(), free.values)
+	if err == nil {
+		err = filled.Link(needed.Plain)
+	}
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	pin := pinTo(entry, from, filled, choice)
+	pin.Needs = needed.Pinned
 	project := cmp.Or(m.GetProject(), free.project)
 	if err := (scope.ProjectType{}).CheckName(project); err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
@@ -266,9 +280,10 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Stands:     filled.Stands(),
 		Servers:    m.GetServers(),
 		FirstSteps: catalog.FirstWords(entry, choice),
-		Pin:        pinTo(entry, from, filled, choice),
+		Pin:        pin,
 		Limits:     limitsOf(m),
 		Notes:      pinNotes,
+		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links},
 	})
 	if err != nil {
 		return nil, err
@@ -466,19 +481,32 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, err
 	}
-	free, err := h.whatsFree(ctx, entry, "")
+	// Its needs stay met as they are, and one the release adds takes its first way.
+	server := h.serverOf(ctx, install.GetEnvironmentId())
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), server)
+	if err != nil {
+		return nil, err
+	}
+	pinNotes = append(pinNotes, needNotes...)
+	free, err := h.whatsFree(ctx, needed.Entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	// The companions it runs stay as they are, and one the release adds is as its entry says.
-	choice := catalog.Resolve(entry, pin)
-	chosen, err := catalog.Choose(entry, choice)
+	choice := catalog.Resolve(needed.Entry, pin)
+	chosen, err := catalog.Choose(needed.Entry, choice)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	filled, err := catalog.Carry(chosen, pin, m.GetValues(), free.values, found.held)
+	if err == nil {
+		err = filled.Link(needed.Plain)
+	}
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+	}
+	if err := h.keepEdited(ctx, install.GetEnvironmentId(), pin, filled); err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	old, err := ranFile(pin)
 	if err != nil {
@@ -488,6 +516,12 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
+	oldLinked, err := catalog.StandFor(oldVariables, needed.Plain)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
+	newPin.Needs = needed.Pinned
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Project:     install.GetProjectId(),
 		Environment: install.GetEnvironmentId(),
@@ -499,13 +533,14 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		Variables:   filled.Variables,
 		Secrets:     filled.Secrets,
 		Stands:      filled.Stands(),
-		Pin:         pinTo(entry, s.origins[entry.GetId()], filled, choice),
+		Pin:         newPin,
 		SkipBackup:  m.GetSkipBackup(),
 
 		Old:          old.GetFile(),
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
 		Notes:        pinNotes,
+		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links},
 	})
 }
 
@@ -571,7 +606,11 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	file, err := catalog.Without(string(pin.GetFile()), catalog.Off(next))
+	met, err := catalog.MetFile(string(pin.GetFile()), pin.GetNeeds())
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	file, err := catalog.Without(met, catalog.Off(next))
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -582,6 +621,17 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 		return nil, h.internal(ctx, err)
 	}
 	variables, stands, err := catalog.Given(&resourcev1.CatalogPin{File: []byte(file), Values: values})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	// What its needs set is used by reference on both sides, and stays as it is, by the
+	// names the install ran, whatever the release in the catalog now names.
+	plain := catalog.PinnedPlain(pin.GetNeeds(), entry)
+	oldLinked, err := catalog.StandFor(oldVariables, plain)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	linked, err := catalog.StandFor(variables, plain)
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
@@ -603,6 +653,7 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 		Old:          old.GetFile(),
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
+		Needs:        composeapi.Needs{Stands: linked, OldStands: oldLinked},
 	})
 	if err != nil {
 		return nil, err
@@ -634,7 +685,11 @@ func (h *Handler) serverOf(ctx context.Context, env string) string {
 // ranFile is the pin as what runs now read it: its file without the companions it
 // left out, with the values it kept.
 func ranFile(pin *resourcev1.CatalogPin) (*resourcev1.CatalogPin, error) {
-	file, err := catalog.Without(string(pin.GetFile()), catalog.Off(pin.GetCompanions()))
+	met, err := catalog.MetFile(string(pin.GetFile()), pin.GetNeeds())
+	if err != nil {
+		return nil, err
+	}
+	file, err := catalog.Without(met, catalog.Off(pin.GetCompanions()))
 	if err != nil {
 		return nil, err
 	}

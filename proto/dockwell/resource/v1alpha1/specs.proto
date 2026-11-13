@@ -498,6 +498,37 @@ message CatalogPin {
   // source that reads Dockwell/catalog, which its upgrades come from since (ADR
   // 0077). Empty for any other install.
   string built_in_commit = 9;
+  // How each of the entry's needs is met, by the need's name, so an upgrade reads
+  // the file as the install did and keeps it so. A need with no word here is met
+  // by the entry's own service, as an install from before needs ran it. Numbered
+  // apart, as 80 and 81 are taken here. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  map<string, PinnedNeed> needs = 82;
+}
+
+// PinnedNeed is how an install met one of its entry's needs.
+message PinnedNeed {
+  // The engine that meets it.
+  LinkEngine engine = 1;
+  // The catalog entry its new service came from, such as "mysql", where it isn't
+  // the entry's own service. Empty: the entry's own service meets it.
+  string entry = 2;
+  // That entry's version and release, as installed.
+  string version = 3;
+  uint32 release = 4;
+  // The catalog source that entry came from, by name.
+  string catalog = 5;
+  // The service, with its volumes, as that entry's Compose file gave it and the
+  // install added it under the need's name, so an upgrade of the app reads it as
+  // it was. Its ${NAME}s are the install's, as written, so it holds no secret.
+  bytes file = 6;
+  // The entry's own service it left out in its place, such as "db", where the
+  // entry brings one. Empty where it brings none.
+  string service = 7;
+  // The names the need set that hold no password, as the install ran, which its
+  // services use as the environment's variables, so a change that reads the file it
+  // ran uses them as it did, whatever a newer release names.
+  repeated string plain = 13;
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -1033,6 +1064,9 @@ message Spec {
     // Work that runs on a schedule, kind "task". Numbered in the block scheduled
     // tasks hold, as open work adds to this message.
     Task task = 150;
+    // How one of an app's needs is met, kind "link" (ADR 0084). Numbered apart,
+    // as open work adds to this message.
+    Link link = 81;
   }
 }
 
@@ -1322,3 +1356,80 @@ message AlertTelegram {
 // admin (ADR 0064). Later settings of the server itself, such as whether it
 // installs updates by itself, become fields here.
 message ServerHost {}
+
+// Link is how one of an app's needs is met, such as its database: what meets it,
+// and the variables and secrets it sets in its environment, which the app's
+// services use by name. It lives in the app's environment, named for the need,
+// such as "db", and runs on no server: the control plane holds it. See
+// docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+message Link {
+  // What people call the need, such as "Database".
+  string label = 1;
+  // The service that meets it, by name, in this environment.
+  string service = 2;
+  // The engine that service runs, and its version as the link was made.
+  LinkEngine engine = 3;
+  string version = 4;
+  // The engines and versions the app takes, so a later change to either end is
+  // checked against them.
+  repeated LinkAccept accepts = 5;
+  // The database and the user who owns it, on what meets it, which the app signs
+  // in as. Empty for an engine with no users of its own here, such as Redis.
+  string database_name = 6;
+  string user = 7;
+  // The names it sets in this environment, and what each holds. A plain part is
+  // a variable, and the password, or a URL with it, a secret.
+  repeated LinkSet sets = 8;
+  // The app keeps the password it installed with, so a rotation of it is
+  // refused.
+  bool set_once = 9;
+}
+
+// LinkAccept is an engine a link's app takes, at the versions it takes.
+message LinkAccept {
+  LinkEngine engine = 1;
+  // Comparators on dotted numbers, such as ">=10.6 <12". Empty takes any.
+  string versions = 2;
+}
+
+// LinkSet is a name a link sets in its environment, and what it holds.
+message LinkSet {
+  // The name, such as "DB_HOST".
+  string name = 1;
+  // What it holds.
+  LinkPart part = 2;
+  // How a URL is written, with {host}, {port}, {address}, {database}, {user} and
+  // {password}, and {tls}, as the app's entry gave it. Empty is the engine's own
+  // form.
+  string template = 3;
+  // The app's words for TLS on and off, for a TLS part or {tls}.
+  string tls_on = 4;
+  string tls_off = 5;
+}
+
+// LinkEngine is what runs a database, as Dockwell knows it (ADR 0038). Its numbers
+// are the catalog format's own Engine's.
+enum LinkEngine {
+  LINK_ENGINE_UNSPECIFIED = 0;
+  LINK_ENGINE_POSTGRESQL = 1;
+  LINK_ENGINE_MYSQL = 2;
+  LINK_ENGINE_MARIADB = 3;
+  LINK_ENGINE_REDIS = 4;
+  LINK_ENGINE_VALKEY = 5;
+  LINK_ENGINE_MONGODB = 6;
+  LINK_ENGINE_CLICKHOUSE = 7;
+}
+
+// LinkPart is what a name a link sets holds. Its numbers are the catalog format's
+// own Part's.
+enum LinkPart {
+  LINK_PART_UNSPECIFIED = 0;
+  LINK_PART_HOST = 1;
+  LINK_PART_PORT = 2;
+  LINK_PART_ADDRESS = 3;
+  LINK_PART_DATABASE = 4;
+  LINK_PART_USER = 5;
+  LINK_PART_PASSWORD = 6;
+  LINK_PART_URL = 7;
+  LINK_PART_TLS = 8;
+}

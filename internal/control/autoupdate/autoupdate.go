@@ -17,6 +17,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/database"
@@ -321,6 +322,12 @@ func movesData(d *due, image string) bool {
 func needsPerson(c *dockwellv1.Change) bool {
 	if c.GetPlan().GetDestructive() || c.GetPlan().GetHostAccess() || c.GetWaits() != "" {
 		return true
+	}
+	// A release that needs what the install didn't makes a database no one asked for.
+	for _, n := range c.GetPlan().GetNotes() {
+		if n.GetReason() == catalogapi.NewNeedNote {
+			return true
+		}
 	}
 	for _, s := range c.GetPlan().GetServers() {
 		for _, step := range s.GetSteps() {
