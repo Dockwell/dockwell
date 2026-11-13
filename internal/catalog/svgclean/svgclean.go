@@ -29,9 +29,12 @@ const (
 	MaxElements = 10_000
 	// MaxDepth is how deep its elements may nest.
 	MaxDepth = 64
-	// MaxDrawn is the most elements it may draw once each <use> stands for what it
-	// names, as uses of uses of a group draw it exponentially often.
-	MaxDrawn = 20_000
+	// MaxDrawn is the most elements it may draw once each reference stands for what it
+	// names, each time it's named: a <use>, and a mask, clip path, filter or paint
+	// named by url(#id). References to references draw exponentially often: four
+	// levels of masks of 4.7 KB blocked Chromium's main thread for seconds. The most
+	// any of the stores' 538 logos that pass drew so on 13 Nov 2026 was 1,110.
+	MaxDrawn = 4_000
 )
 
 const (
@@ -40,16 +43,18 @@ const (
 	xmlNS   = "http://www.w3.org/XML/1998/namespace"
 )
 
-// elements are those an image keeps: shapes, text, paint servers, clipping,
-// masking and the filter primitives that draw. Animation, scripts, links, foreign
-// content, fonts and anything else are left out with what they hold, but a link's
-// drawing, which is kept as a group.
+// elements are those an image keeps: shapes, text, gradients, clipping, masking and
+// the filter primitives that draw. Animation, scripts, links, foreign content, fonts
+// and anything else are left out with what they hold, but a link's drawing, which is
+// kept as a group. A marker, drawn at every point of a path, and a pattern, drawn
+// again in every tile it fills, multiply what they hold in a way no count of
+// elements bounds, so they go too, as no store's logo needs either.
 var elements = set(
 	"svg", "g", "defs", "symbol", "use", "title", "desc", "style",
 	"path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
 	"text", "tspan", "textPath",
-	"linearGradient", "radialGradient", "stop", "pattern",
-	"clipPath", "mask", "marker", "image",
+	"linearGradient", "radialGradient", "stop",
+	"clipPath", "mask", "image",
 	"filter", "feBlend", "feColorMatrix", "feComponentTransfer", "feComposite", "feDropShadow",
 	"feFlood", "feFuncA", "feFuncB", "feFuncG", "feFuncR", "feGaussianBlur", "feMerge",
 	"feMergeNode", "feMorphology", "feOffset",
@@ -71,9 +76,7 @@ var attributes = set(
 	"stroke-miterlimit", "stroke-dasharray", "stroke-dashoffset", "stroke-opacity", "opacity", "color",
 	"display", "visibility", "overflow", "clip-path", "clip-rule", "clipPathUnits", "mask", "maskUnits",
 	"maskContentUnits", "filter", "filterUnits", "primitiveUnits", "gradientUnits", "gradientTransform",
-	"spreadMethod", "offset", "stop-color", "stop-opacity", "patternUnits", "patternContentUnits",
-	"patternTransform", "marker-start", "marker-mid", "marker-end", "markerWidth", "markerHeight",
-	"markerUnits", "refX", "refY", "orient",
+	"spreadMethod", "offset", "stop-color", "stop-opacity", "refX", "refY",
 	"font-family", "font-size", "font-weight", "font-style", "font-variant", "font-stretch",
 	"text-anchor", "dominant-baseline", "alignment-baseline", "baseline-shift", "letter-spacing",
 	"word-spacing", "text-decoration", "dx", "dy", "rotate", "textLength", "lengthAdjust", "startOffset",
@@ -87,7 +90,7 @@ var attributes = set(
 
 // referring are the elements an href is kept on, as a reference to another element
 // of the image, and image, as a raster image written into the file.
-var referring = set("use", "textPath", "linearGradient", "radialGradient", "pattern", "filter", "image")
+var referring = set("use", "textPath", "linearGradient", "radialGradient", "filter", "image")
 
 func set(names ...string) map[string]bool {
 	out := make(map[string]bool, len(names))
@@ -204,6 +207,9 @@ func Clean(data []byte) ([]byte, error) {
 	if !done {
 		return nil, errors.New("its svg element never ends")
 	}
+	if err := sheetsPaintOnly(root); err != nil {
+		return nil, err
+	}
 	if err := drawnWithin(root); err != nil {
 		return nil, err
 	}
@@ -232,9 +238,13 @@ func element(t xml.StartElement) (*node, bool) {
 		return nil, false
 	}
 	n := &node{name: name}
+	// The first of each name is kept: href and xlink:href both become href, and an
+	// element with an attribute twice is one a browser won't draw.
+	seen := map[xml.Name]bool{}
 	for _, a := range t.Attr {
 		kept, ok := attribute(name, a)
-		if ok {
+		if ok && !seen[kept.Name] {
+			seen[kept.Name] = true
 			n.attrs = append(n.attrs, kept)
 		}
 	}
@@ -429,9 +439,16 @@ func skip(d *xml.Decoder, elements *int) error {
 	return nil
 }
 
-// drawnWithin says the image draws no more than MaxDrawn elements once each <use>
-// stands for the element it names, and that no use names itself, through others.
-func drawnWithin(root *node) error {
+// refID is the ID each url(#id) in a value names, as a reference to an element of
+// the image.
+var refID = regexp.MustCompile(`url\(\s*['"]?#([A-Za-z_][A-Za-z0-9_.:-]*)['"]?\s*\)`)
+
+// gradients are the elements a style sheet may name: a paint whose cost is the area
+// it fills, whatever names it.
+var gradients = set("linearGradient", "radialGradient")
+
+// indexIDs maps each ID to the first element that has it, as a browser finds it.
+func indexIDs(root *node) map[string]*node {
 	ids := map[string]*node{}
 	var index func(n *node)
 	index = func(n *node) {
@@ -447,17 +464,77 @@ func drawnWithin(root *node) error {
 		}
 	}
 	index(root)
+	return ids
+}
+
+// sheetsPaintOnly refuses a style sheet that names anything but a gradient by url():
+// a sheet's rules reach elements by selectors, so what a mask or a clip path it names
+// would multiply can't be counted, where a gradient only paints.
+func sheetsPaintOnly(root *node) error {
+	ids := indexIDs(root)
+	var walk func(n *node) error
+	walk = func(n *node) error {
+		if n.name == "style" {
+			for _, k := range n.kids {
+				for _, m := range refID.FindAllStringSubmatch(k.text, -1) {
+					if target := ids[m[1]]; target == nil || !gradients[target.name] {
+						return errors.New("its style sheet names something other than a gradient by url(), whose cost no count of the image can bound")
+					}
+				}
+			}
+		}
+		for _, k := range n.kids {
+			if err := walk(k); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(root)
+}
+
+// references are the elements a node names, each time it names one: a <use>'s, a
+// gradient's or a filter's href, and every url(#id) in its attributes, its style
+// attribute included, as fill, stroke, mask, clip-path and filter name them.
+func references(n *node, ids map[string]*node) []*node {
+	var out []*node
+	for _, a := range n.attrs {
+		if a.Name.Space != "" {
+			continue
+		}
+		if a.Name.Local == "href" {
+			if target := ids[strings.TrimPrefix(a.Value, "#")]; target != nil {
+				out = append(out, target)
+			}
+			continue
+		}
+		for _, m := range refID.FindAllStringSubmatch(a.Value, -1) {
+			if target := ids[m[1]]; target != nil {
+				out = append(out, target)
+			}
+		}
+	}
+	return out
+}
+
+// drawnWithin says the image draws no more than MaxDrawn elements once each reference
+// stands for the element it names, each time it names it, and that nothing names
+// itself, through others. Masks of masks, clip paths of clip paths and uses of uses
+// each draw what they hold as often as they're named, so they're counted so.
+func drawnWithin(root *node) error {
+	ids := indexIDs(root)
 	const (
 		visiting = 1
 		visited  = 2
 	)
 	state := map[*node]int{}
 	drawn := map[*node]int{}
+	tooMany := fmt.Errorf("it draws over %d elements once its references are counted, more than a logo needs", MaxDrawn)
 	var count func(n *node) (int, error)
 	count = func(n *node) (int, error) {
 		switch state[n] {
 		case visiting:
-			return 0, errors.New("a <use> in it names itself, through others")
+			return 0, errors.New("an element of it names itself, through others")
 		case visited:
 			return drawn[n], nil
 		}
@@ -471,26 +548,18 @@ func drawnWithin(root *node) error {
 			if err != nil {
 				return 0, err
 			}
-			total += c
-			if total > MaxDrawn {
-				return 0, fmt.Errorf("it draws over %d elements once its uses are counted, more than a logo needs", MaxDrawn)
+			if total += c; total > MaxDrawn {
+				return 0, tooMany
 			}
 		}
-		if n.name == "use" {
-			for _, a := range n.attrs {
-				if a.Name.Space == "" && a.Name.Local == "href" {
-					if target := ids[strings.TrimPrefix(a.Value, "#")]; target != nil {
-						c, err := count(target)
-						if err != nil {
-							return 0, err
-						}
-						total += c
-					}
-				}
+		for _, target := range references(n, ids) {
+			c, err := count(target)
+			if err != nil {
+				return 0, err
 			}
-		}
-		if total > MaxDrawn {
-			return 0, fmt.Errorf("it draws over %d elements once its uses are counted, more than a logo needs", MaxDrawn)
+			if total += c; total > MaxDrawn {
+				return 0, tooMany
+			}
 		}
 		state[n], drawn[n] = visited, total
 		return total, nil
