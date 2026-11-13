@@ -39,6 +39,10 @@ type onePanelApp struct {
 		// ShortDescEn is its line in English, and Document where its documentation is.
 		ShortDescEn string `yaml:"shortDescEn"`
 		Document    string `yaml:"document"`
+		// ShortDescZh is its line in Chinese, and Description its line in each
+		// language 1Panel writes, by 1Panel's own tags, such as zh and zh-hant.
+		ShortDescZh string            `yaml:"shortDescZh"`
+		Description map[string]string `yaml:"description"`
 		// Architectures are the platforms 1Panel says the app runs on.
 		Architectures []string `yaml:"architectures"`
 	} `yaml:"additionalProperties"`
@@ -132,6 +136,8 @@ func onePanelRead(t *tree, dir string) App {
 	app.Name = cmp.Or(meta.Name, dir)
 	app.Homepage = cmp.Or(meta.More.Website, meta.More.Github)
 	app.Summary, app.Docs, app.Code = meta.More.ShortDescEn, meta.More.Document, meta.More.Github
+	app.Icon = storeIcon(t, appDir, "logo.png")
+	app.Readme, app.Words = onePanelWords(t, appDir, meta)
 	app.Web = slices.Contains(onePanelWeb, strings.TrimSpace(meta.More.Type))
 	for _, tag := range meta.More.Tags {
 		if c := onePanelCategories[tag]; c != "" {
@@ -464,4 +470,28 @@ func splitWord(w string) (string, int) {
 // majorOf is a version's major, as version.major says.
 func majorOf(v string) string {
 	return parseVersion(v).major()
+}
+
+// onePanelWords is what 1Panel writes of an app at length: its README in English,
+// README_en.md, and in Chinese, README.md, with its line in Chinese from data.yml. A
+// README.md with no Chinese in it is the English one, where there's no README_en.md.
+func onePanelWords(t *tree, appDir string, meta onePanelApp) (string, map[string]Words) {
+	read := func(name string) string {
+		b, err := t.readFile(path.Join(appDir, name))
+		if err != nil {
+			return ""
+		}
+		return string(b)
+	}
+	en := read("README_en.md")
+	zh := Words{Summary: cmp.Or(meta.More.ShortDescZh, meta.More.Description["zh"])}
+	if readme := read("README.md"); readmeTag(readme) == "zh-CN" {
+		zh.Readme = readme
+	} else if en == "" {
+		en = readme
+	}
+	if zh == (Words{}) {
+		return en, nil
+	}
+	return en, map[string]Words{"zh-CN": zh}
 }

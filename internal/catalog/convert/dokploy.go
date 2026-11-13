@@ -40,7 +40,9 @@ type dokployMeta struct {
 	Name        string `json:"name"`
 	Version     string `json:"version"`
 	Description string `json:"description"`
-	Links       struct {
+	// Logo is the app's logo, a file beside meta.json.
+	Logo  string `json:"logo"`
+	Links struct {
 		Github  string `json:"github"`
 		Website string `json:"website"`
 		Docs    string `json:"docs"`
@@ -118,6 +120,7 @@ func dokployRead(t *tree, name string) App {
 	app.Name = cmp.Or(meta.Name, name)
 	app.Homepage = cmp.Or(meta.Links.Website, meta.Links.Github)
 	app.Summary, app.Docs, app.Code = firstSentence(meta.Description), meta.Links.Docs, meta.Links.Github
+	app.Description, app.Icon = meta.Description, storeIcon(t, at, meta.Logo)
 	for _, tag := range meta.Tags {
 		if c := dokployCategories[strings.ToLower(tag)]; c != "" {
 			app.Category = c

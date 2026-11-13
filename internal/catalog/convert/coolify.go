@@ -83,6 +83,10 @@ func coolifyRead(t *tree, dir, name string) App {
 	head := coolifyHeader(file)
 	app.Homepage = head["documentation"]
 	app.Summary = firstSentence(head["slogan"])
+	// # logo: svgs/<name> names a file in the repository's public/svgs.
+	if logo, ok := strings.CutPrefix(head["logo"], "svgs/"); ok {
+		app.Icon = storeIcon(t, "public/svgs", logo)
+	}
 	for _, c := range strings.Split(head["category"], ",") {
 		if c := coolifyCategories[strings.TrimSpace(strings.ToLower(c))]; c != "" {
 			app.Category = c

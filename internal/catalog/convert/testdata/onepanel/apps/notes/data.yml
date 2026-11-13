@@ -8,6 +8,7 @@ additionalProperties:
     - Tool
     - Website
   shortDescEn: A stand-in app for the converter's tests
+  shortDescZh: 转换器测试用的替身应用
   type: website
   architectures:
     - amd64

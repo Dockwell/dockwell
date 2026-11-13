@@ -3,6 +3,7 @@
 package folder
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -28,6 +29,9 @@ func TestImage(t *testing.T) {
 		"riff no web": {"logo.webp", []byte("RIFF\x10\x00\x00\x00WAVEfmt "), "isn't a WebP, PNG or JPEG"},
 		"too short":   {"logo.webp", []byte("RIFF"), "isn't a WebP, PNG or JPEG"},
 		"misnamed":    {"logo.webp", png, "it's a PNG image, named as a WEBP one. Name it .png"},
+		"an SVG":      {"logo.svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>x()</script><rect/></svg>`), "image/svg+xml"},
+		"not an SVG":  {"logo.svg", png, "can't be shown as an SVG image"},
+		"HTML as SVG": {"logo.svg", []byte("<html><script>x()</script></html>"), "can't be shown as an SVG image"},
 	} {
 		got, err := Image(tc.file, tc.head)
 		if err != nil {
@@ -40,12 +44,13 @@ func TestImage(t *testing.T) {
 }
 
 // An entry names an image in its folder media by its name alone, one level down, in
-// a raster format.
+// a raster format or SVG.
 func TestMediaFile(t *testing.T) {
 	for path, want := range map[string]string{
 		"media/ghost-icon.webp": "ghost-icon.webp",
 		"media/a_b-1.jpg":       "a_b-1.jpg",
-		"media/logo.svg":        "",
+		"media/logo.svg":        "logo.svg",
+		"media/logo.SVG":        "",
 		"media/sub/logo.png":    "",
 		"media/../logo.png":     "",
 		"/catalog-media/x.png":  "",
@@ -57,5 +62,21 @@ func TestMediaFile(t *testing.T) {
 		if ok != (want != "") || got != want && ok {
 			t.Errorf("%q: %q, %t, want %q", path, got, ok, want)
 		}
+	}
+}
+
+// What's kept of an SVG image is what svgclean writes anew, never the file as it came,
+// and a raster image is kept as it is.
+func TestPrepare(t *testing.T) {
+	kept, err := Prepare("logo.svg", []byte(`<svg xmlns="http://www.w3.org/2000/svg" onload="x()"><script>x()</script><rect width="1"/></svg>`))
+	if err != nil || string(kept) != `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1"/></svg>` {
+		t.Errorf("Prepare(logo.svg) = %q, %v", kept, err)
+	}
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+	if kept, err := Prepare("logo.png", png); err != nil || !bytes.Equal(kept, png) {
+		t.Errorf("Prepare(logo.png) = %q, %v", kept, err)
+	}
+	if _, err := Prepare("logo.png", []byte("<svg/>")); err == nil {
+		t.Error("Prepare took an SVG image named as a PNG one")
 	}
 }

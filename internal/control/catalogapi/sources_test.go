@@ -71,7 +71,7 @@ func TestASourceKeepsOnlyItsEntries(t *testing.T) {
 			"media/logo.png":         png,
 			"media/../escape.png":    png,
 			"media/sub/deep.png":     png,
-			"media/page.svg":         []byte("<svg/>"),
+			"media/page.svg":         []byte(`<svg onload="alert(1)"><script>alert(1)</script><rect/></svg>`),
 			"media/README.md":        []byte("images\n"),
 		}, nil
 	}
@@ -80,7 +80,7 @@ func TestASourceKeepsOnlyItsEntries(t *testing.T) {
 	if err != nil || len(got.entries) != 1 || got.entries["notes.yaml"] == nil {
 		t.Fatalf("files = %v, %v", slices.Sorted(maps.Keys(got.entries)), err)
 	}
-	if !maps.Equal(got.images(), map[string]bool{"logo.png": true}) {
+	if !maps.Equal(got.images(), map[string]bool{"logo.png": true, "page.svg": true}) {
 		t.Errorf("images = %v", got.media)
 	}
 	if _, err := os.Stat(outside); !errors.Is(err, fs.ErrNotExist) {
@@ -95,8 +95,13 @@ func TestASourceKeepsOnlyItsEntries(t *testing.T) {
 		return nil
 	})
 	slices.Sort(kept)
-	if want := []string{"0123456789abcdef0123456789abcdef01234567/notes.yaml", "media/logo.png"}; !slices.Equal(kept, want) {
+	if want := []string{"0123456789abcdef0123456789abcdef01234567/notes.yaml", "media/logo.png", "media/page.svg"}; !slices.Equal(kept, want) {
 		t.Errorf("kept %v, want %v", kept, want)
+	}
+	// An SVG image is kept as svgclean wrote it anew (ADR 0083).
+	svg, _ := planSVG(dir, keyOf(spec), spec.GetCommit())
+	if string(svg) != `<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>` {
+		t.Errorf("the SVG image kept is %q", svg)
 	}
 }
 
@@ -422,4 +427,9 @@ func TestAStoresCommitKeptByAnOlderConverterIsReadAgain(t *testing.T) {
 	if other, _ := s.folders(dockwell); other == kept {
 		t.Error("a store's commit and the same folder read as entries share where they're kept")
 	}
+}
+
+// planSVG reads the SVG image a test's commit keeps for a plan.
+func planSVG(dir, key, commit string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(dir, "plans", key, commit, "media", "page.svg"))
 }

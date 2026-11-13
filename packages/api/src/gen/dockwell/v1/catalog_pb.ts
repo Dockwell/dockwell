@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/catalog.proto.
  */
 export const file_dockwell_v1_catalog: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0In4KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5Ei0KBGFsc28YFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nQWx0ZXJuYXRpdmUiYgoSQ2F0YWxvZ0FsdGVybmF0aXZlEgoKAmlkGAEgASgJEg8KB2NhdGFsb2cYAiABKAkSLwoFZW50cnkYAyABKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IkYKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIPCgdjYXRhbG9nGBQgASgJIocCChdHZXRDYXRhbG9nRW50cnlSZXNwb25zZRIvCgVlbnRyeRgBIAEoCzIgLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkSDwoHcHJvamVjdBgCIAEoCRJACgZ2YWx1ZXMYAyADKAsyMC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZS5WYWx1ZXNFbnRyeRInCgVwYXJ0cxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkNhdGFsb2dQYXJ0EhAKCGNhdGFsb2dzGBQgAygJGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi2QIKC0NhdGFsb2dQYXJ0Eg8KB3NlcnZpY2UYASABKAkSDQoFaW1hZ2UYAiABKAkSEAoIZGF0YWJhc2UYAyABKAgSDwoHdm9sdW1lcxgEIAMoCRINCgVvcGVucxgFIAEoCBIsCgtob3N0X2FjY2VzcxgGIAMoCzIXLmRvY2t3ZWxsLnYxLkhvc3RBY2Nlc3MSPQoLcGF0aF9pbnB1dHMYByADKAsyKC5kb2Nrd2VsbC52MS5DYXRhbG9nUGFydC5QYXRoSW5wdXRzRW50cnkSDgoGbWVtb3J5GAggASgJEgwKBGNwdXMYCSABKAkSOgoHcmVzdGFydBgKIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc3RhcnRQb2xpY3kaMQoPUGF0aElucHV0c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiHAoaTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QiTAobTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlEi0KCGluc3RhbGxzGAEgAygLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ0luc3RhbGwi3wIKDkNhdGFsb2dJbnN0YWxsEhIKCnByb2plY3RfaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIzCgNwaW4YAyABKAsyJi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nUGluEgwKBG5hbWUYBCABKAkSFgoOd2ViX3NlcnZpY2VfaWQYBSABKAkSEwoLZmlyc3Rfc3RlcHMYBiABKAkSFgoOZW52aXJvbm1lbnRfaWQYByABKAkSLAoHdXBncmFkZRgIIAEoCzIbLmRvY2t3ZWxsLnYxLkNhdGFsb2dVcGdyYWRlEj8KCmNvbXBhbmlvbnMYCSADKAsyKy5kb2Nrd2VsbC52MS5DYXRhbG9nSW5zdGFsbC5Db21wYW5pb25zRW50cnkaMQoPQ29tcGFuaW9uc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCDoCOAEiMgoOQ2F0YWxvZ1VwZ3JhZGUSDwoHdmVyc2lvbhgBIAEoCRIPCgdyZWxlYXNlGAIgASgNItkFChpJbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEkkKBnZhbHVlcxgDIAMoCzIzLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBEg8KB3NlcnZlcnMYBCADKAkSQwoGbWVtb3J5GAUgAygLMjMuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuTWVtb3J5RW50cnkSPwoEY3B1cxgGIAMoCzIxLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LkNwdXNFbnRyeRJFCgdyZXN0YXJ0GAcgAygLMjQuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuUmVzdGFydEVudHJ5EksKCmNvbXBhbmlvbnMYCCADKAsyNy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5Db21wYW5pb25zRW50cnkSDwoHY2F0YWxvZxgUIAEoCRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC01lbW9yeUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaKwoJQ3B1c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaWQoMUmVzdGFydEVudHJ5EgsKA2tleRgBIAEoCRI4CgV2YWx1ZRgCIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc3RhcnRQb2xpY3k6AjgBGjEKD0NvbXBhbmlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAg6AjgBIkIKG0luc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiuwEKHFVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QSCgoCaWQYASABKAkSSwoGdmFsdWVzGAIgAygLMjUuZG9ja3dlbGwudjEuVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVxdWVzdC5WYWx1ZXNFbnRyeUIEyPMYARITCgtza2lwX2JhY2t1cBgDIAEoCBotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkQKHVVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK5AQoaU2V0Q2F0YWxvZ0NvbXBhbmlvblJlcXVlc3QSCgoCaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIKCgJvbhgDIAEoCBJDCgZ2YWx1ZXMYBCADKAsyMy5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nQ29tcGFuaW9uUmVxdWVzdC5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkIKG1NldENhdGFsb2dDb21wYW5pb25SZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UipAEKF1NldENhdGFsb2dTb3VyY2VSZXF1ZXN0EgwKBG5hbWUYASABKAkSEgoKcmVwb3NpdG9yeRgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBmNvbW1pdBgEIAEoCRIOCgZmb2xsb3cYCiABKAkSOQoGZm9ybWF0GBQgASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ2F0YWxvZ0Zvcm1hdCI/ChhTZXRDYXRhbG9nU291cmNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIhsKGUxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QiTQoaTGlzdENhdGFsb2dTb3VyY2VzUmVzcG9uc2USLwoHc291cmNlcxgBIAMoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvItECChFDYXRhbG9nU291cmNlSW5mbxIMCgRuYW1lGAEgASgJEjkKBnNvdXJjZRgCIAEoCzIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dTb3VyY2USDwoHZW50cmllcxgDIAMoCRIyCgdyZWZ1c2VkGAQgAygLMiEuZG9ja3dlbGwudjEuQ2F0YWxvZ1NvdXJjZVJlZnVzYWwSDgoGdW5yZWFkGAUgASgJEisKB2NoZWNrZWQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3Byb2JsZW0YCyABKAkSFQoNYnJhbmNoX2NvbW1pdBgMIAEoCRIuCgpuZXh0X2NoZWNrGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBILCgNvd24YDiABKAgSDAoEYWxzbxgUIAMoCSJOChRDYXRhbG9nU291cmNlUmVmdXNhbBIMCgRmaWxlGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIMCgRraW5kGBQgASgJEgoKAmlkGBUgASgJIjIKHExpc3RDYXRhbG9nU291cmNlUmVmc1JlcXVlc3QSEgoKcmVwb3NpdG9yeRgBIAEoCSKaAQodTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2USKwoEcmVmcxgBIAMoCzIdLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VSZWYSDAoEbW9yZRgCIAEoCBIMCgRoZWFkGAMgASgJEjAKB2Zvcm1hdHMYFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nU291cmNlR3Vlc3MiawoSQ2F0YWxvZ1NvdXJjZUd1ZXNzEjkKBmZvcm1hdBgBIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dGb3JtYXQSDAoEcGF0aBgCIAEoCRIMCgRhcHBzGAMgASgNIjAKEENhdGFsb2dTb3VyY2VSZWYSDAoEbmFtZRgBIAEoCRIOCgZjb21taXQYAiABKAkiKQoZQ2hlY2tDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJInEKGkNoZWNrQ2F0YWxvZ1NvdXJjZVJlc3BvbnNlEi4KBnNvdXJjZRgBIAEoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvEiMKBmNoYW5nZRgCIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIqChpSZW1vdmVDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJIkIKG1JlbW92ZUNhdGFsb2dTb3VyY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UyiA8KDkNhdGFsb2dTZXJ2aWNlEpUBChJMaXN0Q2F0YWxvZ0VudHJpZXMSJi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVzcG9uc2UiLpACAaC7GAHAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL2VudHJpZXMSkQEKD0dldENhdGFsb2dFbnRyeRIjLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZSIzkAIBoLsYAcC7GALIuxgC0LsYA4LT5JMCGhIYL3YxL2NhdGFsb2cvZW50cmllcy97aWR9EqcBChNMaXN0Q2F0YWxvZ0luc3RhbGxzEicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2UiPZACAaC7GAGquxgKEghpbnN0YWxsc8C7GALIuxgC0LsYBILT5JMCFhIUL3YxL2NhdGFsb2cvaW5zdGFsbHMSuQEKFVVwZ3JhZGVDYXRhbG9nSW5zdGFsbBIpLmRvY2t3ZWxsLnYxLlVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QaKi5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXNwb25zZSJJoLsYAqq7GAkSB3VwZ3JhZGXAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9jYXRhbG9nL2luc3RhbGxzL3tpZH06dXBncmFkZRK/AQoTU2V0Q2F0YWxvZ0NvbXBhbmlvbhInLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dDb21wYW5pb25SZXF1ZXN0GiguZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ0NvbXBhbmlvblJlc3BvbnNlIlWguxgCqrsYDxINc2V0LWNvbXBhbmlvbsC7GAPIuxgD0LsYBILT5JMCLDoBKiInL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpzZXQtY29tcGFuaW9uEqUBChNJbnN0YWxsQ2F0YWxvZ0VudHJ5EicuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVzcG9uc2UiO6C7GALAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL2VudHJpZXMve2lkfTppbnN0YWxsEqoBChBTZXRDYXRhbG9nU291cmNlEiQuZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ1NvdXJjZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nU291cmNlUmVzcG9uc2UiSaC7GAKquxgMEgpzZXQtc291cmNlwLsYBMi7GATQuxgGgtPkkwIjOgEqIh4vdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpzZXQSogEKEkxpc3RDYXRhbG9nU291cmNlcxImLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QaJy5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZXNSZXNwb25zZSI7kAIBoLsYAaq7GAkSB3NvdXJjZXPAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL3NvdXJjZXMStAEKFUxpc3RDYXRhbG9nU291cmNlUmVmcxIpLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlUmVmc1JlcXVlc3QaKi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZVJlZnNSZXNwb25zZSJEoLsYAaq7GA0SC3NvdXJjZS1yZWZzwLsYBMi7GATQuxgGgtPkkwIdOgEqIhgvdjEvY2F0YWxvZy9zb3VyY2VzOnJlZnMStAEKEkNoZWNrQ2F0YWxvZ1NvdXJjZRImLmRvY2t3ZWxsLnYxLkNoZWNrQ2F0YWxvZ1NvdXJjZVJlcXVlc3QaJy5kb2Nrd2VsbC52MS5DaGVja0NhdGFsb2dTb3VyY2VSZXNwb25zZSJNoLsYA6q7GA4SDGNoZWNrLXNvdXJjZcC7GATIuxgE0LsYBoLT5JMCJToBKiIgL3YxL2NhdGFsb2cvc291cmNlcy97bmFtZX06Y2hlY2sSuQEKE1JlbW92ZUNhdGFsb2dTb3VyY2USJy5kb2Nrd2VsbC52MS5SZW1vdmVDYXRhbG9nU291cmNlUmVxdWVzdBooLmRvY2t3ZWxsLnYxLlJlbW92ZUNhdGFsb2dTb3VyY2VSZXNwb25zZSJPoLsYAqq7GA8SDXJlbW92ZS1zb3VyY2XAuxgEyLsYBNC7GAaC0+STAiY6ASoiIS92MS9jYXRhbG9nL3NvdXJjZXMve25hbWV9OnJlbW92ZUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxDYXRhbG9nUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jYXRhbG9nLnByb3RvEgtkb2Nrd2VsbC52MSIbChlMaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0In4KGkxpc3RDYXRhbG9nRW50cmllc1Jlc3BvbnNlEjEKB2VudHJpZXMYASADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5Ei0KBGFsc28YFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nQWx0ZXJuYXRpdmUiYgoSQ2F0YWxvZ0FsdGVybmF0aXZlEgoKAmlkGAEgASgJEg8KB2NhdGFsb2cYAiABKAkSLwoFZW50cnkYAyABKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkVudHJ5IkYKFkdldENhdGFsb2dFbnRyeVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIPCgdjYXRhbG9nGBQgASgJIocCChdHZXRDYXRhbG9nRW50cnlSZXNwb25zZRIvCgVlbnRyeRgBIAEoCzIgLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkSDwoHcHJvamVjdBgCIAEoCRJACgZ2YWx1ZXMYAyADKAsyMC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZS5WYWx1ZXNFbnRyeRInCgVwYXJ0cxgEIAMoCzIYLmRvY2t3ZWxsLnYxLkNhdGFsb2dQYXJ0EhAKCGNhdGFsb2dzGBQgAygJGi0KC1ZhbHVlc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEi2QIKC0NhdGFsb2dQYXJ0Eg8KB3NlcnZpY2UYASABKAkSDQoFaW1hZ2UYAiABKAkSEAoIZGF0YWJhc2UYAyABKAgSDwoHdm9sdW1lcxgEIAMoCRINCgVvcGVucxgFIAEoCBIsCgtob3N0X2FjY2VzcxgGIAMoCzIXLmRvY2t3ZWxsLnYxLkhvc3RBY2Nlc3MSPQoLcGF0aF9pbnB1dHMYByADKAsyKC5kb2Nrd2VsbC52MS5DYXRhbG9nUGFydC5QYXRoSW5wdXRzRW50cnkSDgoGbWVtb3J5GAggASgJEgwKBGNwdXMYCSABKAkSOgoHcmVzdGFydBgKIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc3RhcnRQb2xpY3kaMQoPUGF0aElucHV0c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiHAoaTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QiTAobTGlzdENhdGFsb2dJbnN0YWxsc1Jlc3BvbnNlEi0KCGluc3RhbGxzGAEgAygLMhsuZG9ja3dlbGwudjEuQ2F0YWxvZ0luc3RhbGwi3wIKDkNhdGFsb2dJbnN0YWxsEhIKCnByb2plY3RfaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIzCgNwaW4YAyABKAsyJi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nUGluEgwKBG5hbWUYBCABKAkSFgoOd2ViX3NlcnZpY2VfaWQYBSABKAkSEwoLZmlyc3Rfc3RlcHMYBiABKAkSFgoOZW52aXJvbm1lbnRfaWQYByABKAkSLAoHdXBncmFkZRgIIAEoCzIbLmRvY2t3ZWxsLnYxLkNhdGFsb2dVcGdyYWRlEj8KCmNvbXBhbmlvbnMYCSADKAsyKy5kb2Nrd2VsbC52MS5DYXRhbG9nSW5zdGFsbC5Db21wYW5pb25zRW50cnkaMQoPQ29tcGFuaW9uc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCDoCOAEiMgoOQ2F0YWxvZ1VwZ3JhZGUSDwoHdmVyc2lvbhgBIAEoCRIPCgdyZWxlYXNlGAIgASgNItkFChpJbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEkkKBnZhbHVlcxgDIAMoCzIzLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LlZhbHVlc0VudHJ5QgTI8xgBEg8KB3NlcnZlcnMYBCADKAkSQwoGbWVtb3J5GAUgAygLMjMuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuTWVtb3J5RW50cnkSPwoEY3B1cxgGIAMoCzIxLmRvY2t3ZWxsLnYxLkluc3RhbGxDYXRhbG9nRW50cnlSZXF1ZXN0LkNwdXNFbnRyeRJFCgdyZXN0YXJ0GAcgAygLMjQuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QuUmVzdGFydEVudHJ5EksKCmNvbXBhbmlvbnMYCCADKAsyNy5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVxdWVzdC5Db21wYW5pb25zRW50cnkSDwoHY2F0YWxvZxgUIAEoCRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBGi0KC01lbW9yeUVudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaKwoJQ3B1c0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEaWQoMUmVzdGFydEVudHJ5EgsKA2tleRgBIAEoCRI4CgV2YWx1ZRgCIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJlc3RhcnRQb2xpY3k6AjgBGjEKD0NvbXBhbmlvbnNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAg6AjgBIkIKG0luc3RhbGxDYXRhbG9nRW50cnlSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiuwEKHFVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QSCgoCaWQYASABKAkSSwoGdmFsdWVzGAIgAygLMjUuZG9ja3dlbGwudjEuVXBncmFkZUNhdGFsb2dJbnN0YWxsUmVxdWVzdC5WYWx1ZXNFbnRyeUIEyPMYARITCgtza2lwX2JhY2t1cBgDIAEoCBotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkQKHVVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSK5AQoaU2V0Q2F0YWxvZ0NvbXBhbmlvblJlcXVlc3QSCgoCaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIKCgJvbhgDIAEoCBJDCgZ2YWx1ZXMYBCADKAsyMy5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nQ29tcGFuaW9uUmVxdWVzdC5WYWx1ZXNFbnRyeRotCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIkIKG1NldENhdGFsb2dDb21wYW5pb25SZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UipAEKF1NldENhdGFsb2dTb3VyY2VSZXF1ZXN0EgwKBG5hbWUYASABKAkSEgoKcmVwb3NpdG9yeRgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBmNvbW1pdBgEIAEoCRIOCgZmb2xsb3cYCiABKAkSOQoGZm9ybWF0GBQgASgOMikuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ2F0YWxvZ0Zvcm1hdCI/ChhTZXRDYXRhbG9nU291cmNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIhsKGUxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QiTQoaTGlzdENhdGFsb2dTb3VyY2VzUmVzcG9uc2USLwoHc291cmNlcxgBIAMoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvIuACChFDYXRhbG9nU291cmNlSW5mbxIMCgRuYW1lGAEgASgJEjkKBnNvdXJjZRgCIAEoCzIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dTb3VyY2USDwoHZW50cmllcxgDIAMoCRIyCgdyZWZ1c2VkGAQgAygLMiEuZG9ja3dlbGwudjEuQ2F0YWxvZ1NvdXJjZVJlZnVzYWwSDgoGdW5yZWFkGAUgASgJEisKB2NoZWNrZWQYCiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB3Byb2JsZW0YCyABKAkSFQoNYnJhbmNoX2NvbW1pdBgMIAEoCRIuCgpuZXh0X2NoZWNrGA0gASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBILCgNvd24YDiABKAgSDAoEYWxzbxgUIAMoCRINCgVzdG9yZRgeIAEoCSJOChRDYXRhbG9nU291cmNlUmVmdXNhbBIMCgRmaWxlGAEgASgJEg4KBnJlYXNvbhgCIAEoCRIMCgRraW5kGBQgASgJEgoKAmlkGBUgASgJIhoKGExpc3RDYXRhbG9nU3RvcmVzUmVxdWVzdCJGChlMaXN0Q2F0YWxvZ1N0b3Jlc1Jlc3BvbnNlEikKBnN0b3JlcxgBIAMoCzIZLmRvY2t3ZWxsLnYxLkNhdGFsb2dTdG9yZSKHAgoMQ2F0YWxvZ1N0b3JlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFbGFiZWwYAyABKAkSEgoKcmVwb3NpdG9yeRgEIAEoCRI5CgZmb3JtYXQYBSABKA4yKS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5DYXRhbG9nRm9ybWF0Eg4KBmJyYW5jaBgGIAEoCRIPCgdsaWNlbnNlGAcgASgJEhAKCGhvbWVwYWdlGAggASgJEgwKBGFwcHMYCSABKA0SEAoIaW5zdGFsbHMYCiABKA0SDgoGY29tbWl0GAsgASgJEgwKBGxpdmUYDCABKAgSDgoGc291cmNlGA0gASgJIjIKHExpc3RDYXRhbG9nU291cmNlUmVmc1JlcXVlc3QSEgoKcmVwb3NpdG9yeRgBIAEoCSKaAQodTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2USKwoEcmVmcxgBIAMoCzIdLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VSZWYSDAoEbW9yZRgCIAEoCBIMCgRoZWFkGAMgASgJEjAKB2Zvcm1hdHMYFCADKAsyHy5kb2Nrd2VsbC52MS5DYXRhbG9nU291cmNlR3Vlc3MiawoSQ2F0YWxvZ1NvdXJjZUd1ZXNzEjkKBmZvcm1hdBgBIAEoDjIpLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkNhdGFsb2dGb3JtYXQSDAoEcGF0aBgCIAEoCRIMCgRhcHBzGAMgASgNIjAKEENhdGFsb2dTb3VyY2VSZWYSDAoEbmFtZRgBIAEoCRIOCgZjb21taXQYAiABKAkiKQoZQ2hlY2tDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJInEKGkNoZWNrQ2F0YWxvZ1NvdXJjZVJlc3BvbnNlEi4KBnNvdXJjZRgBIAEoCzIeLmRvY2t3ZWxsLnYxLkNhdGFsb2dTb3VyY2VJbmZvEiMKBmNoYW5nZRgCIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSIqChpSZW1vdmVDYXRhbG9nU291cmNlUmVxdWVzdBIMCgRuYW1lGAEgASgJIkIKG1JlbW92ZUNhdGFsb2dTb3VyY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UyqBAKDkNhdGFsb2dTZXJ2aWNlEpUBChJMaXN0Q2F0YWxvZ0VudHJpZXMSJi5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0VudHJpZXNSZXF1ZXN0GicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dFbnRyaWVzUmVzcG9uc2UiLpACAaC7GAHAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL2VudHJpZXMSkQEKD0dldENhdGFsb2dFbnRyeRIjLmRvY2t3ZWxsLnYxLkdldENhdGFsb2dFbnRyeVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5HZXRDYXRhbG9nRW50cnlSZXNwb25zZSIzkAIBoLsYAcC7GALIuxgC0LsYA4LT5JMCGhIYL3YxL2NhdGFsb2cvZW50cmllcy97aWR9EqcBChNMaXN0Q2F0YWxvZ0luc3RhbGxzEicuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dJbnN0YWxsc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ0luc3RhbGxzUmVzcG9uc2UiPZACAaC7GAGquxgKEghpbnN0YWxsc8C7GALIuxgC0LsYBILT5JMCFhIUL3YxL2NhdGFsb2cvaW5zdGFsbHMSuQEKFVVwZ3JhZGVDYXRhbG9nSW5zdGFsbBIpLmRvY2t3ZWxsLnYxLlVwZ3JhZGVDYXRhbG9nSW5zdGFsbFJlcXVlc3QaKi5kb2Nrd2VsbC52MS5VcGdyYWRlQ2F0YWxvZ0luc3RhbGxSZXNwb25zZSJJoLsYAqq7GAkSB3VwZ3JhZGXAuxgDyLsYA9C7GASC0+STAiY6ASoiIS92MS9jYXRhbG9nL2luc3RhbGxzL3tpZH06dXBncmFkZRK/AQoTU2V0Q2F0YWxvZ0NvbXBhbmlvbhInLmRvY2t3ZWxsLnYxLlNldENhdGFsb2dDb21wYW5pb25SZXF1ZXN0GiguZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ0NvbXBhbmlvblJlc3BvbnNlIlWguxgCqrsYDxINc2V0LWNvbXBhbmlvbsC7GAPIuxgD0LsYBILT5JMCLDoBKiInL3YxL2NhdGFsb2cvaW5zdGFsbHMve2lkfTpzZXQtY29tcGFuaW9uEqUBChNJbnN0YWxsQ2F0YWxvZ0VudHJ5EicuZG9ja3dlbGwudjEuSW5zdGFsbENhdGFsb2dFbnRyeVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5JbnN0YWxsQ2F0YWxvZ0VudHJ5UmVzcG9uc2UiO6C7GALAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL2VudHJpZXMve2lkfTppbnN0YWxsEqoBChBTZXRDYXRhbG9nU291cmNlEiQuZG9ja3dlbGwudjEuU2V0Q2F0YWxvZ1NvdXJjZVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5TZXRDYXRhbG9nU291cmNlUmVzcG9uc2UiSaC7GAKquxgMEgpzZXQtc291cmNlwLsYBMi7GATQuxgGgtPkkwIjOgEqIh4vdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpzZXQSogEKEkxpc3RDYXRhbG9nU291cmNlcxImLmRvY2t3ZWxsLnYxLkxpc3RDYXRhbG9nU291cmNlc1JlcXVlc3QaJy5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZXNSZXNwb25zZSI7kAIBoLsYAaq7GAkSB3NvdXJjZXPAuxgCyLsYAtC7GAOC0+STAhUSEy92MS9jYXRhbG9nL3NvdXJjZXMSnQEKEUxpc3RDYXRhbG9nU3RvcmVzEiUuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTdG9yZXNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTdG9yZXNSZXNwb25zZSI5kAIBoLsYAaq7GAgSBnN0b3Jlc8C7GALIuxgC0LsYA4LT5JMCFBISL3YxL2NhdGFsb2cvc3RvcmVzErQBChVMaXN0Q2F0YWxvZ1NvdXJjZVJlZnMSKS5kb2Nrd2VsbC52MS5MaXN0Q2F0YWxvZ1NvdXJjZVJlZnNSZXF1ZXN0GiouZG9ja3dlbGwudjEuTGlzdENhdGFsb2dTb3VyY2VSZWZzUmVzcG9uc2UiRKC7GAGquxgNEgtzb3VyY2UtcmVmc8C7GATIuxgE0LsYBoLT5JMCHToBKiIYL3YxL2NhdGFsb2cvc291cmNlczpyZWZzErQBChJDaGVja0NhdGFsb2dTb3VyY2USJi5kb2Nrd2VsbC52MS5DaGVja0NhdGFsb2dTb3VyY2VSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ2hlY2tDYXRhbG9nU291cmNlUmVzcG9uc2UiTaC7GAOquxgOEgxjaGVjay1zb3VyY2XAuxgEyLsYBNC7GAaC0+STAiU6ASoiIC92MS9jYXRhbG9nL3NvdXJjZXMve25hbWV9OmNoZWNrErkBChNSZW1vdmVDYXRhbG9nU291cmNlEicuZG9ja3dlbGwudjEuUmVtb3ZlQ2F0YWxvZ1NvdXJjZVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5SZW1vdmVDYXRhbG9nU291cmNlUmVzcG9uc2UiT6C7GAKquxgPEg1yZW1vdmUtc291cmNlwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvY2F0YWxvZy9zb3VyY2VzL3tuYW1lfTpyZW1vdmVCpQEKD2NvbS5kb2Nrd2VsbC52MUIMQ2F0YWxvZ1Byb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_catalog_v1alpha1_entry, file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * ListCatalogEntriesRequest asks for the whole catalog.
@@ -876,6 +876,16 @@ export type CatalogSourceInfo = Message<"dockwell.v1.CatalogSourceInfo"> & {
    * @generated from field: repeated string also = 20;
    */
   also: string[];
+
+  /**
+   * The store it reads, by the ID ListCatalogStores gives it, such as "onepanel",
+   * where it reads one at that store's own repository, in its format. Empty for
+   * any other source. Numbered in the block catalog sources' presentation holds
+   * (ADR 0083).
+   *
+   * @generated from field: string store = 30;
+   */
+  store: string;
 };
 
 /**
@@ -931,6 +941,153 @@ export const CatalogSourceRefusalSchema: GenMessage<CatalogSourceRefusal> = /*@_
   messageDesc(file_dockwell_v1_catalog, 21);
 
 /**
+ * ListCatalogStoresRequest asks for every store Dockwell reads directly.
+ *
+ * @generated from message dockwell.v1.ListCatalogStoresRequest
+ */
+export type ListCatalogStoresRequest = Message<"dockwell.v1.ListCatalogStoresRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogStoresRequest.
+ * Use `create(ListCatalogStoresRequestSchema)` to create a new message.
+ */
+export const ListCatalogStoresRequestSchema: GenMessage<ListCatalogStoresRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 22);
+
+/**
+ * ListCatalogStoresResponse is every store Dockwell reads directly.
+ *
+ * @generated from message dockwell.v1.ListCatalogStoresResponse
+ */
+export type ListCatalogStoresResponse = Message<"dockwell.v1.ListCatalogStoresResponse"> & {
+  /**
+   * Each store, the one with the most apps that install first.
+   *
+   * @generated from field: repeated dockwell.v1.CatalogStore stores = 1;
+   */
+  stores: CatalogStore[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListCatalogStoresResponse.
+ * Use `create(ListCatalogStoresResponseSchema)` to create a new message.
+ */
+export const ListCatalogStoresResponseSchema: GenMessage<ListCatalogStoresResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 23);
+
+/**
+ * CatalogStore is another store's catalog that Dockwell reads directly and
+ * converts as it reads it (ADR 0078), as a person adds it in one click.
+ *
+ * @generated from message dockwell.v1.CatalogStore
+ */
+export type CatalogStore = Message<"dockwell.v1.CatalogStore"> & {
+  /**
+   * Its ID, such as "onepanel", which a source of it is named by unless that's
+   * taken.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * What it's called, such as "1Panel's app store".
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * How a source of it reads, short, such as "1Panel".
+   *
+   * @generated from field: string label = 3;
+   */
+  label: string;
+
+  /**
+   * Its repository's URL, over HTTPS.
+   *
+   * @generated from field: string repository = 4;
+   */
+  repository: string;
+
+  /**
+   * How its folder is laid out.
+   *
+   * @generated from field: dockwell.resource.v1alpha1.CatalogFormat format = 5;
+   */
+  format: CatalogFormat;
+
+  /**
+   * The branch a source of it follows, as the repository names its default, such
+   * as "dev".
+   *
+   * @generated from field: string branch = 6;
+   */
+  branch: string;
+
+  /**
+   * The licence its entries come under, as an SPDX identifier, such as
+   * "GPL-3.0-only".
+   *
+   * @generated from field: string license = 7;
+   */
+  license: string;
+
+  /**
+   * The store's own project site, at an HTTPS address.
+   *
+   * @generated from field: string homepage = 8;
+   */
+  homepage: string;
+
+  /**
+   * How many apps it holds.
+   *
+   * @generated from field: uint32 apps = 9;
+   */
+  apps: number;
+
+  /**
+   * How many of them install: those Dockwell converts into entries.
+   *
+   * @generated from field: uint32 installs = 10;
+   */
+  installs: number;
+
+  /**
+   * The commit apps and installs were counted at, in full: the one its source reads
+   * now, or the one this build measured.
+   *
+   * @generated from field: string commit = 11;
+   */
+  commit: string;
+
+  /**
+   * apps and installs are its source's, as Dockwell read it, rather than what this
+   * build measured.
+   *
+   * @generated from field: bool live = 12;
+   */
+  live: boolean;
+
+  /**
+   * The source that reads it, by name. Empty when none does.
+   *
+   * @generated from field: string source = 13;
+   */
+  source: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CatalogStore.
+ * Use `create(CatalogStoreSchema)` to create a new message.
+ */
+export const CatalogStoreSchema: GenMessage<CatalogStore> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_catalog, 24);
+
+/**
  * ListCatalogSourceRefsRequest names a repository.
  *
  * @generated from message dockwell.v1.ListCatalogSourceRefsRequest
@@ -949,7 +1106,7 @@ export type ListCatalogSourceRefsRequest = Message<"dockwell.v1.ListCatalogSourc
  * Use `create(ListCatalogSourceRefsRequestSchema)` to create a new message.
  */
 export const ListCatalogSourceRefsRequestSchema: GenMessage<ListCatalogSourceRefsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 22);
+  messageDesc(file_dockwell_v1_catalog, 25);
 
 /**
  * ListCatalogSourceRefsResponse is the repository's branches and tags.
@@ -996,7 +1153,7 @@ export type ListCatalogSourceRefsResponse = Message<"dockwell.v1.ListCatalogSour
  * Use `create(ListCatalogSourceRefsResponseSchema)` to create a new message.
  */
 export const ListCatalogSourceRefsResponseSchema: GenMessage<ListCatalogSourceRefsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 23);
+  messageDesc(file_dockwell_v1_catalog, 26);
 
 /**
  * CatalogSourceGuess is a layout a repository's folders look like.
@@ -1032,7 +1189,7 @@ export type CatalogSourceGuess = Message<"dockwell.v1.CatalogSourceGuess"> & {
  * Use `create(CatalogSourceGuessSchema)` to create a new message.
  */
 export const CatalogSourceGuessSchema: GenMessage<CatalogSourceGuess> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 24);
+  messageDesc(file_dockwell_v1_catalog, 27);
 
 /**
  * CatalogSourceRef is a branch or a tag, and the commit it's at.
@@ -1060,7 +1217,7 @@ export type CatalogSourceRef = Message<"dockwell.v1.CatalogSourceRef"> & {
  * Use `create(CatalogSourceRefSchema)` to create a new message.
  */
 export const CatalogSourceRefSchema: GenMessage<CatalogSourceRef> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 25);
+  messageDesc(file_dockwell_v1_catalog, 28);
 
 /**
  * CheckCatalogSourceRequest names a source that follows a branch.
@@ -1081,7 +1238,7 @@ export type CheckCatalogSourceRequest = Message<"dockwell.v1.CheckCatalogSourceR
  * Use `create(CheckCatalogSourceRequestSchema)` to create a new message.
  */
 export const CheckCatalogSourceRequestSchema: GenMessage<CheckCatalogSourceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 26);
+  messageDesc(file_dockwell_v1_catalog, 29);
 
 /**
  * CheckCatalogSourceResponse is what the look found.
@@ -1110,7 +1267,7 @@ export type CheckCatalogSourceResponse = Message<"dockwell.v1.CheckCatalogSource
  * Use `create(CheckCatalogSourceResponseSchema)` to create a new message.
  */
 export const CheckCatalogSourceResponseSchema: GenMessage<CheckCatalogSourceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 27);
+  messageDesc(file_dockwell_v1_catalog, 30);
 
 /**
  * RemoveCatalogSourceRequest names the source to stop reading.
@@ -1131,7 +1288,7 @@ export type RemoveCatalogSourceRequest = Message<"dockwell.v1.RemoveCatalogSourc
  * Use `create(RemoveCatalogSourceRequestSchema)` to create a new message.
  */
 export const RemoveCatalogSourceRequestSchema: GenMessage<RemoveCatalogSourceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 28);
+  messageDesc(file_dockwell_v1_catalog, 31);
 
 /**
  * RemoveCatalogSourceResponse is the change that removes it.
@@ -1152,7 +1309,7 @@ export type RemoveCatalogSourceResponse = Message<"dockwell.v1.RemoveCatalogSour
  * Use `create(RemoveCatalogSourceResponseSchema)` to create a new message.
  */
 export const RemoveCatalogSourceResponseSchema: GenMessage<RemoveCatalogSourceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_catalog, 29);
+  messageDesc(file_dockwell_v1_catalog, 32);
 
 /**
  * CatalogService lists the apps you can install, and plans installing one as a
@@ -1279,6 +1436,20 @@ export const CatalogService: GenService<{
     methodKind: "unary";
     input: typeof ListCatalogSourcesRequestSchema;
     output: typeof ListCatalogSourcesResponseSchema;
+  },
+  /**
+   * ListCatalogStores returns the other stores Dockwell reads directly, each one
+   * click from being a catalog source: what it is, its repository, format, branch
+   * and licence, how many of its apps install, as this build measured or as its
+   * source reads it now, and the source that reads it, if one does. See
+   * docs/adr/0083-a-stores-own-logos-and-words-and-stores-one-click-away.md.
+   *
+   * @generated from rpc dockwell.v1.CatalogService.ListCatalogStores
+   */
+  listCatalogStores: {
+    methodKind: "unary";
+    input: typeof ListCatalogStoresRequestSchema;
+    output: typeof ListCatalogStoresResponseSchema;
   },
   /**
    * ListCatalogSourceRefs lists the branches and tags of a public Git repository,

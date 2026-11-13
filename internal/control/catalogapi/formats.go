@@ -108,8 +108,9 @@ func readLeftOut(raw []byte, format string) (leftOutRecord, bool) {
 
 // convertOne fetches a store's commit in two rounds, its folders and then only what
 // its adapter reads, converts it, and returns what's kept of it: each entry as
-// <id>.yaml, and leftOutFile.
-func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource) (map[string][]byte, error) {
+// <id>.yaml, and leftOutFile; and with a third round, the logos of the apps that
+// convert, by the names they're kept by in the folder media (storeIcons).
+func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource) (map[string][]byte, map[string][]byte, error) {
 	store, _ := convert.StoreOf(formatOf(spec))
 	// Fetching and converting each have a budget of their own, so a slow host leaves
 	// converting its time, and a heavy commit can't take the fetch's.
@@ -118,7 +119,7 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	defer cancel()
 	snap, err := gitfetch.Trees(ctx, s.Client, spec.GetRepository(), spec.GetCommit(), gitfetch.TreeDefault)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer snap.Close()
 	prefix := strings.Trim(path.Clean("/"+spec.GetPath()), "/")
@@ -130,16 +131,18 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	}
 	listed, err := snap.Walk(prefix, func(p string, depth int) bool { return store.Descend(rel(p), depth) })
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	l := &convert.Listing{Dirs: map[string]bool{}, Files: map[string]bool{}, Big: map[string]bool{}}
 	var want []gitfetch.Entry
+	byPath := map[string]gitfetch.Entry{}
 	for _, e := range listed {
 		if e.Dir {
 			l.Dirs[rel(e.Path)] = true
 			continue
 		}
 		l.Files[rel(e.Path)] = true
+		byPath[rel(e.Path)] = e
 		if store.Want(rel(e.Path)) {
 			want = append(want, e)
 		}
@@ -147,7 +150,7 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	// The repository's own licence, at its top, which every entry keeps.
 	top, err := snap.Walk("", nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var licenseFile []gitfetch.Entry
 	for _, name := range convert.LicenseFiles {
@@ -158,7 +161,7 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	}
 	files, big, err := snap.Read(ctx, append(want, licenseFile...))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	l.Read = map[string][]byte{}
 	for p, b := range files {
@@ -178,8 +181,9 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	defer done()
 	run, err := convert.OnServer(converting, store, l, src, snap.Time)
 	if err != nil {
-		return nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
+		return nil, nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
 	}
+	images := storeIcons(ctx, snap, run, byPath)
 	out := map[string][]byte{}
 	rec := leftOutRecord{Format: store.Format, Version: convert.Version, License: src.License, Apps: len(run.Results)}
 	date := snap.Time.UTC().Format(time.DateOnly)
@@ -196,16 +200,75 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 			continue
 		}
 		if size += len(raw); size > convert.MaxConverted {
-			return nil, fmt.Errorf("reading it as %s: what it converts to comes to over %d MiB, more than a source keeps of one commit", store.Name, convert.MaxConverted>>20)
+			return nil, nil, fmt.Errorf("reading it as %s: what it converts to comes to over %d MiB, more than a source keeps of one commit", store.Name, convert.MaxConverted>>20)
 		}
 		out[r.ID+".yaml"] = raw
 	}
 	raw, err := json.Marshal(rec)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out[leftOutFile] = raw
-	return out, nil
+	return out, images, nil
+}
+
+// storeIcons reads the logo of each app that converts, in a round of its own, within
+// the limits of a catalog's images (ADR 0077): 1,000 at most, 1 MiB each, 32 MiB
+// together, by the names they're kept by in the folder media, as folder.Prepare
+// keeps them, and names each in its entry's icon. A logo that can't be read, or
+// shown, leaves its app without one, and a round that fails leaves every app without
+// one, as an app's place never hangs on its logo (ADR 0083). ctx is the fetch's.
+func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry) map[string][]byte {
+	var want []gitfetch.Entry
+	owners := map[string][]int{}
+	for i := range run.Results {
+		r := &run.Results[i]
+		if r.Entry == nil || r.Icon == "" {
+			continue
+		}
+		e, ok := listed[r.Icon]
+		if !ok {
+			continue
+		}
+		if _, seen := owners[e.Path]; !seen {
+			if len(want) == folder.MediaLimits.Files {
+				continue
+			}
+			want = append(want, e)
+		}
+		owners[e.Path] = append(owners[e.Path], i)
+	}
+	if len(want) == 0 {
+		return nil
+	}
+	lim := folder.MediaLimits
+	read, _, err := snap.ReadWithin(ctx, want, gitfetch.ReadLimits{Files: lim.Files, File: lim.File, Total: lim.Total})
+	if err != nil {
+		return nil
+	}
+	images := map[string][]byte{}
+	var kept int64
+	for _, e := range want {
+		data, ok := read[e.Path]
+		if !ok {
+			continue // over 1 MiB
+		}
+		for _, i := range owners[e.Path] {
+			r := &run.Results[i]
+			name := convert.IconName(r.ID, e.Path)
+			if !folder.ImageName(name) {
+				continue
+			}
+			prepared, err := folder.Prepare(name, data)
+			if err != nil || len(images) == lim.Files || kept+int64(len(prepared)) > lim.Total {
+				continue
+			}
+			kept += int64(len(prepared))
+			images[name] = prepared
+			r.Entry.Icon = folder.Media + "/" + name
+		}
+	}
+	return images
 }
 
 // What a converted commit keeps of each app it leaves out: its ID and folder, and a

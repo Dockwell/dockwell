@@ -74,7 +74,35 @@ func (h *Handler) ListCatalogEntries(ctx context.Context, _ *connect.Request[doc
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: s.catalog.All(), Also: s.alternatives()}), nil
+	also := s.alternatives()
+	for _, a := range also {
+		a.Entry = listed(a.GetEntry())
+	}
+	entries := make([]*catalogv1.Entry, 0, len(s.catalog.All()))
+	for _, e := range s.catalog.All() {
+		entries = append(entries, listed(e))
+	}
+	return connect.NewResponse(&dockwellv1.ListCatalogEntriesResponse{Entries: entries, Also: also}), nil
+}
+
+// listed is an entry as the catalog lists it: without its README, and with only the
+// summary of what it says in other languages, which GetCatalogEntry has, as a
+// store's READMEs alone come to a megabyte or more (ADR 0083). The catalog's own
+// entry is left as it is.
+func listed(e *catalogv1.Entry) *catalogv1.Entry {
+	if e.GetReadme() == "" && len(e.GetTranslations()) == 0 {
+		return e
+	}
+	out := proto.CloneOf(e)
+	out.Readme = ""
+	for tag, words := range out.GetTranslations() {
+		if words.GetSummary() == "" {
+			delete(out.Translations, tag)
+			continue
+		}
+		words.Description, words.Readme = "", ""
+	}
+	return out
 }
 
 // GetCatalogEntry returns one entry, with what installing it would use.

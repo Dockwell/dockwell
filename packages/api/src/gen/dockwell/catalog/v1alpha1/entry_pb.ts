@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/catalog/v1alpha1/entry.proto.
  */
 export const file_dockwell_catalog_v1alpha1_entry: GenFile = /*@__PURE__*/
-  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIq8GCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24iZwoJQ29tcGFuaW9uEg8KB3NlcnZpY2UYASABKAkSDQoFbGFiZWwYAiABKAkSDwoHcHVycG9zZRgDIAEoCRIKCgJvbhgEIAEoCBIOCgZpbnB1dHMYBSADKAkSDQoFbm90ZXMYBiADKAkiZgoGU2lnbkluEgwKBHVzZXIYASABKAkSEgoKdXNlcl9pbnB1dBgCIAEoCRIWCg5wYXNzd29yZF9pbnB1dBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkSEgoKY2hhbmdlZF9pbhgFIAEoCSI8CgdTaWdudXBzEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDgoGY2xvc2VkGAMgASgJIkMKD0FkZHJlc3NWYXJpYWJsZRIPCgdzZXJ2aWNlGAEgASgJEhAKCHZhcmlhYmxlGAIgASgJEg0KBXZhbHVlGAMgASgJIjsKClNjcmVlbnNob3QSDAoEcGF0aBgBIAEoCRIPCgdjYXB0aW9uGAIgASgJEg4KBnNvdXJjZRgDIAEoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSLOAgoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCBI6CgtnZW5lcmF0ZV9hcxhQIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuR2VuZXJhdGVBcxISCgptaW5fbGVuZ3RoGFEgASgNEjkKCmNoYXJhY3RlcnMYUiABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkNoYXJhY3RlcnMSEAoIc2V0X29uY2UYCSABKAgiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqQQoKQ2hhcmFjdGVycxIaChZDSEFSQUNURVJTX1VOU1BFQ0lGSUVEEAASFwoTQ0hBUkFDVEVSU19VUkxfU0FGRRABKlYKCkdlbmVyYXRlQXMSGwoXR0VORVJBVEVfQVNfVU5TUEVDSUZJRUQQABITCg9HRU5FUkFURV9BU19IRVgQARIWChJHRU5FUkFURV9BU19CQVNFNjQQAip+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
+  fileDesc("CiVkb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExL2VudHJ5LnByb3RvEhlkb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExIuYHCgVFbnRyeRIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSEAoIY2F0ZWdvcnkYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIPCgdyZWxlYXNlGAYgASgNEhAKCGhvbWVwYWdlGAcgASgJEg8KB2xpY2Vuc2UYCCABKAkSEwoLYXBwX2xpY2Vuc2UYCSABKAkSMQoGc291cmNlGAogASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Tb3VyY2USDwoHY29tcG9zZRgLIAEoCRIwCgZpbnB1dHMYDCADKAsyIC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0EisKA3dlYhgNIAEoCzIeLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuV2ViEhMKC2ZpcnN0X3N0ZXBzGA4gASgJEhMKC2hvc3RfYWNjZXNzGA8gASgJEhEKCWRhdGFiYXNlcxgQIAMoCRITCgtkZXNjcmlwdGlvbhgRIAEoCRIMCgRpY29uGBIgASgJEjoKC3NjcmVlbnNob3RzGBMgAygLMiUuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TY3JlZW5zaG90EhUKDWRvY3VtZW50YXRpb24YFCABKAkSEgoKYXBwX3NvdXJjZRgVIAEoCRIQCghmZWF0dXJlcxgWIAMoCRIyCgdzaWduX2luGBcgASgLMiEuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5TaWduSW4SGgoSZmlyc3RfdmlzaXRvcl9vd25zGBggASgIEjMKB3NpZ251cHMYGSABKAsyIi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLlNpZ251cHMSRQoRYWRkcmVzc192YXJpYWJsZXMYGiADKAsyKi5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkFkZHJlc3NWYXJpYWJsZRINCgVub3RlcxgbIAMoCRI4Cgpjb21wYW5pb25zGBwgAygLMiQuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5Db21wYW5pb24SDgoGcmVhZG1lGB4gASgJEkgKDHRyYW5zbGF0aW9ucxgfIAMoCzIyLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuRW50cnkuVHJhbnNsYXRpb25zRW50cnkaWwoRVHJhbnNsYXRpb25zRW50cnkSCwoDa2V5GAEgASgJEjUKBXZhbHVlGAIgASgLMiYuZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMS5UcmFuc2xhdGlvbjoCOAEiQwoLVHJhbnNsYXRpb24SDwoHc3VtbWFyeRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCRIOCgZyZWFkbWUYAyABKAkiZwoJQ29tcGFuaW9uEg8KB3NlcnZpY2UYASABKAkSDQoFbGFiZWwYAiABKAkSDwoHcHVycG9zZRgDIAEoCRIKCgJvbhgEIAEoCBIOCgZpbnB1dHMYBSADKAkSDQoFbm90ZXMYBiADKAkiZgoGU2lnbkluEgwKBHVzZXIYASABKAkSEgoKdXNlcl9pbnB1dBgCIAEoCRIWCg5wYXNzd29yZF9pbnB1dBgDIAEoCRIOCgZzZXJ2ZXIYBCABKAkSEgoKY2hhbmdlZF9pbhgFIAEoCSI8CgdTaWdudXBzEg8KB3NlcnZpY2UYASABKAkSEAoIdmFyaWFibGUYAiABKAkSDgoGY2xvc2VkGAMgASgJIkMKD0FkZHJlc3NWYXJpYWJsZRIPCgdzZXJ2aWNlGAEgASgJEhAKCHZhcmlhYmxlGAIgASgJEg0KBXZhbHVlGAMgASgJIjsKClNjcmVlbnNob3QSDAoEcGF0aBgBIAEoCRIPCgdjYXB0aW9uGAIgASgJEg4KBnNvdXJjZRgDIAEoCSI6CgZTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmNvbW1pdBgDIAEoCSLOAgoFSW5wdXQSDAoEbmFtZRgBIAEoCRINCgVsYWJlbBgCIAEoCRIMCgRoaW50GAMgASgJEjIKBHR5cGUYBCABKA4yJC5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLklucHV0VHlwZRIVCg1kZWZhdWx0X3ZhbHVlGAUgASgJEhAKCG9wdGlvbmFsGAYgASgIEhAKCGdlbmVyYXRlGAcgASgNEg4KBmxvZ2dlZBgIIAEoCBI6CgtnZW5lcmF0ZV9hcxhQIAEoDjIlLmRvY2t3ZWxsLmNhdGFsb2cudjFhbHBoYTEuR2VuZXJhdGVBcxISCgptaW5fbGVuZ3RoGFEgASgNEjkKCmNoYXJhY3RlcnMYUiABKA4yJS5kb2Nrd2VsbC5jYXRhbG9nLnYxYWxwaGExLkNoYXJhY3RlcnMSEAoIc2V0X29uY2UYCSABKAgiFgoDV2ViEg8KB3NlcnZpY2UYASABKAkqQQoKQ2hhcmFjdGVycxIaChZDSEFSQUNURVJTX1VOU1BFQ0lGSUVEEAASFwoTQ0hBUkFDVEVSU19VUkxfU0FGRRABKlYKCkdlbmVyYXRlQXMSGwoXR0VORVJBVEVfQVNfVU5TUEVDSUZJRUQQABITCg9HRU5FUkFURV9BU19IRVgQARIWChJHRU5FUkFURV9BU19CQVNFNjQQAip+CglJbnB1dFR5cGUSGgoWSU5QVVRfVFlQRV9VTlNQRUNJRklFRBAAEhMKD0lOUFVUX1RZUEVfVEVYVBABEhQKEElOUFVUX1RZUEVfRU1BSUwQAhITCg9JTlBVVF9UWVBFX1BPUlQQAxIVChFJTlBVVF9UWVBFX1NFQ1JFVBAEQv0BCh1jb20uZG9ja3dlbGwuY2F0YWxvZy52MWFscGhhMUIKRW50cnlQcm90b1ABWkpnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC9jYXRhbG9nL3YxYWxwaGExO2NhdGFsb2d2MWFscGhhMaICA0RDWKoCGURvY2t3ZWxsLkNhdGFsb2cuVjFhbHBoYTHKAhlEb2Nrd2VsbFxDYXRhbG9nXFYxYWxwaGEx4gIlRG9ja3dlbGxcQ2F0YWxvZ1xWMWFscGhhMVxHUEJNZXRhZGF0YeoCG0RvY2t3ZWxsOjpDYXRhbG9nOjpWMWFscGhhMWIGcHJvdG8z");
 
 /**
  * Entry is one app a catalog offers, at one version. It installs through the
@@ -253,6 +253,29 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
    * @generated from field: repeated dockwell.catalog.v1alpha1.Companion companions = 28;
    */
   companions: Companion[];
+
+  /**
+   * What the app's catalog writes of it at length, as its README has it, in
+   * Markdown: the panel shows its headings, paragraphs, lists, emphasis, code and
+   * HTTPS links as text, and nothing else, never HTML or an image. 32 KiB at most.
+   * Empty when its catalog keeps none. ListCatalogEntries leaves it out, as
+   * GetCatalogEntry has it. Numbered in the block catalog sources' presentation
+   * holds (ADR 0083).
+   *
+   * @generated from field: string readme = 30;
+   */
+  readme: string;
+
+  /**
+   * What it says in other languages, by the language's tag, such as "zh-CN", where
+   * its catalog writes them: what a panel in that language shows in place of the
+   * entry's own words, field by field, with an empty field reading as the entry's
+   * own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
+   * each one's description and readme, as GetCatalogEntry has them.
+   *
+   * @generated from field: map<string, dockwell.catalog.v1alpha1.Translation> translations = 31;
+   */
+  translations: { [key: string]: Translation };
 };
 
 /**
@@ -261,6 +284,42 @@ export type Entry = Message<"dockwell.catalog.v1alpha1.Entry"> & {
  */
 export const EntrySchema: GenMessage<Entry> = /*@__PURE__*/
   messageDesc(file_dockwell_catalog_v1alpha1_entry, 0);
+
+/**
+ * Translation is what an entry says in another language than its own, as its
+ * catalog writes it (ADR 0083).
+ *
+ * @generated from message dockwell.catalog.v1alpha1.Translation
+ */
+export type Translation = Message<"dockwell.catalog.v1alpha1.Translation"> & {
+  /**
+   * What the app is for, in one line, as Entry.summary.
+   *
+   * @generated from field: string summary = 1;
+   */
+  summary: string;
+
+  /**
+   * What the app does and who it is for, as Entry.description: plain text.
+   *
+   * @generated from field: string description = 2;
+   */
+  description: string;
+
+  /**
+   * Its README, in Markdown, as Entry.readme.
+   *
+   * @generated from field: string readme = 3;
+   */
+  readme: string;
+};
+
+/**
+ * Describes the message dockwell.catalog.v1alpha1.Translation.
+ * Use `create(TranslationSchema)` to create a new message.
+ */
+export const TranslationSchema: GenMessage<Translation> = /*@__PURE__*/
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
 
 /**
  * Companion is a service an app runs without, such as a database's admin tool,
@@ -323,7 +382,7 @@ export type Companion = Message<"dockwell.catalog.v1alpha1.Companion"> & {
  * Use `create(CompanionSchema)` to create a new message.
  */
 export const CompanionSchema: GenMessage<Companion> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 1);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
 
 /**
  * SignIn is how a person signs in to an app once it's installed.
@@ -375,7 +434,7 @@ export type SignIn = Message<"dockwell.catalog.v1alpha1.SignIn"> & {
  * Use `create(SignInSchema)` to create a new message.
  */
 export const SignInSchema: GenMessage<SignIn> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 2);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
 
 /**
  * Signups is the variable that closes an app's sign-ups.
@@ -410,7 +469,7 @@ export type Signups = Message<"dockwell.catalog.v1alpha1.Signups"> & {
  * Use `create(SignupsSchema)` to create a new message.
  */
 export const SignupsSchema: GenMessage<Signups> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 3);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
 
 /**
  * AddressVariable is a variable that follows the domain an app is reached at.
@@ -447,7 +506,7 @@ export type AddressVariable = Message<"dockwell.catalog.v1alpha1.AddressVariable
  * Use `create(AddressVariableSchema)` to create a new message.
  */
 export const AddressVariableSchema: GenMessage<AddressVariable> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 4);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
 
 /**
  * Screenshot is a preview a person can read before starting an installation.
@@ -484,7 +543,7 @@ export type Screenshot = Message<"dockwell.catalog.v1alpha1.Screenshot"> & {
  * Use `create(ScreenshotSchema)` to create a new message.
  */
 export const ScreenshotSchema: GenMessage<Screenshot> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 5);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
 
 /**
  * Source is where an entry came from.
@@ -519,7 +578,7 @@ export type Source = Message<"dockwell.catalog.v1alpha1.Source"> & {
  * Use `create(SourceSchema)` to create a new message.
  */
 export const SourceSchema: GenMessage<Source> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 6);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
 
 /**
  * Input is one thing an entry needs to know to install, named by the ${NAME}
@@ -634,7 +693,7 @@ export type Input = Message<"dockwell.catalog.v1alpha1.Input"> & {
  * Use `create(InputSchema)` to create a new message.
  */
 export const InputSchema: GenMessage<Input> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 7);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 8);
 
 /**
  * Web says what a person opens once an entry is installed.
@@ -655,7 +714,7 @@ export type Web = Message<"dockwell.catalog.v1alpha1.Web"> & {
  * Use `create(WebSchema)` to create a new message.
  */
 export const WebSchema: GenMessage<Web> = /*@__PURE__*/
-  messageDesc(file_dockwell_catalog_v1alpha1_entry, 8);
+  messageDesc(file_dockwell_catalog_v1alpha1_entry, 9);
 
 /**
  * Characters are what a value a person gives may hold.

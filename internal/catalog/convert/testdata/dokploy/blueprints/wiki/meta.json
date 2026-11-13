@@ -2,6 +2,8 @@
   "id": "wiki",
   "name": "Wiki",
   "version": "2.1.0",
+  "description": "A wiki for a team. It keeps pages in Markdown.\n\nIt runs anywhere Dokploy does.",
+  "logo": "wiki.svg",
   "links": { "website": "https://wiki.example.com" },
   "tags": ["notes"]
 }

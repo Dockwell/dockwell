@@ -21,24 +21,61 @@ var mediaPath = regexp.MustCompile(`^/catalog-media/[a-z0-9]+(?:[-_/][a-z0-9]+)*
 
 // ownMedia is an image in the folder media beside an entry, in its own catalog,
 // which the control plane serves from what it read of it (ADR 0077): a raster
-// format alone, never SVG, which can hold a script. package folder checks the file.
-var ownMedia = regexp.MustCompile(`^media/[a-z0-9]+(?:[-_][a-z0-9]+)*\.(png|jpg|jpeg|webp)$`)
+// format, or for an icon an SVG image, which the control plane keeps only as
+// svgclean writes it anew (ADR 0083). package folder checks the file.
+var ownMedia = regexp.MustCompile(`^media/[a-z0-9]+(?:[-_][a-z0-9]+)*\.(png|jpg|jpeg|webp|svg)$`)
 
 // image says a path is one an entry's image may have: its own catalog's, or the
-// panel's for an entry built into Dockwell. raster leaves out SVG and AVIF.
+// panel's for an entry built into Dockwell. raster leaves out SVG and AVIF, as a
+// screenshot is a picture of the app, never a drawing.
 func image(path string, raster bool) bool {
-	if ownMedia.MatchString(path) {
-		return true
+	if raster && (strings.HasSuffix(path, ".svg") || strings.HasSuffix(path, ".avif")) {
+		return false
 	}
-	return mediaPath.MatchString(path) && (!raster || !strings.HasSuffix(path, ".svg"))
+	return ownMedia.MatchString(path) || mediaPath.MatchString(path)
 }
 
+// What an entry may say at length, and in other languages (ADR 0083).
+const (
+	// MaxReadme is the most bytes an entry's README may be: the longest of 1Panel's
+	// 468 was 6.8 KiB on 12 Nov 2026.
+	MaxReadme = 32 << 10
+	// MaxSummary is the most characters an entry's summary may be, in any language.
+	MaxSummary = 240
+	// MaxDescription is the most characters an entry's description may be.
+	MaxDescription = 6000
+	// maxTranslations is how many languages an entry may speak beside its own.
+	maxTranslations = 8
+)
+
+// languageTag is a language an entry may speak, as a tag such as zh-CN or pt-BR.
+var languageTag = regexp.MustCompile(`^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$`)
+
 func checkPresentation(e *catalogv1.Entry) error {
-	if utf8.RuneCountInString(e.GetDescription()) > 6000 {
-		return errors.New("its description is longer than 6000 characters. Keep the app's overview within that length")
+	if utf8.RuneCountInString(e.GetDescription()) > MaxDescription {
+		return fmt.Errorf("its description is longer than %d characters. Keep the app's overview within that length", MaxDescription)
+	}
+	if err := checkWords("", e.GetReadme(), e.GetSummary()); err != nil {
+		return err
+	}
+	if len(e.GetTranslations()) > maxTranslations {
+		return fmt.Errorf("it speaks over %d languages beside its own. Keep those the panel speaks", maxTranslations)
+	}
+	for tag, words := range e.GetTranslations() {
+		switch {
+		case !languageTag.MatchString(tag):
+			return fmt.Errorf("it has words in %q, which isn't a language's tag such as zh-CN", tag)
+		case words == nil:
+			return fmt.Errorf("its words in %s are empty. Take them out", tag)
+		case utf8.RuneCountInString(words.GetDescription()) > MaxDescription:
+			return fmt.Errorf("its description in %s is longer than %d characters. Keep the app's overview within that length", tag, MaxDescription)
+		}
+		if err := checkWords(tag, words.GetReadme(), words.GetSummary()); err != nil {
+			return err
+		}
 	}
 	if icon := e.GetIcon(); icon != "" && !image(icon, false) {
-		return errors.New("its icon needs an image in the folder media beside it, as media/<name>.webp, in WebP, PNG or JPEG")
+		return errors.New("its icon needs an image in the folder media beside it, as media/<name>.webp, in WebP, PNG, JPEG or SVG")
 	}
 	for name, address := range map[string]string{"homepage": e.GetHomepage(), "documentation": e.GetDocumentation(), "app source": e.GetAppSource()} {
 		if address != "" && !presentationLink(address) {
@@ -142,4 +179,24 @@ func FirstWords(e *catalogv1.Entry, choice map[string]bool) string {
 		out = append(out, steps)
 	}
 	return strings.Join(out, " ")
+}
+
+// checkWords checks an entry's README and summary, in its own language or another:
+// UTF-8, within their lengths, and the summary on one line.
+func checkWords(tag, readme, summary string) error {
+	in := ""
+	if tag != "" {
+		in = " in " + tag
+	}
+	switch {
+	case len(readme) > MaxReadme:
+		return fmt.Errorf("its README%s is over %d KiB. Keep it to the app's overview", in, MaxReadme>>10)
+	case !utf8.ValidString(readme) || strings.ContainsRune(readme, 0):
+		return fmt.Errorf("its README%s isn't UTF-8 text", in)
+	case utf8.RuneCountInString(summary) > MaxSummary:
+		return fmt.Errorf("its summary%s is longer than %d characters. Say what the app is for in one line", in, MaxSummary)
+	case strings.ContainsAny(summary, "\r\n"):
+		return fmt.Errorf("its summary%s is more than one line. Say what the app is for in one", in)
+	}
+	return nil
 }

@@ -1277,6 +1277,30 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/stores:
+        get:
+            tags:
+                - CatalogService
+            description: |-
+                ListCatalogStores returns the other stores Dockwell reads directly, each one
+                 click from being a catalog source: what it is, its repository, format, branch
+                 and licence, how many of its apps install, as this build measured or as its
+                 source reads it now, and the source that reads it, if one does. See
+                 docs/adr/0083-a-stores-own-logos-and-words-and-stores-one-click-away.md.
+            operationId: CatalogService_ListCatalogStores
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCatalogStoresResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes:
         get:
             tags:
@@ -8306,6 +8330,13 @@ components:
                     description: |-
                         The IDs of the apps it has that the catalog lists from a catalog before it,
                          whose entries in it are another choice of the same app, sorted.
+                store:
+                    type: string
+                    description: |-
+                        The store it reads, by the ID ListCatalogStores gives it, such as "onepanel",
+                         where it reads one at that store's own repository, in its format. Empty for
+                         any other source. Numbered in the block catalog sources' presentation holds
+                         (ADR 0083).
             description: CatalogSourceInfo is a source, and what Dockwell made of it.
         CatalogSourceRef:
             type: object
@@ -8338,6 +8369,70 @@ components:
                     type: string
                     description: For another store's app, its ID as an entry would have it, such as "memos".
             description: CatalogSourceRefusal is a file of a source the catalog leaves out, and why.
+        CatalogStore:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: |-
+                        Its ID, such as "onepanel", which a source of it is named by unless that's
+                         taken.
+                name:
+                    type: string
+                    description: What it's called, such as "1Panel's app store".
+                label:
+                    type: string
+                    description: How a source of it reads, short, such as "1Panel".
+                repository:
+                    type: string
+                    description: Its repository's URL, over HTTPS.
+                format:
+                    enum:
+                        - CATALOG_FORMAT_UNSPECIFIED
+                        - CATALOG_FORMAT_DOCKWELL
+                        - CATALOG_FORMAT_ONEPANEL
+                        - CATALOG_FORMAT_DOKPLOY
+                        - CATALOG_FORMAT_COOLIFY
+                    type: string
+                    description: How its folder is laid out.
+                    format: enum
+                branch:
+                    type: string
+                    description: |-
+                        The branch a source of it follows, as the repository names its default, such
+                         as "dev".
+                license:
+                    type: string
+                    description: |-
+                        The licence its entries come under, as an SPDX identifier, such as
+                         "GPL-3.0-only".
+                homepage:
+                    type: string
+                    description: The store's own project site, at an HTTPS address.
+                apps:
+                    type: integer
+                    description: How many apps it holds.
+                    format: uint32
+                installs:
+                    type: integer
+                    description: 'How many of them install: those Dockwell converts into entries.'
+                    format: uint32
+                commit:
+                    type: string
+                    description: |-
+                        The commit apps and installs were counted at, in full: the one its source reads
+                         now, or the one this build measured.
+                live:
+                    type: boolean
+                    description: |-
+                        apps and installs are its source's, as Dockwell read it, rather than what this
+                         build measured.
+                source:
+                    type: string
+                    description: The source that reads it, by name. Empty when none does.
+            description: |-
+                CatalogStore is another store's catalog that Dockwell reads directly and
+                 converts as it reads it (ADR 0078), as a person adds it in one click.
         CatalogUpgrade:
             type: object
             properties:
@@ -10663,6 +10758,25 @@ components:
                          install records which are on, an upgrade keeps that, and a person adds or
                          removes one later as a plan. Empty installs every service, as before. See
                          docs/adr/0076-optional-companions-in-a-catalog-entry.md.
+                readme:
+                    type: string
+                    description: |-
+                        What the app's catalog writes of it at length, as its README has it, in
+                         Markdown: the panel shows its headings, paragraphs, lists, emphasis, code and
+                         HTTPS links as text, and nothing else, never HTML or an image. 32 KiB at most.
+                         Empty when its catalog keeps none. ListCatalogEntries leaves it out, as
+                         GetCatalogEntry has it. Numbered in the block catalog sources' presentation
+                         holds (ADR 0083).
+                translations:
+                    type: object
+                    additionalProperties:
+                        $ref: '#/components/schemas/Translation'
+                    description: |-
+                        What it says in other languages, by the language's tag, such as "zh-CN", where
+                         its catalog writes them: what a panel in that language shows in place of the
+                         entry's own words, field by field, with an empty field reading as the entry's
+                         own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
+                         each one's description and readme, as GetCatalogEntry has them.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -13638,6 +13752,15 @@ components:
                         $ref: '#/components/schemas/CatalogSourceInfo'
                     description: Each source, by name.
             description: ListCatalogSourcesResponse is every source.
+        ListCatalogStoresResponse:
+            type: object
+            properties:
+                stores:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogStore'
+                    description: Each store, the one with the most apps that install first.
+            description: ListCatalogStoresResponse is every store Dockwell reads directly.
         ListChangesResponse:
             type: object
             properties:
@@ -19629,6 +19752,21 @@ components:
                          Recovery codes still work while it is locked.
                     format: date-time
             description: Totp is the state of signing in with an authenticator app.
+        Translation:
+            type: object
+            properties:
+                summary:
+                    type: string
+                    description: What the app is for, in one line, as Entry.summary.
+                description:
+                    type: string
+                    description: 'What the app does and who it is for, as Entry.description: plain text.'
+                readme:
+                    type: string
+                    description: Its README, in Markdown, as Entry.readme.
+            description: |-
+                Translation is what an entry says in another language than its own, as its
+                 catalog writes it (ADR 0083).
         UnacknowledgeAlertRequest:
             type: object
             properties:
