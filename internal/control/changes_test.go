@@ -340,7 +340,14 @@ func (w watched) last() *dockwellv1.Change {
 // has sent the change as it stands, so nothing after is missed.
 func watch(t *testing.T, c dockwellv1connect.ChangeServiceClient, changeID string) <-chan watched {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	return watchWithin(t, c, changeID, 20*time.Second)
+}
+
+// watchWithin is watch for a change that may take longer than most to apply,
+// such as one with hundreds of items on a busy machine.
+func watchWithin(t *testing.T, c dockwellv1connect.ChangeServiceClient, changeID string, within time.Duration) <-chan watched {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), within)
 	stream, err := c.WatchChange(ctx, connect.NewRequest(&dockwellv1.WatchChangeRequest{Id: changeID}))
 	if err != nil {
 		cancel()
@@ -366,13 +373,18 @@ func watch(t *testing.T, c dockwellv1connect.ChangeServiceClient, changeID strin
 
 func waitWatch(t *testing.T, ch <-chan watched) watched {
 	t.Helper()
+	return waitWatchWithin(t, ch, 20*time.Second)
+}
+
+func waitWatchWithin(t *testing.T, ch <-chan watched, within time.Duration) watched {
+	t.Helper()
 	select {
 	case w := <-ch:
 		if w.err != nil {
 			t.Fatalf("the watch ended with %v", w.err)
 		}
 		return w
-	case <-time.After(20 * time.Second):
+	case <-time.After(within):
 		t.Fatal("the watch didn't end")
 	}
 	return watched{}
@@ -380,11 +392,18 @@ func waitWatch(t *testing.T, ch <-chan watched) watched {
 
 func apply(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwellv1.Change) *dockwellv1.Change {
 	t.Helper()
-	w := watch(t, c, ch.GetId())
+	return applyWithin(t, c, ch, 20*time.Second)
+}
+
+// applyWithin is apply for a change that may take longer than most, as one of
+// hundreds of items does on a busy machine (#585).
+func applyWithin(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch *dockwellv1.Change, within time.Duration) *dockwellv1.Change {
+	t.Helper()
+	w := watchWithin(t, c, ch.GetId(), within)
 	if _, err := applyChange(t, c, &dockwellv1.ApplyChangeRequest{Id: ch.GetId()}); err != nil {
 		t.Fatalf("ApplyChange %s: %v", ch.GetSummary(), err)
 	}
-	return waitWatch(t, w).last()
+	return waitWatchWithin(t, w, within).last()
 }
 
 // applyChange applies a change, and confirms it with the browser's passkey when
