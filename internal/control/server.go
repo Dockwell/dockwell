@@ -589,6 +589,8 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewBackupServiceHandler(*backupsOut, opts...))
 		dbs := databases.New(ch, cfg.Agents, *backupsOut, cfg.Store, cfg.Secrets, cfg.Logger)
 		cfg.Changes.FeaturesFrom(dbs.LastFeatures)
+		// The database servers an app may share, as ways to meet its needs (ADR 0084).
+		catalogHandler.ShareWith(dbs)
 		handle(dockwellv1connect.NewDatabaseServiceHandler(dbs, opts...))
 		*tasksOut = tasks.New(cfg.Changes, cfg.Agents, cfg.Store, cfg.Logger)
 		handle(dockwellv1connect.NewTaskServiceHandler(*tasksOut, opts...))

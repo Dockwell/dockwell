@@ -1188,6 +1188,15 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			return "", nil, discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
 		}
 	}
+	// Link networks of other environments that name its service, which a network
+	// not made yet joins it to as it's made (ADR 0084).
+	if d.Joins != nil && t.Scoped {
+		for _, j := range d.Joins(t) {
+			if err := d.Client.ConnectNetwork(ctx, j.Network, id, []string{j.Alias}); err != nil && !docker.IsNotFound(err) {
+				return "", nil, discard(fmt.Errorf("can't put %s on the link network %s: %w", t.Name, j.Network, err))
+			}
+		}
+	}
 	if err := d.joinIngress(ctx, t, spec, id); err != nil {
 		return "", nil, discard(err)
 	}

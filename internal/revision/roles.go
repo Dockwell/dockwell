@@ -101,6 +101,15 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 			return err
 		}
 		held := place.Holds(caller.Grants, at.Place)
+		if it.follows {
+			// What the change took in through a value it changes is Dockwell's own item:
+			// it needs no role where it is, but its protection holds, so applying it there
+			// waits for an admin or the owner (ADR 0084).
+			if a != planning && !own && at.Protected && store.RoleRank(held) < store.RoleRank(store.RoleAdmin) {
+				return &Refusal{act: a, Held: held, Needs: store.RoleAdmin, Why: "it restarts an app in a protected environment, which uses what this changes"}
+			}
+			continue
+		}
 		if held == "" && it.current == nil && at.admins != "" {
 			// Something new that only an admin makes, such as a project: nothing
 			// to find, so the role is what's missing.
@@ -551,6 +560,7 @@ func (e *Engine) placed(ctx context.Context, tx *store.Tx, c store.Change) ([]it
 		if it.id == "" {
 			it.id = ci.ResourceID
 		}
+		it.follows = ci.Follows
 		if ref.Kind == scope.EnvironmentKind && ci.Spec != nil {
 			// An environment's spec holds nothing sealed. One that can't be read
 			// counts as protected after.

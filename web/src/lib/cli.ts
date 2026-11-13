@@ -22,6 +22,7 @@ import {
   flag as flagOption,
   from_file,
   http,
+  no_flag,
   SpecSchema,
   sensitive,
 } from "@dockwell/api";
@@ -183,6 +184,8 @@ export function specFlags(spec: DescMessage, prefix = "", depth = 0): FlagField[
   for (const field of spec.fields) {
     const path = prefix + field.name;
     if (outputOnly(field)) continue;
+    // A change's edits set it, never a flag's text, as a secret's from.
+    if (hasOption(field, no_flag) && getOption(field, no_flag)) continue;
     if (field.fieldKind === "message" && !field.message.typeName.startsWith("google.protobuf.") && depth < 3) {
       out.push(...specFlags(field.message, `${path}.`, depth + 1));
       continue;

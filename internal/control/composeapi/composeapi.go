@@ -141,6 +141,42 @@ type Needs struct {
 	OldStands map[string]string
 	// Links are each need, met, by its name.
 	Links map[string]*resourcev1.Link
+	// Extra are what else meeting them makes: a database user and its secret on a
+	// server the app shares, in that server's environment, and the link network and
+	// the secret whose value comes from the user's, in the app's, which an edit with
+	// no scope is in.
+	Extra []*dockwellv1.Edit
+	// Joins names, for each link network, the names its need sets: each service that
+	// uses one of them joins the network.
+	Joins map[string][]string
+}
+
+// joinLinks has each service that uses a name a link sets join that link's network,
+// as Nextcloud's cron does beside its web service (ADR 0084).
+func joinLinks(stack *compose.Stack, joins map[string][]string) {
+	for _, network := range slices.Sorted(maps.Keys(joins)) {
+		for _, s := range stack.Services {
+			app := s.Spec.GetApp()
+			if app == nil || slices.Contains(app.GetNetworks(), network) {
+				continue
+			}
+			uses := false
+			for _, name := range joins[network] {
+				for _, used := range s.Spec.GetVariables() {
+					uses = uses || used == name
+				}
+				for _, used := range s.Spec.GetSecrets() {
+					uses = uses || used == name
+				}
+			}
+			if uses {
+				if len(app.Networks) == 0 {
+					app.Networks = []string{"default"}
+				}
+				app.Networks = append(app.Networks, network)
+			}
+		}
+	}
 }
 
 // Limits are what a service may use, and when Docker restarts it. An empty field
@@ -229,6 +265,7 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	// shows is read, so a need's plain parts show as the variables they are and its
 	// password and URL, secrets, never do (ADR 0081, 0084).
 	useValues(stack, in.Needs.Stands, variable.VariableKind)
+	joinLinks(stack, in.Needs.Joins)
 	showPlain(stack)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
 	var notes []revision.Note
@@ -344,6 +381,17 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for _, name := range slices.Sorted(maps.Keys(also.needs.Links)) {
 		add(link.Kind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: also.needs.Links[name]}})
 	}
+	for _, e := range also.needs.Extra {
+		e = proto.CloneOf(e)
+		if e.GetResource().GetScope() == "" {
+			e.Resource.Scope = env
+			if len(e.GetServers()) == 0 {
+				e.Servers = m.GetServers()
+			}
+		}
+		keep[e.GetResource().GetKind()+"/"+e.GetResource().GetName()] = true
+		edits = append(edits, e)
+	}
 	for _, n := range stack.Networks {
 		add(network.Kind, n.Name, &resourcev1.Spec{Kind: &resourcev1.Spec_Network{Network: n.Spec}})
 	}
@@ -353,6 +401,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for _, s := range stack.Services {
 		add(service.Kind, s.Name, &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: s.Spec}})
 	}
+	edits = usersAfterTheirServers(edits, env)
 	if m.GetRemoveOrphans() {
 		// Deletions run last, in reverse: services go before the networks
 		// they were on. Volumes stay, as docker compose keeps them.
@@ -410,6 +459,32 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 		}
 		return ""
 	}, changes.Also{Edits: place.made, BackUp: also.backUp, SkipBackup: also.skipBackup, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+}
+
+// usersAfterTheirServers moves each database user the edits make in env right after
+// the edit that makes its server there, where they make it too: a change applies what
+// it makes in order, and a user is made in a server that runs, before the services
+// that sign in as it start (ADR 0084).
+func usersAfterTheirServers(edits []*dockwellv1.Edit, env string) []*dockwellv1.Edit {
+	at := func(kind, name string) int {
+		return slices.IndexFunc(edits, func(e *dockwellv1.Edit) bool {
+			r := e.GetResource()
+			return !e.GetDelete() && r.GetKind() == kind && r.GetScope() == env && r.GetName() == name
+		})
+	}
+	for _, u := range slices.Clone(edits) {
+		r := u.GetResource()
+		if u.GetDelete() || r.GetKind() != string(database.UserKind) || r.GetScope() != env {
+			continue
+		}
+		server := at(string(service.Kind), u.GetSpec().GetDatabaseUser().GetService())
+		i := slices.Index(edits, u)
+		if server < 0 || server < i {
+			continue
+		}
+		edits = slices.Insert(slices.Delete(edits, i, i+1), server, u)
+	}
+	return edits
 }
 
 // AdoptCompose plans taking on a Compose project made elsewhere: each container as a

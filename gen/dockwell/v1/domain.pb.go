@@ -536,6 +536,11 @@ type DomainRoute struct {
 	// True when a route with tls off answers anyone who can reach the server, as
 	// Route.plain_for_anyone says.
 	PlainForAnyone bool `protobuf:"varint,9,opt,name=plain_for_anyone,json=plainForAnyone,proto3" json:"plain_for_anyone,omitempty"`
+	// True while it answers that the app isn't open yet, as Route.held says (ADR 0084).
+	Held bool `protobuf:"varint,80,opt,name=held,proto3" json:"held,omitempty"`
+	// The proxies in front it believes, as Route.trusted_proxies names them, so what
+	// reads a route has all of it.
+	TrustedProxies []string `protobuf:"bytes,81,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -631,6 +636,20 @@ func (x *DomainRoute) GetPlainForAnyone() bool {
 		return x.PlainForAnyone
 	}
 	return false
+}
+
+func (x *DomainRoute) GetHeld() bool {
+	if x != nil {
+		return x.Held
+	}
+	return false
+}
+
+func (x *DomainRoute) GetTrustedProxies() []string {
+	if x != nil {
+		return x.TrustedProxies
+	}
+	return nil
 }
 
 // DomainServer is where a domain stands on one server.
@@ -989,7 +1008,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x10\n" +
 	"\x03url\x18\x03 \x01(\tR\x03url\x120\n" +
 	"\x06routes\x18\x04 \x03(\v2\x18.dockwell.v1.DomainRouteR\x06routes\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\xde\x01\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.DomainServerR\aservers\"\x9b\x02\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -999,7 +1018,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x03url\x18\x06 \x01(\tR\x03url\x12\x10\n" +
 	"\x03tls\x18\a \x01(\tR\x03tls\x12\x1b\n" +
 	"\thost_port\x18\b \x01(\rR\bhostPort\x12(\n" +
-	"\x10plain_for_anyone\x18\t \x01(\bR\x0eplainForAnyone\"\xcb\x01\n" +
+	"\x10plain_for_anyone\x18\t \x01(\bR\x0eplainForAnyone\x12\x12\n" +
+	"\x04held\x18P \x01(\bR\x04held\x12'\n" +
+	"\x0ftrusted_proxies\x18Q \x03(\tR\x0etrustedProxies\"\xcb\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +

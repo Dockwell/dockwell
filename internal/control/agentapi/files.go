@@ -74,6 +74,10 @@ func (s *Session) ManagesFiles() bool { return s.managesFiles }
 // the database as its service restarts with a new one (ADR 0038).
 func (s *Session) FirstPasswords() bool { return s.firstPasswords }
 
+// Links says whether the agent joins a database shared with an app to the app's link
+// network in place, and again as it makes the database's container anew (ADR 0084).
+func (s *Session) Links() bool { return s.links }
+
 // MakeFile asks the agent to make an empty file or a folder. confirmed is the path a
 // passkey confirmed, if any.
 func (s *Session) MakeFile(ctx context.Context, path string, kind dockwellv1.FileType, confirmed string) (*agentv1.MakeFileResult, error) {

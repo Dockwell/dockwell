@@ -653,6 +653,11 @@ type item struct {
 	reboot string
 	// unit is the action the change asks of one of a server's system services.
 	unit *resource.UnitAsked
+	// follows says the change took it in because it uses a value the change
+	// changes, as an app restarts with its database user's new password: Dockwell's
+	// own item, not the person's edit, which may be in another project, through a
+	// link (ADR 0084).
+	follows bool
 }
 
 // noRevision reports an item that acts on a resource as it is, so it has nothing
@@ -1279,7 +1284,7 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 		}
 		out[i] = store.ChangeItem{
 			ResourceID: it.id, Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, BaseRevision: it.base, Spec: spec,
-			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run, Adopts: it.adopt, AdoptsName: it.adoptName,
+			Servers: it.servers, Rotates: it.rotates, Pull: it.pull, Run: it.run, Adopts: it.adopt, AdoptsName: it.adoptName, Follows: it.follows,
 		}
 	}
 	return out, nil
@@ -1458,11 +1463,20 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		if items, err = e.withTiesGoing(ctx, tx, items, seen); err != nil {
 			return err
 		}
-		if items, err = e.withUsers(ctx, tx, items); err != nil {
-			return err
-		}
-		if err := e.pinAll(ctx, tx, items); err != nil {
-			return err
+		// What uses a value the change changes joins it, and once pinned, what uses
+		// that, as a value written from another (ADR 0084) changes with what it names,
+		// until nothing more joins.
+		for range maxUseChain {
+			n := len(items)
+			if items, err = e.withUsers(ctx, tx, items); err != nil {
+				return err
+			}
+			if err := e.pinAll(ctx, tx, items); err != nil {
+				return err
+			}
+			if len(items) == n {
+				break
+			}
 		}
 		items = e.orderByReference(items)
 		return e.check(ctx, tx, items)
@@ -1707,6 +1721,9 @@ func (e *Engine) checkName(ref resource.Ref, stored bool) error {
 // It runs when proposing, and again in the transaction that applies, so a
 // change planned before the world moved can't slip through.
 func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
+	if err := e.refuseLinkedGoing(ctx, tx, items); err != nil {
+		return err
+	}
 	byID := make(map[string]*item, len(items))
 	for i := range items {
 		byID[items[i].id] = &items[i]
@@ -1720,6 +1737,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 			return err
 		}
 		if err := e.checkNames(ctx, tx, items, it); err != nil {
+			return err
+		}
+		if err := e.checkFromElsewhere(ctx, tx, items, it); err != nil {
 			return err
 		}
 		if it.level == resource.LevelEnvironment {
@@ -4283,7 +4303,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 				it.id = e.newID(ref.Kind)
 			}
 		}
-		it.servers, it.rotates, it.pull, it.run, it.adopt, it.adoptName = ci.Servers, ci.Rotates, ci.Pull, ci.Run, ci.Adopts, ci.AdoptsName
+		it.servers, it.rotates, it.pull, it.run, it.adopt, it.adoptName, it.follows = ci.Servers, ci.Rotates, ci.Pull, ci.Run, ci.Adopts, ci.AdoptsName, ci.Follows
 		// Opened as the item of the change it was sealed for, of the
 		// resource the base check above makes the one there now.
 		if it.encoded, err = e.open(ctx, tx, store.InChange(cmp.Or(ci.ResourceID, it.id), ci.Kind, c.ID, i), ci.Spec); err != nil {
@@ -4972,9 +4992,24 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 		if err != nil {
 			return err
 		}
+		// What the change took in through a value it changed isn't undone as an edit:
+		// the undo takes it in again, through the value it puts back (ADR 0084).
+		c, err := tx.GetChange(ctx, changeID)
+		if err != nil {
+			return err
+		}
+		followed := map[resource.Ref]bool{}
+		for j := range c.Items {
+			if ci := &c.Items[j]; ci.Follows {
+				followed[resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}] = true
+			}
+		}
 		for i := range revs {
 			rev := &revs[i]
 			ref := resource.Ref{Kind: resource.Kind(rev.Kind), Scope: rev.Scope, Name: rev.Name}
+			if followed[ref] {
+				continue
+			}
 			latest, err := tx.GetResource(ctx, rev.Kind, rev.Scope, rev.Name)
 			if err != nil {
 				return err

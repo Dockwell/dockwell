@@ -673,6 +673,9 @@ msgstr "A backup of {volume} wasn't checked"
 msgid "A change failed: {subject}"
 msgstr "A change failed: {subject}"
 
+msgid "A change in a project you can't see"
+msgstr "A change in a project you can't see"
+
 msgid "A major update of {subject} is out: {where}"
 msgstr "A major update of {subject} is out: {where}"
 
@@ -6701,6 +6704,18 @@ msgctxt "companions"
 msgid "Tools"
 msgstr "Tools"
 
+msgid "Not open yet"
+msgstr "Not open yet"
+
+msgid "Open it to everyone"
+msgstr "Open it to everyone"
+
+msgid "Open {domains} to everyone"
+msgstr "Open {domains} to everyone"
+
+msgid "{domains} answers that it isn't open, so its owner sets it up first, through the panel."
+msgstr "{domains} answers that it isn't open, so its owner sets it up first, through the panel."
+
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>, read-only"
 
@@ -6724,11 +6739,17 @@ msgstr "At least {0} characters: letters, digits and - . _ ~"
 msgid "Change {what}"
 msgstr "Change {what}"
 
+msgid "Choose its {unmetWord} to review the plan"
+msgstr "Choose its {unmetWord} to review the plan"
+
 msgid "Copy {label}"
 msgstr "Copy {label}"
 
 msgid "Database"
 msgstr "Database"
+
+msgid "Each app has a user of its own"
+msgstr "Each app has a user of its own"
 
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
@@ -6806,6 +6827,12 @@ msgstr "Set my own"
 msgid "Set my own {0}"
 msgstr "Set my own {0}"
 
+msgid "Shared with {apps} · each app has a user of its own"
+msgstr "Shared with {apps} · each app has a user of its own"
+
+msgid "Shares {service} in {project}"
+msgstr "Shares {service} in {project}"
+
 msgid "Show {label}"
 msgstr "Show {label}"
 
@@ -6827,6 +6854,9 @@ msgstr "Use generated"
 
 msgid "Use letters, digits and - . _ ~ alone, as it goes in a URL."
 msgstr "Use letters, digits and - . _ ~ alone, as it goes in a URL."
+
+msgid "Use one you have"
+msgstr "Use one you have"
 
 msgid "Use printable characters alone."
 msgstr "Use printable characters alone."
@@ -6891,6 +6921,9 @@ msgstr "{name} in the catalog"
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 
+msgid "{service} in {project}"
+msgstr "{service} in {project}"
+
 msgid "A change to how {version} runs is out."
 msgstr "A change to how {version} runs is out."
 
@@ -6908,6 +6941,33 @@ msgstr "Version {next} is out."
 
 msgid "{name} {version}"
 msgstr "{name} {version}"
+
+msgid "Copies its data"
+msgstr "Copies its data"
+
+msgid "Its data can't be copied there"
+msgstr "Its data can't be copied there"
+
+msgid "Nothing else Dockwell runs takes it"
+msgstr "Nothing else Dockwell runs takes it"
+
+msgid "Shares {meets} in {project}"
+msgstr "Shares {meets} in {project}"
+
+msgid "Start empty on it"
+msgstr "Start empty on it"
+
+msgid "Use another {what}"
+msgstr "Use another {what}"
+
+msgid "Use it"
+msgstr "Use it"
+
+msgid "What it needs"
+msgstr "What it needs"
+
+msgid "{server} in {where}"
+msgstr "{server} in {where}"
 
 msgid "1Panel's app store"
 msgstr "1Panel's app store"
@@ -7666,6 +7726,9 @@ msgstr "{apps} and {dbs} stop."
 msgid "{ing} failed"
 msgstr "{ing} failed"
 
+msgid "{items, plural, one {# more in a project you can't see changes with it} other {# more in projects you can't see change with it}}"
+msgstr "{items, plural, one {# more in a project you can't see changes with it} other {# more in projects you can't see change with it}}"
+
 msgid "{made} is deployed"
 msgstr "{made} is deployed"
 
@@ -7689,6 +7752,9 @@ msgstr "{name} ran to its end"
 
 msgid "{name} starts at boot on {server}"
 msgstr "{name} starts at boot on {server}"
+
+msgid "{restarts, plural, one {# app in a project you can't see restarts with it} other {# apps in projects you can't see restart with it}}"
+msgstr "{restarts, plural, one {# app in a project you can't see restarts with it} other {# apps in projects you can't see restart with it}}"
 
 msgid "{same} stays as it is"
 msgstr "{same} stays as it is"

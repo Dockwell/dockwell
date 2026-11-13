@@ -538,3 +538,39 @@ func TestAnAutomaticUpdateNeverMovesADatabaseInACatalogRelease(t *testing.T) {
 		t.Error("the release's move isn't left planned for a person")
 	}
 }
+
+// A server another app links to, as a database a person chose to share is, is that
+// app's too: Dockwell leaves its automatic update planned for a person (ADR 0084).
+func TestAnAutomaticUpdateOfASharedServerWaitsForAPerson(t *testing.T) {
+	f := startFullConfig(t, store.SQLite, nil, slog.New(slog.DiscardHandler), nil, logapi.Options{}, func(c *Config) { c.ManualAlerts = true })
+	b := benchOn(t, f)
+	env := b.run(t, &dockwellv1.ImportComposeRequest{Compose: shopWithData})
+	web := b.service(t, "shop", "web")
+	b.setAutoUpdate(t, web, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_PATCH, At: "03:00", Minutes: 60, TimeZone: "UTC"})
+	b.done(t, propose(t, b.c, "Link to web", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: env, Name: "web"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+			Label: "Database", Service: "web", MeetsEnvironment: env, Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL,
+			Accepts: []*resourcev1.LinkAccept{{Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL}},
+			Sets:    []*resourcev1.LinkSet{{Name: "WEB_HOST", Part: resourcev1.LinkPart_LINK_PART_HOST}},
+		}}},
+	}))
+	found := &newer{found: map[string]services.Newer{web.GetId(): {Image: "ghcr.io/acme/shop:1.5", Kind: "patch"}}}
+	r := &autoupdate.Runner{
+		DB: f.store, Keeper: f.keeper, Planner: f.server.autoupdates.Planner, Engine: f.engine, Updates: found,
+		Logger: slog.New(slog.DiscardHandler), Now: func() time.Time { return time.Date(2026, 11, 14, 3, 10, 0, 0, time.UTC) },
+	}
+	if err := r.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if runs := b.e.Newest(docker.Project(env), "web").Config.Image; runs != "ghcr.io/acme/shop:1.4" {
+		t.Errorf("a shared server was updated on its own to %s", runs)
+	}
+	list, err := b.c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{PageSize: 1}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := list.Msg.GetChanges()[0]; c.GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED || c.GetProposedVia() != dockwellv1.Surface_SURFACE_AUTOMATIC {
+		t.Errorf("the update of a shared server is %v via %v", c.GetState(), c.GetProposedVia())
+	}
+}

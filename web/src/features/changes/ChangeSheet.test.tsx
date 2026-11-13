@@ -8,6 +8,7 @@ import {
   BackupMethod,
   CertificateState,
   type Change,
+  ChangeElsewhereSchema,
   ChangeState,
   DomainCheckSchema,
   DomainCheckState,
@@ -1342,6 +1343,19 @@ describe("the plan sheet", () => {
     expect(sheet).not.toHaveTextContent(/\b0 to/);
     expect(within(sheet).queryByText("shop")).toBeNull();
     expect(within(sheet).getByText("production")).toBeVisible();
+  });
+
+  it("says what a change reaches in projects you can't see as a count, and its own words where you hold none of it", async () => {
+    const planned = shopPlanned();
+    planned.summary = "A change in a project you can't see";
+    planned.elsewhere = create(ChangeElsewhereSchema, { items: 3, restarts: 2, editsElsewhere: true });
+    renderSheet(
+      { kind: "change", id: "chg_shop" },
+      { changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream } },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    expect(await within(sheet).findByText("2 apps in projects you can't see restart with it")).toBeVisible();
+    expect(sheet).toHaveTextContent("A change in a project you can't see");
   });
 
   it("leaves a plan someone else made when you close it", async () => {

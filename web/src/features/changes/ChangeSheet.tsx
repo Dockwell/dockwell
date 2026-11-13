@@ -11,6 +11,7 @@ import {
   CatalogService,
   type Change,
   type ChangeConfirmation,
+  type ChangeElsewhere,
   ChangeService,
   ChangeState,
   Connection,
@@ -665,7 +666,9 @@ function ChangeSheet({
   const subtitle =
     opening.kind === "nothing"
       ? opening.summary
-      : (change?.summary ?? (opening.kind === "propose" ? opening.summary : undefined));
+      : change?.elsewhere?.editsElsewhere
+        ? t`A change in a project you can't see`
+        : (change?.summary ?? (opening.kind === "propose" ? opening.summary : undefined));
   const title = useTitle(phase, plan, change);
   const subject = shownName(changing(plan)[0]);
   const names = [
@@ -1285,6 +1288,8 @@ function PlanBody({
       ) : null}
       {/* A change Dockwell made on its own says why first, as nobody asked for it. */}
       {change?.because ? <BecauseNotice because={change.because} /> : null}
+      {/* What it reaches in projects the reader can't see is a count, never a name (ADR 0084). */}
+      {change?.elsewhere && change.elsewhere.items > 0 ? <ElsewhereLine elsewhere={change.elsewhere} /> : null}
       {/* An update says what it goes from and to, and how it goes, before anything else of its plan. */}
       {upgrade && phase !== "discarded" ? <UpgradeLine intent={upgrade} /> : null}
       {phased && (phase === "applying" || phase === "failed") ? (
@@ -2505,4 +2510,25 @@ function Effects({
 function confirmationOf(change: Change | undefined): ChangeConfirmation | undefined {
   if (change && change.steps.length > 0) return change.steps.find((s) => s.confirmation)?.confirmation;
   return change?.confirmation;
+}
+
+/** What a change reaches in projects the reader can't see, as a count of what it does there. */
+function ElsewhereLine({ elsewhere }: { elsewhere: ChangeElsewhere }) {
+  const { restarts, items } = elsewhere;
+  return (
+    <p className="plan-elsewhere">
+      <Icon name="lock" size={14} />
+      <span>
+        {restarts > 0
+          ? plural(restarts, {
+              one: "# app in a project you can't see restarts with it",
+              other: "# apps in projects you can't see restart with it",
+            })
+          : plural(items, {
+              one: "# more in a project you can't see changes with it",
+              other: "# more in projects you can't see change with it",
+            })}
+      </span>
+    </p>
+  );
 }

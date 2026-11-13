@@ -44,9 +44,13 @@ type Upgrade struct {
 	Pin    *resourcev1.CatalogPin
 	// SkipBackup leaves out the backup of its volumes that comes first.
 	SkipBackup bool
-	// Companion says it changes which of the install's companions run, at the
-	// release it's on: no data moves, so it takes no backup and says nothing of one.
+	// Companion says it changes which of the install's companions run, or what meets
+	// one of its needs, at the release it's on: no data moves, so it takes no backup and
+	// says nothing of one.
 	Companion bool
+	// Keeps are services that leave the file and keep running as they are, with their
+	// data, as the database that met a need before it's met another way.
+	Keeps []string
 	// FromRelease and Release are the releases an upgrade leaves and goes to, which
 	// its plan's intent says (ADR 0080). A companion's change has none.
 	FromRelease, Release string
@@ -80,6 +84,8 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	useSecrets(old, in.OldStands)
 	useValues(next, in.Needs.Stands, variable.VariableKind)
 	useValues(old, in.Needs.OldStands, variable.VariableKind)
+	joinLinks(next, in.Needs.Joins)
+	joinLinks(old, in.Needs.Joins)
 	showPlain(next)
 	h.normalize(old)
 	h.normalize(next)
@@ -95,6 +101,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, err, "upgrade_clash")
 	}
+	deletes = slices.DeleteFunc(deletes, func(r resource.Ref) bool { return r.Kind == service.Kind && slices.Contains(in.Keeps, r.Name) })
 	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
 	for i := range in.Notes {
 		n := in.Notes[i]

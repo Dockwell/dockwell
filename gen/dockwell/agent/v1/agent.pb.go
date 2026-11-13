@@ -1987,7 +1987,13 @@ type Hello struct {
 	// no-new-privileges (Container 90 to 99, ADR 0085). The control plane plans none
 	// of them on an agent that doesn't say so, which would leave them out. Other
 	// stores' work takes 300 to 309 in agent messages.
-	OwnSettings   bool `protobuf:"varint,300,opt,name=own_settings,json=ownSettings,proto3" json:"own_settings,omitempty"`
+	OwnSettings bool `protobuf:"varint,300,opt,name=own_settings,json=ownSettings,proto3" json:"own_settings,omitempty"`
+	// True when the agent joins a database shared with an app to the app's link
+	// network in place, and again as it makes the database's container anew (ADR
+	// 0084), so the control plane links an app to a database of another project
+	// only on a server whose agent does. Connectable apps take 290 to 299 in agent
+	// messages.
+	Links         bool `protobuf:"varint,290,opt,name=links,proto3" json:"links,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2200,6 +2206,13 @@ func (x *Hello) GetDesired() *DesiredHeld {
 func (x *Hello) GetOwnSettings() bool {
 	if x != nil {
 		return x.OwnSettings
+	}
+	return false
+}
+
+func (x *Hello) GetLinks() bool {
+	if x != nil {
+		return x.Links
 	}
 	return false
 }
@@ -13766,7 +13779,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\x85\b\n" +
+	"\bDraining\"\x9c\b\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -13793,7 +13806,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
-	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\"r\n" +
+	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
+	"\x05links\x18\xa2\x02 \x01(\bR\x05links\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
 	"\adamaged\x18\x02 \x01(\rR\adamaged\x12\x14\n" +

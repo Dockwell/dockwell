@@ -44,10 +44,15 @@ func (s sourced) lookup() catalog.Lookup {
 func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv1.CatalogNeedOption {
 	var out []*dockwellv1.CatalogNeedOption
 	for _, n := range e.GetNeeds() {
-		for _, w := range ways[n.GetName()] {
-			o := &dockwellv1.CatalogNeedOption{Need: n.GetName(), Choice: w.Choice(), Engine: w.Engine, Version: w.Version}
+		for i := range ways[n.GetName()] {
+			w := &ways[n.GetName()][i]
+			o := &dockwellv1.CatalogNeedOption{Need: n.GetName(), Choice: w.Choice(), Engine: w.Engine, Version: w.Version, Why: w.Why}
 			if w.From != nil {
 				o.Entry, o.EntryName = w.From.GetId(), w.From.GetName()
+			}
+			if c := w.Existing; c != nil {
+				o.Project, o.Environment, o.Service, o.ServiceId = c.Project, c.Environment, c.Service, c.ServiceID
+				o.SharedWith, o.Servers = c.SharedWith, c.ServerNames
 			}
 			out = append(out, o)
 		}
@@ -57,13 +62,17 @@ func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv
 
 // meetNeeds is an entry as an install that meets its needs runs it: as asked, by
 // need, or as the install's pin says, or else by each need's first way. It refuses a
-// value given for a name a need sets, as Dockwell sets each from what meets it.
+// value given for a name a need sets, as Dockwell sets each from what meets it. A need
+// met by a server Dockwell runs gets its names there for project (share).
 //
 // What a new one comes from is pinned by digest, as the app is, through server, the
 // one it goes on, before the install keeps its service in its pin; the notes say what
 // that pinned. A need the install's pin hasn't met, as one a release adds, gets a note
 // that an automatic update leaves for a person, as it makes a database unasked.
-func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, values, asked map[string]string, pinned map[string]*resourcev1.PinnedNeed, server string) (*catalog.Needed, []revision.Note, error) {
+//
+// taken are services that stay beside the app under names of their own, so a server
+// it shares answers to <need>-link where the need's name is one of them.
+func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, values, asked map[string]string, pinned map[string]*resourcev1.PinnedNeed, candidates []catalog.Candidate, project, server string, taken ...string) (*catalog.Needed, []revision.Note, error) {
 	names := catalog.NeedNames(e)
 	for _, name := range slices.Sorted(maps.Keys(values)) {
 		if names[name] {
@@ -71,7 +80,7 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 				fmt.Errorf("%s is set by what meets %s's needs, so it takes no value of its own. Leave it out", name, e.GetName()), "invalid")
 		}
 	}
-	met, err := catalog.Meet(e, catalog.Ways(e, s.lookup()), asked, pinned)
+	met, err := catalog.Meet(e, catalog.WaysWith(e, s.lookup(), candidates, ""), asked, pinned)
 	if err != nil {
 		return nil, nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
@@ -97,6 +106,15 @@ func (h *Handler) meetNeeds(ctx context.Context, s sourced, e *catalogv1.Entry, 
 				Message: fmt.Sprintf("%s %s needs %s, which it didn't before, so %s runs beside it", e.GetName(), e.GetVersion(), needWord(e, name), what),
 			})
 		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(met)) {
+		if w := met[name]; w.Shares() && slices.Contains(taken, w.Need.GetName()) {
+			w.Alias = w.Need.GetName() + "-link"
+			met[name] = w
+		}
+	}
+	if err := h.share(ctx, project, met); err != nil {
+		return nil, nil, err
 	}
 	needed, err := catalog.Need(e, met)
 	if err != nil {

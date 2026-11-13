@@ -3,20 +3,28 @@
 package control
 
 import (
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -338,5 +346,771 @@ func TestALinkGoesWithItsApp(t *testing.T) {
 	}
 	if got := apply(t, c, db); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("deleting the database ended %v: %s", got.GetState(), got.GetError())
+	}
+}
+
+// blogEntry is an app as a converted store's would be: it brings no database, and
+// reads a PostgreSQL by the names its need sets.
+const blogEntry = `id: blog
+name: Blog
+summary: Writing on the web
+category: cms
+version: "1.0"
+release: 1
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+web:
+  service: app
+inputs:
+  - name: PORT
+    label: Port
+    type: INPUT_TYPE_PORT
+    defaultValue: "18190"
+needs:
+  - name: db
+    label: Database
+    database: blog
+    accepts:
+      - engine: ENGINE_POSTGRESQL
+        versions: ">=15"
+    sets:
+      - name: PANEL_DB_HOST
+        part: PART_HOST
+      - name: PANEL_DB_NAME
+        part: PART_DATABASE
+      - name: PANEL_DB_USER
+        part: PART_USER
+      - name: PANEL_DB_USER_PASSWORD
+        part: PART_PASSWORD
+      - name: DATABASE_URL
+        part: PART_URL
+compose: |
+  services:
+    app:
+      image: ghcr.io/acme/blog:1@sha256:` + digest1 + `
+      environment:
+        PANEL_DB_HOST: ${PANEL_DB_HOST}
+        PANEL_DB_NAME: ${PANEL_DB_NAME}
+        PANEL_DB_USER: ${PANEL_DB_USER}
+        PANEL_DB_USER_PASSWORD: ${PANEL_DB_USER_PASSWORD}
+        DATABASE_URL: ${DATABASE_URL}
+      ports:
+        - "127.0.0.1:${PORT}:80"
+`
+
+// An app that brings no database shares a PostgreSQL another project runs, because a
+// person chose it: one plan makes the app a database and a user of its own there, a
+// secret in the app's project whose value comes from the user's, and a link network
+// the database joins in place, answering to the need's name. A new PostgreSQL stays
+// the default: sharing is only ever chosen.
+func TestAnInstallSharesAServerYouRun(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	e.Registry["ghcr.io/acme/shop:1.4"] = dockertest.Image{Config: docker.Config{Cmd: []string{"shop"}}}
+	e.Registry["redis:7"] = dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}}
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest1] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "the-administrators"}, false))
+	cat := catalogClient(b)
+
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	if first := got.Msg.GetNeeds()[0]; first.GetChoice() != "new:postgresql" {
+		t.Errorf("the default is %v, want a new PostgreSQL", first)
+	}
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetService() == "db" {
+			choice = o.GetChoice()
+			if o.GetWhy() != "" || o.GetVersion() != "17.2" {
+				t.Errorf("the shared PostgreSQL reads %v", o)
+			}
+		}
+	}
+	if choice == "" {
+		t.Fatalf("the PostgreSQL this install runs isn't offered: %v", got.Msg.GetNeeds())
+	}
+
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog", Needs: map[string]string{"db": choice}})
+	made := map[string]string{}
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE {
+			made[r.GetResource().GetKind()+" "+r.GetResource().GetName()] = r.GetResource().GetScope()
+		}
+	}
+	shared := made["service db"]
+	for _, want := range []string{"database.user blog", "secret BLOG_DATABASE_PASSWORD", "link db", "network db-link", "secret PANEL_DB_USER_PASSWORD", "variable PANEL_DB_HOST", "service app"} {
+		if _, ok := made[want]; !ok {
+			t.Errorf("sharing, the plan makes no %s: %v", want, made)
+		}
+	}
+	if made["database.user blog"] == made["link db"] || made["database.user blog"] == "" {
+		t.Errorf("the user and the link are in %s and %s, want the server's environment and the app's", made["database.user blog"], made["link db"])
+	}
+	_ = shared
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	pg.mu.Lock()
+	verifier, owner := pg.roles["blog"], pg.databases["blog"]
+	pg.mu.Unlock()
+	if !strings.HasPrefix(verifier, "SCRAM-SHA-256$") || owner != "blog" {
+		t.Errorf("on the shared PostgreSQL, blog is %q and owns %q", verifier, owner)
+	}
+	app := e.Newest(docker.Project(made["link db"]), "app")
+	if app == nil {
+		t.Fatalf("the blog doesn't run: %v", e.Containers())
+	}
+	env := map[string]string{}
+	for _, kv := range app.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		env[k] = v
+	}
+	if env["PANEL_DB_HOST"] != "db" || env["PANEL_DB_NAME"] != "blog" || env["PANEL_DB_USER"] != "blog" || env["PANEL_DB_USER_PASSWORD"] == "" {
+		t.Errorf("the blog reads %v", env)
+	}
+	// Its URL is written from its parts, the password from the shared server's secret.
+	if want := "postgres://" + url.UserPassword("blog", env["PANEL_DB_USER_PASSWORD"]).String() + "@db:5432/blog"; env["DATABASE_URL"] != want {
+		t.Errorf("the blog's URL is %q, want %q", env["DATABASE_URL"], want)
+	}
+	linkNet := docker.ScopedName(docker.Project(made["link db"]), "db-link")
+	if _, ok := app.NetworkSettings.Networks[linkNet]; !ok {
+		t.Errorf("the blog isn't on its link network: %v", app.NetworkSettings.Networks)
+	}
+	db := e.Newest(docker.Project(made["database.user blog"]), "db")
+	if ep := db.NetworkSettings.Networks[linkNet]; ep == nil || !slices.Contains(ep.Aliases, "db") {
+		t.Errorf("the shared PostgreSQL is on the link network as %v", db.NetworkSettings.Networks)
+	}
+
+	// A database an app shares can't go from under it.
+	_, err = ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete the database", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: made["database.user blog"], Name: "db"}, Delete: true,
+	}}}))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "while the app in blog shares it") {
+		t.Errorf("deleting the shared database = %v", err)
+	}
+
+	// A new password for the blog's user, on the shared server, reaches the blog in the
+	// same change: its password and its URL, written from the other environment.
+	dbEnv, appEnv := made["database.user blog"], made["link db"]
+	rotated := propose(t, ch, "A new password for the blog", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "secret", Scope: dbEnv, Name: "BLOG_DATABASE_PASSWORD"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "a-new-password-for-the-blog"}}},
+	})
+	restarts := false
+	for _, r := range rotated.GetPlan().GetResources() {
+		restarts = restarts || r.GetResource().GetScope() == appEnv && r.GetResource().GetName() == "app" && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE
+	}
+	if !restarts {
+		t.Errorf("a new password for the blog's user leaves the blog as it is: %v", rotated.GetPlan().GetResources())
+	}
+	if got := apply(t, ch, rotated); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the new password ended %v: %s", got.GetState(), got.GetError())
+	}
+	app = e.Newest(docker.Project(appEnv), "app")
+	env = map[string]string{}
+	for _, kv := range app.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		env[k] = v
+	}
+	if env["PANEL_DB_USER_PASSWORD"] != "a-new-password-for-the-blog" || !strings.Contains(env["DATABASE_URL"], ":a-new-password-for-the-blog@") {
+		t.Errorf("after the new password the blog reads %v", env)
+	}
+	pg.mu.Lock()
+	again := pg.roles["blog"]
+	pg.mu.Unlock()
+	if again == verifier {
+		t.Error("the blog's user kept its old password")
+	}
+
+	// Someone who holds the database's project alone gives the blog's user a new
+	// password: the blog restarts with it, as Dockwell's own item, in a project they
+	// hold no role in, which their view of the change counts and doesn't name. The
+	// blog's own developer sees its restart, and nothing of the database's project.
+	// Where the blog's environment is protected, applying waits for an admin (ADR
+	// 0084, amending ADR 0049).
+	protect := func(env string, p resourcev1.Protection) {
+		t.Helper()
+		apply(t, ch, propose(t, ch, "Protect an environment", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "environment", Scope: envProject(t, f, env), Name: "production"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Environment{Environment: &resourcev1.Environment{Protection: p}}},
+		}))
+	}
+	rotate := func(value string) *dockwellv1.Change {
+		t.Helper()
+		return propose(t, ch, "Rotate the blog's database password", &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "secret", Scope: dbEnv, Name: "BLOG_DATABASE_PASSWORD"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: value}}},
+		})
+	}
+	scopes := func(c *dockwellv1.Change) map[string]bool {
+		out := map[string]bool{}
+		for _, r := range c.GetPlan().GetResources() {
+			out[r.GetResource().GetScope()] = true
+		}
+		for _, sp := range c.GetPlan().GetServers() {
+			for _, step := range sp.GetSteps() {
+				out[step.GetResource().GetScope()] = true
+			}
+		}
+		return out
+	}
+	protect(dbEnv, resourcev1.Protection_PROTECTION_OPEN)
+	protect(appEnv, resourcev1.Protection_PROTECTION_OPEN)
+	hold := aMember(t, f)
+	dbDeveloper := store.Grant{ProjectID: envProject(t, f, dbEnv), Role: store.RoleDeveloper}
+	hold(dbDeveloper)
+	theirs := rotate("a-password-from-the-database-side")
+	if got := scopes(theirs); got[appEnv] || !got[dbEnv] {
+		t.Errorf("the database's developer sees the plan in %v", got)
+	}
+	if e := theirs.GetElsewhere(); e.GetRestarts() != 1 || e.GetItems() < 1 || e.GetEditsElsewhere() || theirs.GetSummary() != "Rotate the blog's database password" {
+		t.Errorf("the database's developer reads %q with elsewhere %v", theirs.GetSummary(), e)
+	}
+	if got := apply(t, ch, theirs); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED || got.GetElsewhere() == nil {
+		t.Fatalf("the database's developer's change ended %v: %s (elsewhere %v)", got.GetState(), got.GetError(), got.GetElsewhere())
+	}
+	if read := e.Newest(docker.Project(appEnv), "app"); read == nil || !slices.Contains(read.Config.Env, "PANEL_DB_USER_PASSWORD=a-password-from-the-database-side") {
+		t.Errorf("the blog doesn't read the new password: %v", read)
+	}
+
+	// The blog's developer reads the change as their app's restart.
+	hold(store.Grant{ProjectID: envProject(t, f, appEnv), Role: store.RoleDeveloper})
+	read, err := ch.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: theirs.GetId()}))
+	if err != nil {
+		t.Fatalf("the blog's developer can't read the change that restarted the blog: %v", err)
+	}
+	seen := read.Msg.GetChange()
+	if sc := scopes(seen); sc[dbEnv] || !sc[appEnv] {
+		t.Errorf("the blog's developer sees the plan in %v", sc)
+	}
+	if !seen.GetElsewhere().GetEditsElsewhere() || seen.GetSummary() != "A change in a project you can't see" || seen.GetProposedBy() != nil || seen.GetAppliedBy() != nil {
+		t.Errorf("the blog's developer reads %q by %v, elsewhere %v", seen.GetSummary(), seen.GetProposedBy(), seen.GetElsewhere())
+	}
+	if _, err := ch.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: theirs.GetId()})); err == nil {
+		t.Error("the blog's developer undid a change to the database's project")
+	}
+
+	// The database's developer undoes it: the blog takes the old password back.
+	hold(dbDeveloper)
+	undone, err := ch.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: theirs.GetId()}))
+	if err != nil {
+		t.Fatalf("the database's developer can't undo their change: %v", err)
+	}
+	if back := apply(t, ch, undone.Msg.GetChange()); back.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the undo ended %v: %s", back.GetState(), back.GetError())
+	}
+	if read := e.Newest(docker.Project(appEnv), "app"); read == nil || !slices.Contains(read.Config.Env, "PANEL_DB_USER_PASSWORD=a-new-password-for-the-blog") {
+		t.Errorf("after the undo the blog doesn't read its old password: %v", read)
+	}
+
+	// With the blog's environment protected, the change waits for an admin.
+	hold(onInstall(store.RoleAdmin))
+	protect(appEnv, resourcev1.Protection_PROTECTION_PROTECTED)
+	hold(dbDeveloper)
+	waiting := rotate("a-password-the-blog-waits-for")
+	if !strings.Contains(waiting.GetWaits(), "an admin") {
+		t.Errorf("a change that restarts a protected app says it waits for %q", waiting.GetWaits())
+	}
+	if _, err := ch.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: waiting.GetId()})); connect.CodeOf(err) != connect.CodePermissionDenied ||
+		!strings.Contains(err.Error(), "restarts an app in a protected environment") || strings.Contains(err.Error(), "blog") {
+		t.Errorf("applying a change that restarts a protected app = %v", err)
+	}
+}
+
+// An app that brings no database gets a new PostgreSQL from the catalog by default,
+// whose image makes only its administrator: one plan makes the server, then the app's
+// user and database in it, signing in as the administrator, and then the app, which
+// signs in as its own user. The administrator's password is the server's alone.
+func TestAnInstallMakesANewPostgreSQLWithAUserOfItsOwn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	postgres, ok := c.Entry("postgres")
+	image := regexp.MustCompile(`image: (postgres:\S+)`).FindStringSubmatch(postgres.GetCompose())
+	if !ok || image == nil {
+		t.Fatal("the catalog has no postgres")
+	}
+	e.Registry[image[1]] = pg.image()
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest1] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	ch := changeClient(b, b.origin)
+	cat := catalogClient(b)
+
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog"})
+	var order []string
+	scopes := map[string]string{}
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE {
+			k := r.GetResource().GetKind() + " " + r.GetResource().GetName()
+			order = append(order, k)
+			scopes[k] = r.GetResource().GetScope()
+		}
+	}
+	db, user, app := slices.Index(order, "service db"), slices.Index(order, "database.user blog"), slices.Index(order, "service app")
+	if db < 0 || user < 0 || app < 0 || db > user || user > app {
+		t.Fatalf("the plan makes %v, want the server, then its user, then the app", order)
+	}
+	if scopes["database.user blog"] != scopes["service app"] {
+		t.Errorf("the user is in %s, the app in %s", scopes["database.user blog"], scopes["service app"])
+	}
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	pg.mu.Lock()
+	verifier, owner := pg.roles["blog"], pg.databases["blog"]
+	pg.mu.Unlock()
+	if !strings.HasPrefix(verifier, "SCRAM-SHA-256$") || owner != "blog" {
+		t.Errorf("on the new PostgreSQL, blog is %q and owns %q", verifier, owner)
+	}
+	project := docker.Project(scopes["service app"])
+	env := func(service string) map[string]string {
+		c := e.Newest(project, service)
+		if c == nil {
+			t.Fatalf("%s doesn't run: %v", service, e.Containers())
+		}
+		out := map[string]string{}
+		for _, kv := range c.Config.Env {
+			k, v, _ := strings.Cut(kv, "=")
+			out[k] = v
+		}
+		return out
+	}
+	blog, server := env("app"), env("db")
+	if blog["PANEL_DB_HOST"] != "db" || blog["PANEL_DB_NAME"] != "blog" || blog["PANEL_DB_USER"] != "blog" || blog["PANEL_DB_USER_PASSWORD"] == "" {
+		t.Errorf("the blog reads %v", blog)
+	}
+	if want := "postgres://" + url.UserPassword("blog", blog["PANEL_DB_USER_PASSWORD"]).String() + "@db:5432/blog"; blog["DATABASE_URL"] != want {
+		t.Errorf("the blog's URL is %q, want %q", blog["DATABASE_URL"], want)
+	}
+	if server["POSTGRES_PASSWORD"] == "" || server["POSTGRES_PASSWORD"] == blog["PANEL_DB_USER_PASSWORD"] || server["POSTGRES_USER"] != "" {
+		t.Errorf("the server starts with %v, the blog with %v", server, blog)
+	}
+
+	// An upgrade keeps the PostgreSQL, its user and its password as they are.
+	next := strings.NewReplacer(`release: 1`, `release: 2`, `version: "1.0"`, `version: "1.1"`, "blog:1@sha256:"+digest1, "blog:1@sha256:"+digest2).Replace(blogEntry)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(next), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest2] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	res, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "blog", SkipBackup: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range res.Msg.GetChange().GetPlan().GetResources() {
+		name := r.GetResource().GetKind() + " " + r.GetResource().GetName()
+		if name != "service app" && name != "project blog" && r.GetAction() != dockwellv1.PlanAction_PLAN_ACTION_NONE {
+			t.Errorf("upgrading the blog plans %v for %s", r.GetAction(), name)
+		}
+	}
+	if got := apply(t, ch, res.Msg.GetChange()); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the upgrade ended %v: %s", got.GetState(), got.GetError())
+	}
+	if got := env("app"); got["PANEL_DB_USER_PASSWORD"] != blog["PANEL_DB_USER_PASSWORD"] || got["DATABASE_URL"] != blog["DATABASE_URL"] {
+		t.Error("after the upgrade the blog reads another password or URL")
+	}
+
+	// The install's pin keeps the PostgreSQL as it ran, apart from the blog's own file,
+	// so another app may share it, with a user and a database of its own, named for
+	// its project as the blog's has the entry's.
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetService() == "db" && o.GetProject() == "blog" {
+			if o.GetWhy() != "" {
+				t.Errorf("the blog's PostgreSQL can't be shared: %s", o.GetWhy())
+			}
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("the blog's PostgreSQL isn't offered: %v", got.Msg.GetNeeds())
+	}
+	notes := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog", Project: "notes", Needs: map[string]string{"db": choice}})
+	if got := apply(t, ch, notes); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("sharing the blog's PostgreSQL ended %v: %s", got.GetState(), got.GetError())
+	}
+	pg.mu.Lock()
+	notesUser, notesOwner := pg.roles["notes"], pg.databases["notes"]
+	pg.mu.Unlock()
+	if notesUser == "" || notesOwner != "notes" {
+		t.Errorf("on the blog's PostgreSQL, notes is %q and owns %q", notesUser, notesOwner)
+	}
+	var notesEnv string
+	for _, r := range notes.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			notesEnv = r.GetResource().GetScope()
+		}
+	}
+	c2 := e.Newest(docker.Project(notesEnv), "app")
+	if c2 == nil {
+		t.Fatalf("notes doesn't run: %v", e.Containers())
+	}
+	read := map[string]string{}
+	for _, kv := range c2.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		read[k] = v
+	}
+	if read["PANEL_DB_USER"] != "notes" || read["PANEL_DB_NAME"] != "notes" || !strings.HasSuffix(read["DATABASE_URL"], "@db:5432/notes") {
+		t.Errorf("notes reads %v", read)
+	}
+}
+
+// boardEntry is an app that keeps its queue in a Redis it doesn't bring.
+const boardEntry = `id: board
+name: Board
+summary: Cards on a board
+category: productivity
+version: "1.0"
+release: 1
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+web:
+  service: app
+inputs:
+  - name: PORT
+    label: Port
+    type: INPUT_TYPE_PORT
+    defaultValue: "18191"
+needs:
+  - name: cache
+    label: Cache
+    accepts:
+      - engine: ENGINE_REDIS
+        versions: ">=6"
+    sets:
+      - name: REDIS_HOST
+        part: PART_HOST
+      - name: REDIS_PASSWORD
+        part: PART_PASSWORD
+compose: |
+  services:
+    app:
+      image: ghcr.io/acme/board:1@sha256:` + digest1 + `
+      environment:
+        REDIS_HOST: ${REDIS_HOST}
+        REDIS_PASSWORD: ${REDIS_PASSWORD}
+      ports:
+        - "127.0.0.1:${PORT}:80"
+`
+
+// An app that needs a Redis gets a new one from the catalog, its alone: the server's
+// one password is the app's, and the Redis publishes nothing.
+func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "board.yaml"), []byte(boardEntry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	ch := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board"})
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	redis, app := e.Newest(docker.Project(env), "cache"), e.Newest(docker.Project(env), "app")
+	if redis == nil || app == nil {
+		t.Fatalf("the board and its Redis don't run: %v", e.Containers())
+	}
+	read := map[string]string{}
+	for _, kv := range app.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		read[k] = v
+	}
+	cmd := strings.Join(redis.Config.Cmd, " ")
+	if read["REDIS_HOST"] != "cache" || read["REDIS_PASSWORD"] == "" || !strings.Contains(cmd, "--requirepass "+read["REDIS_PASSWORD"]) {
+		t.Errorf("the board reads %v; its Redis runs %q", read, cmd)
+	}
+	if len(redis.HostConfig.PortBindings) != 0 {
+		t.Errorf("the Redis publishes %v", redis.HostConfig.PortBindings)
+	}
+}
+
+// WordPress's own MariaDB follows WordPress's upgrades, so the plan that first shares
+// it pins it apart in WordPress's install: offered with nothing in its way, and the
+// plan that shares it changes WordPress's project, whose pin then keeps the database
+// as it runs (ADR 0084).
+func TestSharingAnInstallsOwnServerPinsItApart(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(wordpressWithNeeds(t, 5, "")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	// A MariaDB whose client finds no such user or database, as a new one does.
+	image := regexp.MustCompile(`image: (mariadb:\S+)`).FindStringSubmatch(wordpressWithNeeds(t, 5, ""))[1]
+	e.Registry[image] = dockertest.Image{Config: docker.Config{Cmd: []string{"mariadbd"}}, Exec: func(x dockertest.Exec) int {
+		_, _ = io.WriteString(x.Stdout, `{"user":false,"owner":""}`+"\n")
+		return 0
+	}}
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	if got := apply(t, c, installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "blog"})); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "wordpress"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetProject() == "blog" && o.GetService() == "db" {
+			if o.GetWhy() != "" {
+				t.Errorf("blog's own MariaDB can't be shared: %s", o.GetWhy())
+			}
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("blog's own MariaDB isn't offered: %v", got.Msg.GetNeeds())
+	}
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "shop", Needs: map[string]string{"db": choice}})
+	pins, user := false, ""
+	for _, r := range planned.GetPlan().GetResources() {
+		pins = pins || r.GetResource().GetKind() == "project" && r.GetResource().GetName() == "blog" && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_UPDATE
+		if r.GetResource().GetKind() == "database.user" {
+			user = r.GetResource().GetName()
+		}
+	}
+	// WordPress's MariaDB has a wordpress user its image made, so shop's is shop.
+	if user != "shop" {
+		t.Errorf("shop's user on blog's MariaDB is %q", user)
+	}
+	if !pins {
+		t.Errorf("sharing blog's own MariaDB leaves blog's pin as it is: %v", planned.GetPlan().GetResources())
+	}
+}
+
+// Use another database: the blog's need, met by a new PostgreSQL beside it, moves to
+// a PostgreSQL another project runs, in one plan at the release it's on. The new
+// server makes the blog a database and user, the blog's values point at it, under a
+// name of its own, as the old one keeps running beside it, data and all, which the
+// plan says (ADR 0084).
+func TestUseAnotherDatabase(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	own := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	shared := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	postgres, _ := c.Entry("postgres")
+	e.Registry[regexp.MustCompile(`image: (postgres:\S+)`).FindStringSubmatch(postgres.GetCompose())[1]] = own.image()
+	e.Registry["postgres:17"] = shared.image()
+	e.Registry["ghcr.io/acme/shop:1.4"] = dockertest.Image{Config: docker.Config{Cmd: []string{"shop"}}}
+	e.Registry["redis:7"] = dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}}
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest1] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	ch := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "the-administrators"}, false))
+	installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog"})
+	if got := apply(t, ch, installed); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range installed.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	entry, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range entry.Msg.GetNeeds() {
+		if o.GetService() == "db" && o.GetProject() != "blog" && o.GetWhy() == "" {
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("no PostgreSQL to move to: %v", entry.Msg.GetNeeds())
+	}
+	res, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned := res.Msg.GetChange()
+	acts := map[string]dockwellv1.PlanAction{}
+	for _, r := range planned.GetPlan().GetResources() {
+		where := "there"
+		if r.GetResource().GetScope() == env {
+			where = "here"
+		}
+		acts[r.GetResource().GetKind()+" "+r.GetResource().GetName()+" "+where] = r.GetAction()
+	}
+	if acts["service db here"] == dockwellv1.PlanAction_PLAN_ACTION_DELETE || acts["database.user blog there"] != dockwellv1.PlanAction_PLAN_ACTION_CREATE ||
+		acts["network db-link here"] != dockwellv1.PlanAction_PLAN_ACTION_CREATE || acts["variable PANEL_DB_HOST here"] != dockwellv1.PlanAction_PLAN_ACTION_UPDATE {
+		t.Errorf("moving the blog's database plans %v", acts)
+	}
+	if notes := notesOf(planned, "catalog_need_moves"); len(notes) != 1 || !strings.Contains(notes[0], "db keeps running as it is") {
+		t.Errorf("the plan says %q of the old database", notes)
+	}
+	if notes := notesOf(planned, "catalog_need_copies"); len(notes) != 1 || !strings.Contains(notes[0], "keeps serving from db until the copy is done") {
+		t.Errorf("the plan says %q of the copy", notes)
+	}
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("moving the database ended %v: %s", got.GetState(), got.GetError())
+	}
+	read := map[string]string{}
+	for _, kv := range e.Newest(docker.Project(env), "app").Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		read[k] = v
+	}
+	if read["PANEL_DB_HOST"] != "db-link" || !strings.Contains(read["DATABASE_URL"], "@db-link:5432/blog") {
+		t.Errorf("the blog reads %v", read)
+	}
+	if old := e.Newest(docker.Project(env), "db"); old == nil || !old.State.Running {
+		t.Error("the old PostgreSQL went with the move")
+	}
+	shared.mu.Lock()
+	owner := shared.databases["blog"]
+	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.HasPrefix(strings.SplitN(said, "\n", 2)[1], `SET ROLE "blog";`) })
+	shared.mu.Unlock()
+	own.mu.Lock()
+	dumped := slices.ContainsFunc(own.said, func(said string) bool { return strings.Contains(said, "pg_dump") && strings.Contains(said, " blog\n") })
+	own.mu.Unlock()
+	if owner != "blog" || !loaded || !dumped {
+		t.Errorf("on the shared PostgreSQL, blog owns %q; the blog's database was dumped %v and loaded as blog %v", owner, dumped, loaded)
+	}
+	if _, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Errorf("moving it to where it is = %v", err)
+	}
+}
+
+func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	owned := strings.Replace(blogEntry, "web:\n  service: app\n", "web:\n  service: app\nfirstVisitorOwns: true\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(owned), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	own := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	shared := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	c, err := catalog.Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	postgres, _ := c.Entry("postgres")
+	e.Registry[regexp.MustCompile(`image: (postgres:\S+)`).FindStringSubmatch(postgres.GetCompose())[1]] = own.image()
+	e.Registry["postgres:17"] = shared.image()
+	e.Registry["ghcr.io/acme/shop:1.4"] = dockertest.Image{Config: docker.Config{Cmd: []string{"shop"}}}
+	e.Registry["redis:7"] = dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}}
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest1] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	ch := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "the-administrators"}, false))
+	installed := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog"})
+	if got := apply(t, ch, installed); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range installed.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	entry, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range entry.Msg.GetNeeds() {
+		if o.GetService() == "db" && o.GetProject() != "blog" && o.GetWhy() == "" {
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("no PostgreSQL to move to: %v", entry.Msg.GetNeeds())
+	}
+	applyReviewed(t, ch, propose(t, ch, "Serve the blog", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: "www"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "blog.example.com", Service: "app", Port: 80}}},
+	}))
+	res, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice, StartEmpty: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned := res.Msg.GetChange()
+	if notes := notesOf(planned, "catalog_need_starts_empty"); len(notes) != 1 || !strings.Contains(notes[0], "answer that it isn't open until you open it") {
+		t.Errorf("the plan says %q of starting empty", notes)
+	}
+	if len(notesOf(planned, "catalog_need_copies")) != 0 {
+		t.Error("a move that starts empty says it copies")
+	}
+	applyReviewed(t, ch, planned)
+	if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: "www"}]; !got.GetHeld() {
+		t.Errorf("the ingress has the blog's route as %v", got)
+	}
+	var held resourcev1.Route
+	err = f.store.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), "route", env, "www")
+		if err != nil {
+			return err
+		}
+		return proto.Unmarshal(r.Spec, &held)
+	})
+	if err != nil || !held.GetHeld() {
+		t.Errorf("the blog's route after starting empty is %v, %v", &held, err)
+	}
+	shared.mu.Lock()
+	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.Contains(said, "SET ROLE") })
+	shared.mu.Unlock()
+	if loaded {
+		t.Error("a move that starts empty copied the database")
 	}
 }

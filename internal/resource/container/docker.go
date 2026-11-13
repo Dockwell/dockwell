@@ -46,6 +46,12 @@ type Docker struct {
 	// app pulled with a login isn't run by another without asking its registry
 	// (ADR 0086). Nil remembers in memory alone.
 	PullLogins *PullLogins
+	// Joins names the networks of other environments a service's container joins,
+	// with the name it answers to on each, as a database shared with an app joins
+	// the app's link network (ADR 0084): the agent's record of each network's
+	// members. A container made anew, by a rollback, an undo or the agent while
+	// the control plane is away, joins them as it's made. Nil joins none.
+	Joins func(t Target) []Join
 	// Settle is how long a container without a health check must keep
 	// running after it starts to count as healthy. Zero means 2 s.
 	Settle time.Duration
@@ -2416,4 +2422,10 @@ func (d *Docker) mayReuse(ctx context.Context, ref, id, service string) error {
 	return resource.PlainlyBecause(resource.ReasonImage,
 		fmt.Sprintf("The image %s on this server came with a registry login %s doesn't pull with, and its registry won't give it to %s's own pull. Name a registry login this app may use, then try again", ref, service, service),
 		fmt.Errorf("the image %s on this server came with a registry login %s doesn't pull with, and its registry won't give it to %s's own pull. Name a registry login this app may use, then try again", ref, service, service))
+}
+
+// Join is a network of another environment a container joins, and the name it
+// answers to there (Docker.Joins).
+type Join struct {
+	Network, Alias string
 }

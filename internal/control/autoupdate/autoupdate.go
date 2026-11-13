@@ -271,10 +271,16 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 		return err
 	}
 	c := res.Msg.GetChange()
+	// A server other apps share through their links is theirs too: its update waits
+	// for a person, whatever its kind (ADR 0084).
+	shared, err := r.sharedByLinks(ctx, d.id)
+	if err != nil {
+		return err
+	}
 	switch plan := c.GetPlan(); {
 	case len(plan.GetResources()) == 0 && len(plan.GetServers()) == 0:
 		return errors.Join(r.Engine.Discard(ctx, c.GetId(), revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}), r.record(ctx, d.id, tried{Opens: d.opens}))
-	case needsPerson(c):
+	case needsPerson(c) || shared:
 		r.Logger.InfoContext(ctx, "an automatic update needs a person to apply it, so it's left planned", slog.String("service", d.name), slog.String("change", c.GetId()))
 		return r.record(ctx, d.id, tried{Opens: d.opens, Change: c.GetId()})
 	}
@@ -343,6 +349,38 @@ func needsPerson(c *dockwellv1.Change) bool {
 		}
 	}
 	return false
+}
+
+// sharedByLinks reports a service another environment's app links to, as a database
+// a person chose to share is (ADR 0084).
+func (r *Runner) sharedByLinks(ctx context.Context, serviceID string) (bool, error) {
+	shared := false
+	err := r.DB.View(ctx, func(tx *store.Tx) error {
+		svc, err := tx.GetResourceByID(ctx, serviceID)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		links, err := tx.ListKind(ctx, "link")
+		if err != nil {
+			return err
+		}
+		for _, l := range links {
+			// A link is never sealed: it names values, and holds none.
+			spec := &resourcev1.Link{}
+			if l.Spec == nil || proto.Unmarshal(l.Spec, spec) != nil {
+				continue
+			}
+			if spec.GetMeetsEnvironment() == svc.Scope && spec.GetService() == svc.Name {
+				shared = true
+				return nil
+			}
+		}
+		return nil
+	})
+	return shared, err
 }
 
 func (r *Runner) record(ctx context.Context, serviceID string, t tried) error {

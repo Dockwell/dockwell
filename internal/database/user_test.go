@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -27,6 +28,12 @@ type fakePostgres struct {
 	makeNone  bool
 	failDB    bool
 	said      []string
+	// starting is how many more times it answers as a server that's starting.
+	starting int
+	// dump is what its pg_dump writes, by database, and loaded what its psql was
+	// given to load, by database.
+	dump   map[string]string
+	loaded map[string]string
 }
 
 var (
@@ -38,11 +45,33 @@ var (
 )
 
 func (f *fakePostgres) exec(x dockertest.Exec) int {
+	script := strings.Join(x.Cmd, " ")
+	switch {
+	case strings.Contains(script, "pg_dump"):
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		_, _ = io.WriteString(x.Stdout, f.dump[x.Cmd[len(x.Cmd)-1]])
+		return 0
+	case strings.Contains(script, "psql") && strings.Contains(script, `-d "$1"`):
+		b, _ := io.ReadAll(x.Stdin)
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.loaded == nil {
+			f.loaded = map[string]string{}
+		}
+		f.loaded[x.Cmd[len(x.Cmd)-1]] = string(b)
+		return 0
+	}
 	b, _ := io.ReadAll(x.Stdin)
 	sql := string(b)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.said = append(f.said, sql)
+	if f.starting > 0 {
+		f.starting--
+		_, _ = io.WriteString(x.Stderr, "psql: error: connection to server on socket \"/var/run/postgresql/.s.PGSQL.5432\" failed: FATAL:  the database system is shutting down\n")
+		return 2
+	}
 	if m := fakeAsk.FindStringSubmatch(sql); m != nil {
 		_, _ = io.WriteString(x.Stdout, `{"user":`+map[bool]string{true: "true", false: "false"}[f.roles[m[1]]]+`,"owner":"`+f.databases[m[2]]+`"}`+"\n")
 		return 0
@@ -144,6 +173,86 @@ func TestAHalfMadeUserFinishesNextTime(t *testing.T) {
 	if _, err := d.Judge(t.Context(), resource.Ref{Kind: UserKind, Scope: "env_1", Name: "someone"}, nil, desired, nil); err == nil ||
 		!strings.Contains(err.Error(), "which Dockwell didn't make") {
 		t.Errorf("a user made by hand: %v", err)
+	}
+}
+
+// A user whose server the same change makes is planned with nothing to ask, and made
+// once that server takes connections, as PostgreSQL's image takes a moment to on an
+// empty volume, starting it twice (ADR 0084). One whose server is nowhere is refused.
+func TestAUserIsMadeWithItsServer(t *testing.T) {
+	d, _, e := userStand(t)
+	d.Every = time.Millisecond
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	desired := &resourcev1.DatabaseUser{Service: "db", Password: "SHOP_DATABASE_PASSWORD"}
+	e.Remove("env_1-db-1")
+	if _, err := d.Judge(t.Context(), ref, nil, desired, nil); err == nil || !strings.Contains(err.Error(), "isn't on this server") {
+		t.Errorf("a user whose server is nowhere: %v", err)
+	}
+	ctx := resource.WithDesired(t.Context(), []resource.Desired{
+		{Ref: resource.Ref{Kind: "service", Scope: "env_1", Name: "db"}, Spec: &resourcev1.Service{}},
+		{Ref: ref, Spec: desired},
+	})
+	dec, err := d.Judge(ctx, ref, nil, desired, nil)
+	if err != nil || dec.Action != resource.ActionCreate {
+		t.Fatalf("a user whose server this change makes: %v, %v", dec, err)
+	}
+
+	// The change makes the server, which starts, stops and starts again.
+	d2, pg2, _ := userStand(t)
+	d2.Every = time.Millisecond
+	pg2.starting = 3
+	if err := makeUser(t.Context(), d2, "shop"); err != nil {
+		t.Fatalf("making a user while its server starts: %v", err)
+	}
+	if !pg2.roles["shop"] || pg2.databases["shop"] != "shop" {
+		t.Errorf("roles %v, databases %v", pg2.roles, pg2.databases)
+	}
+
+	// One that's still starting when the wait runs out says so.
+	d2.Wait = 5 * time.Millisecond
+	pg2.starting = 1 << 20
+	if err := makeUser(t.Context(), d2, "blog"); err == nil || !strings.Contains(err.Error(), "isn't taking connections yet") {
+		t.Errorf("a server that never takes connections: %v", err)
+	}
+}
+
+// A user made with a database to copy gets that database's dump from the other
+// server's container, loaded into theirs as them, so what it makes is theirs; one whose
+// source is another engine, or gone, fails the step and takes the user away again (ADR
+// 0084).
+func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
+	d, pg, e := userStand(t)
+	old := &fakePostgres{
+		roles: map[string]bool{"postgres": true}, databases: map[string]string{"postgres": "postgres", "blog": "blog"},
+		dump: map[string]string{"blog": "CREATE TABLE posts (id int);\nINSERT INTO posts VALUES (1);\n"},
+	}
+	e.AddLocalImage("postgres:16", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}, Exec: old.exec})
+	client := e.Client()
+	id, err := client.CreateContainer(t.Context(), "env_2-db-1", &docker.CreateRequest{Config: docker.Config{
+		Image: "postgres:16", Labels: map[string]string{docker.LabelProject: "env_2", docker.LabelService: "db", docker.LabelNumber: "1"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	copying := func(name, env string) error {
+		step := resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: "env_1", Name: name}, Action: resource.ActionCreate}
+		ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+		return d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", Password: "BLOG_DATABASE_PASSWORD", CopyFrom: &resourcev1.DatabaseCopy{Environment: env, Service: "db", Database: "blog"}})
+	}
+	if err := copying("blog", "env_2"); err != nil {
+		t.Fatal(err)
+	}
+	if got := pg.loaded["blog"]; got != "SET ROLE \"blog\";\nCREATE TABLE posts (id int);\nINSERT INTO posts VALUES (1);\n" {
+		t.Errorf("the new server loaded %q", got)
+	}
+	if err := copying("wiki", "env_9"); err == nil || !strings.Contains(err.Error(), "has no container on this server") {
+		t.Errorf("a copy from nowhere: %v", err)
+	}
+	if pg.roles["wiki"] {
+		t.Error("a copy that failed left its user behind")
 	}
 }
 

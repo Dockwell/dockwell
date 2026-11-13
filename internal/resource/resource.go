@@ -1682,7 +1682,8 @@ type ValueMover interface {
 	MoveValues(current, desired proto.Message, names []string) (Kind, map[string]string, error)
 }
 
-// Use is one resource that another uses, in the same scope.
+// Use is one resource that another uses: in the same scope, unless Scope names
+// another, as a link's value from another environment does (ADR 0084).
 type Use struct {
 	// As is the name the user sees it as, such as DATABASE_URL.
 	As   string
@@ -1691,6 +1692,8 @@ type Use struct {
 	Name string
 	// Revision is the revision it is pinned to, 0 when it isn't.
 	Revision int
+	// Scope is the ID of the scope it lives in, when that isn't the user's own.
+	Scope string
 }
 
 // Unplaced is a Type that lives in an environment and runs on no server, as a

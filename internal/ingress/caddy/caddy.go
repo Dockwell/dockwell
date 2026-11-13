@@ -373,6 +373,8 @@ func upstreamTransport() *transport {
 
 type handler struct {
 	Handler          string         `json:"handler"`
+	StatusCode       int            `json:"status_code,omitempty"`
+	Body             string         `json:"body,omitempty"`
 	Upstreams        []upstream     `json:"upstreams,omitempty"`
 	FlushInterval    int            `json:"flush_interval,omitempty"`
 	StreamCloseDelay string         `json:"stream_close_delay,omitempty"`
@@ -635,7 +637,47 @@ func routeJSON(r ingress.Route) route {
 		h.Headers = ownName(believingAddress(), r.Domain)
 		handle = []handler{beliefOf(r.TrustedProxies, r.EdgeProxies), h}
 	}
+	if r.Held {
+		// Its answer comes first, and ends the request, so nothing goes on; the steps
+		// after it stay, so reading the route back reads where it sends.
+		handle = append([]handler{heldHandler()}, handle...)
+	}
 	return route{ID: r.ID, Match: []matcher{m}, Terminal: true, Handle: handle}
+}
+
+// heldBody is what a held route answers (ADR 0084).
+const heldBody = "This app isn't open yet: its owner is setting it up. Try again later.\n"
+
+// heldHandler is a held route's answer, ahead of what it would send on.
+func heldHandler() handler {
+	return handler{Handler: "static_response", StatusCode: http.StatusServiceUnavailable, Body: heldBody}
+}
+
+// unheld is a route's JSON without the answer a held route gives first, and whether
+// it had one.
+func unheld(raw json.RawMessage) (json.RawMessage, bool) {
+	var top map[string]json.RawMessage
+	var r struct {
+		Handle []json.RawMessage `json:"handle"`
+	}
+	if json.Unmarshal(raw, &top) != nil || json.Unmarshal(raw, &r) != nil || len(r.Handle) < 2 {
+		return raw, false
+	}
+	var first map[string]any
+	if json.Unmarshal(r.Handle[0], &first) != nil || first["handler"] != "static_response" || first["body"] != heldBody ||
+		first["status_code"] != float64(http.StatusServiceUnavailable) || len(first) != 3 {
+		return raw, false
+	}
+	rest, err := json.Marshal(r.Handle[1:])
+	if err != nil {
+		return raw, false
+	}
+	top["handle"] = rest
+	out, err := json.Marshal(top)
+	if err != nil {
+		return raw, false
+	}
+	return out, true
 }
 
 // plainProtocol is what Caddy's protocol matcher takes for a request not over TLS.
@@ -1207,6 +1249,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 		return ingress.Route{}, false
 	}
 	out := ingress.Route{ID: id}
+	raw, out.Held = unheld(raw)
 	var r route
 	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) != 1 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 2 || r.Handle[len(r.Handle)-1].Handler != "reverse_proxy" {
 		out.Edited = true
@@ -1243,6 +1286,8 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 // Dockwell would write for what it read of them, as these decide who it answers and
 // what a service believes, and a hand edit of them would otherwise read as nothing.
 func beliefAndReachAreOurs(r route, read ingress.Route) bool {
+	// What's read is the route without a held route's answer, which is compared apart.
+	read.Held = false
 	want := routeJSON(read)
 	wantMatch, err1 := json.Marshal(want.Match[0].RemoteIP)
 	haveMatch, err2 := json.Marshal(r.Match[0].RemoteIP)
@@ -1600,8 +1645,13 @@ func withTrust(routes []json.RawMessage, serverTrusts bool) []json.RawMessage {
 		// One with steps of its own decides for itself what it believes, whatever the
 		// server trusts, and only needs its own name written.
 		want := ownName(clientAddress(), read.Domain)
+		// A held route's answer comes first, and is no step of what it believes.
+		steps := len(r.Handle)
+		if read.Held {
+			steps--
+		}
 		switch {
-		case len(r.Handle) == 2:
+		case steps == 2:
 			want = ownName(believingAddress(), read.Domain)
 		case serverTrusts:
 			want = ownName(distrustingAddress(), read.Domain)

@@ -828,7 +828,9 @@ export function useHealthEventWords(): HealthEventWords {
 
 function describeChange(change: Change, summaries: ReadonlyMap<string, string>, i18n: I18n): Described {
   const reverted = change.reverts ? summaries.get(change.reverts) : undefined;
-  let title = change.summary;
+  // A change made in a project the reader can't see, which restarts something of theirs,
+  // is said in Dockwell's words, not its author's (ADR 0084).
+  let title = change.elsewhere?.editsElsewhere ? i18n._(msg`A change in a project you can't see`) : change.summary;
   if (reverted !== undefined) title = i18n._(change.rollback ? msg`Roll back: ${reverted}` : msg`Undo: ${reverted}`);
   const icon = changeIcon(change);
   switch (change.state) {

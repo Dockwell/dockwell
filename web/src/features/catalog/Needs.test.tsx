@@ -193,3 +193,66 @@ describe("An app's needs as it's installed", () => {
     expect(picker.closest(".catalog-sheet")).toHaveClass("is-phone");
   });
 });
+
+const sharedDB = create(CatalogNeedOptionSchema, {
+  need: "db",
+  choice: "service:data/production/db",
+  engine: Engine.MARIADB,
+  version: "11.4.4",
+  project: "data",
+  environment: "production",
+  service: "db",
+  serviceId: "svc_db",
+  sharedWith: ["shop"],
+});
+const administered = create(CatalogNeedOptionSchema, {
+  need: "db",
+  choice: "service:cloud/production/db",
+  engine: Engine.MARIADB,
+  version: "11.4.4",
+  project: "cloud",
+  environment: "production",
+  service: "db",
+  why: "nextcloud signs in to it as its administrator",
+});
+
+describe("A server you run, shared because you pick it", () => {
+  it("is listed after the new ones, greyed with why where it can't be shared, and picked into the plan", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    const { container } = renderAt(
+      "/catalog/wordpress/install",
+      api([ownMariaDB, catalogMySQL, sharedDB, administered], {
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Database" });
+    expect(row).toHaveTextContent("New MariaDB 12.3.3 beside WordPress");
+    await user.click(within(row).getByRole("button", { name: "Change database" }));
+    const picker = within(sheet).getByRole("group", { name: "Database" });
+    expect(picker).toHaveTextContent("Use one you have");
+    expect(picker).toHaveTextContent("Shared with shop · each app has a user of its own");
+    const off = within(picker).getByRole("radio", { name: /db in cloud/ });
+    expect(off).toBeDisabled();
+    expect(picker).toHaveTextContent("nextcloud signs in to it as its administrator");
+    await user.click(within(picker).getByRole("radio", { name: /db in data/ }));
+    await expectAccessible(container);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.needs).toEqual({ db: "service:data/production/db" });
+  });
+
+  it("asks you to choose one where nothing new can be made", async () => {
+    renderAt("/catalog/wordpress/install", api([sharedDB]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const picker = await within(sheet).findByRole("group", { name: "Database" });
+    expect(within(picker).getByRole("radio", { name: /db in data/ })).not.toBeChecked();
+    expect(within(sheet).getByText("Choose its database to review the plan")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+  });
+});

@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -154,12 +155,24 @@ func (k *Keeper) namesValuesAt(ctx context.Context, tx *store.Tx, r store.Resour
 
 // valueAt reads what a use resolves to, at the revision it is pinned to.
 func (k *Keeper) valueAt(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use) (string, error) {
+	return k.valueFrom(ctx, tx, scopeID, u, 0)
+}
+
+// maxFrom bounds how far values written from others go: a URL from a password from
+// another environment is two deep.
+const maxFrom = 4
+
+// valueFrom is valueAt, depth steps into values written from others. A use that names
+// its own scope, as a link's value from another environment does, is read there.
+func (k *Keeper) valueFrom(ctx context.Context, tx *store.Tx, scopeID string, u resource.Use, depth int) (string, error) {
+	if u.Scope != "" {
+		scopeID = u.Scope
+	}
 	vt, err := k.kinds.Type(u.Kind)
 	if err != nil {
 		return "", err
 	}
-	valuer, ok := vt.(resource.Valuer)
-	if !ok {
+	if _, ok := vt.(resource.Valuer); !ok {
 		return "", fmt.Errorf("a %s has no value to use", u.Kind)
 	}
 	r, err := tx.GetResource(ctx, string(u.Kind), scopeID, u.Name)
@@ -183,7 +196,46 @@ func (k *Keeper) valueAt(ctx context.Context, tx *store.Tx, scopeID string, u re
 	if err != nil {
 		return "", err
 	}
-	return valuer.Value(spec), nil
+	return k.written(ctx, tx, scopeID, u.Kind, spec, depth)
+}
+
+// written is a value's spec written out: what it holds, or what it comes from, read
+// at the revisions it pins (ADR 0084).
+func (k *Keeper) written(ctx context.Context, tx *store.Tx, scopeID string, kind resource.Kind, spec proto.Message, depth int) (string, error) {
+	vt, err := k.kinds.Type(kind)
+	if err != nil {
+		return "", err
+	}
+	valuer, ok := vt.(resource.Valuer)
+	if !ok {
+		return "", fmt.Errorf("a %s has no value to use", kind)
+	}
+	from := variable.FromOf(spec)
+	if from == nil {
+		return valuer.Value(spec), nil
+	}
+	if depth >= maxFrom {
+		return "", fmt.Errorf("a value is written from others more than %d deep, as one names itself through another. Write one of them out as a value of its own", maxFrom)
+	}
+	uses := resource.Uses(vt, spec)
+	switch src := from.GetSource().(type) {
+	case *resourcev1.ValueFrom_Template:
+		values := make(map[string]string, len(uses))
+		for _, u := range uses {
+			v, err := k.valueFrom(ctx, tx, scopeID, u, depth+1)
+			if err != nil {
+				return "", err
+			}
+			values[u.Name] = v
+		}
+		return variable.Write(src.Template, values)
+	case *resourcev1.ValueFrom_Value:
+		if len(uses) != 1 {
+			return "", errors.New("a value from another environment names none")
+		}
+		return k.valueFrom(ctx, tx, scopeID, uses[0], depth+1)
+	}
+	return "", errors.New("a value says it comes from somewhere, and not where")
 }
 
 // Revealed is a secret's value, as RevealSecret returns it.
@@ -219,7 +271,11 @@ func (k *Keeper) Reveal(ctx context.Context, secretID, actor, surface string, co
 		if err != nil {
 			return err
 		}
-		out = Revealed{Value: variable.SecretType{}.Value(spec), Revision: r.Revision}
+		value, err := k.written(ctx, tx, r.Scope, variable.SecretKind, spec, 0)
+		if err != nil {
+			return err
+		}
+		out = Revealed{Value: value, Revision: r.Revision}
 		env := r.Scope
 		if e, err := tx.GetResourceByID(ctx, r.Scope); err == nil {
 			env = e.Name

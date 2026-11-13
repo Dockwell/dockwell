@@ -49,6 +49,7 @@ const (
 	fromFileOption    = "dockwell.v1.from_file"
 	optionalArgOption = "dockwell.v1.optional_arg"
 	sensitiveOption   = "dockwell.resource.v1alpha1.sensitive"
+	noFlagOption      = "dockwell.resource.v1alpha1.no_flag"
 	effectNone        = "EFFECT_UNSPECIFIED"
 	editSpecField     = "spec"
 	specKindsOneof    = "kind"
@@ -598,6 +599,9 @@ func (s *schema) specFields(m *protogen.Message, prefix string, depth int) []Fie
 		path := prefix + string(f.Desc.Name())
 		if s.outputOnly(f.Desc) {
 			continue // Dockwell sets it, and an edit's is ignored
+		}
+		if no, _, _ := s.option(f.Desc, noFlagOption); no.IsValid() && no.Bool() {
+			continue // a change's edits set it, never a flag's text
 		}
 		if f.Message != nil && !f.Desc.IsList() && !f.Desc.IsMap() && !wellKnown(f.Message) && depth < 3 {
 			out = append(out, s.specFields(f.Message, path+".", depth+1)...)

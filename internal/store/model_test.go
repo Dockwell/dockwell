@@ -514,3 +514,45 @@ func TestUsesAndValuesByName(t *testing.T) {
 		})
 	})
 }
+
+// A use that names another scope, as a link's value from another environment does
+// (ADR 0084), is found from the scope it names, with that scope, and not from the
+// user's own, where nothing it uses lives.
+func TestUsesAcrossEnvironments(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		now := time.Now().UTC().Truncate(time.Millisecond)
+		revise(t, db, func(tx *store.RevisionTx) error {
+			if err := tx.CreateChange(ctx, store.Change{ID: "chg_1", Summary: "chg_1", Actor: "user:usr_mira", State: store.ChangeApplying, Fingerprint: "f", Plan: []byte("{}"), CreatedAt: now}); err != nil {
+				return err
+			}
+			for _, r := range []store.NewRevision{
+				{Kind: "secret", Scope: "env_shared", Name: "BLOG_DB_PASSWORD", ID: "sec_1"},
+				{Kind: "secret", Scope: "env_blog", Name: "DB_PASSWORD", ID: "sec_2", Uses: []store.Use{
+					{As: "from:value", Kind: "secret", Name: "BLOG_DB_PASSWORD", Revision: 1, Scope: "env_shared"},
+				}},
+				{Kind: "service", Scope: "env_blog", Name: "web", ID: "svc_1", Uses: []store.Use{
+					{As: "WORDPRESS_DB_PASSWORD", Kind: "secret", Name: "DB_PASSWORD", Revision: 1},
+				}},
+			} {
+				r.Spec, r.Change, r.At = []byte{1}, "chg_1", now
+				if _, err := tx.AddRevision(ctx, r); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+		_ = db.View(ctx, func(tx *store.Tx) error {
+			users, err := tx.UsersOf(ctx, "env_shared", "secret", "BLOG_DB_PASSWORD")
+			if err != nil || len(users) != 1 || users[0].ID != "sec_2" || users[0].Scope != "env_blog" || users[0].Uses.Scope != "env_shared" {
+				t.Errorf("UsersOf(env_shared, BLOG_DB_PASSWORD) = %+v, %v; want blog's DB_PASSWORD, from env_blog", users, err)
+			}
+			blog, err := tx.UsersOf(ctx, "env_blog", "secret")
+			if err != nil || len(blog) != 1 || blog[0].ID != "svc_1" {
+				t.Errorf("UsersOf(env_blog, secret) = %+v, %v; want web alone, as nothing blog's DB_PASSWORD uses lives there", blog, err)
+			}
+			return nil
+		})
+	})
+}

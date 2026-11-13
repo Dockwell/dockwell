@@ -15,6 +15,10 @@ extend google.protobuf.FieldOptions {
   // such a field changed, but never show its value, and the revision store
   // keeps every spec of a kind that has one encrypted (ADR 0022).
   bool sensitive = 51001;
+  // True for fields the dockwell CLI takes no flag for, as a secret's from, which a
+  // link writes and whose template a password could be typed into, as a secret's
+  // value never comes from a flag's text. A change's edits still set it.
+  bool no_flag = 51002;
 }
 
 // Container is one Docker container: run by hand on a server, or a
@@ -575,6 +579,15 @@ message PinnedNeed {
   // The entry's own service it left out in its place, such as "db", where the
   // entry brings one. Empty where it brings none.
   string service = 7;
+  // A server Dockwell runs already that meets it, shared because a person chose
+  // it: its environment, by ID, and its service, with the database and user made
+  // for the app there and the secret there that holds the user's password. Empty
+  // for a new one.
+  string environment = 8;
+  string meets = 9;
+  string database = 10;
+  string user = 11;
+  string password = 12;
   // The names the need set that hold no password, as the install ran, which its
   // services use as the environment's variables, so a change that reads the file it
   // ran uses them as it did, whatever a newer release names.
@@ -816,8 +829,18 @@ message Runtime {
 // LOG_LEVEL=info. It isn't secret: plans, history and the panel show it.
 // Keep anything that is in a Secret.
 message Variable {
-  // The value.
+  // The value. Empty when from says where it comes from.
   string value = 1;
+  // Where its value comes from, in place of value: a template of the
+  // environment's other values, or for a link, another environment's value,
+  // which Dockwell writes out as it's sent. Numbered apart, as open work adds to
+  // this message. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  ValueFrom from = 80;
+  // The revision of each value from names, by its name. Dockwell sets it when a
+  // change is planned, so a change to what it names changes it too, and every
+  // service that uses it. An edit's is ignored.
+  map<string, int64> revisions = 81 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Secret is a value of an environment that its services use without anyone
@@ -826,8 +849,75 @@ message Variable {
 // and never shows it in plans, history or logs. Revealing it takes a
 // passkey, and is audited.
 message Secret {
-  // The value. Every edit sets it whole.
+  // The value. Every edit sets it whole. Empty when from says where it comes
+  // from.
   string value = 1 [(sensitive) = true];
+  // Where its value comes from, in place of value, as a variable's from says. A
+  // template that names a secret is a secret's. Numbered apart, as open work adds
+  // to this message.
+  ValueFrom from = 80 [(no_flag) = true];
+  // The revision of each value from names, by its name, as a variable's.
+  map<string, int64> revisions = 81 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// ValueFrom is where a variable's or a secret's value comes from, rather than
+// one it holds: Dockwell writes it out at the revisions its revisions pin, as
+// it's sent to a server or revealed, and again whenever what it names changes.
+message ValueFrom {
+  oneof source {
+    // A template of this environment's other values.
+    ValueTemplate template = 1;
+    // Another environment's value, which only a link writes, as it would
+    // otherwise read that environment's secrets with none of what revealing them
+    // asks for (ADR 0084).
+    ValueRef value = 2;
+  }
+}
+
+// ValueTemplate is a value written from the environment's other values, such as
+// a URL with a password in it.
+message ValueTemplate {
+  // The text, with ${NAME} where each value goes, and $$ for a $ of its own,
+  // such as "postgres://${DB_USER}:${DB_PASSWORD}@${DB_ADDRESS}/${DB_NAME}".
+  string text = 1;
+  // Each value it names: whether it's a secret, and how it's written where it
+  // stands.
+  repeated TemplateName names = 2;
+}
+
+// TemplateName is a value a template names.
+message TemplateName {
+  // Its name in the environment, such as "DB_PASSWORD".
+  string name = 1;
+  // It's a secret, not a variable.
+  bool secret = 2;
+  // How it's written where it stands.
+  Encoding encoding = 3;
+}
+
+// Encoding is how a value is written where it stands in a template.
+enum Encoding {
+  // As it is.
+  ENCODING_UNSPECIFIED = 0;
+  // Percent-encoded for a URL's user and password, so "app@server" or a password
+  // with @, / or # reads as itself.
+  ENCODING_USERINFO = 1;
+  // Percent-encoded for a URL's path, such as a database's name.
+  ENCODING_PATH = 2;
+  // Percent-encoded for a URL's query.
+  ENCODING_QUERY = 3;
+}
+
+// ValueRef is another environment's value.
+message ValueRef {
+  // The environment, by ID.
+  string environment = 1;
+  // It's a secret, not a variable.
+  bool secret = 2;
+  // Its name there.
+  string name = 3;
+  // The link in this environment that writes it, by name.
+  string link = 4;
 }
 
 // Volume is a Docker volume in an environment, which its services mount
@@ -865,6 +955,19 @@ message DatabaseUser {
   // is planned, so setting the secret anew gives the user its new password. An
   // edit's is ignored.
   map<string, int64> revisions = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // A database to copy into the user's as it's made, from another server on the same
+  // server, of the same engine, as Use another database copies an app's across (ADR
+  // 0084). Copied once, into the empty database made in the same step; unset copies
+  // nothing.
+  DatabaseCopy copy_from = 80;
+}
+
+// DatabaseCopy names a database to copy from: the service that runs its server, in
+// an environment, and the database's name there.
+message DatabaseCopy {
+  string environment = 1;
+  string service = 2;
+  string database = 3;
 }
 
 // BackupPolicy backs up a volume in its environment on a schedule, on every server
@@ -961,6 +1064,27 @@ message Network {
   bool internal = 3;
   // Labels on the network, for tools that read them.
   map<string, string> labels = 4;
+  // Services of other environments that join it, as a database shared with an
+  // app joins the app's link network, answering there to the app's name for
+  // what it needs (ADR 0084). Recorded here, in the app's environment, so the
+  // database's own spec never changes for an app: the agent connects and
+  // disconnects its running container in place, and joins it again whenever it
+  // makes the container anew. Numbered apart, as open work adds to this message.
+  repeated NetworkMember members = 80;
+  // The network's addresses, such as "10.233.0.8/29", which Dockwell takes from
+  // a range it keeps for link networks, as Docker's own pools hold about 30
+  // bridge networks on a server. Empty lets Docker choose.
+  string subnet = 81;
+}
+
+// NetworkMember is a service of another environment that joins a network.
+message NetworkMember {
+  // Its environment, by ID.
+  string environment = 1;
+  // Its name there.
+  string service = 2;
+  // The name it answers to on the network, such as "db".
+  string alias = 3;
 }
 
 // Route sends a domain's traffic, or a path under it, to a port of a service
@@ -1018,6 +1142,11 @@ message Route {
   // addresses aren't known. It goes around whatever is in front, so a person
   // approves it.
   bool plain_for_anyone = 8;
+  // Held: the route answers that the app isn't open yet, and sends nothing on, until
+  // a person opens it, as an app whose first visitor makes its owner is held while it
+  // starts on an empty database, so its owner sets it up first, opening it through
+  // the panel (ADR 0084).
+  bool held = 80;
 }
 
 // CatalogSource is a catalog Dockwell reads apps from, beside its own: a folder of
@@ -1488,6 +1617,11 @@ message Link {
   // The app keeps the password it installed with, so a rotation of it is
   // refused.
   bool set_once = 9;
+  // The environment of the service that meets it, by ID, when that isn't this
+  // one: a server in another project, shared because a person chose it, on which
+  // Dockwell made the app a database and a user of its own. Named apart from the
+  // CLI's own --environment, which says where the link is.
+  string meets_environment = 10;
 }
 
 // LinkAccept is an engine a link's app takes, at the versions it takes.

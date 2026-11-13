@@ -72,6 +72,7 @@ var (
 	_ resource.Valuer      = Type{}
 	_ resource.NameChecker = Type{}
 	_ resource.IDPrefixer  = Type{}
+	_ resource.Binder      = Type{}
 )
 
 // Kind returns "variable".
@@ -86,9 +87,31 @@ func (Type) IDPrefix() string { return id.Variable }
 // New returns an empty Variable.
 func (Type) New() proto.Message { return &resourcev1.Variable{} }
 
-// Validate checks the value fits in a process's environment.
+// Validate checks the value fits in a process's environment, and what it comes from
+// can be written out.
 func (Type) Validate(spec proto.Message) error {
-	return checkValue("variable", spec.(*resourcev1.Variable).GetValue())
+	v := spec.(*resourcev1.Variable)
+	if err := checkValue("variable", v.GetValue()); err != nil {
+		return err
+	}
+	return checkFrom("variable", v.GetFrom(), v.GetValue(), false)
+}
+
+// Uses lists what a variable's value comes from, if anything. A kind that takes
+// another spec, as a test's may, uses nothing.
+func (Type) Uses(spec proto.Message) []resource.Use {
+	v, ok := spec.(*resourcev1.Variable)
+	if !ok {
+		return nil
+	}
+	return fromUses(v.GetFrom(), v.GetRevisions())
+}
+
+// Pin sets the revision of what its value comes from.
+func (Type) Pin(spec proto.Message, revisions map[string]int) {
+	if v, ok := spec.(*resourcev1.Variable); ok {
+		v.Revisions = pinned(revisions)
+	}
 }
 
 // CheckName requires a name a process's environment takes.
@@ -104,6 +127,7 @@ var (
 	_ resource.Valuer      = SecretType{}
 	_ resource.NameChecker = SecretType{}
 	_ resource.IDPrefixer  = SecretType{}
+	_ resource.Binder      = SecretType{}
 )
 
 // Kind returns "secret".
@@ -121,11 +145,32 @@ func (SecretType) New() proto.Message { return &resourcev1.Secret{} }
 // Validate requires a value that fits in a process's environment. An empty
 // secret is almost always a mistake, such as an empty file read for it.
 func (SecretType) Validate(spec proto.Message) error {
-	v := spec.(*resourcev1.Secret).GetValue()
+	s := spec.(*resourcev1.Secret)
+	v := s.GetValue()
+	if s.GetFrom() != nil {
+		return checkFrom("secret", s.GetFrom(), v, true)
+	}
 	if v == "" {
 		return errors.New("a secret needs a value. Give it one, from standard input or a file on the command line")
 	}
 	return checkValue("secret", v)
+}
+
+// Uses lists what a secret's value comes from, if anything. A kind that takes
+// another spec, as a test's may, uses nothing.
+func (SecretType) Uses(spec proto.Message) []resource.Use {
+	s, ok := spec.(*resourcev1.Secret)
+	if !ok {
+		return nil
+	}
+	return fromUses(s.GetFrom(), s.GetRevisions())
+}
+
+// Pin sets the revision of what its value comes from.
+func (SecretType) Pin(spec proto.Message, revisions map[string]int) {
+	if s, ok := spec.(*resourcev1.Secret); ok {
+		s.Revisions = pinned(revisions)
+	}
 }
 
 // CheckName requires a name a process's environment takes.

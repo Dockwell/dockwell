@@ -3,6 +3,7 @@
 package database
 
 import (
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/pbkdf2"
@@ -17,8 +18,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -44,7 +47,11 @@ type UserDriver struct {
 	// Dir keeps what each user was given, which nothing in a database says: its
 	// service, database and secret, and that secret's revision.
 	Dir string
-	mu  sync.Mutex
+	// Wait is how long making a user waits while its server starts, as a new one does
+	// just after its container is made in the same change, and Every how often it asks
+	// again. Zero means two minutes and a second.
+	Wait, Every time.Duration
+	mu          sync.Mutex
 }
 
 var (
@@ -98,6 +105,17 @@ func (*UserDriver) Validate(spec proto.Message) error {
 	}
 	if err := variable.CheckName("secret", u.GetPassword()); err != nil {
 		return fmt.Errorf("a database user needs the secret its password is in: %w", err)
+	}
+	if from := u.GetCopyFrom(); from != nil {
+		switch {
+		case !strings.HasPrefix(from.GetEnvironment(), "env_"):
+			return errors.New("a database to copy names its environment by its ID, such as env_…")
+		case resource.CheckLabel("service", from.GetService(), "db") != nil:
+			return fmt.Errorf("a database to copy names the service that runs its server, such as db, not %q", from.GetService())
+		}
+		if err := CheckSQLName("database", from.GetDatabase()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -168,7 +186,13 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 		return dec, err
 	}
 	c, e, err := d.server(ctx, ref, u.GetService())
-	if err != nil {
+	var gone noContainer
+	switch {
+	case errors.As(err, &gone) && madeHere(ctx, ref.Scope, u.GetService()):
+		// Its server is made in this change too, so it has no users yet: the user is
+		// made once the server is up (ADR 0084).
+		return dec, nil
+	case err != nil:
 		return resource.Decision{}, err
 	}
 	there, err := d.there(ctx, c, e, ref.Name, Owned(ref.Name, u))
@@ -195,7 +219,9 @@ func (d *UserDriver) server(ctx context.Context, ref resource.Ref, service strin
 		return nil, nil, noContainer(service)
 	case err != nil:
 		return nil, nil, err
-	case !c.State.Running || c.State.Restarting:
+	case c.State.Restarting:
+		return nil, nil, fmt.Errorf("%s %w, and a database user is made in it. Try again once it runs", service, errRestarting)
+	case !c.State.Running:
 		return nil, nil, fmt.Errorf("%s isn't running, and a database user is made in it. Start it, then try again", service)
 	}
 	e := Recognise(c.Config.Image)
@@ -203,6 +229,34 @@ func (d *UserDriver) server(ctx context.Context, ref resource.Ref, service strin
 		return nil, nil, fmt.Errorf("%s doesn't run PostgreSQL, MySQL or MariaDB from its official image, so Dockwell can't make users in it", service)
 	}
 	return c, e, nil
+}
+
+// errRestarting is a database server's container that Docker is starting again.
+var errRestarting = errors.New("is starting again")
+
+// whileStarting runs f, and again while what it reaches says it's starting, within
+// d.Wait: a new server takes connections a moment after its container runs, and
+// PostgreSQL's image starts it twice on an empty volume. What's stopped fails at once.
+func (d *UserDriver) whileStarting(ctx context.Context, f func() error) error {
+	until := time.Now().Add(cmp.Or(d.Wait, 2*time.Minute))
+	for {
+		err := f()
+		if err == nil || !errors.Is(err, ErrStarting) && !errors.Is(err, errRestarting) || !time.Now().Before(until) {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(cmp.Or(d.Every, time.Second)):
+		}
+	}
+}
+
+// madeHere reports a service the change being planned makes on this server.
+func madeHere(ctx context.Context, scope, service string) bool {
+	return slices.ContainsFunc(resource.DesiredIn(ctx), func(d resource.Desired) bool {
+		return d.Ref.Kind == "service" && d.Ref.Scope == scope && d.Ref.Name == service && d.Spec != nil
+	})
 }
 
 // noContainer is a database server whose container isn't on this server.
@@ -275,6 +329,9 @@ type given struct {
 	// Uses names the secret the password is in, never the password.
 	Uses     string `json:"uses"`
 	Revision int64  `json:"revision"`
+	// CopiedFrom is the database it was made as a copy of, as its spec says, by
+	// environment, service and database.
+	CopiedFrom []string `json:"copied_from,omitempty"`
 }
 
 func (d *UserDriver) recordPath() string { return filepath.Join(d.Dir, "database-users.json") }
@@ -340,6 +397,9 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 		return nil, err
 	}
 	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses}
+	if c := g.CopiedFrom; len(c) == 3 {
+		out.CopyFrom = &resourcev1.DatabaseCopy{Environment: c[0], Service: c[1], Database: c[2]}
+	}
 	if g.Revision > 0 {
 		out.Revisions = map[string]int64{passwordUse: g.Revision}
 	}
@@ -373,7 +433,13 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 	if password == "" {
 		return fmt.Errorf("no password came for %s from its secret %s. Update this server's agent to the control plane's version", ref.Name, u.GetPassword())
 	}
-	c, e, err := d.server(ctx, ref, u.GetService())
+	var c *docker.Container
+	var e *Engine
+	err := d.whileStarting(ctx, func() error {
+		var err error
+		c, e, err = d.server(ctx, ref, u.GetService())
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -383,6 +449,9 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		return fmt.Errorf("can't give %s the password in %s: %w", ref.Name, u.GetPassword(), err)
 	}
 	g := &given{Service: u.GetService(), Database: u.GetDatabaseName(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse]}
+	if from := u.GetCopyFrom(); from != nil {
+		g.CopiedFrom = []string{from.GetEnvironment(), from.GetService(), from.GetDatabase()}
+	}
 	if create {
 		// Kept first, so a step that fails halfway leaves a user Dockwell knows it
 		// began: applying again finishes it, and deleting it drops what was made.
@@ -390,7 +459,7 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 			return err
 		}
 	}
-	if err := d.run(ctx, c, e, sql); err != nil {
+	if err := d.whileStarting(ctx, func() error { return d.run(ctx, c, e, sql) }); err != nil {
 		return err
 	}
 	if create {
@@ -403,6 +472,16 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 			return fmt.Errorf("%s took the SQL that makes the user %s without an error, and has no such user. Check its logs on this server, then try again", e.Name, ref.Name)
 		case f.owner == "":
 			return fmt.Errorf("%s took the SQL that makes the database %s without an error, and has no such database. Check its logs on this server, then try again", e.Name, db)
+		}
+		// A database to copy goes into the one just made, empty; one that can't be
+		// copied takes the user and database away again, so the step leaves nothing.
+		if from := u.GetCopyFrom(); from != nil {
+			if err := d.copyInto(ctx, c, e, ref.Name, db, from); err != nil {
+				if derr := d.run(ctx, c, e, e.drop(ref.Name, db)); derr == nil {
+					_ = d.record(ref, nil)
+				}
+				return err
+			}
 		}
 	}
 	return d.record(ref, g)
@@ -480,11 +559,14 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 		}
 		// Each part is made only where it isn't yet, so a step that stopped halfway
 		// finishes. No one else may connect to the new database, as PUBLIC may to
-		// every database PostgreSQL makes.
+		// every database PostgreSQL makes, and the new user may connect to no other:
+		// a server shared by several apps keeps each to its own (ADR 0084, which
+		// amends ADR 0038). An owner keeps what it owns.
 		return "SELECT 'CREATE ROLE " + pgName(user) + " LOGIN' WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + user + "')\n\\gexec\n" +
 			alter +
 			"SELECT 'CREATE DATABASE " + pgName(db) + " OWNER " + pgName(user) + "' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '" + db + "')\n\\gexec\n" +
-			"REVOKE ALL ON DATABASE " + pgName(db) + " FROM PUBLIC;\n", nil
+			"REVOKE ALL ON DATABASE " + pgName(db) + " FROM PUBLIC;\n" +
+			"SELECT format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', datname) FROM pg_database WHERE NOT datistemplate AND datname <> '" + db + "'\n\\gexec\n", nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		identified := "IDENTIFIED BY PASSWORD '" + mysqlNative(password) + "'"
 		if !create {

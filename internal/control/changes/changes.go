@@ -569,6 +569,7 @@ func (h *Handler) WatchChange(ctx context.Context, req *connect.Request[dockwell
 	if final(c.GetState()) {
 		return nil
 	}
+	partial := c.GetElsewhere() != nil
 	for {
 		select {
 		case <-ctx.Done():
@@ -581,9 +582,17 @@ func (h *Handler) WatchChange(ctx context.Context, req *connect.Request[dockwell
 				return authapi.ReasonError(connect.CodeUnavailable, errors.New("this watch fell behind the change, so Dockwell ended it. Watch it again"), "watch_behind")
 			}
 			msg := &dockwellv1.WatchChangeResponse{}
-			if u.Step != nil {
+			switch {
+			case u.Step != nil && partial:
+				// A step's index is in the whole change, which this reader sees part of:
+				// they get the change as they see it instead.
+				if c, err = h.change(ctx, req.Msg.GetId()); err != nil {
+					return err
+				}
+				msg.Event = &dockwellv1.WatchChangeResponse_Change{Change: c}
+			case u.Step != nil:
 				msg.Event = &dockwellv1.WatchChangeResponse_Step{Step: &dockwellv1.StepUpdate{Index: int32(u.Index), Step: stepProto(u.Step)}} //nolint:gosec // a change's steps number far fewer than 2³¹
-			} else {
+			default:
 				// The change as the event left it: reading it now may find it
 				// further on, and the events after this one say how.
 				if c, err = h.change(ctx, req.Msg.GetId()); err != nil {
@@ -596,6 +605,11 @@ func (h *Handler) WatchChange(ctx context.Context, req *connect.Request[dockwell
 						c.Steps = append(c.Steps, stepProto(&u.Progress.Steps[i]))
 					}
 					c.Confirmation = confirmationOf(c.Steps)
+					if partial {
+						if err := h.db.View(ctx, func(tx *store.Tx) error { return Narrow(ctx, tx, c) }); err != nil {
+							return err
+						}
+					}
 				}
 				msg.Event = &dockwellv1.WatchChangeResponse_Change{Change: c}
 			}
@@ -1100,6 +1114,10 @@ func (h *Handler) protos(ctx context.Context, records ...*revision.Record) ([]*d
 		placer := place.NewPlacer(tx)
 		for i, r := range records {
 			out[i] = Proto(r, names.Actor)
+			// What reaches a project the reader holds no role in is narrowed to theirs.
+			if err := Narrow(ctx, tx, out[i]); err != nil {
+				return err
+			}
 			if r.State != store.ChangePlanned {
 				continue
 			}

@@ -620,7 +620,7 @@ func Methods() []*apicli.Method {
 				{Path: "restart", Help: "When Docker restarts a service's container, by its name, such as always for db."},
 				{Path: "companions", Help: "Which of the entry's companions to install, by service, such as adminer: true. One left out is as its entry says. An input only a companion left out uses is refused."},
 				{Path: "catalog", Help: "The catalog to install it from, by its source's name, where more than one has the app. Left out, the one it's listed from. It upgrades from that catalog alone."},
-				{Path: "needs", Help: "How to meet each of the entry's needs, by the need's name: \"new\" for a new one beside the app, of the engine its first option has, or \"new:<engine>\" for one of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb or clickhouse), as dockwell catalog get lists. A need left out takes its first option. Numbered apart, as open work adds to this message."},
+				{Path: "needs", Help: "How to meet each of the entry's needs, by the need's name: \"new\" for a new one beside the app, of the engine its first option has, \"new:<engine>\" for one of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb or clickhouse), or \"service:<project>/<environment>/<service>\" for a server Dockwell runs already, which a database and user are made on for the app, as dockwell catalog get lists. A need left out takes its first option. Numbered apart, as open work adds to this message."},
 			},
 			Call: apicli.Unary[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse](dockwellv1connect.CatalogServiceInstallCatalogEntryProcedure),
 		},
@@ -676,6 +676,23 @@ func Methods() []*apicli.Method {
 				{Path: "values", Help: "A value for each input it uses, by name, such as ADMIN_PORT. Left out, a port is one that nothing Dockwell runs has taken."},
 			},
 			Call: apicli.Unary[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse](dockwellv1connect.CatalogServiceSetCatalogCompanionProcedure),
+		},
+		{
+			Name:      "dockwell.v1.CatalogService.SetCatalogNeed",
+			Procedure: dockwellv1connect.CatalogServiceSetCatalogNeedProcedure,
+			HTTP:      "POST /v1/catalog/installs/{id}:set-need",
+			Noun:      "catalog",
+			Verb:      "set-need",
+			Short:     "Plan meeting one of an install's needs another way",
+			Long:      "Plan meeting one of an install's needs another way, ready to apply or discard,\nat the release the install is on: Use another database. For now the way is a\nserver Dockwell runs, as dockwell catalog installRequest.needs names one: the\nplan makes the app a database and user there, sets the need's values again,\nlinks the server in, and restarts the app. Where both run the same engine, the\nplan copies the app's database across first, and the app keeps serving from the\nold one until the copy is done; otherwise it's refused with cant_copy unless\nstart_empty asks to start empty. What met it before stays as it is, with its\ndata. It's refused with the reason unchanged when the need is met so already.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The install's project, by name or ID.", Arg: true},
+				{Path: "need", Help: "The need, by its name in the entry, such as \"db\"."},
+				{Path: "choice", Help: "What meets it, as dockwell catalog getResponse.needs offers it: a server Dockwell runs, as \"service:<project>/<environment>/<service>\"."},
+				{Path: "start_empty", Help: "Start the app on an empty database there, rather than copying its own across. Copying is the default where both ends run the same engine; where they don't, the plan is refused with the reason cant_copy until this asks for it. An app whose first visitor makes its owner then has its routes held, so its owner sets it up first, through the panel."},
+			},
+			Call: apicli.Unary[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse](dockwellv1connect.CatalogServiceSetCatalogNeedProcedure),
 		},
 		{
 			Name:      "dockwell.v1.CatalogService.SetCatalogSource",
@@ -2941,7 +2958,7 @@ func Nouns() []apicli.Noun {
 		{Name: "auth-state", Short: "Say whether the install has an owner", Long: "The install's auth state says whether it has an owner yet, who is signed in on a\nrequest, and which address passkeys are made for there. dockwell auth-state get\nneeds no sign-in."},
 		{Name: "backups", Short: "List, get, preview, create, delete, policies, destinations, fetch, restore or drill backups, and 1 more", Long: "BackupService is an app's volumes and databases, backed up on the server that\nhas them. Taking a backup is an event: it changes no desired state, so it makes\nno revision, and a failed one shows on the timeline. Restoring one is a change\nwith a plan, which says what it replaces and what stops, and which only a person\ncan apply. See docs/adr/0033-backups-of-volumes-and-databases.md.\n\nA backup holds what its app stored, secrets among them, so nothing here gives\nanyone its bytes."},
 		{Name: "builds", Short: "List, get, log, follow, detect, branches or cancel builds", Long: "BuildService says how the builds of services that build from Git went, and what\neach printed. A build is a step of the change that deploys what it makes: the\nchange's plan pins what it builds, and a build that fails or is cancelled leaves\nwhat runs as it was. See docs/adr/0046-builds-from-git.md.\n\nA build's log is a log, so reading it needs the logs grant, as a Dockerfile's\nstep can print what an app shouldn't. The values of the build's secrets are\nmasked in it.\n\nA build is its service's, in its project and environment (ADR 0049): a viewer\nthere reads it and its log, a developer reads how a repository would build, and\nstopping a build is stopping part of a change under way, so it is a developer's\nwhere the environment is open and an admin's where it is protected, as applying\nis. Asking a repository for its branches names nothing of a project, and has the\ncontrol server ask a URL, so it is a developer's, as checking a domain is."},
-		{Name: "catalog", Short: "List, get, installs, upgrade, install, sources or stores catalog, and 5 more", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
+		{Name: "catalog", Short: "List, get, installs, upgrade, install, sources or stores catalog, and 6 more", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
 		{Name: "changes", Short: "Propose, get, list, apply, watch, undo, confirm or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
 		{Name: "claim-link", Short: "Check, begin or finish claim link", Long: "A claim link, which dockwell run and dockwell claim print, creates the install's\nowner with a passkey, and works once. dockwell claim-link check describes the\nserver a link claims, and dockwell claim-link begin and dockwell claim-link\nfinish make the passkey, which takes a browser: open the link in one."},
 		{Name: "compose", Short: "Import, adopt, check or export compose", Long: "ComposeService turns a Docker Compose file into a project's services, volumes\nand networks, and any of them back into one. Each file gets a project of its\nown, so two files with a service of one name run side by side, on networks of\ntheir own, as they do under docker compose. An environment is one Compose\nproject: its containers carry the labels Docker Compose gives its own, so docker\ncompose sees them, and an exported file runs the same with docker compose alone\n(PRD principle 6). See docs/adr/0021-the-docker-driver.md and\ndocs/adr/0026-the-app-screens.md."},
@@ -3240,6 +3257,8 @@ func Kinds() []*apicli.Kind {
 				{Path: "options", Help: "The driver's options."},
 				{Path: "internal", Help: "Cuts the network off from outside the server: only its containers reach each other."},
 				{Path: "labels", Help: "Labels on the network, for tools that read them."},
+				{Path: "members", Help: "Services of other environments that join it, as a database shared with an app joins the app's link network, answering there to the app's name for what it needs (ADR 0084). Recorded here, in the app's environment, so the database's own spec never changes for an app: the agent connects and disconnects its running container in place, and joins it again whenever it makes the container anew. Numbered apart, as open work adds to this message."},
+				{Path: "subnet", Help: "The network's addresses, such as \"10.233.0.8/29\", which Dockwell takes from a range it keeps for link networks, as Docker's own pools hold about 30 bridge networks on a server. Empty lets Docker choose."},
 			},
 		},
 		{
@@ -3248,7 +3267,13 @@ func Kinds() []*apicli.Kind {
 			Short: "A variable of an environment, kind \"variable\"",
 			Long:  "Variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans, history and the panel show it. Keep\nanything that is in a Secret.",
 			Fields: []apicli.Field{
-				{Path: "value", Help: "The value."},
+				{Path: "value", Help: "The value. Empty when from says where it comes from."},
+				{Path: "from.template.text", Help: "The text, with ${NAME} where each value goes, and $$ for a $ of its own, such as \"postgres://${DB_USER}:${DB_PASSWORD}@${DB_ADDRESS}/${DB_NAME}\"."},
+				{Path: "from.template.names", Help: "Each value it names: whether it's a secret, and how it's written where it stands."},
+				{Path: "from.value.environment", Help: "The environment, by ID."},
+				{Path: "from.value.secret", Help: "It's a secret, not a variable."},
+				{Path: "from.value.name", Help: "Its name there."},
+				{Path: "from.value.link", Help: "The link in this environment that writes it, by name."},
 			},
 		},
 		{
@@ -3257,7 +3282,7 @@ func Kinds() []*apicli.Kind {
 			Short: "A secret of an environment, kind \"secret\"",
 			Long:  "Secret is a value of an environment that its services use without anyone reading\nit back, such as a database password. Dockwell keeps it encrypted, sends it only\nto the servers that run a service that uses it, and never shows it in plans,\nhistory or logs. Revealing it takes a passkey, and is audited.",
 			Fields: []apicli.Field{
-				{Path: "value", Help: "The value. Every edit sets it whole.", Sensitive: true},
+				{Path: "value", Help: "The value. Every edit sets it whole. Empty when from says where it comes from.", Sensitive: true},
 			},
 		},
 		{
@@ -3274,6 +3299,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "trusted_proxies", Help: "The proxies in front of this server whose word this route takes on where a request came from, each an address, a range such as \"203.0.113.0/24\", or \"cloudflare\" for Cloudflare's published ranges. A request from anywhere else has its address taken from the connection, whatever another route on the server names. From an address or a range, X-Forwarded-For is read from the right. From \"cloudflare\", CF-Connecting-IP is read, as Cloudflare documents, and it's only as sure as Cloudflare says: see docs/security/ingress.md. A person approves each one a change adds, as a proxy that isn't really one makes client addresses forgeable. A range of Cloudflare's is named by the preset, and a public range wider than /12, or /28 in IPv6, or a private one wider than /8, isn't taken."},
 				{Path: "host_port", Help: "A port on the server itself, such as 8080, in place of port, for a service on the server's own network, which a route can't send to by name, or with no service at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it, so what's there sees every caller as local. It reaches past containers, so a person approves it, and any change to where it answers. Dockwell's own ports, and Docker's API, on 2375, 2376 or wherever dockerd listens, aren't taken."},
 				{Path: "plain_for_anyone", Help: "True for a route that says tls off to answer anyone who can reach this server's port 80, as for a site on a private network, or a load balancer whose addresses aren't known. It goes around whatever is in front, so a person approves it."},
+				{Path: "held", Help: "Held: the route answers that the app isn't open yet, and sends nothing on, until a person opens it, as an app whose first visitor makes its owner is held while it starts on an empty database, so its owner sets it up first, opening it through the panel (ADR 0084)."},
 			},
 		},
 		{
@@ -3317,6 +3343,9 @@ func Kinds() []*apicli.Kind {
 				{Path: "service", Help: "The service that runs the database server, by name, such as \"db\"."},
 				{Path: "database_name", Help: "The database the user owns, which is made with them, such as \"shop\". Empty takes the user's name. It can't change once made."},
 				{Path: "password", Help: "The environment's secret the user's password is in, by name, such as \"SHOP_DATABASE_PASSWORD\"."},
+				{Path: "copy_from.environment"},
+				{Path: "copy_from.service"},
+				{Path: "copy_from.database"},
 			},
 		},
 		{
@@ -3431,6 +3460,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "user"},
 				{Path: "sets", Help: "The names it sets in this environment, and what each holds. A plain part is a variable, and the password, or a URL with it, a secret."},
 				{Path: "set_once", Help: "The app keeps the password it installed with, so a rotation of it is refused."},
+				{Path: "meets_environment", Help: "The environment of the service that meets it, by ID, when that isn't this one: a server in another project, shared because a person chose it, on which Dockwell made the app a database and a user of its own. Named apart from the CLI's own --environment, which says where the link is."},
 			},
 		},
 		{

@@ -1065,6 +1065,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/catalog/installs/{id}:set-need:
+        post:
+            tags:
+                - CatalogService
+            description: |-
+                SetCatalogNeed plans meeting one of an install's needs another way, ready to
+                 apply or discard, at the release the install is on: Use another database. For
+                 now the way is a server Dockwell runs, as InstallCatalogEntryRequest.needs
+                 names one: the plan makes the app a database and user there, sets the need's
+                 values again, links the server in, and restarts the app. Where both run the same
+                 engine, the plan copies the app's database across first, and the app keeps
+                 serving from the old one until the copy is done; otherwise it's refused with
+                 cant_copy unless start_empty asks to start empty. What met it before stays as it
+                 is, with its data. It's refused with the reason unchanged when the need is met so
+                 already.
+            operationId: CatalogService_SetCatalogNeed
+            parameters:
+                - name: id
+                  in: path
+                  description: The install's project, by name or ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetCatalogNeedRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetCatalogNeedResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/catalog/installs/{id}:upgrade:
         post:
             tags:
@@ -8303,6 +8345,34 @@ components:
                          it isn't the entry's own service. Empty: the entry's own.
                 entryName:
                     type: string
+                project:
+                    type: string
+                    description: |-
+                        A server Dockwell runs already, shared because a person chooses it: its
+                         project, environment and service, by name, and its service's ID. Empty for a
+                         new one.
+                environment:
+                    type: string
+                service:
+                    type: string
+                serviceId:
+                    type: string
+                why:
+                    type: string
+                    description: |-
+                        Why it can't meet the need, where it can't, in one line, such as "Nextcloud
+                         signs in to it as its administrator". Such an option is listed, greyed,
+                         never chosen.
+                sharedWith:
+                    type: array
+                    items:
+                        type: string
+                    description: The apps that use it already, through links of theirs, by project name.
+                servers:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers it runs on, by name, where the app would go with it.
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -8895,6 +8965,13 @@ components:
                         What the change waits for, while a change to a server's firewall waits
                          for its confirmation (ConfirmChange). Unset otherwise. Numbered apart, as
                          open work adds to this message.
+                elsewhere:
+                    allOf:
+                        - $ref: '#/components/schemas/ChangeElsewhere'
+                    description: |-
+                        What of the change is in projects the reader holds no role in, as a count, where
+                         it reaches one through a link (ADR 0084, amending ADR 0049): the change shows
+                         only what the reader holds. Unset where they hold all of it.
             description: |-
                 Change is one action's worth of edits to managed resources: planned,
                  then applied, failed or discarded.
@@ -8950,6 +9027,24 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ChangeDatabasePasswordResponse is the change that gives the user a new password.
+        ChangeElsewhere:
+            type: object
+            properties:
+                items:
+                    type: integer
+                    description: |-
+                        How many of its items are there, and of those, how many are services that
+                         restart with it.
+                    format: int32
+                restarts:
+                    type: integer
+                    format: int32
+                editsElsewhere:
+                    type: boolean
+                    description: |-
+                        The reader holds none of its edits, only what it takes in, so its summary and
+                         who made it are left out, as they'd describe the other project.
+            description: ChangeElsewhere is what of a change is in projects its reader holds no role in.
         ChangeServiceRuntimeRequest:
             type: object
             properties:
@@ -10176,6 +10271,18 @@ components:
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
+        DatabaseCopy:
+            type: object
+            properties:
+                environment:
+                    type: string
+                service:
+                    type: string
+                database:
+                    type: string
+            description: |-
+                DatabaseCopy names a database to copy from: the service that runs its server, in
+                 an environment, and the database's name there.
         DatabaseMove:
             type: object
             properties:
@@ -10340,6 +10447,14 @@ components:
                         The revision of the secret the user was given. Dockwell sets it when a change
                          is planned, so setting the secret anew gives the user its new password. An
                          edit's is ignored.
+                copyFrom:
+                    allOf:
+                        - $ref: '#/components/schemas/DatabaseCopy'
+                    description: |-
+                        A database to copy into the user's as it's made, from another server on the same
+                         server, of the same engine, as Use another database copies an app's across (ADR
+                         0084). Copied once, into the empty database made in the same step; unset copies
+                         nothing.
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the
@@ -10789,6 +10904,16 @@ components:
                     description: |-
                         True when a route with tls off answers anyone who can reach the server, as
                          Route.plain_for_anyone says.
+                held:
+                    type: boolean
+                    description: True while it answers that the app isn't open yet, as Route.held says (ADR 0084).
+                trustedProxies:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The proxies in front it believes, as Route.trusted_proxies names them, so what
+                         reads a route has all of it.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -13728,10 +13853,12 @@ components:
                         type: string
                     description: |-
                         How to meet each of the entry's needs, by the need's name: "new" for a new one
-                         beside the app, of the engine its first option has, or "new:<engine>" for one
-                         of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb
-                         or clickhouse), as GetCatalogEntry lists. A need left out takes its first
-                         option. Numbered apart, as open work adds to this message.
+                         beside the app, of the engine its first option has, "new:<engine>" for one of
+                         another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb or
+                         clickhouse), or "service:<project>/<environment>/<service>" for a server
+                         Dockwell runs already, which a database and user are made on for the app, as
+                         GetCatalogEntry lists. A need left out takes its first option. Numbered apart,
+                         as open work adds to this message.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object
@@ -14093,6 +14220,13 @@ components:
                     description: |-
                         The app keeps the password it installed with, so a rotation of it is
                          refused.
+                meetsEnvironment:
+                    type: string
+                    description: |-
+                        The environment of the service that meets it, by ID, when that isn't this
+                         one: a server in another project, shared because a person chose it, on which
+                         Dockwell made the app a database and a user of its own. Named apart from the
+                         CLI's own --environment, which says where the link is.
             description: |-
                 Link is how one of an app's needs is met, such as its database: what meets it,
                  and the variables and secrets it sets in its environment, which the app's
@@ -15325,11 +15459,41 @@ components:
                     additionalProperties:
                         type: string
                     description: Labels on the network, for tools that read them.
+                members:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NetworkMember'
+                    description: |-
+                        Services of other environments that join it, as a database shared with an
+                         app joins the app's link network, answering there to the app's name for
+                         what it needs (ADR 0084). Recorded here, in the app's environment, so the
+                         database's own spec never changes for an app: the agent connects and
+                         disconnects its running container in place, and joins it again whenever it
+                         makes the container anew. Numbered apart, as open work adds to this message.
+                subnet:
+                    type: string
+                    description: |-
+                        The network's addresses, such as "10.233.0.8/29", which Dockwell takes from
+                         a range it keeps for link networks, as Docker's own pools hold about 30
+                         bridge networks on a server. Empty lets Docker choose.
             description: |-
                 Network is a Docker network in an environment, which its services join
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        NetworkMember:
+            type: object
+            properties:
+                environment:
+                    type: string
+                    description: Its environment, by ID.
+                service:
+                    type: string
+                    description: Its name there.
+                alias:
+                    type: string
+                    description: The name it answers to on the network, such as "db".
+            description: NetworkMember is a service of another environment that joins a network.
         OnePanel:
             type: object
             properties:
@@ -15990,6 +16154,21 @@ components:
                     description: |-
                         The entry's own service it left out in its place, such as "db", where the
                          entry brings one. Empty where it brings none.
+                environment:
+                    type: string
+                    description: |-
+                        A server Dockwell runs already that meets it, shared because a person chose
+                         it: its environment, by ID, and its service, with the database and user made
+                         for the app there and the secret there that holds the user's password. Empty
+                         for a new one.
+                meets:
+                    type: string
+                database:
+                    type: string
+                user:
+                    type: string
+                password:
+                    type: string
                 plain:
                     type: array
                     items:
@@ -17736,6 +17915,13 @@ components:
                          server's port 80, as for a site on a private network, or a load balancer whose
                          addresses aren't known. It goes around whatever is in front, so a person
                          approves it.
+                held:
+                    type: boolean
+                    description: |-
+                        Held: the route answers that the app isn't open yet, and sends nothing on, until
+                         a person opens it, as an app whose first visitor makes its owner is held while it
+                         starts on an empty database, so its owner sets it up first, opening it through
+                         the panel (ADR 0084).
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -17969,7 +18155,22 @@ components:
             properties:
                 value:
                     type: string
-                    description: The value. Every edit sets it whole.
+                    description: |-
+                        The value. Every edit sets it whole. Empty when from says where it comes
+                         from.
+                from:
+                    allOf:
+                        - $ref: '#/components/schemas/ValueFrom'
+                    description: |-
+                        Where its value comes from, in place of value, as a variable's from says. A
+                         template that names a secret is a secret's. Numbered apart, as open work adds
+                         to this message.
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: The revision of each value from names, by its name, as a variable's.
             description: |-
                 Secret is a value of an environment that its services use without anyone
                  reading it back, such as a database password. Dockwell keeps it
@@ -19395,6 +19596,37 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: SetCatalogCompanionResponse carries the planned change.
+        SetCatalogNeedRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The install's project, by name or ID.
+                need:
+                    type: string
+                    description: The need, by its name in the entry, such as "db".
+                choice:
+                    type: string
+                    description: |-
+                        What meets it, as GetCatalogEntryResponse.needs offers it: a server Dockwell
+                         runs, as "service:<project>/<environment>/<service>".
+                startEmpty:
+                    type: boolean
+                    description: |-
+                        Start the app on an empty database there, rather than copying its own across.
+                         Copying is the default where both ends run the same engine; where they don't,
+                         the plan is refused with the reason cant_copy until this asks for it. An app
+                         whose first visitor makes its owner then has its routes held, so its owner sets
+                         it up first, through the panel.
+            description: SetCatalogNeedRequest names an install's need, and what meets it now.
+        SetCatalogNeedResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: SetCatalogNeedResponse carries the planned change.
         SetCatalogSourceRequest:
             type: object
             properties:
@@ -20493,6 +20725,25 @@ components:
                     description: The port the app listens on inside its container, such as 5432.
                     format: uint32
             description: TcpCheck is a connection the agent makes to a container.
+        TemplateName:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name in the environment, such as "DB_PASSWORD".
+                secret:
+                    type: boolean
+                    description: It's a secret, not a variable.
+                encoding:
+                    enum:
+                        - ENCODING_UNSPECIFIED
+                        - ENCODING_USERINFO
+                        - ENCODING_PATH
+                        - ENCODING_QUERY
+                    type: string
+                    description: How it's written where it stands.
+                    format: enum
+            description: TemplateName is a value a template names.
         Terminal:
             type: object
             properties:
@@ -20973,12 +21224,82 @@ components:
                     description: When the account was made.
                     format: date-time
             description: User is a person who signs in to the panel.
+        ValueFrom:
+            type: object
+            properties:
+                template:
+                    allOf:
+                        - $ref: '#/components/schemas/ValueTemplate'
+                    description: A template of this environment's other values.
+                value:
+                    allOf:
+                        - $ref: '#/components/schemas/ValueRef'
+                    description: |-
+                        Another environment's value, which only a link writes, as it would
+                         otherwise read that environment's secrets with none of what revealing them
+                         asks for (ADR 0084).
+            description: |-
+                ValueFrom is where a variable's or a secret's value comes from, rather than
+                 one it holds: Dockwell writes it out at the revisions its revisions pin, as
+                 it's sent to a server or revealed, and again whenever what it names changes.
+        ValueRef:
+            type: object
+            properties:
+                environment:
+                    type: string
+                    description: The environment, by ID.
+                secret:
+                    type: boolean
+                    description: It's a secret, not a variable.
+                name:
+                    type: string
+                    description: Its name there.
+                link:
+                    type: string
+                    description: The link in this environment that writes it, by name.
+            description: ValueRef is another environment's value.
+        ValueTemplate:
+            type: object
+            properties:
+                text:
+                    type: string
+                    description: |-
+                        The text, with ${NAME} where each value goes, and $$ for a $ of its own,
+                         such as "postgres://${DB_USER}:${DB_PASSWORD}@${DB_ADDRESS}/${DB_NAME}".
+                names:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/TemplateName'
+                    description: |-
+                        Each value it names: whether it's a secret, and how it's written where it
+                         stands.
+            description: |-
+                ValueTemplate is a value written from the environment's other values, such as
+                 a URL with a password in it.
         Variable:
             type: object
             properties:
                 value:
                     type: string
-                    description: The value.
+                    description: The value. Empty when from says where it comes from.
+                from:
+                    allOf:
+                        - $ref: '#/components/schemas/ValueFrom'
+                    description: |-
+                        Where its value comes from, in place of value: a template of the
+                         environment's other values, or for a link, another environment's value,
+                         which Dockwell writes out as it's sent. Numbered apart, as open work adds to
+                         this message. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                revisions:
+                    readOnly: true
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        The revision of each value from names, by its name. Dockwell sets it when a
+                         change is planned, so a change to what it names changes it too, and every
+                         service that uses it. An edit's is ignored.
             description: |-
                 Variable is a value of an environment that its services use, such as
                  LOG_LEVEL=info. It isn't secret: plans, history and the panel show it.

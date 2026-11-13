@@ -12,8 +12,12 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/variable"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -27,6 +31,11 @@ import (
 //     it runs with, and the values are read at those revisions;
 //   - a change applies only while what it pinned is still the latest.
 // See docs/adr/0022-secrets-encrypted-at-rest.md.
+
+// maxUseChain bounds how many times a change takes in what uses what it changes: a
+// secret, a value written from it, and a service that uses that is three, and a
+// chain no longer than this ever needs.
+const maxUseChain = 8
 
 // binder returns the item's kind as a Binder, if it is one.
 func (e *Engine) binder(kind resource.Kind) (resource.Binder, bool) {
@@ -82,7 +91,7 @@ func (e *Engine) withUsers(ctx context.Context, tx *store.Tx, items []item) ([]i
 		if err != nil {
 			return nil, err
 		}
-		it.spec = proto.Clone(it.current)
+		it.spec, it.follows = proto.Clone(it.current), true
 		// A value the change replaces with one of another kind, by the
 		// same name, is used as the new one.
 		if rb, ok := e.rebinder(ref.Kind); ok {
@@ -194,7 +203,7 @@ func (e *Engine) users(ctx context.Context, tx *store.Tx, items []item) ([]resou
 func storeUses(uses []resource.Use) []store.Use {
 	out := make([]store.Use, len(uses))
 	for i, u := range uses {
-		out[i] = store.Use{As: u.As, Kind: string(u.Kind), Name: u.Name, Revision: u.Revision}
+		out[i] = store.Use{As: u.As, Kind: string(u.Kind), Name: u.Name, Revision: u.Revision, Scope: u.Scope}
 	}
 	return out
 }
@@ -209,7 +218,10 @@ func (e *Engine) revisions(ctx context.Context, tx *store.Tx, items []item, it *
 	}
 	revs := map[string]int{}
 	for _, u := range e.usesOf(it, spec) {
-		ref := resource.Ref{Kind: u.Kind, Scope: it.ref.Scope, Name: u.Name}
+		// A use names its own scope where it isn't the user's, as a link's value from
+		// another environment does (ADR 0084).
+		scopeID := cmp.Or(u.Scope, it.ref.Scope)
+		ref := resource.Ref{Kind: u.Kind, Scope: scopeID, Name: u.Name}
 		if other, ok := byRef[ref]; ok {
 			if other.spec == nil {
 				return nil, fault.New(ErrInvalid, "%s %s uses %s %s as %s, which this change deletes. Stop using it in %s first, or in the same change",
@@ -221,10 +233,14 @@ func (e *Engine) revisions(ctx context.Context, tx *store.Tx, items []item, it *
 			}
 			continue
 		}
-		r, err := tx.GetResource(ctx, string(u.Kind), it.ref.Scope, u.Name)
+		r, err := tx.GetResource(ctx, string(u.Kind), scopeID, u.Name)
 		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
-			return nil, fault.New(ErrInvalid, "%s %s uses %s %s as %s, which isn't in its environment. Make it first, or in the same change",
-				it.ref.Kind, it.ref.Name, u.Kind, u.Name, u.As)
+			where := "its environment"
+			if u.Scope != "" {
+				where = "the environment it names"
+			}
+			return nil, fault.New(ErrInvalid, "%s %s uses %s %s as %s, which isn't in %s. Make it first, or in the same change",
+				it.ref.Kind, it.ref.Name, u.Kind, u.Name, u.As, where)
 		}
 		if err != nil {
 			return nil, err
@@ -305,6 +321,115 @@ func (e *Engine) checkNames(ctx context.Context, tx *store.Tx, items []item, it 
 			return fault.New(ErrInvalid, "there's a %s named %s in that environment already. Give the %s another name, or delete the %s in the same change",
 				kind, it.ref.Name, it.ref.Kind, kind)
 		}
+	}
+	return nil
+}
+
+// linkKind is the kind that alone writes a value from another environment (ADR 0084).
+const linkKind resource.Kind = "link"
+
+// checkFromElsewhere refuses a value from another environment that no link of its
+// own environment writes, and one that reads a value anything there uses but a
+// database user. A link reads the password of the user it made, and nothing else of
+// that environment, as revealing anything else takes a passkey (ADR 0084).
+func (e *Engine) checkFromElsewhere(ctx context.Context, tx *store.Tx, items []item, it *item) error {
+	if it.spec == nil || !e.valuer(it.ref.Kind) {
+		return nil
+	}
+	for _, u := range e.usesOf(it, it.spec) {
+		if u.Scope == "" || u.Scope == it.ref.Scope {
+			continue
+		}
+		name := ""
+		if from := variable.FromOf(it.spec); from != nil {
+			name = from.GetValue().GetLink()
+		}
+		links, err := liveIn(ctx, tx, items, it.ref.Scope, linkKind)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(links, name) {
+			return fault.New(ErrInvalid, "%s %s takes its value from another environment, which only a link writes, and its environment has no link %s. Link the app to what it needs, and the link writes it",
+				it.ref.Kind, it.ref.Name, cmp.Or(name, "named"))
+		}
+		users, err := tx.UsersOf(ctx, u.Scope, string(u.Kind), u.Name)
+		if err != nil {
+			return err
+		}
+		for i := range users {
+			other := &users[i]
+			if other.Scope == u.Scope && other.Kind != string(database.UserKind) {
+				return fault.New(ErrInvalid, "%s %s reads %s %s of another environment, which %s %s uses there. A link reads only the password of a database user it made",
+					it.ref.Kind, it.ref.Name, u.Kind, u.Name, other.Kind, other.Name)
+			}
+		}
+		for i := range items {
+			other := &items[i]
+			if other.ref.Scope != u.Scope || other.spec == nil || other.ref.Kind == database.UserKind {
+				continue
+			}
+			for _, ou := range e.usesOf(other, other.spec) {
+				if ou.Scope == "" && ou.Kind == u.Kind && ou.Name == u.Name {
+					return fault.New(ErrInvalid, "%s %s reads %s %s of another environment, which %s %s uses there. A link reads only the password of a database user it made",
+						it.ref.Kind, it.ref.Name, u.Kind, u.Name, other.ref.Kind, other.ref.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// refuseLinkedGoing refuses deleting a service that a link of another environment
+// reads, naming the project whose app uses it: a shared database never goes with an
+// app, nor from under one (ADR 0084). A link in the service's own environment names it
+// as a reference, which the engine refuses already.
+func (e *Engine) refuseLinkedGoing(ctx context.Context, tx *store.Tx, items []item) error {
+	going := map[string]bool{}
+	gone := map[resource.Ref]bool{}
+	for i := range items {
+		it := &items[i]
+		if it.spec == nil && it.current != nil {
+			gone[it.ref] = true
+			if it.ref.Kind == "service" {
+				going[it.ref.Scope+"/"+it.ref.Name] = true
+			}
+		}
+	}
+	if len(going) == 0 {
+		return nil
+	}
+	if t, _ := e.kinds.Type(linkKind); t == nil {
+		return nil
+	}
+	links, err := tx.ListKind(ctx, string(linkKind))
+	if err != nil {
+		return err
+	}
+	for _, r := range links {
+		ref := resource.Ref{Kind: linkKind, Scope: r.Scope, Name: r.Name}
+		if r.Spec == nil || gone[ref] {
+			continue
+		}
+		it, err := e.load(ctx, tx, ref)
+		if err != nil {
+			return err
+		}
+		l, ok := it.current.(*resourcev1.Link)
+		if !ok || l.GetMeetsEnvironment() == "" || !going[l.GetMeetsEnvironment()+"/"+l.GetService()] {
+			continue
+		}
+		project := r.Scope
+		if tree, err := scope.Load(ctx, tx); err == nil {
+			for _, p := range tree.Projects {
+				for _, env := range p.Environments {
+					if env.ID == r.Scope {
+						project = p.Name
+					}
+				}
+			}
+		}
+		return fault.New(ErrInvalid, "service %s can't go while the app in %s shares it through its link %s. Point that app at another database, or delete it, first",
+			l.GetService(), project, r.Name)
 	}
 	return nil
 }
