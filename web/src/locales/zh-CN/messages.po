@@ -972,6 +972,12 @@ msgstr "显示了某个应用的值 {value}"
 msgid "Revealed the value {value} of {name}"
 msgstr "显示了 {name} 的值 {value}"
 
+msgid "Revoked a certificate's key a server that's gone had"
+msgstr "已吊销一台已移除的服务器持有的证书密钥"
+
+msgid "Revoked a certificate's key {name} had, as it's gone"
+msgstr "{name} 已移除，已吊销它持有的证书密钥"
+
 msgid "Revoked an API token"
 msgstr "撤销了 API 令牌"
 

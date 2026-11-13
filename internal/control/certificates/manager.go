@@ -156,6 +156,11 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 		if err != nil {
 			return err
 		}
+		// A server that's gone gets nothing more, whatever its routes say.
+		live, err := liveServers(ctx, tx)
+		if err != nil {
+			return err
+		}
 		panels := m.panelDomains()
 		for i := range routes {
 			r := &routes[i]
@@ -179,7 +184,9 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 				return err
 			}
 			for _, server := range placed {
-				m.place(out, shared, providers, rt.GetDomain(), project, server, panels)
+				if live[server] {
+					m.place(out, shared, providers, rt.GetDomain(), project, server, panels)
+				}
 			}
 		}
 		return nil
@@ -302,7 +309,8 @@ func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs
 }
 
 // Tick orders what's due, renews what's in its window, and forgets what's no
-// longer wanted, then gives each server what it needs.
+// longer wanted, then gives each server what it needs, and revokes the keys of
+// servers that are gone.
 func (m *Manager) Tick(ctx context.Context) error {
 	m.working.Lock()
 	defer m.working.Unlock()
@@ -311,10 +319,24 @@ func (m *Manager) Tick(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	return m.tick(ctx, wanted, zones)
+}
+
+// tick is Tick for what's wanted.
+func (m *Manager) tick(ctx context.Context, wanted map[Holder]*want, zones map[string][]string) error {
 	var st map[string]*held
 	var ordered map[string][]time.Time
+	var gv map[string]*given
+	var live map[string]bool
 	if err := m.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
 		if st, err = states(ctx, tx); err != nil {
+			return err
+		}
+		if gv, err = givenKeys(ctx, tx); err != nil {
+			return err
+		}
+		if live, err = liveServers(ctx, tx); err != nil {
 			return err
 		}
 		ordered, err = orders(ctx, tx)
@@ -323,6 +345,7 @@ func (m *Manager) Tick(ctx context.Context) error {
 		return err
 	}
 	now := m.now()
+	m.markGone(gv, st, live)
 	holders := make([]Holder, 0, len(wanted))
 	for h := range wanted {
 		holders = append(holders, h)
@@ -338,13 +361,15 @@ func (m *Manager) Tick(ctx context.Context) error {
 		if !dueNow(s, w.Names, now) {
 			continue
 		}
-		if busy := atCap(ordered, w.Names, now); busy != "" {
+		// A key a server that's gone had is replaced whatever the week's count.
+		if busy := atCap(ordered, w.Names, now); busy != "" && !s.Rekey {
 			s.Message = fmt.Sprintf("Waiting: Dockwell has ordered %d certificates for %s this week, the most it orders, so Let's Encrypt's limit is left for the rest. It orders again as the oldest is a week old", weeklyCap, busy)
 			continue
 		}
-		m.issue(ctx, w, s, zones, ordered)
+		m.issue(ctx, w, s, zones, ordered, gv)
 	}
-	// What's no longer wanted goes, with its key.
+	// What's no longer wanted goes, with its key, kept apart where a server had it
+	// until it's revoked or ends.
 	var gone []Holder
 	for h := range st {
 		if wanted[h] == nil {
@@ -353,10 +378,16 @@ func (m *Manager) Tick(ctx context.Context) error {
 	}
 	if err := m.DB.Update(ctx, func(tx *store.Tx) error {
 		for _, h := range gone {
+			if err := retire(ctx, tx, gv, h, st[h].Serial); err != nil {
+				return err
+			}
 			delete(st, h)
 			if err := tx.DeleteSetting(ctx, issuedSetting(h)); err != nil {
 				return err
 			}
+		}
+		if err := pruneGiven(ctx, tx, gv, now); err != nil {
+			return err
 		}
 		if err := putJSON(ctx, tx, ordersSetting, prune(ordered, now)); err != nil {
 			return err
@@ -364,24 +395,84 @@ func (m *Manager) Tick(ctx context.Context) error {
 		if err := m.forgetRemoved(ctx, tx); err != nil {
 			return err
 		}
+		if err := putJSON(ctx, tx, givenSetting, gv); err != nil {
+			return err
+		}
 		return putJSON(ctx, tx, stateSetting, st)
 	}); err != nil {
 		return err
 	}
 	m.deliver(ctx, wanted, st)
+	m.revokeDue(ctx, wanted, st)
+	return nil
+}
+
+// liveServers are the servers that may connect: in the store, and not revoked.
+func liveServers(ctx context.Context, tx *store.Tx) (map[string]bool, error) {
+	servers, err := tx.ListServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	live := map[string]bool{}
+	for i := range servers {
+		if servers[i].RevokedAt == nil {
+			live[servers[i].ID] = true
+		}
+	}
+	return live, nil
+}
+
+// markGone takes each server that's gone off the keys it had, to be revoked, and
+// has the holder of each key still in use order another at once (ADR 0088).
+func (m *Manager) markGone(gv map[string]*given, st map[string]*held, live map[string]bool) {
+	for serial, g := range gv {
+		var gone []string
+		g.Servers = slices.DeleteFunc(g.Servers, func(s string) bool {
+			if live[s] {
+				return false
+			}
+			gone = append(gone, s)
+			return true
+		})
+		if len(gone) == 0 {
+			continue
+		}
+		g.Gone = append(g.Gone, gone...)
+		if s := st[g.Holder]; s != nil && s.Serial == serial {
+			s.Rekey = true
+		}
+		m.logger().Warn("a server that had a certificate's key is gone, so the key is replaced and revoked", "servers", strings.Join(gone, ","), "holder", g.Holder, "serial", serial)
+	}
+}
+
+// pruneGiven forgets the keys whose certificates have ended, as there's nothing
+// left to revoke, with their kept copies.
+func pruneGiven(ctx context.Context, tx *store.Tx, gv map[string]*given, now time.Time) error {
+	for serial, g := range gv {
+		if now.Before(g.NotAfter) {
+			continue
+		}
+		if g.Retired {
+			if err := tx.DeleteSetting(ctx, retiredSetting(serial)); err != nil {
+				return err
+			}
+		}
+		delete(gv, serial)
+	}
 	return nil
 }
 
 // dueNow says whether a holder's certificate, as s stands, is ordered now for names:
-// never yet issued, its names changed, one dropped, or time to renew; once the last
+// never yet issued, a server that had its key gone, its names changed, one dropped,
+// or time to renew; once the last
 // failure's wait is over, and, for names that changed, an hour after the last order,
 // so routes coming and going don't use up the CA's limits.
 func dueNow(s *held, names []string, now time.Time) bool {
-	due := s.Gen == 0 || !slices.Equal(s.Wanted, names) || len(s.Dropped) > 0 || !now.Before(s.RenewAt)
+	due := s.Gen == 0 || s.Rekey || !slices.Equal(s.Wanted, names) || len(s.Dropped) > 0 || !now.Before(s.RenewAt)
 	switch {
 	case !due || now.Before(s.Next):
 		return false
-	case s.Gen > 0 && now.Before(s.LastOrder.Add(orderEvery)) && now.Before(s.RenewAt):
+	case s.Gen > 0 && !s.Rekey && now.Before(s.LastOrder.Add(orderEvery)) && now.Before(s.RenewAt):
 		return false
 	}
 	return true
@@ -455,15 +546,9 @@ func (m *Manager) forgetRemoved(ctx context.Context, tx *store.Tx) error {
 	if err != nil || len(confirmed) == 0 {
 		return err
 	}
-	servers, err := tx.ListServers(ctx)
+	live, err := liveServers(ctx, tx)
 	if err != nil {
 		return err
-	}
-	live := map[string]bool{}
-	for i := range servers {
-		if servers[i].RevokedAt == nil {
-			live[servers[i].ID] = true
-		}
 	}
 	var gone []string
 	for s := range confirmed {
@@ -503,7 +588,7 @@ func (m *Manager) checkWindow(ctx context.Context, h Holder, s *held, now time.T
 
 // issue orders w's certificate, records it on success, and backs off on failure. A
 // name whose authorization fails is dropped, with why, and the rest ordered.
-func (m *Manager) issue(ctx context.Context, w *want, s *held, zones map[string][]string, ordered map[string][]time.Time) {
+func (m *Manager) issue(ctx context.Context, w *want, s *held, zones map[string][]string, ordered map[string][]time.Time, gv map[string]*given) {
 	now := m.now()
 	names := slices.Clone(w.Names)
 	// Wanted stays the names of what's issued until an order for these succeeds, so
@@ -535,6 +620,13 @@ func (m *Manager) issue(ctx context.Context, w *want, s *held, zones map[string]
 	}
 	gen := s.Gen + 1
 	err = m.DB.Update(ctx, func(tx *store.Tx) error {
+		// The one it replaces is kept apart where a server had it.
+		if err := retire(ctx, tx, gv, w.Holder, s.Serial); err != nil {
+			return err
+		}
+		if err := putJSON(ctx, tx, givenSetting, gv); err != nil {
+			return err
+		}
 		b, err := m.sealTo(ctx, tx, w.Holder, gen, got)
 		if err != nil {
 			return err

@@ -26,6 +26,7 @@
   "backup_destination.test",
   "build.cancel",
   "certificate.deliver",
+  "certificate.revoke",
   "change.applied",
   "change.apply_unconfirmed",
   "change.discarded",

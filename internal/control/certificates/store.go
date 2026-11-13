@@ -22,9 +22,10 @@ const (
 	// ordersSetting keeps when each registered domain was ordered for, a week of
 	// it, for the weekly cap.
 	ordersSetting = "certificates.orders"
-	// deliveredSetting keeps which keys, by serial, each server was given, so each
-	// goes on its timeline once, whatever restarts.
-	deliveredSetting = "certificates.delivered"
+	// givenSetting keeps each key servers were given, by its certificate's serial,
+	// until the certificate ends: which servers had it, so each goes on its timeline
+	// once, whatever restarts, and so it's revoked if one of them goes.
+	givenSetting = "certificates.given"
 	// sealedKind is what a sealed blob here is bound to, beside its holder and its
 	// generation.
 	sealedKind = "certificate.issued"
@@ -33,6 +34,10 @@ const (
 )
 
 func issuedSetting(holder string) string { return "certificates.issued." + holder }
+
+// retiredSetting is where a certificate servers were given is kept once its holder
+// has another, or is gone, until it ends or is revoked: sealed as it was.
+func retiredSetting(serial string) string { return "certificates.retired." + serial }
 
 // account is the install's ACME account: its key, and its URL once registered.
 type account struct {
@@ -72,7 +77,31 @@ type held struct {
 	WindowNext time.Time `json:"window_next,omitzero"`
 	// LastOrder is when it was last ordered, which the next order waits on.
 	LastOrder time.Time `json:"last_order,omitzero"`
+	// Rekey says a server that had its key is gone, so it's ordered again at once,
+	// with a new key, and the old one revoked.
+	Rekey bool `json:"rekey,omitempty"`
 	// Message says why the last try failed, in the provider's or the CA's words.
+	Message  string    `json:"message,omitempty"`
+	Failures int       `json:"failures,omitempty"`
+	Next     time.Time `json:"next,omitzero"`
+}
+
+// given is a key servers were given, kept until its certificate ends (ADR 0088).
+type given struct {
+	Holder   string    `json:"holder"`
+	Gen      int       `json:"gen"`
+	Names    []string  `json:"names"`
+	NotAfter time.Time `json:"not_after"`
+	// Servers are those that have it.
+	Servers []string `json:"servers"`
+	// Retired says its sealed copy is at retiredSetting, as its holder has another
+	// or is gone.
+	Retired bool `json:"retired,omitempty"`
+	// Gone are the servers that had it and went, which revoke it once its holder
+	// has another key.
+	Gone []string `json:"gone,omitempty"`
+	// Message says why revoking it failed, in the CA's words, Failures how often,
+	// and Next when it's tried again.
 	Message  string    `json:"message,omitempty"`
 	Failures int       `json:"failures,omitempty"`
 	Next     time.Time `json:"next,omitzero"`
@@ -127,11 +156,32 @@ func orders(ctx context.Context, tx *store.Tx) (map[string][]time.Time, error) {
 	return out, err
 }
 
-// delivered reads which keys, by serial, each server was given.
-func delivered(ctx context.Context, tx *store.Tx) (map[string][]string, error) {
-	out := map[string][]string{}
-	err := getJSON(ctx, tx, deliveredSetting, &out)
+// givenKeys reads the keys servers were given, by serial.
+func givenKeys(ctx context.Context, tx *store.Tx) (map[string]*given, error) {
+	out := map[string]*given{}
+	err := getJSON(ctx, tx, givenSetting, &out)
 	return out, err
+}
+
+// retire keeps holder's sealed certificate apart, as it is, where servers were given
+// it, before it's replaced or deleted: no new sealing, so no new data key.
+func retire(ctx context.Context, tx *store.Tx, gv map[string]*given, holder, serial string) error {
+	g := gv[serial]
+	if g == nil || g.Retired || g.Holder != holder {
+		return nil
+	}
+	b, err := tx.GetSetting(ctx, issuedSetting(holder))
+	if errors.Is(err, store.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := tx.PutSetting(ctx, retiredSetting(serial), b); err != nil {
+		return err
+	}
+	g.Retired = true
+	return nil
 }
 
 // journal reads what challenge records are noted.

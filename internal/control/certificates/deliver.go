@@ -111,23 +111,29 @@ func (m *Manager) deliver(ctx context.Context, wanted map[Holder]*want, st map[s
 	}
 }
 
-// recordDeliveries puts each key a server gets that it hadn't on its timeline, by the
-// key's serial, against what's kept of earlier ones: a key sent again, as its agent
-// reconnected or the control plane restarted, is the same key.
+// recordDeliveries keeps each key a server gets, by its certificate's serial, until
+// the certificate ends, and puts it on the server's timeline the first time: a key
+// sent again, as its agent reconnected or the control plane restarted, is the same
+// key. A server keeps what it was given, even once it's replaced, so each such key
+// is revoked if the server goes (ADR 0088).
 func (m *Manager) recordDeliveries(ctx context.Context, server string, holders []Holder, st map[string]*held) {
 	_ = m.DB.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
-		had, err := delivered(ctx, tx)
+		gv, err := givenKeys(ctx, tx)
 		if err != nil {
 			return err
 		}
 		fresh := false
-		now := make([]string, 0, len(holders))
 		for _, h := range holders {
 			s := st[h]
-			now = append(now, s.Serial)
-			if slices.Contains(had[server], s.Serial) {
+			g := gv[s.Serial]
+			if g == nil {
+				g = &given{Holder: h, Gen: s.Gen, Names: s.Names, NotAfter: s.NotAfter}
+				gv[s.Serial] = g
+			}
+			if slices.Contains(g.Servers, server) {
 				continue
 			}
+			g.Servers = append(g.Servers, server)
 			fresh = true
 			detail, _ := json.Marshal(map[string]any{"holder": h, "serial": s.Serial, "names": s.Names})
 			if err := tx.RecordEvent(ctx, store.Event{
@@ -140,8 +146,6 @@ func (m *Manager) recordDeliveries(ctx context.Context, server string, holders [
 		if !fresh {
 			return nil
 		}
-		// What it has now, alone: a key it no longer has is never sent again.
-		had[server] = now
-		return putJSON(ctx, tx, deliveredSetting, had)
+		return putJSON(ctx, tx, givenSetting, gv)
 	})
 }

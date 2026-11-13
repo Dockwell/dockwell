@@ -31,6 +31,10 @@ import (
 // LetsEncrypt is the CA certificates by DNS come from unless set.
 const LetsEncrypt = "https://acme-v02.api.letsencrypt.org/directory"
 
+// clientTimeout bounds reaching the CA for its directory and the account, as
+// x/crypto/acme retries a CA that answers 5xx with no end of its own.
+var clientTimeout = time.Minute
+
 // client is an ACME client on the install's own account, made and registered on
 // its first use, its key sealed in the store (ADR 0088). It's apart from the panel's
 // autocert account and from Caddy's.
@@ -71,13 +75,18 @@ func (m *Manager) client(ctx context.Context) (*acme.Client, error) {
 		return nil, err
 	}
 	c := &acme.Client{Key: key, DirectoryURL: m.directory(), HTTPClient: m.HTTP, UserAgent: "dockwell"}
+	reach, cancel := context.WithTimeout(ctx, clientTimeout)
+	defer cancel()
+	if _, err := c.Discover(reach); err != nil {
+		return nil, fmt.Errorf("can't reach the certificate authority at %s: %w", m.directory(), caError(err))
+	}
 	if acct.URL != "" {
 		c.KID = acme.KeyID(acct.URL)
 		return c, nil
 	}
-	a, err := c.Register(ctx, &acme.Account{}, acme.AcceptTOS)
+	a, err := c.Register(reach, &acme.Account{}, acme.AcceptTOS)
 	if errors.Is(err, acme.ErrAccountAlreadyExists) {
-		a, err = c.GetReg(ctx, "")
+		a, err = c.GetReg(reach, "")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("can't make the ACME account at %s: %w", m.directory(), err)
@@ -289,6 +298,14 @@ func caError(err error) error {
 	var ae *acme.Error
 	if errors.As(err, &ae) {
 		kind := strings.TrimPrefix(ae.ProblemType, "urn:ietf:params:acme:error:")
+		if kind == "" {
+			// No problem document, as from a proxy in front of it: its status, and
+			// what it said.
+			if detail := strings.TrimSpace(ae.Detail); detail != "" {
+				return fmt.Errorf("the certificate authority answered %d: %s", ae.StatusCode, detail)
+			}
+			return fmt.Errorf("the certificate authority answered %d", ae.StatusCode)
+		}
 		if ae.Detail != "" {
 			return fmt.Errorf("the certificate authority said %s: %s", kind, ae.Detail)
 		}

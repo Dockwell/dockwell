@@ -972,6 +972,12 @@ msgstr "Revealed the value {value} of an app"
 msgid "Revealed the value {value} of {name}"
 msgstr "Revealed the value {value} of {name}"
 
+msgid "Revoked a certificate's key a server that's gone had"
+msgstr "Revoked a certificate's key a server that's gone had"
+
+msgid "Revoked a certificate's key {name} had, as it's gone"
+msgstr "Revoked a certificate's key {name} had, as it's gone"
+
 msgid "Revoked an API token"
 msgstr "Revoked an API token"
 

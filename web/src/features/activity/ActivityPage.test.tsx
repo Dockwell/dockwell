@@ -245,6 +245,25 @@ describe("Activity", () => {
     await waitFor(() => expect(router.state.location.search).toEqual({ environment: "env_prod" }));
   });
 
+  it("says when a certificate's key went to a server, and when a server that went had its keys revoked", async () => {
+    const on = { id: "srv_1", name: "hz-1" };
+    const events = [
+      auditEvent({ id: "evt_revoke", kind: EventKind.ACCESS, action: "certificate.revoke", subject: on }),
+      auditEvent({
+        id: "evt_deliver",
+        kind: EventKind.ACCESS,
+        action: "certificate.deliver",
+        time: timestampFromDate(new Date(Date.now() - HOUR)),
+        subject: on,
+      }),
+    ];
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot(events));
+    renderActivity(watch);
+    await screen.findByRole("row", { name: /Revoked a certificate's key hz-1 had, as it's gone/ });
+    await screen.findByRole("row", { name: /Sent a certificate's key, proven by DNS, to hz-1/ });
+  });
+
   it("says what a server's public address was set to, and what it was, so it can be put back", async () => {
     const on = { id: "srv_1", name: "hz-1" };
     const events = [
