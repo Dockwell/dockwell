@@ -72,7 +72,7 @@ func (e *Engine) tiedGoing(ctx context.Context, tx *store.Tx, tied *item, going 
 	for _, r := range e.kinds.References(tied.ref.Kind, tied.current) {
 		meets[resource.Ref{Kind: r.Kind, Scope: scopeID, Name: r.Name}] = true
 	}
-	values := e.kinds.Ties(tied.ref.Kind, tied.current)
+	values := e.kinds.Ties(tied.ref.Kind, tied.ref.Name, tied.current)
 	own := map[resource.Ref]bool{}
 	for _, v := range values {
 		own[resource.Ref{Kind: v.Kind, Scope: scopeID, Name: v.Name}] = true

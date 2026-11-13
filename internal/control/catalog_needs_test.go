@@ -1114,3 +1114,81 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		t.Error("a move that starts empty copied the database")
 	}
 }
+
+// Deleting an app that shares a server takes its link with it, its values and the
+// network it reached the server on, which the server leaves in place; the server
+// keeps running, with the app's database and user, as they're its now (ADR 0084).
+func TestDeletingAnAppTakesItsLinkNetwork(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "blog.yaml"), []byte(blogEntry), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	e.Registry["ghcr.io/acme/shop:1.4"] = dockertest.Image{Config: docker.Config{Cmd: []string{"shop"}}}
+	e.Registry["redis:7"] = dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}}
+	e.Registry["ghcr.io/acme/blog:1@sha256:"+digest1] = dockertest.Image{Config: docker.Config{Cmd: []string{"blog"}}}
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, databaseStack, map[string]string{"DB_PASSWORD": "the-administrators"}, false))
+	cat := catalogClient(b)
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetService() == "db" {
+			choice = o.GetChoice()
+		}
+	}
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "blog", Needs: map[string]string{"db": choice}})
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var appEnv, dbEnv string
+	for _, r := range planned.GetPlan().GetResources() {
+		switch r.GetResource().GetKind() {
+		case "link":
+			appEnv = r.GetResource().GetScope()
+		case "database.user":
+			dbEnv = r.GetResource().GetScope()
+		}
+	}
+	linkNet := docker.ScopedName(docker.Project(appEnv), "db-link")
+	if db := e.Newest(docker.Project(dbEnv), "db"); db.NetworkSettings.Networks[linkNet] == nil {
+		t.Fatalf("the shared PostgreSQL isn't on the blog's link network: %v", db.NetworkSettings.Networks)
+	}
+
+	deleting := propose(t, ch, "Delete the blog", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: appEnv, Name: "app"}, Delete: true,
+	})
+	gone := map[string]bool{}
+	for _, r := range deleting.GetPlan().GetResources() {
+		if r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_DELETE {
+			gone[r.GetResource().GetKind()+" "+r.GetResource().GetName()] = true
+		}
+	}
+	for _, want := range []string{"service app", "link db", "network db-link", "secret PANEL_DB_USER_PASSWORD", "variable PANEL_DB_HOST"} {
+		if !gone[want] {
+			t.Errorf("deleting the blog leaves %s: %v", want, gone)
+		}
+	}
+	if got := apply(t, ch, deleting); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("deleting the blog ended %v: %s", got.GetState(), got.GetError())
+	}
+	db := e.Newest(docker.Project(dbEnv), "db")
+	if db == nil || !db.State.Running || db.NetworkSettings.Networks[linkNet] != nil {
+		t.Errorf("after the blog went, the shared PostgreSQL is %v on %v", db.State, db.NetworkSettings.Networks)
+	}
+	pg.mu.Lock()
+	_, kept := pg.roles["blog"]
+	pg.mu.Unlock()
+	if !kept {
+		t.Error("deleting the blog dropped its user on the shared server")
+	}
+}

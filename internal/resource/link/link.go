@@ -122,9 +122,16 @@ func (Type) References(spec proto.Message) []resource.Reference {
 // Ties are the values a link sets, a secret for each that holds the password, so a
 // change that deletes its app or its database takes it, with them, once nothing left
 // reads them (ADR 0084).
-func (Type) Ties(spec proto.Message) []resource.Ref {
+//
+// A link to a server another environment runs stands for the network it reaches it
+// on too, named for it (<need>-link), which goes with it.
+func (Type) Ties(name string, spec proto.Message) []resource.Ref {
+	l := spec.(*resourcev1.Link)
 	var out []resource.Ref
-	for _, s := range spec.(*resourcev1.Link).GetSets() {
+	if l.GetMeetsEnvironment() != "" {
+		out = append(out, resource.Ref{Kind: "network", Name: name + "-link"})
+	}
+	for _, s := range l.GetSets() {
 		kind := resource.Kind("variable")
 		if Secret(s) {
 			kind = "secret"

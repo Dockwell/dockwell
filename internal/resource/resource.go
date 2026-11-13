@@ -1946,14 +1946,16 @@ type Referrer interface {
 // nothing left uses; and what it names can't go while something left reads them.
 type Tied interface {
 	Referrer
-	// Ties are the values it sets, by kind and name, in its own scope.
-	Ties(spec proto.Message) []Ref
+	// Ties are what it stands for, by kind and name, in its own scope: the values it
+	// sets, and what else a resource of that name makes for them, as a link to a
+	// server it shares makes its network.
+	Ties(name string, spec proto.Message) []Ref
 }
 
 // Ties are the values a spec of kind sets, where its kind is Tied.
-func (r *Registry) Ties(kind Kind, spec proto.Message) []Ref {
+func (r *Registry) Ties(kind Kind, name string, spec proto.Message) []Ref {
 	if t, ok := r.types[kind].(Tied); ok && spec != nil {
-		return t.Ties(spec)
+		return t.Ties(name, spec)
 	}
 	return nil
 }
