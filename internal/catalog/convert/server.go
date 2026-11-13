@@ -40,8 +40,9 @@ const (
 	maxSummary = 160
 	// Version is the converter's version, which goes up whenever what it writes
 	// changes, so a commit converted by an older one is converted again. 2 reads a
-	// store's logos and words (ADR 0083), and 3 takes a tag that moves (ADR 0085).
-	Version = 3
+	// store's logos and words (ADR 0083), 3 takes a tag that moves, and 4 a container's
+	// own settings and a secret inside a command's word (ADR 0085).
+	Version = 4
 	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
 	// entries reads 16 MiB of a commit at most.
 	MaxConverted = 16 << 20
@@ -324,7 +325,7 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		if err := ctx.Err(); err != nil {
 			return Run{}, err
 		}
-		r := c.Convert(ctx, apps[i])
+		r := c.convertSafely(ctx, apps[i])
 		if r.Entry != nil {
 			r.Icon = apps[i].Icon
 			if size += proto.Size(r.Entry); size > MaxConverted {
@@ -346,6 +347,18 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		}
 	}
 	return run, nil
+}
+
+// convertSafely converts one app, and leaves it out, saying so, if anything reading
+// it panics: what's read is a stranger's, read with nobody watching once a source
+// follows a branch, and one app's files must never stop the rest (ADR 0085).
+func (c *Converter) convertSafely(ctx context.Context, app App) (r Result) {
+	defer func() {
+		if p := recover(); p != nil {
+			r = Result{ID: app.ID, Path: app.Path, LeftOut: fmt.Sprintf("reading its files stopped on what Dockwell didn't expect (%v)", p), Class: ClassFile}
+		}
+	}()
+	return c.Convert(ctx, app)
 }
 
 // PrivateRegistry says an image names a registry that's this server, a private

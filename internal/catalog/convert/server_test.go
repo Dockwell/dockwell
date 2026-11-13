@@ -482,3 +482,16 @@ func TestEachStoreIsMeasured(t *testing.T) {
 		t.Error("Dockwell's own format reads as a store that's measured")
 	}
 }
+
+// An app whose reading panics is left out, with the reason, and the rest of the store
+// converts (ADR 0085).
+func TestOnServerLeavesOutAnAppThatPanics(t *testing.T) {
+	c := &Converter{OnServer: true, Release: 1, Now: committed}
+	r := c.convertSafely(t.Context(), App{
+		ID: "bad", Path: "apps/bad/1.0", Shipped: func(string) bool { panic("a stranger's file") },
+		Compose: []byte("services:\n  web:\n    image: nginx:1.27\n    volumes: [\"./conf:/etc/conf\"]\n"),
+	})
+	if r.Entry != nil || r.Class != ClassFile || !strings.Contains(r.LeftOut, "a stranger's file") {
+		t.Errorf("an app that panics = %+v", r)
+	}
+}

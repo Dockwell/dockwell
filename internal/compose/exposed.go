@@ -51,6 +51,10 @@ var (
 		// Numbers, and one of a few words.
 		"ports", "restart", "cpus", "mem_limit", "mem_reservation", "shm_size", "deploy", "privileged", "stop_grace_period",
 		"healthcheck.interval", "healthcheck.timeout", "healthcheck.start_period", "healthcheck.retries", "healthcheck.disable",
+		// What a container asks of itself: a name, a switch, a signal, a count or an
+		// address, and two that go in no spec (ADR 0085).
+		"hostname", "init", "tty", "stdin_open", "read_only", "stop_signal", "pids_limit", "ulimits", "dns", "pull_policy", "security_opt",
+		"healthcheck.start_interval",
 		// Paths.
 		"volumes", "tmpfs", "working_dir",
 		// Changes nothing on one server, or orders the change, so neither is kept.

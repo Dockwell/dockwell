@@ -74,10 +74,6 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 	if err != nil {
 		return resource.Adoption{}, err
 	}
-	var imageSignal string
-	if img, err := d.Client.InspectImage(ctx, c.Image); err == nil && img.Config != nil {
-		imageSignal = img.Config.StopSignal
-	}
 	info, err := d.Client.Info(ctx)
 	if err != nil {
 		return resource.Adoption{}, fmt.Errorf("can't ask Docker how it runs containers, so what this one needs can't be read: %w", err)
@@ -86,7 +82,7 @@ func (d *Docker) ReadAdoption(ctx context.Context, t Target, id string) (resourc
 	if err != nil {
 		return resource.Adoption{}, err
 	}
-	refused := noSpecHolds(c, options, imageSignal, info)
+	refused := noSpecHolds(c, options, info)
 	// What's fine to Docker and no spec can say is refused by what it is, here, rather
 	// than by a plan that can't name the container. What's refused above would fail too.
 	var invalid string

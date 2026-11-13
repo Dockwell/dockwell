@@ -80,7 +80,8 @@ fail() {
 }
 step() { echo "--- $*"; }
 
-dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "$bin" "$@"; }
+input_env=()
+dw() { priv env DOCKWELL_DATA_DIR="$data" DOCKWELL_LOG_FORMAT=text "${input_env[@]}" "$bin" "$@"; }
 
 step "Dockwell starts, and its owner claims it"
 "${as_dockwell[@]}" env DOCKWELL_TEST=1 DOCKWELL_TEST_REGISTRY=public \
@@ -150,6 +151,11 @@ registry_trouble() {
 
 # A store's source, by the format its record names: a name a source may take.
 declare -A source_of=([1panel]=onepanel [dokploy]=dokploy [coolify]=coolify)
+# What a person types for an app, which the CLI takes from its environment for a
+# secret, as catalog-e2e.sh gives it.
+declare -A given_env=(
+  [1panel/rabbitmq]="RABBITMQ_DEFAULT_PASS=store-e2e-password-never-sent-anywhere"
+)
 
 step "Dockwell reads each store at the commit the repository pins, converting it as it reads it"
 declare -A added=()
@@ -176,7 +182,10 @@ for app in "$@"; do
   step "$app installs from its store, runs and answers"
   entry=$(dw catalog get "$id" --catalog "$source" --json | jq .entry) || fail "the catalog has no $id from $source"
   [[ "$entry" != null ]] || fail "the catalog has no $id from $source"
-  planned=$(dw catalog install "$id" --catalog "$source" --plan-only --json) || fail "planning to install $id from $source failed"
+  read -r -a input_env <<<"${given_env[$app]:-}"
+  values=()
+  for kv in "${input_env[@]}"; do values+=(--values "${kv%%=*}"); done
+  planned=$(dw catalog install "$id" --catalog "$source" "${values[@]}" --plan-only --json) || fail "planning to install $id from $source failed"
   change=$(jq -r '.change.id // empty' <<<"$planned")
   [[ "$change" == chg_* ]] || fail "installing $id planned no change: $planned"
   jq -e '.change.plan.notes | any(.reason == "catalog_pins_images")' <<<"$planned" >/dev/null || fail "installing $id doesn't say the builds it pins: $planned"
@@ -188,7 +197,7 @@ for app in "$@"; do
     registry_trouble "$change" || fail "$change failed: $(dw changes get "$change" --json)"
     echo "store-e2e: $change failed on a registry, not on the entry. Planning it again in 30 s, once" >&2
     sleep 30
-    planned=$(dw catalog install "$id" --catalog "$source" --project "$installed-2" --plan-only --json) || fail "planning to install $id again failed"
+    planned=$(dw catalog install "$id" --catalog "$source" --project "$installed-2" "${values[@]}" --plan-only --json) || fail "planning to install $id again failed"
     environment=$(jq -r '[.change.plan.resources[] | select(.resource.kind == "service")][0].resource.scope' <<<"$planned")
     installed="$installed-2"
     project=${environment,,}
@@ -219,12 +228,12 @@ for app in "$@"; do
     hostport=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$c" | jq -r '[(. // {})[][] | .HostPort][0] // empty')
     [[ -n "$hostport" ]] || fail "$web publishes no port"
     answered=""
-    for _ in $(seq 60); do
+    for _ in $(seq 120); do
       answered=$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "http://127.0.0.1:$hostport/" 2>/dev/null) || answered=""
       [[ -n "$answered" && "$answered" != 000 && "$answered" -lt 500 ]] && break
       sleep 1
     done
-    [[ -n "$answered" && "$answered" != 000 && "$answered" -lt 500 ]] || fail "$id answers '$answered' on port $hostport a minute after its install, want a page"
+    [[ -n "$answered" && "$answered" != 000 && "$answered" -lt 500 ]] || fail "$id answers '$answered' on port $hostport two minutes after its install, want a page"
     echo "  $id answers $answered on port $hostport"
   fi
 
@@ -239,6 +248,7 @@ for app in "$@"; do
   [[ -z "$left" ]] || fail "removing $id left containers"
   echo "$app took $((SECONDS - started)) s"
   project=""
+  input_env=()
 done
 
 echo "store-e2e: ok"

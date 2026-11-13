@@ -500,6 +500,13 @@ message Hello {
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.
   DesiredHeld desired = 160;
+  // True when the agent sets what a container asks of itself: its hostname, an
+  // init, a terminal, its input kept open, its stop signal, its limits, a
+  // read-only filesystem, a most of processes, its DNS servers and
+  // no-new-privileges (Container 90 to 99, ADR 0085). The control plane plans none
+  // of them on an agent that doesn't say so, which would leave them out. Other
+  // stores' work takes 300 to 309 in agent messages.
+  bool own_settings = 300;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.

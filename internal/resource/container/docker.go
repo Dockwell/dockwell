@@ -246,6 +246,8 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	add("user", spec.GetUser() != "")
 	add("working_dir", spec.GetWorkingDir() != "")
 	add("shm_size", spec.GetShmSize() != "")
+	add("hostname", spec.GetHostname() != "")
+	add("stop_signal", spec.GetStopSignal() != "")
 	for _, p := range spec.GetExpose() {
 		set = append(set, "expose:"+p)
 	}
@@ -621,6 +623,12 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	req.HostConfig.Privileged, req.HostConfig.CapAdd, req.HostConfig.CapDrop, req.HostConfig.GroupAdd =
 		spec.GetPrivileged(), spec.GetCapAdd(), spec.GetCapDrop(), spec.GetGroupAdd()
 	req.HostConfig.ExtraHosts = spec.GetExtraHosts()
+	req.Hostname, req.Tty, req.OpenStdin, req.StopSignal = spec.GetHostname(), spec.GetTty(), spec.GetStdinOpen(), spec.GetStopSignal()
+	req.HostConfig.Init, req.HostConfig.Ulimits, req.HostConfig.DNS = dockerInit(spec), dockerUlimits(spec), spec.GetDns()
+	req.HostConfig.ReadonlyRootfs, req.HostConfig.PidsLimit = spec.GetReadOnly(), spec.GetPidsLimit()
+	if spec.GetNoNewPrivileges() {
+		req.HostConfig.SecurityOpt = []string{noNewPrivileges}
+	}
 	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
@@ -916,6 +924,25 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		ExtraHosts:     extraHostsOf(c.HostConfig.ExtraHosts),
 		Resources:      projectResources(&c.HostConfig),
 		Tmpfs:          projectTmpfs(&c.HostConfig),
+		Init:           c.HostConfig.Init != nil && *c.HostConfig.Init,
+		Tty:            c.Config.Tty,
+		StdinOpen:      c.Config.OpenStdin,
+		Ulimits:        ulimitsOf(c.HostConfig.Ulimits),
+		ReadOnly:       c.HostConfig.ReadonlyRootfs,
+		PidsLimit:      max(c.HostConfig.PidsLimit, 0),
+		Dns:            c.HostConfig.DNS,
+		NoNewPrivileges: slices.ContainsFunc(c.HostConfig.SecurityOpt, func(o string) bool {
+			on, ok := NoNewPrivileges(o)
+			return ok && on
+		}),
+	}
+	// Docker names each container for the start of its ID unless asked for another,
+	// and gives one on the server's network the server's name.
+	if h := c.Config.Hostname; set["hostname"] || h != "" && !strings.HasPrefix(c.ID, h) && c.HostConfig.NetworkMode != "host" {
+		out.Hostname = h
+	}
+	if s := c.Config.StopSignal; set["stop_signal"] || s != "" && s != img.StopSignal {
+		out.StopSignal = s
 	}
 	if s := c.HostConfig.ShmSize; set["shm_size"] || s != dockerShmSize {
 		out.ShmSize = FormatMemory(s)

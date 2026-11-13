@@ -97,6 +97,21 @@ func fieldRows() []fieldRow {
 		serviceRow("stop_grace_period", "    stop_grace_period: ${V}\n", "45s", "45s"),
 		serviceRow("shm_size", "    shm_size: ${V}\n", "64M", "64M"),
 		serviceRow("tmpfs", "    tmpfs: [\"/run:size=${V}\"]\n", "64M", "64M"),
+		// What a container asks of itself: a name, a switch, a signal, a count or an
+		// address (ADR 0085).
+		serviceRow("hostname", "    hostname: ${V}\n", marker, marker),
+		serviceRow("init", "    init: ${V}\n", "true", "true"),
+		serviceRow("tty", "    tty: ${V}\n", "true", "true"),
+		serviceRow("stdin_open", "    stdin_open: ${V}\n", "true", "true"),
+		serviceRow("read_only", "    read_only: ${V}\n", "true", "true"),
+		serviceRow("stop_signal", "    stop_signal: ${V}\n", "SIGQUIT", "SIGQUIT"),
+		serviceRow("pids_limit", "    pids_limit: ${V}\n", "200", "200"),
+		serviceRow("ulimits", "    ulimits: {nofile: {soft: \"${V}\", hard: 8192}}\n", "4096", "4096"),
+		serviceRow("dns", "    dns: [\"${V}\"]\n", "10.0.0.53", "10.0.0.53"),
+		serviceRow("security_opt", "    security_opt: [\"no-new-privileges:${V}\"]\n", "true", "true"),
+		// What changes nothing Dockwell does, which goes in no spec.
+		serviceRow("pull_policy", "    pull_policy: ${V}\n", "always", ""),
+		serviceRow("healthcheck.start_interval", "    healthcheck: {test: [CMD, run], start_interval: \"${V}\"}\n", "5s", ""),
 		serviceRow("healthcheck.interval", "    healthcheck: {test: [CMD, run], interval: \"${V}\"}\n", "45s", "45s"),
 		serviceRow("healthcheck.timeout", "    healthcheck: {test: [CMD, run], timeout: \"${V}\"}\n", "45s", "45s"),
 		serviceRow("healthcheck.start_period", "    healthcheck: {test: [CMD, run], start_period: \"${V}\"}\n", "45s", "45s"),

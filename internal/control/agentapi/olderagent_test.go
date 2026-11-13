@@ -147,3 +147,42 @@ func TestAnOlderAgentIsRefusedAFolderToMake(t *testing.T) {
 		})
 	}
 }
+
+// An agent that doesn't say it sets what a container asks of itself would leave a
+// hostname, limits and the like out, so a plan or a step that asks for one is refused
+// there, with the fix; one that asks for nothing such goes, and an agent that says so
+// takes it (ADR 0085).
+func TestAnOlderAgentIsRefusedWhatAContainerAsksOfItself(t *testing.T) {
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	plain := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:8"}}}
+	errSent := errors.New("the test stops the call here")
+	open := func(sets bool) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		a.CheckNaming(&naming{})
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, OwnSettings: sets}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for field, app := range map[string]*resourcev1.Container{
+		"hostname":          {Image: "redis:8", Hostname: "cache"},
+		"init":              {Image: "redis:8", Init: true},
+		"ulimits":           {Image: "redis:8", Ulimits: []*resourcev1.Ulimit{{Name: "nofile", Soft: 1024, Hard: 1024}}},
+		"no_new_privileges": {Image: "redis:8", NoNewPrivileges: true},
+		"dns":               {Image: "redis:8", Dns: []string{"10.0.0.53"}},
+	} {
+		asks := &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}
+		t.Run(field, func(t *testing.T) {
+			_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: asks}})
+			if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell set a container's hostname, limits and the like, which web asks for") {
+				t.Errorf("an older agent, planning = %v", err)
+			}
+			if err := open(false).Apply(t.Context(), resource.Step{Ref: web}, asks); !errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an older agent, applying = %v", err)
+			}
+			if _, err := open(true).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: asks}}); errors.Is(err, resource.ErrAgentTooOld) {
+				t.Errorf("an agent that sets them = %v", err)
+			}
+		})
+	}
+	if _, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: plain}}); errors.Is(err, resource.ErrAgentTooOld) {
+		t.Errorf("an older agent, with nothing asked = %v", err)
+	}
+}

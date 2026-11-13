@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -19,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/gitfetch/gitfetchtest"
+	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -399,5 +401,124 @@ func TestAMovingTagIsPinnedAndMovesByItsBuilds(t *testing.T) {
 	// The release itself is still a person's to take.
 	if _, err := svc.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: board})); err != nil {
 		t.Errorf("taking the newer release: %v", err)
+	}
+}
+
+// A store's app that writes a secret Dockwell generates inside a word of its command,
+// as redis-server --requirepass does, gets the secret itself there, read from its
+// environment as the container is made, never the stand-in a plan reads the file with,
+// and keeps it through an upgrade (ADR 0022, ADR 0085).
+func TestASecretInsideACommandWordReachesTheContainer(t *testing.T) {
+	template := `# slogan: A cache.
+# port: 6379
+
+services:
+  cache:
+    image: nginx:1.27
+    command: redis-server --appendonly yes --requirepass ${SERVICE_PASSWORD_REDIS} --name=cache-${SERVICE_PASSWORD_REDIS}
+    environment:
+      - SERVICE_URL_CACHE_6379
+`
+	repo := gitfetchtest.New(t)
+	license := "                                 Apache License\n                           Version 2.0, January 2004\n"
+	first := repo.Commit(map[string]string{"LICENSE": license, "templates/compose/cache.yaml": template})
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	srv := f.lastDocker
+	srv.stop()
+	waitConnected(t, f, srv.id.ServerID, false)
+	srv.images = agent.ImageReads{Test: testRegistry(t)}
+	srv.run(t)
+	waitConnected(t, f, srv.id.ServerID, true)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	res, err := cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "coolify", Repository: repo.URL, Commit: first}))
+	if err != nil {
+		t.Fatalf("SetCatalogSource: %v", err)
+	}
+	apply(t, c, res.Msg.GetChange())
+	installing := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "cache"})
+	apply(t, c, installing)
+
+	password := func() string {
+		t.Helper()
+		var cmd []string
+		var env []string
+		for _, name := range e.Containers() {
+			if strings.Contains(name, "cache") {
+				got := e.Container(name)
+				cmd, env = got.Config.Cmd, got.Config.Env
+			}
+		}
+		if len(cmd) != 6 || cmd[3] != "--requirepass" {
+			t.Fatalf("the container runs %q", cmd)
+		}
+		var given string
+		for _, kv := range env {
+			if v, ok := strings.CutPrefix(kv, "REDIS_PASSWORD="); ok {
+				given = v
+			}
+		}
+		if len(cmd[4]) < 32 || cmd[4] != given || cmd[5] != "--name=cache-"+given {
+			t.Fatalf("the command's words are %q and %q, where its environment holds a password of %d characters", cmd[4], cmd[5], len(given))
+		}
+		return cmd[4]
+	}
+	before := password()
+	// The command names the value; the value is a secret the service uses by reference,
+	// sealed, which no spec holds.
+	var spec proto.Message
+	installed, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil || len(installed.Msg.GetInstalls()) != 1 {
+		t.Fatalf("installs = %v, %v", installed.Msg, err)
+	}
+	env := installed.Msg.GetInstalls()[0].GetEnvironmentId()
+	err = f.store.View(t.Context(), func(tx *store.Tx) error {
+		r, err := tx.GetResource(t.Context(), string(service.Kind), env, "cache")
+		if err != nil {
+			return err
+		}
+		found := &r
+		spec, err = f.keeper.Decode(t.Context(), tx, store.InRevision(found.ID, found.Kind, found.Revision), found.Spec)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := spec.(*resourcev1.Service)
+	app := svc.GetApp()
+	if strings.Join(app.GetCommand(), " ") != "redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --name=cache-${REDIS_PASSWORD}" ||
+		!slices.Contains(app.GetReferences(), "command") || svc.GetSecrets()["REDIS_PASSWORD"] == "" {
+		t.Errorf("the service's spec = %v", svc)
+	}
+	if _, inEnv := app.GetEnv()["REDIS_PASSWORD"]; inEnv {
+		t.Error("the service's spec holds the password as a value of its own")
+	}
+	for _, ch := range []*dockwellv1.Change{installing} {
+		if strings.Contains(ch.GetPlan().String(), before) {
+			t.Error("the install's plan holds the secret")
+		}
+	}
+
+	// A new commit that changes the app upgrades it, and the secret stays.
+	second := repo.Commit(map[string]string{"LICENSE": license, "templates/compose/cache.yaml": strings.Replace(template, "--appendonly yes", "--appendonly no", 1)})
+	moved, err := cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "coolify", Repository: repo.URL, Commit: second}))
+	if err != nil {
+		t.Fatalf("moving the source: %v", err)
+	}
+	apply(t, c, moved.Msg.GetChange())
+	installs, err := cat.ListCatalogInstalls(t.Context(), connect.NewRequest(&dockwellv1.ListCatalogInstallsRequest{}))
+	if err != nil || len(installs.Msg.GetInstalls()) != 1 {
+		t.Fatalf("installs = %v, %v", installs.Msg, err)
+	}
+	upgrading, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: installs.Msg.GetInstalls()[0].GetProjectId()}))
+	if err != nil {
+		t.Fatalf("upgrading: %v", err)
+	}
+	apply(t, c, upgrading.Msg.GetChange())
+	if after := password(); after != before {
+		t.Error("the upgrade changed the secret in the command")
 	}
 }

@@ -121,6 +121,21 @@ var fileShape = sync.OnceValue(func() *shape {
 		"group_add":       {kinds: aList, item: shaped(aString|aNumber, `group_add: ["999"]`), example: `group_add: ["999"]`},
 		"extra_hosts":     listOrMapping(`extra_hosts: ["host.docker.internal:host-gateway"]`),
 		"privileged":      boolean("privileged: true"),
+		"hostname":        str("hostname: mail.example.com"),
+		"init":            boolean("init: true"),
+		"tty":             boolean("tty: true"),
+		"stdin_open":      boolean("stdin_open: true"),
+		"stop_signal":     str("stop_signal: SIGQUIT"),
+		"read_only":       boolean("read_only: true"),
+		"pids_limit":      number("pids_limit: 200"),
+		"dns":             {kinds: aString | aList, item: str("dns: [1.1.1.1]"), example: "dns: [1.1.1.1]"},
+		"pull_policy":     str("pull_policy: always"),
+		"security_opt":    {kinds: aList, item: str("security_opt: [no-new-privileges:true]"), example: "security_opt: [no-new-privileges:true]"},
+		"ulimits": {kinds: aMapping, example: "ulimits: {nofile: {soft: 20000, hard: 40000}}", value: &shape{
+			kinds: aNumber | aMapping, example: "ulimits: {nofile: {soft: 20000, hard: 40000}}", fields: map[string]*shape{
+				"soft": number("soft: 20000"), "hard": number("hard: 40000"),
+			},
+		}},
 		"deploy": {kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{
 			"resources": {kinds: aMapping | nothing, example: deployExample, fields: map[string]*shape{
 				"limits":       amounts,
@@ -136,7 +151,8 @@ var fileShape = sync.OnceValue(func() *shape {
 		"healthcheck": object(`healthcheck: {test: ["CMD", "curl", "-f", "http://localhost"]}`, map[string]*shape{
 			"test":     {kinds: aString | aList, item: str(`test: ["CMD", "pg_isready"]`), example: `test: ["CMD", "pg_isready"]`},
 			"interval": str("interval: 30s"), "timeout": str("timeout: 5s"), "start_period": str("start_period: 1m"),
-			"retries": number("retries: 3"), "disable": boolean("disable: true"),
+			"start_interval": str("start_interval: 5s"),
+			"retries":        number("retries: 3"), "disable": boolean("disable: true"),
 		}),
 		"depends_on": {
 			kinds: aList | aMapping, item: str("depends_on: [db]"), example: "depends_on: [db]",

@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/health"
@@ -27,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	containerkind "github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/secrets"
@@ -477,7 +479,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(),
+		ownSettings: hello.GetOwnSettings(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -556,6 +558,8 @@ type Session struct {
 	writesReferences bool
 	// makesFolders says the agent makes a mount's missing folder as its owner.
 	makesFolders bool
+	// ownSettings says the agent sets what a container asks of itself (ADR 0085).
+	ownSettings bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -1312,6 +1316,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkFolders(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkOwnSettings(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
@@ -1551,8 +1558,8 @@ func (s *Session) checkReads(ctx context.Context, refs []resource.Ref) error {
 		"Nothing on %s that names a value is read, planned or applied until you update the agent there", resource.ErrAgentTooOld, s.name, named[0].Name, s.name)
 }
 
-// checkAllWrites is checkWrites and checkFolders for all a plan asks of this
-// agent.
+// checkAllWrites is checkWrites, checkFolders and checkOwnSettings for all a plan
+// asks of this agent.
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for di := range desired {
 		d := &desired[di]
@@ -1560,6 +1567,9 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 			return err
 		}
 		if err := s.checkFolders(d.Ref, d.Spec); err != nil {
+			return err
+		}
+		if err := s.checkOwnSettings(d.Ref, d.Spec); err != nil {
 			return err
 		}
 	}
@@ -1575,6 +1585,42 @@ func (s *Session) checkFolders(ref resource.Ref, spec proto.Message) error {
 	}
 	return fmt.Errorf("%w: the agent on %s is from before Dockwell made a missing folder as its owner, which %s asks for, so it would be root's. Update the agent on %s",
 		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// checkOwnSettings refuses a spec whose container asks something of itself, such as
+// a hostname or its limits, for an agent that doesn't say it sets them: it would
+// leave them out, and what runs wouldn't be what the plan said (ADR 0085).
+func (s *Session) checkOwnSettings(ref resource.Ref, spec proto.Message) error {
+	if s.ownSettings || spec == nil || !asksOfItself(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell set a container's hostname, limits and the like, which %s asks for, so it would leave them out. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// asksOfItself reports a spec with a container that asks something of itself.
+func asksOfItself(m protoreflect.Message) bool {
+	if c, ok := m.Interface().(*resourcev1.Container); ok {
+		return containerkind.AsksOfItself(c)
+	}
+	found := false
+	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.IsList() && fd.Message() != nil:
+			for i := range v.List().Len() {
+				found = found || asksOfItself(v.List().Get(i).Message())
+			}
+		case fd.IsMap() && fd.MapValue().Message() != nil:
+			v.Map().Range(func(_ protoreflect.MapKey, e protoreflect.Value) bool {
+				found = found || asksOfItself(e.Message())
+				return !found
+			})
+		case fd.Message() != nil && !fd.IsList() && !fd.IsMap():
+			found = asksOfItself(v.Message())
+		}
+		return !found
+	})
+	return found
 }
 
 // makesFolder reports a spec with a mount that names an owner to make it as.

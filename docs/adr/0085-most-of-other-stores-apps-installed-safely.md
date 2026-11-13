@@ -47,7 +47,7 @@ This record says what the converter now accepts and why each is safe. It grows a
 - **On the server, an image named by a tag that moves, such as `latest`, `stable` or `main`, converts,** as a version's tag does: the entry names it by its tag, and the plan pins the build it points at then, through the agent of the app's server, and shows the digest (ADR 0078). An image named with no tag is written out as `latest`, which is what Docker pulls for it, so the plan names the tag it pins. A 1Panel app whose only version folder is `latest` converts at version `latest`.
 - **It's as safe as a version's tag, which can be pushed again too.** What runs is the digest a person saw in the plan and approved. No registry is asked at a refresh, and nothing about the image is trusted that a version's tag isn't.
 - **The offline converter still leaves such an app out.** It pins each image as it converts, for a catalog that's published, where a moving tag would never move on.
-- **The converter's version goes up with each slice that changes which apps convert** (`convert.Version`, 3 here, after the 2 that reads stores' logos and words), so a server converts a commit it kept again, and a store that's pinned shows the new apps once Dockwell is updated, not only once the store moves.
+- **The converter's version goes up with each slice that changes which apps convert** (`convert.Version`, 3 for moving tags and 4 for what follows, after the 2 that reads stores' logos and words), so a server converts a commit it kept again, and a store that's pinned shows the new apps once Dockwell is updated, not only once the store moves.
 
 ### A new build of a moving tag is an update, through the install's catalog
 
@@ -66,17 +66,37 @@ A store's file that names `latest` never changes when `latest` moves, so the cat
 - **Its first run found a store's own mistake:** Dokploy's CyberChef publishes port 80, where its image has listened on 8080 since it moved to an unprivileged web server, so it runs and answers nothing, in Dokploy as here. A plan could read the port an image declares, as a form already does (ADR 0062), and say when a store's differs; that's later work, and the sample takes another app.
 - **The job's agent reads registries as a server does,** under `DOCKWELL_TEST_REGISTRY=public`, while `DOCKWELL_TEST` keeps everything else it would reach off (ADR 0034). Without it a test still reads no image from a registry.
 
+### What a container asks of itself
+
+*Added with the second slice of #570.*
+
+After moving tags, the Compose keys Dockwell refused were the next gate: `hostname` in 23 apps, `ulimits` 17, `pull_policy` 13, `stdin_open` 9, `security_opt` 9 (mostly `no-new-privileges:true`), `read_only` 6, `init` 5, a health check's `start_interval` 5, `pids_limit` 4, `dns` 3, `tty` 3 and `stop_signal` 2. Each changes the container alone, and none reaches the server, so each is now a field of the container, as Compose names it:
+
+- **A spec holds `hostname`, `init`, `tty`, `stdin_open`, `stop_signal`, `ulimits`, `read_only`, `pids_limit`, `dns` and `no_new_privileges`** (Container 90 to 99), checked as Docker would take them: a hostname as a DNS name, and none on the server's own network, which has the server's; a signal by its name or number, written as SIGQUIT; a limit Docker knows, its soft limit within its hard; a count of 0 or more; up to 8 DNS servers, by address. They read back from Docker as the spec has them, so none is drift: a hostname Docker gave for the ID, or a stop signal the image gives, isn't one the spec set. The Compose importer reads and exports each, and a container Dockwell takes on keeps them (ADR 0021).
+- **Of `security_opt`, only `no-new-privileges` is taken.** It tightens what a container may do. `seccomp:unconfined`, `apparmor:unconfined` and `label:disable` loosen what confines it, and are refused by name, as before.
+- **A pull policy and a health check's start interval are taken and dropped.** Dockwell pulls the digest a plan pins whenever a server hasn't it, so a policy says nothing it does; `build`, which builds, is refused as a build is. A start interval only says how often a check runs while the start period lasts, which Docker before 25 doesn't keep: Dockwell checks at the interval throughout, so a new container is seen healthy a little later at worst.
+- **An agent says it sets them, in its `Hello` (`own_settings`, 300).** The control plane plans none of them on an agent that doesn't, which would leave them out: "the agent on hz-2 is from before Dockwell set a container's hostname, limits and the like, which web asks for, so it would leave them out. Update the agent on hz-2."
+- **compose-go asserts what a value is in places,** and a limit written as text, as a variable gives one, made it panic. A file is a stranger's when a store refreshes with nobody watching, so the importer writes each limit as the number it is, refusing text that's none, and turns any panic in compose-go's decoding into a file it can't read.
+
+### A secret inside a word of a command
+
+*Added with the second slice of #570.*
+
+The catalog refused a secret anywhere but a value of its own, as an upgrade stands something in for a secret it never opens. That holds for an environment's value, where `postgres://u:${PASSWORD}@db/x` would carry the stand-in. It doesn't for a command, an entrypoint or a health check's test, which keep a value by name, with the value written into each word as the container is made, and a rotation reaching it ([ADR 0022](0022-secrets-encrypted-at-rest.md)). So a secret may now stand anywhere in one of their words, as in `redis-server --requirepass ${PASSWORD}` or `--api-key=${KEY}`, which 19 of the stores' apps write. A test installs such an app from a converted store and upgrades it: the spec keeps the names, the secret comes by reference, the container gets the secret itself, and the upgrade keeps it.
+
+A secret inside an environment's value, over 100 of the stores' apps and most of them a companion database's URL, is left for the need that writes it (ADR 0084), or a mechanism that writes an environment's value as a command's words are.
+
 ### Numbers
 
-ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
+ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99 and the agent's `Hello.own_settings` (300); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 12 Nov 2026
 
-| Store | Apps | Converted | Rate |
-| --- | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 36% |
-| Dokploy's templates | 612 | 299 | 48% |
-| Coolify's templates | 384 | 199 | 51% |
+| Store | Apps | Moving tags | With a container's own settings and secrets in commands | Rate |
+| --- | ---: | ---: | ---: | ---: |
+| 1Panel's app store | 269 | 99 | 113 | 42% |
+| Dokploy's templates | 612 | 299 | 332 | 54% |
+| Coolify's templates | 384 | 199 | 224 | 58% |
 
 ## What we turned down
 
@@ -92,4 +112,4 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 - Over 250 more apps from Dokploy and Coolify install, with each new build offered as an update.
 - Each store's pinned commit is a person's to move. Until it moves, what upstream adds is measured only by a server reading the store.
 - CI reaches GitHub, and the registries of the sample's images.
-- Still to come in #570: files beside the Compose file, carried as data within bounds; 1Panel's scripts as steps Dockwell runs itself; a secret inside a longer value; the Compose keys Dockwell can't run yet; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).
+- Still to come in #570: files beside the Compose file, carried as data within bounds; 1Panel's scripts as steps Dockwell runs itself; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).

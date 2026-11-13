@@ -585,9 +585,15 @@ func composeServices(compose string) (map[string]any, error) {
 }
 
 // standsAlone refuses a secret inside a longer value. An upgrade stands something in for
-// a secret it never opens, which reaches a service only as a whole value, by reference,
-// so in a longer one it would write that in place of the secret, and a rotation couldn't
-// reach it either. It reads the file's YAML, as text can't tell "a ${X} b" from "${X}".
+// a secret it never opens, which reaches a service's environment only as a whole value,
+// by reference, so in a longer one it would write that in place of the secret, and a
+// rotation couldn't reach it either. It reads the file's YAML, as text can't tell
+// "a ${X} b" from "${X}".
+//
+// A service's command, entrypoint and health check's test are kept by the names their
+// words use, and each word is written with the values it names as the container is
+// made (ADR 0022), so a secret may stand anywhere in one of their words, as in
+// redis-server --requirepass ${PASSWORD} or --api-key=${KEY} (ADR 0085).
 func standsAlone(file, name string) error {
 	var tree any
 	if err := yaml.Unmarshal([]byte(file), &tree); err != nil {
@@ -618,7 +624,51 @@ func standsAlone(file, name string) error {
 		}
 		return nil
 	}
-	return walk(tree)
+	top, ok := tree.(map[string]any)
+	if !ok {
+		return walk(tree)
+	}
+	for _, key := range slices.Sorted(maps.Keys(top)) {
+		if key != "services" {
+			if err := walk(top[key]); err != nil {
+				return err
+			}
+			continue
+		}
+		services, ok := top[key].(map[string]any)
+		if !ok {
+			if err := walk(top[key]); err != nil {
+				return err
+			}
+			continue
+		}
+		for _, svcName := range slices.Sorted(maps.Keys(services)) {
+			svc, ok := services[svcName].(map[string]any)
+			if !ok {
+				if err := walk(services[svcName]); err != nil {
+					return err
+				}
+				continue
+			}
+			for _, field := range slices.Sorted(maps.Keys(svc)) {
+				value := svc[field]
+				switch field {
+				case "command", "entrypoint":
+					continue
+				case "healthcheck":
+					if check, ok := value.(map[string]any); ok {
+						rest := maps.Clone(check)
+						delete(rest, "test")
+						value = rest
+					}
+				}
+				if err := walk(value); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // typed reports an input whose value is text a person may type, which can say how

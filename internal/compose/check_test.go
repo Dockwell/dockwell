@@ -49,7 +49,7 @@ func TestLineFindsWhatIsRefused(t *testing.T) {
 	}{
 		{"a field a service can't take", "services:\n  web:\n    image: nginx\n    sysctls: [a=b]\n", 4},
 		{"a top-level field", "services:\n  web:\n    image: nginx\nsecrets:\n  a: {}\n", 4},
-		{"a field of a health check", "services:\n  web:\n    image: nginx\n    healthcheck:\n      test: [CMD, x]\n      start_interval: 1s\n", 6},
+		{"a field of a health check", "services:\n  web:\n    image: nginx\n    healthcheck:\n      test: [CMD, x]\n      start_delay: 1s\n", 6},
 		{"a volume's own field", "services:\n  web:\n    image: nginx\nvolumes:\n  data:\n    external: true\n", 6},
 		{"a value of the wrong kind", "services:\n  web:\n    image: nginx\n    ports: 80\n", 4},
 		{"a service without an image", "services:\n  web:\n    command: x\n  api:\n    command: y\n", 4},

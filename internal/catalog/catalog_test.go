@@ -726,8 +726,8 @@ func TestCheckRefuses(t *testing.T) {
 		"a secret inside a longer value": {func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      URL: postgres://u:${POSTGRES_PASSWORD}@db/x", 1)
 		}, "inside a longer value"},
-		"a secret inside one word of a command": {func(e *catalogv1.Entry) {
-			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"--key=${POSTGRES_PASSWORD}\"]", 1)
+		"a secret inside a label": {func(e *catalogv1.Entry) {
+			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    labels: {key: \"k-${POSTGRES_PASSWORD}\"}", 1)
 		}, "inside a longer value"},
 		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 		"a secret longer than Dockwell generates": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 1 << 30 }, "more than the 256 Dockwell generates"},
@@ -769,7 +769,9 @@ func TestCheckRefuses(t *testing.T) {
 	}
 }
 
-// A secret stands alone: as an environment value in either form, or a word of a command.
+// A secret stands alone: as an environment value in either form, or anywhere in a word
+// of a command, an entrypoint or a health check's test, which name it, as the container
+// is made with its value written there (ADR 0022, ADR 0085).
 func TestCheckTakesASecretThatStandsAlone(t *testing.T) {
 	c, err := catalog.Load("")
 	if err != nil {
@@ -777,9 +779,12 @@ func TestCheckTakesASecretThatStandsAlone(t *testing.T) {
 	}
 	base, _ := c.Entry("postgres")
 	for name, compose := range map[string]string{
-		"a value":      "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
-		"a list entry": "- POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
-		"a word":       "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"${POSTGRES_PASSWORD}\"]",
+		"a value":                    "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}",
+		"a list entry":               "- POSTGRES_PASSWORD=${POSTGRES_PASSWORD}",
+		"a word":                     "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"${POSTGRES_PASSWORD}\"]",
+		"inside a word of a command": "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: [\"serve\", \"--key=${POSTGRES_PASSWORD}\"]",
+		"in a command of one string": "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    command: serve --requirepass ${POSTGRES_PASSWORD}",
+		"inside an entrypoint":       "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    entrypoint: [\"run\", \"-p${POSTGRES_PASSWORD}\"]",
 		// A longer name that starts with this one is another secret, not this one inside it.
 		"beside one whose name starts with it": "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n      OTHER: x${POSTGRES_PASSWORD_OLD}",
 	} {
