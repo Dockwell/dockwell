@@ -29,6 +29,12 @@ type Move struct {
 	// own release. Lowers says it moves back, which only works while its data uses
 	// nothing newer than where it goes.
 	RaisesFeatures, Lowers bool
+	// Dumps says its data moves by a dump of the release it runs, loaded into the
+	// new one on a new volume, as PostgreSQL's, MySQL's and MariaDB's do up a release
+	// series (ADR 0080). Volume is the volume its data is on now, which stays as it
+	// is, and Target where the new release has the new one.
+	Dumps          bool
+	Volume, Target string
 }
 
 // lastRapid is the newest rapid release of a major, which the next major moves from
@@ -49,7 +55,8 @@ func startsFrom(major int) string {
 
 // MoveOf says what a change from one spec to another does to the database it runs:
 // nothing, where it isn't one, keeps its release, or its tags name none; a move;
-// or why it's refused. Only MongoDB has rules for it: it moves one major release
+// or why it's refused. PostgreSQL, MySQL and MariaDB move up a release series by a
+// dump into a new volume (seriesMove). MongoDB moves one major release
 // at a time, each from a feature compatibility version equal to the release it's
 // leaving, which the next takes only from some releases, and back one at most
 // (ADR 0038). A tag can name less than what runs, as mongo:8 runs 8.3: the agent
@@ -61,7 +68,7 @@ func MoveOf(name string, current, desired *resourcev1.Service) (*Move, error) {
 	}
 	now, ok := FromSpec(desired)
 	if ok && now.Engine == was.Engine && was.Engine.MovesBySeries() {
-		return nil, seriesMove(name, was.Engine, current, desired)
+		return seriesMove(name, was, current, desired)
 	}
 	if !ok || now.Engine != was.Engine || was.Engine.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		return nil, nil

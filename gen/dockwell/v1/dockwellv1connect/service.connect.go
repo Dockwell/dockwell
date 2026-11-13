@@ -89,8 +89,8 @@ type ServiceServiceClient interface {
 	// UpgradeService plans updating a service to a newer version of what it runs,
 	// safe by default: a backup of each volume it mounts first, the image pulled
 	// before anything stops, room for it on the server checked first, a database's
-	// major release refused as a plain swap, and the health-gated rollout that
-	// rolls back on its own. A service of a catalog install upgrades its install to
+	// major release moved by a dump into a new volume, never as a plain swap, and the
+	// health-gated rollout that rolls back on its own. A service of a catalog install upgrades its install to
 	// the newer release, as UpgradeCatalogInstall plans it. Like DeployService, it
 	// needs no one to read the service's environment back. See
 	// docs/adr/0080-updating-an-app-safely-and-automatically.md.
@@ -262,8 +262,8 @@ type ServiceServiceHandler interface {
 	// UpgradeService plans updating a service to a newer version of what it runs,
 	// safe by default: a backup of each volume it mounts first, the image pulled
 	// before anything stops, room for it on the server checked first, a database's
-	// major release refused as a plain swap, and the health-gated rollout that
-	// rolls back on its own. A service of a catalog install upgrades its install to
+	// major release moved by a dump into a new volume, never as a plain swap, and the
+	// health-gated rollout that rolls back on its own. A service of a catalog install upgrades its install to
 	// the newer release, as UpgradeCatalogInstall plans it. Like DeployService, it
 	// needs no one to read the service's environment back. See
 	// docs/adr/0080-updating-an-app-safely-and-automatically.md.

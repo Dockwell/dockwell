@@ -229,6 +229,9 @@ type Take struct {
 	// Stop stops what runs on the volume for an exact copy, and starts it again
 	// after. A database's dump stops nothing.
 	Stop bool
+	// from is the database to dump, where it isn't what runs on the volume, as a
+	// move dumps the old release in a container of its own (ADR 0080).
+	from *database
 }
 
 // Take takes a backup, and says what it is once it's whole on the disk. Nothing
@@ -271,7 +274,11 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if err := os.MkdirAll(r.dir(take.Ref), 0o700); err != nil {
 		return nil, fmt.Errorf("can't make a place for the backup: %w", err)
 	}
-	if db := users.database(); db != nil && db.running {
+	db := users.database()
+	if take.from != nil {
+		db = take.from
+	}
+	if db != nil && (db.running || take.from != nil) {
 		m.Method, m.Format, m.Database, m.Image = resource.BackupDump, db.kind.dumpFormat(), db.kind.name, db.image
 		err = r.write(take.Ref, m, func(w io.Writer) (int64, error) {
 			if m.Unpacked, err = r.dump(ctx, take.Ref, db, w); err != nil {

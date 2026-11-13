@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -53,6 +54,19 @@ type Driver struct {
 	// Passwords, where set, keeps a database's first user's password the one its
 	// container starts with, as a replace gives it a new one (database.FirstPasswords).
 	Passwords Passwords
+	// Movers moves a database to a newer release by a dump into a new volume, as the
+	// step that replaces its container does (ADR 0080). Only the agent has one.
+	Movers Movers
+}
+
+// Movers moves the database a service runs to a newer release (backup.Runner).
+type Movers interface {
+	JudgeMove(ctx context.Context, mv backup.Move) (resource.MovePlan, time.Duration, error)
+	MoveDatabase(ctx context.Context, mv backup.Move, replace func(context.Context) error) error
+	// MoveFinishes says a move left what it stopped to start, or its dump to
+	// report, which FinishMove does.
+	MoveFinishes(mv backup.Move) (bool, error)
+	FinishMove(ctx context.Context, mv backup.Move) error
 }
 
 // Passwords changes a database's first user's password in what runs of a service, to
@@ -692,7 +706,14 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 			return err
 		}
 	}
-	err = d.Containers.ApplyAt(ctx, t, step, app)
+	switch {
+	case step.Move != nil && step.Move.Finishing:
+		err = d.finishMove(ctx, step, app, t)
+	case step.Move != nil:
+		err = d.move(ctx, step, app, t)
+	default:
+		err = d.Containers.ApplyAt(ctx, t, step, app)
+	}
 	if err != nil && undo != nil {
 		// What failed may have put the old container back, which starts with the old one.
 		back, cancel := resource.Finishing(ctx, passwordsBack)
@@ -702,6 +723,96 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		}
 	}
 	return err
+}
+
+// JudgeMove adds to a step that replaces a service's container what moving its
+// database to a newer release does: what else stops, and for how long its app is
+// down (ADR 0080).
+func (d *Driver) JudgeMove(ctx context.Context, ref resource.Ref, step resource.Step, desired proto.Message, move resource.MoveAsked) (resource.Decision, error) {
+	if d.Movers == nil {
+		return step.Decision, errors.New("this agent can't move a database to a new release")
+	}
+	mv := backup.Move{Service: ref, Asked: move, App: planned(desired).(*resourcev1.Container)}
+	// A move that's done, as a resume finds one whose replace was made, or a
+	// rollback of its change, may have left what it stopped, and its dump to report,
+	// which a step finishes, after what else the step does: what a replace cut short
+	// left, as Settle found it, or the rollback's own replace.
+	if move.Finish {
+		left, err := d.Movers.MoveFinishes(mv)
+		if err != nil || !left {
+			return step.Decision, err
+		}
+		dec := step.Decision
+		if dec.Action == resource.ActionNone {
+			dec.Action = resource.ActionUpdate
+		}
+		dec.Move = &resource.MovePlan{Backup: move.Backup, From: move.From, To: move.To, Change: move.Change, Finishing: true}
+		return dec, nil
+	}
+	if step.Action != resource.ActionReplace {
+		return step.Decision, nil
+	}
+	plan, downtime, err := d.Movers.JudgeMove(ctx, mv)
+	if err != nil {
+		return step.Decision, err
+	}
+	plan.Change = move.Change
+	dec := step.Decision
+	dec.Move, dec.Effect = &plan, resource.EffectRestart
+	dec.Downtime += downtime
+	return dec, nil
+}
+
+// finishMove finishes what a move left: what the step replaces first, as a
+// rollback's does, healthy before what the move stopped starts again.
+func (d *Driver) finishMove(ctx context.Context, step resource.Step, app *resourcev1.Container, t container.Target) error {
+	if d.Movers == nil {
+		return errors.New("this agent can't finish moving a database")
+	}
+	// What the step does beside finishing, such as a replace a crash cut short, or a
+	// rollback's, comes first. Only a step that does nothing else does nothing.
+	if step.Action != resource.ActionUpdate || len(step.Changes) > 0 || step.Rollout != nil {
+		if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
+			return err
+		}
+	}
+	// What stopped starts again only on a database that's up and healthy.
+	if err := d.Containers.VerifyAt(ctx, t); err != nil {
+		return err
+	}
+	return d.Movers.FinishMove(ctx, moveOf(ctx, step, app))
+}
+
+// moveOf is the move a step carries.
+func moveOf(ctx context.Context, step resource.Step, app *resourcev1.Container) backup.Move {
+	return backup.Move{
+		Service: step.Ref, Change: resource.DeployOf(ctx).Change, App: app,
+		Asked: resource.MoveAsked{Backup: step.Move.Backup, From: step.Move.From, To: step.Move.To, Change: step.Move.Change},
+	}
+}
+
+// move replaces a service's container as its step's move says: the database moves
+// to the new release on the new volume first, and the replace's health check
+// passes before what stopped for it starts again.
+func (d *Driver) move(ctx context.Context, step resource.Step, app *resourcev1.Container, t container.Target) error {
+	if d.Movers == nil {
+		return errors.New("this agent can't move a database to a new release")
+	}
+	// The new release's image is here before anything stops, so a pull costs no
+	// downtime.
+	if err := d.Containers.PrepareAt(ctx, t, app); err != nil {
+		return err
+	}
+	err := d.Movers.MoveDatabase(ctx, moveOf(ctx, step, app), func(ctx context.Context) error {
+		if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
+			return err
+		}
+		return d.Containers.VerifyAt(ctx, t)
+	})
+	if err != nil {
+		return resource.Plainly(fmt.Sprintf("Dockwell can't move %s to its new release: %s.", step.Ref.Name, strings.TrimRight(strings.TrimSpace(err.Error()), ".")), err)
+	}
+	return nil
 }
 
 // Verify checks the service's container is healthy.

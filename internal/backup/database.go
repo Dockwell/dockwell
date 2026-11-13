@@ -37,8 +37,9 @@ type databaseKind struct {
 	// series is how many parts of an image's version have to match for its files to
 	// open: the part that names a release of the database.
 	series int
-	// needs is a variable it has to have set for the commands to sign in.
-	needs string
+	// needs are the variables one of which it has to have set for the commands to
+	// sign in.
+	needs []string
 	// dump writes the whole server to stdout; load reads that from stdin, and
 	// ready exits 0 once the server takes connections over TCP, which the
 	// temporary server its image runs while it sets up doesn't.
@@ -65,6 +66,16 @@ type databaseKind struct {
 	verify verifier
 	// replays says a dump may hold an oplog to replay, which its prelude says.
 	replays bool
+	// For a move to a newer release (ADR 0080). preflight prints a line for each
+	// thing that stands in its way, with DW_NATIVE set where users who sign in with
+	// mysql_native_password do. census prints what the server holds, sorted, the
+	// same on either side of a move, for the new release to be held to. upgradeArgs
+	// starts the new release so it brings what it loaded up to its own layout, and
+	// upgrade does that in a running one; either fails if that does.
+	preflight, census, upgradeArgs, upgrade []string
+	// probe, where set, prints ok when a running server's dump keeps everything it
+	// holds; one that doesn't is backed up as files, as before it was dumped.
+	probe []string
 }
 
 // Each official image lets these run from inside with what its environment says.
@@ -78,12 +89,49 @@ var databaseKinds = []*databaseKind{
 		loadFailed: postgresLoadFailed,
 		// pg_isready exits 3 when it never tried: its own command line is wrong.
 		neverReady: func(code int, _ string) bool { return code == 3 },
+		preflight:  []string{"sh", "-c", postgresPreflight},
+		census:     []string{"sh", "-c", postgresCensus},
 	},
 	{
-		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: "MYSQL_ROOT_PASSWORD", series: 2,
+		name: "MySQL", image: "mysql", data: "/var/lib/mysql", needs: []string{"MYSQL_ROOT_PASSWORD"}, series: 2,
 		dump:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysqldump -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges --set-gtid-purged=OFF`},
 		load:       []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot --binary-mode=1`},
 		ready:      []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
+		complete:   "Dump completed",
+		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
+		preflight:  []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; c=mysql; ` + sqlPreflight},
+		census:     []string{"sh", "-c", `export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; exec mysql -uroot -N -B -e "` + sqlCensus + `"`},
+		// From 8.0.16 the server upgrades what it holds as it starts; FORCE makes it
+		// go through tables a load wrote in the old layout.
+		upgradeArgs: []string{"--upgrade=FORCE"},
+	},
+	{
+		// Its tools are mariadb and mariadb-dump from 10.5, and mysql and mysqldump
+		// before; its root password is in either variable, its own first.
+		name: "MariaDB", image: "mariadb", data: "/var/lib/mysql", needs: []string{"MARIADB_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD"}, series: 2,
+		// From 10.11 its dump keeps a system-versioned table's history, with
+		// --dump-history; an older one's would lose it, so a server with such a table
+		// is backed up as files (probe).
+		dump: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
+			`history=""; "$tool" --help 2>/dev/null | grep -q -- '--dump-history' && history=--dump-history; ` +
+			`exec "$tool" -uroot --all-databases --single-transaction --routines --events --triggers --hex-blob --flush-privileges $history`},
+		probe: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb-dump; command -v "$tool" >/dev/null 2>&1 || tool=mysqldump; ` +
+			`if "$tool" --help 2>/dev/null | grep -q -- '--dump-history'; then echo ok; exit 0; fi; ` +
+			`c=mariadb; command -v "$c" >/dev/null 2>&1 || c=mysql; ` +
+			`n=$("$c" -uroot -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_type = 'SYSTEM VERSIONED'") || exit 1; ` +
+			`[ "$n" = 0 ] && echo ok; exit 0`},
+		preflight: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`c=mariadb; command -v "$c" >/dev/null 2>&1 || c=mysql; ` + sqlPreflight},
+		census: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`c=mariadb; command -v "$c" >/dev/null 2>&1 || c=mysql; exec "$c" -uroot -N -B -e "` + sqlCensus + `"`},
+		upgrade: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb-upgrade; command -v "$tool" >/dev/null 2>&1 || tool=mysql_upgrade; exec "$tool" -uroot --force`},
+		load: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb; command -v "$tool" >/dev/null 2>&1 || tool=mysql; exec "$tool" -uroot --binary-mode=1`},
+		ready: []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-$MYSQL_ROOT_PASSWORD}"; ` +
+			`tool=mariadb; command -v "$tool" >/dev/null 2>&1 || tool=mysql; exec "$tool" --protocol=TCP -h127.0.0.1 -uroot -e 'SELECT 1'`},
 		complete:   "Dump completed",
 		neverReady: func(_ int, said string) bool { return strings.Contains(said, "Access denied") },
 	},
@@ -96,6 +144,42 @@ var databaseKinds = []*databaseKind{
 		neverReady: func(code int, _ string) bool { return code == 2 || code == 3 },
 	},
 }
+
+// What a move asks PostgreSQL before it stops anything, a line for each thing in the
+// way: a database that takes no connections, which pg_dumpall leaves out, and
+// replication either way. pg_subscription is from 10.
+const postgresPreflight = `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; u="${POSTGRES_USER:-postgres}"; ` +
+	`psql -X -q -At -U "$u" -d postgres -c "SELECT 'noconnect ' || datname FROM pg_database WHERE NOT datallowconn AND datname <> 'template0' ` +
+	`UNION ALL SELECT 'replica' WHERE pg_is_in_recovery() ` +
+	`UNION ALL SELECT 'replicas ' || count(*) FROM pg_stat_replication HAVING count(*) > 0 ` +
+	`UNION ALL SELECT 'slot ' || slot_name FROM pg_replication_slots" || exit 1; ` +
+	`psql -X -q -At -U "$u" -d postgres -c "SELECT 'subscription ' || subname FROM pg_subscription" 2>/dev/null; exit 0`
+
+// What PostgreSQL holds, as a move compares it: its roles but those it makes itself,
+// and each database that takes connections, with how many tables it has.
+const postgresCensus = `export PGPASSWORD="${POSTGRES_PASSWORD:-}"; u="${POSTGRES_USER:-postgres}"; ` +
+	`q() { psql -X -q -At -U "$u" -d "$1" -c "$2"; }; ` +
+	`q postgres "SELECT 'role ' || rolname FROM pg_roles WHERE rolname !~ '^pg_' ORDER BY 1" || exit 1; ` +
+	`dbs=$(q postgres "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1") || exit 1; ` +
+	`printf '%s\n' "$dbs" | while IFS= read -r d; do [ -n "$d" ] || continue; ` +
+	`n=$(q "$d" "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')") || exit 1; ` +
+	`echo "database $d $n"; done`
+
+// What a move asks MySQL or MariaDB, with $c its client: replication either way, and
+// with DW_NATIVE, its users who sign in with mysql_native_password, which MySQL 8.4
+// doesn't load unless told to.
+const sqlPreflight = `r=$("$c" -uroot -N -B -e 'SHOW REPLICA STATUS' 2>/dev/null || "$c" -uroot -N -B -e 'SHOW SLAVE STATUS') || exit 1; ` +
+	`[ -n "$r" ] && echo replica; ` +
+	`h=$("$c" -uroot -N -B -e 'SHOW REPLICAS' 2>/dev/null || "$c" -uroot -N -B -e 'SHOW REPLICA HOSTS' 2>/dev/null || "$c" -uroot -N -B -e 'SHOW SLAVE HOSTS') || exit 1; ` +
+	`[ -n "$h" ] && echo replicas; ` +
+	`if [ -n "$DW_NATIVE" ]; then "$c" -uroot -N -B -e "SELECT CONCAT('native ', user, '@', host) FROM mysql.user WHERE plugin = 'mysql_native_password' AND user NOT LIKE 'mysql.%'" || exit 1; fi; exit 0`
+
+// What MySQL or MariaDB holds, as a move compares it: each database but its own,
+// with how many tables it has, and its users but those it makes itself.
+const sqlCensus = `SELECT CONCAT('database ', s.schema_name, ' ', COUNT(t.table_name)) FROM information_schema.schemata s ` +
+	`LEFT JOIN information_schema.tables t ON t.table_schema = s.schema_name ` +
+	`WHERE s.schema_name NOT IN ('mysql', 'sys', 'information_schema', 'performance_schema') GROUP BY s.schema_name ORDER BY 1; ` +
+	`SELECT CONCAT('user ', user, '@', host) FROM mysql.user WHERE user NOT LIKE 'mysql.%' AND user <> 'mariadb.sys' ORDER BY 1`
 
 // dumpFormat is what a kind's dump is kept as.
 func (k *databaseKind) dumpFormat() string {
@@ -131,9 +215,9 @@ func kindOf(c *docker.Container, volumeName string) *databaseKind {
 		if repo != k.image {
 			continue
 		}
-		if k.needs != "" && !slices.ContainsFunc(c.Config.Env, func(e string) bool {
+		if len(k.needs) > 0 && !slices.ContainsFunc(c.Config.Env, func(e string) bool {
 			name, value, _ := strings.Cut(e, "=")
-			return name == k.needs && value != ""
+			return slices.Contains(k.needs, name) && value != ""
 		}) {
 			continue
 		}
@@ -317,7 +401,7 @@ func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 		}
 		u := userOf(c)
 		out.list = append(out.list, u)
-		if k := kindOf(c, t.Name); k != nil && out.db == nil {
+		if k := kindOf(c, t.Name); k != nil && out.db == nil && r.dumpable(ctx, k, c) {
 			out.db = &database{user: u, kind: k, image: c.Config.Image}
 			if k.portFlags {
 				out.db.port = portOf(c.Config.Cmd)
@@ -329,6 +413,17 @@ func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 	}
 	slices.SortFunc(out.list, func(a, b *user) int { return strings.Compare(a.name, b.name) })
 	return out, nil
+}
+
+// dumpable says a running database's dump keeps what it holds, as its probe says;
+// one with no probe, or not running, does as far as a dump can tell.
+func (r *Runner) dumpable(ctx context.Context, k *databaseKind, c *docker.Container) bool {
+	if k.probe == nil || !c.State.Running {
+		return true
+	}
+	out := &tail{}
+	code, err := r.Client.Exec(ctx, c.ID, k.probe, docker.Streams{Stdout: out})
+	return err == nil && code == 0 && strings.TrimSpace(out.String()) == "ok"
 }
 
 // userOf is a container as a plan names it: by its service, or its own name.

@@ -228,3 +228,37 @@ func TestAnUpgradeKeepsANetworkInUse(t *testing.T) {
 		t.Errorf("deletes %+v, want back alone, as mine and web are on default", deletes)
 	}
 }
+
+// pgOn is PostgreSQL of image with its data in volume at target.
+func pgOn(image, volume, target string) *resourcev1.Service {
+	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		Image: image, Mounts: []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: volume}, Target: target}},
+	}}}
+}
+
+// H3: an upgrade of an install whose database a move took to a new volume keeps it
+// there, as a person's change: the file still names the old volume, which holds
+// what was there before the move. PostgreSQL 18 keeps it a level up, at another
+// target, and that holds too. The image follows the release, as an upgrade's does:
+// one that's still on 16 is then refused, as 16 can't read 17's data.
+func TestAnUpgradeKeepsAMovedDatabaseOnItsNewVolume(t *testing.T) {
+	for _, c := range []struct {
+		ours   *resourcev1.Service
+		volume string
+		target string
+	}{
+		{pgOn("postgres:17.2", "pgdata-17", "/var/lib/postgresql/data"), "pgdata-17", "/var/lib/postgresql/data"},
+		{pgOn("postgres:18.1", "pgdata-18", "/var/lib/postgresql"), "pgdata-18", "/var/lib/postgresql"},
+	} {
+		base := pgOn("postgres:16.4", "pgdata", "/var/lib/postgresql/data")
+		next := pgOn("postgres:16.6", "pgdata", "/var/lib/postgresql/data")
+		merged, _ := mergeService(base, c.ours, next)
+		mounts := merged.GetApp().GetMounts()
+		if len(mounts) != 1 || mounts[0].GetVolume() != c.volume || mounts[0].GetTarget() != c.target {
+			t.Errorf("with %s, the upgrade mounts %v", c.volume, mounts)
+		}
+		if merged.GetApp().GetImage() != next.GetApp().GetImage() {
+			t.Errorf("with %s, the upgrade runs %s", c.volume, merged.GetApp().GetImage())
+		}
+	}
+}

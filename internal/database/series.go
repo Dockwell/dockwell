@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"path"
 	"strconv"
 	"strings"
 
@@ -56,20 +57,24 @@ func seriesOf(e *Engine, version string) string {
 }
 
 // seriesRefused says why a change of a database's image from one series to
-// another is refused, in a line: the fact, what it would mean, and what to pick.
-// It starts with the engine, never the service's name, which a surface would
-// give a capital.
-func seriesRefused(name string, e *Engine, from, to string) string {
-	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
-		return fmt.Sprintf("PostgreSQL %s can't start on the data of %s, which runs PostgreSQL %s, so its image stays as it is. "+
-			"Dockwell can't move a database across major releases yet: keep it on %s", to, name, from, from)
+// another, which its tags don't name, is refused as it applies, in a line: the
+// fact, what it would mean, and what to do. It starts with the engine, never the
+// service's name, which a surface would give a capital.
+func seriesRefused(name string, e *Engine, repo, from, to string) string {
+	if !newer(to, from) {
+		return fmt.Sprintf("%s %s can't read the data of %s, which runs %s %s, so its image stays as it is. Keep it on %s", e.Name, to, name, e.Name, from, from)
 	}
-	if newer(to, from) {
-		return fmt.Sprintf("%s %s would move the data of %s, which runs %s, on for good, and %s can't read it again, so neither undo nor a rollback could put it back. "+
-			"Dockwell can't move a database across release series yet: keep it on %s", e.Name, to, name, from, from, from)
+	what := fmt.Sprintf("%s %s can't start on the data of %s, which runs %s %s", e.Name, to, name, e.Name, from)
+	if e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+		what = fmt.Sprintf("%s %s would move the data of %s, which runs %s, on for good, and %s can't read it again", e.Name, to, name, from, from)
 	}
-	return fmt.Sprintf("%s %s can't read the data of %s, which runs %s %s, so its image stays as it is. Keep it on %s", e.Name, to, name, e.Name, from, from)
+	return fmt.Sprintf("%s, so its image stays as it is. Dockwell moves a database to a new release by a dump into a new volume where its tag names both: set its image to %s:%s, then to %s:%s",
+		what, repo, from, repo, to)
 }
+
+// Newer says series a is after series b, as "8.4" is after "8.0" and "17" after
+// "9.6".
+func Newer(a, b string) bool { return newer(a, b) }
 
 // newer says series a is after series b, as "8.4" is after "8.0" and "17" after
 // "9.6".
@@ -90,15 +95,50 @@ func newer(a, b string) bool {
 	return false
 }
 
-// seriesMove refuses a change of a database's image across release series, as its
-// tags say, before anything is planned (ADR 0080). A tag that names less, such as
-// latest, is asked of the image itself as the change applies (sameSeries).
-func seriesMove(name string, e *Engine, current, desired *resourcev1.Service) error {
+// seriesMove is what a change of a database's image across release series, as
+// its tags say, does to its data (ADR 0080): moving up, a dump of the release it
+// runs, loaded into the new one on a new volume, so the old volume stays as it was
+// for undo. Moving down, or with its data where Dockwell can't back it up, it's
+// refused before anything is planned. A change that mounts another volume in place
+// of the one its data is on starts the new release on that data, so it's no move.
+// A tag that names less, such as latest, is asked of the image itself as the change
+// applies (sameSeries).
+func seriesMove(name string, was Found, current, desired *resourcev1.Service) (*Move, error) {
+	e := was.Engine
 	from, to := Series(e, current.GetApp().GetImage()), Series(e, desired.GetApp().GetImage())
 	if from == "" || to == "" || from == to {
-		return nil
+		return nil, nil
 	}
-	return fmt.Errorf("%s", seriesRefused(name, e, from, to))
+	if was.Volume != "" && !mounts(desired.GetApp(), was.Volume, was.External) {
+		return nil, nil
+	}
+	if !newer(to, from) {
+		return nil, fmt.Errorf("%s %s can't read the data of %s, which runs %s %s, so its image stays as it is. Keep it on %s", e.Name, to, name, e.Name, from, from)
+	}
+	moves := fmt.Sprintf("%s %s moves the data of %s, which runs %s %s, by a dump into a new volume", e.Name, to, name, e.Name, from)
+	switch {
+	case was.Volume == "":
+		return nil, fmt.Errorf("%s, and its data isn't in a volume of its environment, so its image stays as it is. Keep it on %s", moves, from)
+	case was.External:
+		return nil, fmt.Errorf("%s, and its data is in %s, a volume Dockwell didn't make and can't back up, so its image stays as it is. Keep it on %s", moves, was.Volume, from)
+	}
+	target := was.Target
+	if !was.Moved && target == e.Volume(Major(current.GetApp().GetImage())) {
+		// Where the image declares its volume, which moves with a release, as
+		// PostgreSQL 18's goes one up.
+		target = e.Volume(Major(desired.GetApp().GetImage()))
+	}
+	return &Move{Engine: e, From: from, To: to, Dumps: true, Volume: was.Volume, Target: target}, nil
+}
+
+// mounts says a container mounts a volume, by name.
+func mounts(app *resourcev1.Container, volume string, external bool) bool {
+	for _, m := range app.GetMounts() {
+		if m.GetVolume() == volume && m.GetExternal() == external {
+			return true
+		}
+	}
+	return false
 }
 
 // seriesFromEnv is the series an official image says it runs, in its environment:
@@ -143,14 +183,59 @@ func (r Reader) sameSeries(ctx context.Context, e *Engine, old *docker.Container
 		return nil //nolint:nilerr // nothing to compare with: the database says it as it starts
 	}
 	from, to := seriesFromEnv(e, was.Config.Env), seriesFromEnv(e, now.Config.Env)
-	if from == "" || to == "" || from == to {
+	if from == "" || to == "" || from == to || !keepsData(e, old, spec) {
 		return nil
 	}
 	name := old.Config.Labels[docker.LabelService]
 	if name == "" {
 		name = strings.TrimPrefix(old.Name, "/")
 	}
-	plain := fmt.Sprintf("%s names %s %s now. %s, such as with %s:%s. Nothing was stopped.", spec.GetImage(), e.Name, to, seriesRefused(name, e, from, to), Repository(spec.GetImage()), from)
+	plain := fmt.Sprintf("%s names %s %s now. %s. Nothing was stopped.", spec.GetImage(), e.Name, to, seriesRefused(name, e, Repository(spec.GetImage()), from, to))
 	return resource.PlainlyBecause(resource.ReasonDatabaseRelease, plain,
 		fmt.Errorf("%s runs %s %s, and %s names %s", name, e.Name, from, spec.GetImage(), to))
+}
+
+// keepsData says a container replacing old starts on old's data: spec mounts the
+// volume old has it in, or old has it where a replace carries it over, in a volume
+// Docker made for its image. One that mounts another volume there starts on what
+// that holds, as an undo of a move does.
+func keepsData(e *Engine, old *docker.Container, spec *resourcev1.Container) bool {
+	var data *docker.MountPoint
+	for i := range old.Mounts {
+		m := &old.Mounts[i]
+		if m.Type == "volume" && Holds(path.Clean(m.Destination), oldDataDir(e, old)) && (data == nil || len(m.Destination) > len(data.Destination)) {
+			data = m
+		}
+	}
+	if data == nil || docker.AnonymousVolume(data.Name) {
+		return true
+	}
+	project := old.Config.Labels[docker.LabelProject]
+	for _, m := range spec.GetMounts() {
+		if m.GetVolume() == "" {
+			continue
+		}
+		name := m.GetVolume()
+		if !m.GetExternal() && project != "" {
+			name = docker.ScopedName(project, name)
+		}
+		if name == data.Name {
+			return true
+		}
+	}
+	return false
+}
+
+// oldDataDir is where a container of the engine has its data: where its variable
+// or flag says, or where its image's release keeps it.
+func oldDataDir(e *Engine, c *docker.Container) string {
+	for _, kv := range c.Config.Env {
+		if v, ok := strings.CutPrefix(kv, e.DataVar+"="); e.DataVar != "" && ok && v != "" {
+			return path.Clean(v)
+		}
+	}
+	if v := FlagValue(c.Config.Cmd, e.DataFlag); v != "" {
+		return path.Clean(v)
+	}
+	return e.Data(Major(c.Config.Image))
 }

@@ -538,6 +538,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if r := d.GetRestore(); r != nil {
 				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
 			}
+			if m := d.GetMoveDatabase(); m != nil {
+				want.Move = &resource.MoveAsked{Backup: m.GetBackupId(), From: m.GetFromVolume(), To: m.GetToVolume(), Change: m.GetChangeId(), Finish: m.GetFinishOnly()}
+			}
 			wanted = append(wanted, want)
 			if n := d.GetScopeName(); n != "" {
 				names[ref.Scope] = n

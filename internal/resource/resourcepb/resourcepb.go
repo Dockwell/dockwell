@@ -183,6 +183,12 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	if b := s.BackupFirst; b != nil {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured}
 	}
+	if m := s.Move; m != nil {
+		p.DatabaseMove = &dockwellv1.DatabaseMove{
+			BackupId: m.Backup, Database: m.Database, FromSeries: m.FromSeries, ToSeries: m.ToSeries, FromVolume: m.From, ToVolume: m.To,
+			Stops: m.Stops, EstimateBytes: m.Estimate, Unmeasured: m.Unmeasured, Finishing: m.Finishing, ChangeId: m.Change, StaysStopped: m.StaysStopped,
+		}
+	}
 	if b := s.Build; b != nil {
 		p.Build = &dockwellv1.BuildPlan{
 			Url: b.URL, Ref: b.Ref, Commit: b.Commit, Context: b.Context, Dockerfile: b.Dockerfile, Image: b.Image,
@@ -525,6 +531,12 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.Reboot = RebootFrom(p.GetReboot())
 	if b := p.GetBackupFirst(); b != nil {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured()}
+	}
+	if m := p.GetDatabaseMove(); m != nil {
+		s.Move = &resource.MovePlan{
+			Backup: m.GetBackupId(), Database: m.GetDatabase(), FromSeries: m.GetFromSeries(), ToSeries: m.GetToSeries(), From: m.GetFromVolume(), To: m.GetToVolume(),
+			Stops: m.GetStops(), Estimate: m.GetEstimateBytes(), Unmeasured: m.GetUnmeasured(), Finishing: m.GetFinishing(), Change: m.GetChangeId(), StaysStopped: m.GetStaysStopped(),
+		}
 	}
 	if b := p.GetBuild(); b != nil {
 		s.Build = &resource.BuildPlan{

@@ -430,6 +430,9 @@ type ResourcePlan struct {
 	Restore *resource.RestoreSource `json:",omitempty"`
 	// Backups are the backups the change takes of it, by server ID.
 	Backups map[string]string `json:",omitempty"`
+	// Move is the database the change moves to a newer release, by a dump into a
+	// new volume (ADR 0080).
+	Move *resource.MoveAsked `json:",omitempty"`
 	// Action is what its steps on every server add up to (see
 	// item.resourcePlan), or for a kind that runs on no server, what its
 	// revision does: create, update or delete. None means nothing changes.
@@ -622,6 +625,9 @@ type item struct {
 	restore *resource.RestoreSource
 	// backups are the backups the change takes of it first, by server ID.
 	backups map[string]string
+	// move is the database it moves to a newer release, by a dump into a new
+	// volume, on one server (ADR 0080).
+	move *resource.MoveAsked
 	// install is the install of updates the change asks of a server's host.
 	install *resource.InstallAsked
 	// reboot names the reboot the change asks of a server's host: the change's ID.
@@ -640,6 +646,14 @@ func (it item) backupOn(server string) *resource.BackupAsked {
 		return &resource.BackupAsked{ID: backup}
 	}
 	return nil
+}
+
+// moveOn is the database move the item makes on a server, if any.
+func (it item) moveOn(server string) *resource.MoveAsked {
+	if it.move == nil || it.move.Server != server {
+		return nil
+	}
+	return it.move
 }
 
 // restoreOn is what the item restores on a server, if anything.
@@ -725,12 +739,35 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			backUp = append(backUp, ref)
 		}
 	}
+	// A database whose data goes back to a volume it moved away from is refused
+	// where a later release would take that old data, and said otherwise.
+	back, err := e.goingBack(ctx, items)
+	if err != nil {
+		return nil, err
+	}
+	moves = append(moves, back...)
+	// A database that moves by a dump into a new volume takes that dump as its
+	// backup, so its volume isn't backed up again, whatever was asked.
+	dumped, err := e.dumpMoves(ctx, &p, items)
+	if err != nil {
+		return nil, err
+	}
+	backUp = slices.DeleteFunc(backUp, func(ref resource.Ref) bool {
+		return slices.ContainsFunc(dumped, func(d dumpMove) bool { return d.volume == ref })
+	})
 	if len(backUp) > 0 {
 		if p.Edits, err = e.withBackups(ctx, p.Edits, backUp); err != nil {
 			return nil, err
 		}
+	}
+	if len(backUp) > 0 || len(dumped) > 0 {
 		if items, err = e.items(ctx, p.Edits, rotate); err != nil {
 			return nil, err
+		}
+	}
+	for i := range items {
+		if j := slices.IndexFunc(dumped, func(d dumpMove) bool { return d.service == items[i].ref }); j >= 0 {
+			items[i].move = dumped[j].asked
 		}
 	}
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -746,6 +783,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	}
 	changeID := id.New(id.Change)
 	for i := range items {
+		if items[i].move != nil {
+			items[i].move.Change = changeID
+		}
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
 			items[i].restart = changeID
 		}
@@ -784,7 +824,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	moves = slices.DeleteFunc(moves, func(n Note) bool {
 		return (n.Reason == "backup_first" || n.Reason == "no_backup") && slices.ContainsFunc(p.Notes, func(m Note) bool { return m.Reason == n.Reason })
 	})
-	p.Notes = append(p.Notes, moves...)
+	p.Notes = moveNotes(plan, append(p.Notes, moves...))
 	if p.Unpinned != nil && plan.imageGone() {
 		return e.propose(ctx, *p.Unpinned, reverts, rotate)
 	}
@@ -2647,7 +2687,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Install: it.install, Reboot: it.rebootAsked()}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked()}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -2820,7 +2860,7 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	}
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
-		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore, Backups: it.backups,
+		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore, Backups: it.backups, Move: it.move,
 	}
 	switch {
 	case slices.Contains(steps, resource.ActionReplace):
@@ -3241,6 +3281,15 @@ func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit
 	items, err := e.items(waitsForNone(ctx, failed.ID), edits, true)
 	if err != nil {
 		return nil, err
+	}
+	// What a move of the failed change stopped, and its dump, the rollback's step of
+	// the database finishes, as nothing else starts what a move stopped.
+	for i := range items {
+		if _, _, move := restoreIn(failed, items[i].ref); move != nil {
+			finish := *move
+			finish.Finish = true
+			items[i].move = &finish
+		}
 	}
 	c := store.Change{
 		ID: id.New(id.Change), Summary: "Roll back " + failed.Summary, Actor: SystemActor, State: store.ChangePlanned, Reverts: failed.ID,
@@ -3692,7 +3741,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			continue
 		}
 		if told.Backup != nil && e.onBackup != nil {
-			e.onBackup(ctx, BackupStep{Change: c, Volume: it.ref, VolumeID: it.id, Server: q.server, Taken: *told.Backup})
+			// A move's dump is a backup of the volume the data was on.
+			volume, volumeID := it.ref, it.id
+			if m := it.moveOn(q.server); m != nil {
+				volume, volumeID = resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: m.From}, m.FromID
+			}
+			e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: *told.Backup})
 		}
 		did := q.step.Action
 		if told.Did != nil {
@@ -3993,7 +4047,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if restarts(c, ref) {
 				it.restart = c.ID
 			}
-			it.restore, it.backups = restoreIn(c, ref)
+			it.restore, it.backups, it.move = restoreIn(c, ref)
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
@@ -4178,7 +4232,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		if restarts(c, ref) {
 			it.restart = c.ID
 		}
-		it.restore, it.backups = restoreIn(c, ref)
+		it.restore, it.backups, it.move = restoreIn(c, ref)
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
 		items = append(items, it)
@@ -4232,6 +4286,12 @@ func (e *Engine) unmoved(ctx context.Context, tx *store.Tx, c store.Change, item
 // it up again.
 func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, cause error, plain string) error {
 	ferr := &FailedError{Change: c.ID, Step: at, Err: cause}
+	// A database the change had moved goes back to its old volume with the rest.
+	if !IsRollback(c) {
+		if moved := afterMove(c, e.progress(c.ID)); moved != "" {
+			plain = strings.TrimRight(strings.TrimSpace(plain), ".") + ". " + moved
+		}
+	}
 	if err := e.finish(ctx, c, store.ChangeFailed, plain, "change.failed", e.progress(c.ID)); err != nil {
 		return errors.Join(ferr, err)
 	}
@@ -4370,7 +4430,7 @@ func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, er
 func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
 	for i := range c.Items {
 		ref := resource.Ref{Kind: resource.Kind(c.Items[i].Kind), Scope: c.Items[i].Scope, Name: c.Items[i].Name}
-		if source, _ := restoreIn(c, ref); source != nil {
+		if source, _, _ := restoreIn(c, ref); source != nil {
 			return ref, source, true
 		}
 	}
@@ -4380,26 +4440,27 @@ func restoring(c store.Change) (resource.Ref, *resource.RestoreSource, bool) {
 // restoreIn is what a change restores a resource from, and the backups it takes of
 // it, as its plan says: like a restart, neither is in the spec the store keeps for
 // the change's item.
-func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[string]string) {
+func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[string]string, *resource.MoveAsked) {
 	if len(c.Plan) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var p struct {
 		Resources []struct {
 			Ref     resource.Ref
 			Restore *resource.RestoreSource
 			Backups map[string]string
+			Move    *resource.MoveAsked
 		}
 	}
 	if json.Unmarshal(c.Plan, &p) != nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	for i := range p.Resources {
 		if p.Resources[i].Ref == ref {
-			return p.Resources[i].Restore, p.Resources[i].Backups
+			return p.Resources[i].Restore, p.Resources[i].Backups, p.Resources[i].Move
 		}
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 // installIn is the install of updates change c asks of ref, as its plan fixed
@@ -4554,7 +4615,7 @@ func databaseMoves(items []item, skip bool, features func(serviceID string) stri
 			return nil, nil, fault.New(ErrInvalid, "%w", err)
 		}
 		switch {
-		case move == nil:
+		case move == nil || move.Dumps:
 			continue
 		case move.Lowers:
 			fcv := ""

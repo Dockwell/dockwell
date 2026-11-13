@@ -56,7 +56,9 @@ export function UpgradeLine({ intent }: { intent: Intent }) {
 export function UpgradePhases({ phases }: { phases: readonly UpgradePhase[] }) {
   const { t, i18n } = useLingui();
   const label = (key: UpgradePhaseKey) =>
-    ({ backup: t`Back up`, pull: t`Pull the image`, start: t`Start`, check: t`Health check` })[key];
+    ({ backup: t`Back up`, move: t`Move the data`, pull: t`Pull the image`, start: t`Start`, check: t`Health check` })[
+      key
+    ];
   const stateWord = (phase: UpgradePhase) =>
     ({ queued: t`To come`, current: t`Under way`, done: t`Done`, failed: t`Failed` })[phase.state];
   return (

@@ -1663,16 +1663,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 }
 
 func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
-	if err := d.roomFor(ctx, t, spec.GetImage()); err != nil {
-		return err
-	}
-	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
-		return err
-	}
-	if err := d.CheckHost(ctx, t, spec); err != nil {
-		return err
-	}
-	if err := d.checkRefs(ctx, t, spec); err != nil {
+	if err := d.Prepare(ctx, t, spec); err != nil {
 		return err
 	}
 	if c, err := d.find(ctx, t.Name); err != nil {
@@ -1688,6 +1679,22 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 		}
 	}
 	return d.roll(ctx, t, spec, dec)
+}
+
+// Prepare does what a run does before anything stops: it pulls spec's image where
+// the server hasn't it, with room for it, and checks what spec mounts and joins is
+// there. A move does it before it stops anything (ADR 0080).
+func (d *Docker) Prepare(ctx context.Context, t Target, spec *resourcev1.Container) error {
+	if err := d.roomFor(ctx, t, spec.GetImage()); err != nil {
+		return err
+	}
+	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
+		return err
+	}
+	if err := d.CheckHost(ctx, t, spec); err != nil {
+		return err
+	}
+	return d.checkRefs(ctx, t, spec)
 }
 
 // joinIngress puts a service's new container on the ingress network, at its

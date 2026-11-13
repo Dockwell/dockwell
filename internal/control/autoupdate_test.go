@@ -4,7 +4,9 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +17,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/autoupdate"
 	logapi "github.com/dockwell/dockwell/internal/control/logs"
 	"github.com/dockwell/dockwell/internal/control/services"
@@ -169,6 +172,42 @@ volumes:
 	if got := b.e.Newest(docker.Project(env), "db").Config.Image; got != "postgres:16.4" || b.e.Pulls != pulls {
 		t.Errorf("a database's major release was taken on its own: it runs %s", got)
 	}
+	// Nor another release series that its version's numbers call minor, as MySQL 8.0
+	// to 8.4 is, which moves its data by a dump.
+	b.e.Registry["mysql:8.0.36"] = dockertest.Image{Volumes: []string{"/var/lib/mysql"}, Config: docker.Config{Cmd: []string{"mysqld"}, Env: []string{"MYSQL_MAJOR=8.0"}}}
+	b.run(t, &dockwellv1.ImportComposeRequest{Compose: `name: books
+services:
+  ledger:
+    image: mysql:8.0.36
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+    volumes:
+      - data:/var/lib/mysql
+volumes:
+  data: {}
+`})
+	ledger := b.service(t, "books", "ledger")
+	b.setAutoUpdate(t, ledger, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_ANY, At: "03:00", TimeZone: "UTC"})
+	r.Updates = &newer{found: map[string]services.Newer{ledger.GetId(): {Image: "mysql:8.4.3", Kind: "minor"}}}
+	planned := &countingPlanner{Planner: r.Planner}
+	r.Planner = planned
+	if err := r.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if planned.n != 0 {
+		t.Errorf("MySQL 8.0's move to 8.4 was planned on its own, %d times", planned.n)
+	}
+}
+
+// countingPlanner counts the updates a runner plans.
+type countingPlanner struct {
+	autoupdate.Planner
+	n int
+}
+
+func (c *countingPlanner) UpgradeService(ctx context.Context, req *connect.Request[dockwellv1.UpgradeServiceRequest]) (*connect.Response[dockwellv1.UpgradeServiceResponse], error) {
+	c.n++
+	return c.Planner.UpgradeService(ctx, req)
 }
 
 // An admin's default for new apps' automatic updates goes to an app a change
@@ -361,5 +400,109 @@ func TestAnAutomaticUpdateOfACatalogInstallUpgradesIt(t *testing.T) {
 	}
 	if got := u.web().Config.Image; got != secondRelease {
 		t.Errorf("a catalog install's minor release on its own: web runs %s", got)
+	}
+}
+
+// dbEntry is a catalog entry whose app keeps its data in PostgreSQL of image.
+func dbEntry(release int, version, image string) string {
+	return fmt.Sprintf(`id: thing
+name: Thing
+summary: Something to upgrade
+category: storage
+version: %q
+release: %d
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+inputs:
+  - name: PASSWORD
+    label: Password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+compose: |
+  services:
+    db:
+      image: %s
+      environment:
+        POSTGRES_PASSWORD: ${PASSWORD}
+      volumes:
+        - pgdata:/var/lib/postgresql/data
+  volumes:
+    pgdata: {}
+`, version, release, image)
+}
+
+// M1: a catalog release that moves its install's database to another release, as
+// one that takes postgres from 16 to 17 does, is never applied on its own, whatever
+// its kind: its plan, which moves the data, is left for a person.
+func TestAnAutomaticUpdateNeverMovesADatabaseInACatalogRelease(t *testing.T) {
+	u := &upgrading{t: t, dir: t.TempDir()}
+	t.Setenv(catalog.DirEnv, u.dir)
+	u.release(dbEntry(1, "1.0", "postgres:16.4@sha256:"+digest1))
+	f := startFull(t, store.SQLite, nil)
+	u.b, u.f = signedIn(t, f), f
+	u.e = f.addDockerServer(t)
+	u.e.Find = func(ref string) (dockertest.Image, bool) {
+		switch {
+		case strings.HasPrefix(ref, "postgres:16"):
+			return pgOf("16"), true
+		case strings.HasPrefix(ref, "postgres:17"):
+			return pgOf("17"), true
+		}
+		return dockertest.Image{}, true
+	}
+	u.c, u.cat = changeClient(u.b, u.b.origin), catalogClient(u.b)
+	apply(t, u.c, installApp(t, u.cat, &dockwellv1.InstallCatalogEntryRequest{Id: "thing"}))
+	for _, r := range mustList(t, u.b).GetResources() {
+		u.env = r.GetId()
+	}
+	u.release(dbEntry(2, "1.1", "postgres:17.2@sha256:"+digest2))
+	s := dockwellv1connect.NewServiceServiceClient(u.b, u.b.origin, connect.WithProtoJSON())
+	list, err := s.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var db *dockwellv1.ServiceInfo
+	for _, svc := range list.Msg.GetServices() {
+		if svc.GetResource().GetName() == "db" {
+			db = svc
+		}
+	}
+	if db == nil {
+		t.Fatalf("no db among %v", list.Msg.GetServices())
+	}
+	b := &bench{f: u.f, b: u.b, e: u.e, c: u.c, s: s}
+	b.setAutoUpdate(t, db, &resourcev1.AutoUpdate{Level: resourcev1.AutoUpdate_LEVEL_ANY, At: "03:00", TimeZone: "UTC"})
+	r := &autoupdate.Runner{
+		DB: u.f.store, Keeper: u.f.keeper, Planner: u.f.server.autoupdates.Planner, Engine: u.f.engine,
+		Updates: &newer{found: map[string]services.Newer{db.GetId(): {Kind: "release", Catalog: true}}},
+		Logger:  slog.New(slog.DiscardHandler), Now: func() time.Time { return time.Date(2026, 11, 14, 3, 5, 0, 0, time.UTC) },
+	}
+	if err := r.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := u.e.Newest(docker.Project(db.GetResource().GetScope()), "db").Config.Image; !strings.HasPrefix(got, "postgres:16") {
+		t.Errorf("a catalog release moved the database on its own: it runs %s", got)
+	}
+	planned, err := u.c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	left := false
+	for _, listed := range planned.Msg.GetChanges() {
+		if listed.GetState() != dockwellv1.ChangeState_CHANGE_STATE_PLANNED {
+			continue
+		}
+		got, err := u.c.GetChange(t.Context(), connect.NewRequest(&dockwellv1.GetChangeRequest{Id: listed.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, sv := range got.Msg.GetChange().GetPlan().GetServers() {
+			left = left || slices.ContainsFunc(sv.GetSteps(), func(st *dockwellv1.PlanStep) bool { return st.GetDatabaseMove() != nil })
+		}
+	}
+	if !left {
+		t.Error("the release's move isn't left planned for a person")
 	}
 }

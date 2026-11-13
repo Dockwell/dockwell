@@ -42,6 +42,9 @@ type Desired struct {
 	// Backup backs up the resource's data as a step of this change. Its kind is a
 	// BackerUp.
 	Backup *BackupAsked
+	// Move moves the database a service runs to a newer release, by a dump into a
+	// new volume, as its step replaces its container. Its kind is a Mover.
+	Move *MoveAsked
 	// Install installs the server's updates as a step of this change. Its kind is
 	// an Installer.
 	Install *InstallAsked
@@ -52,6 +55,25 @@ type Desired struct {
 // BackupAsked is a backup a change asks a step to take, under the ID it gave it.
 type BackupAsked struct {
 	ID string
+}
+
+// MoveAsked is a database a change moves to a newer release on a server, by a dump
+// of the release it runs, kept as a backup of the volume From under the ID Backup,
+// loaded into the new release on the volume To (ADR 0080). From and To are volumes
+// of the service's environment, by name, and FromID is From's resource ID, which
+// the backup is recorded against. Change is the change that moves it, which names
+// what the move stops, so a resume finds it. Database, FromSeries and ToSeries say
+// what moves, as its tags said, for what a later change says of the old volume.
+type MoveAsked struct {
+	Server, Backup   string
+	From, FromID, To string
+	Change           string `json:",omitempty"`
+	// Finish asks only to start what the move stopped and report its dump, where
+	// it left those, as a rollback of its change does: it never moves anything.
+	Finish     bool   `json:",omitempty"`
+	Database   string `json:",omitempty"`
+	FromSeries string `json:",omitempty"`
+	ToSeries   string `json:",omitempty"`
 }
 
 // Agent plans and applies on one server, with that server's drivers. In
@@ -286,7 +308,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Install: want.Install, Reboot: want.Reboot}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -439,6 +461,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				step.Decision = dec
 			}
 			step.Pull = step.Action != ActionNone
+		}
+		// A move judges what's left once Settle and the run's own checks have: a spec
+		// that's what runs already means the move replaced it, and a step finishes
+		// it, with what a replace cut short left first, as those found it. Otherwise
+		// a replace has the move to do (ADR 0080).
+		if want.Move != nil {
+			m, ok := d.(Mover)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't move a database to a new release", want.Ref)
+			}
+			move := *want.Move
+			move.Finish = move.Finish || Equal(actual, spec)
+			if step.Decision, err = m.JudgeMove(ctx, want.Ref, step, spec, move); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
 		}
 		// Nothing is mounted for a step with nothing to do, and a dead path on what's
 		// left as it is shouldn't refuse a plan for something else.

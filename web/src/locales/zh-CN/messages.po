@@ -7724,6 +7724,9 @@ msgstr "从 <0>{from}</0> 到 <1>{to}</1>"
 msgid "How the update is going"
 msgstr "更新进度"
 
+msgid "Move the data"
+msgstr "迁移数据"
+
 msgid "Pull the image"
 msgstr "拉取镜像"
 

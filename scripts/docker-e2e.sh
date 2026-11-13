@@ -16,7 +16,8 @@
 # a password no one typed, but for the tunnel, which stops at its plan. A volume,
 # PostgreSQL and MySQL each back up, lose their data, and get it back through a
 # plan, with owners and modes as they were, and a backup goes sealed to an S3 server and
-# comes back. PostgreSQL, MySQL and Redis each say what they hold, read in their own
+# comes back. PostgreSQL, MySQL and MariaDB each move to a newer release by a dump into a
+# new volume, and PostgreSQL's move undoes. PostgreSQL, MySQL and Redis each say what they hold, read in their own
 # containers with what their environments have, and no password shows. Then the agent build joins the
 # full build's control plane, and runs a container on the same Docker. Before
 # that, a route gets a real certificate from Pebble, Let's Encrypt's test CA,
@@ -4398,6 +4399,93 @@ backup_healthy "$(mongo_db)"
 said=$(mongo_reads)
 jq -e '.readings[0] | (.version | startswith("6.0.")) and .featureCompatibility == "6.0"' <<<"$said" >/dev/null || fail "after the undo MongoDB reads as: $said"
 [[ "$(mongo_eval 'print(db.getSiblingDB("shop").orders.countDocuments())')" == 500 ]] || fail "the undo lost the orders"
+
+step "Updates: PostgreSQL 16 moves to 17 by a dump into a new volume, what else runs stops and starts again, and undo puts 16 back on the volume it kept"
+pgmove_file() {
+  printf 'name: e2e-pgmove\nservices:\n  ledger:\n    image: %s\n    environment:\n      POSTGRES_PASSWORD: e2e-move-password\n    volumes: [pgdata:/var/lib/postgresql/data]\n    healthcheck:\n      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U postgres]\n      interval: 1s\n      timeout: 3s\n      retries: 60\n  till:\n    image: nginx:1.27-alpine\nvolumes:\n  pgdata: {}\n' "$1"
+}
+dw compose import --compose "$(pgmove_file postgres:16-alpine)" --yes || fail "importing e2e-pgmove failed"
+ledger=$(docker ps --filter label=com.docker.compose.service=ledger --format '{{.Names}}') || fail "docker ps failed"
+[[ -n "$ledger" ]] || fail "e2e-pgmove runs no ledger"
+pgmove_project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$ledger") || fail "docker inspect failed"
+extra_projects+=" $pgmove_project"
+pgmove_ledger() { service_container "$pgmove_project" ledger; }
+pgm() { docker exec "$(pgmove_ledger)" psql -X -q -U postgres -d postgres -tAc "$1"; }
+backup_healthy "$(pgmove_ledger)"
+# shellcheck disable=SC2016 # $$ quotes text for PostgreSQL.
+pgm 'CREATE TABLE orders (id int PRIMARY KEY, item text); INSERT INTO orders SELECT n, $$item $$ || n FROM generate_series(1, 2000) n' || fail "can't fill the ledger"
+pgm "CREATE ROLE shopper LOGIN PASSWORD 'shopper-password'" || fail "can't make a role"
+pgm 'CREATE DATABASE archive OWNER shopper' || fail "can't make a second database"
+till=$(service_container "$pgmove_project" till)
+till_started=$(docker inspect --format '{{.State.StartedAt}}' "$till") || fail "docker inspect $till failed"
+planned=$(dw services upgrade ledger --project e2e-pgmove --image postgres:17-alpine --plan-only --json) || fail "planning PostgreSQL 17 failed: $planned"
+jq -e '[.change.plan.servers[].steps[] | select(.databaseMove) | .databaseMove |
+  select(.fromVolume == "pgdata" and .toVolume == "pgdata-17" and .database == "PostgreSQL" and .fromSeries == "16" and .toSeries == "17" and .stops == ["till"])] | length == 1' <<<"$planned" >/dev/null ||
+  fail "the plan to move the ledger to 17 says: $(jq -c '.change.plan.servers[].steps' <<<"$planned")"
+jq -e '[.change.plan.notes[] | select(.reason == "database_move")] | length == 1' <<<"$planned" >/dev/null || fail "the move's plan says nothing of the move: $(jq -c '.change.plan.notes' <<<"$planned")"
+move=$(jq -r .change.id <<<"$planned")
+dump=$(jq -r '.change.plan.servers[].steps[] | select(.databaseMove) | .databaseMove.backupId' <<<"$planned")
+person_apply "$move"
+backup_healthy "$(pgmove_ledger)"
+[[ "$(pgm 'SHOW server_version')" == 17.* ]] || fail "after the move the ledger runs PostgreSQL $(pgm 'SHOW server_version')"
+[[ "$(pgm 'SELECT count(*) FROM orders')" == 2000 ]] || fail "the orders didn't move to 17: $(pgm 'SELECT count(*) FROM orders' 2>&1)"
+[[ "$(pgm 'SELECT item FROM orders WHERE id = 42')" == "item 42" ]] || fail "the orders moved wrong"
+[[ "$(pgm "SELECT count(*) FROM pg_roles WHERE rolname = 'shopper'")" == 1 ]] || fail "the role shopper didn't move to 17"
+[[ "$(pgm "SELECT count(*) FROM pg_database WHERE datname = 'archive'")" == 1 ]] || fail "the database archive didn't move to 17"
+[[ "$(docker exec "$(pgmove_ledger)" env PGPASSWORD=shopper-password psql -X -q -h 127.0.0.1 -U shopper -d archive -tAc 'SELECT 1')" == 1 ]] ||
+  fail "shopper can't sign in to PostgreSQL 17 over the network with its password"
+docker volume inspect "${pgmove_project}_pgdata" "${pgmove_project}_pgdata-17" >/dev/null || fail "the move didn't keep pgdata beside pgdata-17: $(docker volume ls)"
+[[ "$(docker inspect --format '{{range .Mounts}}{{.Name}} {{end}}' "$(pgmove_ledger)")" == *"${pgmove_project}_pgdata-17"* ]] || fail "the ledger doesn't run on pgdata-17"
+till=$(service_container "$pgmove_project" till)
+[[ "$(docker inspect --format '{{.State.Running}} {{.State.StartedAt}}' "$till")" == "true "* && "$(docker inspect --format '{{.State.StartedAt}}' "$till")" != "$till_started" ]] ||
+  fail "till didn't stop for the move and start again"
+[[ "$(backup_field "$dump" volume) $(backup_field "$dump" method)" == "pgdata BACKUP_METHOD_DUMP" ]] || fail "the move's dump isn't a backup of pgdata: $(dw backups get "$dump" --json)"
+[[ -z "$(docker ps -aq --filter label=dev.dockwell.volume-tool)" ]] || fail "the move left a helper: $(docker ps -a --filter label=dev.dockwell.volume-tool)"
+planned=$(dw changes undo "$move" --plan-only --json) || fail "planning to undo the move failed: $planned"
+person_apply "$(jq -r .change.id <<<"$planned")"
+backup_healthy "$(pgmove_ledger)"
+[[ "$(pgm 'SHOW server_version')" == 16.* ]] || fail "after the undo the ledger runs PostgreSQL $(pgm 'SHOW server_version')"
+[[ "$(pgm 'SELECT count(*) FROM orders')" == 2000 ]] || fail "the undo lost the orders"
+[[ "$(docker inspect --format '{{range .Mounts}}{{.Name}} {{end}}' "$(pgmove_ledger)")" == *"${pgmove_project}_pgdata "* ]] || fail "after the undo the ledger doesn't run on pgdata"
+
+step "Updates: MySQL 8.0 moves to 8.4, and MariaDB 10.11 to 11.4, each by a dump into a new volume"
+# sqlmove runs $1 on the image $2 as a service of its own name, fills it, moves it to
+# $3, and checks what it holds came along. $4 is its client, and $5 its release then.
+sqlmove() {
+  local name=$1 from=$2 to=$3 client=$4 release=$5 file db project planned change
+  file=$(printf 'name: e2e-%s\nservices:\n  %s:\n    image: %s\n    environment:\n      MYSQL_ROOT_PASSWORD: e2e-move-password\n      MYSQL_DATABASE: shop\n      MYSQL_USER: shopper\n      MYSQL_PASSWORD: shopper-password\n    volumes: [data:/var/lib/mysql]\n    healthcheck:\n      test: [CMD-SHELL, %s --protocol=TCP -h127.0.0.1 -uroot -pe2e-move-password -e "SELECT 1"]\n      interval: 2s\n      timeout: 5s\n      retries: 90\nvolumes:\n  data: {}\n' "$name" "$name" "$from" "$client")
+  dw compose import --compose "$file" --yes || fail "importing e2e-$name failed"
+  db=$(docker ps --filter "label=com.docker.compose.service=$name" --format '{{.Names}}') || fail "docker ps failed"
+  [[ -n "$db" ]] || fail "e2e-$name runs nothing"
+  project=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$db") || fail "docker inspect failed"
+  extra_projects+=" $project"
+  sql() { docker exec "$(service_container "$project" "$name")" "$client" -uroot -pe2e-move-password -N -B -e "$1" 2>/dev/null; }
+  backup_healthy "$db"
+  sql 'CREATE TABLE shop.orders (id int PRIMARY KEY, item text);
+    INSERT INTO shop.orders SELECT * FROM (WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1000) SELECT i, CONCAT("item ", i) FROM n) AS made;
+    CREATE PROCEDURE shop.count_orders() SELECT COUNT(*) FROM shop.orders;
+    CREATE TRIGGER shop.orders_item BEFORE INSERT ON shop.orders FOR EACH ROW SET NEW.item = COALESCE(NEW.item, "none");
+    CREATE EVENT shop.tidy ON SCHEDULE EVERY 1 DAY DO DELETE FROM shop.orders WHERE id < 0' ||
+    fail "can't fill $name"
+  planned=$(dw services upgrade "$name" --project "e2e-$name" --image "$to" --plan-only --json) || fail "planning $to failed: $planned"
+  jq -e '[.change.plan.servers[].steps[] | select(.databaseMove.toVolume == "data-'"$release"'")] | length == 1' <<<"$planned" >/dev/null ||
+    fail "the plan to move $name to $to says: $(jq -c '.change.plan.servers[].steps' <<<"$planned")"
+  change=$(jq -r .change.id <<<"$planned")
+  person_apply "$change"
+  backup_healthy "$(service_container "$project" "$name")"
+  [[ "$(sql 'SELECT VERSION()')" == "$release".* ]] || fail "after the move $name runs $(sql 'SELECT VERSION()')"
+  [[ "$(sql 'SELECT count(*) FROM shop.orders')" == 1000 ]] || fail "the orders didn't move to $to: $(sql 'SELECT count(*) FROM shop.orders')"
+  # What --all-databases carries besides rows, and the app's own user, who signs in
+  # over the network with the password it had.
+  [[ "$(sql 'CALL shop.count_orders()')" == 1000 ]] || fail "the procedure count_orders didn't move to $to"
+  [[ "$(sql "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema = 'shop' AND trigger_name = 'orders_item'")" == 1 ]] || fail "the trigger orders_item didn't move to $to"
+  [[ "$(sql "SELECT COUNT(*) FROM information_schema.events WHERE event_schema = 'shop' AND event_name = 'tidy'")" == 1 ]] || fail "the event tidy didn't move to $to"
+  [[ "$(docker exec "$(service_container "$project" "$name")" "$client" --protocol=TCP -h127.0.0.1 -ushopper -pshopper-password -N -B -e 'SELECT COUNT(*) FROM shop.orders' 2>/dev/null)" == 1000 ]] ||
+    fail "shopper can't sign in to $to over the network with its password"
+  docker volume inspect "${project}_data" >/dev/null || fail "the move didn't keep $name's volume data"
+}
+sqlmove ledger-my mysql:8.0 mysql:8.4 mysql 8.4
+sqlmove ledger-maria mariadb:10.11 mariadb:11.4 mariadb 11.4
 
 step "Catalog: Nginx Proxy Manager takes the email it was given and the password it wasn't"
 catalog_install nginx-proxy-manager --values ADMIN_EMAIL=owner@example.com

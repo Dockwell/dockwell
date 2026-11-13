@@ -272,6 +272,10 @@ type Decision struct {
 	// BackupFirst says what a step that backs up a volume, before the rest of its
 	// change, does.
 	BackupFirst *BackupFirst `json:",omitempty"`
+	// Move says what a step that moves a database to a newer release, by a dump into
+	// a new volume, does beside replacing its container (ADR 0080). Its fingerprint
+	// covers it, so what stops can't change unreviewed.
+	Move *MovePlan `json:",omitempty"`
 	// Install says what a step that installs a server's updates does, as its
 	// agent simulated the exact command (ADR 0064). Its fingerprint covers it, so
 	// a person never applies a list they didn't see.
@@ -695,6 +699,10 @@ func (d Decision) Budget() time.Duration {
 	if d.Build != nil {
 		b += BuildBudget
 	}
+	// A move dumps and loads a database before its replace, at a restore's pace.
+	if d.Move != nil {
+		b += restoreBudget(d.Move.Estimate)
+	}
 	return b
 }
 
@@ -844,6 +852,37 @@ type BackupFirst struct {
 	// Unmeasured says nothing could tell how large it will be, so the time the step
 	// gets is a guess: there was no backup before, and measuring took too long.
 	Unmeasured bool `json:",omitempty"`
+}
+
+// MovePlan is what a step that moves a database to a newer release does, beside
+// replacing its container (ADR 0080): it stops what else of its app runs on the
+// server, dumps the database, loads that into the new release on a new volume,
+// checks it starts there and answers, then replaces the container and starts what
+// stopped. The volume its data was on stays as it was, for undo.
+type MovePlan struct {
+	// Backup is the dump's ID, a backup of From.
+	Backup string
+	// Database names the database, such as PostgreSQL, and FromSeries and ToSeries
+	// the release series it moves between, such as "16" and "17".
+	Database             string
+	FromSeries, ToSeries string `json:",omitempty"`
+	From, To             string // the volumes, by name
+	// Stops names what else stops while it moves, sorted: services by their names,
+	// and anything else by its container's.
+	Stops []string `json:",omitempty"`
+	// Estimate is about how large the dump will be, in bytes, and Unmeasured says
+	// nothing could tell.
+	Estimate   int64 `json:",omitempty"`
+	Unmeasured bool  `json:",omitempty"`
+	// Finishing says the move is done on the server, as a run cut short after the
+	// replace left it, or a rollback of its change finds it: what's left is to
+	// start what it stopped and to report its dump, which this step does.
+	Finishing bool `json:",omitempty"`
+	// Change is the change that moves it, which names what it stopped.
+	Change string `json:",omitempty"`
+	// StaysStopped names containers Dockwell doesn't manage on the old volume, which
+	// stop for the move and stay stopped after it, as they'd go on with the old data.
+	StaysStopped []string `json:",omitempty"`
 }
 
 // BackupTaken is a backup a step took, whole on its server.
@@ -1455,6 +1494,14 @@ type BackerUp interface {
 	JudgeBackup(ctx context.Context, ref Ref, id string) (Decision, bool, error)
 	// ApplyBackup carries out the step, and reports what it took (Report).
 	ApplyBackup(ctx context.Context, step Step) error
+}
+
+// Mover is a driver that can move the database a resource runs to a newer release,
+// by a dump into a new volume, as the step that replaces it does (ADR 0080).
+type Mover interface {
+	// JudgeMove adds to a step that replaces the resource what moving its database
+	// does, or says why it can't: what else stops, and for how long.
+	JudgeMove(ctx context.Context, ref Ref, step Step, desired proto.Message, move MoveAsked) (Decision, error)
 }
 
 // HostAccesser is a kind whose specs can reach their server beyond what

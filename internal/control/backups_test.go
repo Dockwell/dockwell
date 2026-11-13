@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -885,6 +886,18 @@ var fakePostgres = dockertest.Image{
 		file := filepath.Join(x.Volumes["/var/lib/postgresql/data"], "data.sql")
 		script := strings.Join(x.Cmd, " ")
 		switch {
+		case strings.Contains(script, "noconnect"):
+			// A move's preflight: nothing stands in its way.
+		case strings.Contains(script, "pg_roles"):
+			// A move's census: what it holds, by its one file.
+			data, _ := os.ReadFile(file)
+			rows := 0
+			for _, l := range strings.Split(string(data), "\n") {
+				if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "--") {
+					rows++
+				}
+			}
+			_, _ = fmt.Fprintf(x.Stdout, "database fake %d\n", rows)
 		case strings.Contains(script, "pg_dumpall"):
 			data, err := os.ReadFile(file)
 			if err != nil {

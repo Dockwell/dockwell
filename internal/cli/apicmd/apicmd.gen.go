@@ -2086,7 +2086,7 @@ func Methods() []*apicli.Method {
 			Noun:      "services",
 			Verb:      "upgrade",
 			Short:     "Plan updating a service to a newer version of what it runs",
-			Long:      "Plan updating a service to a newer version of what it runs, safe by default: a\nbackup of each volume it mounts first, the image pulled before anything stops,\nroom for it on the server checked first, a database's major release refused as a\nplain swap, and the health-gated rollout that rolls back on its own. A service\nof a catalog install upgrades its install to the newer release, as dockwell\ncatalog upgrade plans it. Like dockwell services deploy, it needs no one to read\nthe service's environment back. See\ndocs/adr/0080-updating-an-app-safely-and-automatically.md.",
+			Long:      "Plan updating a service to a newer version of what it runs, safe by default: a\nbackup of each volume it mounts first, the image pulled before anything stops,\nroom for it on the server checked first, a database's major release moved by a\ndump into a new volume, never as a plain swap, and the health-gated rollout that\nrolls back on its own. A service of a catalog install upgrades its install to\nthe newer release, as dockwell catalog upgrade plans it. Like dockwell services\ndeploy, it needs no one to read the service's environment back. See\ndocs/adr/0080-updating-an-app-safely-and-automatically.md.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service, by ID or by name.", Arg: true},

@@ -3,12 +3,15 @@
 package revision
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 func mongoAt(image string, external bool) *resourcev1.Service {
@@ -75,5 +78,62 @@ func TestADatabaseMoveBacksUpWhatItCantUndo(t *testing.T) {
 	notes, _, _ = databaseMoves(moving("mongo:8.0", "mongo:7.0", false), false, features)
 	if !slices.Equal(notes[0].Names, []string{"8.0", "7.0", "8.0"}) || !strings.Contains(notes[0].Message, "last reading says its data uses MongoDB 8.0's features, which 7.0 can't run") {
 		t.Errorf("back with data at 8.0: %+v", notes)
+	}
+}
+
+// M2: a failed change that had moved a database rolls it back to the old volume,
+// and what it failed with says so, with what stays in the new one. A move whose
+// step hadn't ended changed nothing, and says nothing.
+func TestARollbackAfterAMoveSaysWhatStaysBehind(t *testing.T) {
+	move := &resource.MoveAsked{Server: "srv_1", From: "pgdata", To: "pgdata-17", Database: "PostgreSQL", FromSeries: "16", ToSeries: "17"}
+	plan, err := json.Marshal(Plan{Resources: []ResourcePlan{{ID: "svc_db", Ref: resource.Ref{Kind: "service", Scope: "env_1", Name: "db"}, Move: move}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := store.Change{ID: "chg_1", Plan: plan}
+	done := &Progress{Steps: []StepProgress{{Server: "srv_1", ResourceID: "svc_db", State: StepDone}}}
+	if got := afterMove(c, done); !strings.Contains(got, "db had moved to PostgreSQL 17 on pgdata-17, so the rollback puts PostgreSQL 16 back on pgdata, and what was written since stays in pgdata-17") {
+		t.Errorf("after a done move it says %q", got)
+	}
+	running := &Progress{Steps: []StepProgress{{Server: "srv_1", ResourceID: "svc_db", State: StepFailed}}}
+	if got := afterMove(c, running); got != "" {
+		t.Errorf("after a move that failed it says %q", got)
+	}
+}
+
+// Going back to a volume a move left: a later release is refused for every engine,
+// and for MySQL and MariaDB, which upgrade older data in place, so is a tag that
+// doesn't say its release. The release it held, or an older, goes back.
+func TestGoingBackToAMovesOldVolume(t *testing.T) {
+	pg, my, maria := database.Recognise("postgres"), database.Recognise("mysql"), database.Recognise("mariadb")
+	for _, c := range []struct {
+		e        *database.Engine
+		to, from string
+		refused  bool
+	}{
+		{pg, "17", "16", true},
+		{pg, "16", "16", false},
+		{pg, "", "16", false},
+		{my, "8.4", "8.0", true},
+		{my, "", "8.0", true},
+		{my, "8.0", "8.0", false},
+		{maria, "", "10.11", true},
+		{maria, "10.6", "10.11", false},
+	} {
+		if got := backRefused(c.e, c.to, c.from); got != c.refused {
+			t.Errorf("%s from %q back with %q: refused %v", c.e.Name, c.from, c.to, got)
+		}
+	}
+}
+
+// A plan says what Dockwell doesn't manage on a move's old volume stays stopped.
+func TestAMovesPlanSaysWhatStaysStopped(t *testing.T) {
+	plan := &Plan{Servers: []ServerPlan{{Steps: []resource.Step{{
+		Ref:      resource.Ref{Kind: "service", Scope: "env_1", Name: "db"},
+		Decision: resource.Decision{Move: &resource.MovePlan{From: "pgdata", To: "pgdata-17", StaysStopped: []string{"exporter"}}},
+	}}}}}
+	notes := moveNotes(plan, nil)
+	if len(notes) != 1 || !strings.Contains(notes[0].Message, "exporter mounts pgdata too, and Dockwell doesn't manage it, so it stops for the move and stays stopped after it") {
+		t.Errorf("the notes = %+v", notes)
 	}
 }
