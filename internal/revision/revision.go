@@ -232,8 +232,10 @@ type Edit struct {
 	// comes before what uses it. A resource the change makes has nothing to back up.
 	Backup bool
 	// BackupOne is the one database that backup dumps alone, an app's, for the link
-	// For names (ADR 0084).
-	BackupOne string
+	// For names (ADR 0084), and BackupAlso more on the same server, each dumped alone
+	// under a backup ID of its own, for the links that read them.
+	BackupOne  string
+	BackupAlso []OneBackup
 	// Install installs its server's updates, for a server's host: a step its agent
 	// simulates as it plans and runs in a unit of its own, which makes no revision
 	// (ADR 0064).
@@ -465,8 +467,12 @@ type ResourcePlan struct {
 	For     *resource.Ref           `json:",omitempty"`
 	// Backups are the backups the change takes of it, by server ID.
 	Backups map[string]string `json:",omitempty"`
-	// BackupOne is the one database those backups dump alone (Edit.BackupOne).
-	BackupOne string `json:",omitempty"`
+	// BackupOne is the one database those backups dump alone (Edit.BackupOne), and
+	// BackupAlso more on the same server, each dumped alone, by server ID.
+	BackupOne  string                             `json:",omitempty"`
+	BackupAlso map[string][]resource.DatabaseDump `json:",omitempty"`
+	// AlsoFor is the link each of BackupAlso's databases is dumped for, by database.
+	AlsoFor map[string]resource.Ref `json:",omitempty"`
 	// Move is the database the change moves to a newer release, by a dump into a
 	// new volume (ADR 0080).
 	Move *resource.MoveAsked `json:",omitempty"`
@@ -690,6 +696,10 @@ type item struct {
 	// database its backups dump alone (Edit.BackupOne).
 	forLink   resource.Ref
 	backupOne string
+	// backupAlso are more databases its backups dump alone, each under an ID of its
+	// own, by server ID, and alsoFor the link each is for, by database.
+	backupAlso map[string][]resource.DatabaseDump
+	alsoFor    map[string]resource.Ref
 	// backups are the backups the change takes of it first, by server ID.
 	backups map[string]string
 	// move is the database it moves to a newer release, by a dump into a new
@@ -717,7 +727,7 @@ func (it item) noRevision() bool {
 // backupOn is the backup the item takes on a server first, if any.
 func (it item) backupOn(server string) *resource.BackupAsked {
 	if backup := it.backups[server]; backup != "" {
-		return &resource.BackupAsked{ID: backup, Database: it.backupOne}
+		return &resource.BackupAsked{ID: backup, Database: it.backupOne, Also: it.backupAlso[server]}
 	}
 	return nil
 }
@@ -890,6 +900,15 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			items[i].backupOne = p.Edits[j].BackupOne
 			if p.Edits[j].For != (resource.Ref{}) {
 				items[i].forLink = p.Edits[j].For
+			}
+			for _, also := range p.Edits[j].BackupAlso {
+				if items[i].backupAlso == nil {
+					items[i].backupAlso, items[i].alsoFor = map[string][]resource.DatabaseDump{}, map[string]resource.Ref{}
+				}
+				for _, server := range items[i].placed {
+					items[i].backupAlso[server] = append(items[i].backupAlso[server], resource.DatabaseDump{ID: id.New(id.Backup), Database: also.Database})
+				}
+				items[i].alsoFor[also.Database] = also.For
 			}
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Restore != nil && ed.Ref == items[i].ref }); j >= 0 {
@@ -2643,7 +2662,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			// What it will cost stays out: a file that grew is no reason to review this again.
 			if b := s.BackupFirst; b != nil {
-				fmt.Fprintf(fp, "  backup %s|%s|%s|%v\n", b.ID, b.Method, b.Database, b.Stops)
+				fmt.Fprintf(fp, "  backup %s|%s|%s|%v|%s|%v\n", b.ID, b.Method, b.Database, b.Stops, b.One, b.Also)
 			}
 			// What DNS says, s.Domain, stays out, as people often set it after.
 			if i := s.Ingress; i != nil {
@@ -3048,7 +3067,7 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
 		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore, Backups: it.backups, Move: it.move,
-		BackupOne: it.backupOne,
+		BackupOne: it.backupOne, BackupAlso: it.backupAlso, AlsoFor: it.alsoFor,
 	}
 	if it.forLink != (resource.Ref{}) {
 		link := it.forLink
@@ -3886,11 +3905,17 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		index := q.index
 		callCtx = resource.WithActivities(callCtx, func(r resource.Activity) { e.progressed(c.ID, index, r) })
 		var told resource.Outcome
+		// Each backup the step takes, as it's taken: a step that dumps several
+		// databases alone reports each (ADR 0084).
+		var taken []resource.BackupTaken
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
 			// The first note stands: that a pull failed says more than what came of it.
 			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
 			told.Did = cmp.Or(o.Did, told.Did)
 			told.Backup = cmp.Or(o.Backup, told.Backup)
+			if b := o.Backup; b != nil && !slices.ContainsFunc(taken, func(t resource.BackupTaken) bool { return t.ID == b.ID }) {
+				taken = append(taken, *b)
+			}
 			if o.Waits != nil {
 				e.awaits(c.ID, index, *o.Waits)
 			}
@@ -3937,13 +3962,20 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			waits = append(waits, u)
 			continue
 		}
-		if told.Backup != nil && e.onBackup != nil {
+		if len(taken) > 0 && e.onBackup != nil {
 			// A move's dump is a backup of the volume the data was on.
 			volume, volumeID := it.ref, it.id
 			if m := it.moveOn(q.server); m != nil {
 				volume, volumeID = resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: m.From}, m.FromID
 			}
-			e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: *told.Backup, One: it.backupOne, For: it.forLink})
+			for _, b := range taken {
+				one, link := it.backupOne, it.forLink
+				if i := slices.IndexFunc(it.backupAlso[q.server], func(d resource.DatabaseDump) bool { return d.ID == b.ID }); i >= 0 {
+					one = it.backupAlso[q.server][i].Database
+					link = it.alsoFor[one]
+				}
+				e.onBackup(ctx, BackupStep{Change: c, Volume: volume, VolumeID: volumeID, Server: q.server, Taken: b, One: one, For: link})
+			}
 		}
 		did := q.step.Action
 		if told.Did != nil {
@@ -4245,7 +4277,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 				it.restart = c.ID
 			}
 			it.restore, it.backups, it.move, it.forLink = restoreIn(c, ref)
-			it.backupOne = backupOneIn(c, ref)
+			it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(c, ref)
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
 			it.unit = unitIn(c, ref)
@@ -4432,7 +4464,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 			it.restart = c.ID
 		}
 		it.restore, it.backups, it.move, it.forLink = restoreIn(c, ref)
-		it.backupOne = backupOneIn(c, ref)
+		it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(c, ref)
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
 		it.unit = unitIn(c, ref)
@@ -4670,26 +4702,29 @@ func restoreIn(c store.Change, ref resource.Ref) (*resource.RestoreSource, map[s
 }
 
 // backupOneIn is the one database change c's backup of ref dumps alone, as its plan
-// fixed it, or "".
-func backupOneIn(c store.Change, ref resource.Ref) string {
+// fixed it, or "", and the more it dumps alone beside, by server ID, with the link
+// each is for, by database.
+func backupOneIn(c store.Change, ref resource.Ref) (string, map[string][]resource.DatabaseDump, map[string]resource.Ref) {
 	if len(c.Plan) == 0 || !bytes.Contains(c.Plan, []byte(`"BackupOne"`)) {
-		return ""
+		return "", nil, nil
 	}
 	var p struct {
 		Resources []struct {
-			Ref       resource.Ref
-			BackupOne string
+			Ref        resource.Ref
+			BackupOne  string
+			BackupAlso map[string][]resource.DatabaseDump
+			AlsoFor    map[string]resource.Ref
 		}
 	}
 	if json.Unmarshal(c.Plan, &p) != nil {
-		return ""
+		return "", nil, nil
 	}
 	for i := range p.Resources {
-		if p.Resources[i].Ref == ref {
-			return p.Resources[i].BackupOne
+		if r := &p.Resources[i]; r.Ref == ref {
+			return r.BackupOne, r.BackupAlso, r.AlsoFor
 		}
 	}
-	return ""
+	return "", nil, nil
 }
 
 // installIn is the install of updates change c asks of ref, as its plan fixed
@@ -4923,8 +4958,14 @@ const volumeKind resource.Kind = "volume"
 func (e *Engine) withOneBackups(ctx context.Context, edits []Edit, ones []OneBackup) ([]Edit, error) {
 	out := slices.Clone(edits)
 	for _, one := range ones {
-		if slices.ContainsFunc(out, func(ed Edit) bool { return ed.Ref == one.Volume }) {
-			// The change edits that volume already, whose own backup covers it whole.
+		if j := slices.IndexFunc(out, func(ed Edit) bool { return ed.Ref == one.Volume }); j >= 0 {
+			// Another database on the same server, which its step dumps alone too, under
+			// an ID of its own; or the change edits that volume already, and its own
+			// backup covers it whole.
+			ed := &out[j]
+			if ed.BackupOne != "" && ed.BackupOne != one.Database && !slices.ContainsFunc(ed.BackupAlso, func(o OneBackup) bool { return o.Database == one.Database }) {
+				ed.BackupAlso = append(ed.BackupAlso, one)
+			}
 			continue
 		}
 		var it item
@@ -4974,7 +5015,7 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 	for i := range items {
 		it := &items[i]
 		for server := range it.backups {
-			if step := plan.step(server, it.ref); step == nil || step.BackupFirst == nil {
+			if step := plan.step(server, it.ref); step == nil || step.BackupFirst == nil || len(step.BackupFirst.Also) != len(it.backupAlso[server]) {
 				names, err := e.serverNames(ctx, []string{server})
 				if err != nil {
 					return err

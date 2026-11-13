@@ -8240,6 +8240,13 @@ msgstr "Docker 会重启，期间容器保持运行：这是补丁版本，且�
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，直到它恢复，Caddy 在那里提供的域名也一样"
 
+#. placeholder {0}: first.databaseName
+msgid "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+msgstr "从 <1>{name}</1> 单独转储 <0>{0}</0>，不停止任何服务"
+
+msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+msgstr "从 <0>{name}</0> 分别单独转储 {databases}，各自作为一份备份，不停止任何服务"
+
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "其 Dockerfile 能读取 {buildLogins} 可读取的任何镜像"
 

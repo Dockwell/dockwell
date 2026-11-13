@@ -211,7 +211,11 @@ func estimate(m *Manifest) time.Duration {
 // it in a change usually replaces that anyway.
 func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, asked resource.BackupAsked) (resource.Decision, bool, error) {
 	id := asked.ID
-	if _, err := readManifest(filepath.Join(r.dir(ref), id+".json")); err == nil {
+	taken := func(id string) bool {
+		_, err := readManifest(filepath.Join(r.dir(ref), id+".json"))
+		return err == nil
+	}
+	if taken(id) && !slices.ContainsFunc(asked.Also, func(d resource.DatabaseDump) bool { return !taken(d.ID) }) {
 		return resource.Decision{}, false, nil
 	}
 	if one := asked.Database; one != "" {
@@ -229,7 +233,8 @@ func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, asked resour
 		case !db.running:
 			return resource.Decision{}, false, fmt.Errorf("%s's database server isn't running, and dumping %s before the update needs it. Start it, then plan this again", ref.Name, one)
 		}
-		return resource.Decision{Action: resource.ActionUpdate, BackupFirst: &resource.BackupFirst{ID: id, Method: resource.BackupDump, Database: db.kind.name, One: one}}, true, nil
+		// Each of several apps' databases on it, alone, under an ID of its own.
+		return resource.Decision{Action: resource.ActionUpdate, BackupFirst: &resource.BackupFirst{ID: id, Method: resource.BackupDump, Database: db.kind.name, One: one, Also: asked.Also}}, true, nil
 	}
 	p, err := r.Preview(ctx, ref)
 	if err != nil {
@@ -254,17 +259,26 @@ func sizeBucket(size int64) int64 {
 	return 1 << bits.Len64(uint64(size))
 }
 
-// ApplyBackup takes a step's backup, and says what it took.
+// ApplyBackup takes a step's backup, or each database's it dumps alone, and says
+// what it took, one at a time, each as it's taken; what an earlier run took isn't
+// taken again.
 func (r *Runner) ApplyBackup(ctx context.Context, step resource.Step) error {
 	first := step.BackupFirst
-	m, err := readManifest(filepath.Join(r.dir(step.Ref), first.ID+".json"))
-	if err != nil {
-		resource.Stage(ctx, resource.PhaseBackingUp, "Backing up "+step.Ref.Name)
-		if m, err = r.Take(ctx, Take{ID: first.ID, Ref: step.Ref, Stop: true, Database: first.One}); err != nil {
-			return err
+	todo := append([]resource.DatabaseDump{{ID: first.ID, Database: first.One}}, first.Also...)
+	for _, d := range todo {
+		m, err := readManifest(filepath.Join(r.dir(step.Ref), d.ID+".json"))
+		if err != nil {
+			what := step.Ref.Name
+			if d.Database != "" {
+				what = d.Database + " on " + step.Ref.Name
+			}
+			resource.Stage(ctx, resource.PhaseBackingUp, "Backing up "+what)
+			if m, err = r.Take(ctx, Take{ID: d.ID, Ref: step.Ref, Stop: true, Database: d.Database}); err != nil {
+				return err
+			}
 		}
+		resource.Report(ctx, resource.Outcome{Backup: &resource.BackupTaken{ID: m.ID, Method: m.Method, Database: m.Database, SHA256: m.SHA256, Size: m.Size, Changed: m.Changed}})
 	}
-	resource.Report(ctx, resource.Outcome{Backup: &resource.BackupTaken{ID: m.ID, Method: m.Method, Database: m.Database, SHA256: m.SHA256, Size: m.Size, Changed: m.Changed}})
 	return nil
 }
 

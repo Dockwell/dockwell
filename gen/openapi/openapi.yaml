@@ -8083,6 +8083,13 @@ components:
                         The one database it dumps alone, an app's on a server it shares, taken for
                          the app before its update (ADR 0084). Empty backs up the whole volume.
                          Numbered apart, as open work adds to this message.
+                also:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DatabaseDump'
+                    description: |-
+                        More databases on the same server, each dumped alone after database_name under
+                         a backup ID of its own, for apps whose update reads them (ADR 0084).
             description: |-
                 BackupFirst is a backup a change takes before anything else it does, as a catalog
                  upgrade takes one of what the new version may change. If it fails, the change stops
@@ -10832,6 +10839,14 @@ components:
             description: |-
                 DatabaseCopy names a database to copy from: the service that runs its server, in
                  an environment, and the database's name there.
+        DatabaseDump:
+            type: object
+            properties:
+                backupId:
+                    type: string
+                databaseName:
+                    type: string
+            description: DatabaseDump is one database a step dumps alone, and its backup's ID.
         DatabaseMove:
             type: object
             properties:

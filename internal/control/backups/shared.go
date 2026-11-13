@@ -29,6 +29,8 @@ import (
 // linkedApp is an app of another environment that shares a server.
 type linkedApp struct {
 	project, projectID string
+	// env is the app's environment, which may have several links to the server.
+	env string
 	// service is the server's service, which the link meets.
 	service string
 }
@@ -73,7 +75,7 @@ func (h *Handler) linkedApps(ctx context.Context, tx *store.Tx, ref resource.Ref
 			}
 			tree = &t
 		}
-		a := linkedApp{service: l.GetService()}
+		a := linkedApp{service: l.GetService(), env: r.Scope}
 		for _, p := range tree.Projects {
 			for _, env := range p.Environments {
 				if env.ID == r.Scope {
@@ -106,7 +108,7 @@ func (h *Handler) wholeServer(ctx context.Context, ref resource.Ref, b *store.Ba
 		for _, a := range apps {
 			if store.RoleRank(place.Holds(caller.Grants, place.Place{Project: a.projectID})) < store.RoleRank(store.RoleDeveloper) {
 				return nil, authapi.ReasonError(connect.CodePermissionDenied, fmt.Errorf("restoring %s whole takes back what %s of other projects wrote to it since, so it takes a role in each of their projects, or an admin. "+
-					"Restore your app's database alone from its page instead", service, appsWord(len(apps))), "needs_role")
+					"Restore your app's database alone from its page instead", service, appsWord(appCount(apps))), "needs_role")
 			}
 		}
 	}
@@ -123,6 +125,15 @@ func (h *Handler) wholeServer(ctx context.Context, ref resource.Ref, b *store.Ba
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s. Type %s to confirm, or restore each app's database alone from its page", loses, service), "confirm_name")
 	}
 	return []revision.Note{{Reason: "restore_linked_apps", Message: loses, Names: projects}}, nil
+}
+
+// appCount is how many apps the links are of: each environment's, once.
+func appCount(apps []linkedApp) int {
+	envs := map[string]bool{}
+	for _, a := range apps {
+		envs[a.env] = true
+	}
+	return len(envs)
 }
 
 // appsWord is how many apps, in words.

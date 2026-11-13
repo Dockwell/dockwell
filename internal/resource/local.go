@@ -64,6 +64,14 @@ type BackupAsked struct {
 	// Database is the one database it dumps alone, an app's on a server it shares
 	// (ADR 0084). Empty backs up the whole volume.
 	Database string
+	// Also are more databases on the same server, each dumped alone after Database
+	// under an ID of its own.
+	Also []DatabaseDump
+}
+
+// DatabaseDump is one database a step dumps alone, under its backup's ID.
+type DatabaseDump struct {
+	ID, Database string
 }
 
 // MoveAsked is a database a change moves to a newer release on a server, by a dump

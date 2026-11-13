@@ -2102,6 +2102,10 @@ message DesiredResource {
   // The one database that backup dumps alone, an app's on a server it shares, as
   // the app's update takes it first (ADR 0084). Empty backs up the whole volume.
   string backup_database = 292;
+  // More databases on the same server, each dumped alone after backup_database,
+  // under an ID of its own, as an update of apps that read several takes them
+  // first (ADR 0084).
+  repeated DatabaseDump backup_also = 293;
   // Installs updates on the server, for its host (ADR 0064). Numbered in the
   // servers area's block, 230 to 239.
   InstallUpdates install_updates = 232;
@@ -2124,6 +2128,13 @@ message DesiredResource {
   // each registry, sealed to this stream's delivery key as a step's values are
   // (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
   bytes build_registry_auths = 315;
+}
+
+// DatabaseDump is one database a backup step dumps alone, under the ID the control
+// plane gave it (ADR 0084).
+message DatabaseDump {
+  string backup_id = 1;
+  string database = 2;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.

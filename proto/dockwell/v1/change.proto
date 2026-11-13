@@ -1714,6 +1714,15 @@ message BackupFirst {
   // the app before its update (ADR 0084). Empty backs up the whole volume.
   // Numbered apart, as open work adds to this message.
   string database_name = 80;
+  // More databases on the same server, each dumped alone after database_name under
+  // a backup ID of its own, for apps whose update reads them (ADR 0084).
+  repeated DatabaseDump also = 81;
+}
+
+// DatabaseDump is one database a step dumps alone, and its backup's ID.
+message DatabaseDump {
+  string backup_id = 1;
+  string database_name = 2;
 }
 
 // DatabaseMove is what a step that moves a database to a newer release does

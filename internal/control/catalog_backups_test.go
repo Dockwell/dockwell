@@ -284,11 +284,35 @@ func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
 				Source: &resourcev1.ValueFrom_Value{Value: &resourcev1.ValueRef{Environment: dbEnv, Secret: true, Name: "TOOLS_DB_PASSWORD", Link: "db"}},
 			}}}},
 		},
+		// A second database of its own on the same server, which it reads too.
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "secret", Scope: dbEnv, Name: "TOOLS_LOGS_PASSWORD"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "tools-logs-own"}}},
+		},
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "database.user", Scope: dbEnv, Name: "tools_logs"},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: &resourcev1.DatabaseUser{Service: "db", Password: "TOOLS_LOGS_PASSWORD"}}},
+		},
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "link", Scope: toolsEnv, Name: "logs"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+				Label: "Logs", Service: "db", MeetsEnvironment: dbEnv, Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL, Version: "17",
+				Accepts:      []*resourcev1.LinkAccept{{Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL}},
+				DatabaseName: "tools_logs", User: "tools_logs",
+				Sets: []*resourcev1.LinkSet{{Name: "LOGS_PASSWORD", Part: resourcev1.LinkPart_LINK_PART_PASSWORD}},
+			}}},
+		},
+		&dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: "secret", Scope: toolsEnv, Name: "LOGS_PASSWORD"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{From: &resourcev1.ValueFrom{
+				Source: &resourcev1.ValueFrom_Value{Value: &resourcev1.ValueRef{Environment: dbEnv, Secret: true, Name: "TOOLS_LOGS_PASSWORD", Link: "logs"}},
+			}}}},
+		},
 		&dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: toolsEnv, Name: "worker"},
 			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
 				Runs:    &resourcev1.Service_App{App: &resourcev1.Container{Image: "ghcr.io/acme/shop:1.4"}},
-				Secrets: map[string]string{"WORKER_DB_PASSWORD": "DB_PASSWORD"},
+				Secrets: map[string]string{"WORKER_DB_PASSWORD": "DB_PASSWORD", "WORKER_LOGS_PASSWORD": "LOGS_PASSWORD"},
 			}}},
 		},
 	))
@@ -306,18 +330,23 @@ func TestAnAppBacksUpAndRestoresItsOwnDatabase(t *testing.T) {
 			}
 		}
 	}
-	if dumped.GetDatabaseName() != "tools" {
+	// Both its databases on that server, each alone, in the one step, each under a
+	// backup ID of its own.
+	if dumped == nil || len(dumped.GetAlso()) != 1 || dumped.GetAlso()[0].GetBackupId() == dumped.GetBackupId() ||
+		!slices.Equal(slices.Sorted(slices.Values([]string{dumped.GetDatabaseName(), dumped.GetAlso()[0].GetDatabaseName()})), []string{"tools", "tools_logs"}) {
 		t.Fatalf("the worker's update dumps first %v", dumped)
 	}
-	if notes := notesOf(updated.Msg.GetChange(), "backup_first_database"); len(notes) != 1 || !strings.Contains(notes[0], "dumps the database tools alone first") {
+	if notes := strings.Join(notesOf(updated.Msg.GetChange(), "backup_first_database"), "\n"); !strings.Contains(notes, "dumps the database tools and tools_logs alone first") {
 		t.Errorf("the worker's update says %q", notes)
 	}
 	if done := apply(t, ch, updated.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
 		t.Fatalf("the worker's update ended %v: %s", done.GetState(), done.GetError())
 	}
-	bs, err := bc.ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{VolumeId: volumeID, DatabaseName: "tools"}))
-	if err != nil || !slices.ContainsFunc(bs.Msg.GetBackups(), func(b *dockwellv1.Backup) bool { return b.GetId() == dumped.GetBackupId() }) {
-		t.Errorf("the dump before the worker's update isn't kept: %v, %v", bs, err)
+	for _, d := range append([]*dockwellv1.DatabaseDump{{BackupId: dumped.GetBackupId(), DatabaseName: dumped.GetDatabaseName()}}, dumped.GetAlso()...) {
+		bs, err := bc.ListBackups(t.Context(), connect.NewRequest(&dockwellv1.ListBackupsRequest{VolumeId: volumeID, DatabaseName: d.GetDatabaseName()}))
+		if err != nil || !slices.ContainsFunc(bs.Msg.GetBackups(), func(b *dockwellv1.Backup) bool { return b.GetId() == d.GetBackupId() }) {
+			t.Errorf("the dump of %s before the worker's update isn't kept: %v, %v", d.GetDatabaseName(), bs, err)
+		}
 	}
 
 	// Data's developer alone can't restore the whole server the blog shares.

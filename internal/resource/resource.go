@@ -871,8 +871,9 @@ type BackupFirst struct {
 	// Database names the database of a dump.
 	Database string `json:",omitempty"`
 	// One is the one database it dumps alone, for an app's on a server it shares
-	// (ADR 0084).
-	One string `json:",omitempty"`
+	// (ADR 0084), and Also more on the same server, each under an ID of its own.
+	One  string         `json:",omitempty"`
+	Also []DatabaseDump `json:",omitempty"`
 	// Stops names what stops while it's copied, sorted.
 	Stops []string `json:",omitempty"`
 	// Estimate is about how much it will take on the disk, in bytes.

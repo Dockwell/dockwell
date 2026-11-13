@@ -8240,6 +8240,13 @@ msgstr "Docker restarts, and keeps containers running while it does: it's a patc
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 
+#. placeholder {0}: first.databaseName
+msgid "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+msgstr "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
+
+msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+msgstr "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
 

@@ -1930,3 +1930,35 @@ func TestARestoreOfOneDatabaseNeverLeavesItsAppOut(t *testing.T) {
 		t.Errorf("after 7 days the server keeps %v", left)
 	}
 }
+
+// A step that dumps several apps' databases on one server alone takes each under its
+// own ID, says each as it's taken, and is done only once all of them are (ADR 0084).
+func TestAStepDumpsEachDatabaseAlone(t *testing.T) {
+	b := newBench(t)
+	b.write("data.sql", "CREATE TABLE orders;")
+	b.run("db", "postgres:17", "/var/lib/postgresql/data")
+	asked := resource.BackupAsked{ID: "bkp_a", Database: "shop", Also: []resource.DatabaseDump{{ID: "bkp_b", Database: "blog"}}}
+	dec, left, err := b.runner.JudgeBackup(t.Context(), ref, asked)
+	if err != nil || !left || dec.BackupFirst == nil || dec.BackupFirst.One != "shop" || len(dec.BackupFirst.Also) != 1 {
+		t.Fatalf("judged %+v, %t, %v", dec, left, err)
+	}
+	var told []string
+	ctx := resource.WithOutcome(t.Context(), func(o resource.Outcome) {
+		if o.Backup != nil {
+			told = append(told, o.Backup.ID)
+		}
+	})
+	if err := b.runner.ApplyBackup(ctx, resource.Step{Ref: ref, Decision: dec}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(told, []string{"bkp_a", "bkp_b"}) || len(b.dumpedOne) != 2 || b.dumpedOne[0][0] != "shop" || b.dumpedOne[1][0] != "blog" {
+		t.Errorf("it said %v, and dumped %v", told, b.dumpedOne)
+	}
+	if _, left, err := b.runner.JudgeBackup(t.Context(), ref, asked); err != nil || left {
+		t.Errorf("both taken, it judged %t, %v", left, err)
+	}
+	asked.Also = append(asked.Also, resource.DatabaseDump{ID: "bkp_c", Database: "tools"})
+	if _, left, err := b.runner.JudgeBackup(t.Context(), ref, asked); err != nil || !left {
+		t.Errorf("one still to take, it judged %t, %v", left, err)
+	}
+}

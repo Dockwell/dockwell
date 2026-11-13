@@ -185,6 +185,9 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	p.BuildLogins, p.BuildLoginVersions = s.BuildLogins, s.BuildLoginVersions
 	if b := s.BackupFirst; b != nil {
 		p.BackupFirst = &dockwellv1.BackupFirst{BackupId: b.ID, Method: BackupMethod(b.Method), Database: b.Database, Stops: b.Stops, EstimateBytes: b.Estimate, Unmeasured: b.Unmeasured, DatabaseName: b.One}
+		for _, d := range b.Also {
+			p.BackupFirst.Also = append(p.BackupFirst.Also, &dockwellv1.DatabaseDump{BackupId: d.ID, DatabaseName: d.Database})
+		}
 	}
 	if m := s.Move; m != nil {
 		p.DatabaseMove = &dockwellv1.DatabaseMove{
@@ -539,6 +542,9 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.BuildLogins, s.BuildLoginVersions = p.GetBuildLogins(), p.GetBuildLoginVersions()
 	if b := p.GetBackupFirst(); b != nil {
 		s.BackupFirst = &resource.BackupFirst{ID: b.GetBackupId(), Method: BackupMethodFrom(b.GetMethod()), Database: b.GetDatabase(), Stops: b.GetStops(), Estimate: b.GetEstimateBytes(), Unmeasured: b.GetUnmeasured(), One: b.GetDatabaseName()}
+		for _, d := range b.GetAlso() {
+			s.BackupFirst.Also = append(s.BackupFirst.Also, resource.DatabaseDump{ID: d.GetBackupId(), Database: d.GetDatabaseName()})
+		}
 	}
 	if m := p.GetDatabaseMove(); m != nil {
 		s.Move = &resource.MovePlan{
