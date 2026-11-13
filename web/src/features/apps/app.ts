@@ -488,17 +488,32 @@ export interface ServiceValue {
   kind: "variable" | "secret" | "own" | "runtime";
   /** What its environment calls it: a service can see one under another name. */
   from: string;
+  /**
+   * One of its own that holds no secret, as its spec's shown_env says, so a read
+   * carries it (ADR 0081). Undefined for one hidden, which may be a secret.
+   */
+  value?: string;
 }
 
-/** What a service runs with, sorted. No API response holds a secret's value. */
+/**
+ * What a service runs with, sorted. No API response holds a secret's value, nor
+ * one of its own that may be one: only those its spec shows.
+ */
 export function valuesOf(service: ServiceInfo, fromRuntime?: ReadonlySet<string>): ServiceValue[] {
   const used = (kind: "variable" | "secret", names: { [name: string]: string } | undefined): ServiceValue[] =>
     Object.entries(names ?? {}).map(([name, from]) => ({ name, kind, from: from || name }));
+  const env = appOf(service)?.env ?? {};
+  const shown = new Set(service.spec?.shownEnv ?? []);
   return [
     ...used("variable", service.spec?.variables),
     ...used("secret", service.spec?.secrets),
-    ...Object.keys(appOf(service)?.env ?? {}).map(
-      (name): ServiceValue => ({ name, kind: fromRuntime?.has(name) ? "runtime" : "own", from: name }),
+    ...Object.keys(env).map(
+      (name): ServiceValue => ({
+        name,
+        kind: fromRuntime?.has(name) ? "runtime" : "own",
+        from: name,
+        ...(shown.has(name) ? { value: env[name] ?? "" } : {}),
+      }),
     ),
   ].sort((a, b) => a.name.localeCompare(b.name));
 }

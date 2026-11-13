@@ -26,12 +26,24 @@ import { envEdits } from "./envEdit";
 const store = (...list: MessageInitShape<typeof EnvironmentVariableSchema>[]) =>
   list.map((v) => create(EnvironmentVariableSchema, v));
 
-/** An app that uses LOG_LEVEL, the secret API_KEY, and has OWN set on itself. */
+/** An app that uses LOG_LEVEL, the secret API_KEY, and has OWN and OTHER set on itself, hidden. */
 function anEditedApp(): ServiceInfo {
   const service = anApp("web", "nginx:1.5", { env: { OWN: "", OTHER: "" } });
   if (service.spec) {
     service.spec.variables = { LOG_LEVEL: "" };
     service.spec.secrets = { API_KEY: "" };
+  }
+  service.revision = 7n;
+  return service;
+}
+
+/** An app installed from a catalog: what its entry set shows, and what may be a secret doesn't (ADR 0081). */
+function anInstalledApp(): ServiceInfo {
+  const service = anApp("web", "wordpress:7", { env: { DB_HOST: "db", DB_NAME: "wordpress", DB_EXTRA: "" } });
+  if (service.spec) {
+    service.spec.variables = { LOG_LEVEL: "" };
+    service.spec.secrets = { API_KEY: "" };
+    service.spec.shownEnv = ["DB_HOST", "DB_NAME"];
   }
   service.revision = 7n;
   return service;
@@ -109,17 +121,15 @@ describe("editing an app's environment", () => {
     const [request] = proposals;
     expect(request?.summary).toBe("Change the environment of web");
     const edits = request?.edits ?? [];
-    expect(edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual([
-      "variable FEATURE",
-      "secret TOKEN",
-      "service web",
-    ]);
-    const app = edits[2];
+    // A plain value is the app's own, shown as it is; a secret is the environment's, which takes a passkey to read.
+    expect(edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual(["secret TOKEN", "service web"]);
+    const app = edits[1];
     const spec = app?.spec?.kind.case === "service" ? app.spec.kind.value : undefined;
-    expect(spec?.variables).toEqual({ LOG_LEVEL: "", FEATURE: "" });
+    expect(spec?.variables).toEqual({ LOG_LEVEL: "" });
     expect(spec?.secrets).toEqual({ API_KEY: "", TOKEN: "" });
-    // Its own values never came back, so it keeps OWN without reading it, and OTHER goes.
-    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({});
+    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({ FEATURE: "beta" });
+    expect(spec?.shownEnv).toEqual(["FEATURE"]);
+    // Its hidden values never came back, so it keeps OWN without reading it, and OTHER goes.
     expect(app?.keepEnv).toEqual(["OWN"]);
     expect(app?.baseRevision).toBe(7n);
   });
@@ -196,21 +206,38 @@ describe("editing an app's environment", () => {
     const changing = screen.getByRole("form", { name: "Change LOG_LEVEL" });
     expect(within(changing).getByRole("textbox", { name: "New value of LOG_LEVEL" })).toHaveFocus();
     await user.keyboard("debug{Enter}");
+    // A hidden one of its own may be a secret, so it starts as one, which a passkey reveals.
     await user.click(screen.getByRole("button", { name: "Change OWN" }));
     expect(
-      screen.getByText("What's set on this app isn't shown, so type the whole value it should have."),
-    ).toBeVisible();
+      within(screen.getByRole("form", { name: "Change OWN" })).getByRole("switch", { name: "Secret" }),
+    ).toBeChecked();
+    expect(screen.getByText("It becomes a secret of the environment, which takes a passkey to reveal.")).toBeVisible();
     await user.keyboard("s3cret{Enter}");
+    // One switched off stays its own, shown.
+    await user.click(screen.getByRole("button", { name: "Change OTHER" }));
+    await user.click(
+      within(screen.getByRole("form", { name: "Change OTHER" })).getByRole("switch", { name: "Secret" }),
+    );
+    expect(
+      screen.getByText("It's hidden, as it may be a secret, so type the whole value it should have."),
+    ).toBeVisible();
+    await user.type(screen.getByRole("textbox", { name: "New value of OTHER" }), "plain{Enter}");
     expect(bar()).toHaveTextContent("Applying it restarts web, and api, which use what changes too.");
 
     // ⌘↵ or Ctrl ↵ reviews from anywhere on the page.
     await user.keyboard("{Control>}{Enter}{/Control}");
     await waitFor(() => expect(proposals).toHaveLength(1));
     const edits = proposals[0]?.edits ?? [];
-    expect(edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual(["variable LOG_LEVEL", "service web"]);
-    const app = edits[1]?.spec?.kind.case === "service" ? edits[1].spec.kind.value : undefined;
-    expect(app?.runs.case === "app" ? app.runs.value.env : undefined).toEqual({ OWN: "s3cret" });
-    expect(edits[1]?.keepEnv).toEqual(["OTHER"]);
+    expect(edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual([
+      "variable LOG_LEVEL",
+      "secret OWN",
+      "service web",
+    ]);
+    const app = edits[2]?.spec?.kind.case === "service" ? edits[2].spec.kind.value : undefined;
+    expect(app?.runs.case === "app" ? app.runs.value.env : undefined).toEqual({ OTHER: "plain" });
+    expect(app?.secrets).toEqual({ API_KEY: "", OWN: "" });
+    expect(app?.shownEnv).toEqual(["OTHER"]);
+    expect(edits[2]?.keepEnv).toEqual([]);
   });
 
   it("puts an edit back, or all of them", async () => {
@@ -255,6 +282,52 @@ describe("editing an app's environment", () => {
     expect(screen.getByRole("cell", { name: "OWN, changed, not applied" })).toBeVisible();
   });
 
+  it("keeps a hidden value hidden when a pasted file gives it a new one, Secret on or off", async () => {
+    for (const secret of [false, true]) {
+      forgetDrafts();
+      const user = userEvent.setup();
+      const proposals: ProposeChangeRequest[] = [];
+      const { unmount } = renderAt("/apps/svc_web/environment", api(anInstalledApp(), proposals));
+      await ready();
+      await user.click(screen.getByRole("button", { name: "Import .env" }));
+      const sheet = await screen.findByRole("dialog", { name: "Import .env" });
+      await user.type(
+        within(sheet).getByRole("textbox", { name: "Paste the file's text" }),
+        "DB_EXTRA=hunter2{Enter}DB_HOST=db2{Enter}NEW=1",
+      );
+      if (secret) await user.click(within(sheet).getByRole("switch", { name: "Keep the new ones as secrets" }));
+      await user.click(within(sheet).getByRole("button", { name: "Import 3 values" }));
+      expect(within(screen.getByRole("row", { name: /^DB_EXTRA/ })).getByRole("img", { name: "Hidden" })).toBeVisible();
+      await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
+      await waitFor(() => expect(proposals).toHaveLength(1));
+      const app = proposals[0]?.edits.find((e) => e.resource?.kind === "service");
+      const spec = app?.spec?.kind.case === "service" ? app.spec.kind.value : undefined;
+      // It reaches the app with its new value, and isn't shown: nothing said it holds no secret.
+      expect(spec?.runs.case === "app" ? spec.runs.value.env["DB_EXTRA"] : undefined).toBe("hunter2");
+      expect(spec?.shownEnv).not.toContain("DB_EXTRA");
+      // One it showed stays shown with its new value.
+      expect(spec?.shownEnv).toContain("DB_HOST");
+      unmount();
+    }
+  });
+
+  it("waits to make a value a secret, or share one, until it knows what the environment has", async () => {
+    const user = userEvent.setup();
+    const loading = api(anInstalledApp());
+    loading.variables = { listVariables: () => new Promise(() => {}) };
+    renderAt("/apps/svc_web/environment", loading);
+    const share = await screen.findByRole("button", { name: "Make DB_HOST shared" }, { timeout: 5000 });
+    expect(share).toHaveAttribute("aria-disabled", "true");
+    expect(share).toHaveAccessibleDescription("Waits until the environment's variables and secrets load.");
+    await user.click(screen.getByRole("button", { name: "Change DB_HOST" }));
+    const changing = screen.getByRole("form", { name: "Change DB_HOST" });
+    await user.click(within(changing).getByRole("switch", { name: "Secret" }));
+    expect(within(changing).getByRole("button", { name: "Change" })).toBeDisabled();
+    // As the app's own, shown, it needs nothing of the environment.
+    await user.click(within(changing).getByRole("switch", { name: "Secret" }));
+    expect(within(changing).getByRole("button", { name: "Change" })).toBeEnabled();
+  });
+
   it("lays its rows out for a phone, and keeps the bar's buttons in reach", async () => {
     onPhone();
     const user = userEvent.setup();
@@ -264,6 +337,111 @@ describe("editing an app's environment", () => {
     expect(within(bar()).getByRole("button", { name: /Review plan/ })).toBeVisible();
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Key", "Actions"]);
     await expectAccessible(container);
+  });
+});
+
+describe("an app's own values", () => {
+  it("shows what holds no secret as it is, hides the rest, and changes a shown one from what it is", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const { container } = renderAt("/apps/svc_web/environment", api(anInstalledApp(), proposals));
+    await ready();
+    const row = (name: string) => screen.getByRole("row", { name: new RegExp(`^${name}`) });
+    expect(within(row("DB_HOST")).getByText("db")).toBeVisible();
+    expect(within(row("DB_HOST")).getByText("Set on this app")).toBeVisible();
+    expect(within(row("DB_NAME")).getByText("wordpress")).toBeVisible();
+    expect(within(row("DB_EXTRA")).getByRole("img", { name: "Hidden" })).toBeVisible();
+    // Only one it shows can be made shared: the value of one it hides isn't here to share.
+    expect(screen.queryByRole("button", { name: "Make DB_EXTRA shared" })).toBeNull();
+    await expectAccessible(container);
+
+    await user.click(screen.getByRole("button", { name: "Change DB_NAME" }));
+    const changing = screen.getByRole("form", { name: "Change DB_NAME" });
+    expect(within(changing).getByRole("textbox", { name: "New value of DB_NAME" })).toHaveValue("wordpress");
+    expect(within(changing).getByRole("switch", { name: "Secret" })).not.toBeChecked();
+    expect(within(changing).getByText("Only this app has it.")).toBeVisible();
+    await user.clear(within(changing).getByRole("textbox", { name: "New value of DB_NAME" }));
+    await user.keyboard("blog{Enter}");
+    expect(within(row("DB_NAME")).getByText("wordpress")).toHaveClass("app-env-from");
+    expect(within(row("DB_NAME")).getByText("blog")).toHaveClass("app-env-to");
+    await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const edit = proposals[0]?.edits[0];
+    const spec = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({ DB_NAME: "blog" });
+    expect(spec?.shownEnv).toEqual(["DB_HOST", "DB_NAME"]);
+    expect(edit?.keepEnv).toEqual(["DB_EXTRA", "DB_HOST"]);
+  });
+
+  it("makes one shared in a step: a variable of its value, which the app uses", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/environment", api(anInstalledApp(), proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Make DB_HOST shared" }));
+    expect(screen.getByRole("cell", { name: "DB_HOST, changed, not applied" })).toBeVisible();
+    expect(within(screen.getByRole("row", { name: /^DB_HOST/ })).getByText("Shared variable")).toBeVisible();
+    await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(proposals[0]?.summary).toBe("Make DB_HOST on web a shared variable");
+    const edits = proposals[0]?.edits ?? [];
+    expect(edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual(["variable DB_HOST", "service web"]);
+    const spec = edits[1]?.spec?.kind.case === "service" ? edits[1].spec.kind.value : undefined;
+    expect(spec?.variables).toEqual({ LOG_LEVEL: "", DB_HOST: "" });
+    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({});
+    expect(spec?.shownEnv).toEqual(["DB_NAME"]);
+    expect(edits[1]?.keepEnv).toEqual(["DB_EXTRA", "DB_NAME"]);
+  });
+
+  it("says why one can't be made shared, where the environment has that name for something else", async () => {
+    const more = api(anInstalledApp());
+    more.variables = {
+      listVariables: () => ({
+        environmentId: "env_prod",
+        variables: [...variables, ...store({ id: "var_host", name: "DB_HOST", value: "elsewhere" })],
+      }),
+    };
+    renderAt("/apps/svc_web/environment", more);
+    await ready();
+    const share = screen.getByRole("button", { name: "Make DB_HOST shared" });
+    expect(share).toHaveAttribute("aria-disabled", "true");
+    expect(share).toHaveAccessibleDescription(
+      "The environment has a variable DB_HOST with another value. Rename one to share this.",
+    );
+  });
+
+  it("opens a value for a change from a link that names it", async () => {
+    renderAt("/apps/svc_web/environment?change=DB_HOST", api(anInstalledApp()));
+    const changing = await screen.findByRole("form", { name: "Change DB_HOST" }, { timeout: 5000 });
+    expect(within(changing).getByRole("textbox", { name: "New value of DB_HOST" })).toHaveValue("db");
+  });
+
+  it("keeps a secret out of the way of the environment's own of that name, and asks it for a value", async () => {
+    const user = userEvent.setup();
+    const more = api(anInstalledApp());
+    more.variables = {
+      listVariables: () => ({
+        environmentId: "env_prod",
+        variables: [...variables, ...store({ id: "var_name", name: "DB_NAME", value: "other" })],
+      }),
+    };
+    renderAt("/apps/svc_web/environment", more);
+    await ready();
+    const form = (name: string) => screen.getByRole("form", { name: `Change ${name}` });
+    // A secret of DB_NAME would change the environment's DB_NAME, which other apps may use.
+    await user.click(screen.getByRole("button", { name: "Change DB_NAME" }));
+    await user.click(within(form("DB_NAME")).getByRole("switch", { name: "Secret" }));
+    await user.click(within(form("DB_NAME")).getByRole("button", { name: "Change" }));
+    expect(within(form("DB_NAME")).getByRole("alert")).toHaveTextContent(
+      "The environment has a variable DB_NAME already. Rename one to keep this as a secret.",
+    );
+    await user.click(within(form("DB_NAME")).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Change DB_HOST" }));
+    await user.click(within(form("DB_HOST")).getByRole("switch", { name: "Secret" }));
+    await user.clear(within(form("DB_HOST")).getByRole("textbox", { name: "New value of DB_HOST" }));
+    await user.click(within(form("DB_HOST")).getByRole("button", { name: "Change" }));
+    expect(within(form("DB_HOST")).getByRole("alert")).toHaveTextContent("A secret needs a value.");
+    expect(screen.queryByRole("region", { name: "Unapplied changes" })).toBeNull();
   });
 });
 
@@ -318,11 +496,12 @@ describe("editing an app's environment, where it could go wrong", () => {
     expect(screen.getByRole("cell", { name: "REGION, added, not applied" })).toBeVisible();
     await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(proposals).toHaveLength(1));
-    // REGION stays as api has it: only NEW is made.
-    expect(proposals[0]?.edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual([
-      "variable NEW",
-      "service web",
-    ]);
+    // REGION stays as api has it, and NEW is the app's own.
+    expect(proposals[0]?.edits.map((e) => `${e.resource?.kind} ${e.resource?.name}`)).toEqual(["service web"]);
+    const app =
+      proposals[0]?.edits[0]?.spec?.kind.case === "service" ? proposals[0].edits[0].spec.kind.value : undefined;
+    expect(app?.variables).toEqual({ LOG_LEVEL: "", REGION: "" });
+    expect(app?.runs.case === "app" ? app.runs.value.env : undefined).toEqual({ NEW: "1" });
   });
 
   it("asks for the passkey when a shared value restarts another app that's as good as root", async () => {
@@ -413,6 +592,18 @@ describe("envEdits", () => {
     const spec = edits[0]?.spec?.kind?.case === "service" ? edits[0].spec.kind.value : undefined;
     expect(spec?.variables).toEqual({ LOG_LEVEL: "", DB_HOST: "HOST" });
     expect(edits[0]?.keepEnv).toEqual(["OTHER", "OWN"]);
+  });
+
+  it("uses a variable of the same value as it is, making an own value shared", () => {
+    const shared = store({ id: "var_host", name: "DB_HOST", value: "db" });
+    const edits = envEdits(
+      anInstalledApp(),
+      new Map([["DB_HOST", { op: "share", name: "DB_HOST", value: "db" }]]),
+      shared,
+    );
+    expect(edits.map((e) => e.resource?.kind)).toEqual(["service"]);
+    const spec = edits[0]?.spec?.kind?.case === "service" ? edits[0].spec.kind.value : undefined;
+    expect(spec?.variables).toEqual({ LOG_LEVEL: "", DB_HOST: "" });
   });
 
   it("stops using a secret without deleting it from the environment", () => {

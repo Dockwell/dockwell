@@ -1,6 +1,6 @@
 # 0022. Variables and secrets, encrypted at rest and referenced by services
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0081](0081-an-apps-own-values-shown-and-its-secrets-kept.md): a container's own values that its service says hold no secret show in reads, plans and exports.
 - Date: 2026-11-04
 
 ## Context

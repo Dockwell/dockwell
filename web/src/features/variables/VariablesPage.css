@@ -130,8 +130,10 @@
   list-style: none;
 }
 
+/* "as DATABASE_PASSWORD" goes under its app's chip when the column is narrow, rather than squeeze the value. */
 .variables-users li {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
@@ -151,9 +153,31 @@
   line-height: 18px;
 }
 
+/* Each action keeps its place, so a row without one doesn't shift the others along. */
 .variables-actions {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: repeat(3, var(--control-sm));
   gap: var(--space-1);
+}
+
+.variables-act-edit {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.variables-act-share {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.variables-act-remove {
+  grid-row: 1;
+  grid-column: 3;
+}
+
+/* A phone's card has its actions together at its end, each a thumb wide: no column to line up with. */
+.variables-item .variables-actions {
+  display: inline-flex;
 }
 
 /* Phones: one card a row, as the app screens' phone layouts stack theirs. */
@@ -360,4 +384,31 @@
   flex: 0 1 240px;
   min-width: 180px;
   margin-left: auto;
+}
+
+/* Which app's values the list shows, beside the counts. */
+.variables-app-filter {
+  width: auto;
+  min-width: 160px;
+  max-width: 240px;
+}
+
+/* On a phone, where a value comes from and who uses it share a line. */
+.variables-item-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* On a phone the app and the name filter share a row under the counts, each half of it. */
+@media (max-width: 639px) {
+  .variables-app-filter,
+  .variables-filter {
+    flex: 1 1 140px;
+    min-width: 140px;
+    max-width: none;
+    margin-left: 0;
+  }
 }

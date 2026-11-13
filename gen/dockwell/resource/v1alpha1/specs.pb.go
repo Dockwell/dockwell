@@ -2785,7 +2785,18 @@ type Service struct {
 	// The updates Dockwell applies to it on its own, and when. Unset applies none:
 	// each waits for a person. Numbered apart, as open work adds to this message.
 	// See docs/adr/0080-updating-an-app-safely-and-automatically.md.
-	AutoUpdate    *AutoUpdate `protobuf:"bytes,170,opt,name=auto_update,json=autoUpdate,proto3" json:"auto_update,omitempty"`
+	AutoUpdate *AutoUpdate `protobuf:"bytes,170,opt,name=auto_update,json=autoUpdate,proto3" json:"auto_update,omitempty"`
+	// Which of its app's own environment variables hold no secret, by name, so a
+	// read, a plan and an export show their values as they are. Every other value
+	// of app.env stays hidden, as it may be a secret. A catalog install sets it
+	// for the values its entry writes that can't be one, by the input that gives
+	// each, its name and its shape. An edit that names one here gives its value,
+	// and can't keep it without reading it (keep_env), so nobody shows a value
+	// they never saw. Names app.env doesn't have are dropped. Only the control
+	// plane keeps it: its servers never see it, so changing it alone restarts
+	// nothing. See docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+	// Numbered apart, as open work adds to this message.
+	ShownEnv      []string `protobuf:"bytes,180,rep,name=shown_env,json=shownEnv,proto3" json:"shown_env,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2874,6 +2885,13 @@ func (x *Service) GetRuntime() *Runtime {
 func (x *Service) GetAutoUpdate() *AutoUpdate {
 	if x != nil {
 		return x.AutoUpdate
+	}
+	return nil
+}
+
+func (x *Service) GetShownEnv() []string {
+	if x != nil {
+		return x.ShownEnv
 	}
 	return nil
 }
@@ -5919,7 +5937,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12F\n" +
 	"\n" +
 	"protection\x18\x02 \x01(\x0e2&.dockwell.resource.v1alpha1.ProtectionR\n" +
-	"protection\"\xc3\x05\n" +
+	"protection\"\xe1\x05\n" +
 	"\aService\x129\n" +
 	"\x03app\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.ContainerH\x00R\x03app\x12P\n" +
 	"\tvariables\x18\x02 \x03(\v22.dockwell.resource.v1alpha1.Service.VariablesEntryR\tvariables\x12J\n" +
@@ -5928,7 +5946,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05build\x18\x82\x01 \x01(\v2&.dockwell.resource.v1alpha1.ImageBuildR\x05build\x12>\n" +
 	"\aruntime\x18\x96\x01 \x01(\v2#.dockwell.resource.v1alpha1.RuntimeR\aruntime\x12H\n" +
 	"\vauto_update\x18\xaa\x01 \x01(\v2&.dockwell.resource.v1alpha1.AutoUpdateR\n" +
-	"autoUpdate\x1a<\n" +
+	"autoUpdate\x12\x1c\n" +
+	"\tshown_env\x18\xb4\x01 \x03(\tR\bshownEnv\x1a<\n" +
 	"\x0eVariablesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a:\n" +

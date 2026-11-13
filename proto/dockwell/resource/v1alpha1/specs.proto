@@ -577,6 +577,17 @@ message Service {
   // each waits for a person. Numbered apart, as open work adds to this message.
   // See docs/adr/0080-updating-an-app-safely-and-automatically.md.
   AutoUpdate auto_update = 170;
+  // Which of its app's own environment variables hold no secret, by name, so a
+  // read, a plan and an export show their values as they are. Every other value
+  // of app.env stays hidden, as it may be a secret. A catalog install sets it
+  // for the values its entry writes that can't be one, by the input that gives
+  // each, its name and its shape. An edit that names one here gives its value,
+  // and can't keep it without reading it (keep_env), so nobody shows a value
+  // they never saw. Names app.env doesn't have are dropped. Only the control
+  // plane keeps it: its servers never see it, so changing it alone restarts
+  // nothing. See docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+  // Numbered apart, as open work adds to this message.
+  repeated string shown_env = 180;
 }
 
 // AutoUpdate is how Dockwell updates a service on its own: which updates it

@@ -297,7 +297,8 @@
   color: var(--diff-add);
 }
 
-.app-env-mark.is-change {
+.app-env-mark.is-change,
+.app-env-mark.is-share {
   color: var(--diff-change);
 }
 
@@ -362,9 +363,26 @@
   line-height: 16px;
 }
 
+/* Each action keeps its place, so a row without one doesn't shift the others along. */
 .app-env-actions {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: repeat(3, var(--control-sm));
   gap: 2px;
+}
+
+.app-env-act-edit {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.app-env-act-share {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.app-env-act-remove {
+  grid-row: 1;
+  grid-column: 3;
 }
 
 .app-env-phone-value {

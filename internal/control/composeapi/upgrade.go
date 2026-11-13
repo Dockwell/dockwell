@@ -75,6 +75,7 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	}
 	useSecrets(next, in.Stands)
 	useSecrets(old, in.OldStands)
+	showPlain(next)
 	h.normalize(old)
 	h.normalize(next)
 	place, err := h.destination(ctx, in.Project, in.Environment, "")
@@ -309,7 +310,23 @@ func mergeService(base, ours, next *resourcev1.Service) (*resourcev1.Service, []
 	clashes = append(clashes, c...)
 	secrets, c := mergeStrings("secret ", base.GetSecrets(), ours.GetSecrets(), next.GetSecrets())
 	clashes = append(clashes, c...)
-	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}, Variables: variables, Secrets: secrets}, clashes
+	return &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}, Variables: variables, Secrets: secrets, ShownEnv: mergeShown(app, ours, next)}, clashes
+}
+
+// mergeShown is which of a merged app's own values a read shows: each that has the
+// value what it came from showed, what runs or the new file. A value that's neither
+// is hidden, as nothing says what it is (ADR 0081).
+func mergeShown(app *resourcev1.Container, sides ...*resourcev1.Service) []string {
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(app.GetEnv())) {
+		for _, side := range sides {
+			if v, ok := side.GetApp().GetEnv()[name]; ok && v == app.GetEnv()[name] && slices.Contains(side.GetShownEnv(), name) {
+				out = append(out, name)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // mergeStrings merges a map by its keys. A note names a key, and never what it holds,

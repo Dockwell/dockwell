@@ -34,6 +34,7 @@ import {
 import { sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTimeWords } from "../../lib/time";
+import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -43,21 +44,23 @@ import { RevealsProvider, useReveals } from "../variables/useReveal";
 import { SecretValue, useAllVariables } from "../variables/VariablesPage";
 import { useApp } from "./AppContext";
 import { environmentOf, isMoving, nameOf } from "./app";
-import { alsoRestarts, type EnvEdit, type EnvRow, envCounts, envEdits, envRows } from "./envEdit";
+import { alsoRestarts, cantShare, type EnvEdit, type EnvRow, envCounts, envEdits, envRows } from "./envEdit";
 import { parseEnv, validEnvName } from "./form";
 import { useServices } from "./useServices";
 
 /**
  * What one app runs with, to change: the variables and secrets of its
  * environment it uses, by the names it sees them under, and what its own spec
- * sets. A new value goes into its environment, as a variable or a secret, and
- * the app uses it from there; one there already can be used as it is. Nothing
- * changes until a plan is reviewed and applied: each edit waits in the list,
- * and Review plan plans them together. No response carries a secret's value, or
- * one of the app's own, so those are hidden, and an edit keeps what it doesn't
- * change without reading it back.
+ * sets. A new value is the app's own, shown as it is, or a secret of its
+ * environment the app uses, which takes a passkey to reveal; one its
+ * environment has already can be used as it is, and one of its own made shared
+ * in a step. Nothing changes until a plan is reviewed and applied: each edit
+ * waits in the list, and Review plan plans them together. No response carries a
+ * secret's value, or one of the app's own that may be a secret, so those are
+ * hidden, and an edit keeps what it doesn't change without reading it back
+ * (ADR 0081).
  */
-export function AppEnvironment() {
+export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefined } = {}) {
   const { t } = useLingui();
   const { service, state } = useApp();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -71,7 +74,7 @@ export function AppEnvironment() {
   const mayPlan = useMay()(ChangeService.method.proposeChange, { environment });
   // While the plan sheet is open, it has the keyboard: ⌘↵ there applies.
   const reviewing = useRef(false);
-  const [changing, setChanging] = useState<string>();
+  const [changing, setChanging] = useState<string | undefined>(changeFirst);
   const [importing, setImporting] = useState(false);
   const rows = useMemo(() => envRows(service, pending, store.data?.variables), [service, pending, store.data]);
   const moving = isMoving(state);
@@ -102,14 +105,16 @@ export function AppEnvironment() {
         ? t`Add ${key} to ${name}`
         : only?.op === "change"
           ? t`Change ${key} on ${name}`
-          : only?.op === "remove"
-            ? t`Remove ${key} from ${name}`
-            : t`Change the environment of ${name}`;
+          : only?.op === "share"
+            ? t`Make ${key} on ${name} a shared variable`
+            : only?.op === "remove"
+              ? t`Remove ${key} from ${name}`
+              : t`Change the environment of ${name}`;
     reviewing.current = true;
     sheet.open({
       kind: "propose",
       summary,
-      edits: envEdits(service, pending),
+      edits: envEdits(service, pending, store.data?.variables),
       onClose: (change: Change | undefined) => {
         reviewing.current = false;
         // Applied, or applying: what was pending is the app's now, or on its way.
@@ -122,7 +127,7 @@ export function AppEnvironment() {
           ? t`${name} changed after you started. Close this and review your edits again: they apply to what it is now.`
           : undefined,
     });
-  }, [pending, moving, service, sheet, name, t, setPending]);
+  }, [pending, moving, service, sheet, name, t, setPending, store.data]);
 
   // ⌘↵ or Ctrl ↵ reviews what's pending, from anywhere on the page.
   useEffect(() => {
@@ -155,8 +160,10 @@ export function AppEnvironment() {
     phone,
     (row) => setChanging(row.name),
     (row) => put({ op: "remove", name: row.name }),
+    (row) => put({ op: "share", name: row.name, value: row.now?.value ?? "" }),
     revert,
     store.isPending,
+    store.data?.variables,
   );
 
   if (!readable) {
@@ -235,11 +242,11 @@ export function AppEnvironment() {
 
           <p className="app-note">
             <Trans>
-              Change a shared one in{" "}
-              <Link to="/variables" search={{ environment }}>
+              Shared values change in{" "}
+              <Link to="/variables" search={{ environment, app: service.id }}>
                 Variables and secrets
               </Link>
-              . A value set here is never shown again.
+              , for every app that uses them.
             </Trans>
           </p>
         </MayEdit>
@@ -333,7 +340,7 @@ function useCountsWords(rows: readonly EnvRow[]): string {
   return parts.join(" · ");
 }
 
-const MARK: Record<EnvEdit["op"], string> = { add: "+", use: "+", change: "~", remove: "−" };
+const MARK: Record<EnvEdit["op"], string> = { add: "+", use: "+", change: "~", share: "~", remove: "−" };
 
 /** The runtime owns PORT; the app's environment can't override it. */
 function runtimePort(row: EnvRow): boolean {
@@ -344,16 +351,19 @@ function useColumns(
   phone: boolean,
   onChange: (row: EnvRow) => void,
   onRemove: (row: EnvRow) => void,
+  onShare: (row: EnvRow) => void,
   onRevert: (name: string) => void,
   loading: boolean,
+  store: readonly EnvironmentVariable[] | undefined,
 ): TableColumn<EnvRow & { id: string }>[] {
   const { t } = useLingui();
+  const shareOff = useShareOff();
   const key = (row: EnvRow) => {
     const op = row.pending?.op;
     const said =
       op === "add" || op === "use"
         ? t`added, not applied`
-        : op === "change"
+        : op === "change" || op === "share"
           ? t`changed, not applied`
           : op === "remove"
             ? t`removed, not applied`
@@ -371,14 +381,48 @@ function useColumns(
   const actions = (row: EnvRow) => {
     const name = row.name;
     return row.pending ? (
-      <Button size="sm" variant="ghost" icon="undo" aria-label={t`Revert ${name}`} onClick={() => onRevert(row.name)} />
+      <span className="app-env-actions">
+        <Button
+          className="app-env-act-remove"
+          size="sm"
+          variant="ghost"
+          icon="undo"
+          aria-label={t`Revert ${name}`}
+          onClick={() => onRevert(row.name)}
+        />
+      </span>
     ) : (
       <span className="app-env-actions">
         {runtimePort(row) ? null : (
-          <Button size="sm" variant="ghost" icon="edit" aria-label={t`Change ${name}`} onClick={() => onChange(row)} />
+          <Button
+            className="app-env-act-edit"
+            size="sm"
+            variant="ghost"
+            icon="edit"
+            aria-label={t`Change ${name}`}
+            onClick={() => onChange(row)}
+          />
         )}
+        {row.now?.kind === "own" && row.now.value !== undefined ? (
+          <Button
+            className="app-env-act-share"
+            size="sm"
+            variant="ghost"
+            icon="layers"
+            aria-label={t`Make ${name} shared`}
+            onClick={() => onShare(row)}
+            off={shareOff(cantShare(row, store), name) || undefined}
+          />
+        ) : null}
         {row.now?.kind === "runtime" ? null : (
-          <Button size="sm" variant="ghost" icon="trash" aria-label={t`Remove ${name}`} onClick={() => onRemove(row)} />
+          <Button
+            className="app-env-act-remove"
+            size="sm"
+            variant="ghost"
+            icon="trash"
+            aria-label={t`Remove ${name}`}
+            onClick={() => onRemove(row)}
+          />
         )}
       </span>
     );
@@ -400,7 +444,7 @@ function useColumns(
           </>
         ),
       },
-      { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 72, align: "right", render: actions },
+      { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 100, align: "right", render: actions },
     ];
   }
   return [
@@ -408,8 +452,21 @@ function useColumns(
     { key: "value", header: t`Value`, render: (row) => <Value row={row} loading={loading} /> },
     { key: "source", header: t`Source`, width: 200, muted: true, render: (row) => <Source row={row} /> },
     { key: "updated", header: t`Updated`, width: 160, render: (row) => <Updated row={row} /> },
-    { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 80, align: "right", render: actions },
+    { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 112, align: "right", render: actions },
   ];
+}
+
+/** Why an own value can't be made shared, in words, or "" when it can. */
+function useShareOff(): (why: ReturnType<typeof cantShare>, name: string) => string {
+  const { t } = useLingui();
+  return (why, name) =>
+    why === "secret"
+      ? t`The environment has a secret ${name} already. Rename one to share this.`
+      : why === "other"
+        ? t`The environment has a variable ${name} with another value. Rename one to share this.`
+        : why === "reading"
+          ? t`Waits until the environment's variables and secrets load.`
+          : "";
 }
 
 /** Dots for a value no one reads here. */
@@ -434,17 +491,27 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
     // Its Source says it's a new secret.
     return kind === "secret" ? <Masked /> : <code className="app-env-to">{edit.value}</code>;
   }
+  if (edit?.op === "share") return <code className="app-env-value">{edit.value}</code>;
   if (edit?.op === "change") {
-    if (kind !== "variable") return <Masked label={t`New value`} />;
+    if (kind === "secret" || edit.secret || edit.hidden) return <Masked label={t`New value`} />;
+    const from = kind === "variable" ? row.stored?.value : (row.now?.value ?? row.runtimeValue);
     return (
       <span className="app-env-diff">
-        <code className="app-env-from">{row.stored?.value ?? ""}</code>
+        {from === undefined ? (
+          <span className="app-env-masked" role="img" aria-label={t`Hidden`}>
+            ••••
+          </span>
+        ) : (
+          <code className="app-env-from">{from}</code>
+        )}
         <Icon name="arrow-right" size={12} />
         <code className="app-env-to">{edit.value}</code>
       </span>
     );
   }
-  if (kind === "own") return <Masked />;
+  if (kind === "own") {
+    return row.now?.value === undefined ? <Masked /> : <code className="app-env-value">{row.now.value}</code>;
+  }
   if (kind === "runtime") return <code className="app-env-value">{row.runtimeValue}</code>;
   if (row.stored) {
     if (row.stored.secret) return <SecretValue variable={row.stored} />;
@@ -457,7 +524,9 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
 function Source({ row }: { row: EnvRow }) {
   const { t } = useLingui();
   const edit = row.pending;
-  if (edit?.op === "add") return <>{edit.secret ? t`New secret` : t`New variable`}</>;
+  if (edit?.op === "add") return <>{edit.secret ? t`New secret` : t`Set on this app`}</>;
+  if (edit?.op === "share") return <>{t`Shared variable`}</>;
+  if (edit?.op === "change" && edit.secret) return <>{t`New secret`}</>;
   if (edit?.op === "use") {
     const from = edit.from;
     return <>{edit.secret ? t`Secret ${from}` : t`Variable ${from}`}</>;
@@ -482,13 +551,16 @@ function Source({ row }: { row: EnvRow }) {
 function Updated({ row }: { row: EnvRow }) {
   const { t } = useLingui();
   const words = useTimeWords();
+  const actor = useActorWords();
   const now = useControlPlaneNow(60_000);
   if (row.pending) return <span className="app-muted">{t`Not applied`}</span>;
   const stored = row.stored;
   if (!stored) return <span className="app-muted">—</span>;
+  // Who, as Activity says it: a person by name, and a token the CLI made by where it ran.
+  const by = stored.updatedBy ? actor(stored.updatedBy) : undefined;
   return (
     <span className="app-env-updated">
-      {stored.updatedBy?.name ? <span>{stored.updatedBy.name}</span> : null}
+      {by ? <span title={by.full === by.name ? undefined : by.full}>{by.name}</span> : null}
       {stored.updateTime ? <span className="app-muted">{words.ago(timestampDate(stored.updateTime), now)}</span> : null}
     </span>
   );
@@ -507,16 +579,20 @@ interface AddFormProps {
 }
 
 /**
- * Adds a variable or secret, or gives one the app has a new value. Neither
+ * Adds a value or a secret, or gives one the app has a new value. Neither
  * plans anything yet: each waits in the list for Review plan. A name the app
  * has is changed in its row; one its environment has already is used as it is,
- * rather than changed for every app that uses it.
+ * rather than changed for every app that uses it. One of the app's own changes
+ * as its own, shown, or as a secret: one that's hidden starts as a secret, as
+ * it may be one.
  */
 function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: AddFormProps) {
   const { t } = useLingui();
   const [key, setKey] = useState(changing?.name ?? "");
-  const [value, setValue] = useState("");
-  const [secret, setSecret] = useState(false);
+  // One of its own that's shown starts from what it is; anything else, from nothing.
+  const [value, setValue] = useState(changing?.now?.kind === "own" ? (changing.now.value ?? "") : "");
+  const own = changing?.now?.kind === "own" || (changing?.now?.kind === "runtime" && !runtimePort(changing));
+  const [secret, setSecret] = useState(changing?.now?.kind === "own" && changing.now.value === undefined);
   const [error, setError] = useState<string>();
   const [inStore, setInStore] = useState<EnvironmentVariable>();
   const [use, setUse] = useState("");
@@ -533,7 +609,25 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
     event.preventDefault();
     setInStore(undefined);
     if (changing) {
-      onAdd({ op: "change", name: changing.name, value });
+      const target = changing.name;
+      if (own && secret) {
+        // A secret goes into the environment, where one of that name would be changed for every app.
+        const there = store?.find((v) => v.name === target);
+        if (there) {
+          setError(
+            there.secret
+              ? t`The environment has a secret ${target} already. Rename one to keep this as a secret.`
+              : t`The environment has a variable ${target} already. Rename one to keep this as a secret.`,
+          );
+          return;
+        }
+        if (value === "") {
+          setError(t`A secret needs a value.`);
+          valueField.current?.focus();
+          return;
+        }
+      }
+      onAdd(own ? { op: "change", name: target, value, secret } : { op: "change", name: target, value });
       onDone();
       return;
     }
@@ -616,14 +710,24 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
             spellCheck={false}
           />
         </div>
-        {changing ? null : <Switch label={t`Secret`} checked={secret} onChange={setSecret} />}
+        {!changing || own ? (
+          <Switch
+            label={t`Secret`}
+            checked={secret}
+            onChange={(on) => {
+              setSecret(on);
+              setError(undefined);
+            }}
+          />
+        ) : null}
         <div className="app-env-form-buttons">
           {changing ? (
             <>
               <Button type="button" variant="ghost" onClick={onDone}>
                 <Trans>Cancel</Trans>
               </Button>
-              <Button type="submit" icon="check">
+              {/* A secret goes into the environment, which might have one of the name: it waits to know. */}
+              <Button type="submit" icon="check" disabled={own && secret && reading}>
                 <Trans>Change</Trans>
               </Button>
             </>
@@ -645,8 +749,12 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
         ) : null}
         {changing ? (
           <p className="app-env-form-note">
-            {changing.now?.kind === "own" ? (
-              <Trans>What's set on this app isn't shown, so type the whole value it should have.</Trans>
+            {own && secret ? (
+              <Trans>It becomes a secret of the environment, which takes a passkey to reveal.</Trans>
+            ) : changing.now?.kind === "own" && changing.now.value === undefined ? (
+              <Trans>It's hidden, as it may be a secret, so type the whole value it should have.</Trans>
+            ) : changing.now?.kind === "own" ? (
+              <Trans>Only this app has it.</Trans>
             ) : changing.now?.kind === "runtime" ? (
               <Trans>This app uses the new value instead of its runtime's default.</Trans>
             ) : changing.now?.kind === "secret" ? (
@@ -802,7 +910,13 @@ function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
   // A name the environment has already is used as it is, as Add offers it: changing it from
   // here would change it for every app that uses it, unseen.
   const edits = (parsed ?? []).map(({ name, value }): EnvEdit => {
-    if (rows.some((row) => row.name === name && row.now)) return { op: "change", name, value };
+    const had = rows.find((row) => row.name === name && row.now);
+    if (had) {
+      // One of the app's own that reads hidden stays hidden: a pasted file says nothing of
+      // whether it's a secret. One it shows stays shown, and one of the environment's changes there.
+      const hidden = (had.now?.kind === "own" || had.now?.kind === "runtime") && had.now.value === undefined;
+      return hidden ? { op: "change", name, value, hidden } : { op: "change", name, value };
+    }
     const there = store.find((v) => v.name === name);
     return there ? { op: "use", name, from: there.name, secret: there.secret } : { op: "add", name, value, secret };
   });

@@ -185,6 +185,7 @@ func (d *Driver) Validate(spec proto.Message) error {
 			svc.Build.Secrets[id] = id
 		}
 	}
+	tidyShown(svc)
 	maps.DeleteFunc(svc.Revisions, func(as string, rev int64) bool {
 		_, v := svc.GetVariables()[as]
 		_, s := svc.GetSecrets()[as]
@@ -264,6 +265,9 @@ func (*Driver) KeepEnv(current, desired proto.Message, names []string) (resource
 	app := want.GetApp()
 	if cur == nil || app == nil {
 		return resource.Kept{}, errors.New("it keeps environment variables, but runs no image to give them to. Leave keep_env out")
+	}
+	if err := showsKept(cur, want, names); err != nil {
+		return resource.Kept{}, err
 	}
 	have := cur.GetApp().GetEnv()
 	seen := make(map[string]bool, len(names))
@@ -606,14 +610,15 @@ func (*Driver) WriterOf(spec proto.Message) string {
 
 // OnServer is a service as its server has it: without its runtime, which only
 // the control plane keeps, as the container it decides is written already (ADR
-// 0058), or its automatic updates, which the control plane applies (ADR 0080).
+// 0058), its automatic updates, which the control plane applies (ADR 0080), or
+// which of its values reads show, which only the control plane serves (ADR 0081).
 func (*Driver) OnServer(spec proto.Message) proto.Message {
 	svc := spec.(*resourcev1.Service)
-	if svc.GetRuntime() == nil && svc.GetAutoUpdate() == nil {
+	if svc.GetRuntime() == nil && svc.GetAutoUpdate() == nil && len(svc.GetShownEnv()) == 0 {
 		return spec
 	}
 	out := proto.CloneOf(svc)
-	out.Runtime, out.AutoUpdate = nil, nil
+	out.Runtime, out.AutoUpdate, out.ShownEnv = nil, nil, nil
 	return out
 }
 
@@ -624,15 +629,20 @@ func (*Driver) OnServer(spec proto.Message) proto.Message {
 // runtime writes.
 //
 // Its automatic updates are the control plane's alone, so they stay whatever the
-// server has.
+// server has. A value it showed stays shown while the server has that value, and
+// one someone changed there by hand is hidden, as it could be anything.
 func (d *Driver) Readopted(current, observed proto.Message) proto.Message {
 	out := d.readoptedRuntime(current, observed)
-	a := current.(*resourcev1.Service).GetAutoUpdate()
-	if a == nil || out == nil {
+	cur := current.(*resourcev1.Service)
+	a := cur.GetAutoUpdate()
+	if a == nil && len(cur.GetShownEnv()) == 0 || out == nil {
 		return out
 	}
 	kept := proto.CloneOf(out.(*resourcev1.Service))
-	kept.AutoUpdate = proto.CloneOf(a)
+	if a != nil {
+		kept.AutoUpdate = proto.CloneOf(a)
+	}
+	kept.ShownEnv = keptShown(cur, kept)
 	return kept
 }
 

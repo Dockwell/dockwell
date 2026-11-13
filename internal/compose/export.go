@@ -146,7 +146,8 @@ type Exported struct {
 // It never writes a secret. An environment variable whose value may hold
 // one, as its field's sensitive option says, is listed by name alone, for
 // docker compose to take from its shell: a container's own environment,
-// and the secrets a service uses. The variables a service uses aren't
+// but for the values its service shows (shown_env), and the secrets a
+// service uses. The variables a service uses aren't
 // secret, so their values are written whole. The label that says what a
 // service uses goes in too, names and revisions alone, so a container
 // docker compose makes reads back as the service, and importing the file
@@ -185,7 +186,7 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			entry.Entrypoint = exportWords(c, binding.FieldEntrypoint)
 		}
 		var left []string
-		entry.Environment, left = environment(c)
+		entry.Environment, left = environment(c, s.Spec.GetShownEnv())
 		named := binding.ReferencedNames(c)
 		namesValues = namesValues || len(named) > 0
 		for _, u := range binding.Uses(s.Spec) {
@@ -428,8 +429,9 @@ func exportResources(r *resourcev1.Resources) *deployEntry {
 // environment is a container's own environment for a Compose file, and
 // the variables left out as they may hold secrets. It reads the env field's
 // sensitive option: a workload's environment stays configuration that may
-// hold one, and what is plain lives in the environment's variables.
-func environment(c *resourcev1.Container) (map[string]*string, []string) {
+// hold one, and what is plain lives in the environment's variables, or is
+// named in shown, its service's shown_env, which holds no secret (ADR 0081).
+func environment(c *resourcev1.Container, shown []string) (map[string]*string, []string) {
 	env := c.GetEnv()
 	if len(env) == 0 {
 		return nil, nil
@@ -439,7 +441,7 @@ func environment(c *resourcev1.Container) (map[string]*string, []string) {
 	out := make(map[string]*string, len(env))
 	var left []string
 	for _, k := range slices.Sorted(maps.Keys(env)) {
-		if sensitive {
+		if sensitive && !slices.Contains(shown, k) {
 			out[k] = nil
 			left = append(left, k)
 			continue

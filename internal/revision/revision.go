@@ -2463,6 +2463,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				s.Finishing = true
 			}
 			gained := gains[s.Ref]
+			// A value both sides show holds no secret, so the plan says it, as only the
+			// control plane knows which those are (ADR 0081).
+			if it := itemOf(its, s.Ref); it != nil {
+				resource.ShowChanges(s.Changes, e.kinds.Shown(s.Ref.Kind, it.current), e.kinds.Shown(s.Ref.Kind, it.spec))
+			}
 			// The panel's domain moving behind a proxy is the agent's to know,
 			// as only it sees what holds the ports. A person approves it: a
 			// token can't cut off what it can't approve (ADR 0016).
@@ -2541,6 +2546,16 @@ func unfinishedOn(its []*item, ref resource.Ref, server string) *resource.Step {
 	for _, it := range its {
 		if it.ref == ref && it.desiredOn(server) != nil {
 			return it.unfinished[server]
+		}
+	}
+	return nil
+}
+
+// itemOf is the item of a resource among its, or nil.
+func itemOf(its []*item, ref resource.Ref) *item {
+	for _, it := range its {
+		if it.ref == ref {
+			return it
 		}
 	}
 	return nil

@@ -542,7 +542,8 @@ describe("an app from a folder", () => {
     await user.click(within(form).getByRole("button", { name: "Change" }));
     const row = screen.getByRole("row", { name: /^NPM_CONFIG_CACHE/ });
     expect(row).toHaveTextContent("Set on this app");
-    expect(within(row).getByRole("img", { name: "Hidden" })).toBeVisible();
+    // A value a person types as no secret shows, from the runtime's default to theirs (ADR 0081).
+    expect(within(row).getByText("/app/.cache")).toHaveClass("app-env-to");
     const bar = screen.getByRole("region", { name: "Unapplied changes" });
     expect(bar).toHaveTextContent("Applying it restarts shop.");
     await user.click(within(bar).getByRole("button", { name: /Review plan/ }));
@@ -552,6 +553,7 @@ describe("an app from a folder", () => {
     const edit = edits[0];
     const spec = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
     expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({ NPM_CONFIG_CACHE: "/app/.cache" });
+    expect(spec?.shownEnv).toEqual(["NPM_CONFIG_CACHE"]);
     expect(spec?.runtime).toEqual(service.spec?.runtime);
     expect(spec?.runs.case === "app" ? spec.runs.value.image : undefined).toBe("node:24.22.0@sha256:24");
     expect(edit?.keepEnv).toEqual(["HOME", "NODE_ENV", "NPM_CONFIG_UPDATE_NOTIFIER", "PORT"]);

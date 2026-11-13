@@ -127,6 +127,7 @@ import { UpgradeLine, UpgradePhases } from "./UpgradeLead";
 import { upgradeOf, upgradePhases } from "./upgrade";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
+import { useActorWords } from "../activity/actor";
 import { placesOfChange, useMay } from "../auth/may";
 
 /** What every opening may say about what comes next. */
@@ -2324,8 +2325,10 @@ function TookLine({ change }: { change: Change }) {
 /** What a change's record says, for one that applied a while ago. */
 function OnRecord({ change }: { change: Change }) {
   const time = useTimeWords();
+  const actor = useActorWords();
   const now = useControlPlaneNow(30_000);
-  const by = change.appliedBy?.name ?? "";
+  // A token the CLI made reads by where it ran, as on Activity, not by its own name.
+  const by = change.appliedBy ? actor(change.appliedBy).name : "";
   const when = change.applyTime ? time.ago(timestampDate(change.applyTime), now) : "";
   return (
     <div className="plan-lead">
