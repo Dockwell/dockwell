@@ -372,4 +372,32 @@ func TestAMovingTagIsPinnedAndMovesByItsBuilds(t *testing.T) {
 	if file := string(installs.Msg.GetInstalls()[0].GetPin().GetFile()); !strings.Contains(file, "image: nginx:latest@"+buildB) {
 		t.Errorf("after the update the install runs:\n%s", file)
 	}
+
+	// The store moves on to a release of its own, still on latest. Taking a new build
+	// alone, as its update of the kind digest does, mustn't take that release, which
+	// the person may skip: it's refused, and the release stays an update of its own.
+	moved := repo.CommitLater(map[string]string{
+		"LICENSE":                       "                                 Apache License\n                           Version 2.0, January 2004\n",
+		"templates/compose/moving.yaml": strings.Replace(strings.Replace(boardTemplate, "nginx:1.27", "nginx", 1), "ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}", "ADMIN_PASSWORD=${SERVICE_PASSWORD_ADMIN}\n      - THEME=dark", 1),
+	})
+	res, err = cat.SetCatalogSource(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogSourceRequest{Name: "coolify", Repository: repo.URL, Commit: moved}))
+	if err != nil {
+		t.Fatalf("SetCatalogSource: %v", err)
+	}
+	apply(t, c, res.Msg.GetChange())
+	board := ""
+	for _, s := range checked.Msg.GetServices() {
+		if s.GetResource().GetName() == "board" {
+			board = s.GetId()
+		}
+	}
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	_, err = svc.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: board, Rebuild: true}))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "catalog has moved on to") {
+		t.Errorf("taking the new build alone once the store moved on: %v", err)
+	}
+	// The release itself is still a person's to take.
+	if _, err := svc.UpgradeService(t.Context(), connect.NewRequest(&dockwellv1.UpgradeServiceRequest{Id: board})); err != nil {
+		t.Errorf("taking the newer release: %v", err)
+	}
 }

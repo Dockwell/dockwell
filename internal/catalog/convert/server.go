@@ -108,7 +108,7 @@ var Stores = []Store{
 		Format: FormatDokploy, ID: "dokploy", Label: "Dokploy", Name: "Dokploy's templates", License: "MIT", Root: "blueprints",
 		Upstream: "https://github.com/Dokploy/templates", Layout: "Dokploy's format",
 		Homepage: "https://dokploy.com", Branch: "canary",
-		Descend:  func(p string, depth int) bool { return strings.HasPrefix(p+"/", "blueprints/") && depth <= 6 },
+		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "blueprints/") && depth <= 6 },
 		Want: func(p string) bool {
 			parts := strings.Split(p, "/")
 			return len(parts) == 3 && parts[0] == "blueprints" && slices.Contains([]string{"docker-compose.yml", "template.toml", "meta.json"}, parts[2])

@@ -43,7 +43,6 @@ data=$(mktemp -d)
 log=$(mktemp)
 cookie=$(mktemp)
 passkey=$(mktemp)
-stepup=$(mktemp)
 projects=()
 pid=""
 
@@ -59,7 +58,7 @@ cleanup() {
   done
   [[ -z "$pid" ]] || priv kill "$pid" 2>/dev/null || true
   wait 2>/dev/null || true
-  priv rm -rf "$data" "$log" "$cookie" "$passkey" "$stepup"
+  priv rm -rf "$data" "$log" "$cookie" "$passkey"
 }
 trap cleanup EXIT
 
@@ -100,7 +99,7 @@ priv grep -q 'connected to the control plane' "$log" || fail "the control server
 claim=$(dw claim) || fail "dockwell claim failed"
 link=$(grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' <<<"$claim" | head -1) || true
 [[ -n "$link" ]] || fail "dockwell claim printed no claim link: $claim"
-(cd "$root" && go run ./scripts/claim "$link" "$cookie" "$passkey" && go build -o "$stepup" ./scripts/stepup) || fail "can't claim the install"
+(cd "$root" && go run ./scripts/claim "$link" "$cookie" "$passkey") || fail "can't claim the install"
 dw login --local >/dev/null || fail "dockwell login --local failed"
 
 # person_answer calls the API as a signed-in person does, from the panel's origin, and
@@ -122,23 +121,23 @@ settles() {
   fail "$1 is $state after 10 min, want applied"
 }
 # try_apply applies a planned change: with the CLI's token when the plan lets one, and
-# as a person does in the panel when it destroys data or reaches the server,
-# confirming with the passkey the claim made when it's as good as root. It returns 1
-# when the change failed, and fails at once on anything else.
+# as a person does in the panel when it destroys data, as removing an app does. A store's
+# sample never reaches the server: a plan with host access fails it, as no store's app
+# should need any, and a person would have to approve it. It returns 1 when the change
+# failed, and fails at once on anything else.
 try_apply() {
-  local plan fingerprint answer proof
+  local plan fingerprint answer
   plan=$(dw changes get "$1" --json) || fail "can't read $1"
-  if jq -e '.change.plan | (.destructive or .hostAccess) | not' <<<"$plan" >/dev/null; then
+  if jq -e '.change.plan.hostAccess // [] | length > 0' <<<"$plan" >/dev/null; then
+    fail "$1 reaches the server, which no store's sample may: $(jq -c '.change.plan.hostAccess' <<<"$plan")"
+  fi
+  if jq -e '.change.plan.destructive | not' <<<"$plan" >/dev/null; then
     dw changes apply "$1" --yes >/dev/null && return 0
     [[ "$(change_field "$1" state)" == CHANGE_STATE_FAILED ]] && return 1
     fail "applying $1 failed: $(dw changes get "$1" --json)"
   fi
   fingerprint=$(jq -r .change.plan.fingerprint <<<"$plan")
   answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}") || fail "a person can't reach the API to apply $1"
-  if [[ "${answer##*$'\n'}" == 403 ]] && grep -qi '^dockwell-error: needs_step_up' <<<"$answer"; then
-    proof=$("$stepup" "http://localhost:$port" "$cookie" "$passkey" STEP_UP_ACTION_APPLY_ROOT_CHANGE "$1") || fail "can't confirm $1 with the passkey"
-    answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\",\"proof\":\"$proof\"}") || fail "a person can't reach the API to apply $1"
-  fi
   [[ "${answer##*$'\n'}" == 200 ]] || fail "a person can't apply $1: $answer"
   settles "$1"
 }

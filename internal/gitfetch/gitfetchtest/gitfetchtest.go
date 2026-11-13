@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -25,6 +26,8 @@ type Repo struct {
 	t    testing.TB
 	root string
 	work string
+	// date is the date the next commit takes, or empty for now.
+	date string
 }
 
 // New makes an empty repository and serves it. A machine without git's
@@ -106,6 +109,20 @@ func (r *Repo) Commit(files map[string]string) string {
 	return r.git("rev-parse", "HEAD")
 }
 
+// CommitLater commits as Commit does, dated a minute after the commit before, as
+// what a store's commit releases is ordered by its date, which two commits in one
+// second share.
+func (r *Repo) CommitLater(files map[string]string) string {
+	r.t.Helper()
+	when, err := strconv.ParseInt(r.git("log", "-1", "--format=%ct"), 10, 64)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	r.date = strconv.FormatInt(when+60, 10) + " +0000"
+	defer func() { r.date = "" }()
+	return r.Commit(files)
+}
+
 // Branch renames the branch checked out, which HEAD names, so its default is
 // name, as a repository whose default isn't main has it.
 func (r *Repo) Branch(name string) {
@@ -144,6 +161,9 @@ func (r *Repo) git(args ...string) string {
 	r.t.Helper()
 	cmd := exec.CommandContext(r.t.Context(), "git", append([]string{"-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "init.defaultBranch=main", "-C", r.work}, args...)...) //nolint:gosec // a test's repository
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "HOME="+r.root)
+	if r.date != "" {
+		cmd.Env = append(cmd.Env, "GIT_AUTHOR_DATE="+r.date, "GIT_COMMITTER_DATE="+r.date)
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("git %v: %v\n%s", args, err, out)

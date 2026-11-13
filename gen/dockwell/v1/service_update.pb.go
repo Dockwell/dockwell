@@ -617,8 +617,8 @@ type SkipServiceUpdateRequest struct {
 	Project string `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
 	// The environment of a service named by name, by name or ID.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
-	// The version, as an AvailableUpdate's to_version says it, such as "17.2", or
-	// its to_digest, for a new build, or its to_commit.
+	// The version, as an AvailableUpdate's skip_as says it: its to_version, such as
+	// "17.2", its to_digest, for a new build, its to_commit, or "release:7".
 	Version string `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
 	// Takes the skip back, so the version shows again.
 	Unskip        bool `protobuf:"varint,5,opt,name=unskip,proto3" json:"unskip,omitempty"`
@@ -1013,7 +1013,12 @@ type AvailableUpdate struct {
 	ToCommit string `protobuf:"bytes,12,opt,name=to_commit,json=toCommit,proto3" json:"to_commit,omitempty"`
 	// True when a person skipped this very version for this service. It counts
 	// nowhere and sends no alert, and a newer one still shows.
-	Skipped       bool `protobuf:"varint,13,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	Skipped bool `protobuf:"varint,13,opt,name=skipped,proto3" json:"skipped,omitempty"`
+	// What skipping it names it by, as SkipServiceUpdate's version takes it: its
+	// version, its new digest, its commit, or "release:7" for a catalog release whose
+	// version stays, or names a tag that moves, such as latest, so skipping one
+	// release never skips the next (ADR 0085). Other stores' work takes 90 to 99 here.
+	SkipAs        string `protobuf:"bytes,90,opt,name=skip_as,json=skipAs,proto3" json:"skip_as,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1139,6 +1144,13 @@ func (x *AvailableUpdate) GetSkipped() bool {
 	return false
 }
 
+func (x *AvailableUpdate) GetSkipAs() string {
+	if x != nil {
+		return x.SkipAs
+	}
+	return ""
+}
+
 var File_dockwell_v1_service_update_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_update_proto_rawDesc = "" +
@@ -1187,7 +1199,7 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x0eproblem_detail\x18\x06 \x01(\tR\rproblemDetail\x121\n" +
 	"\x06source\x18\a \x01(\x0e2\x19.dockwell.v1.UpdateSourceR\x06source\x12;\n" +
 	"\vsnooze_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"snoozeTime\"\xef\x03\n" +
+	"snoozeTime\"\x88\x04\n" +
 	"\x0fAvailableUpdate\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.UpdateKindR\x04kind\x12!\n" +
 	"\ffrom_version\x18\x02 \x01(\tR\vfromVersion\x12\x1d\n" +
@@ -1206,7 +1218,8 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	" \x01(\tR\bnotesUrl\x12'\n" +
 	"\x0fcatalog_release\x18\v \x01(\rR\x0ecatalogRelease\x12\x1b\n" +
 	"\tto_commit\x18\f \x01(\tR\btoCommit\x12\x18\n" +
-	"\askipped\x18\r \x01(\bR\askipped*\x80\x02\n" +
+	"\askipped\x18\r \x01(\bR\askipped\x12\x17\n" +
+	"\askip_as\x18Z \x01(\tR\x06skipAs*\x80\x02\n" +
 	"\n" +
 	"UpdateKind\x12\x1b\n" +
 	"\x17UPDATE_KIND_UNSPECIFIED\x10\x00\x12 \n" +
