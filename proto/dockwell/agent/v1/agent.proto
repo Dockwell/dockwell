@@ -515,6 +515,10 @@ message Hello {
   // (Mount.make_owner on a volume, ADR 0085). The control plane plans no such mount
   // on an agent that doesn't say so, which would leave the folder root's.
   bool owns_volumes = 302;
+  // True when the agent gives a volume's empty folder the mode its mount names
+  // (Mount.make_mode) and writes the files a new volume starts with (Mount.seed),
+  // ADR 0085. The control plane plans neither on an agent that doesn't say so.
+  bool prepares_volumes = 303;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.

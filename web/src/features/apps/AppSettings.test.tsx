@@ -11,6 +11,7 @@ import {
   HostAccessSchema,
   ImageAnswer,
   MountSchema,
+  MountSeedSchema,
   PortMappingSchema,
   type ProposeChangeRequest,
   RestartPolicy,
@@ -607,12 +608,21 @@ describe("an app's settings, where it could go wrong", () => {
     const service = anEditedApp();
     if (service.spec?.runs.case === "app") {
       const data = service.spec.runs.value.mounts[0];
-      if (data) data.makeOwner = "1000:1000";
+      if (data) {
+        data.makeOwner = "1000:1000";
+        data.makeMode = 0o770;
+        data.seed = [
+          create(MountSeedSchema, { path: "app.conf", content: "listen 80\n", mode: 0o644 }),
+          create(MountSeedSchema, { path: "sites/a.conf", content: "server a\n", mode: 0o644 }),
+        ];
+      }
     }
     const proposals: ProposeChangeRequest[] = [];
     renderAt("/apps/svc_web/settings", api(service, proposals));
     await ready();
     expect(within(section("Volumes and mounts")).getByText("Owned by 1000:1000")).toBeVisible();
+    expect(within(section("Volumes and mounts")).getByText("Mode 0770")).toBeVisible();
+    expect(within(section("Volumes and mounts")).getByText("Starts with 2 files")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Edit Volumes and mounts" }));
     const form = screen.getByRole("form", { name: "Edit Volumes and mounts" });
     await user.click(within(form).getAllByRole("checkbox")[0] as HTMLElement);
@@ -621,6 +631,8 @@ describe("an app's settings, where it could go wrong", () => {
     const data = appOf(proposals[0])?.mounts.find((m) => m.target === "/data");
     expect(data?.readOnly).toBe(true);
     expect(data?.makeOwner).toBe("1000:1000");
+    expect(data?.makeMode).toBe(0o770);
+    expect(data?.seed.map((s) => s.path)).toEqual(["app.conf", "sites/a.conf"]);
   });
 
   // L1: an owner goes with the volume it was given for, never to a source typed in its place.

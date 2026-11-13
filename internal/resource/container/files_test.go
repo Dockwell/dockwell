@@ -5,6 +5,7 @@ package container_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -98,6 +99,79 @@ func TestAVolumesOwnerReadsBackAsItsSpec(t *testing.T) {
 	}
 }
 
+// A volume's mode and the files it starts with read back as its spec says, from its
+// label and the files this server keeps, so neither is drift (ADR 0085).
+func TestAVolumesModeAndFilesReadBackAsItsSpec(t *testing.T) {
+	e, l, files := filesEngine(t)
+	for _, v := range []string{"conf", "logs"} {
+		e.AddVolume(docker.Volume{Name: shapesEnv + "_" + v, Driver: "local"})
+	}
+	spec := svc(&resourcev1.Container{Mounts: []*resourcev1.Mount{
+		{Source: &resourcev1.Mount_Volume{Volume: "conf"}, Target: "/etc/app", Seed: []*resourcev1.MountSeed{
+			{Path: "conf/app.conf", Content: "listen 80\n"}, {Path: "run.sh", Content: "#!/bin/sh\n", Mode: 0o755},
+		}},
+		{Source: &resourcev1.Mount_Volume{Volume: "logs"}, Target: "/var/log/app", MakeMode: 0o777},
+	}})
+	planAndApply(t, l, webRef(), spec)
+	if _, err := os.Stat(files.Path("listen 80\n", 0o644)); err != nil {
+		t.Errorf("what the volume starts with isn't kept: %v", err)
+	}
+	got, err := l.Observe(t.Context(), []resource.Ref{webRef()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(got[0], spec) {
+		t.Errorf("reads back as a different spec, which would show as drift: %v", resource.Diff(spec, got[0]))
+	}
+}
+
+// What a volume starts with is checked: a path under it of plain names, given once,
+// with no file where another's folder is, text within a file's bounds, read, write and
+// execute bits alone, and on a volume Dockwell makes (ADR 0085).
+func TestWhatAVolumeStartsWithTakes(t *testing.T) {
+	seeded := func(seeds ...*resourcev1.MountSeed) []*resourcev1.Mount {
+		return []*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", Seed: seeds}}
+	}
+	for name, c := range map[string]struct {
+		mounts []*resourcev1.Mount
+		want   string
+	}{
+		"an absolute path": {seeded(&resourcev1.MountSeed{Path: "/etc/passwd", Content: "x"}), "isn't a path under it"},
+		"a path above":     {seeded(&resourcev1.MountSeed{Path: "../x", Content: "x"}), "isn't a path under it"},
+		"a path not clean": {seeded(&resourcev1.MountSeed{Path: "a//b", Content: "x"}), "isn't a path under it"},
+		"too deep":         {seeded(&resourcev1.MountSeed{Path: "a/b/c/d/e/f/g/h/i", Content: "x"}), "folders deep"},
+		"twice":            {seeded(&resourcev1.MountSeed{Path: "a", Content: "x"}, &resourcev1.MountSeed{Path: "a", Content: "y"}), "twice"},
+		"inside a file":    {seeded(&resourcev1.MountSeed{Path: "a", Content: "x"}, &resourcev1.MountSeed{Path: "a/b", Content: "y"}), "which is a file"},
+		"binary":           {seeded(&resourcev1.MountSeed{Path: "a", Content: "\x00\x01"}), "isn't text"},
+		"setuid":           {seeded(&resourcev1.MountSeed{Path: "a", Content: "x", Mode: 0o4755}), "read, write and execute bits alone"},
+		"on Docker's own": {
+			[]*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "theirs"}, Target: "/data", External: true, Seed: []*resourcev1.MountSeed{{Path: "a", Content: "x"}}}},
+			"starts with nothing of Dockwell's",
+		},
+		"on a server path": {
+			[]*resourcev1.Mount{{Source: &resourcev1.Mount_HostPath{HostPath: "/srv/data"}, Target: "/data", MakeMode: 0o770}},
+			"takes no make_mode or seed",
+		},
+		"a mode with sticky": {[]*resourcev1.Mount{{Source: &resourcev1.Mount_Volume{Volume: "data"}, Target: "/data", MakeMode: 0o1777}}, "read, write and execute bits alone"},
+	} {
+		spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: c.mounts}
+		if err := container.Validate(spec); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: %v, want %q", name, err, c.want)
+		}
+	}
+	many := make([]*resourcev1.MountSeed, 65)
+	for i := range many {
+		many[i] = &resourcev1.MountSeed{Path: fmt.Sprintf("f%d", i), Content: "x"}
+	}
+	if err := container.Validate(&resourcev1.Container{Image: "nginx:1.27", Mounts: seeded(many...)}); err == nil || !strings.Contains(err.Error(), "files Dockwell writes") {
+		t.Errorf("65 files a volume starts with: %v", err)
+	}
+	spec := &resourcev1.Container{Image: "nginx:1.27", Mounts: seeded(&resourcev1.MountSeed{Path: "b", Content: "x"}, &resourcev1.MountSeed{Path: "a/c", Content: "y"})}
+	if err := container.Validate(spec); err != nil || spec.GetMounts()[0].GetSeed()[0].GetPath() != "a/c" || spec.GetMounts()[0].GetSeed()[0].GetMode() != 0o644 {
+		t.Errorf("a volume's files in order, 0644 by default: %v, %v", spec.GetMounts()[0].GetSeed(), err)
+	}
+}
+
 // filesEngine is shapesEngine, with the folder its runtime keeps files in.
 func filesEngine(t *testing.T) (*dockertest.Engine, resource.Local, *container.Files) {
 	t.Helper()
@@ -118,7 +192,7 @@ func TestWhatAFileMountTakes(t *testing.T) {
 	}{
 		"a file too big":      {[]*resourcev1.Mount{fileMount("/a", big, 0)}, "writes up to 256 KiB"},
 		"a writable file":     {[]*resourcev1.Mount{fileMount("/a", "x", 0o644)}, "is read-only"},
-		"a file made by hand": {[]*resourcev1.Mount{{Target: "/a", MakeOwner: "1:1", Source: &resourcev1.Mount_File{File: &resourcev1.MountFile{Content: "x"}}}}, "takes no external, make_owner or relabel"},
+		"a file made by hand": {[]*resourcev1.Mount{{Target: "/a", MakeOwner: "1:1", Source: &resourcev1.Mount_File{File: &resourcev1.MountFile{Content: "x"}}}}, "takes no external, make_owner, make_mode, seed or relabel"},
 		"a file in /proc":     {[]*resourcev1.Mount{fileMount("/proc/sys/kernel/x", "x", 0)}, "the kernel's own folders"},
 		"a file in /sys":      {[]*resourcev1.Mount{fileMount("/sys/x", "x", 0)}, "the kernel's own folders"},
 		"a file in /dev":      {[]*resourcev1.Mount{fileMount("//dev/../dev/x", "x", 0)}, "the kernel's own folders"},

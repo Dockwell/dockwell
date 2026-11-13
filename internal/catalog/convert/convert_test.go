@@ -18,6 +18,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/compose"
 )
@@ -72,7 +73,7 @@ func converter() *Converter {
 			"notes": written("Keeps notes", "notes"), "my-app": written("Stands in", "developer tools"),
 			"scripted": written("Stands in", "ai"), "shipped": written("Stands in", "ai"), "withdb": written("Stands in", "ai"),
 			"agent": written("Reports to a monitor", "monitoring"), "keep": written("Stands in", "ai"), "amd64only": written("Stands in", "ai"),
-			"owned": written("Stands in", "ai"),
+			"owned": written("Stands in", "ai"), "seeded": written("Stands in", "ai"),
 		},
 		Now: now,
 	}
@@ -524,6 +525,38 @@ func TestOnePanelsScriptsAreStepsDockwellTakes(t *testing.T) {
 	}
 }
 
+// A folder an app writes to that its store ships files into is a volume of its own,
+// which starts with them, and a script's chmod of a folder it binds is that volume's
+// mode (ADR 0085).
+func TestAShippedFolderIsWhatAVolumeStartsWith(t *testing.T) {
+	r := convertFixture(t, converter(), "seeded")
+	if r.Entry == nil {
+		t.Fatalf("seeded was left out: %s", r.LeftOut)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(r.Entry.GetCompose()), Variables: map[string]string{"PORT": "8080"}})
+	if err != nil {
+		t.Fatalf("its file doesn't read: %v\n%s", err, r.Entry.GetCompose())
+	}
+	mounts := map[string]*resourcev1.Mount{}
+	for _, m := range stack.Services[0].Spec.GetApp().GetMounts() {
+		mounts[m.GetTarget()] = m
+	}
+	conf := mounts["/etc/seeded"]
+	var seeds []string
+	for _, s := range conf.GetSeed() {
+		seeds = append(seeds, s.GetPath()+"="+s.GetContent())
+	}
+	if conf.GetVolume() == "" || !slices.Equal(seeds, []string{"app.conf=listen 80\nroot /srv\n", "sites/a.conf=server a.example.com\n"}) {
+		t.Errorf("/etc/seeded is %v, starting with %q\n%s", conf, seeds, r.Entry.GetCompose())
+	}
+	if logs := mounts["/var/log/seeded"]; logs.GetVolume() == "" || logs.GetMakeMode() != 0o777 {
+		t.Errorf("/var/log/seeded is %v", logs)
+	}
+	if len(mounts) != 2 {
+		t.Errorf("it mounts %d, where a volume's files are its own, not file mounts", len(mounts))
+	}
+}
+
 // What a script does that isn't one of those steps leaves its app out, naming the
 // command, as Dockwell runs nothing a store holds.
 func TestWhatAScriptDoes(t *testing.T) {
@@ -555,7 +588,7 @@ func TestWhatAScriptDoes(t *testing.T) {
 		"a folder elsewhere":        {scripts: map[string]string{"init.sh": "chown -R 1000:1000 /etc\n"}, why: "outside the app's own folder"},
 		"a folder above":            {scripts: map[string]string{"init.sh": "chown -R 1000:1000 ../other\n"}, why: "outside the app's own folder"},
 		"a variable it never set":   {scripts: map[string]string{"init.sh": "chown -R 1000:1000 $DATA\n"}, why: "by a variable it doesn't set, DATA"},
-		"a mode":                    {scripts: map[string]string{"init.sh": "chmod -R 777 data\n"}, why: "its init.sh runs chmod"},
+		"a mode with setuid":        {scripts: map[string]string{"init.sh": "chmod 4755 data\n"}, why: "setuid, setgid or sticky"},
 		"an echo into a file":       {scripts: map[string]string{"init.sh": "echo \"IMAGE=x\" >> .env\n"}, why: "its init.sh runs echo"},
 	} {
 		steps, err := readScripts(tc.scripts)

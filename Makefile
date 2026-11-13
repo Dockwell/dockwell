@@ -227,9 +227,9 @@ store-rates: ## Convert every store Dockwell reads at the commits the repository
 # A sample of what each store brings: small apps, one at least from each, on a tag
 # that moves, one named with no tag, one by a version, one with a generated secret
 # inside its command, one with a hostname of its own, one that won't start without the
-# config file its store ships, and one that runs as a user its store's script gives its
-# data folder to (ADR 0085).
-STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome
+# config file its store ships, one that runs as a user its store's script gives its data
+# folder to, and one whose volume starts with the files its store ships (ADR 0085).
+STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq 1panel/glance 1panel/navidrome 1panel/gatus
 
 .PHONY: store-e2e
 store-e2e: build-go ## Install a sample of 1Panel's, Dokploy's and Coolify's apps, converted on the server at the pinned commits, on this machine's Docker (STORE_APPS names them)

@@ -955,7 +955,7 @@ func stack(p *model) (*Stack, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := p.extensions[name].apply("the service "+name, c); err != nil {
+		if err := p.extensions[name].apply("the service "+name, c, p.Configs); err != nil {
 			return nil, err
 		}
 		specs[name] = &resourcev1.Service{Runs: &resourcev1.Service_App{App: c}}

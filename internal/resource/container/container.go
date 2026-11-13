@@ -619,6 +619,17 @@ func validateMounts(c *resourcev1.Container) error {
 			if m.GetExternal() && anonymous(src.Volume) {
 				return fmt.Errorf("the volume %s has the form of one Docker made for an image, so it can't be mounted by name. Mount a named volume", src.Volume)
 			}
+			if mode := m.GetMakeMode(); mode != 0 {
+				switch {
+				case m.GetExternal():
+					return fmt.Errorf("the volume %s mounted at %s is Docker's own, which Dockwell didn't make, so it takes no make_mode. Leave it out", src.Volume, m.Target)
+				case mode&^0o777 != 0:
+					return fmt.Errorf("the volume %s mounted at %s has the make_mode %04o: give read, write and execute bits alone, such as 0770", src.Volume, m.Target, mode)
+				}
+			}
+			if err := validateSeeds(m); err != nil {
+				return err
+			}
 			if o := m.GetMakeOwner(); o != "" {
 				if m.GetExternal() {
 					return fmt.Errorf("the volume %s mounted at %s is Docker's own, which Dockwell didn't make, so it takes no make_owner. Leave it out", src.Volume, m.Target)
@@ -630,6 +641,9 @@ func validateMounts(c *resourcev1.Container) error {
 				m.MakeOwner = resource.FormatOwner(uid, gid)
 			}
 		case *resourcev1.Mount_HostPath:
+			if m.GetMakeMode() != 0 || len(m.GetSeed()) > 0 {
+				return fmt.Errorf("the server path %s mounted at %s takes no make_mode or seed, which only a volume Dockwell makes takes. Leave them out", src.HostPath, m.Target)
+			}
 			if m.GetExternal() {
 				return fmt.Errorf("the mount at %s is a server path, which Dockwell didn't make either way, so it takes no external. Leave it out", m.Target)
 			}

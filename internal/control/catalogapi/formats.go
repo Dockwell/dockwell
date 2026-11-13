@@ -532,7 +532,7 @@ func leftOutNote(ref resource.Ref, got sourceRead) []revision.Note {
 // kindWords say each kind of reason an app is left out, after a count.
 var kindWords = map[string]string{
 	"scripts": "run scripts on the server", "another-app": "use another app's database", "shipped": "ship files beside their Compose file",
-	"no-version": "name no version that stays put", "arch": "run on amd64 alone", "platform": "use a value their platform fills in",
+	"no-version": "name no version that stays put", "arch": "run on an architecture Dockwell doesn't", "platform": "use a value their platform fills in",
 	"cant-say": "ask for what an entry can't say yet", "cant-run": "ask for what Dockwell can't run yet", "check": "fail the catalog's checks",
 	"file": "have files that can't be read", "inside": "put a secret inside a longer value", "made-up": "ask for a value Dockwell doesn't make yet",
 	"skipped": "are marked by their store to leave out", "terms": "come under terms of their own",

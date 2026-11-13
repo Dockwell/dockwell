@@ -3,6 +3,7 @@
 package container
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -180,7 +181,7 @@ func TestALinkOnTheWayIsNotFollowed(t *testing.T) {
 }
 
 type folders struct {
-	made, owned []string
+	made, owned, modes, seeded []string
 	// full are the volume folders with something in them.
 	full map[string]bool
 }
@@ -194,6 +195,18 @@ func (f *folders) Empty(path string) (bool, error) { return !f.full[path], nil }
 
 func (f *folders) Own(path string, uid, gid uint32) error {
 	f.owned = append(f.owned, path+" "+resource.FormatOwner(uid, gid))
+	return nil
+}
+
+func (f *folders) Mode(path string, mode uint32) error {
+	f.modes = append(f.modes, fmt.Sprintf("%s %04o", path, mode))
+	return nil
+}
+
+func (f *folders) Seed(path string, files []*resourcev1.MountSeed, own bool, uid, gid uint32) error {
+	for _, s := range files {
+		f.seeded = append(f.seeded, path+"/"+s.GetPath())
+	}
 	return nil
 }
 
@@ -277,6 +290,85 @@ func TestOnlyANewVolumeIsGivenItsOwner(t *testing.T) {
 	}
 	if give, err := (&Docker{Client: e.Client()}).ownVolumes(t.Context(), at, spec); err != nil || give(t.Context()) != nil {
 		t.Errorf("with no folder maker, %v", err)
+	}
+}
+
+// What a volume starts with is written by handle, each file anew, so a link put in a
+// folder's place is refused and a file there already isn't written over; the volume's
+// folder takes its mode the same way (ADR 0085).
+func TestAVolumeStartsWithItsFiles(t *testing.T) {
+	uid, gid := uint32(os.Getuid()), uint32(os.Getgid())
+	vol := t.TempDir()
+	files := []*resourcev1.MountSeed{
+		{Path: "Caddyfile", Content: ":80\n", Mode: 0o644},
+		{Path: "sites/a/run.sh", Content: "#!/bin/sh\n", Mode: 0o755},
+	}
+	if err := (HostFolders{}).Seed(vol, files, true, uid, gid); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		st, err := os.Stat(filepath.Join(vol, f.GetPath()))
+		if err != nil || st.Mode().Perm() != os.FileMode(f.GetMode()) {
+			t.Errorf("%s is %v, %v", f.GetPath(), st, err)
+		}
+		if b, _ := os.ReadFile(filepath.Join(vol, f.GetPath())); string(b) != f.GetContent() {
+			t.Errorf("%s holds %q", f.GetPath(), b)
+		}
+	}
+	if err := (HostFolders{}).Seed(vol, files[:1], true, uid, gid); err == nil {
+		t.Errorf("a file that's there was written over")
+	}
+	elsewhere := t.TempDir()
+	linked := t.TempDir()
+	if err := os.Symlink(elsewhere, filepath.Join(linked, "sites")); err != nil {
+		t.Fatal(err)
+	}
+	if err := (HostFolders{}).Seed(linked, files[1:], true, uid, gid); err == nil {
+		t.Errorf("a link in a folder's place was followed")
+	}
+	if entries, _ := os.ReadDir(elsewhere); len(entries) > 0 {
+		t.Errorf("a file went where the link led: %v", entries)
+	}
+	if err := (HostFolders{}).Mode(vol, 0o770); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := os.Stat(vol); st.Mode().Perm() != 0o770 {
+		t.Errorf("the volume's folder is %v", st.Mode())
+	}
+}
+
+// A new volume starts with its files before the container is made, so Docker copies
+// nothing of the image's into it, and takes its owner and mode once the container is
+// made; one with something in it is left as it is (ADR 0085).
+func TestANewVolumeIsPrepared(t *testing.T) {
+	e := dockertest.New(t)
+	at := Target{Name: "env_x-api-1", Project: "env_x", Service: "api", Scoped: true}
+	seed := []*resourcev1.MountSeed{{Path: "app.conf", Content: "x", Mode: 0o644}}
+	conf := &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: "conf"}, Target: "/conf", Seed: seed, MakeOwner: "1000:1000"}
+	logs := &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: "logs"}, Target: "/logs", MakeMode: 0o777}
+	kept := &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: "kept"}, Target: "/kept", Seed: seed, MakeMode: 0o777}
+	made := &resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: "made"}, Target: "/made", Seed: seed}
+	for _, v := range []string{"conf", "logs", "kept"} {
+		e.AddVolume(docker.Volume{Name: at.VolumeName(&resourcev1.Mount{Source: &resourcev1.Mount_Volume{Volume: v}}), Driver: "local", Mountpoint: "/v/" + v})
+	}
+	f := &folders{full: map[string]bool{"/v/kept": true}}
+	d := &Docker{Client: e.Client(), Folders: f}
+	give, err := d.ownVolumes(t.Context(), at, &resourcev1.Container{Mounts: []*resourcev1.Mount{conf, logs, kept, made}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(f.seeded, []string{"/v/conf/app.conf"}) || len(f.owned) != 0 || len(f.modes) != 0 {
+		t.Errorf("before the container: seeded %v, owned %v, modes %v", f.seeded, f.owned, f.modes)
+	}
+	e.AddVolume(docker.Volume{Name: at.VolumeName(made), Driver: "local", Mountpoint: "/v/made"})
+	if err := give(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(f.seeded, []string{"/v/conf/app.conf", "/v/made/app.conf"}) {
+		t.Errorf("seeded %v", f.seeded)
+	}
+	if !slices.Equal(f.owned, []string{"/v/conf 1000:1000"}) || !slices.Equal(f.modes, []string{"/v/logs 0777"}) {
+		t.Errorf("after the container: owned %v, modes %v", f.owned, f.modes)
 	}
 }
 

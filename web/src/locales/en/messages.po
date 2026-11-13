@@ -3168,6 +3168,10 @@ msgstr "Memory limit, typed"
 msgid "Minor and patch updates"
 msgstr "Minor and patch updates"
 
+#. placeholder {0}: modeText(m.makeMode)
+msgid "Mode {0}"
+msgstr "Mode {0}"
+
 msgid "Monday to Friday"
 msgstr "Monday to Friday"
 
@@ -3370,6 +3374,10 @@ msgstr "on the server, to the app"
 msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "the image's"
+
+#. placeholder {0}: m.seed.length
+msgid "{0, plural, one {Starts with # file} other {Starts with # files}}"
+msgstr "{0, plural, one {Starts with # file} other {Starts with # files}}"
 
 #. placeholder {0}: m / 60
 msgid "{0} h"
@@ -6959,8 +6967,8 @@ msgstr "Have an ID a catalog before it has"
 msgid "Have files that can't be read"
 msgstr "Have files that can't be read"
 
-msgid "Install once Dockwell carries their files along"
-msgstr "Install once Dockwell carries their files along"
+msgid "Install once Dockwell carries larger files along"
+msgstr "Install once Dockwell carries larger files along"
 
 msgid "Install once Dockwell connects them to a database"
 msgstr "Install once Dockwell connects them to a database"
@@ -6968,11 +6976,8 @@ msgstr "Install once Dockwell connects them to a database"
 msgid "Install once Dockwell fills in what their store does"
 msgstr "Install once Dockwell fills in what their store does"
 
-msgid "Install once Dockwell offers them for amd64 servers"
-msgstr "Install once Dockwell offers them for amd64 servers"
-
-msgid "Install once Dockwell pins their moving tag by digest"
-msgstr "Install once Dockwell pins their moving tag by digest"
+msgid "Install once Dockwell runs on their architecture"
+msgstr "Install once Dockwell runs on their architecture"
 
 msgid "Install once Dockwell runs their setup steps itself"
 msgstr "Install once Dockwell runs their setup steps itself"
@@ -6992,8 +6997,8 @@ msgstr "Put a secret inside a longer value"
 msgid "Read it as"
 msgstr "Read it as"
 
-msgid "Run on amd64 alone"
-msgstr "Run on amd64 alone"
+msgid "Run on an architecture Dockwell doesn't"
+msgstr "Run on an architecture Dockwell doesn't"
 
 msgid "Run scripts on the server"
 msgstr "Run scripts on the server"

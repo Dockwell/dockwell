@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -236,6 +237,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	}
 	if o := makeOwnersLabel(spec); o != "" {
 		out[LabelMakeOwners] = o
+	}
+	if p := volumePrepLabel(spec); p != "" {
+		out[LabelVolumePrep] = p
 	}
 	var set []string
 	add := func(name string, ok bool) {
@@ -1418,7 +1422,81 @@ func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (
 	}
 	out := Project(c, defaults, t)
 	d.readFiles(out)
+	d.readVolumePrep(c, out)
 	return out, nil
+}
+
+// LabelVolumePrep holds, by the target of each volume a container mounts, the mode
+// its folder was to be given and the files it was to start with, each by the name
+// this server keeps it by (Files), as Docker keeps nothing of either (ADR 0085).
+const LabelVolumePrep = docker.OwnPrefix + "volume-prep"
+
+// volumePrep is one volume's part of LabelVolumePrep.
+type volumePrep struct {
+	Mode uint32     `json:"mode,omitempty"`
+	Seed []seedFile `json:"seed,omitempty"`
+}
+
+// seedFile is a file a volume starts with, by its path under the volume and the
+// name this server keeps its content and mode by.
+type seedFile struct {
+	Path string `json:"path"`
+	File string `json:"file"`
+}
+
+// volumePrepLabel is LabelVolumePrep for a spec, or empty when no volume asks for a
+// mode or files. JSON's map keys are sorted, so one spec makes one label.
+func volumePrepLabel(spec *resourcev1.Container) string {
+	out := map[string]volumePrep{}
+	for _, m := range spec.GetMounts() {
+		if m.GetVolume() == "" || m.GetMakeMode() == 0 && len(m.GetSeed()) == 0 {
+			continue
+		}
+		p := volumePrep{Mode: m.GetMakeMode()}
+		for _, s := range m.GetSeed() {
+			p.Seed = append(p.Seed, seedFile{Path: s.GetPath(), File: fileName(s.GetContent(), s.GetMode())})
+		}
+		out[m.GetTarget()] = p
+	}
+	if len(out) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(out)
+	return string(b)
+}
+
+// unreadSeed is what a file a volume started with reads back as when this server
+// doesn't keep it as its label says, so it reads as drift rather than as the spec.
+const unreadSeed = "(not what this container's volume was to start with)"
+
+// readVolumePrep puts back on a container's volumes the mode and the files the
+// label says each was to start with, the files' contents from what this server
+// keeps (ADR 0085).
+func (d *Docker) readVolumePrep(c *docker.Container, out *resourcev1.Container) {
+	label := c.Config.Labels[LabelVolumePrep]
+	if label == "" {
+		return
+	}
+	var prep map[string]volumePrep
+	if json.Unmarshal([]byte(label), &prep) != nil {
+		return
+	}
+	for _, m := range out.GetMounts() {
+		p, ok := prep[m.GetTarget()]
+		if !ok || m.GetVolume() == "" {
+			continue
+		}
+		m.MakeMode = p.Mode
+		for _, s := range p.Seed {
+			seed := &resourcev1.MountSeed{Path: s.Path, Content: unreadSeed}
+			if d.Files != nil {
+				if f, ok := d.Files.Read(filepath.Join(d.Files.Dir, s.File)); ok {
+					seed.Content, seed.Mode = f.GetContent(), f.GetMode()
+				}
+			}
+			m.Seed = append(m.Seed, seed)
+		}
+	}
 }
 
 // readFiles reads back each file a container mounts that this server keeps, from
@@ -1444,6 +1522,17 @@ func (d *Docker) writeFiles(spec *resourcev1.Container) error {
 		}
 		if _, err := d.Files.Write(f.GetContent(), fileMode(f)); err != nil {
 			return err
+		}
+	}
+	// What a volume starts with is kept too, so the container reads back as its spec.
+	for _, m := range spec.GetMounts() {
+		for _, s := range m.GetSeed() {
+			if d.Files == nil {
+				return fmt.Errorf("this agent keeps no files for containers, and the volume at %s starts with some. Update the agent", m.GetTarget())
+			}
+			if _, err := d.Files.Write(s.GetContent(), s.GetMode()); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

@@ -8,6 +8,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dockwell/dockwell/internal/resource"
@@ -26,8 +27,16 @@ import (
 // scriptSteps is what an app's scripts come to.
 type scriptSteps struct {
 	// owners is whom each folder the app binds is given to, by its path in the
-	// app's folder, such as data.
+	// app's folder, such as data, and modes the mode each is given.
 	owners map[string]string
+	modes  map[string]modeStep
+}
+
+// modeStep is a mode a script gives a folder, and whether it gives it to what's
+// inside too, as chmod -R does.
+type modeStep struct {
+	mode      uint32
+	recursive bool
 }
 
 var (
@@ -54,6 +63,7 @@ var (
 		regexp.MustCompile(`^docker[ -]compose down --volumes$`),
 		regexp.MustCompile(`^exit 127$`),
 	}
+	scriptChmod   = regexp.MustCompile(`^chmod (-R )?([0-7]{3,4}) ([^;&|<>` + "`" + `]+)$`)
 	scriptChown   = regexp.MustCompile(`^chown (?:-R )?(\d+):(\d+) ([^;&|<>` + "`" + `]+?)(?: >/dev/null 2>&1 \|\| true)?$`)
 	scriptMkdir   = regexp.MustCompile(`^mkdir (?:-p )?([^;&|<>` + "`" + `]+)$`)
 	scriptAssign  = regexp.MustCompile(`^([A-Z_][A-Z0-9_]*)=("?)([A-Za-z0-9_./-]+)("?)$`)
@@ -63,7 +73,7 @@ var (
 // readScripts reads what an app's scripts do, by their names, such as init.sh, or
 // says why they can't be read as steps.
 func readScripts(scripts map[string]string) (scriptSteps, error) {
-	steps := scriptSteps{owners: map[string]string{}}
+	steps := scriptSteps{owners: map[string]string{}, modes: map[string]modeStep{}}
 	for _, name := range slices.Sorted(maps.Keys(scripts)) {
 		paths := map[string]string{}
 		for raw := range strings.SplitSeq(scripts[name], "\n") {
@@ -80,6 +90,20 @@ func readScripts(scripts map[string]string) (scriptSteps, error) {
 				// nothing reads.
 				if _, err := scriptPaths(name, m[1], paths); err != nil {
 					return scriptSteps{}, err
+				}
+				continue
+			}
+			if m := scriptChmod.FindStringSubmatch(line); m != nil {
+				mode, err := strconv.ParseUint(m[2], 8, 32)
+				if err != nil || mode&^0o777 != 0 {
+					return scriptSteps{}, leave(ClassScripts, "its %s gives %s the mode %s, with setuid, setgid or sticky bits, which Dockwell doesn't give a volume", name, strings.TrimSpace(m[3]), m[2])
+				}
+				dirs, err := scriptPaths(name, m[3], paths)
+				if err != nil {
+					return scriptSteps{}, err
+				}
+				for _, dir := range dirs {
+					steps.modes[dir] = modeStep{mode: uint32(mode), recursive: m[1] != ""}
 				}
 				continue
 			}
@@ -126,6 +150,17 @@ func scriptPaths(script, text string, vars map[string]string) ([]string, error) 
 		out = append(out, clean)
 	}
 	return out, nil
+}
+
+// modeOf is the mode a folder the app binds is given: its own, or that of a folder
+// it's in that chmod -R gave one, or 0 for none.
+func (s scriptSteps) modeOf(rel string) uint32 {
+	for p := path.Clean(rel); p != "." && p != "/"; p = path.Dir(p) {
+		if m, ok := s.modes[p]; ok && (p == path.Clean(rel) || m.recursive) {
+			return m.mode
+		}
+	}
+	return 0
 }
 
 // ownerOf is whom a folder the app binds is given to: its own owner, or that of the

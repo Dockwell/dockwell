@@ -276,9 +276,14 @@ func onePanelVersion(t *tree, app App, appDir, version string) App {
 	app.ShippedUnder = func(rel string) []string {
 		var out []string
 		for p := range shipped {
-			if strings.HasPrefix(p, rel+"/") && t.isFile(path.Join(versionDir, p)) {
-				out = append(out, p)
+			if !strings.HasPrefix(p, rel+"/") {
+				continue
 			}
+			// A checkout is closed by now, so what it ships is what was read of it.
+			if _, ok := read[p]; read != nil && !ok || read == nil && !t.isFile(path.Join(versionDir, p)) {
+				continue
+			}
+			out = append(out, p)
 		}
 		slices.Sort(out)
 		return out

@@ -13,6 +13,7 @@ import {
   HealthcheckSchema,
   type ImageConfig,
   MountSchema,
+  type MountSeed,
   PortMappingSchema,
   Protocol,
   ResourceService,
@@ -1362,6 +1363,12 @@ function MountsFacts({ app }: { app: Container }) {
             <code>{m.target}</code>
             {m.readOnly ? <span className="app-muted">{t`Read-only`}</span> : null}
             {m.makeOwner ? <span className="app-muted">{t`Owned by ${m.makeOwner}`}</span> : null}
+            {m.makeMode ? <span className="app-muted">{t`Mode ${modeText(m.makeMode)}`}</span> : null}
+            {m.seed.length > 0 ? (
+              <span className="app-muted">
+                {plural(m.seed.length, { one: "Starts with # file", other: "Starts with # files" })}
+              </span>
+            ) : null}
           </li>
         );
       })}
@@ -1375,7 +1382,7 @@ interface MountRow {
   target: string;
   readOnly: boolean;
   /** What the form doesn't show, kept as it is. */
-  rest: { relabel: number; external: boolean; makeOwner: string };
+  rest: { relabel: number; external: boolean; makeOwner: string; makeMode: number; seed: MountSeed[] };
 }
 
 function MountsForm({ service, app, image, name, root, moving, plan, onCancel }: FormProps) {
@@ -1399,7 +1406,7 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
         source: m.source.case === "hostPath" || m.source.case === "volume" ? m.source.value : "",
         target: m.target,
         readOnly: m.readOnly,
-        rest: { relabel: m.relabel, external: m.external, makeOwner: m.makeOwner },
+        rest: { relabel: m.relabel, external: m.external, makeOwner: m.makeOwner, makeMode: m.makeMode, seed: m.seed },
       }),
     );
   const [rows, setRows] = useState<MountRow[]>(first);
@@ -1452,9 +1459,12 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
               target: r.target.trim(),
               readOnly: r.readOnly,
               relabel: r.rest.relabel,
-              // Whom a volume is made for goes with the volume it was given for: a row
-              // that now names another source makes nothing for anyone.
-              makeOwner: r.source.trim() === first.find((f) => f.key === r.key)?.source ? r.rest.makeOwner : "",
+              // Whom a volume is made for, its mode and what it starts with go with the
+              // volume they were given for: a row that now names another source makes
+              // nothing of them.
+              ...(r.source.trim() === first.find((f) => f.key === r.key)?.source
+                ? { makeOwner: r.rest.makeOwner, makeMode: r.rest.makeMode, seed: r.rest.seed }
+                : {}),
               external: r.rest.external,
             }),
           ),
@@ -1512,7 +1522,7 @@ function MountsForm({ service, app, image, name, root, moving, plan, onCancel }:
                 source: "",
                 target: "",
                 readOnly: false,
-                rest: { relabel: 0, external: false, makeOwner: "" },
+                rest: { relabel: 0, external: false, makeOwner: "", makeMode: 0, seed: [] },
               },
             ]);
             setNext(next + 1);
@@ -1881,4 +1891,9 @@ function UpdatesForm({ service, app, name, root, moving, plan, onCancel }: FormP
       <Foot name={name} root={root} moving={moving} unchanged={unchanged} onCancel={onCancel} />
     </form>
   );
+}
+
+/** A mode as people write it, such as 0770. */
+function modeText(mode: number): string {
+  return `0${mode.toString(8)}`;
 }

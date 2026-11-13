@@ -1,0 +1,9 @@
+services:
+  seeded:
+    image: example/seeded:1.0.0
+    container_name: ${CONTAINER_NAME}
+    ports:
+      - ${PANEL_APP_PORT_HTTP}:80
+    volumes:
+      - ./conf:/etc/seeded
+      - ./logs:/var/log/seeded

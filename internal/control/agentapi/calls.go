@@ -479,7 +479,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), preparesVolumes: hello.GetPreparesVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -559,9 +559,10 @@ type Session struct {
 	// makesFolders says the agent makes a mount's missing folder as its owner.
 	makesFolders bool
 	// ownSettings says the agent sets what a container asks of itself, and
-	// writesFiles that it writes the files a container mounts, and ownsVolumes that
-	// it gives a volume's empty folder its owner (ADR 0085).
-	ownSettings, writesFiles, ownsVolumes bool
+	// writesFiles that it writes the files a container mounts, ownsVolumes that it
+	// gives a volume's empty folder its owner, and preparesVolumes that it gives one
+	// its mode and the files it starts with (ADR 0085).
+	ownSettings, writesFiles, ownsVolumes, preparesVolumes bool
 	// guardsWaysIn says the agent asks for a passkey before saving a way in.
 	guardsWaysIn bool
 	// readsUpdates says the agent reads the server's package updates.
@@ -1327,6 +1328,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkVolumeOwners(step.Ref, desired); err != nil {
 		return err
 	}
+	if err := s.checkVolumePrep(step.Ref, desired); err != nil {
+		return err
+	}
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
@@ -1586,6 +1590,9 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 		if err := s.checkVolumeOwners(d.Ref, d.Spec); err != nil {
 			return err
 		}
+		if err := s.checkVolumePrep(d.Ref, d.Spec); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -1631,6 +1638,25 @@ func (s *Session) checkVolumeOwners(ref resource.Ref, spec proto.Message) error 
 	}
 	return fmt.Errorf("%w: the agent on %s is from before Dockwell gave a new volume the owner its mount names, which %s asks for, so it would be root's. Update the agent on %s",
 		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// checkVolumePrep refuses a spec that gives a volume a mode or files to start with,
+// for an agent that doesn't say it does: it would leave them out (ADR 0085).
+func (s *Session) checkVolumePrep(ref resource.Ref, spec proto.Message) error {
+	if s.preparesVolumes || spec == nil || !preparesVolume(spec.ProtoReflect()) {
+		return nil
+	}
+	return fmt.Errorf("%w: the agent on %s is from before Dockwell gave a new volume a mode and the files it starts with, which %s asks for, so it would start without them. Update the agent on %s",
+		resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+}
+
+// preparesVolume reports a spec with a container that gives a volume a mode or files.
+func preparesVolume(m protoreflect.Message) bool {
+	return anyContainer(m, func(c *resourcev1.Container) bool {
+		return slices.ContainsFunc(c.GetMounts(), func(mount *resourcev1.Mount) bool {
+			return mount.GetVolume() != "" && (mount.GetMakeMode() != 0 || len(mount.GetSeed()) > 0)
+		})
+	})
 }
 
 // ownsVolume reports a spec with a container that names a volume's owner.

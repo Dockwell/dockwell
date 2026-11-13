@@ -255,6 +255,27 @@ message Mount {
   // it holds nothing, once the container is made and before it starts, as Docker
   // makes it root's (ADR 0085). Numbered apart, as open work adds to this message.
   string make_owner = 60;
+  // For a volume Dockwell made: the mode its folder is given while it holds
+  // nothing, as make_owner gives its owner, such as 0770 (504). Read, write and
+  // execute bits alone. 0 leaves Docker's (ADR 0085).
+  uint32 make_mode = 91;
+  // For a volume Dockwell made: the files it starts with, written into it while it
+  // holds nothing, before the container is made, and owned as make_owner says. A
+  // volume that holds anything keeps what it holds. Text, within the bounds a file
+  // mount has, and counted with them (ADR 0085).
+  repeated MountSeed seed = 92;
+}
+
+// MountSeed is a file a volume starts with.
+message MountSeed {
+  // Where it is under the volume, such as "conf/app.conf": relative, of plain names,
+  // 8 folders deep at most.
+  string path = 1;
+  // What it holds, as text: a store's config, never a secret, which a plan shows.
+  string content = 2;
+  // Its permissions, such as 0644 (420), the default when 0. Read, write and
+  // execute bits alone.
+  uint32 mode = 3;
 }
 
 // MountFile is a file Dockwell writes for a container: what it holds, and who

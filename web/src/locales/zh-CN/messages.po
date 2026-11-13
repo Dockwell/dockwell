@@ -3168,6 +3168,10 @@ msgstr "内存上限（手动输入）"
 msgid "Minor and patch updates"
 msgstr "次版本和补丁更新"
 
+#. placeholder {0}: modeText(m.makeMode)
+msgid "Mode {0}"
+msgstr "权限 {0}"
+
 msgid "Monday to Friday"
 msgstr "周一至周五"
 
@@ -3370,6 +3374,10 @@ msgstr "服务器端口到应用端口"
 msgctxt "a setting the image makes"
 msgid "the image's"
 msgstr "镜像自带"
+
+#. placeholder {0}: m.seed.length
+msgid "{0, plural, one {Starts with # file} other {Starts with # files}}"
+msgstr "{0, plural, other {初始带有 # 个文件}}"
 
 #. placeholder {0}: m / 60
 msgid "{0} h"
@@ -6959,8 +6967,8 @@ msgstr "ID 已被排在前面的目录占用"
 msgid "Have files that can't be read"
 msgstr "有无法读取的文件"
 
-msgid "Install once Dockwell carries their files along"
-msgstr "Dockwell 支持随附文件后即可安装"
+msgid "Install once Dockwell carries larger files along"
+msgstr "待 Dockwell 能带上更大的文件后即可安装"
 
 msgid "Install once Dockwell connects them to a database"
 msgstr "Dockwell 支持连接数据库后即可安装"
@@ -6968,11 +6976,8 @@ msgstr "Dockwell 支持连接数据库后即可安装"
 msgid "Install once Dockwell fills in what their store does"
 msgstr "Dockwell 能填入其商店提供的值后即可安装"
 
-msgid "Install once Dockwell offers them for amd64 servers"
-msgstr "Dockwell 为 amd64 服务器提供后即可安装"
-
-msgid "Install once Dockwell pins their moving tag by digest"
-msgstr "Dockwell 按摘要固定其浮动标签后即可安装"
+msgid "Install once Dockwell runs on their architecture"
+msgstr "待 Dockwell 支持其架构后即可安装"
 
 msgid "Install once Dockwell runs their setup steps itself"
 msgstr "Dockwell 自行执行其安装步骤后即可安装"
@@ -6992,8 +6997,8 @@ msgstr "把密钥写在更长的值里"
 msgid "Read it as"
 msgstr "读取为"
 
-msgid "Run on amd64 alone"
-msgstr "仅支持 amd64"
+msgid "Run on an architecture Dockwell doesn't"
+msgstr "运行在 Dockwell 不支持的架构上"
 
 msgid "Run scripts on the server"
 msgstr "会在服务器上运行脚本"

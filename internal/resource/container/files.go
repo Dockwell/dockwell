@@ -6,15 +6,19 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -48,8 +52,8 @@ func validateFile(m *resourcev1.Mount, f *resourcev1.MountFile) error {
 		return fmt.Errorf("the file mounted at %s holds %d KiB, and Dockwell writes up to %d KiB. Mount a volume for something larger", m.GetTarget(), len(f.GetContent())>>10, maxFileBytes>>10)
 	case f.GetMode()&^0o555 != 0:
 		return fmt.Errorf("the file mounted at %s has the mode %04o, and a file Dockwell writes is read-only: give it read and execute bits alone, such as 0444 or 0555", m.GetTarget(), f.GetMode())
-	case m.GetExternal() || m.GetMakeOwner() != "" || m.GetRelabel() != resourcev1.Relabel_RELABEL_UNSPECIFIED:
-		return fmt.Errorf("the file mounted at %s is one Dockwell writes, so it takes no external, make_owner or relabel. Leave them out", m.GetTarget())
+	case m.GetExternal() || m.GetMakeOwner() != "" || m.GetRelabel() != resourcev1.Relabel_RELABEL_UNSPECIFIED || m.GetMakeMode() != 0 || len(m.GetSeed()) > 0:
+		return fmt.Errorf("the file mounted at %s is one Dockwell writes, so it takes no external, make_owner, make_mode, seed or relabel. Leave them out", m.GetTarget())
 	case kernelFolder(m.GetTarget()):
 		return fmt.Errorf("the file mounted at %s would stand in the kernel's own folders, /proc, /sys and /dev, where a file Dockwell writes never goes. Mount it elsewhere", m.GetTarget())
 	}
@@ -76,6 +80,11 @@ func validateFiles(c *resourcev1.Container) error {
 		if f := m.GetFile(); f != nil {
 			n++
 			total += len(f.GetContent())
+		}
+		// What a volume starts with counts with the files it mounts.
+		for _, s := range m.GetSeed() {
+			n++
+			total += len(s.GetContent())
 		}
 	}
 	switch {
@@ -226,6 +235,15 @@ func (f *Files) Prune(ctx context.Context) error {
 				mine(m.Source)
 			}
 		}
+		// What a container's volumes started with, which it reads back by.
+		var prep map[string]volumePrep
+		if json.Unmarshal([]byte(c.Config.Labels[LabelVolumePrep]), &prep) == nil {
+			for _, p := range prep {
+				for _, s := range p.Seed {
+					used[s.File] = true
+				}
+			}
+		}
 	}
 	for _, e := range entries {
 		if err := ctx.Err(); err != nil {
@@ -254,4 +272,60 @@ func (f *Files) KeepPruned(ctx context.Context, logger *slog.Logger) {
 			logger.WarnContext(ctx, "can't prune the files containers no longer mount; it tries again in an hour", slog.String("error", err.Error()))
 		}
 	}
+}
+
+// maxSeedDepth is how deep under a volume a file it starts with may sit.
+const maxSeedDepth = 8
+
+// defaultSeedMode is a file's a volume starts with when its seed says none: the app
+// may write it, as it may anything in its volume.
+const defaultSeedMode = 0o644
+
+// validateSeeds checks what a volume starts with (Mount.seed): each file's path under
+// the volume is relative, clean and of plain names, at most 8 folders deep, given
+// once, and no file stands where a folder of another does; what it holds is text
+// within a file mount's bounds; and its mode has read, write and execute bits alone
+// (ADR 0085). They're put in order, so specs that mean the same compare equal.
+func validateSeeds(m *resourcev1.Mount) error {
+	if len(m.GetSeed()) == 0 {
+		return nil
+	}
+	if m.GetExternal() {
+		return fmt.Errorf("the volume %s at %s is Docker's own, which Dockwell didn't make, so it starts with nothing of Dockwell's. Leave seed out", m.GetVolume(), m.GetTarget())
+	}
+	seen := map[string]bool{}
+	for _, s := range m.GetSeed() {
+		p := s.GetPath()
+		clean := path.Clean(p)
+		parts := strings.Split(clean, "/")
+		switch {
+		case p == "" || clean != p || path.IsAbs(p) || clean == "." || clean == ".." || strings.HasPrefix(clean, "../"):
+			return fmt.Errorf("the volume at %s starts with %q, which isn't a path under it. Give one such as conf/app.conf", m.GetTarget(), p)
+		case len(parts) > maxSeedDepth:
+			return fmt.Errorf("the volume at %s starts with %s, over %d folders deep", m.GetTarget(), p, maxSeedDepth)
+		case slices.ContainsFunc(parts, func(n string) bool { return n == "." || n == ".." || strings.ContainsAny(n, "\x00\\") }):
+			return fmt.Errorf("the volume at %s starts with %q, which isn't a path of plain names", m.GetTarget(), p)
+		case seen[clean]:
+			return fmt.Errorf("the volume at %s starts with %s twice. Give it once", m.GetTarget(), p)
+		case len(s.GetContent()) > maxFileBytes:
+			return fmt.Errorf("the volume at %s starts with %s of %d KiB, and Dockwell writes up to %d KiB", m.GetTarget(), p, len(s.GetContent())>>10, maxFileBytes>>10)
+		case !utf8.ValidString(s.GetContent()) || strings.IndexByte(s.GetContent(), 0) >= 0:
+			return fmt.Errorf("the volume at %s starts with %s, which isn't text, and Dockwell writes text alone", m.GetTarget(), p)
+		case s.GetMode()&^0o777 != 0:
+			return fmt.Errorf("the volume at %s starts with %s of mode %04o: give read, write and execute bits alone, such as 0644", m.GetTarget(), p, s.GetMode())
+		}
+		if s.GetMode() == 0 {
+			s.Mode = defaultSeedMode
+		}
+		seen[clean] = true
+	}
+	for p := range seen {
+		for dir := path.Dir(p); dir != "."; dir = path.Dir(dir) {
+			if seen[dir] {
+				return fmt.Errorf("the volume at %s starts with %s inside %s, which is a file", m.GetTarget(), p, dir)
+			}
+		}
+	}
+	slices.SortFunc(m.Seed, func(a, b *resourcev1.MountSeed) int { return strings.Compare(a.GetPath(), b.GetPath()) })
+	return nil
 }

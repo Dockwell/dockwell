@@ -120,6 +120,17 @@ func configUsers(raw map[string]any) map[string][]string {
 				out[source] = append(out[source], name)
 			}
 		}
+		// A config a volume starts with, as its x-dockwell's seed names it.
+		ext, _ := svc[extensionKey].(map[string]any)
+		seeds, _ := ext["seed"].(map[string]any)
+		for _, target := range slices.Sorted(maps.Keys(seeds)) {
+			files, _ := seeds[target].(map[string]any)
+			for _, p := range slices.Sorted(maps.Keys(files)) {
+				if source, _ := files[p].(string); source != "" && !slices.Contains(out[source], name) {
+					out[source] = append(out[source], name)
+				}
+			}
+		}
 	}
 	return out
 }

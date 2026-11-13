@@ -151,17 +151,32 @@ An upgrade's `chown -R` of data an app already wrote isn't taken: the data keeps
 - **An app whose ID starts with a digit,** as 2fauth's, takes `app-` first, as an entry's ID starts with a letter.
 - **The Compose importer reads a deploy's `restart_policy`** as the container's restart, as docker compose up does where the service sets none: `none` is no, `on-failure` is on-failure with `max_attempts` as its count, and `any` is always. Its `delay` and `window` are a swarm's, which Docker's restart has no field for, so they go.
 
+### A volume's mode, and what it starts with
+
+*Added with the seventh slice of #570.*
+
+Two of the left-out reasons were small: 1Panel's scripts that give a folder a mode (`chmod 777 data/logs`, `chmod -R 700 data`), and folders a store ships that the app writes to (Caddy's `/etc/caddy`, Gatus's `/config`, ntfy's `/etc/ntfy` and seven more), which a bind of the store's folder gave the app on 1Panel, and which can't be a read-only file Dockwell writes.
+
+- **A volume Dockwell makes can be made with a mode** (`Mount.make_mode`, 91), read, write and execute bits alone, given to its top folder as its owner is: only while it holds nothing, after Docker makes the container and before it starts. Compose says it in the service's `x-dockwell: {make_mode: {/data: "0770"}}`. A script's `chmod` of a folder the app binds becomes it; one of a file, or with setuid, setgid or sticky bits, still leaves the app out.
+- **A volume Dockwell makes can start with files** (`Mount.seed`, 92, `MountSeed`), each by its path under the volume, text, within the bounds a file mount has and counted with them. The agent writes them only into a new volume that holds nothing, before Docker makes the container, by handle from the volume's folder down: each folder on the way made with `mkdirat` and opened refusing a link, each file created anew (`O_EXCL`), owned as the volume is. A volume that starts with files isn't empty, so Docker copies nothing of the image's folder into it: the app sees the store's files alone, as 1Panel's bind gave it. Compose says it in `x-dockwell: {seed: {/etc/caddy: {Caddyfile: <config>}}}`, naming top-level configs.
+- **What a volume starts with is what it starts with**: a new release's files don't reach a volume that holds anything, which is the app's data from then on.
+- **They read back as the spec says** from a label, with each file's content kept by the agent as its file mounts are, by hash, so neither is drift.
+- **An agent says it does both, in its `Hello` (`prepares_volumes`, 303).**
+- **The sample on real Docker takes 1Panel's Gatus,** which won't start without the config its store ships into the folder it writes to.
+
 ### Numbers
 
-ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301) and `Hello.owns_volumes` (302); `Entry.architectures` (50); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
+ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301), `Hello.owns_volumes` (302) and `Hello.prepares_volumes` (303); `Mount.make_mode` (91), `Mount.seed` (92) and its `MountSeed`; `Entry.architectures` (50); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 13 Nov 2026
 
-| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | On amd64 alone | Common cases | Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 156 | 156 | 57% |
-| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 374 | 388 | 63% |
-| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 240 | 246 | 64% |
+| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | On amd64 alone | Common cases | With a volume's mode and files | Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 156 | 156 | 161 | 59% |
+| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 374 | 388 | 386 | 63% |
+| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 240 | 246 | 246 | 64% |
+
+The columns between were measured as each slice was built, before a review left out a store's app that locks memory with no limit, which takes out 1Panel's comfyui, elasticsearch and manticoresearch and Dokploy's dragonfly-db and graylog; the last column counts it.
 
 ## What we turned down
 
@@ -177,4 +192,4 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 - Over 250 more apps from Dokploy and Coolify install, with each new build offered as an update.
 - Each store's pinned commit is a person's to move. Until it moves, what upstream adds is measured only by a server reading the store.
 - CI reaches GitHub, and the registries of the sample's images.
-- Still to come in #570: a shipped folder the app writes to, copied into its volume; a volume's mode, as 1Panel's `chmod` gives one; a secret inside an environment's value; an app that runs on amd64 alone offered where such a server is; and another app's database, as a need (ADR 0084).
+- Still to come in #570: a secret inside an environment's value, and another app's database, as a need (ADR 0084).

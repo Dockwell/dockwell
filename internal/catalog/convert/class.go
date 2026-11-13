@@ -23,7 +23,7 @@ const (
 	ClassYoung      Class = "Its version is under 14 days old"
 	ClassAgeUnknown Class = "Its image's age isn't known yet"
 	ClassNoVersion  Class = "Names no version that stays put"
-	ClassArch       Class = "Runs on amd64 alone"
+	ClassArch       Class = "Runs on an architecture Dockwell doesn't"
 	ClassOwn        Class = "Dockwell has its own entry"
 	ClassPlatform   Class = "Uses a value its platform fills in"
 	ClassPin        Class = "Its image couldn't be pinned"

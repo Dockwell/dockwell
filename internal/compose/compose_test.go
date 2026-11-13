@@ -192,6 +192,9 @@ func TestParseRefuses(t *testing.T) {
 		"owner kind":       {"services: {web: {image: a, x-dockwell: {make_owner: 1000}}}", "the service web's x-dockwell's make_owner should be a mapping of each mount's target to its owner"},
 		"owner shape":      {"services: {web: {image: a, volumes: [data:/data], x-dockwell: {make_owner: {/data: www-data}}}}\nvolumes: {data: {}}", "the service web's x-dockwell's make_owner for /data"},
 		"owner of nothing": {"services: {web: {image: a, x-dockwell: {make_owner: {/data: '1000:1000'}}}}", "names /data, which no volume or server path of it mounts"},
+		"mode of a path":   {"services: {web: {image: a, volumes: ['/srv:/data'], x-dockwell: {make_mode: {/data: '0770'}}}}", "names /data, which no volume of it mounts"},
+		"mode with setuid": {"services: {web: {image: a, volumes: [data:/data], x-dockwell: {make_mode: {/data: '4755'}}}}\nvolumes: {data: {}}", "read, write and execute bits alone"},
+		"seed of nothing":  {"services: {web: {image: a, volumes: [data:/data], x-dockwell: {seed: {/data: {a.conf: nope}}}}}\nvolumes: {data: {}}", "names the config nope, which the file doesn't write"},
 		"long propagation": {
 			"services: {web: {image: a, volumes: [{type: bind, source: /srv, target: /data, bind: {propagation: rshared}}]}}",
 			"the service web's volume's bind uses `propagation`, which Dockwell can't run yet",
@@ -566,6 +569,64 @@ volumes:
 		if m.GetMakeOwner() != owners[m.GetTarget()] {
 			t.Errorf("the export reads back with %s made for %q, want %q", m.GetTarget(), m.GetMakeOwner(), owners[m.GetTarget()])
 		}
+	}
+}
+
+// A volume's mode and the files it starts with are the service's x-dockwell's, by the
+// volume's target, the files as configs the file writes, and an export writes both
+// back (ADR 0085).
+func TestAVolumesModeAndFilesComeFromXDockwell(t *testing.T) {
+	file := `services:
+  web:
+    image: caddy:2.10
+    volumes:
+      - conf:/etc/caddy
+      - logs:/var/log/caddy
+    x-dockwell:
+      make_mode:
+        /var/log/caddy: "0777"
+      seed:
+        /etc/caddy:
+          Caddyfile: caddyfile
+          sites/a.conf: site-a
+configs:
+  caddyfile:
+    content: |
+      :80 { respond "hello" }
+  site-a:
+    content: "#!/bin/sh\nexit 0\n"
+volumes:
+  conf: {}
+  logs: {}
+`
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mounts := map[string]*resourcev1.Mount{}
+	for _, m := range stack.Services[0].Spec.GetApp().GetMounts() {
+		mounts[m.GetTarget()] = m
+	}
+	if m := mounts["/var/log/caddy"]; m.GetMakeMode() != 0o777 || len(m.GetSeed()) != 0 {
+		t.Errorf("logs = %v", m)
+	}
+	seed := mounts["/etc/caddy"].GetSeed()
+	if len(seed) != 2 || seed[0].GetPath() != "Caddyfile" || !strings.Contains(seed[0].GetContent(), "respond") || seed[0].GetMode() != 0o644 || seed[1].GetMode() != 0o755 {
+		t.Errorf("conf starts with %v", seed)
+	}
+	if len(mounts) != 2 {
+		t.Errorf("a config a volume starts with is also mounted: %v", mounts)
+	}
+	out, err := compose.Export("env_x", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := compose.Read(t.Context(), compose.Input{File: out.File})
+	if err != nil {
+		t.Fatalf("reading the export: %v\n%s", err, out.File)
+	}
+	if !proto.Equal(again.Services[0].Spec.GetApp(), stack.Services[0].Spec.GetApp()) {
+		t.Errorf("the export reads back as\n%v\nwant\n%v\n%s", again.Services[0].Spec.GetApp(), stack.Services[0].Spec.GetApp(), out.File)
 	}
 }
 

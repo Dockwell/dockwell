@@ -180,6 +180,12 @@ func rewrite(app App) (rewritten, error) {
 					if vol.owner != "" {
 						addOwner(svc, vol.target, vol.owner)
 					}
+					if vol.mode != 0 {
+						addExtension(svc, "make_mode", vol.target, fmt.Sprintf("0%o", vol.mode))
+					}
+					if len(vol.seeds) > 0 {
+						addSeeds(root, svc, name, vol.target, vol.seeds)
+					}
 					if volumes == nil {
 						volumes = &yaml.Node{Kind: yaml.MappingNode}
 						root.Content = append(root.Content, scalar("volumes"), volumes)
@@ -775,9 +781,16 @@ type mounted struct {
 	// Dockwell writes (ADR 0085), and unread the shipped ones that weren't fetched.
 	files  []shippedFile
 	unread []string
-	// named is the volume a folder became, which the file declares, and owner whom
-	// its scripts give it to, mounted at target.
+	// named is the volume a folder became, which the file declares, owner whom its
+	// scripts give it to and mode the mode they give it, mounted at target.
 	named, owner, target string
+	mode                 uint32
+	// seeds are the files a folder the app writes to starts with, as its source
+	// ships them, by their paths in the folder (ADR 0085).
+	seeds []shippedFile
+	// seedFolder says files are those of a folder the app writes to, which become
+	// what its volume starts with.
+	seedFolder bool
 	// dropped says what the converter took away, and why.
 	dropped string
 	// reaches says what it reaches on the server through a value a person types.
@@ -836,8 +849,16 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 		return mounted{}, leave(ClassCantSay, "it binds its own folder, with its Compose file in it, which an entry has none of")
 	case strings.HasPrefix(rel, ".."):
 		return mounted{}, leave(ClassCantSay, "it binds %s, outside the app's own folder", source)
-	case app.Shipped != nil && app.Shipped(rel):
-		return shippedMount(app, v, rel)
+	}
+	var seeds []shippedFile
+	if app.Shipped != nil && app.Shipped(rel) {
+		shipped, err := shippedMount(app, v, rel)
+		if err != nil || !shipped.seedFolder || len(shipped.unread) > 0 {
+			return shipped, err
+		}
+		// A folder the app writes to, which it ships files into: a volume of its own,
+		// which starts with them (ADR 0085).
+		seeds = shipped.files
 	}
 	named := volumeName(rel)
 	if named == "" {
@@ -849,13 +870,14 @@ func volume(app App, v *yaml.Node, folders map[string]string) (mounted, error) {
 	}
 	folders[named] = rel
 	set(named)
-	out := mounted{named: named}
-	if owner := app.scripts.ownerOf(rel); owner != "" {
+	out := mounted{named: named, seeds: seeds}
+	owner, mode := app.scripts.ownerOf(rel), app.scripts.modeOf(rel)
+	if owner != "" || mode != 0 || len(seeds) > 0 {
 		target := volumeTarget(v)
 		if !strings.HasPrefix(target, "/") || strings.Contains(target, "$") {
-			return mounted{}, leave(ClassScripts, "its scripts give %s to %s, and it mounts that at a place a variable names, so an entry can't say whom it's made for", rel, owner)
+			return mounted{}, leave(ClassScripts, "its scripts or its files give %s an owner, a mode or files to start with, and it mounts that at a place a variable names, so an entry can't say how it's made", rel)
 		}
-		out.owner, out.target = owner, path.Clean(target)
+		out.owner, out.mode, out.target = owner, mode, path.Clean(target)
 	}
 	return out, nil
 }
@@ -877,18 +899,24 @@ func volumeTarget(v *yaml.Node) string {
 // addOwner says in a service's x-dockwell whom the volume it mounts at target is
 // made for, as its store's scripts gave the folder to that user (ADR 0085).
 func addOwner(svc *yaml.Node, target, owner string) {
+	addExtension(svc, "make_owner", target, owner)
+}
+
+// addExtension sets key's value for target in a service's x-dockwell, such as
+// make_mode: {/data: "0770"}, quoted (ADR 0085).
+func addExtension(svc *yaml.Node, key, target, value string) {
 	x := mapGet(svc, "x-dockwell")
 	if x == nil {
 		x = &yaml.Node{Kind: yaml.MappingNode}
 		svc.Content = append(svc.Content, scalar("x-dockwell"), x)
 	}
-	owners := mapGet(x, "make_owner")
-	if owners == nil {
-		owners = &yaml.Node{Kind: yaml.MappingNode}
-		x.Content = append(x.Content, scalar("make_owner"), owners)
+	byTarget := mapGet(x, key)
+	if byTarget == nil {
+		byTarget = &yaml.Node{Kind: yaml.MappingNode}
+		x.Content = append(x.Content, scalar(key), byTarget)
 	}
-	mapDel(owners, target)
-	owners.Content = append(owners.Content, scalar(target), &yaml.Node{Kind: yaml.ScalarNode, Value: owner, Style: yaml.DoubleQuotedStyle})
+	mapDel(byTarget, target)
+	byTarget.Content = append(byTarget.Content, scalar(target), &yaml.Node{Kind: yaml.ScalarNode, Value: value, Style: yaml.DoubleQuotedStyle})
 }
 
 // imageDefaults finds a variable with a default in an image, ${TAG:-1.2} or
@@ -1386,13 +1414,14 @@ func shippedMount(app App, v *yaml.Node, rel string) (mounted, error) {
 		paths = app.ShippedUnder(rel)
 	}
 	folder := len(paths) > 0
+	var out mounted
 	switch {
 	case !folder:
 		paths = []string{rel}
 	case !readOnly(v):
-		return mounted{}, leave(ClassShipped, "it ships files into %s, a folder the app writes to, which Dockwell would copy into its volume as it installs. It doesn't yet", rel)
+		// A folder the app writes to: its volume starts with these files.
+		out.seedFolder = true
 	}
-	var out mounted
 	size := 0
 	for _, p := range paths {
 		b, err := app.ReadShipped(p)
@@ -1409,7 +1438,10 @@ func shippedMount(app App, v *yaml.Node, rel string) (mounted, error) {
 			return mounted{}, leave(ClassShipped, "the files it ships beside its Compose file come to over %d KiB, more than Dockwell writes into an entry", maxShipped>>10)
 		}
 		at := target
-		if folder {
+		switch {
+		case out.seedFolder:
+			at = strings.TrimPrefix(p, rel+"/")
+		case folder:
 			at = path.Join(target, strings.TrimPrefix(p, rel+"/"))
 		}
 		content := string(b)
@@ -1495,6 +1527,41 @@ func addConfigs(root, svc *yaml.Node, service string, files []shippedFile) {
 	}
 }
 
+// addSeeds writes the files a volume starts with as the file's configs, and says in
+// the service's x-dockwell which file of the volume at target each one is, by its
+// path in the volume (ADR 0085).
+func addSeeds(root, svc *yaml.Node, service, target string, files []shippedFile) {
+	configs := mapGet(root, "configs")
+	if configs == nil {
+		configs = &yaml.Node{Kind: yaml.MappingNode}
+		root.Content = append(root.Content, scalar("configs"), configs)
+	}
+	x := mapGet(svc, "x-dockwell")
+	if x == nil {
+		x = &yaml.Node{Kind: yaml.MappingNode}
+		svc.Content = append(svc.Content, scalar("x-dockwell"), x)
+	}
+	seeds := mapGet(x, "seed")
+	if seeds == nil {
+		seeds = &yaml.Node{Kind: yaml.MappingNode}
+		x.Content = append(x.Content, scalar("seed"), seeds)
+	}
+	byPath := &yaml.Node{Kind: yaml.MappingNode}
+	seeds.Content = append(seeds.Content, scalar(target), byPath)
+	for _, f := range files {
+		name := volumeName(service + "-" + target + "-" + f.target)
+		for base, i := name, 2; mapGet(configs, name) != nil; i++ {
+			name = base + "-" + strconv.Itoa(i)
+		}
+		content := &yaml.Node{Kind: yaml.ScalarNode, Value: f.content}
+		if strings.Contains(f.content, "\n") {
+			content.Style = yaml.LiteralStyle
+		}
+		configs.Content = append(configs.Content, scalar(name), &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{scalar("content"), content}})
+		byPath.Content = append(byPath.Content, scalar(f.target), scalar(name))
+	}
+}
+
 // ownedInside refuses scripts that give a folder inside a volume to a user: Dockwell
 // gives a volume's own folder an owner, as it makes it, and nothing inside it.
 func ownedInside(steps scriptSteps, folders map[string]string) error {
@@ -1510,6 +1577,23 @@ func ownedInside(steps scriptSteps, folders map[string]string) error {
 		}
 		if !bound && inside != "" {
 			return leave(ClassScripts, "its scripts give %s, a folder inside the volume for %s, to %s, and Dockwell gives a volume's own folder an owner, not one inside it", dir, inside, steps.owners[dir])
+		}
+	}
+	// A mode given to a folder the app binds, or with -R to one it's inside, is the
+	// volume's; one given to a file or a folder inside a volume isn't one Dockwell gives.
+	for _, dir := range slices.Sorted(maps.Keys(steps.modes)) {
+		m := steps.modes[dir]
+		bound, inside := false, ""
+		for _, rel := range folders {
+			switch {
+			case rel == dir || m.recursive && strings.HasPrefix(rel, dir+"/"):
+				bound = true
+			case strings.HasPrefix(dir, rel+"/"):
+				inside = rel
+			}
+		}
+		if !bound && inside != "" {
+			return leave(ClassScripts, "its scripts give %s, inside the volume for %s, the mode %04o, and Dockwell gives a volume's own folder a mode, not something inside it", dir, inside, m.mode)
 		}
 	}
 	return nil

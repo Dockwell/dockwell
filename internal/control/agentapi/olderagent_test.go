@@ -236,3 +236,28 @@ func TestAnOlderAgentIsRefusedAVolumesOwner(t *testing.T) {
 		t.Errorf("an agent that gives volumes owners = %v", err)
 	}
 }
+
+// An agent that doesn't say it gives a volume a mode and the files it starts with is
+// refused a spec that asks for either, with the fix (ADR 0085).
+func TestAnOlderAgentIsRefusedAVolumesModeAndFiles(t *testing.T) {
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	errSent := errors.New("the test stops the call here")
+	open := func(prepares bool) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		a.CheckNaming(&naming{})
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, MakesFolders: true, WritesFiles: true, OwnsVolumes: true, PreparesVolumes: prepares}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	for name, m := range map[string]*resourcev1.Mount{
+		"a mode": {Target: "/logs", Source: &resourcev1.Mount_Volume{Volume: "logs"}, MakeMode: 0o777},
+		"a seed": {Target: "/conf", Source: &resourcev1.Mount_Volume{Volume: "conf"}, Seed: []*resourcev1.MountSeed{{Path: "a.conf", Content: "x"}}},
+	} {
+		spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{m}}}}
+		_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+		if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell gave a new volume a mode and the files it starts with, which web asks for") {
+			t.Errorf("%s, an older agent: %v", name, err)
+		}
+		if _, err := open(true).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}}); errors.Is(err, resource.ErrAgentTooOld) {
+			t.Errorf("%s, an agent that prepares volumes: %v", name, err)
+		}
+	}
+}

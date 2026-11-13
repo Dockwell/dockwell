@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compose-spec/compose-go/v2/types"
+
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
@@ -23,7 +25,7 @@ import (
 const extensionKey = "x-dockwell"
 
 var (
-	extensionKeys = keys("healthcheck", "drain", "make_owner")
+	extensionKeys = keys("healthcheck", "drain", "make_owner", "make_mode", "seed")
 	agentKeys     = keys("http", "tcp", "interval", "timeout", "start_period", "retries")
 	httpKeys      = keys("port", "path", "host")
 	tcpKeys       = keys("port")
@@ -33,8 +35,13 @@ var (
 type extension struct {
 	health *resourcev1.Healthcheck
 	drain  string
-	// owners is whom each mount is made for, by its target.
+	// owners is whom each mount is made for, by its target, modes the mode each
+	// volume's folder is made with, and seeds the files each volume starts with, by
+	// its target and then each file's path in it, as the config whose content it
+	// holds (ADR 0085).
 	owners map[string]string
+	modes  map[string]uint32
+	seeds  map[string]map[string]string
 }
 
 // takeExtensions reads each service's x-dockwell out of a file, once its
@@ -74,6 +81,16 @@ func takeExtensions(dict map[string]any) (map[string]*extension, error) {
 				return nil, err
 			}
 		}
+		if o, ok := m["make_mode"]; ok {
+			if e.modes, err = readModes(what+"'s make_mode", o); err != nil {
+				return nil, err
+			}
+		}
+		if o, ok := m["seed"]; ok {
+			if e.seeds, err = readSeeds(what+"'s seed", o); err != nil {
+				return nil, err
+			}
+		}
 		out[name] = e
 	}
 	return out, nil
@@ -97,6 +114,55 @@ func readOwners(what string, raw any) (map[string]string, error) {
 			return nil, invalid("%s for %s: %v", what, target, err)
 		}
 		out[path.Clean(target)] = resource.FormatOwner(uid, gid)
+	}
+	return out, nil
+}
+
+// readModes reads the mode each volume's folder is made with, by its target, such
+// as make_mode: {/data: "0770"}.
+func readModes(what string, raw any) (map[string]uint32, error) {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, invalid("%s should be a mapping of each volume's target to its mode, such as make_mode: {/data: \"0770\"}", what)
+	}
+	out := make(map[string]uint32, len(m))
+	for _, target := range slices.Sorted(maps.Keys(m)) {
+		text, err := extString(what, target, m[target])
+		if err != nil {
+			return nil, err
+		}
+		mode, err := strconv.ParseUint(strings.TrimSpace(text), 8, 32)
+		if err != nil || mode == 0 || mode&^0o777 != 0 {
+			return nil, invalid("%s for %s is %q, where it takes read, write and execute bits alone, in octal, such as \"0770\"", what, target, text)
+		}
+		out[path.Clean(target)] = uint32(mode)
+	}
+	return out, nil
+}
+
+// readSeeds reads the files each volume starts with, by its target and then each
+// file's path in the volume, as the config whose content the file holds, such as
+// seed: {/etc/caddy: {Caddyfile: caddy-caddyfile}}.
+func readSeeds(what string, raw any) (map[string]map[string]string, error) {
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, invalid("%s should be a mapping of each volume's target to its files, such as seed: {/etc/app: {app.conf: app-conf}}", what)
+	}
+	out := map[string]map[string]string{}
+	for _, target := range slices.Sorted(maps.Keys(m)) {
+		files, ok := m[target].(map[string]any)
+		if !ok {
+			return nil, invalid("%s for %s should be a mapping of each file's path in the volume to a config, such as {app.conf: app-conf}", what, target)
+		}
+		byPath := map[string]string{}
+		for _, p := range slices.Sorted(maps.Keys(files)) {
+			name, err := extString(what+" for "+target, p, files[p])
+			if err != nil {
+				return nil, err
+			}
+			byPath[p] = name
+		}
+		out[path.Clean(target)] = byPath
 	}
 	return out, nil
 }
@@ -203,7 +269,7 @@ func extNumber(what, key string, v any) (uint32, error) {
 
 // apply puts what a service's x-dockwell says in its spec. A check the agent
 // makes stands in for a command, so a file with both has to say which.
-func (e *extension) apply(what string, c *resourcev1.Container) error {
+func (e *extension) apply(what string, c *resourcev1.Container, configs types.Configs) error {
 	if e == nil {
 		return nil
 	}
@@ -225,6 +291,38 @@ func (e *extension) apply(what string, c *resourcev1.Container) error {
 			return invalid("%s's make_owner names %s, which no volume or server path of it mounts. Name a mount's target, such as /data", what, target)
 		}
 		c.Mounts[i].MakeOwner = e.owners[target]
+	}
+	volumeAt := func(field, target string) (*resourcev1.Mount, error) {
+		i := slices.IndexFunc(c.GetMounts(), func(m *resourcev1.Mount) bool { return path.Clean(m.GetTarget()) == target })
+		if i < 0 || c.GetMounts()[i].GetVolume() == "" {
+			return nil, invalid("%s's %s names %s, which no volume of it mounts. Name a volume's target, such as /data", what, field, target)
+		}
+		return c.Mounts[i], nil
+	}
+	for _, target := range slices.Sorted(maps.Keys(e.modes)) {
+		m, err := volumeAt("make_mode", target)
+		if err != nil {
+			return err
+		}
+		m.MakeMode = e.modes[target]
+	}
+	for _, target := range slices.Sorted(maps.Keys(e.seeds)) {
+		m, err := volumeAt("seed", target)
+		if err != nil {
+			return err
+		}
+		for _, p := range slices.Sorted(maps.Keys(e.seeds[target])) {
+			name := e.seeds[target][p]
+			cfg, ok := configs[name]
+			if !ok {
+				return invalid("%s's seed for %s names the config %s, which the file doesn't write. Add it under configs, with its content", what, target, name)
+			}
+			mode := uint32(0o644)
+			if strings.HasPrefix(cfg.Content, "#!") {
+				mode = 0o755
+			}
+			m.Seed = append(m.Seed, &resourcev1.MountSeed{Path: p, Content: cfg.Content, Mode: mode})
+		}
 	}
 	return nil
 }

@@ -542,8 +542,11 @@ func TestOnServerReadsTheFilesAnAppMounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(asked, []string{"apps/shipped/2.0.0/conf/app.conf"}) {
+	if !slices.Equal(asked, []string{"apps/seeded/1.0.0/conf/app.conf", "apps/seeded/1.0.0/conf/sites/a.conf", "apps/shipped/2.0.0/conf/app.conf"}) {
 		t.Errorf("the round asked for %v", asked)
+	}
+	if r := resultsByID(run)["seeded"]; r.Entry == nil || !strings.Contains(r.Entry.GetCompose(), "server a.example.com") {
+		t.Errorf("a folder the app writes to, with a round for it: %v, %q", r.Entry, r.LeftOut)
 	}
 	if r := resultsByID(run)["shipped"]; r.Entry == nil || !strings.Contains(r.Entry.GetCompose(), "listen = 80") {
 		t.Errorf("with a round for it: %v, %q", r.Entry, r.LeftOut)

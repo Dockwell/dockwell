@@ -23,10 +23,12 @@ import (
 // volume's empty top folder its owner the same way.
 type FolderMaker interface {
 	Make(path string, uid, gid uint32) error
-	// Empty says whether a volume's folder holds nothing, and Own gives it to uid
-	// and gid.
+	// Empty says whether a volume's folder holds nothing, Own gives it to uid and
+	// gid, Mode gives it a mode, and Seed writes the files it starts with.
 	Empty(path string) (bool, error)
 	Own(path string, uid, gid uint32) error
+	Mode(path string, mode uint32) error
+	Seed(path string, files []*resourcev1.MountSeed, own bool, uid, gid uint32) error
 }
 
 // HostFolders makes folders on the agent's own server.
@@ -152,6 +154,81 @@ func (HostFolders) Own(path string, uid, gid uint32) error {
 	return nil
 }
 
+// Mode gives path, a local volume's top folder where Docker keeps it, a mode, and
+// nothing inside it, through a handle that refuses a link in its place (ADR 0085).
+func (HostFolders) Mode(path string, mode uint32) error {
+	fd, err := openVolume(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unix.Close(fd) }()
+	if err := unix.Fchmod(fd, mode&0o777); err != nil {
+		return fmt.Errorf("can't give the volume's folder %s the mode %04o: %w", path, mode, err)
+	}
+	return nil
+}
+
+// Seed writes files into path, a local volume's top folder where Docker keeps it,
+// by their paths under it: by handle from the folder down, each folder on the way
+// made with mkdirat and opened refusing a link, and each file made anew, O_EXCL, so
+// nothing put there meanwhile, such as a link to /etc, is followed or written over.
+// With own, each is given to uid and gid, as the volume is (ADR 0085).
+func (HostFolders) Seed(path string, files []*resourcev1.MountSeed, own bool, uid, gid uint32) error {
+	top, err := openVolume(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unix.Close(top) }()
+	for _, f := range files {
+		if err := seedOne(top, f, own, uid, gid); err != nil {
+			return fmt.Errorf("can't write %s into the volume's folder %s: %w", f.GetPath(), path, err)
+		}
+	}
+	return nil
+}
+
+// seedOne writes one file under top, a volume's folder.
+func seedOne(top int, f *resourcev1.MountSeed, own bool, uid, gid uint32) error {
+	parts := strings.Split(f.GetPath(), "/")
+	dir, err := unix.Dup(top)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = unix.Close(dir) }()
+	for _, name := range parts[:len(parts)-1] {
+		made := unix.Mkdirat(dir, name, 0o755) == nil
+		next, err := unix.Openat(dir, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return err
+		}
+		if made && own {
+			if err := unix.Fchown(next, int(uid), int(gid)); err != nil {
+				_ = unix.Close(next)
+				return err
+			}
+		}
+		_ = unix.Close(dir)
+		dir = next
+	}
+	mode := f.GetMode() & 0o777
+	fd, err := unix.Openat(dir, parts[len(parts)-1], unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, mode)
+	if err != nil {
+		return err
+	}
+	file := os.NewFile(uintptr(fd), f.GetPath())
+	defer file.Close()
+	if _, err := file.WriteString(f.GetContent()); err != nil {
+		return err
+	}
+	if err := unix.Fchmod(fd, mode); err != nil {
+		return err
+	}
+	if own {
+		return unix.Fchown(fd, int(uid), int(gid))
+	}
+	return nil
+}
+
 // openVolume opens a volume's top folder by its full path, refusing a link in its
 // place.
 func openVolume(path string) (int, error) {
@@ -229,36 +306,47 @@ func (d *Docker) makeFolders(spec *resourcev1.Container) error {
 	return nil
 }
 
-// ownVolumes finds each volume a spec mounts with a make_owner that holds nothing
-// yet, before the container is made, and returns what gives each its owner once it
-// is. Docker makes a new volume's folder root's, then, as it makes the container,
-// copies in what the image has at the mount's target, with that folder's owner, so an
-// app that runs as another user can't write it; 1Panel's scripts give the folder
-// away for that. A volume with anything in it keeps its owner, so an app's data is
-// never given away, and so do one another container mounts and one a driver keeps
-// elsewhere, such as an NFS share (ADR 0085).
+// ownVolumes prepares each volume a spec mounts with a make_owner, a make_mode or
+// files it starts with, that holds nothing yet. Before the container is made, it
+// writes into it the files it starts with, so Docker, which copies the image's folder
+// into a volume that holds nothing as it makes the container, copies nothing, and the
+// app finds those files alone; and it returns what gives the volume's folder its owner
+// and mode once the container is made, before it starts, as that copy also sets the
+// folder's owner. Docker makes a new volume's folder root's, and an app that runs as
+// another user can't write it; 1Panel's scripts give the folder away for that, and
+// give it a mode. A volume with anything in it keeps what it holds and its owner, so
+// an app's data is never given away, and so do an empty one another container mounts,
+// which is that container's to fill, and one a driver keeps elsewhere, such as an NFS
+// share (ADR 0085).
 func (d *Docker) ownVolumes(ctx context.Context, t Target, spec *resourcev1.Container) (func(context.Context) error, error) {
 	type fresh struct {
 		name, volume string
+		own          bool
 		uid, gid     uint32
+		mode         uint32
+		seed         []*resourcev1.MountSeed
+		seeded       bool
 	}
 	var todo []fresh
 	if d.Folders != nil {
 		for _, m := range spec.GetMounts() {
-			if m.GetVolume() == "" || m.GetMakeOwner() == "" || m.GetExternal() {
+			if m.GetVolume() == "" || m.GetExternal() || m.GetMakeOwner() == "" && m.GetMakeMode() == 0 && len(m.GetSeed()) == 0 {
 				continue
 			}
-			uid, gid, err := resource.ParseOwner(m.GetMakeOwner())
-			if err != nil {
-				return nil, err
+			f := fresh{name: t.VolumeName(m), volume: m.GetVolume(), mode: m.GetMakeMode(), seed: m.GetSeed()}
+			if o := m.GetMakeOwner(); o != "" {
+				uid, gid, err := resource.ParseOwner(o)
+				if err != nil {
+					return nil, err
+				}
+				f.own, f.uid, f.gid = true, uid, gid
 			}
-			name := t.VolumeName(m)
-			v, err := d.Client.InspectVolume(ctx, name)
+			v, err := d.Client.InspectVolume(ctx, f.name)
 			switch {
 			case docker.IsNotFound(err):
 				// Docker makes it with the container, new.
 			case err != nil:
-				return nil, fmt.Errorf("can't read the volume %s to give it to %s: %w", m.GetVolume(), m.GetMakeOwner(), err)
+				return nil, fmt.Errorf("can't read the volume %s to prepare it: %w", m.GetVolume(), err)
 			case v.Driver != "local" || len(v.Options) > 0 || v.Mountpoint == "":
 				continue
 			default:
@@ -271,28 +359,48 @@ func (d *Docker) ownVolumes(ctx context.Context, t Target, spec *resourcev1.Cont
 				}
 				// An empty volume another container mounts is that container's to fill,
 				// as it may be about to, so it keeps its owner too.
-				in, err := d.Client.ListContainers(ctx, map[string][]string{"volume": {name}})
+				in, err := d.Client.ListContainers(ctx, map[string][]string{"volume": {f.name}})
 				if err != nil {
 					return nil, fmt.Errorf("can't read which containers mount the volume %s: %w", m.GetVolume(), err)
 				}
 				if len(in) > 0 {
 					continue
 				}
+				if len(f.seed) > 0 {
+					if err := d.Folders.Seed(v.Mountpoint, f.seed, f.own, f.uid, f.gid); err != nil {
+						return nil, fmt.Errorf("the volume %s: %w", m.GetVolume(), err)
+					}
+					f.seeded = true
+				}
 			}
-			todo = append(todo, fresh{name: name, volume: m.GetVolume(), uid: uid, gid: gid})
+			todo = append(todo, f)
 		}
 	}
 	return func(ctx context.Context) error {
 		for _, f := range todo {
 			v, err := d.Client.InspectVolume(ctx, f.name)
 			if err != nil {
-				return fmt.Errorf("can't read the volume %s to give it to %s: %w", f.volume, resource.FormatOwner(f.uid, f.gid), err)
+				return fmt.Errorf("can't read the volume %s to prepare it: %w", f.volume, err)
 			}
 			if v.Driver != "local" || len(v.Options) > 0 || v.Mountpoint == "" {
 				continue
 			}
-			if err := d.Folders.Own(v.Mountpoint, f.uid, f.gid); err != nil {
-				return fmt.Errorf("the volume %s: %w", f.volume, err)
+			if len(f.seed) > 0 && !f.seeded {
+				// Docker made it with the container: what the image has there may be in
+				// it now, and a file of the same name is refused rather than written over.
+				if err := d.Folders.Seed(v.Mountpoint, f.seed, f.own, f.uid, f.gid); err != nil {
+					return fmt.Errorf("the volume %s: %w", f.volume, err)
+				}
+			}
+			if f.own {
+				if err := d.Folders.Own(v.Mountpoint, f.uid, f.gid); err != nil {
+					return fmt.Errorf("the volume %s: %w", f.volume, err)
+				}
+			}
+			if f.mode != 0 {
+				if err := d.Folders.Mode(v.Mountpoint, f.mode); err != nil {
+					return fmt.Errorf("the volume %s: %w", f.volume, err)
+				}
 			}
 		}
 		return nil

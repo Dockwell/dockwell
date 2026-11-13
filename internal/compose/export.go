@@ -117,6 +117,10 @@ type (
 		Healthcheck *agentCheckEntry  `yaml:"healthcheck,omitempty"`
 		Drain       string            `yaml:"drain,omitempty"`
 		MakeOwner   map[string]quoted `yaml:"make_owner,omitempty"`
+		MakeMode    map[string]quoted `yaml:"make_mode,omitempty"`
+		// Seed is what each volume starts with, by its target and each file's path
+		// in it, as the config that holds it.
+		Seed map[string]map[string]string `yaml:"seed,omitempty"`
 	}
 	agentCheckEntry struct {
 		HTTP        *httpCheckEntry `yaml:"http,omitempty"`
@@ -343,6 +347,35 @@ func Export(project string, stack *Stack) (*Exported, error) {
 				}
 				// Quoted, as a YAML 1.1 reader takes 1000:1000 for a number in base 60.
 				entry.Dockwell.MakeOwner[m.GetTarget()] = quoted(o)
+			}
+		}
+		// A volume's mode and the files it starts with, each file as a config of its own.
+		for i, m := range c.GetMounts() {
+			if m.GetVolume() == "" || m.GetMakeMode() == 0 && len(m.GetSeed()) == 0 {
+				continue
+			}
+			if entry.Dockwell == nil {
+				entry.Dockwell = &dockwellEntry{}
+			}
+			if mode := m.GetMakeMode(); mode != 0 {
+				if entry.Dockwell.MakeMode == nil {
+					entry.Dockwell.MakeMode = map[string]quoted{}
+				}
+				entry.Dockwell.MakeMode[m.GetTarget()] = quoted(fmt.Sprintf("0%o", mode))
+			}
+			for j, seed := range m.GetSeed() {
+				name := fmt.Sprintf("%s-%d-seed-%d", s.Name, i+1, j+1)
+				if f.Configs == nil {
+					f.Configs = map[string]configEntry{}
+				}
+				f.Configs[name] = configEntry{Content: escape(seed.GetContent())}
+				if entry.Dockwell.Seed == nil {
+					entry.Dockwell.Seed = map[string]map[string]string{}
+				}
+				if entry.Dockwell.Seed[m.GetTarget()] == nil {
+					entry.Dockwell.Seed[m.GetTarget()] = map[string]string{}
+				}
+				entry.Dockwell.Seed[m.GetTarget()][seed.GetPath()] = name
 			}
 		}
 		if hc := c.GetHealthcheck(); hc != nil {

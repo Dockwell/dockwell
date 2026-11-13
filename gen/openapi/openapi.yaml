@@ -15112,6 +15112,22 @@ components:
                          keeps its owner. For a volume Dockwell made: whom its folder is given to while
                          it holds nothing, once the container is made and before it starts, as Docker
                          makes it root's (ADR 0085). Numbered apart, as open work adds to this message.
+                makeMode:
+                    type: integer
+                    description: |-
+                        For a volume Dockwell made: the mode its folder is given while it holds
+                         nothing, as make_owner gives its owner, such as 0770 (504). Read, write and
+                         execute bits alone. 0 leaves Docker's (ADR 0085).
+                    format: uint32
+                seed:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/MountSeed'
+                    description: |-
+                        For a volume Dockwell made: the files it starts with, written into it while it
+                         holds nothing, before the container is made, and owned as make_owner says. A
+                         volume that holds anything keeps what it holds. Text, within the bounds a file
+                         mount has, and counted with them (ADR 0085).
             description: Mount puts a volume, or a directory on the server, into a container.
         MountFile:
             type: object
@@ -15130,6 +15146,24 @@ components:
             description: |-
                 MountFile is a file Dockwell writes for a container: what it holds, and who
                  may read it.
+        MountSeed:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: |-
+                        Where it is under the volume, such as "conf/app.conf": relative, of plain names,
+                         8 folders deep at most.
+                content:
+                    type: string
+                    description: 'What it holds, as text: a store''s config, never a secret, which a plan shows.'
+                mode:
+                    type: integer
+                    description: |-
+                        Its permissions, such as 0644 (420), the default when 0. Read, write and
+                         execute bits alone.
+                    format: uint32
+            description: MountSeed is a file a volume starts with.
         MoveFileRequest:
             type: object
             properties:

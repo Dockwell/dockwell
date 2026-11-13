@@ -1262,7 +1262,7 @@ describe("Other stores' catalogs", () => {
     const kinds = [...panel.querySelectorAll(".sources-left-kind > summary")].map((k) => k.textContent);
     expect(kinds).toEqual([
       "Run scripts on the serverInstall once Dockwell runs their setup steps itself2",
-      "Run on amd64 aloneInstall once Dockwell offers them for amd64 servers1",
+      "Run on an architecture Dockwell doesn'tInstall once Dockwell runs on their architecture1",
     ]);
     await user.click(within(panel).getByText("Run scripts on the server"));
     expect(within(panel).getByText("2fauth")).toBeVisible();
