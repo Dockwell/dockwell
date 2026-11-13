@@ -1445,6 +1445,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		if items, err = e.withContentsGoing(ctx, tx, items, seen); err != nil {
 			return err
 		}
+		if items, err = e.withTiesGoing(ctx, tx, items, seen); err != nil {
+			return err
+		}
 		if items, err = e.withUsers(ctx, tx, items); err != nil {
 			return err
 		}

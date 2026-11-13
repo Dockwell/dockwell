@@ -154,13 +154,32 @@ describe("An app's needs as it's installed", () => {
     expect(within(row).queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("waits, and says so, where nothing here can make what the app needs", async () => {
-    renderAt("/catalog/wordpress/install", api([]));
+  it("waits, and says so, where nothing here can make what the app needs, with where the catalog has one", async () => {
+    const mysql = create(EntrySchema, {
+      id: "mysql",
+      name: "MySQL",
+      summary: "Relational database",
+      category: "databases",
+    });
+    renderAt("/catalog/wordpress/install", api([], { listCatalogEntries: () => ({ entries: [wordpress, mysql] }) }));
     const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
     const row = await within(sheet).findByRole("group", { name: "Database" });
     expect(row).toHaveTextContent("Nothing here can make one yet");
     expect(within(sheet).getByText("Nothing here can make its database yet")).toBeVisible();
     expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    // The catalog has MySQL, which the app takes, and no MariaDB.
+    const link = await within(row).findByRole("link", { name: "MySQL in the catalog" });
+    expect(link).toHaveAttribute("href", "/catalog/mysql");
+    expect(within(row).queryByRole("link", { name: "MariaDB in the catalog" })).toBeNull();
+  });
+
+  it("says a new one with no version without a gap where the version would be", async () => {
+    const unversioned = create(CatalogNeedOptionSchema, { need: "db", choice: "new:mariadb", engine: Engine.MARIADB });
+    renderAt("/catalog/wordpress/install", api([unversioned]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Database" });
+    expect(row.textContent).toContain("New MariaDB beside WordPress");
+    expect(row.textContent).not.toMatch(/MariaDB {2}beside/);
   });
 
   it("keeps its picker to the sheet's width on a phone", async () => {

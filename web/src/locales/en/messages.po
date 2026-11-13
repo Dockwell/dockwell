@@ -6639,6 +6639,9 @@ msgstr "Limits and restarts"
 msgid "New database"
 msgstr "New database"
 
+msgid "New {engine} beside {app}"
+msgstr "New {engine} beside {app}"
+
 msgid "New {engine} {version} beside {app}"
 msgstr "New {engine} {version} beside {app}"
 
@@ -6749,6 +6752,9 @@ msgstr "{app} is under the {license} licence."
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} vCPU"
+
+msgid "{name} in the catalog"
+msgstr "{name} in the catalog"
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"

@@ -6639,6 +6639,9 @@ msgstr "限制与重启"
 msgid "New database"
 msgstr "新建数据库"
 
+msgid "New {engine} beside {app}"
+msgstr "在 {app} 旁新建 {engine}"
+
 msgid "New {engine} {version} beside {app}"
 msgstr "在 {app} 旁新建 {engine} {version}"
 
@@ -6749,6 +6752,9 @@ msgstr "{app} 采用 {license} 许可证。"
 
 msgid "{cpus} vCPU"
 msgstr "{cpus} 个 vCPU"
+
+msgid "{name} in the catalog"
+msgstr "目录中的 {name}"
 
 msgid "{ownCount, plural, one {# secret of your own} other {# secrets of your own}}"
 msgstr "{ownCount, plural, other {# 个自己设置的密钥}}"

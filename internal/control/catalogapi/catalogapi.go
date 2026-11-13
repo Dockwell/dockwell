@@ -236,10 +236,11 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		return nil, err
 	}
 	// What meets each need, as asked, or each need's first way (ADR 0084).
-	needed, err := s.meetNeeds(entry, m.GetValues(), m.GetNeeds(), nil)
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), m.GetNeeds(), nil, onServer)
 	if err != nil {
 		return nil, err
 	}
+	pinNotes = append(pinNotes, needNotes...)
 	free, err := h.whatsFree(ctx, needed.Entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -481,10 +482,12 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, err
 	}
 	// Its needs stay met as they are, and one the release adds takes its first way.
-	needed, err := s.meetNeeds(entry, m.GetValues(), nil, pin.GetNeeds())
+	server := h.serverOf(ctx, install.GetEnvironmentId())
+	needed, needNotes, err := h.meetNeeds(ctx, s, entry, m.GetValues(), nil, pin.GetNeeds(), server)
 	if err != nil {
 		return nil, err
 	}
+	pinNotes = append(pinNotes, needNotes...)
 	free, err := h.whatsFree(ctx, needed.Entry, "")
 	if err != nil {
 		return nil, h.internal(ctx, err)
@@ -501,6 +504,9 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	}
 	if err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
+	}
+	if err := h.keepEdited(ctx, install.GetEnvironmentId(), pin, filled); err != nil {
+		return nil, h.internal(ctx, err)
 	}
 	old, err := ranFile(pin)
 	if err != nil {
@@ -618,8 +624,9 @@ func (h *Handler) SetCatalogCompanion(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
-	// What its needs set is used by reference on both sides, and stays as it is.
-	plain := catalog.PlainNames(entry)
+	// What its needs set is used by reference on both sides, and stays as it is, by the
+	// names the install ran, whatever the release in the catalog now names.
+	plain := catalog.PinnedPlain(pin.GetNeeds(), entry)
 	oldLinked, err := catalog.StandFor(oldVariables, plain)
 	if err != nil {
 		return nil, h.internal(ctx, err)

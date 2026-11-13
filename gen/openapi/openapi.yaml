@@ -8077,6 +8077,38 @@ components:
                         Whether each of its entry's companions runs, by service, such as adminer:
                          false. Empty when the catalog no longer has its entry, or it has none.
             description: CatalogInstall is one project installed from the catalog.
+        CatalogNeedOption:
+            type: object
+            properties:
+                need:
+                    type: string
+                    description: The need, by its name in the entry, such as "db".
+                choice:
+                    type: string
+                    description: What InstallCatalogEntryRequest.needs takes for it, such as "new:mysql".
+                engine:
+                    enum:
+                        - ENGINE_UNSPECIFIED
+                        - ENGINE_POSTGRESQL
+                        - ENGINE_MYSQL
+                        - ENGINE_MARIADB
+                        - ENGINE_REDIS
+                        - ENGINE_VALKEY
+                        - ENGINE_MONGODB
+                        - ENGINE_CLICKHOUSE
+                    type: string
+                    description: The engine, and the version it installs.
+                    format: enum
+                version:
+                    type: string
+                entry:
+                    type: string
+                    description: |-
+                        The catalog entry a new one comes from, such as "mysql", with its name, where
+                         it isn't the entry's own service. Empty: the entry's own.
+                entryName:
+                    type: string
+            description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
             properties:
@@ -8201,6 +8233,16 @@ components:
                          built into Dockwell before Dockwell/catalog: Dockwell moved its pin to the
                          source that reads Dockwell/catalog, which its upgrades come from since (ADR
                          0077). Empty for any other install.
+                needs:
+                    type: object
+                    additionalProperties:
+                        $ref: '#/components/schemas/PinnedNeed'
+                    description: |-
+                        How each of the entry's needs is met, by the need's name, so an upgrade reads
+                         the file as the install did and keeps it so. A need with no word here is met
+                         by the entry's own service, as an install from before needs ran it. Numbered
+                         apart, as 80 and 81 are taken here. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
             description: |-
                 CatalogPin is what an install is pinned to: updates come from there, and each
                  is a plan. It holds no secret: those are the environment's, by reference.
@@ -10777,6 +10819,16 @@ components:
                          entry's own words, field by field, with an empty field reading as the entry's
                          own. Only the languages the panel speaks are kept. ListCatalogEntries leaves out
                          each one's description and readme, as GetCatalogEntry has them.
+                needs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/Need'
+                    description: |-
+                        What the app reads from outside its own containers, such as a MySQL-compatible
+                         database, each met as a person installs it: by a new one beside the app, by
+                         one Dockwell runs already, or by a connection. Empty needs nothing, as before.
+                         Numbered apart, as open work adds to this message. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
             description: |-
                 Entry is one app a catalog offers, at one version. It installs through the
                  same plan as any Compose file, into a project of its own. It runs no script
@@ -12103,6 +12155,16 @@ components:
                     description: |-
                         The catalogs that have the app, the one it's listed from first, by their
                          sources' names, empty for Dockwell's own. One alone has nothing to choose.
+                needs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CatalogNeedOption'
+                    description: |-
+                        What can meet each of the entry's needs as it's installed, as a person picks:
+                         for now a new one beside the app, of each engine it takes that the entry or
+                         the catalog brings. The first for each need is what an install takes unless
+                         told otherwise. Numbered apart, as open work adds to this message. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
             description: GetCatalogEntryResponse is an entry, with what installing it would use.
         GetChangeResponse:
             type: object
@@ -13259,6 +13321,16 @@ components:
                         The catalog to install it from, by its source's name, where more than one has
                          the app. Left out, the one it's listed from. It upgrades from that catalog
                          alone.
+                needs:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        How to meet each of the entry's needs, by the need's name: "new" for a new one
+                         beside the app, of the engine its first option has, or "new:<engine>" for one
+                         of another engine it takes (postgresql, mysql, mariadb, redis, valkey, mongodb
+                         or clickhouse), as GetCatalogEntry lists. A need left out takes its first
+                         option. Numbered apart, as open work adds to this message.
             description: InstallCatalogEntryRequest is an app to install.
         InstallCatalogEntryResponse:
             type: object
@@ -13570,6 +13642,113 @@ components:
                 serverName:
                     type: string
             description: JoinTicket is a ticket that adds one server, without its secret.
+        Link:
+            type: object
+            properties:
+                label:
+                    type: string
+                    description: What people call the need, such as "Database".
+                service:
+                    type: string
+                    description: The service that meets it, by name, in this environment.
+                engine:
+                    enum:
+                        - LINK_ENGINE_UNSPECIFIED
+                        - LINK_ENGINE_POSTGRESQL
+                        - LINK_ENGINE_MYSQL
+                        - LINK_ENGINE_MARIADB
+                        - LINK_ENGINE_REDIS
+                        - LINK_ENGINE_VALKEY
+                        - LINK_ENGINE_MONGODB
+                        - LINK_ENGINE_CLICKHOUSE
+                    type: string
+                    description: The engine that service runs, and its version as the link was made.
+                    format: enum
+                version:
+                    type: string
+                accepts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LinkAccept'
+                    description: |-
+                        The engines and versions the app takes, so a later change to either end is
+                         checked against them.
+                databaseName:
+                    type: string
+                    description: |-
+                        The database and the user who owns it, on what meets it, which the app signs
+                         in as. Empty for an engine with no users of its own here, such as Redis.
+                user:
+                    type: string
+                sets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/LinkSet'
+                    description: |-
+                        The names it sets in this environment, and what each holds. A plain part is
+                         a variable, and the password, or a URL with it, a secret.
+                setOnce:
+                    type: boolean
+                    description: |-
+                        The app keeps the password it installed with, so a rotation of it is
+                         refused.
+            description: |-
+                Link is how one of an app's needs is met, such as its database: what meets it,
+                 and the variables and secrets it sets in its environment, which the app's
+                 services use by name. It lives in the app's environment, named for the need,
+                 such as "db", and runs on no server: the control plane holds it. See
+                 docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+        LinkAccept:
+            type: object
+            properties:
+                engine:
+                    enum:
+                        - LINK_ENGINE_UNSPECIFIED
+                        - LINK_ENGINE_POSTGRESQL
+                        - LINK_ENGINE_MYSQL
+                        - LINK_ENGINE_MARIADB
+                        - LINK_ENGINE_REDIS
+                        - LINK_ENGINE_VALKEY
+                        - LINK_ENGINE_MONGODB
+                        - LINK_ENGINE_CLICKHOUSE
+                    type: string
+                    format: enum
+                versions:
+                    type: string
+                    description: Comparators on dotted numbers, such as ">=10.6 <12". Empty takes any.
+            description: LinkAccept is an engine a link's app takes, at the versions it takes.
+        LinkSet:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The name, such as "DB_HOST".
+                part:
+                    enum:
+                        - LINK_PART_UNSPECIFIED
+                        - LINK_PART_HOST
+                        - LINK_PART_PORT
+                        - LINK_PART_ADDRESS
+                        - LINK_PART_DATABASE
+                        - LINK_PART_USER
+                        - LINK_PART_PASSWORD
+                        - LINK_PART_URL
+                        - LINK_PART_TLS
+                    type: string
+                    description: What it holds.
+                    format: enum
+                template:
+                    type: string
+                    description: |-
+                        How a URL is written, with {host}, {port}, {address}, {database}, {user} and
+                         {password}, and {tls}, as the app's entry gave it. Empty is the engine's own
+                         form.
+                tlsOn:
+                    type: string
+                    description: The app's words for TLS on and off, for a TLS part or {tls}.
+                tlsOff:
+                    type: string
+            description: LinkSet is a name a link sets in its environment, and what it holds.
         ListAlertChannelsResponse:
             type: object
             properties:
@@ -14584,6 +14763,126 @@ components:
                 mute:
                     $ref: '#/components/schemas/AlertMute'
             description: MuteAlertsResponse is the mute as it now stands.
+        Need:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        Its name in the entry, such as "db": lowercase letters, digits and dashes,
+                         as a service's.
+                label:
+                    type: string
+                    description: What people call it, such as "Database".
+                accepts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NeedAccept'
+                    description: |-
+                        What meets it: any of these engines, each at the versions the app takes. At
+                         least one.
+                service:
+                    type: string
+                    description: |-
+                        The service of the entry's Compose file that meets it when a person takes a
+                         new one, such as "db", which is one of databases and reads the need's names.
+                         It's left out of the install when the need is met otherwise, with the
+                         volumes and inputs only it uses. Empty: the entry brings none, and a new one
+                         comes from the catalog's entry for the engine.
+                database:
+                    type: string
+                    description: |-
+                        The database to make for it, such as "wordpress". Empty takes the need's
+                         name, with underscores for dashes.
+                user:
+                    type: string
+                    description: |-
+                        The user to make for it, who owns that database. Empty takes the
+                         database's name.
+                sets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NeedSet'
+                    description: |-
+                        The names it sets in the app's environment, which the Compose file uses as
+                         ${NAME}, each a whole environment value. At least one.
+                setOnce:
+                    type: boolean
+                    description: |-
+                        The app keeps the password it installed with, as Nextcloud does in its
+                         config.php, so setting it anew would leave the app with the old one: a
+                         rotation of it is refused.
+            description: |-
+                Need is something an app reads from outside its own containers, such as a
+                 database, by the names it sets in the app's environment.
+        NeedAccept:
+            type: object
+            properties:
+                engine:
+                    enum:
+                        - ENGINE_UNSPECIFIED
+                        - ENGINE_POSTGRESQL
+                        - ENGINE_MYSQL
+                        - ENGINE_MARIADB
+                        - ENGINE_REDIS
+                        - ENGINE_VALKEY
+                        - ENGINE_MONGODB
+                        - ENGINE_CLICKHOUSE
+                    type: string
+                    description: The engine.
+                    format: enum
+                versions:
+                    type: string
+                    description: |-
+                        The versions, as comparators on dotted numbers separated by spaces, such as
+                         ">=8.0" or ">=10.6 <12". Empty takes any.
+            description: NeedAccept is an engine that meets a need, at the versions the app takes.
+        NeedSet:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The name, as its Compose file uses it, such as "DB_HOST".
+                part:
+                    enum:
+                        - PART_UNSPECIFIED
+                        - PART_HOST
+                        - PART_PORT
+                        - PART_ADDRESS
+                        - PART_DATABASE
+                        - PART_USER
+                        - PART_PASSWORD
+                        - PART_URL
+                        - PART_TLS
+                    type: string
+                    description: What it holds.
+                    format: enum
+                template:
+                    type: string
+                    description: |-
+                        How a URL is written, with {host}, {port}, {address}, {database}, {user} and
+                         {password} where each goes, such as
+                         "postgres://{user}:{password}@{host}:{port}/{database}?schema=public", and
+                         {tls} where TLS goes, written as tls says. Each part is percent-encoded for
+                         its place. Only for a URL; empty writes the engine's own form.
+                tls:
+                    allOf:
+                        - $ref: '#/components/schemas/NeedTls'
+                    description: |-
+                        How the app reads whether to use TLS, for a TLS part or {tls} in a template:
+                         its words for on and off, such as "require" and "disable" for libpq, or
+                         "true" and "false" for node-postgres or Go's MySQL driver.
+            description: NeedSet is a name a need sets in the app's environment, and what it holds.
+        NeedTls:
+            type: object
+            properties:
+                on:
+                    type: string
+                    description: What it reads as on, such as "require".
+                off:
+                    type: string
+                    description: What it reads as off, such as "disable".
+            description: NeedTls is how an app reads whether to use TLS.
         Network:
             type: object
             properties:
@@ -15228,6 +15527,57 @@ components:
                         True when it once reported a lower use count than before, which happens
                          when a passkey is copied. It no longer signs in; remove it.
             description: Passkey is one of a user's passkeys.
+        PinnedNeed:
+            type: object
+            properties:
+                engine:
+                    enum:
+                        - LINK_ENGINE_UNSPECIFIED
+                        - LINK_ENGINE_POSTGRESQL
+                        - LINK_ENGINE_MYSQL
+                        - LINK_ENGINE_MARIADB
+                        - LINK_ENGINE_REDIS
+                        - LINK_ENGINE_VALKEY
+                        - LINK_ENGINE_MONGODB
+                        - LINK_ENGINE_CLICKHOUSE
+                    type: string
+                    description: The engine that meets it.
+                    format: enum
+                entry:
+                    type: string
+                    description: |-
+                        The catalog entry its new service came from, such as "mysql", where it isn't
+                         the entry's own service. Empty: the entry's own service meets it.
+                version:
+                    type: string
+                    description: That entry's version and release, as installed.
+                release:
+                    type: integer
+                    format: uint32
+                catalog:
+                    type: string
+                    description: The catalog source that entry came from, by name.
+                file:
+                    type: string
+                    description: |-
+                        The service, with its volumes, as that entry's Compose file gave it and the
+                         install added it under the need's name, so an upgrade of the app reads it as
+                         it was. Its ${NAME}s are the install's, as written, so it holds no secret.
+                    format: bytes
+                service:
+                    type: string
+                    description: |-
+                        The entry's own service it left out in its place, such as "db", where the
+                         entry brings one. Empty where it brings none.
+                plain:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The names the need set that hold no password, as the install ran, which its
+                         services use as the environment's variables, so a change that reads the file it
+                         ran uses them as it did, whatever a newer release names.
+            description: PinnedNeed is how an install met one of its entry's needs.
         Plan:
             type: object
             properties:
@@ -18950,6 +19300,12 @@ components:
                     description: |-
                         Work that runs on a schedule, kind "task". Numbered in the block scheduled
                          tasks hold, as open work adds to this message.
+                link:
+                    allOf:
+                        - $ref: '#/components/schemas/Link'
+                    description: |-
+                        How one of an app's needs is met, kind "link" (ADR 0084). Numbered apart,
+                         as open work adds to this message.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes

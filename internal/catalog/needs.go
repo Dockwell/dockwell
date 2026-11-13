@@ -164,6 +164,15 @@ func checkNeeds(e *catalogv1.Entry) error {
 				return fmt.Errorf("the need %s's %s %q needs lowercase letters, digits and underscores, starting with a letter, at most 32", name, field, v)
 			}
 		}
+		// What an engine keeps for itself, such as its administrator, is never an app's.
+		db := databaseOf(n)
+		user := cmp.Or(n.GetUser(), db)
+		switch {
+		case reservedUser(user):
+			return fmt.Errorf("the need %s's user would be %s, which a database server keeps for itself. Give the need a user of its own, such as %s", name, user, strings.ReplaceAll(e.GetId(), "-", "_"))
+		case reservedDatabases[db]:
+			return fmt.Errorf("the need %s's database would be %s, which a database server keeps for itself. Give the need a database of its own, such as %s", name, db, strings.ReplaceAll(e.GetId(), "-", "_"))
+		}
 		if err := checkNeedService(e, n, services, companions); err != nil {
 			return err
 		}
@@ -182,6 +191,22 @@ func checkNeeds(e *catalogv1.Entry) error {
 		}
 	}
 	return nil
+}
+
+// reservedUser reports a user an engine keeps for itself: its administrator, as root,
+// postgres and Redis's default are, or one in PostgreSQL's pg_ names.
+func reservedUser(user string) bool {
+	switch user {
+	case "root", "postgres", "mysql", "mariadb", "default", "admin":
+		return true
+	}
+	return strings.HasPrefix(user, "pg_")
+}
+
+// reservedDatabases are databases an engine keeps for itself.
+var reservedDatabases = map[string]bool{
+	"mysql": true, "information_schema": true, "performance_schema": true, "sys": true,
+	"postgres": true, "template0": true, "template1": true, "admin": true, "local": true, "config": true,
 }
 
 // checkNeedService refuses a need's own service that couldn't stand for a new one,
@@ -505,17 +530,35 @@ func Meet(e *catalogv1.Entry, ways map[string][]Way, asked map[string]string, pi
 }
 
 // pinnedWay is the way an install met a need, as its pin says: the entry's own
-// service, or the service it added, as it was.
+// service, or the service it added, as it was. It refuses a release that doesn't take
+// what runs: another engine, a version outside the release's, or its own service on
+// another engine, whose data the one that runs keeps in a form the other can't read.
 func pinnedWay(n *catalogv1.Need, p *resourcev1.PinnedNeed, options []Way) (Way, error) {
+	eng := catalogv1.Engine(p.GetEngine())
+	runs := strings.TrimSpace(EngineName(eng) + " " + p.GetVersion())
+	what := strings.ToLower(cmp.Or(n.GetLabel(), n.GetName()))
+	if eng != catalogv1.Engine_ENGINE_UNSPECIFIED {
+		a := acceptOf(n, eng)
+		switch {
+		case a == nil:
+			return Way{}, fmt.Errorf("this release of the app takes %s for its %s, and the install runs %s, so it stays on its release", acceptWords(n), what, runs)
+		case len(link.Numbers(p.GetVersion())) > 0 && !link.Takes(a.GetVersions(), p.GetVersion()):
+			return Way{}, fmt.Errorf("this release of the app takes %s for its %s, and the install runs %s, so it stays on its release", acceptWords(n), what, runs)
+		}
+	}
 	if len(p.GetFile()) == 0 {
 		for _, w := range options {
-			if w.From == nil {
-				return w, nil
+			if w.From != nil {
+				continue
 			}
+			if eng != catalogv1.Engine_ENGINE_UNSPECIFIED && w.Engine != eng {
+				return Way{}, fmt.Errorf("this release of the app runs %s for its %s, where the install runs %s, which keeps its data in a form %s can't read, so it stays on its release", EngineName(w.Engine), what, runs, EngineName(w.Engine))
+			}
+			return w, nil
 		}
-		return Way{}, fmt.Errorf("this release of the app brings no service for %s, which the install ran its own of, so it stays on its release", strings.ToLower(n.GetLabel()))
+		return Way{}, fmt.Errorf("this release of the app brings no service for %s, which the install ran its own of, so it stays on its release", what)
 	}
-	return Way{Need: n, Engine: catalogv1.Engine(p.GetEngine()), Version: p.GetVersion(), pin: p}, nil
+	return Way{Need: n, Engine: eng, Version: p.GetVersion(), pin: p}, nil
 }
 
 func needList(e *catalogv1.Entry) string {
@@ -598,8 +641,21 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 			if err != nil {
 				return nil, err
 			}
+			if w.From != nil {
+				// It's reached where its readers are, on the networks the entry's own was
+				// on, or else each one a service that reads its names is on.
+				if added, err = onNetworksOf(added, file, n); err != nil {
+					return nil, err
+				}
+			}
 			if file, err = replaceService(file, n.GetService(), n.GetName(), added); err != nil {
 				return nil, err
+			}
+			for _, m := range more {
+				// An input of the app's own of that name would take the server's secret.
+				if slices.ContainsFunc(inputs, func(in *catalogv1.Input) bool { return in.GetName() == m.GetName() }) {
+					return nil, fmt.Errorf("%s has an input %s, which the need %s's new %s keeps its own secret in. Rename the input", e.GetName(), m.GetName(), n.GetName(), EngineName(w.Engine))
+				}
 			}
 			adds = append(adds, more...)
 			if w.From != nil {
@@ -610,6 +666,12 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 			}
 		}
 		out.Pinned[n.GetName()] = pinned
+		pinned.Plain = nil
+		for _, s := range n.GetSets() {
+			if !SecretPart(s) {
+				pinned.Plain = append(pinned.Plain, s.GetName())
+			}
+		}
 		values := needValues(n, w)
 		for _, s := range n.GetSets() {
 			if SecretPart(s) {
@@ -637,6 +699,21 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 	needed.Compose, needed.Inputs = file, inputs
 	out.Entry = needed
 	return out, nil
+}
+
+// PinnedPlain are the names an install's needs set that hold no password, as it ran,
+// or else as entry names them, for a pin from before it kept them.
+func PinnedPlain(pinned map[string]*resourcev1.PinnedNeed, entry *catalogv1.Entry) []string {
+	var out []string
+	kept := false
+	for _, name := range slices.Sorted(maps.Keys(pinned)) {
+		kept = kept || pinned[name].Plain != nil
+		out = append(out, pinned[name].GetPlain()...)
+	}
+	if !kept {
+		return PlainNames(entry)
+	}
+	return out
 }
 
 // MetFile is an install's file as it ran, from its pin: the entry's file with each
@@ -839,9 +916,13 @@ func replaceService(file, own, name, added string) (string, error) {
 	root, add := doc.Content[0], more.Content[0]
 	services := nodeGet(root, "services")
 	if own != "" && own != name {
+		condition := "service_started"
+		if nodeGet(nodeGet(nodeGet(add, "services"), name), "healthcheck") != nil {
+			condition = "service_healthy"
+		}
 		for i := 1; i < len(services.Content); i += 2 {
 			if deps := nodeGet(services.Content[i], "depends_on"); deps != nil {
-				dropDependency(services.Content[i], deps, own)
+				moveDependency(deps, own, name, condition)
 			}
 		}
 	}
@@ -865,19 +946,98 @@ func replaceService(file, own, name, added string) (string, error) {
 	return encode(&doc)
 }
 
-// dropDependency takes a service out of what another depends on, in either form, and
-// the key itself once it names nothing.
-func dropDependency(svc, deps *yaml.Node, name string) {
+// moveDependency has what waited for one service wait for another instead, as it
+// starts or once it's healthy, writing what it waits for as a map.
+func moveDependency(deps *yaml.Node, from, to, condition string) {
+	waits := false
 	switch deps.Kind {
 	case yaml.SequenceNode:
-		deps.Content = slices.DeleteFunc(deps.Content, func(n *yaml.Node) bool { return n.Value == name })
+		waits = slices.ContainsFunc(deps.Content, func(n *yaml.Node) bool { return n.Value == from })
+		if !waits {
+			return
+		}
+		var mapped []*yaml.Node
+		for _, d := range deps.Content {
+			if d.Value == from {
+				continue
+			}
+			started := &yaml.Node{Kind: yaml.MappingNode}
+			started.Content = append(started.Content, scalar("condition"), scalar("service_started"))
+			mapped = append(mapped, scalar(d.Value), started)
+		}
+		deps.Kind, deps.Tag, deps.Style, deps.Content = yaml.MappingNode, "!!map", 0, mapped
 	case yaml.MappingNode:
-		deps.Content = deleteKeys(deps.Content, name)
+		waits = nodeGet(deps, from) != nil
+		deps.Content = deleteKeys(deps.Content, from)
 	default:
 	}
-	if len(deps.Content) == 0 {
-		svc.Content = deleteKeys(svc.Content, "depends_on")
+	if !waits || nodeGet(deps, to) != nil {
+		return
 	}
+	wait := &yaml.Node{Kind: yaml.MappingNode}
+	wait.Content = append(wait.Content, scalar("condition"), scalar(condition))
+	deps.Content = append(deps.Content, scalar(to), wait)
+}
+
+// onNetworksOf has the service a need adds join the networks the entry's own service
+// for it was on, with its aliases there, or else each network a service that reads
+// the need's names is on, the default one for a service that names none. One that
+// joins only the default network, as most apps' do, is left as it is.
+func onNetworksOf(added, file string, n *catalogv1.Need) (string, error) {
+	var doc, more yaml.Node
+	if err := yaml.Unmarshal([]byte(file), &doc); err != nil || len(doc.Content) != 1 {
+		return "", errors.New("its Compose file isn't YAML")
+	}
+	if err := yaml.Unmarshal([]byte(added), &more); err != nil || len(more.Content) != 1 {
+		return "", errors.New("the service a need adds isn't YAML")
+	}
+	svc := nodeGet(nodeGet(more.Content[0], "services"), n.GetName())
+	if svc == nil {
+		return added, nil
+	}
+	services := nodeGet(doc.Content[0], "services")
+	var joins *yaml.Node
+	if own := nodeGet(services, n.GetService()); own != nil && n.GetService() != "" {
+		joins = nodeGet(own, "networks")
+	} else {
+		parsed, err := composeServices(file)
+		if err != nil {
+			return "", err
+		}
+		var names []string
+		for i := 0; i+1 < len(services.Content); i += 2 {
+			name, reader := services.Content[i].Value, services.Content[i+1]
+			if !slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return uses(parsed[name], s.GetName()) }) || nodeGet(reader, "network_mode") != nil {
+				continue
+			}
+			nets := nodeGet(reader, "networks")
+			switch {
+			case nets == nil:
+				names = append(names, "default")
+			case nets.Kind == yaml.SequenceNode:
+				for _, x := range nets.Content {
+					names = append(names, x.Value)
+				}
+			case nets.Kind == yaml.MappingNode:
+				for j := 0; j+1 < len(nets.Content); j += 2 {
+					names = append(names, nets.Content[j].Value)
+				}
+			}
+		}
+		slices.Sort(names)
+		names = slices.Compact(names)
+		if len(names) > 0 && !slices.Equal(names, []string{"default"}) {
+			joins = &yaml.Node{Kind: yaml.SequenceNode}
+			for _, x := range names {
+				joins.Content = append(joins.Content, scalar(x))
+			}
+		}
+	}
+	if joins == nil {
+		return added, nil
+	}
+	svc.Content = append(deleteKeys(svc.Content, "networks"), scalar("networks"), joins)
+	return encode(&more)
 }
 
 // deleteKeys takes keys out of a mapping's content.

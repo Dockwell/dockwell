@@ -65,7 +65,7 @@ import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
-import { engineName, needsRequest, optionsByNeed, takesLine } from "./needs";
+import { engineName, entriesFor, needsRequest, optionsByNeed, takesLine } from "./needs";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
@@ -133,6 +133,9 @@ export function InstallSheet({
   const { fleet, servers, only } = useFleetView();
   const client = useMemo(() => createClient(CatalogService, transport), [transport]);
   const got = useQuery(CatalogService.method.getCatalogEntry, { id, catalog });
+  // Where a need nothing here can make yet could be met: the catalog's entries for it.
+  const listed = useQuery(CatalogService.method.listCatalogEntries, {}).data?.entries;
+  const catalogIds = useMemo(() => new Set((listed ?? []).map((e) => e.id)), [listed]);
   const entry = got.data?.entry;
   const email = useSignedInUser()?.email ?? "";
   // The services it may leave out, such as a database's admin tool (ADR 0076): each a
@@ -622,12 +625,27 @@ export function InstallSheet({
                 const options = needOptions.get(need.name) ?? [];
                 const pick = options.find((o) => o.choice === needPicks[need.name]) ?? options[0];
                 if (!pick) {
+                  const where = entriesFor(need, (id) => catalogIds.has(id));
                   return (
                     <Chosen
                       key={need.name}
                       label={need.label}
                       value={t`Nothing here can make one yet`}
                       tone="warning"
+                      state={
+                        where.length > 0 ? (
+                          <span className="catalog-need-where">
+                            {where.map(({ id, engine }) => {
+                              const name = engineName(engine);
+                              return (
+                                <Link key={id} to="/catalog/$entryId" params={{ entryId: id }} className="catalog-link">
+                                  <Trans>{name} in the catalog</Trans>
+                                </Link>
+                              );
+                            })}
+                          </span>
+                        ) : undefined
+                      }
                     />
                   );
                 }
@@ -649,7 +667,7 @@ export function InstallSheet({
                   <Chosen
                     key={need.name}
                     label={need.label}
-                    value={t`New ${engine} ${version} beside ${app}`}
+                    value={version ? t`New ${engine} ${version} beside ${app}` : t`New ${engine} beside ${app}`}
                     plain
                     onChange={options.length > 1 ? () => change(`need:${need.name}`) : undefined}
                   />
@@ -979,8 +997,13 @@ function NeedPicker({
                 />
                 <span className="catalog-engine-name">
                   <Trans>New {name}</Trans>
-                </span>{" "}
-                <code className="catalog-engine-version">{option.version}</code>
+                </span>
+                {option.version ? (
+                  <>
+                    {" "}
+                    <code className="catalog-engine-version">{option.version}</code>
+                  </>
+                ) : null}
               </label>
             );
           })}

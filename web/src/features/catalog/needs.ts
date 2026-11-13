@@ -18,6 +18,32 @@ const ENGINE_NAMES: Record<Engine, string> = {
   [Engine.CLICKHOUSE]: "ClickHouse",
 };
 
+/** The catalog's entry for each engine, as Dockwell's own catalog names them. */
+const ENGINE_ENTRIES: Partial<Record<Engine, string>> = {
+  [Engine.POSTGRESQL]: "postgres",
+  [Engine.MYSQL]: "mysql",
+  [Engine.MARIADB]: "mariadb",
+  [Engine.REDIS]: "redis",
+  [Engine.VALKEY]: "valkey",
+  [Engine.MONGODB]: "mongodb",
+  [Engine.CLICKHOUSE]: "clickhouse",
+};
+
+/**
+ * The catalog's entries for the engines a need takes, of those the catalog has, in the
+ * need's order: where to go when nothing here can make one yet.
+ */
+export function entriesFor(need: Need, has: (id: string) => boolean): { id: string; engine: Engine }[] {
+  const out: { id: string; engine: Engine }[] = [];
+  for (const accept of need.accepts) {
+    const id = ENGINE_ENTRIES[accept.engine];
+    if (id && has(id) && !out.some((e) => e.id === id)) {
+      out.push({ id, engine: accept.engine });
+    }
+  }
+  return out;
+}
+
 /** What people call an engine, such as "MariaDB". */
 export function engineName(engine: Engine): string {
   return ENGINE_NAMES[engine] ?? "";

@@ -2838,7 +2838,11 @@ type PinnedNeed struct {
 	File []byte `protobuf:"bytes,6,opt,name=file,proto3" json:"file,omitempty"`
 	// The entry's own service it left out in its place, such as "db", where the
 	// entry brings one. Empty where it brings none.
-	Service       string `protobuf:"bytes,7,opt,name=service,proto3" json:"service,omitempty"`
+	Service string `protobuf:"bytes,7,opt,name=service,proto3" json:"service,omitempty"`
+	// The names the need set that hold no password, as the install ran, which its
+	// services use as the environment's variables, so a change that reads the file it
+	// ran uses them as it did, whatever a newer release names.
+	Plain         []string `protobuf:"bytes,13,rep,name=plain,proto3" json:"plain,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2920,6 +2924,13 @@ func (x *PinnedNeed) GetService() string {
 		return x.Service
 	}
 	return ""
+}
+
+func (x *PinnedNeed) GetPlain() []string {
+	if x != nil {
+		return x.Plain
+	}
+	return nil
 }
 
 // Environment is a stage of a project, such as production or staging, with
@@ -6467,7 +6478,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
 	"NeedsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\"\xde\x01\n" +
+	"\x05value\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.PinnedNeedR\x05value:\x028\x01\"\xf4\x01\n" +
 	"\n" +
 	"PinnedNeed\x12>\n" +
 	"\x06engine\x18\x01 \x01(\x0e2&.dockwell.resource.v1alpha1.LinkEngineR\x06engine\x12\x14\n" +
@@ -6476,7 +6487,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\arelease\x18\x04 \x01(\rR\arelease\x12\x18\n" +
 	"\acatalog\x18\x05 \x01(\tR\acatalog\x12\x12\n" +
 	"\x04file\x18\x06 \x01(\fR\x04file\x12\x18\n" +
-	"\aservice\x18\a \x01(\tR\aservice\"x\n" +
+	"\aservice\x18\a \x01(\tR\aservice\x12\x14\n" +
+	"\x05plain\x18\r \x03(\tR\x05plain\"x\n" +
 	"\vEnvironment\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12F\n" +
 	"\n" +

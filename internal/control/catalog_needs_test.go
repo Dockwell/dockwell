@@ -12,8 +12,10 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/control/catalogapi"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -201,6 +203,18 @@ func TestAnInstallMeetsItsNeeds(t *testing.T) {
 		}
 	}
 
+	// A person points WordPress at another database by hand, and an upgrade keeps it.
+	var mysqlEnv string
+	for _, r := range mysql.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			mysqlEnv = r.GetResource().GetScope()
+		}
+	}
+	apply(t, c, propose(t, c, "Point WordPress elsewhere", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "variable", Scope: mysqlEnv, Name: "DB_ADDRESS"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "elsewhere.example.com:3306"}}},
+	}))
+
 	// An upgrade keeps each as it was met: the MySQL stays, as it ran.
 	write(6, "wordpress:7.1.4-apache@sha256:"+digest2)
 	res, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "blog-mysql", SkipBackup: true}))
@@ -220,7 +234,109 @@ func TestAnInstallMeetsItsNeeds(t *testing.T) {
 	if got := e.Newest(mysqlProject, "db"); got == nil || got.ID != dbBefore.ID || !strings.HasPrefix(got.Config.Image, "mysql:") {
 		t.Errorf("the upgrade touched the MySQL: %v", got)
 	}
-	if got := env(mysqlProject, "wordpress"); got["WORDPRESS_DB_PASSWORD"] != db["MYSQL_PASSWORD"] {
-		t.Error("after the upgrade WordPress reads another password")
+	if got := env(mysqlProject, "wordpress"); got["WORDPRESS_DB_PASSWORD"] != db["MYSQL_PASSWORD"] || got["WORDPRESS_DB_HOST"] != "elsewhere.example.com:3306" {
+		t.Errorf("after the upgrade WordPress reads %v", got)
+	}
+	if notes := notesOf(res.Msg.GetChange(), catalogapi.NewNeedNote); len(notes) != 0 {
+		t.Errorf("an upgrade that needs nothing new says %q", notes)
+	}
+
+	// A release that needs what the install didn't makes a database no one asked
+	// for, which the plan says, and an automatic update leaves for a person.
+	next := strings.Replace(wordpressWithNeeds(t, 7, "wordpress:7.1.4-apache@sha256:"+digest2), "needs:\n", `needs:
+  - name: cache
+    label: Cache
+    accepts:
+      - engine: ENGINE_MYSQL
+    sets:
+      - name: CACHE_HOST
+        part: PART_HOST
+`, 1)
+	next = strings.Replace(next, "WORDPRESS_DB_HOST: ${DB_ADDRESS}", "WORDPRESS_DB_HOST: ${DB_ADDRESS}\n        WORDPRESS_CACHE_HOST: ${CACHE_HOST}", 1)
+	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(next), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err = cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: "blog-mysql", SkipBackup: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if notes := notesOf(res.Msg.GetChange(), catalogapi.NewNeedNote); len(notes) != 1 || !strings.Contains(notes[0], "needs a cache, which it didn't before, so a new MySQL") {
+		t.Errorf("a release that adds a need says %q", notes)
+	}
+}
+
+// Deleting an app takes its link, with the values only it read, as the link stood for
+// its need: what meets it stays, with the values it starts with, and can go after, as
+// nothing reads it any more. A database can't go while an app reads it through its
+// link, and the refusal names the app, not the link, which has the database's name
+// (ADR 0084).
+func TestALinkGoesWithItsApp(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(wordpressWithNeeds(t, 5, "")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pullsAnything(e)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "blog"})
+	if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "link" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	deleting := func(names ...string) (*dockwellv1.Change, error) {
+		var edits []*dockwellv1.Edit
+		for _, name := range names {
+			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: env, Name: name}, Delete: true})
+		}
+		res, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete " + strings.Join(names, " and "), Edits: edits}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetChange(), nil
+	}
+
+	if _, err := deleting("db"); connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "service db can't go while wordpress reads it through the link db") {
+		t.Errorf("deleting the database WordPress reads = %v", err)
+	}
+
+	app, err := deleting("wordpress")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := map[string]bool{}
+	for _, r := range app.GetPlan().GetResources() {
+		if r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_DELETE {
+			gone[r.GetResource().GetKind()+" "+r.GetResource().GetName()] = true
+		}
+	}
+	for _, want := range []string{"service wordpress", "link db", "variable DB_ADDRESS"} {
+		if !gone[want] {
+			t.Errorf("deleting WordPress leaves %s: %v", want, gone)
+		}
+	}
+	// The database starts with its user's name and password, so those are its now.
+	for _, kept := range []string{"secret MARIADB_PASSWORD", "variable DB_NAME", "variable DB_USER", "service db"} {
+		if gone[kept] {
+			t.Errorf("deleting WordPress takes %s, which its database uses: %v", kept, gone)
+		}
+	}
+	if got := apply(t, c, app); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("deleting WordPress ended %v: %s", got.GetState(), got.GetError())
+	}
+	db, err := deleting("db")
+	if err != nil {
+		t.Fatalf("the database once WordPress is gone: %v", err)
+	}
+	if got := apply(t, c, db); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("deleting the database ended %v: %s", got.GetState(), got.GetError())
 	}
 }

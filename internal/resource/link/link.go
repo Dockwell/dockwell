@@ -31,6 +31,7 @@ var (
 	_ resource.Type     = Type{}
 	_ resource.Unplaced = Type{}
 	_ resource.Referrer = Type{}
+	_ resource.Tied     = Type{}
 )
 
 // Kind returns "link".
@@ -108,6 +109,21 @@ func (Type) Validate(spec proto.Message) error {
 // References names the service that meets it, so it can't go while the link reads it.
 func (Type) References(spec proto.Message) []resource.Reference {
 	return []resource.Reference{{Kind: "service", Name: spec.(*resourcev1.Link).GetService(), Verb: "read", Apart: true}}
+}
+
+// Ties are the values a link sets, a secret for each that holds the password, so a
+// change that deletes its app or its database takes it, with them, once nothing left
+// reads them (ADR 0084).
+func (Type) Ties(spec proto.Message) []resource.Ref {
+	var out []resource.Ref
+	for _, s := range spec.(*resourcev1.Link).GetSets() {
+		kind := resource.Kind("variable")
+		if Secret(s) {
+			kind = "secret"
+		}
+		out = append(out, resource.Ref{Kind: kind, Name: s.GetName()})
+	}
+	return out
 }
 
 // ReferenceKinds is services.

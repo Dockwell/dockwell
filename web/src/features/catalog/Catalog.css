@@ -1355,3 +1355,11 @@
   font-size: 12px;
   line-height: 16px;
 }
+
+/* Where a need nothing here can make yet could be met: the catalog's entries for it. */
+.catalog-need-where {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-inline-start: var(--space-2);
+}

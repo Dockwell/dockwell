@@ -525,6 +525,10 @@ message PinnedNeed {
   // The entry's own service it left out in its place, such as "db", where the
   // entry brings one. Empty where it brings none.
   string service = 7;
+  // The names the need set that hold no password, as the install ran, which its
+  // services use as the environment's variables, so a change that reads the file it
+  // ran uses them as it did, whatever a newer release names.
+  repeated string plain = 13;
 }
 
 // Environment is a stage of a project, such as production or staging, with

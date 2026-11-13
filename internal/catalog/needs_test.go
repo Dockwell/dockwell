@@ -4,7 +4,9 @@ package catalog_test
 
 import (
 	"context"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -160,6 +162,10 @@ func TestCheckRefusesANeed(t *testing.T) {
 		"only a TLS part": func(e *catalogv1.Entry) {
 			e.Needs[0].Sets[0].Tls = &catalogv1.NeedTls{On: "true", Off: "false"}
 		},
+		"user would be root":       func(e *catalogv1.Entry) { e.Needs[0].User = "root" },
+		"user would be pg_monitor": func(e *catalogv1.Entry) { e.Needs[0].User = "pg_monitor" },
+		"database would be mysql":  func(e *catalogv1.Entry) { e.Needs[0].Database, e.Needs[0].User = "mysql", "blog" },
+		"user would be postgres":   func(e *catalogv1.Entry) { e.Needs[0].Name, e.Needs[0].Database, e.Needs[0].User = "postgres", "", "" },
 	} {
 		e := wordpressNeeds(t)
 		change(e)
@@ -439,5 +445,153 @@ func TestAPartTheEngineHasNoneOf(t *testing.T) {
 	readsAsInstalled(t, needed.Entry)
 	if l := needed.Links["cache"]; l.GetUser() != "" || l.GetDatabaseName() != "" || l.GetService() != "redis" {
 		t.Errorf("a Redis link says %v", l)
+	}
+}
+
+// An upgrade keeps each need met as it was, but not where the release no longer takes
+// what runs: another engine, a version outside the release's, or the release's own
+// service on another engine, whose data the one that runs keeps in a form it can't
+// read.
+func TestAnUpgradeRefusesAWayTheReleaseDoesntTake(t *testing.T) {
+	e := wordpressNeeds(t)
+	lookup := lookupBuiltIn(t)
+	installed, err := catalog.Meet(e, catalog.Ways(e, lookup), map[string]string{"db": "new:mysql"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromCatalog, err := catalog.Need(e, installed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	own, err := catalog.Need(e, mustMeet(t, e, lookup))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for want, c := range map[string]struct {
+		pinned  map[string]*resourcev1.PinnedNeed
+		release func(*catalogv1.Entry)
+	}{
+		"takes MySQL >=": {fromCatalog.Pinned, func(e *catalogv1.Entry) {
+			e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_MYSQL, Versions: ">=" + bumped(fromCatalog.Pinned["db"].GetVersion())}}
+		}},
+		"takes MariaDB": {fromCatalog.Pinned, func(e *catalogv1.Entry) {
+			e.Needs[0].Accepts = e.Needs[0].Accepts[1:]
+		}},
+		"runs MySQL for its database, where the install runs MariaDB": {own.Pinned, func(e *catalogv1.Entry) {
+			e.Compose = regexp.MustCompile(`image: mariadb:\S+`).ReplaceAllString(e.GetCompose(), "image: mysql:8.4.6")
+		}},
+	} {
+		release := proto.CloneOf(e)
+		c.release(release)
+		_, err := catalog.Meet(release, catalog.Ways(release, lookup), nil, c.pinned)
+		if err == nil || !strings.Contains(err.Error(), want) || !strings.Contains(err.Error(), "stays on its release") {
+			t.Errorf("%s: %v", want, err)
+		}
+	}
+	// What still takes it upgrades as it ran.
+	if _, err := catalog.Meet(e, catalog.Ways(e, lookup), nil, fromCatalog.Pinned); err != nil {
+		t.Errorf("the same release: %v", err)
+	}
+}
+
+func mustMeet(t *testing.T, e *catalogv1.Entry, lookup catalog.Lookup) map[string]catalog.Way {
+	t.Helper()
+	met, err := catalog.Meet(e, catalog.Ways(e, lookup), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return met
+}
+
+// bumped is a version one major release past v.
+func bumped(v string) string {
+	major, _, _ := strings.Cut(v, ".")
+	n, _ := strconv.Atoi(major)
+	return strconv.Itoa(n+1) + ".0"
+}
+
+// An input of the app's own that a new one from the catalog would keep its own secret
+// in is refused, not taken as that secret.
+func TestANewOneDoesntTakeAnAppsInput(t *testing.T) {
+	e := wordpressNeeds(t)
+	e.Inputs = append(e.Inputs, &catalogv1.Input{Name: "DB_MYSQL_ROOT_PASSWORD", Label: "Admin password", Type: catalogv1.InputType_INPUT_TYPE_SECRET})
+	e.Compose = strings.Replace(e.GetCompose(), "WORDPRESS_DB_NAME: ${DB_NAME}", "WORDPRESS_DB_NAME: ${DB_NAME}\n      WORDPRESS_ADMIN_PASSWORD: ${DB_MYSQL_ROOT_PASSWORD}", 1)
+	lookup := lookupBuiltIn(t)
+	met, err := catalog.Meet(e, catalog.Ways(e, lookup), map[string]string{"db": "new:mysql"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := catalog.Need(e, met); err == nil || !strings.Contains(err.Error(), "has an input DB_MYSQL_ROOT_PASSWORD") {
+		t.Errorf("an input the new MySQL's root password would take: %v", err)
+	}
+}
+
+// What waited for the entry's own database waits for the new one once it's healthy,
+// and the new one joins the networks the entry's own was on, or its readers are.
+func TestANewOneIsWaitedForAndJoinsItsReadersNetworks(t *testing.T) {
+	lookup := lookupBuiltIn(t)
+	e := wordpressNeeds(t)
+	e.Needs[0].Name = "database"
+	e.Compose = strings.NewReplacer(
+		"image: wordpress:", "networks: [backend]\n    image: wordpress:",
+		"image: mariadb:", "networks:\n      backend:\n        aliases: [mysql]\n    image: mariadb:",
+	).Replace(e.GetCompose()) + "networks:\n  backend: {}\n"
+	if err := catalog.Check(e); err != nil {
+		t.Fatal(err)
+	}
+	met, err := catalog.Meet(e, catalog.Ways(e, lookup), map[string]string{"database": "new:mysql"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needed, err := catalog.Need(e, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := needed.Entry.GetCompose()
+	if !strings.Contains(file, "depends_on:\n      database:\n        condition: service_healthy") ||
+		!regexp.MustCompile(`(?s)\n  database:\n.*networks:\n      backend:\n        aliases: \[mysql\]\n`).MatchString(file) {
+		t.Errorf("WordPress doesn't wait for the new one, or it isn't where the old one was:\n%s", file)
+	}
+	if strings.Contains(file, "\n      db:\n") {
+		t.Errorf("WordPress still waits for its own database:\n%s", file)
+	}
+
+	// From another store, the new one joins each network a reader is on.
+	other := fromAnotherStore(t)
+	other.Compose = strings.Replace(other.GetCompose(), "image: wordpress:", "networks: [front, back]\n    image: wordpress:", 1) + "networks:\n  front: {}\n  back: {}\n"
+	met, err = catalog.Meet(other, catalog.Ways(other, lookup), nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	needed, err = catalog.Need(other, met)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?s)\n {2}db:\n.*networks:\n {6}- back\n {6}- front\n`).MatchString(needed.Entry.GetCompose()) {
+		t.Errorf("the new one isn't on the blog's networks:\n%s", needed.Entry.GetCompose())
+	}
+}
+
+// An install's pin keeps the names its needs set that hold no password, so a change
+// that reads the file it ran, as a change of companions does, uses them as it ran,
+// whatever a newer release names (the review of #577, its L4). A pin from before it
+// kept them reads the entry's.
+func TestThePinKeepsTheNamesANeedSets(t *testing.T) {
+	e := wordpressNeeds(t)
+	needed, err := catalog.Need(e, mustMeet(t, e, lookupBuiltIn(t)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := needed.Pinned["db"].GetPlain(); !slices.Equal(got, []string{"DB_ADDRESS", "DB_NAME", "DB_USER"}) {
+		t.Fatalf("the pin keeps %v", got)
+	}
+	release := proto.CloneOf(e)
+	release.Needs[0].Sets[0].Name = "DB_HOST_AND_PORT"
+	if got := catalog.PinnedPlain(needed.Pinned, release); !slices.Equal(got, []string{"DB_ADDRESS", "DB_NAME", "DB_USER"}) {
+		t.Errorf("with a release that renames one, the names are %v", got)
+	}
+	old := map[string]*resourcev1.PinnedNeed{"db": {Engine: resourcev1.LinkEngine_LINK_ENGINE_MARIADB}}
+	if got := catalog.PinnedPlain(old, e); !slices.Equal(got, catalog.PlainNames(e)) {
+		t.Errorf("a pin from before reads %v", got)
 	}
 }
