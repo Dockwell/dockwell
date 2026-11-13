@@ -135,6 +135,10 @@ func TestASourcesSVGIsServedAsAnImageAlone(t *testing.T) {
 			t.Errorf("%s: %q, want %q", header, got, want)
 		}
 	}
+	// Cleaned once, and served again from what was kept, however often it's asked for.
+	if again := get(MediaPath(spec, "logo.svg")); again.Body.String() != w.Body.String() || len(s.images) != 1 || s.imageBytes != w.Body.Len() {
+		t.Errorf("the logo again: %q, %d kept of %d bytes", again.Body.String(), len(s.images), s.imageBytes)
+	}
 	if w := get(MediaPath(spec, "bad.svg")); w.Code != http.StatusNotFound {
 		t.Errorf("an SVG image that can't be shown: %d, want 404", w.Code)
 	}
