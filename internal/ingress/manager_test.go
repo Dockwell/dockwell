@@ -58,6 +58,9 @@ type fakeProxy struct {
 	plainOnly bool
 	// reloads counts PutRoutes, each one change however many routes it changes.
 	reloads int
+	// dnsCerts and skip are what SetCertificates last loaded.
+	dnsCerts []DNSCert
+	skip     []string
 }
 
 func (p *fakeProxy) Name() string { return "Caddy" }
@@ -189,6 +192,13 @@ func (p *fakeProxy) Certificates(_ context.Context, domains []string) (map[strin
 		out[d] = p.certs[d]
 	}
 	return out, nil
+}
+
+func (p *fakeProxy) SetCertificates(_ context.Context, certs []DNSCert, skip []string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.dnsCerts, p.skip = slices.Clone(certs), slices.Clone(skip)
+	return nil
 }
 
 func (p *fakeProxy) Retry(context.Context) error {

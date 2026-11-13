@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
@@ -508,17 +510,20 @@ func (c *calls) drain(ctx context.Context, recvErr <-chan error, tick <-chan tim
 	return nil
 }
 
+// callFailed is a call's result for err.
+func callFailed(err error) *agentv1.CallResult {
+	plain, detail := resource.Explain(err)
+	if detail == "" {
+		plain = ""
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
+		Message: err.Error(), Plain: plain, OutOfTime: errors.Is(err, context.DeadlineExceeded), Reason: resource.ReasonOf(err),
+	}}}
+}
+
 // run carries out one call with the agent's drivers.
 func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult {
-	fail := func(err error) *agentv1.CallResult {
-		plain, detail := resource.Explain(err)
-		if detail == "" {
-			plain = ""
-		}
-		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{
-			Message: err.Error(), Plain: plain, OutOfTime: errors.Is(err, context.DeadlineExceeded), Reason: resource.ReasonOf(err),
-		}}}
-	}
+	fail := callFailed
 	switch {
 	case call.GetPlan() != nil:
 		wanted := make([]resource.Desired, 0, len(call.GetPlan().GetDesired()))
@@ -992,6 +997,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadPanel{ReadPanel: found}}
+	}
+	if put := call.GetPutCertificates(); put != nil {
+		return c.putCertificates(ctx, put)
 	}
 	if call.GetReadOnepanel() != nil {
 		if c.cfg.OnePanel == nil {
@@ -1538,4 +1546,32 @@ func (c *calls) buildLogins(ctx context.Context, ref resource.Ref, sealed []byte
 // starts, and again as the build leaves the queue.
 func (c *calls) checkBuildLogins(ctx context.Context, auths []registry.Auth) ([]registry.Auth, error) {
 	return c.cfg.images.forBuild(ctx, auths, c.logger)
+}
+
+// putCertificates loads the certificates the control plane proved by DNS-01 for this
+// server's routes into its ingress, opened from what they were sealed to on this
+// stream (ADR 0088).
+func (c *calls) putCertificates(ctx context.Context, put *agentv1.PutCertificatesCall) *agentv1.CallResult {
+	fail := callFailed
+	if c.cfg.Certificates == nil {
+		return fail(errors.New("this agent has no ingress to load certificates into"))
+	}
+	values, err := c.delivery.Open(c.server, resource.CertificatesRef, put.GetSealed())
+	if err != nil {
+		return fail(err)
+	}
+	defer clear(values)
+	certs := make([]ingress.DNSCert, 0, len(put.GetCertificates()))
+	for _, pc := range put.GetCertificates() {
+		chain, key := values[pc.GetId()+".chain"], values[pc.GetId()+".key"]
+		if chain == "" || key == "" {
+			return fail(fmt.Errorf("the certificate %s came without its chain or its key", pc.GetName()))
+		}
+		certs = append(certs, ingress.DNSCert{ID: pc.GetId(), Name: pc.GetName(), Names: pc.GetNames(), Serves: pc.GetServes(), Chain: []byte(chain), Key: []byte(key)})
+	}
+	loaded, err := c.cfg.Certificates.PutCertificates(ctx, certs)
+	if err != nil {
+		return fail(err)
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_PutCertificates{PutCertificates: &agentv1.PutCertificatesResult{Loaded: int32(min(loaded, math.MaxInt32))}}} //nolint:gosec // bounded above
 }

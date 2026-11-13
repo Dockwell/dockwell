@@ -3,8 +3,10 @@
 package control
 
 import (
+	"context"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -12,6 +14,8 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -266,5 +270,45 @@ func TestAServersOwnCertificateIsListed(t *testing.T) {
 	hold(in(store.Install, store.RoleViewer))
 	if c := list(); len(c) != 1 {
 		t.Errorf("a viewer of the install lists %v", c)
+	}
+}
+
+// certLoader keeps what an agent loads into its ingress.
+type certLoader struct {
+	mu    sync.Mutex
+	given []ingress.DNSCert
+}
+
+func (l *certLoader) PutCertificates(_ context.Context, certs []ingress.DNSCert) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.given = certs
+	return len(certs), nil
+}
+
+func (l *certLoader) HearControlPlane(func() bool) {}
+
+// An agent that loads certificates by DNS says so as it connects, and what the
+// control plane gives it, sealed to its stream, opens there whole (ADR 0088).
+func TestCertificatesReachAnAgentThatLoadsThem(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	l := &certLoader{}
+	f.certLoader = l
+	f.addServerWith(t, nil)
+	server := f.lastDocker.id.ServerID
+	session, ok := f.agents.Session(server)
+	if !ok || !session.LoadsCertificates() {
+		t.Fatalf("the agent's session: %v, loads certificates %v", ok, ok && session.LoadsCertificates())
+	}
+	loaded, err := session.PutCertificates(t.Context(), []agentapi.Certificate{{
+		ID: "crt_wild", Name: "wild", Names: []string{"*.example.com"}, Serves: []string{"api.example.com"}, Chain: []byte("CHAIN"), Key: []byte("KEY"),
+	}})
+	if err != nil || loaded != 1 {
+		t.Fatalf("loaded %d: %v", loaded, err)
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.given) != 1 || l.given[0].Name != "wild" || string(l.given[0].Chain) != "CHAIN" || string(l.given[0].Key) != "KEY" || !slices.Equal(l.given[0].Serves, []string{"api.example.com"}) {
+		t.Errorf("the agent loaded %+v", l.given)
 	}
 }
