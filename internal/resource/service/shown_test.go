@@ -110,3 +110,31 @@ func TestKeepEnvCantShowWhatNobodySaw(t *testing.T) {
 		})
 	}
 }
+
+// A value of the app's own moves into a secret of the same name, which the app then
+// uses, with the value it had; one it sets too, hasn't got, or that's empty is refused.
+func TestMoveValuesIntoSecrets(t *testing.T) {
+	current := shownApp(map[string]string{"SESSION_SECRET": "hunter2", "MODE": "production", "EMPTY": ""}, "MODE")
+	desired := shownApp(nil, "MODE")
+	kind, values, err := (&Driver{}).MoveValues(current, desired, []string{"SESSION_SECRET"})
+	if err != nil || kind != "secret" || values["SESSION_SECRET"] != "hunter2" {
+		t.Fatalf("MoveValues = %v, %v, %v", kind, values, err)
+	}
+	if desired.GetSecrets()["SESSION_SECRET"] != "SESSION_SECRET" {
+		t.Errorf("desired uses %v", desired.GetSecrets())
+	}
+	for _, tc := range []struct {
+		names   []string
+		desired *resourcev1.Service
+		refused string
+	}{
+		{[]string{"NONE"}, shownApp(nil), "no environment variable NONE"},
+		{[]string{"EMPTY"}, shownApp(nil), "EMPTY is empty"},
+		{[]string{"MODE"}, shownApp(map[string]string{"MODE": "x"}), "both sets MODE"},
+		{[]string{"MODE", "MODE"}, shownApp(nil), "twice"},
+	} {
+		if _, _, err := (&Driver{}).MoveValues(current, tc.desired, tc.names); err == nil || !strings.Contains(err.Error(), tc.refused) {
+			t.Errorf("MoveValues(%v) = %v, want one that says %q", tc.names, err, tc.refused)
+		}
+	}
+}

@@ -12,17 +12,23 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/events"
 	"github.com/dockwell/dockwell/internal/control/paging"
+	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	servicekind "github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
@@ -187,6 +193,62 @@ func (h *Handler) RevealSecret(ctx context.Context, req *connect.Request[dockwel
 	return connect.NewResponse(&dockwellv1.RevealSecretResponse{Value: got.Value, Revision: int64(got.Revision)}), nil
 }
 
+// RevealServiceValue returns one of a service's own environment variables that
+// reads hidden, to a person who confirms it with a passkey for that value, as
+// RevealSecret does a secret's, and records it in the audit log (ADR 0081). A
+// value the service shows anyway comes back the same way.
+func (h *Handler) RevealServiceValue(ctx context.Context, req *connect.Request[dockwellv1.RevealServiceValueRequest]) (*connect.Response[dockwellv1.RevealServiceValueResponse], error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
+	}
+	if p.Token != nil {
+		// The interceptor refuses tokens already; this holds if it didn't.
+		return nil, authapi.ReasonError(connect.CodePermissionDenied, auth.ErrNeedsSession, authapi.ReasonNeedsSession)
+	}
+	client, _ := authapi.ClientFrom(ctx)
+	service, name, proof := req.Msg.GetServiceId(), req.Msg.GetName(), req.Msg.GetProof()
+	var out *dockwellv1.RevealServiceValueResponse
+	err := h.db.Update(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResourceByID(ctx, service)
+		if errors.Is(err, store.ErrNotFound) || err == nil && (r.Kind != string(servicekind.Kind) || r.Spec == nil) {
+			return fault.New(errNoValue, "there's no service %s. Check its ID with dockwell services list", service)
+		}
+		if err != nil {
+			return err
+		}
+		decoded, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return err
+		}
+		svc, _ := decoded.(*resourcev1.Service)
+		value, ok := svc.GetApp().GetEnv()[name]
+		if !ok {
+			return fault.New(errNoValue, "%s has no environment variable %s of its own. Read its spec again with dockwell services list", r.Name, name)
+		}
+		// The proof is spent once nothing else refuses, in the same transaction as the record.
+		if err := h.auth.UseStepUpIn(ctx, tx, client, p, proof, auth.StepUpRevealServiceValue, auth.ServiceValueTarget(service, name)); err != nil {
+			return err
+		}
+		out = &dockwellv1.RevealServiceValueResponse{Value: value, Revision: int64(r.Revision)}
+		return tx.RecordEvent(ctx, store.Event{
+			ID: id.New(id.Event), At: time.Now(), Actor: p.Actor(), Action: events.ActionRevealServiceValue, Subject: name, Target: r.ID, Surface: client.Surface(p),
+			Detail: fmt.Sprintf("revealed %s of %s, revision %d", name, r.Name, r.Revision),
+		})
+	})
+	if errors.Is(err, auth.ErrNeedsStepUp) && proof != "" {
+		h.logger.InfoContext(ctx, "refused to reveal a service's value with a confirmation that is used, expired or for something else",
+			slog.String("service", service), slog.String("user", p.User.ID))
+	}
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(out), nil
+}
+
+// errNoValue is a service, or one of its values, that isn't there to reveal.
+var errNoValue = errors.New("no such value")
+
 func (h *Handler) rpcError(ctx context.Context, err error) error {
 	var choice *scope.ChoiceError
 	var cerr *connect.Error
@@ -207,7 +269,7 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 		return cerr
 	case errors.Is(err, scope.ErrNotFound):
 		return authapi.ReasonError(connect.CodeNotFound, err, "not_found")
-	case errors.Is(err, secrets.ErrNotSecret):
+	case errors.Is(err, secrets.ErrNotSecret), errors.Is(err, errNoValue):
 		return authapi.ReasonError(connect.CodeNotFound, err, "not_found")
 	case errors.Is(err, auth.ErrNeedsStepUp):
 		return authapi.ReasonError(connect.CodePermissionDenied, err, authapi.ReasonNeedsStepUp)

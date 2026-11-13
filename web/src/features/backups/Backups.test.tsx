@@ -1116,3 +1116,30 @@ describe("the backups page", () => {
     await activateLocale("en");
   });
 });
+
+describe("a backup's own page", () => {
+  it("says what it's of and where it's kept, each name a link, with its actions", async () => {
+    const backup = aBackup({ actor: { kind: 1, id: "usr_1", name: "Mira Chen" } });
+    const { container } = renderAt("/backups/bkp_1", copies([backup], { getBackup: () => ({ backup }) }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Backup of orders" }, { timeout: 5000 })).toBeVisible();
+    const facts = screen.getByRole("region", { name: "What it is" });
+    expect(within(facts).getByRole("link", { name: "orders" })).toHaveAttribute("href", "/volumes/vol_1");
+    expect(within(facts).getByRole("link", { name: "hz-1" })).toHaveAttribute("href", `/servers/${SERVER}`);
+    expect(within(facts).getByText("Mira Chen")).toBeVisible();
+    expect(within(facts).getByText("The server's disk")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Restore" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Delete this backup" })).toBeVisible();
+    await expectAccessible(container);
+  });
+
+  it("is a step away from the list: its volume and its time are links", async () => {
+    renderAt("/backups", copies([aBackup()]));
+    const table = await screen.findByRole("table", { name: "Backups, newest first" }, { timeout: 5000 });
+    expect(within(table).getByRole("link", { name: "orders" })).toHaveAttribute("href", "/volumes/vol_1");
+    expect(
+      within(table)
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href")),
+    ).toContain("/backups/bkp_1");
+  });
+});

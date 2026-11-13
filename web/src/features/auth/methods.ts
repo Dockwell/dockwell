@@ -70,7 +70,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.deleteBackup": "may",
   "BackupService.drillBackup": "may",
   "BackupService.fetchBackup": "may",
-  "BackupService.getBackup": "unused",
+  "BackupService.getBackup": "read",
   "BackupService.listBackupDestinations": "read",
   "BackupService.listBackupPolicies": "read",
   "BackupService.listBackups": "read",
@@ -239,6 +239,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "VariableService.listVariables": "read",
   "VariableService.revealSecret": "may",
+  "VariableService.revealServiceValue": "may",
+  "VolumeService.getVolume": "read",
 
   "WebsiteService.createWebsite": "may",
   "WebsiteService.deleteWebsite": "may",

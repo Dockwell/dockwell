@@ -150,9 +150,13 @@ func (d *diskUse) count(ctx context.Context) (*dockwellv1.ServerDiskUse, error) 
 	}
 	out.Volumes = uint32(len(df.Volumes)) //nolint:gosec // a count of volumes fits
 	for _, v := range df.Volumes {
+		use := &dockwellv1.VolumeDiskUse{Name: v.Name, SizeBytes: -1, Mountpoint: v.Mountpoint}
+		out.VolumeUse = append(out.VolumeUse, use)
 		if v.UsageData == nil {
 			continue
 		}
+		use.SizeBytes = v.UsageData.Size
+		use.Containers = uint32(max(v.UsageData.RefCount, 0)) //nolint:gosec // a count of containers fits
 		out.VolumesBytes += positive(v.UsageData.Size)
 		if v.UsageData.RefCount == 0 {
 			out.VolumesUnusedBytes += positive(v.UsageData.Size)

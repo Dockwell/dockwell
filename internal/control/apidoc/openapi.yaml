@@ -4908,6 +4908,52 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/services/{serviceId}/values/{name}:reveal:
+        post:
+            tags:
+                - VariableService
+            description: |-
+                RevealServiceValue returns one of a service's own environment variables
+                 that reads hidden, as it may be a secret, to the person who asks, as
+                 RevealSecret does a secret's: it needs a signed-in session and a proof
+                 from FinishStepUp for that value, and no API token can call it. Every
+                 reveal is in the audit log. See
+                 docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+            operationId: VariableService_RevealServiceValue
+            parameters:
+                - name: serviceId
+                  in: path
+                  description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: name
+                  in: path
+                  description: |-
+                    The variable's name, as the service's own environment has it, such as
+                     "SESSION_SECRET".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevealServiceValueRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevealServiceValueResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/sessions:
         get:
             tags:
@@ -6062,6 +6108,35 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetVersionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/volumes/{id}:
+        get:
+            tags:
+                - VolumeService
+            description: |-
+                GetVolume returns one volume: its servers, what it holds on each, as its
+                 server's agent adds it up when this is called, and the apps that mount it.
+                 A server that isn't connected says why it can't say, and the rest answers.
+            operationId: VolumeService_GetVolume
+            parameters:
+                - name: id
+                  in: path
+                  description: The volume's ID, such as "vol_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetVolumeResponse'
                 default:
                     description: Default error response
                     content:
@@ -7739,6 +7814,7 @@ components:
                         - STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN
                         - STEP_UP_ACTION_SET_STEP_UP_POLICY
                         - STEP_UP_ACTION_SET_STEP_UP_FLOOR
+                        - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
                     description: The action.
                     format: enum
@@ -10856,6 +10932,20 @@ components:
                          confirmation, as any data loss does, and its server keeps it for 7 days.
                          Refused on any other kind, and without delete. See
                          docs/adr/0074-projects-you-can-see-and-that-go-with-their-last-app.md.
+                envToSecrets:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        A service's own environment variables to make secrets of its environment,
+                         by the same name, with the values it has now, which it then uses in their
+                         place. The change makes each secret with the value the service holds, so
+                         nobody reads a hidden value to make it a secret, which a passkey reveals
+                         from then on. Each must be one the service has now, not empty, and not one
+                         the spec sets or keep_env keeps; the environment can't have a variable or
+                         secret of the name already. Only with base_revision, as for keep_env. See
+                         docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md. Numbered
+                         apart, as open work adds to this message.
             description: Edit sets one resource's desired spec, or deletes it.
         EndProcessRequest:
             type: object
@@ -11635,6 +11725,12 @@ components:
                 sizeBytes:
                     type: string
                     description: How many bytes, for a file uploaded or downloaded.
+                valueName:
+                    type: string
+                    description: |-
+                        For service.value_reveal, which of the service's own environment variables
+                         was revealed, by name; never its value. Numbered apart, as open work adds to
+                         this message.
             description: EventSubject names what an event is about.
         EventTaskRun:
             type: object
@@ -12582,6 +12678,14 @@ components:
                         - $ref: '#/components/schemas/BuildInfo'
                     description: The build of the dockwell binary running the control plane.
             description: GetVersionResponse carries the control plane's build.
+        GetVolumeResponse:
+            type: object
+            properties:
+                volume:
+                    allOf:
+                        - $ref: '#/components/schemas/VolumeInfo'
+                    description: The volume.
+            description: GetVolumeResponse is one volume.
         GitSource:
             type: object
             properties:
@@ -17165,6 +17269,36 @@ components:
                     type: string
                     description: The revision it is from.
             description: RevealSecretResponse carries a secret's value.
+        RevealServiceValueRequest:
+            type: object
+            properties:
+                serviceId:
+                    type: string
+                    description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: |-
+                        The variable's name, as the service's own environment has it, such as
+                         "SESSION_SECRET".
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, for revealing this value, its target the
+                         service's ID and the name as "svc_…:NAME". It works once, within a minute,
+                         in the session that made it.
+            description: |-
+                RevealServiceValueRequest names one of a service's own environment variables
+                 to reveal.
+        RevealServiceValueResponse:
+            type: object
+            properties:
+                value:
+                    type: string
+                    description: The value.
+                revision:
+                    type: string
+                    description: The service's revision it is from.
+            description: RevealServiceValueResponse carries the value.
         RevertDriftRequest:
             type: object
             properties:
@@ -18001,6 +18135,13 @@ components:
                     type: integer
                     description: How many volumes there are.
                     format: uint32
+                volumeUse:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/VolumeDiskUse'
+                    description: |-
+                        Each volume Docker keeps, with what it holds, for a volume's own page.
+                         Numbered apart, as open work adds to this message.
             description: |-
                 ServerDiskUse is what takes the room on the disk that holds Docker's data,
                  as Docker and the agent added it up. Docker's parts can come to more than
@@ -20815,6 +20956,106 @@ components:
                  by name, as a Compose file's volumes. Deleting one destroys its data,
                  though Dockwell keeps it for 7 days first. Docker can't change a volume,
                  so its spec can't change once it is made.
+        VolumeDiskUse:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name in Docker, such as "default-production_data".
+                sizeBytes:
+                    type: string
+                    description: |-
+                        What it holds, in bytes, or -1 when Docker can't say, as for a volume
+                         another driver keeps.
+                mountpoint:
+                    type: string
+                    description: Where its files are on the server.
+                containers:
+                    type: integer
+                    description: How many containers use it.
+                    format: uint32
+            description: VolumeDiskUse is what one volume holds on a server, as Docker adds it up.
+        VolumeInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID.
+                resource:
+                    allOf:
+                        - $ref: '#/components/schemas/ResourceRef'
+                    description: Its kind, environment and name.
+                revision:
+                    type: string
+                    description: Its latest revision.
+                updateTime:
+                    type: string
+                    description: When its latest revision was applied.
+                    format: date-time
+                changeId:
+                    type: string
+                    description: The change that made its latest revision.
+                driver:
+                    type: string
+                    description: 'Its driver: "local" unless set.'
+                hasOptions:
+                    type: boolean
+                    description: |-
+                        Whether it has driver options, as a share mounted over the network does.
+                         What they are is never said, as they may hold a password.
+                servers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/VolumeOnServer'
+                    description: Each server it's on, with what it holds there.
+                mountedBy:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/VolumeMount'
+                    description: The apps that mount it.
+            description: VolumeInfo is a volume as its page shows it.
+        VolumeMount:
+            type: object
+            properties:
+                serviceId:
+                    type: string
+                    description: The app's ID and name.
+                service:
+                    type: string
+                target:
+                    type: string
+                    description: Where in the app's container it's mounted, such as "/var/lib/mysql".
+                readOnly:
+                    type: boolean
+                    description: Whether the app only reads it.
+            description: VolumeMount is an app that mounts a volume.
+        VolumeOnServer:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID and name.
+                serverName:
+                    type: string
+                sizeBytes:
+                    type: string
+                    description: What it holds there, in bytes, as Docker adds it up. Unset with unread.
+                path:
+                    type: string
+                    description: |-
+                        Where its files are on the server, such as
+                         "/var/lib/docker/volumes/default-production_data/_data", for the server's
+                         files page. Empty with unread.
+                containers:
+                    type: integer
+                    description: How many containers use it there.
+                    format: uint32
+                unread:
+                    type: string
+                    description: |-
+                        Why what it holds there can't be said now, such as its server not being
+                         connected, or its driver keeping it elsewhere. Empty when it was read.
+            description: VolumeOnServer is a volume on one server.
         Web:
             type: object
             properties:
@@ -21451,6 +21692,13 @@ tags:
          edit of the service, doesn't let anyone read it: no response carries a
          secret's value but RevealSecret's, which needs a signed-in session, and
          no API token can call it.
+    - name: VolumeService
+      description: |-
+        VolumeService reads a volume of an environment as its own page shows it: where
+         it is, what it holds on each server, and which apps mount it. Making, deleting
+         and backing up a volume are ChangeService's and BackupService's, as for any
+         resource; this only reads. A volume's options, which may hold a share's
+         password, are never in a response.
     - name: WebsiteService
       description: |-
         WebsiteService lists your websites, and plans making one, changing what it

@@ -48,8 +48,14 @@ msgstr "Command bar"
 msgid "Connect"
 msgstr "Connect"
 
+msgid "Copied in full"
+msgstr "Copied in full"
+
 msgid "Copied {value}"
 msgstr "Copied {value}"
+
+msgid "Copy {shown} in full"
+msgstr "Copy {shown} in full"
 
 msgid "Copy {value}"
 msgstr "Copy {value}"
@@ -438,6 +444,9 @@ msgstr "All actors"
 msgid "Applied"
 msgstr "Applied"
 
+msgid "Backup"
+msgstr "Backup"
+
 msgid "Backups"
 msgstr "Backups"
 
@@ -506,6 +515,9 @@ msgstr "Open plan"
 
 msgid "Open the app"
 msgstr "Open the app"
+
+msgid "Open the backup"
+msgstr "Open the backup"
 
 msgid "Open the file"
 msgstr "Open the file"
@@ -936,8 +948,17 @@ msgstr "Resolved: {title}"
 msgid "Revealed a secret"
 msgstr "Revealed a secret"
 
+msgid "Revealed a value an app sets"
+msgstr "Revealed a value an app sets"
+
 msgid "Revealed the secret {name}"
 msgstr "Revealed the secret {name}"
+
+msgid "Revealed the value {value} of an app"
+msgstr "Revealed the value {value} of an app"
+
+msgid "Revealed the value {value} of {name}"
+msgstr "Revealed the value {value} of {name}"
 
 msgid "Revoked an API token"
 msgstr "Revoked an API token"
@@ -2317,8 +2338,14 @@ msgstr "Keep the new ones as secrets"
 msgid "Key"
 msgstr "Key"
 
+msgid "Make {key} on {name} a secret"
+msgstr "Make {key} on {name} a secret"
+
 msgid "Make {key} on {name} a shared variable"
 msgstr "Make {key} on {name} a shared variable"
+
+msgid "Make {name} a secret"
+msgstr "Make {name} a secret"
 
 msgid "Make {name} shared"
 msgstr "Make {name} shared"
@@ -2389,6 +2416,9 @@ msgstr "Shared variable"
 msgid "Source"
 msgstr "Source"
 
+msgid "The environment has a secret {name} already. Rename one to keep this as a secret."
+msgstr "The environment has a secret {name} already. Rename one to keep this as a secret."
+
 msgid "The environment has a secret {name} already. Rename one to share this."
 msgstr "The environment has a secret {name} already. Rename one to share this."
 
@@ -2397,6 +2427,9 @@ msgstr "The environment has a secret {target} already. Rename one to keep this a
 
 msgid "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
+
+msgid "The environment has a variable {name} already. Rename one to keep this as a secret."
+msgstr "The environment has a variable {name} already. Rename one to keep this as a secret."
 
 msgid "The environment has a variable {name} with another value. Rename one to share this."
 msgstr "The environment has a variable {name} with another value. Rename one to share this."
@@ -5929,6 +5962,65 @@ msgstr "What stops starts again once the copy ends, however that goes. The copy 
 msgid "{0, plural, one {{list} runs on this volume} other {{list} run on this volume}}"
 msgstr "{0, plural, one {{list} runs on this volume} other {{list} run on this volume}}"
 
+msgid "Backup of {volume}"
+msgstr "Backup of {volume}"
+
+#. placeholder {0}: actions.refused.get(backup.id)
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "Can't check it now: {0}"
+
+msgid "Check it"
+msgstr "Check it"
+
+msgid "Checked"
+msgstr "Checked"
+
+msgid "Delete this backup"
+msgstr "Delete this backup"
+
+msgid "Dockwell can't read this backup"
+msgstr "Dockwell can't read this backup"
+
+msgid "Fetch"
+msgstr "Fetch"
+
+msgid "Fingerprint"
+msgstr "Fingerprint"
+
+msgid "How"
+msgstr "How"
+
+msgid "Kept on"
+msgstr "Kept on"
+
+msgid "Not yet"
+msgstr "Not yet"
+
+msgid "Nowhere it can be restored from now"
+msgstr "Nowhere it can be restored from now"
+
+msgid "Reading the backup"
+msgstr "Reading the backup"
+
+msgid "Restore"
+msgstr "Restore"
+
+msgid "Schedule"
+msgstr "Schedule"
+
+msgid "Started"
+msgstr "Started"
+
+msgid "The server's disk"
+msgstr "The server's disk"
+
+msgid "The server's disk, and {destination}"
+msgstr "The server's disk, and {destination}"
+
+msgid "What it is"
+msgstr "What it is"
+
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
 
@@ -5941,10 +6033,6 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 
 msgid "Backups, newest first"
 msgstr "Backups, newest first"
-
-#. placeholder {0}: refused.get(b.id)
-msgid "Can't check it now: {0}"
-msgstr "Can't check it now: {0}"
 
 msgid "Check it restores"
 msgstr "Check it restores"
@@ -5961,9 +6049,6 @@ msgstr "Delete from both"
 msgid "Delete it"
 msgstr "Delete it"
 
-msgid "Delete this backup"
-msgstr "Delete this backup"
-
 #. placeholder {0}: backup.volume
 msgid "Delete this backup of {0}"
 msgstr "Delete this backup of {0}"
@@ -5971,15 +6056,9 @@ msgstr "Delete this backup of {0}"
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
 
-msgid "Fetch"
-msgstr "Fetch"
-
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
 msgstr "Fetch this backup of {0}"
-
-msgid "How"
-msgstr "How"
 
 #. placeholder {0}: b.fetchError
 msgid "It couldn't be fetched: {0}"
@@ -6025,9 +6104,6 @@ msgstr "Recent runs"
 msgid "Remove from the server only"
 msgstr "Remove from the server only"
 
-msgid "Restore"
-msgstr "Restore"
-
 msgid "Restore check failed {ago}: {why}"
 msgstr "Restore check failed {ago}: {why}"
 
@@ -6040,9 +6116,6 @@ msgstr "Sealed with an earlier passphrase"
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
 msgstr "Sending to {0}"
-
-msgid "Started"
-msgstr "Started"
 
 msgid "This backup didn't come back"
 msgstr "This backup didn't come back"
@@ -8065,6 +8138,9 @@ msgctxt "bytes pulled"
 msgid "{0} of {1}"
 msgstr "{0} of {1}"
 
+msgid "<0>{name}</0> as <1>{key}</1>"
+msgstr "<0>{name}</0> as <1>{key}</1>"
+
 msgid "<0>{source}</0> at <1>{target}</1>"
 msgstr "<0>{source}</0> at <1>{target}</1>"
 
@@ -8204,6 +8280,9 @@ msgstr "runs no entrypoint"
 msgid "shared memory"
 msgstr "shared memory"
 
+msgid "shows the values of"
+msgstr "shows the values of"
+
 msgid "sources"
 msgstr "sources"
 
@@ -8218,6 +8297,12 @@ msgstr "tmpfs size"
 
 msgid "uses its newer value"
 msgstr "uses its newer value"
+
+msgid "uses secret"
+msgstr "uses secret"
+
+msgid "uses variable"
+msgstr "uses variable"
 
 msgid "yes"
 msgstr "yes"
@@ -9013,9 +9098,6 @@ msgstr "Build and deploy {commit}"
 msgid "Building and deploying {commit}"
 msgstr "Building and deploying {commit}"
 
-msgid "Checked"
-msgstr "Checked"
-
 msgid "Couldn't check"
 msgstr "Couldn't check"
 
@@ -9711,9 +9793,6 @@ msgstr "Its server didn't say"
 
 msgid "Kept in the secret <0>{secret}</0>"
 msgstr "Kept in the secret <0>{secret}</0>"
-
-msgid "Kept on"
-msgstr "Kept on"
 
 msgid "Keys asked for that were there"
 msgstr "Keys asked for that were there"
@@ -14860,9 +14939,6 @@ msgstr "On"
 msgid "On day"
 msgstr "On day"
 
-msgid "Schedule"
-msgstr "Schedule"
-
 msgid "That isn't cron Dockwell reads."
 msgstr "That isn't cron Dockwell reads."
 
@@ -15117,9 +15193,6 @@ msgstr "No scheduled tasks yet"
 
 msgid "Not scheduled"
 msgstr "Not scheduled"
-
-msgid "Not yet"
-msgstr "Not yet"
 
 msgid "On its own schedule"
 msgstr "On its own schedule"
@@ -15936,9 +16009,6 @@ msgstr "Copied {name}"
 msgid "Copy {name}"
 msgstr "Copy {name}"
 
-msgid "Hidden, as it may be a secret"
-msgstr "Hidden, as it may be a secret"
-
 msgid "Hide {name}"
 msgstr "Hide {name}"
 
@@ -15947,6 +16017,9 @@ msgstr "It was a plain variable, so anyone who can read this environment can sti
 
 msgid "Loading variables and secrets"
 msgstr "Loading variables and secrets"
+
+msgid "Make {name} on {app} a secret"
+msgstr "Make {name} on {app} a secret"
 
 msgid "Make {name} on {app} a shared variable"
 msgstr "Make {name} on {app} a shared variable"
@@ -15965,6 +16038,9 @@ msgstr "Name it, such as DATABASE_URL."
 
 msgid "No variables or secrets in {envName} yet"
 msgstr "No variables or secrets in {envName} yet"
+
+msgid "Not a secret"
+msgstr "Not a secret"
 
 msgid "Not used yet"
 msgstr "Not used yet"
@@ -15991,6 +16067,9 @@ msgstr "Set on the app"
 msgid "Shared"
 msgstr "Shared"
 
+msgid "Show {name} on {app}"
+msgstr "Show {name} on {app}"
+
 msgid "The old value stays in this variable's history"
 msgstr "The old value stays in this variable's history"
 
@@ -16007,11 +16086,54 @@ msgstr "What the apps in {envName} run with, shared and their own. Changing a va
 msgid "as {0}"
 msgstr "as {0}"
 
+msgid "{name} is no secret: show it"
+msgstr "{name} is no secret: show it"
+
 msgid "{onlyName} runs with nothing of its own or shared"
 msgstr "{onlyName} runs with nothing of its own or shared"
 
 msgid "{own, plural, one {# set on an app} other {# set on apps}}"
 msgstr "{own, plural, one {# set on an app} other {# set on apps}}"
+
+msgid "Delete the volume {name}"
+msgstr "Delete the volume {name}"
+
+msgid "Dockwell can't read this volume"
+msgstr "Dockwell can't read this volume"
+
+msgid "Its driver's options stay hidden, as they may hold a password."
+msgstr "Its driver's options stay hidden, as they may hold a password."
+
+msgid "Mounted by"
+msgstr "Mounted by"
+
+msgid "No app mounts it"
+msgstr "No app mounts it"
+
+msgid "No app mounts it, so deleting it stops nothing."
+msgstr "No app mounts it, so deleting it stops nothing."
+
+msgid "On its servers"
+msgstr "On its servers"
+
+msgid "Open its files"
+msgstr "Open its files"
+
+msgid "Reading the volume"
+msgstr "Reading the volume"
+
+#. placeholder {0}: s.containers
+msgid "{0, plural, one {# container uses it} other {# containers use it}}"
+msgstr "{0, plural, one {# container uses it} other {# containers use it}}"
+
+msgid "{count, plural, one {Mounted by # app} other {Mounted by # apps}}"
+msgstr "{count, plural, one {Mounted by # app} other {Mounted by # apps}}"
+
+msgid "{mounts} · Driver {driver}"
+msgstr "{mounts} · Driver {driver}"
+
+msgid "{users} mounts it. Take it off first, then delete it."
+msgstr "{users} mounts it. Take it off first, then delete it."
 
 msgid "A static site, sent as its files are."
 msgstr "A static site, sent as its files are."

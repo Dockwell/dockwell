@@ -137,9 +137,15 @@ button.dw-plan-row:hover {
 .dw-plan-chev.is-open {
   transform: rotate(180deg);
 }
+/*
+ * Fields on the left, their values on the right. A field takes what its words
+ * need up to 40% of the row, and never less than its longest word, so a long
+ * field name can't squeeze its value into a narrow column: the value always has
+ * the rest of the row, in a narrow panel and on a phone as on a wide sheet.
+ */
 .dw-plan-changes {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
   gap: 6px var(--space-4);
   margin: 0;
   padding: 2px var(--space-4) var(--space-4) calc(var(--space-4) + 32px + var(--space-3) * 2);
@@ -148,11 +154,15 @@ button.dw-plan-row:hover {
 .dw-plan-changes[hidden] {
   display: none;
 }
+/* A field and its value are a pair for what reads the list, and two cells of its grid for the eye. */
+.dw-plan-change {
+  display: contents;
+}
+/* Words wrap at spaces, and the column is never narrower than a field's longest word. */
 .dw-plan-path,
 .dw-plan-label {
   color: var(--ink-muted);
-  min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 /* What a field means is words, not a machine value. */
 .dw-plan-label {
@@ -180,14 +190,17 @@ button.dw-plan-row:hover {
   color: var(--ink-muted);
 }
 /* Old values are struck through as well as coloured, so the diff reads in grayscale. */
+/* A value wraps where it has a space, and breaks inside a word only where the word is wider than the list. */
 .dw-diff-from,
 .dw-diff-to,
 .dw-diff-critical,
 .dw-diff-warning,
 .dw-diff-change {
+  min-width: 0;
+  max-width: 100%;
   padding: 0 5px;
   border-radius: 3px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 /* Words with machine values among them: the words in sans, the values in mono. */
 .dw-diff-from.is-words,
@@ -251,4 +264,24 @@ button.dw-plan-row:hover {
 }
 .dw-plan-also-list[hidden] {
   display: none;
+}
+/* A value cut short to its digest's first 12 digits, the whole on hover, and a button that copies it whole. */
+.dw-digest {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+/* The digest itself never breaks: it takes the next line whole where the name leaves no room. */
+.dw-digest-hash {
+  display: inline-block;
+  white-space: nowrap;
+}
+/* The button sits in the value's line rather than make it taller. */
+.dw-digest-copy.dw-btn {
+  --h: 22px;
+  flex: none;
+  margin-block: -1px;
+  color: var(--ink-muted);
 }

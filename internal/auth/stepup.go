@@ -117,7 +117,15 @@ const (
 	StepUpSetPolicy StepUpAction = "step_up_policy.set"
 	// StepUpSetFloor sets the least anyone may choose for that. It always asks.
 	StepUpSetFloor StepUpAction = "step_up_floor.set"
+	// StepUpRevealServiceValue reveals one of a service's own environment
+	// variables that reads hidden (ADR 0081). Its target is the service's ID and
+	// the name, as "svc_…:NAME".
+	StepUpRevealServiceValue StepUpAction = "service.value_reveal"
 )
+
+// ServiceValueTarget is what a step-up for revealing a service's own value
+// confirms: the service's ID and the name, as "svc_…:NAME".
+func ServiceValueTarget(service, name string) string { return service + ":" + name }
 
 // stepUpActions says what each action is doing, for the audit log, and
 // whether it acts on a target of its own rather than the person.
@@ -150,6 +158,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSignInOnPanelDomain: {"signing in on", true},
 	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},
 	StepUpSetFloor:            {"setting how often everyone is asked for a passkey at least", false},
+	StepUpRevealServiceValue:  {"revealing", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

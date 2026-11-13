@@ -2133,6 +2133,22 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.RestartServiceRequest, v1.RestartServiceResponse](dockwellv1connect.ChangeServiceRestartServiceProcedure),
 		},
 		{
+			Name:      "dockwell.v1.VariableService.RevealServiceValue",
+			Procedure: dockwellv1connect.VariableServiceRevealServiceValueProcedure,
+			HTTP:      "POST /v1/services/{service_id}/values/{name}:reveal",
+			Noun:      "services",
+			Verb:      "reveal",
+			Short:     "Return one of a service's own environment variables that reads hidden",
+			Long:      "Return one of a service's own environment variables that reads hidden, as it may\nbe a secret, to the person who asks, as dockwell secrets reveal does a secret's:\nit needs a signed-in session and a proof from dockwell sessions finish-step-up\nfor that value, and no API token can call it. Every reveal is in the audit log.\nSee docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "service_id", Help: "The service's ID, such as \"svc_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
+				{Path: "name", Help: "The variable's name, as the service's own environment has it, such as \"SESSION_SECRET\"."},
+				{Path: "proof", Help: "The proof from dockwell sessions finish-step-up, for revealing this value, its target the service's ID and the name as \"svc_…:NAME\". It works once, within a minute, in the session that made it."},
+			},
+			Call: apicli.Unary[v1.RevealServiceValueRequest, v1.RevealServiceValueResponse](dockwellv1connect.VariableServiceRevealServiceValueProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ServiceService.ListServiceRevisions",
 			Procedure: dockwellv1connect.ServiceServiceListServiceRevisionsProcedure,
 			HTTP:      "GET /v1/services/{id}/revisions",
@@ -2807,6 +2823,20 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.ListVariablesRequest, v1.ListVariablesResponse](dockwellv1connect.VariableServiceListVariablesProcedure),
 		},
 		{
+			Name:      "dockwell.v1.VolumeService.GetVolume",
+			Procedure: dockwellv1connect.VolumeServiceGetVolumeProcedure,
+			HTTP:      "GET /v1/volumes/{id}",
+			Noun:      "volumes",
+			Verb:      "get",
+			Short:     "Return one volume",
+			Long:      "Return one volume: its servers, what it holds on each, as its server's agent\nadds it up when this is called, and the apps that mount it. A server that isn't\nconnected says why it can't say, and the rest answers.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "id", Help: "The volume's ID, such as \"vol_01JD6Z3R8M9QF2K7T4XW5BNC0V\".", Arg: true},
+			},
+			Call: apicli.Unary[v1.GetVolumeRequest, v1.GetVolumeResponse](dockwellv1connect.VolumeServiceGetVolumeProcedure),
+		},
+		{
 			Name:      "dockwell.v1.WebsiteService.CreateWebsite",
 			Procedure: dockwellv1connect.WebsiteServiceCreateWebsiteProcedure,
 			HTTP:      "POST /v1/websites",
@@ -2938,7 +2968,7 @@ func Nouns() []apicli.Noun {
 		{Name: "resources", Short: "Return the resources that exist now", Long: "ResourceService reads the resources Dockwell manages: projects, environments,\nservices, volumes, networks, routes, containers and firewall rules. Change them\nwith ChangeService.\n\nIt names resources and says where they live, and never carries a spec, which may\nhold secrets. A spec's display_name, which never does, is the one exception."},
 		{Name: "secrets", Short: "Reveal, create, update or delete secrets", Long: "A secret is a value of an environment that its services use without anyone\nreading it back, such as a database password. Dockwell keeps it encrypted, sends\nit only to the servers that run a service that uses it, and never shows it in\nplans, history or logs. Its value is read from standard input or a file, never\nfrom a flag. Revealing it takes a passkey, in the panel, and is audited: no API\ntoken can.\n\ndockwell secrets create, update and delete each propose a change, show its plan,\nand ask before applying it."},
 		{Name: "servers", Short: "Reboot, list, get, watch or read servers, and 4 more", Long: "The servers Dockwell manages, with their live state as each server's agent\nreports it. dockwell servers watch has no REST path: REST has no way to stream\nmessages, so a REST client polls dockwell servers list or dockwell servers get\ninstead, and anything that wants the stream opens it with Connect, gRPC or\ngRPC-Web. dockwell servers reboot plans rebooting servers, a change with a plan\nthat makes no revision and takes a person's passkey to apply. See\ndocs/adr/0015-rest-and-openapi-from-the-schema.md and\ndocs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md."},
-		{Name: "services", Short: "Restart, list, revisions, deploy, rollback, upgrade, open, create, update or delete services, and 2 more", Long: "A service is anything that runs in an environment, placed on servers. dockwell\nservices restart plans a restart, which is a change with a plan: it records no\nrevision, as a restart changes no spec, and nothing to undo.\n\nSee docs/adr/0027-health-checks-rollouts-and-rollback.md.\n\ndockwell services create, update and delete each propose a change, show its\nplan, and ask before applying it."},
+		{Name: "services", Short: "Restart, list, revisions, deploy, rollback, upgrade, open, reveal, create, update or delete services, and 2 more", Long: "A service is anything that runs in an environment, placed on servers. dockwell\nservices restart plans a restart, which is a change with a plan: it records no\nrevision, as a restart changes no spec, and nothing to undo.\n\nSee docs/adr/0027-health-checks-rollouts-and-rollback.md.\n\ndockwell services create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 		{Name: "sessions", Short: "List or revoke sessions, and 8 more", Long: "A session is a browser you're signed in on. Signing in takes a passkey, a code\nfrom an authenticator app, a recovery code, or a one-time link from dockwell\nrecover, and sets a session cookie. No API token can sign in, or list or end\nsessions: how you sign in changes only by signing in, in the panel."},
 		{Name: "settings", Short: "Get settings, and 7 more", Long: "The install's settings are what it's called, the time zone new schedules start\nin, and how its panel is served. They change what Dockwell says and suggests,\nnot what runs, so a change needs no plan, and each is on the activity log with\nwhat it replaced."},
 		{Name: "ssh", Short: "Reads", Long: "How SSH lets people in on a server: password and root login, its ports, as\nsshd's files say, the file that sets each, and a warning when the sshd that\nlistens may not have read them, or that there's nothing to warn of, which\ndoesn't say it has. Reading it changes nothing."},
@@ -2951,6 +2981,7 @@ func Nouns() []apicli.Noun {
 		{Name: "totp", Short: "Get, disable or unlock TOTP, and 4 more", Long: "Code sign-in lets you sign in with a code from an authenticator app, or with a\none-time recovery code, beside your passkeys. Wrong codes slow it down, and too\nmany lock it until dockwell totp unlock turns it back on. Setting it up needs a\nsigned-in session, which no API token gives, and your passkey to confirm it, so\nyou do it in the panel, under Profile and security."},
 		{Name: "updates", Short: "Get, check or install updates", Long: "UpdateService says which package updates wait on a server, through its agent,\nwhich reads them with the server's own package manager: apt, dnf or apk. Nothing\nis read while nobody asks, and a server's package lists are refreshed at most\ndaily. See docs/adr/0043-package-updates-on-a-server.md."},
 		{Name: "variables", Short: "List, create, update or delete variables", Long: "A variable is a value of an environment that its services use, such as\nLOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use\nvariables and secrets by reference, under the names they expect, so changing one\nis a plan that restarts every service that uses it.\n\ndockwell variables create, update and delete each propose a change, show its\nplan, and ask before applying it."},
+		{Name: "volumes", Short: "Get, create, update or delete volumes", Long: "A volume is a Docker volume of an environment that its apps mount by name, where\nthey keep their data. Deleting one destroys its data, though its server keeps it\nfor 7 days first.\n\ndockwell volumes create, update and delete each propose a change, show its plan,\nand ask before applying it."},
 		{Name: "websites", Short: "List, runtimes, preview, create, update or delete websites", Long: "WebsiteService lists your websites, and plans making one, changing what it\nserves and deleting it, each as a change to apply or discard. A website is a\nproject of its own: Dockwell writes its route, and the service that serves it,\nfrom what you choose, such as a URL to send its requests to. Its domain gets its\ncertificate as any route's does, or none behind a tunnel or a proxy that ends\nTLS. See docs/adr/0039-websites-as-projects-of-their-own.md."},
 	}
 }

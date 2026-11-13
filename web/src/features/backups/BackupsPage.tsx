@@ -49,6 +49,7 @@ import { useBackups, useVolumes } from "./useBackups";
 import { backupStatus, useMethodWord, useStateWord } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
+import { RefLink } from "../shell/RefLink";
 
 /**
  * Every backup, newest first: back one up, restore one through a plan, or delete
@@ -131,11 +132,11 @@ export function BackupsPage() {
 }
 
 /**
- * Backups as a list, newest first, each of which restores through a plan, comes
- * back from a destination, or is deleted, with the sheets that do it. The Backups
- * page shows every volume's; a database's page shows its volume's.
+ * What a backup's actions do, with the sheets they open and how they went: restore
+ * through a plan, check it with a drill, fetch it back from a destination, and
+ * delete it. A list of backups and a backup's own page share them.
  */
-export function BackupRows({ backups, caption }: { backups: readonly Backup[]; caption?: string }) {
+export function useBackupActions() {
   const { t } = useLingui();
   const sheet = useChangeSheet();
   const transport = useTransport();
@@ -144,14 +145,19 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
   const [deleting, setDeleting] = useState<Backup>();
   const [choosing, setChoosing] = useState<Backup>();
   const [bringBackFailure, setBringBackFailure] = useState<string>();
-  // A check in flight, and why one was refused, each on its own row.
+  // A check in flight, and why one was refused, each on its own backup.
   const [checking, setChecking] = useState<ReadonlySet<string>>(new Set());
   const [refused, setRefused] = useState<ReadonlyMap<string, string>>(new Map());
   const listed = () =>
-    queries.invalidateQueries({
-      queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
-    });
-  // A drill runs on its server and says how it went on the backup's row (ADR 0068).
+    Promise.all([
+      queries.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+      }),
+      queries.invalidateQueries({
+        queryKey: createConnectQueryKey({ schema: BackupService.method.getBackup, cardinality: "finite" }),
+      }),
+    ]);
+  // A drill runs on its server and says how it went on the backup (ADR 0068).
   const check = async (backup: Backup) => {
     if (checking.has(backup.id)) return;
     setChecking((was) => new Set(was).add(backup.id));
@@ -181,30 +187,19 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
     setBringBackFailure(undefined);
     try {
       await client.fetchBackup({ id: backup.id, server });
-      await queries.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
-      });
+      await listed();
     } catch (error) {
       setBringBackFailure(sentence(error));
     }
   };
-  return (
+  const fetchBack = (b: Backup) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""));
+  const view = (
     <>
       {bringBackFailure ? (
         <Callout tone="critical" title={t`This backup didn't come back`}>
           {bringBackFailure}
         </Callout>
       ) : null}
-      <BackupsList
-        backups={backups}
-        caption={caption ?? t`Backups, newest first`}
-        onRestore={restore}
-        onFetch={(b) => (b.fetchOnto.length > 1 ? setChoosing(b) : void bringBack(b, b.fetchOnto[0] ?? ""))}
-        onDelete={setDeleting}
-        onCheck={(b) => void check(b)}
-        checking={checking}
-        refused={refused}
-      />
       {deleting ? <DeleteSheet backup={deleting} client={client} onClose={() => setDeleting(undefined)} /> : null}
       {choosing ? (
         <FetchSheet
@@ -213,6 +208,32 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
           onClose={() => setChoosing(undefined)}
         />
       ) : null}
+    </>
+  );
+  return { restore, check: (b: Backup) => void check(b), fetchBack, remove: setDeleting, checking, refused, view };
+}
+
+/**
+ * Backups as a list, newest first, each of which restores through a plan, comes
+ * back from a destination, or is deleted, with the sheets that do it. The Backups
+ * page shows every volume's; a database's page and a volume's show their own.
+ */
+export function BackupRows({ backups, caption }: { backups: readonly Backup[]; caption?: string }) {
+  const { t } = useLingui();
+  const actions = useBackupActions();
+  return (
+    <>
+      <BackupsList
+        backups={backups}
+        caption={caption ?? t`Backups, newest first`}
+        onRestore={actions.restore}
+        onFetch={actions.fetchBack}
+        onDelete={actions.remove}
+        onCheck={actions.check}
+        checking={actions.checking}
+        refused={actions.refused}
+      />
+      {actions.view}
     </>
   );
 }
@@ -250,7 +271,15 @@ function BackupsList({
     const server = fleet ? b.serverName : undefined;
     return [place, server].filter(Boolean).join(" · ");
   };
-  const when = (b: Backup) => (b.startedAt ? formatDateTime(timestampDate(b.startedAt), i18n.locale) : "");
+  // When it started, which opens the backup's own page.
+  const when = (b: Backup) =>
+    b.startedAt ? (
+      <RefLink kind="backup" id={b.id} look="plain">
+        {formatDateTime(timestampDate(b.startedAt), i18n.locale)}
+      </RefLink>
+    ) : (
+      ""
+    );
   const took = (b: Backup) =>
     b.startedAt && b.finishedAt ? time.span(timestampMs(b.finishedAt) - timestampMs(b.startedAt)) : "";
   const state = (b: Backup) => (
@@ -336,7 +365,9 @@ function BackupsList({
       header: t`Volume`,
       render: (b) => (
         <div className="backup-state">
-          <code>{b.volume}</code>
+          <code>
+            <VolumeName backup={b} />
+          </code>
           {where(b) ? <span className="backup-why">{where(b)}</span> : null}
         </div>
       ),
@@ -359,25 +390,27 @@ function BackupsList({
       render: actions,
     },
   ];
+  // How it was taken, its size and where, after when it started on a phone's line.
+  const details = (b: Backup) =>
+    [method(b.method, b.database), b.sizeBytes > 0n ? formatBytes(b.sizeBytes, i18n.locale) : "", where(b)]
+      .filter(Boolean)
+      .join(" · ");
   if (phone) {
     return (
       <ul className="backup-phone">
         {backups.map((b) => (
           <li key={b.id}>
             <div className="backup-phone-head">
-              <code>{b.volume}</code>
+              <code>
+                <VolumeName backup={b} />
+              </code>
               {actions(b)}
             </div>
             {state(b)}
             <span className="backup-why">
-              {[
-                when(b),
-                method(b.method, b.database),
-                b.sizeBytes > 0n ? formatBytes(b.sizeBytes, i18n.locale) : "",
-                where(b),
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              {when(b)}
+              {b.startedAt && details(b) ? " · " : null}
+              {details(b)}
             </span>
           </li>
         ))}
@@ -387,7 +420,17 @@ function BackupsList({
   return <Table<Backup> className="backup-table" columns={columns} rows={backups} caption={caption} />;
 }
 
-/** Deleting a backup can't be taken back, so it asks. */
+/** A backup's volume, as a link to its page. */
+function VolumeName({ backup }: { backup: Backup }) {
+  return backup.volumeId ? (
+    <RefLink kind="volume" id={backup.volumeId} look="plain">
+      {backup.volume}
+    </RefLink>
+  ) : (
+    backup.volume
+  );
+}
+
 /** Asks which server to fetch a backup onto, where its volume is on several. */
 function FetchSheet({
   backup,
@@ -428,6 +471,7 @@ function FetchSheet({
   );
 }
 
+/** Deleting a backup can't be taken back, so it asks. */
 function DeleteSheet({
   backup,
   client,
@@ -516,7 +560,7 @@ function DeleteSheet({
  * checked, unpacked whole, failed with what failed, or not checked with why, which
  * says nothing of the backup.
  */
-function DrillLine({ backup, onCheck, pending }: { backup: Backup; onCheck?: () => void; pending?: boolean }) {
+export function DrillLine({ backup, onCheck, pending }: { backup: Backup; onCheck?: () => void; pending?: boolean }) {
   const { t } = useLingui();
   const time = useTimeWords();
   // An action on what you can see stays where it is, off, with why (ADR 0059).

@@ -41,10 +41,19 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { RevealsProvider, useReveals } from "../variables/useReveal";
-import { SecretValue, useAllVariables } from "../variables/VariablesPage";
+import { OwnHiddenValue, SecretValue, useAllVariables } from "../variables/VariablesPage";
 import { useApp } from "./AppContext";
 import { environmentOf, isMoving, nameOf } from "./app";
-import { alsoRestarts, cantShare, type EnvEdit, type EnvRow, envCounts, envEdits, envRows } from "./envEdit";
+import {
+  alsoRestarts,
+  cantMakeSecret,
+  cantShare,
+  type EnvEdit,
+  type EnvRow,
+  envCounts,
+  envEdits,
+  envRows,
+} from "./envEdit";
 import { parseEnv, validEnvName } from "./form";
 import { useServices } from "./useServices";
 
@@ -107,9 +116,11 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
           ? t`Change ${key} on ${name}`
           : only?.op === "share"
             ? t`Make ${key} on ${name} a shared variable`
-            : only?.op === "remove"
-              ? t`Remove ${key} from ${name}`
-              : t`Change the environment of ${name}`;
+            : only?.op === "secret"
+              ? t`Make ${key} on ${name} a secret`
+              : only?.op === "remove"
+                ? t`Remove ${key} from ${name}`
+                : t`Change the environment of ${name}`;
     reviewing.current = true;
     sheet.open({
       kind: "propose",
@@ -156,15 +167,14 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
     ...(asRoot(service) ? [name] : []),
     ...others.filter((o) => asRoot(apps?.find((s) => s.id === o.id))).map((o) => o.name),
   ];
-  const columns = useColumns(
-    phone,
-    (row) => setChanging(row.name),
-    (row) => put({ op: "remove", name: row.name }),
-    (row) => put({ op: "share", name: row.name, value: row.now?.value ?? "" }),
+  const columns = useColumns(phone, service.id, store.isPending, store.data?.variables, {
+    change: (row) => setChanging(row.name),
+    remove: (row) => put({ op: "remove", name: row.name }),
+    share: (row) => put({ op: "share", name: row.name, value: row.now?.value ?? "" }),
+    secret: (row) => put({ op: "secret", name: row.name }),
+    show: (row, value) => put({ op: "change", name: row.name, value }),
     revert,
-    store.isPending,
-    store.data?.variables,
-  );
+  });
 
   if (!readable) {
     return (
@@ -340,30 +350,44 @@ function useCountsWords(rows: readonly EnvRow[]): string {
   return parts.join(" · ");
 }
 
-const MARK: Record<EnvEdit["op"], string> = { add: "+", use: "+", change: "~", share: "~", remove: "−" };
+const MARK: Record<EnvEdit["op"], string> = { add: "+", use: "+", change: "~", share: "~", secret: "~", remove: "−" };
 
 /** The runtime owns PORT; the app's environment can't override it. */
 function runtimePort(row: EnvRow): boolean {
   return row.now?.kind === "runtime" && row.name === "PORT";
 }
 
+/** What a row's actions do. */
+interface RowActions {
+  change: (row: EnvRow) => void;
+  remove: (row: EnvRow) => void;
+  share: (row: EnvRow) => void;
+  /** Makes one of the app's own a secret, with the value it has. */
+  secret: (row: EnvRow) => void;
+  /** Shows one of the app's own that was hidden, with the value a passkey revealed. */
+  show: (row: EnvRow, value: string) => void;
+  revert: (name: string) => void;
+}
+
 function useColumns(
   phone: boolean,
-  onChange: (row: EnvRow) => void,
-  onRemove: (row: EnvRow) => void,
-  onShare: (row: EnvRow) => void,
-  onRevert: (name: string) => void,
+  service: string,
   loading: boolean,
   store: readonly EnvironmentVariable[] | undefined,
+  on: RowActions,
 ): TableColumn<EnvRow & { id: string }>[] {
   const { t } = useLingui();
   const shareOff = useShareOff();
+  const secretOff = useSecretOff();
+  const value = (row: EnvRow) => (
+    <Value row={row} loading={loading} service={service} onShow={(v) => on.show(row, v)} />
+  );
   const key = (row: EnvRow) => {
     const op = row.pending?.op;
     const said =
       op === "add" || op === "use"
         ? t`added, not applied`
-        : op === "change" || op === "share"
+        : op === "change" || op === "share" || op === "secret"
           ? t`changed, not applied`
           : op === "remove"
             ? t`removed, not applied`
@@ -388,7 +412,7 @@ function useColumns(
           variant="ghost"
           icon="undo"
           aria-label={t`Revert ${name}`}
-          onClick={() => onRevert(row.name)}
+          onClick={() => on.revert(row.name)}
         />
       </span>
     ) : (
@@ -400,7 +424,7 @@ function useColumns(
             variant="ghost"
             icon="edit"
             aria-label={t`Change ${name}`}
-            onClick={() => onChange(row)}
+            onClick={() => on.change(row)}
           />
         )}
         {row.now?.kind === "own" && row.now.value !== undefined ? (
@@ -410,8 +434,19 @@ function useColumns(
             variant="ghost"
             icon="layers"
             aria-label={t`Make ${name} shared`}
-            onClick={() => onShare(row)}
+            onClick={() => on.share(row)}
             off={shareOff(cantShare(row, store), name) || undefined}
+          />
+        ) : row.now?.kind === "own" ? (
+          // One that's hidden may be a secret: it becomes one, with the value it has, unread.
+          <Button
+            className="app-env-act-share"
+            size="sm"
+            variant="ghost"
+            icon="lock"
+            aria-label={t`Make ${name} a secret`}
+            onClick={() => on.secret(row)}
+            off={secretOff(cantMakeSecret(row, store), name) || undefined}
           />
         ) : null}
         {row.now?.kind === "runtime" ? null : (
@@ -421,7 +456,7 @@ function useColumns(
             variant="ghost"
             icon="trash"
             aria-label={t`Remove ${name}`}
-            onClick={() => onRemove(row)}
+            onClick={() => on.remove(row)}
           />
         )}
       </span>
@@ -435,9 +470,7 @@ function useColumns(
         render: (row) => (
           <>
             {key(row)}
-            <span className="app-env-phone-value">
-              <Value row={row} loading={loading} />
-            </span>
+            <span className="app-env-phone-value">{value(row)}</span>
             <span className="app-env-source">
               <Source row={row} />
             </span>
@@ -449,7 +482,7 @@ function useColumns(
   }
   return [
     { key: "name", header: t`Key`, width: "28%", render: key },
-    { key: "value", header: t`Value`, render: (row) => <Value row={row} loading={loading} /> },
+    { key: "value", header: t`Value`, render: value },
     { key: "source", header: t`Source`, width: 200, muted: true, render: (row) => <Source row={row} /> },
     { key: "updated", header: t`Updated`, width: 160, render: (row) => <Updated row={row} /> },
     { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 112, align: "right", render: actions },
@@ -469,6 +502,19 @@ function useShareOff(): (why: ReturnType<typeof cantShare>, name: string) => str
           : "";
 }
 
+/** Why one of the app's own values can't be made a secret, in words, or "" when it can. */
+function useSecretOff(): (why: ReturnType<typeof cantMakeSecret>, name: string) => string {
+  const { t } = useLingui();
+  return (why, name) =>
+    why === "secret"
+      ? t`The environment has a secret ${name} already. Rename one to keep this as a secret.`
+      : why === "variable"
+        ? t`The environment has a variable ${name} already. Rename one to keep this as a secret.`
+        : why === "reading"
+          ? t`Waits until the environment's variables and secrets load.`
+          : "";
+}
+
 /** Dots for a value no one reads here. */
 function Masked({ label }: { label?: ReactNode }) {
   const { t } = useLingui();
@@ -482,7 +528,17 @@ function Masked({ label }: { label?: ReactNode }) {
   );
 }
 
-function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
+function Value({
+  row,
+  loading,
+  service,
+  onShow,
+}: {
+  row: EnvRow;
+  loading: boolean;
+  service: string;
+  onShow: (value: string) => void;
+}) {
   const { t } = useLingui();
   const edit = row.pending;
   const kind = edit?.op === "add" || edit?.op === "use" ? (edit.secret ? "secret" : "variable") : row.now?.kind;
@@ -492,6 +548,7 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
     return kind === "secret" ? <Masked /> : <code className="app-env-to">{edit.value}</code>;
   }
   if (edit?.op === "share") return <code className="app-env-value">{edit.value}</code>;
+  if (edit?.op === "secret") return <Masked />;
   if (edit?.op === "change") {
     if (kind === "secret" || edit.secret || edit.hidden) return <Masked label={t`New value`} />;
     const from = kind === "variable" ? row.stored?.value : (row.now?.value ?? row.runtimeValue);
@@ -510,7 +567,12 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
     );
   }
   if (kind === "own") {
-    return row.now?.value === undefined ? <Masked /> : <code className="app-env-value">{row.now.value}</code>;
+    // One that may be a secret reveals with a passkey, as a secret does, and can be said to be none.
+    return row.now?.value === undefined ? (
+      <OwnHiddenValue service={service} name={row.name} onShow={onShow} />
+    ) : (
+      <code className="app-env-value">{row.now.value}</code>
+    );
   }
   if (kind === "runtime") return <code className="app-env-value">{row.runtimeValue}</code>;
   if (row.stored) {
@@ -526,6 +588,7 @@ function Source({ row }: { row: EnvRow }) {
   const edit = row.pending;
   if (edit?.op === "add") return <>{edit.secret ? t`New secret` : t`Set on this app`}</>;
   if (edit?.op === "share") return <>{t`Shared variable`}</>;
+  if (edit?.op === "secret") return <>{t`New secret`}</>;
   if (edit?.op === "change" && edit.secret) return <>{t`New secret`}</>;
   if (edit?.op === "use") {
     const from = edit.from;

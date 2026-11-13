@@ -147,6 +147,8 @@ function TranslatedUIStrings({ children }: { children: ReactNode }) {
         hidden: t`hidden`,
         from: t`from`,
         to: t`to`,
+        copyWhole: (shown) => t`Copy ${shown} in full`,
+        copiedWhole: t`Copied in full`,
       },
       undo: t`Undo`,
       dnsRecord: {

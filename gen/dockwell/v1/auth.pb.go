@@ -239,6 +239,10 @@ const (
 	// Setting the least anyone may choose, with SettingsService.SetStepUpFloor.
 	// It has no target. It asks each time, whatever the choice.
 	StepUpAction_STEP_UP_ACTION_SET_STEP_UP_FLOOR StepUpAction = 241
+	// Reveals one of a service's own environment variables that reads hidden.
+	// Its target is the service's ID and the name, as "svc_…:NAME". Numbered
+	// apart, as open work adds to this enum.
+	StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE StepUpAction = 60
 )
 
 // Enum value maps for StepUpAction.
@@ -268,6 +272,7 @@ var (
 		231: "STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN",
 		240: "STEP_UP_ACTION_SET_STEP_UP_POLICY",
 		241: "STEP_UP_ACTION_SET_STEP_UP_FLOOR",
+		60:  "STEP_UP_ACTION_REVEAL_SERVICE_VALUE",
 	}
 	StepUpAction_value = map[string]int32{
 		"STEP_UP_ACTION_UNSPECIFIED":               0,
@@ -294,6 +299,7 @@ var (
 		"STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN":   231,
 		"STEP_UP_ACTION_SET_STEP_UP_POLICY":        240,
 		"STEP_UP_ACTION_SET_STEP_UP_FLOOR":         241,
+		"STEP_UP_ACTION_REVEAL_SERVICE_VALUE":      60,
 	}
 )
 
@@ -4220,7 +4226,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"!SIGN_IN_METHOD_AUTHENTICATOR_CODE\x10\x03\x12 \n" +
 	"\x1cSIGN_IN_METHOD_RECOVERY_CODE\x10\x04\x12\x17\n" +
 	"\x13SIGN_IN_METHOD_LINK\x10\x05\x12\x19\n" +
-	"\x15SIGN_IN_METHOD_INVITE\x10\x06*\xed\x06\n" +
+	"\x15SIGN_IN_METHOD_INVITE\x10\x06*\x96\a\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -4246,7 +4252,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fSTEP_UP_ACTION_SET_PANEL_DOMAIN\x10\xe6\x01\x12+\n" +
 	"&STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN\x10\xe7\x01\x12&\n" +
 	"!STEP_UP_ACTION_SET_STEP_UP_POLICY\x10\xf0\x01\x12%\n" +
-	" STEP_UP_ACTION_SET_STEP_UP_FLOOR\x10\xf1\x01*\x86\x01\n" +
+	" STEP_UP_ACTION_SET_STEP_UP_FLOOR\x10\xf1\x01\x12'\n" +
+	"#STEP_UP_ACTION_REVEAL_SERVICE_VALUE\x10<*\x86\x01\n" +
 	"\fStepUpPolicy\x12\x1e\n" +
 	"\x1aSTEP_UP_POLICY_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18STEP_UP_POLICY_EACH_TIME\x10\x01\x12\x19\n" +

@@ -64,6 +64,12 @@ func (c *Client) Changes() dockwellv1connect.ChangeServiceClient {
 	return dockwellv1connect.NewChangeServiceClient(c.HTTP, c.URL, c.options()...)
 }
 
+// Services returns a client of ServiceService, to read a service an update keeps
+// values of.
+func (c *Client) Services() dockwellv1connect.ServiceServiceClient {
+	return dockwellv1connect.NewServiceServiceClient(c.HTTP, c.URL, c.options()...)
+}
+
 // PanelURL is a page of the panel the control plane serves, as a browser
 // reaches it: on loopback, at localhost, where passkeys work.
 func (c *Client) PanelURL(path string) string {

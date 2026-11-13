@@ -17,6 +17,8 @@ import {
 import {
   Button,
   cx,
+  DigestValue,
+  hasDigest,
   Icon,
   type IconName,
   Panel,
@@ -591,7 +593,10 @@ function isHidden(value: PlanValue | undefined): boolean {
 
 /** A value as a plan reads it: a machine value on its own, or words with machine values among them. */
 function DiffValue({ value }: { value: PlanValue | undefined }) {
-  return isValidElement(value) ? value : <code>{value as ReactNode}</code>;
+  if (isValidElement(value)) return value;
+  // An image pinned by its digest reads by the digest's first digits, whole on hover and to copy.
+  if (typeof value === "string" && hasDigest(value)) return <DigestValue value={value} />;
+  return <code>{value as ReactNode}</code>;
 }
 
 /** Two images Dockwell built of one commit, as a deploy that builds the same commit again makes. */

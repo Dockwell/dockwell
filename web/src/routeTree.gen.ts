@@ -19,7 +19,6 @@ import { Route as ShellIndexRouteImport } from './routes/_shell/index'
 import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellSettingsRouteImport } from './routes/_shell/_settings'
 import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
-import { Route as ShellBackupsRouteImport } from './routes/_shell/backups'
 import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellScheduledTasksRouteImport } from './routes/_shell/scheduled-tasks'
@@ -34,6 +33,8 @@ import { Route as ShellAlertsRulesRouteImport } from './routes/_shell/alerts.rul
 import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
 import { Route as ShellAppsServiceIdRouteImport } from './routes/_shell/apps.$serviceId'
 import { Route as ShellAppsNewRouteImport } from './routes/_shell/apps.new'
+import { Route as ShellBackupsIndexRouteImport } from './routes/_shell/backups.index'
+import { Route as ShellBackupsBackupIdRouteImport } from './routes/_shell/backups.$backupId'
 import { Route as ShellCatalogIndexRouteImport } from './routes/_shell/catalog.index'
 import { Route as ShellCatalogEntryIdRouteImport } from './routes/_shell/catalog.$entryId'
 import { Route as ShellCatalogSourcesRouteImport } from './routes/_shell/catalog.sources'
@@ -43,6 +44,7 @@ import { Route as ShellDatabasesServiceIdRouteImport } from './routes/_shell/dat
 import { Route as ShellProjectsIndexRouteImport } from './routes/_shell/projects.index'
 import { Route as ShellProjectsProjectIdRouteImport } from './routes/_shell/projects.$projectId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
+import { Route as ShellVolumesVolumeIdRouteImport } from './routes/_shell/volumes.$volumeId'
 import { Route as ShellWebsitesIndexRouteImport } from './routes/_shell/websites.index'
 import { Route as ShellWebsitesWebsiteIdRouteImport } from './routes/_shell/websites.$websiteId'
 import { Route as ShellWebsitesNewRouteImport } from './routes/_shell/websites.new'
@@ -127,11 +129,6 @@ const ShellActivityRoute = ShellActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => ShellRoute,
 } as any)
-const ShellBackupsRoute = ShellBackupsRouteImport.update({
-  id: '/backups',
-  path: '/backups',
-  getParentRoute: () => ShellRoute,
-} as any)
 const ShellDomainsRoute = ShellDomainsRouteImport.update({
   id: '/domains',
   path: '/domains',
@@ -202,6 +199,16 @@ const ShellAppsNewRoute = ShellAppsNewRouteImport.update({
   path: '/apps/new',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellBackupsIndexRoute = ShellBackupsIndexRouteImport.update({
+  id: '/backups/',
+  path: '/backups/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellBackupsBackupIdRoute = ShellBackupsBackupIdRouteImport.update({
+  id: '/backups/$backupId',
+  path: '/backups/$backupId',
+  getParentRoute: () => ShellRoute,
+} as any)
 const ShellCatalogIndexRoute = ShellCatalogIndexRouteImport.update({
   id: '/catalog/',
   path: '/catalog/',
@@ -245,6 +252,11 @@ const ShellProjectsProjectIdRoute = ShellProjectsProjectIdRouteImport.update({
 const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   id: '/servers/',
   path: '/servers/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellVolumesVolumeIdRoute = ShellVolumesVolumeIdRouteImport.update({
+  id: '/volumes/$volumeId',
+  path: '/volumes/$volumeId',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellWebsitesIndexRoute = ShellWebsitesIndexRouteImport.update({
@@ -461,7 +473,6 @@ export interface FileRoutesByFullPath {
   '/status': typeof StatusRoute
   '/$section': typeof ShellSectionRoute
   '/activity': typeof ShellActivityRoute
-  '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
@@ -474,15 +485,18 @@ export interface FileRoutesByFullPath {
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/apps/new': typeof ShellAppsNewRoute
+  '/backups/$backupId': typeof ShellBackupsBackupIdRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/catalog/sources': typeof ShellCatalogSourcesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
+  '/volumes/$volumeId': typeof ShellVolumesVolumeIdRoute
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts/': typeof ShellAlertsIndexRoute
   '/apps/': typeof ShellAppsIndexRoute
+  '/backups/': typeof ShellBackupsIndexRoute
   '/catalog/': typeof ShellCatalogIndexRoute
   '/databases/': typeof ShellDatabasesIndexRoute
   '/projects/': typeof ShellProjectsIndexRoute
@@ -530,7 +544,6 @@ export interface FileRoutesByTo {
   '/$section': typeof ShellSectionRoute
   '/': typeof ShellIndexRoute
   '/activity': typeof ShellActivityRoute
-  '/backups': typeof ShellBackupsRoute
   '/domains': typeof ShellDomainsRoute
   '/more': typeof ShellMoreRoute
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
@@ -542,13 +555,16 @@ export interface FileRoutesByTo {
   '/alerts/checks': typeof ShellAlertsChecksRoute
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/new': typeof ShellAppsNewRoute
+  '/backups/$backupId': typeof ShellBackupsBackupIdRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/catalog/sources': typeof ShellCatalogSourcesRoute
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
+  '/volumes/$volumeId': typeof ShellVolumesVolumeIdRoute
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts': typeof ShellAlertsIndexRoute
   '/apps': typeof ShellAppsIndexRoute
+  '/backups': typeof ShellBackupsIndexRoute
   '/catalog': typeof ShellCatalogIndexRoute
   '/databases': typeof ShellDatabasesIndexRoute
   '/projects': typeof ShellProjectsIndexRoute
@@ -598,7 +614,6 @@ export interface FileRoutesById {
   '/_shell/$section': typeof ShellSectionRoute
   '/_shell/_settings': typeof ShellSettingsRouteWithChildren
   '/_shell/activity': typeof ShellActivityRoute
-  '/_shell/backups': typeof ShellBackupsRoute
   '/_shell/domains': typeof ShellDomainsRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/scheduled-tasks': typeof ShellScheduledTasksRoute
@@ -612,15 +627,18 @@ export interface FileRoutesById {
   '/_shell/alerts/rules': typeof ShellAlertsRulesRoute
   '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/_shell/apps/new': typeof ShellAppsNewRoute
+  '/_shell/backups/$backupId': typeof ShellBackupsBackupIdRoute
   '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/_shell/catalog/sources': typeof ShellCatalogSourcesRoute
   '/_shell/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/_shell/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/_shell/projects/$projectId': typeof ShellProjectsProjectIdRoute
+  '/_shell/volumes/$volumeId': typeof ShellVolumesVolumeIdRoute
   '/_shell/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
   '/_shell/websites/new': typeof ShellWebsitesNewRoute
   '/_shell/alerts/': typeof ShellAlertsIndexRoute
   '/_shell/apps/': typeof ShellAppsIndexRoute
+  '/_shell/backups/': typeof ShellBackupsIndexRoute
   '/_shell/catalog/': typeof ShellCatalogIndexRoute
   '/_shell/databases/': typeof ShellDatabasesIndexRoute
   '/_shell/projects/': typeof ShellProjectsIndexRoute
@@ -670,7 +688,6 @@ export interface FileRouteTypes {
     | '/status'
     | '/$section'
     | '/activity'
-    | '/backups'
     | '/domains'
     | '/more'
     | '/scheduled-tasks'
@@ -683,15 +700,18 @@ export interface FileRouteTypes {
     | '/alerts/rules'
     | '/apps/$serviceId'
     | '/apps/new'
+    | '/backups/$backupId'
     | '/catalog/$entryId'
     | '/catalog/sources'
     | '/changes/$changeId'
     | '/databases/$serviceId'
     | '/projects/$projectId'
+    | '/volumes/$volumeId'
     | '/websites/$websiteId'
     | '/websites/new'
     | '/alerts/'
     | '/apps/'
+    | '/backups/'
     | '/catalog/'
     | '/databases/'
     | '/projects/'
@@ -739,7 +759,6 @@ export interface FileRouteTypes {
     | '/$section'
     | '/'
     | '/activity'
-    | '/backups'
     | '/domains'
     | '/more'
     | '/scheduled-tasks'
@@ -751,13 +770,16 @@ export interface FileRouteTypes {
     | '/alerts/checks'
     | '/alerts/rules'
     | '/apps/new'
+    | '/backups/$backupId'
     | '/catalog/$entryId'
     | '/catalog/sources'
     | '/changes/$changeId'
     | '/projects/$projectId'
+    | '/volumes/$volumeId'
     | '/websites/new'
     | '/alerts'
     | '/apps'
+    | '/backups'
     | '/catalog'
     | '/databases'
     | '/projects'
@@ -806,7 +828,6 @@ export interface FileRouteTypes {
     | '/_shell/$section'
     | '/_shell/_settings'
     | '/_shell/activity'
-    | '/_shell/backups'
     | '/_shell/domains'
     | '/_shell/more'
     | '/_shell/scheduled-tasks'
@@ -820,15 +841,18 @@ export interface FileRouteTypes {
     | '/_shell/alerts/rules'
     | '/_shell/apps/$serviceId'
     | '/_shell/apps/new'
+    | '/_shell/backups/$backupId'
     | '/_shell/catalog/$entryId'
     | '/_shell/catalog/sources'
     | '/_shell/changes/$changeId'
     | '/_shell/databases/$serviceId'
     | '/_shell/projects/$projectId'
+    | '/_shell/volumes/$volumeId'
     | '/_shell/websites/$websiteId'
     | '/_shell/websites/new'
     | '/_shell/alerts/'
     | '/_shell/apps/'
+    | '/_shell/backups/'
     | '/_shell/catalog/'
     | '/_shell/databases/'
     | '/_shell/projects/'
@@ -949,13 +973,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellActivityRouteImport
       parentRoute: typeof ShellRoute
     }
-    '/_shell/backups': {
-      id: '/_shell/backups'
-      path: '/backups'
-      fullPath: '/backups'
-      preLoaderRoute: typeof ShellBackupsRouteImport
-      parentRoute: typeof ShellRoute
-    }
     '/_shell/domains': {
       id: '/_shell/domains'
       path: '/domains'
@@ -1054,6 +1071,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellAppsNewRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/backups/': {
+      id: '/_shell/backups/'
+      path: '/backups'
+      fullPath: '/backups/'
+      preLoaderRoute: typeof ShellBackupsIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/backups/$backupId': {
+      id: '/_shell/backups/$backupId'
+      path: '/backups/$backupId'
+      fullPath: '/backups/$backupId'
+      preLoaderRoute: typeof ShellBackupsBackupIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/catalog/': {
       id: '/_shell/catalog/'
       path: '/catalog'
@@ -1115,6 +1146,13 @@ declare module '@tanstack/react-router' {
       path: '/servers'
       fullPath: '/servers/'
       preLoaderRoute: typeof ShellServersIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/volumes/$volumeId': {
+      id: '/_shell/volumes/$volumeId'
+      path: '/volumes/$volumeId'
+      fullPath: '/volumes/$volumeId'
+      preLoaderRoute: typeof ShellVolumesVolumeIdRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/websites/': {
@@ -1471,7 +1509,6 @@ interface ShellRouteChildren {
   ShellSectionRoute: typeof ShellSectionRoute
   ShellSettingsRoute: typeof ShellSettingsRouteWithChildren
   ShellActivityRoute: typeof ShellActivityRoute
-  ShellBackupsRoute: typeof ShellBackupsRoute
   ShellDomainsRoute: typeof ShellDomainsRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellScheduledTasksRoute: typeof ShellScheduledTasksRoute
@@ -1484,15 +1521,18 @@ interface ShellRouteChildren {
   ShellAlertsRulesRoute: typeof ShellAlertsRulesRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
   ShellAppsNewRoute: typeof ShellAppsNewRoute
+  ShellBackupsBackupIdRoute: typeof ShellBackupsBackupIdRoute
   ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRouteWithChildren
   ShellCatalogSourcesRoute: typeof ShellCatalogSourcesRoute
   ShellChangesChangeIdRoute: typeof ShellChangesChangeIdRoute
   ShellDatabasesServiceIdRoute: typeof ShellDatabasesServiceIdRouteWithChildren
   ShellProjectsProjectIdRoute: typeof ShellProjectsProjectIdRoute
+  ShellVolumesVolumeIdRoute: typeof ShellVolumesVolumeIdRoute
   ShellWebsitesWebsiteIdRoute: typeof ShellWebsitesWebsiteIdRouteWithChildren
   ShellWebsitesNewRoute: typeof ShellWebsitesNewRoute
   ShellAlertsIndexRoute: typeof ShellAlertsIndexRoute
   ShellAppsIndexRoute: typeof ShellAppsIndexRoute
+  ShellBackupsIndexRoute: typeof ShellBackupsIndexRoute
   ShellCatalogIndexRoute: typeof ShellCatalogIndexRoute
   ShellDatabasesIndexRoute: typeof ShellDatabasesIndexRoute
   ShellProjectsIndexRoute: typeof ShellProjectsIndexRoute
@@ -1514,7 +1554,6 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellSectionRoute: ShellSectionRoute,
   ShellSettingsRoute: ShellSettingsRouteWithChildren,
   ShellActivityRoute: ShellActivityRoute,
-  ShellBackupsRoute: ShellBackupsRoute,
   ShellDomainsRoute: ShellDomainsRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellScheduledTasksRoute: ShellScheduledTasksRoute,
@@ -1527,15 +1566,18 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAlertsRulesRoute: ShellAlertsRulesRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
   ShellAppsNewRoute: ShellAppsNewRoute,
+  ShellBackupsBackupIdRoute: ShellBackupsBackupIdRoute,
   ShellCatalogEntryIdRoute: ShellCatalogEntryIdRouteWithChildren,
   ShellCatalogSourcesRoute: ShellCatalogSourcesRoute,
   ShellChangesChangeIdRoute: ShellChangesChangeIdRoute,
   ShellDatabasesServiceIdRoute: ShellDatabasesServiceIdRouteWithChildren,
   ShellProjectsProjectIdRoute: ShellProjectsProjectIdRoute,
+  ShellVolumesVolumeIdRoute: ShellVolumesVolumeIdRoute,
   ShellWebsitesWebsiteIdRoute: ShellWebsitesWebsiteIdRouteWithChildren,
   ShellWebsitesNewRoute: ShellWebsitesNewRoute,
   ShellAlertsIndexRoute: ShellAlertsIndexRoute,
   ShellAppsIndexRoute: ShellAppsIndexRoute,
+  ShellBackupsIndexRoute: ShellBackupsIndexRoute,
   ShellCatalogIndexRoute: ShellCatalogIndexRoute,
   ShellDatabasesIndexRoute: ShellDatabasesIndexRoute,
   ShellProjectsIndexRoute: ShellProjectsIndexRoute,

@@ -81,6 +81,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/terminals"
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
+	"github.com/dockwell/dockwell/internal/control/volumes"
 	"github.com/dockwell/dockwell/internal/control/websites"
 	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/https"
@@ -449,6 +450,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
+		if cfg.Secrets != nil {
+			handle(dockwellv1connect.NewVolumeServiceHandler(volumes.New(cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
+		}
 		if cfg.Secrets != nil && cfg.Auth != nil {
 			handle(dockwellv1connect.NewVariableServiceHandler(
 				variables.New(cfg.Changes.Kinds(), cfg.Store, cfg.Secrets, cfg.Auth, cfg.Logger), opts...))

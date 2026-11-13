@@ -255,6 +255,11 @@ type Edit struct {
 	// KeepEnv names a service's own environment variables to keep as they are,
 	// for a client that can't read their values back (resource.EnvKeeper).
 	KeepEnv []string
+	// EnvToSecrets names a service's own environment variables to make secrets of
+	// its environment, by the same name, with the values it has now, which it then
+	// uses in their place (resource.ValueMover, ADR 0081). The change makes each
+	// secret, so nobody reads a value to move it.
+	EnvToSecrets []string
 	// WithContents, with a deletion of a project or an environment, deletes
 	// everything that lives in it too, in the same change (ADR 0074), so its
 	// plan lists each item, each is checked as any edit is, and undoing the
@@ -735,6 +740,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if len(p.Edits) == 0 {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
 	}
+	edits, err := e.withMovedValues(ctx, p.Edits)
+	if err != nil {
+		return nil, err
+	}
+	p.Edits = edits
 	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.reachFirst(ctx, tx, p.Actor, p.Edits) }); err != nil {
 		return nil, err
 	}

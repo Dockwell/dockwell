@@ -95,6 +95,7 @@
   "service.update_snooze",
   "service.update_unskip",
   "service.update_unsnooze",
+  "service.value_reveal",
   "session.revoke",
   "settings.auto_update",
   "settings.name",

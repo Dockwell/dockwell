@@ -38,6 +38,13 @@ So the dots aren't a bug in the panel: no response carries the values. And for a
 - **It waits for the servers.** It runs a minute after the control plane starts. An app on a server that isn't connected waits, as a change can't apply there; a setting records which, and it looks each minute for that server to be back, planning nothing until it is. Once nothing waits, the setting records that it ran, so it never runs again.
 - **It's a change like any other:** proposed and applied by Dockwell, on Activity, with a note naming each app and value it shows, and undoable. Should its plan do anything on a server, as one that drifted would, or fail, it's discarded and each app goes on its own: those that plan nothing apply, and the rest stay hidden, remembered in the setting so they're never proposed again.
 
+### A hidden value revealed, shown, or made a secret, without typing it again
+
+- **Revealing one takes a passkey.** `RevealServiceValue` returns one of a service's own values that reads hidden, as `RevealSecret` does a secret's: a signed-in session, a step-up for that value alone (`STEP_UP_ACTION_REVEAL_SERVICE_VALUE`, its target `svc_…:NAME`), never an API token, a developer's and an admin's in a protected environment, and each reveal on record as `service.value_reveal`, with the value's name and never the value.
+- **Seen, it can be said to be no secret.** The panel then gives the value it revealed back in an edit that shows it, which the rule above asks for: showing takes giving. No path shows a hidden value nobody saw.
+- **Made a secret, the control plane moves it.** An edit's `env_to_secrets` names own values to make secrets of the environment, by the same name: the engine reads each value from the service's sealed spec, adds an edit that makes the secret with it, and has the service use it in place of its own (`resource.ValueMover`, `resource.ValueMaker`), in one change, so the value goes from one sealed spec to another and nobody types or reads it. The environment can't have a variable or secret of the name already, nor the change make one; the edit needs its base revision, as `keep_env` does. From then on a passkey reveals it, as any secret.
+- **`dockwell services update` keeps what it doesn't set.** It reads the service first, keeps each of its own values the update doesn't set, a hidden one by `keep_env` and a shown one by its value, still shown, and plans from the revision it read; `--remove-env` takes one out. So the CLI can no longer empty a value nobody can set back.
+
 ### One place for what an app runs with
 
 - **Variables and secrets lists each app's own values beside the shared ones,** from the same reads as the app's Environment tab, so the two agree on every row: Source says shared or set on the app, Used by names each app as a link, and a filter shows what one app runs with. An app's tab links there, filtered to it.
@@ -50,11 +57,12 @@ So the dots aren't a bug in the panel: no response carries the values. And for a
 - **Moving plain values into the environment's variables.** Two apps that set `DB_HOST` differently would collide, the environment would fill with one app's settings, and moving existing installs would change every container's `dockwell.uses` label, so each would restart.
 - **Deciding at each read from the pin.** It would read the entry's file again on every list, and keep the answer in two places: the pin, and whatever an edit later said.
 - **Guessing for a person's own file.** By name and shape alone, a password called `FOO` shows. Only a source that says it holds no secret, a catalog entry, gets the guess, and even then only to hide more.
-- **A reveal for a hidden own value.** A value that may be a secret becomes one in a step, by giving it again with Secret on; there it's sealed, revealed with a passkey and rotated like any other. A second way to reveal would be a second secret store.
+- **Showing a hidden value with a flag and a passkey, unseen.** A step-up proves who asked, not that anyone looked; the value would reach every reader while nobody had read it. Revealing it first, then giving it back, keeps "showing takes giving".
+- **Moving a hidden value by having the client send it.** The client would hold a value it never needed to see, and the plan would carry it.
 
 ## Consequences
 
 - A catalog install's database host, name and user read as themselves on the app's tab, on Variables and secrets, in its plans and in an export.
 - What a token that can read an app sees grows by those values. They were in the entry's public file, or typed into an input the entry says isn't secret.
 - A plan names the values it changes where both sides show them, as it does for a variable.
-- `dockwell services update` sets the whole spec, as before: a value that reads back hidden reaches it empty, and one that shows round-trips.
+- `dockwell services update` keeps an app's own values it doesn't set; `--remove-env` is how to take one out.

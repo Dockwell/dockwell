@@ -133,3 +133,6 @@ func (SecretType) CheckName(name string) error { return CheckName("secret", name
 
 // Value returns the secret's value.
 func (SecretType) Value(spec proto.Message) string { return spec.(*resourcev1.Secret).GetValue() }
+
+// MakeValue is a secret holding value (resource.ValueMaker).
+func (SecretType) MakeValue(value string) proto.Message { return &resourcev1.Secret{Value: value} }

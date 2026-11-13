@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// VolumeService reads a volume of an environment as its own page shows it: where
+// it is, what it holds on each server, and which apps mount it. Making, deleting
+// and backing up a volume are ChangeService's and BackupService's, as for any
+// resource; this only reads. A volume's options, which may hold a share's
+// password, are never in a response.
+service VolumeService {
+  option (dockwell.v1.nouns) = {
+    name: "volumes"
+    help: "A volume is a Docker volume of an environment that its apps mount by name, where they keep their data. Deleting one destroys its data, though its server keeps it for 7 days first."
+  };
+
+  // GetVolume returns one volume: its servers, what it holds on each, as its
+  // server's agent adds it up when this is called, and the apps that mount it.
+  // A server that isn't connected says why it can't say, and the rest answers.
+  rpc GetVolume(GetVolumeRequest) returns (GetVolumeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (google.api.http) = {get: "/v1/volumes/{id}"};
+  }
+}
+
+// GetVolumeRequest names a volume.
+message GetVolumeRequest {
+  // The volume's ID, such as "vol_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+}
+
+// GetVolumeResponse is one volume.
+message GetVolumeResponse {
+  // The volume.
+  VolumeInfo volume = 1;
+}
+
+// VolumeInfo is a volume as its page shows it.
+message VolumeInfo {
+  // Its ID.
+  string id = 1;
+  // Its kind, environment and name.
+  ResourceRef resource = 2;
+  // Its latest revision.
+  int64 revision = 3;
+  // When its latest revision was applied.
+  google.protobuf.Timestamp update_time = 4;
+  // The change that made its latest revision.
+  string change_id = 5;
+  // Its driver: "local" unless set.
+  string driver = 6;
+  // Whether it has driver options, as a share mounted over the network does.
+  // What they are is never said, as they may hold a password.
+  bool has_options = 7;
+  // Each server it's on, with what it holds there.
+  repeated VolumeOnServer servers = 8;
+  // The apps that mount it.
+  repeated VolumeMount mounted_by = 9;
+}
+
+// VolumeOnServer is a volume on one server.
+message VolumeOnServer {
+  // The server's ID and name.
+  string server_id = 1;
+  string server_name = 2;
+  // What it holds there, in bytes, as Docker adds it up. Unset with unread.
+  int64 size_bytes = 3;
+  // Where its files are on the server, such as
+  // "/var/lib/docker/volumes/default-production_data/_data", for the server's
+  // files page. Empty with unread.
+  string path = 4;
+  // How many containers use it there.
+  uint32 containers = 5;
+  // Why what it holds there can't be said now, such as its server not being
+  // connected, or its driver keeping it elsewhere. Empty when it was read.
+  string unread = 6;
+}
+
+// VolumeMount is an app that mounts a volume.
+message VolumeMount {
+  // The app's ID and name.
+  string service_id = 1;
+  string service = 2;
+  // Where in the app's container it's mounted, such as "/var/lib/mysql".
+  string target = 3;
+  // Whether the app only reads it.
+  bool read_only = 4;
+}

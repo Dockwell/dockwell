@@ -31,6 +31,8 @@ const ITEM = /^(ports|mounts|tmpfs)\[(\d+)\]\.(.+)$/;
 const KEYED = /^(env|labels|options)\[(.+)\]$/;
 /** The revision a service pins a variable or secret it uses to, which Dockwell sets. */
 const PIN = /^revisions\[(.+)\]$/;
+/** A shared variable or secret a service uses, by the name it has in the app: "secrets[DB_PASSWORD]" is MARIADB_PASSWORD. */
+const USES = /^(variables|secrets)\[(.+)\]$/;
 
 /**
  * Reads a plan's fields as what they mean, for every kind: one port takes one
@@ -80,6 +82,8 @@ export function useFieldRows(): FieldRows {
       "build.target": t`build stage`,
       database_name: t`database`,
       password: t`password in`,
+      // Which of its own values an app shows, which Dockwell keeps beside them (ADR 0081).
+      shown_env: t`shows the values of`,
     };
     // What a person reads a value as, where the value itself is long: a commit in 7 digits, a branch by its own name, and an image Dockwell built as its commit.
     const readers: Readonly<Record<string, (value: string) => string>> = {
@@ -220,6 +224,27 @@ export function useFieldRows(): FieldRows {
       return row;
     };
 
+    /**
+     * A shared value an app uses: "uses secret", then its name, and the name the app
+     * has it by where that differs, so a long name is a value that wraps rather than
+     * a field that crowds out every value beside it.
+     */
+    const uses = (path: string, group: string, key: string, change: FieldChange): PlanChange => {
+      const label = group === "secrets" ? t`uses secret` : t`uses variable`;
+      const read = (name: string): PlanValue =>
+        name === key ? (
+          name
+        ) : (
+          <Trans>
+            <code>{name}</code> as <code>{key}</code>
+          </Trans>
+        );
+      const row: PlanChange = { path, label };
+      if (change.op !== FieldOp.ADDED) row.from = read(change.from);
+      if (change.op !== FieldOp.REMOVED) row.to = read(change.to);
+      return row;
+    };
+
     /** A route as a whole, on one row: where it is, and where it goes. */
     const routeRow = (fields: ReadonlyMap<string, FieldChange>): PlanChange | undefined =>
       whole("route", [...fields.values()], t`route`, (at) => {
@@ -331,9 +356,12 @@ export function useFieldRows(): FieldRows {
           continue;
         }
         const entry = KEYED.exec(path);
+        const used = USES.exec(path);
         const row = entry
           ? keyed(path, entry[1] ?? "", entry[2] ?? "", change)
-          : plain(path, change, labels[path] ?? humanize(path), readers[path] ?? yesNo);
+          : used
+            ? uses(path, used[1] ?? "", used[2] ?? "", change)
+            : plain(path, change, labels[path] ?? humanize(path), readers[path] ?? yesNo);
         const tone = change.op === FieldOp.REMOVED ? undefined : reaching(path, hostAccess);
         rows.push(tone ? { ...row, tone } : row);
       }

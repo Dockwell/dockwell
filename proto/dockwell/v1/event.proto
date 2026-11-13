@@ -430,6 +430,10 @@ message EventSubject {
   bool for_good = 102;
   // How many bytes, for a file uploaded or downloaded.
   uint64 size_bytes = 103;
+  // For service.value_reveal, which of the service's own environment variables
+  // was revealed, by name; never its value. Numbered apart, as open work adds to
+  // this message.
+  string value_name = 60;
 }
 
 // EventKind sorts events, for filtering.

@@ -382,6 +382,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN:   auth.StepUpSignInOnPanelDomain,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_POLICY:        auth.StepUpSetPolicy,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_FLOOR:         auth.StepUpSetFloor,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE:      auth.StepUpRevealServiceValue,
 }
 
 // GetStepUpPolicy says how often you're asked for your passkey again.

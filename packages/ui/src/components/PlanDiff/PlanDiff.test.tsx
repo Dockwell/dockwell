@@ -2,7 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { englishStrings, UIStringsProvider } from "../../lib/strings";
 import { expectAccessible } from "../../test/a11y";
@@ -157,6 +157,46 @@ describe("PlanDiff", () => {
     expect(screen.getByText("variable").nextElementSibling?.querySelector(".dw-diff-secret")).toHaveTextContent(
       "hidden",
     );
+  });
+
+  it("cuts a digest short, whole on hover and to copy, and keeps each field beside its own value", async () => {
+    const user = userEvent.setup();
+    const pinned = `wordpress:7.1.3-apache@sha256:${"8901759bfbb7".padEnd(64, "e")}`;
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+    const { container } = render(
+      <PlanDiff
+        resources={[
+          {
+            id: "wp",
+            action: "create",
+            kind: "app",
+            name: "wordpress",
+            changes: [
+              { path: "image", label: "image", to: pinned },
+              { path: "ports[0]", label: "port", to: "127.0.0.1:8085 → 80, TCP" },
+            ],
+          },
+        ]}
+      />,
+    );
+    const shown = screen.getByTitle(pinned);
+    expect(shown).toHaveClass("dw-diff-to");
+    expect(shown).toHaveTextContent(/^wordpress:7\.1\.3-apache@sha256:8901759bfbb7$/);
+    // The digest never breaks inside: it's one piece, which takes the next line whole.
+    expect(shown.querySelector(".dw-digest-hash")).toHaveTextContent(/^@sha256:8901759bfbb7$/);
+    expect(container.textContent).not.toContain(pinned);
+    await user.click(screen.getByRole("button", { name: "Copy wordpress:7.1.3-apache@sha256:8901759bfbb7 in full" }));
+    expect(writeText).toHaveBeenCalledWith(pinned);
+    // A field and its value are one pair, as a screen reader reads them, whatever the layout does with them.
+    for (const pair of container.querySelectorAll(".dw-plan-change")) {
+      expect(pair.children).toHaveLength(2);
+      expect(pair.children[0]?.tagName).toBe("DT");
+      expect(pair.children[1]?.tagName).toBe("DD");
+    }
+    expect(screen.getByText("127.0.0.1:8085 → 80, TCP")).not.toHaveAttribute("title");
+    vi.unstubAllGlobals();
+    await expectAccessible(container);
   });
 
   it("marks what puts a server at risk as critical, never as a green addition", async () => {

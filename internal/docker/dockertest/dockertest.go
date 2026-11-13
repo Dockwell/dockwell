@@ -530,7 +530,7 @@ func (e *Engine) diskUsage() docker.DiskUsage {
 		out.Containers = append(out.Containers, docker.DiskUsageContainer{ID: c.ID, SizeRw: e.ContainerSizes[strings.TrimPrefix(c.Name, "/")]})
 	}
 	for name := range e.volumes {
-		v := docker.DiskUsageVolume{Name: name, UsageData: &docker.VolumeUsage{Size: e.VolumeSizes[name]}}
+		v := docker.DiskUsageVolume{Name: name, Mountpoint: "/var/lib/docker/volumes/" + name + "/_data", UsageData: &docker.VolumeUsage{Size: e.VolumeSizes[name]}}
 		for _, c := range e.containers {
 			if slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == name }) {
 				v.UsageData.RefCount++
