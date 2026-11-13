@@ -39,6 +39,18 @@ func TestShownEnvIsTidied(t *testing.T) {
 	}
 }
 
+// A value shaped like a secret never shows, whoever names it: a client sending
+// shown_env back as it read it, with a new value, can't show a password that way.
+func TestShownEnvNeverShowsASecretsShape(t *testing.T) {
+	svc := shownApp(map[string]string{"REDIS_URL": "redis://:pw@redis:6379", "MODE": "production"}, "REDIS_URL", "MODE")
+	if err := (&Driver{}).Validate(svc); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"MODE"}; !slices.Equal(svc.GetShownEnv(), want) {
+		t.Errorf("shown_env = %v, want %v", svc.GetShownEnv(), want)
+	}
+}
+
 // Servers never see which values are shown, so a change of it alone restarts
 // nothing, and drift never reads it as missing.
 func TestShownEnvStaysOnTheControlPlane(t *testing.T) {

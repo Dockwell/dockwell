@@ -18,8 +18,9 @@ import { runtimeEnv } from "./runtime";
  *   the app's environment and has the app use it;
  * - use has the app use one its environment has already;
  * - change gives a value the app has a new one: its environment's, for every app
- *   that uses it, or the app's own, which stays the app's, shown, or becomes a
- *   secret of its environment the app uses, as secret says;
+ *   that uses it, or the app's own, which stays the app's, shown, or hidden where
+ *   hidden says, or becomes a secret of its environment the app uses, as secret
+ *   says;
  * - share makes one of the app's own, shown, a variable of its environment the
  *   app uses, which other apps can use too;
  * - remove takes one out of the app. One of its environment's stays there.
@@ -27,7 +28,7 @@ import { runtimeEnv } from "./runtime";
 export type EnvEdit =
   | { op: "add"; name: string; value: string; secret: boolean }
   | { op: "use"; name: string; from: string; secret: boolean }
-  | { op: "change"; name: string; value: string; secret?: boolean }
+  | { op: "change"; name: string; value: string; secret?: boolean; hidden?: boolean }
   | { op: "share"; name: string; value: string }
   | { op: "remove"; name: string };
 
@@ -84,15 +85,17 @@ export function envCounts(pending: ReadonlyMap<string, EnvEdit>): { added: numbe
 
 /**
  * Why one of the app's own values can't be made a variable of its environment
- * as it is, or undefined when it can: one of that name there already holds
- * something else, or is a secret.
+ * as it is, or undefined when it can: its value is hidden, what the environment
+ * has isn't read yet, so a variable of that name might be there, or one of that
+ * name there already holds something else, or is a secret.
  */
 export function cantShare(
   row: EnvRow,
   store: readonly EnvironmentVariable[] | undefined,
-): "hidden" | "secret" | "other" | undefined {
+): "hidden" | "reading" | "secret" | "other" | undefined {
   if (row.now?.value === undefined) return "hidden";
-  const there = store?.find((v) => v.name === row.name);
+  if (store === undefined) return "reading";
+  const there = store.find((v) => v.name === row.name);
   if (!there) return undefined;
   if (there.secret) return "secret";
   return there.value === row.now.value ? undefined : "other";
@@ -180,6 +183,11 @@ export function envEdits(
           if (edit.secret) {
             dropped.add(name);
             toSecret(name, edit.value);
+          } else if (edit.hidden) {
+            // A new value for one that's hidden stays hidden: nothing here says it holds no secret.
+            own[name] = edit.value;
+            shown.delete(name);
+            touched = true;
           } else setOwn(name, edit.value);
         } else edits.push(valueEdit(was.kind, scope, was.from, edit.value));
         break;

@@ -13,7 +13,10 @@ import (
 
 // tidyShown keeps a service's shown_env to names its app's environment has, sorted
 // and once each, so specs that mean the same compare equal, and a value taken out of
-// the environment doesn't come back shown should one of its name return (ADR 0081).
+// the environment doesn't come back shown should one of its name return. A value
+// shaped like a secret is never shown, whoever names it: a client that sends
+// shown_env back as it read it, with a new value such as redis://:pw@redis, would
+// otherwise show that (ADR 0081).
 func tidyShown(svc *resourcev1.Service) {
 	if len(svc.GetShownEnv()) == 0 {
 		svc.ShownEnv = nil
@@ -21,8 +24,8 @@ func tidyShown(svc *resourcev1.Service) {
 	}
 	env := svc.GetApp().GetEnv()
 	shown := slices.DeleteFunc(slices.Clone(svc.GetShownEnv()), func(name string) bool {
-		_, ok := env[name]
-		return !ok
+		v, ok := env[name]
+		return !ok || SecretShape(v)
 	})
 	slices.Sort(shown)
 	shown = slices.Compact(shown)

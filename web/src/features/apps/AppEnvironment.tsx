@@ -464,7 +464,9 @@ function useShareOff(): (why: ReturnType<typeof cantShare>, name: string) => str
       ? t`The environment has a secret ${name} already. Rename one to share this.`
       : why === "other"
         ? t`The environment has a variable ${name} with another value. Rename one to share this.`
-        : "";
+        : why === "reading"
+          ? t`Waits until the environment's variables and secrets load.`
+          : "";
 }
 
 /** Dots for a value no one reads here. */
@@ -491,7 +493,7 @@ function Value({ row, loading }: { row: EnvRow; loading: boolean }) {
   }
   if (edit?.op === "share") return <code className="app-env-value">{edit.value}</code>;
   if (edit?.op === "change") {
-    if (kind === "secret" || edit.secret) return <Masked label={t`New value`} />;
+    if (kind === "secret" || edit.secret || edit.hidden) return <Masked label={t`New value`} />;
     const from = kind === "variable" ? row.stored?.value : (row.now?.value ?? row.runtimeValue);
     return (
       <span className="app-env-diff">
@@ -724,7 +726,8 @@ function AddForm({ name: app, rows, store, reading, changing, onAdd, onDone }: A
               <Button type="button" variant="ghost" onClick={onDone}>
                 <Trans>Cancel</Trans>
               </Button>
-              <Button type="submit" icon="check">
+              {/* A secret goes into the environment, which might have one of the name: it waits to know. */}
+              <Button type="submit" icon="check" disabled={own && secret && reading}>
                 <Trans>Change</Trans>
               </Button>
             </>
@@ -907,7 +910,13 @@ function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
   // A name the environment has already is used as it is, as Add offers it: changing it from
   // here would change it for every app that uses it, unseen.
   const edits = (parsed ?? []).map(({ name, value }): EnvEdit => {
-    if (rows.some((row) => row.name === name && row.now)) return { op: "change", name, value };
+    const had = rows.find((row) => row.name === name && row.now);
+    if (had) {
+      // One of the app's own that reads hidden stays hidden: a pasted file says nothing of
+      // whether it's a secret. One it shows stays shown, and one of the environment's changes there.
+      const hidden = (had.now?.kind === "own" || had.now?.kind === "runtime") && had.now.value === undefined;
+      return hidden ? { op: "change", name, value, hidden } : { op: "change", name, value };
+    }
     const there = store.find((v) => v.name === name);
     return there ? { op: "use", name, from: there.name, secret: there.secret } : { op: "add", name, value, secret };
   });

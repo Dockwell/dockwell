@@ -282,6 +282,52 @@ describe("editing an app's environment", () => {
     expect(screen.getByRole("cell", { name: "OWN, changed, not applied" })).toBeVisible();
   });
 
+  it("keeps a hidden value hidden when a pasted file gives it a new one, Secret on or off", async () => {
+    for (const secret of [false, true]) {
+      forgetDrafts();
+      const user = userEvent.setup();
+      const proposals: ProposeChangeRequest[] = [];
+      const { unmount } = renderAt("/apps/svc_web/environment", api(anInstalledApp(), proposals));
+      await ready();
+      await user.click(screen.getByRole("button", { name: "Import .env" }));
+      const sheet = await screen.findByRole("dialog", { name: "Import .env" });
+      await user.type(
+        within(sheet).getByRole("textbox", { name: "Paste the file's text" }),
+        "DB_EXTRA=hunter2{Enter}DB_HOST=db2{Enter}NEW=1",
+      );
+      if (secret) await user.click(within(sheet).getByRole("switch", { name: "Keep the new ones as secrets" }));
+      await user.click(within(sheet).getByRole("button", { name: "Import 3 values" }));
+      expect(within(screen.getByRole("row", { name: /^DB_EXTRA/ })).getByRole("img", { name: "Hidden" })).toBeVisible();
+      await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
+      await waitFor(() => expect(proposals).toHaveLength(1));
+      const app = proposals[0]?.edits.find((e) => e.resource?.kind === "service");
+      const spec = app?.spec?.kind.case === "service" ? app.spec.kind.value : undefined;
+      // It reaches the app with its new value, and isn't shown: nothing said it holds no secret.
+      expect(spec?.runs.case === "app" ? spec.runs.value.env["DB_EXTRA"] : undefined).toBe("hunter2");
+      expect(spec?.shownEnv).not.toContain("DB_EXTRA");
+      // One it showed stays shown with its new value.
+      expect(spec?.shownEnv).toContain("DB_HOST");
+      unmount();
+    }
+  });
+
+  it("waits to make a value a secret, or share one, until it knows what the environment has", async () => {
+    const user = userEvent.setup();
+    const loading = api(anInstalledApp());
+    loading.variables = { listVariables: () => new Promise(() => {}) };
+    renderAt("/apps/svc_web/environment", loading);
+    const share = await screen.findByRole("button", { name: "Make DB_HOST shared" }, { timeout: 5000 });
+    expect(share).toHaveAttribute("aria-disabled", "true");
+    expect(share).toHaveAccessibleDescription("Waits until the environment's variables and secrets load.");
+    await user.click(screen.getByRole("button", { name: "Change DB_HOST" }));
+    const changing = screen.getByRole("form", { name: "Change DB_HOST" });
+    await user.click(within(changing).getByRole("switch", { name: "Secret" }));
+    expect(within(changing).getByRole("button", { name: "Change" })).toBeDisabled();
+    // As the app's own, shown, it needs nothing of the environment.
+    await user.click(within(changing).getByRole("switch", { name: "Secret" }));
+    expect(within(changing).getByRole("button", { name: "Change" })).toBeEnabled();
+  });
+
   it("lays its rows out for a phone, and keeps the bar's buttons in reach", async () => {
     onPhone();
     const user = userEvent.setup();

@@ -25,7 +25,6 @@ func TestMaySecret(t *testing.T) {
 		{"url", "http://localhost:2368", false},
 		{"DATA_DIR", "/var/lib/app/data", false},
 		{"DB_COLLATION", "utf8mb4_unicode_ci", false},
-		{"SESSION_DRIVER", "file", false},
 		{"KEYCLOAK_HOSTNAME", "auth.example.com", false},
 		{"IMAGE_VERSION", "1.27.3-alpine", false},
 		{"EMPTY", "", false},
@@ -60,6 +59,35 @@ func TestMaySecret(t *testing.T) {
 		{"UUID", "123e4567-e89b-12d3-a456-426614174000", true},
 		{"HOOK_URL", "https://hooks.example.com/services/T0A1B2C3D/B4E5F6G7H/aBcDeFgHiJkLmNoPqRsTuVwX", true},
 		{"JWTISH", "eyJhbGciOiJIUzI1NiJ9.e30.abc", true},
+
+		// Names written together, or in camelCase, as stores write them.
+		{"dbPass", "x", true},
+		{"smtpPass", "x", true},
+		{"adminPwd", "x", true},
+		{"appKey", "x", true},
+		{"masterKey", "x", true},
+		{"LDAP_BINDPW", "x", true},
+		{"REDISPASS", "x", true},
+		{"PGPASSWORD", "x", true},
+		{"ACCESS_CODE", "x", true},
+		{"RABBITMQ_ERLANG_COOKIE", "x", true},
+		{"SESSION_SECRET", "x", true},
+		{"SESSION_DRIVER", "file", true},
+		{"CSRF_NONCE", "x", true},
+
+		// Credentials inside a value.
+		{"DB", "postgresql://db/app?user=app&password=hunter2", true},
+		{"JDBC", "jdbc:mysql://db:3306/app?user=app&password=x", true},
+		{"MSSQL", "Server=db;User Id=sa;Password=Hunter2!", true},
+		{"BASIC", "admin:hunter2", true},
+		{"HOSTPORT", "db:5432", false},
+		{"IMAGE", "nginx:1.27", false},
+
+		// Short runs that read as random.
+		{"A", "aB3dE5fG7hJ9kL1m", true},
+		{"B", "0123456789abcdef01234567", true},
+		{"C", "JBSWY3DPEHPK3PXP", true},
+		{"D", "production", false},
 	} {
 		if got := catalog.MaySecret(tc.name, tc.value); got != tc.secret {
 			t.Errorf("MaySecret(%q, %q) = %t, want %t", tc.name, tc.value, got, tc.secret)

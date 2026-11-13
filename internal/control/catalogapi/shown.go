@@ -5,6 +5,7 @@ package catalogapi
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -25,21 +26,52 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// settingShown records that the apps installed before Dockwell showed an app's plain
-// values were looked at once, and shown what's provably plain (ADR 0081).
+// settingShown records how the apps installed before Dockwell showed an app's plain
+// values were looked at (ADR 0081): "made" once nothing is left, or what waits for a
+// server that was away and what was left hidden for good (shownState).
 const settingShown = "catalog.shown-env"
 
 // Showing the values installed apps set waits a little after the control plane starts,
-// for its servers' agents to connect, and looks again while a server it needs is away.
+// for its servers' agents to connect. While an app waits for a server that's away, it
+// looks every ShowEvery for that server to be back, which reads and plans nothing
+// until it is.
 var (
 	ShowFirst = time.Minute
-	ShowEvery = 10 * time.Minute
+	ShowEvery = time.Minute
 )
+
+// shownState is what's left of showing installs' plain values, by service ID.
+type shownState struct {
+	// Waiting are on a server that was away when last looked.
+	Waiting []string `json:"waiting,omitempty"`
+	// Skipped are left hidden for good: showing them would have changed what their
+	// server runs, as after drift, or its plan failed. Nothing proposes them again.
+	Skipped []string `json:"skipped,omitempty"`
+}
+
+// readShown reads what's left, and whether nothing is.
+func (h *Handler) readShown(ctx context.Context) (st shownState, first, done bool, err error) {
+	err = h.db.View(ctx, func(tx *store.Tx) error {
+		b, err := tx.GetSetting(ctx, settingShown)
+		switch {
+		case errors.Is(err, store.ErrNotFound):
+			first = true
+			return nil
+		case err != nil:
+			return err
+		case string(b) == "made":
+			done = true
+			return nil
+		}
+		return json.Unmarshal(b, &st)
+	})
+	return st, first, done, err
+}
 
 // KeepShowing shows the plain values of apps installed from a catalog before Dockwell
 // showed them, once, as Dockwell's own change (ShowPlainValues): first ShowFirst after
-// it starts, then every ShowEvery while a server it needs isn't connected, until ctx
-// ends or nothing is left.
+// it starts, then every ShowEvery while an app waits for a server that's away, until
+// ctx ends or nothing is left.
 func (f *Follower) KeepShowing(ctx context.Context, connected func(server string) bool) {
 	wait := ShowFirst
 	for {
@@ -61,6 +93,7 @@ func (f *Follower) KeepShowing(ctx context.Context, connected func(server string
 
 // shownEdit is one service whose plain values a change shows.
 type shownEdit struct {
+	id      string
 	edit    revision.Edit
 	project string // as it shows
 	names   []string
@@ -75,68 +108,91 @@ type shownEdit struct {
 // person changed since, and every app not installed from a catalog.
 //
 // It changes only what reads show, which no server sees, so nothing restarts. A
-// service that already shows something was decided at its install, and is left. One
-// on a server that isn't connected waits for the next look, as a change can't apply
-// there; done says nothing waits, and is recorded, so it never runs again.
+// service that already shows something was decided at its install, and is left.
+// The first look takes every install; after it, only what waited for a server that
+// was away, once that server is back, so a look with nothing it can apply proposes
+// nothing. What it can't show, as a plan that would change what a server runs, is
+// remembered and never proposed again. done says nothing is left, which is
+// recorded, so it never runs again.
 func (f *Follower) ShowPlainValues(ctx context.Context, connected func(server string) bool) (done bool, err error) {
 	h := f.h
-	if err := h.db.View(ctx, func(tx *store.Tx) error {
-		_, err := tx.GetSetting(ctx, settingShown)
-		switch {
-		case err == nil:
-			done = true
-		case !errors.Is(err, store.ErrNotFound):
-			return err
-		}
-		return nil
-	}); err != nil || done {
+	st, first, done, err := h.readShown(ctx)
+	if err != nil || done {
 		return done, err
 	}
-	ready, waiting, err := h.plainValues(ctx, connected)
+	var only map[string]bool
+	if !first {
+		only = make(map[string]bool, len(st.Waiting))
+		for _, id := range st.Waiting {
+			only[id] = true
+		}
+	}
+	ready, away, err := h.plainValues(ctx, connected, only, st.Skipped)
 	if err != nil {
 		return false, err
 	}
-	if len(ready) > 0 {
-		if err := f.applyShown(ctx, ready); err != nil {
-			return false, err
+	if !first && len(ready) == 0 && len(away) == len(st.Waiting) {
+		return false, nil // the servers it waits for are still away
+	}
+	st.Skipped = append(st.Skipped, f.applyShown(ctx, ready)...)
+	st.Waiting = away
+	return len(away) == 0, h.db.Update(ctx, func(tx *store.Tx) error {
+		if len(away) == 0 {
+			return tx.PutSetting(ctx, settingShown, []byte("made"))
 		}
-	}
-	if waiting > 0 {
-		return false, nil
-	}
-	return true, h.db.Update(ctx, func(tx *store.Tx) error { return tx.PutSetting(ctx, settingShown, []byte("made")) })
+		b, err := json.Marshal(st)
+		if err != nil {
+			return err
+		}
+		return tx.PutSetting(ctx, settingShown, b)
+	})
 }
 
-// applyShown applies one change that shows what ready names. Should its plan do
-// anything on a server, as when one drifted, that's no part of showing a value, so
-// it's discarded, and each service goes on its own, those that plan nothing applied
-// and the rest left hidden.
-func (f *Follower) applyShown(ctx context.Context, ready []shownEdit) error {
+// applyShown applies what ready names, as one change, and says which it left hidden.
+// Should that change fail to plan or apply, or do anything on a server, as when one
+// drifted, which is no part of showing a value, each service goes on its own: those
+// that plan nothing apply, and the rest are left hidden, each said in the log. One
+// that fails costs only itself.
+func (f *Follower) applyShown(ctx context.Context, ready []shownEdit) (skipped []string) {
+	if len(ready) == 0 {
+		return nil
+	}
+	if len(ready) > 1 {
+		if err := f.applyOne(ctx, ready); err == nil {
+			f.h.logger.InfoContext(ctx, "showed installed apps' plain values", slog.Int("services", len(ready)))
+			return nil
+		}
+	}
+	for i := range ready {
+		if err := f.applyOne(ctx, ready[i:i+1]); err != nil {
+			f.h.logger.WarnContext(ctx, "left an app's plain values hidden; check it for drift",
+				slog.String("service", ready[i].edit.Ref.Name), slog.String("project", ready[i].project), slog.String("error", err.Error()))
+			skipped = append(skipped, ready[i].id)
+			continue
+		}
+		f.h.logger.InfoContext(ctx, "showed an installed app's plain values", slog.String("service", ready[i].edit.Ref.Name))
+	}
+	return skipped
+}
+
+// errChangesServer is a plan that would change what a server runs.
+var errChangesServer = errors.New("showing its values would change what its server runs")
+
+// applyOne proposes and applies one change for ready, and discards it when it plans
+// anything on a server or fails to apply.
+func (f *Follower) applyOne(ctx context.Context, ready []shownEdit) error {
 	by := revision.By{Actor: revision.SystemActor, Via: revision.ViaAutomatic}
 	plan, err := f.proposeShown(ctx, ready)
 	if err != nil {
 		return err
 	}
-	if !stepsNothing(plan) && len(ready) > 1 {
-		if err := f.engine.Discard(ctx, plan.Change, by); err != nil {
-			return err
-		}
-		var errs []error
-		for i := range ready {
-			errs = append(errs, f.applyShown(ctx, ready[i:i+1]))
-		}
-		return errors.Join(errs...)
-	}
 	if !stepsNothing(plan) {
-		f.h.logger.WarnContext(ctx, "left an app's plain values hidden, as showing them would change what its server runs: check it for drift",
-			slog.String("service", ready[0].edit.Ref.Name), slog.String("project", ready[0].project))
-		return f.engine.Discard(ctx, plan.Change, by)
+		return errors.Join(errChangesServer, f.engine.Discard(ctx, plan.Change, by))
 	}
 	if err := f.engine.Apply(ctx, plan.Change); err != nil {
 		_ = f.engine.Discard(context.WithoutCancel(ctx), plan.Change, by)
 		return fmt.Errorf("can't apply the change that shows installed apps' plain values: %w", err)
 	}
-	f.h.logger.InfoContext(ctx, "showed installed apps' plain values", slog.Int("services", len(ready)))
 	return nil
 }
 
@@ -174,9 +230,10 @@ func stepsNothing(plan *revision.Plan) bool {
 }
 
 // plainValues finds what each catalog install's services can show, each service
-// whose servers are all connected in ready, and counts in waiting those on a server
-// that isn't.
-func (h *Handler) plainValues(ctx context.Context, connected func(string) bool) (ready []shownEdit, waiting int, err error) {
+// whose servers are all connected in ready, and in away the IDs of those on a server
+// that isn't. With only, it looks at those services alone; it never looks at one in
+// skipped.
+func (h *Handler) plainValues(ctx context.Context, connected func(string) bool, only map[string]bool, skipped []string) (ready []shownEdit, away []string, err error) {
 	err = h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
@@ -207,6 +264,9 @@ func (h *Handler) plainValues(ctx context.Context, connected func(string) bool) 
 				}
 				for i := range list {
 					r := list[i]
+					if only != nil && !only[r.ID] || slices.Contains(skipped, r.ID) {
+						continue
+					}
 					decoded, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
 					if err != nil {
 						return err
@@ -224,12 +284,13 @@ func (h *Handler) plainValues(ctx context.Context, connected func(string) bool) 
 						return err
 					}
 					if slices.ContainsFunc(servers, func(s string) bool { return !connected(s) }) {
-						waiting++
+						away = append(away, r.ID)
 						continue
 					}
 					next := proto.CloneOf(svc)
 					next.ShownEnv = names
 					ready = append(ready, shownEdit{
+						id:      r.ID,
 						edit:    revision.Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env.ID, Name: r.Name}, Spec: next, Base: r.Revision},
 						project: cmp.Or(p.DisplayName, p.Name),
 						names:   names,
@@ -239,7 +300,7 @@ func (h *Handler) plainValues(ctx context.Context, connected func(string) bool) 
 		}
 		return nil
 	})
-	return ready, waiting, err
+	return ready, away, err
 }
 
 // entryValues is what an install's file gives each of its services' own environment,

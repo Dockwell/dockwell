@@ -2427,6 +2427,9 @@ msgstr "Variable"
 msgid "Variable {from}"
 msgstr "Variable {from}"
 
+msgid "Waits until the environment's variables and secrets load."
+msgstr "Waits until the environment's variables and secrets load."
+
 msgid "added, not applied"
 msgstr "added, not applied"
 

@@ -4,12 +4,12 @@ package catalog
 
 import (
 	"maps"
-	"regexp"
 	"slices"
 	"strings"
 	"unicode"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // ShownEnv names the values of an app's own environment that a read may show: each
@@ -33,86 +33,82 @@ func ShownEnv(app *resourcev1.Container) []string {
 // look, and one it wrongly calls plain would show a password to everyone who can read
 // the app.
 func MaySecret(name, value string) bool {
-	return secretName(name) || secretShape(value)
+	return SecretNamed(name) || service.SecretShape(value)
 }
 
 // secretWords are the words of a name that say its value may be a secret, as in
-// DB_PASSWORD, API_KEY, auth.token or SECRET_KEY_BASE.
+// DB_PASSWORD, API_KEY, auth.token, SECRET_KEY_BASE or RABBITMQ_ERLANG_COOKIE.
 var secretWords = map[string]bool{
 	"PASSWORD": true, "PASSWORDS": true, "PASSWD": true, "PASS": true, "PWD": true, "PW": true, "PSWD": true,
-	"PASSPHRASE": true, "SECRET": true, "SECRETS": true, "TOKEN": true, "TOKENS": true, "KEY": true, "KEYS": true,
-	"APIKEY": true, "PRIVATE": true, "CREDENTIAL": true, "CREDENTIALS": true, "CRED": true, "CREDS": true,
-	"AUTH": true, "SALT": true, "DSN": true, "SIGNING": true, "HMAC": true, "OTP": true, "PIN": true, "SEED": true,
-	"BEARER": true, "JWT": true, "ENCRYPTION": true, "CIPHER": true, "WEBHOOK": true,
+	"PASSPHRASE": true, "PASSCODE": true, "SECRET": true, "SECRETS": true, "TOKEN": true, "TOKENS": true,
+	"KEY": true, "KEYS": true, "APIKEY": true, "VKEY": true, "PRIVATE": true, "CREDENTIAL": true, "CREDENTIALS": true,
+	"CRED": true, "CREDS": true, "AUTH": true, "SALT": true, "DSN": true, "SIGNING": true, "HMAC": true,
+	"OTP": true, "PIN": true, "SEED": true, "BEARER": true, "JWT": true, "ENCRYPTION": true, "CIPHER": true,
+	"WEBHOOK": true, "COOKIE": true, "SESSION": true, "NONCE": true,
 }
 
-// secretParts are what says a name may hold a secret anywhere in it, written together
-// with other words, as dbPassword or MYAPIKEY are.
-var secretParts = []string{"PASSWORD", "PASSWD", "SECRET", "TOKEN", "APIKEY", "PRIVATEKEY", "ACCESSKEY", "CREDENTIAL"}
+// secretEnds are what a word that holds a secret's word joined to others ends in,
+// as PGPASSWORD, REDISPASS, LDAP_BINDPW, MASTERKEY and SERVICEACCOUNTTOKEN do.
+var secretEnds = []string{"PASSWORD", "PASSWD", "PASS", "PWD", "PW", "SECRET", "TOKEN", "KEY", "COOKIE", "CREDENTIAL", "CREDENTIALS"}
 
-func secretName(name string) bool {
-	upper := strings.ToUpper(name)
-	for _, part := range secretParts {
-		if strings.Contains(upper, part) {
+// secretParts are what says a name may hold a secret anywhere in a word, written
+// together with others, as MYAPIKEY or SECRETKEYBASE are.
+var secretParts = []string{"PASSWORD", "PASSWD", "SECRET", "TOKEN", "APIKEY", "PRIVATEKEY", "ACCESSKEY", "ACCESSCODE", "PASSCODE", "CREDENTIAL"}
+
+// SecretNamed reports a name that says its value could be a secret, by its words:
+// one of secretWords, or a word ending in one of secretEnds or holding one of
+// secretParts, or CODE after ACCESS or PASS, as lobe-chat's ACCESS_CODE. Words split
+// where a name's case changes too, as in dbPass, smtpPass, adminPwd or appKey. It
+// takes no word after one as saying the name is about the secret rather than the
+// secret, as PASSWORD_MIN_LENGTH is: that would show a value by guesswork, and
+// hiding one that's no secret costs a look. So every name the catalog's converter
+// calls a secret is one here too (convert.secretNamed), and more.
+func SecretNamed(name string) bool {
+	words := nameWords(name)
+	for i, w := range words {
+		code := w == "CODE" && i > 0 && (words[i-1] == "ACCESS" || words[i-1] == "PASS")
+		if code || secretWords[w] {
 			return true
 		}
-	}
-	for _, word := range strings.FieldsFunc(upper, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
-		if secretWords[word] {
-			return true
+		for _, end := range secretEnds {
+			if strings.HasSuffix(w, end) {
+				return true
+			}
+		}
+		for _, part := range secretParts {
+			if strings.Contains(w, part) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-var (
-	// userinfo is a URL's user, and password, as in postgres://app:hunter2@db/app, or
-	// a key in place of a user, as a Sentry DSN has.
-	userinfo = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^/@\s]+@`)
-	// tokenRun is a run of what a key or a token is made of.
-	tokenRun = regexp.MustCompile(`[A-Za-z0-9+/=_-]{20,}`)
-	// keyPrefixes start keys well known services issue, which may be short.
-	keyPrefixes = []string{"sk-", "sk_", "pk_", "rk_", "ghp_", "gho_", "ghu_", "ghs_", "github_pat_", "glpat-", "xox", "AKIA", "ASIA", "AIza", "SG.", "eyJ"}
-)
-
-func secretShape(value string) bool {
-	switch {
-	case strings.Contains(value, "-----BEGIN"), userinfo.MatchString(value):
-		return true
-	}
-	for _, p := range keyPrefixes {
-		if strings.HasPrefix(value, p) {
-			return true
+// nameWords are a name's words, in capitals: split at anything but a letter or a
+// digit, and where a lower-case letter is followed by a capital, as dbPassword's
+// are DB and PASSWORD.
+func nameWords(name string) []string {
+	var out []string
+	var word []rune
+	flush := func() {
+		if len(word) > 0 {
+			out = append(out, strings.ToUpper(string(word)))
+			word = word[:0]
 		}
 	}
-	for _, run := range tokenRun.FindAllString(value, -1) {
-		if random(run) {
-			return true
-		}
-	}
-	return false
-}
-
-// random reports a run that reads as random rather than as words: three kinds of
-// character mixed, or two in a long one, as a hex key or a UUID has. A path, a word
-// joined by underscores or a version reads as one or two kinds, and short.
-func random(run string) bool {
-	var lower, upper, digit bool
-	for _, r := range run {
+	prev := rune(0)
+	for _, r := range name {
 		switch {
-		case r >= 'a' && r <= 'z':
-			lower = true
-		case r >= 'A' && r <= 'Z':
-			upper = true
-		case r >= '0' && r <= '9':
-			digit = true
+		case !unicode.IsLetter(r) && !unicode.IsDigit(r):
+			flush()
+		case unicode.IsUpper(r) && unicode.IsLower(prev):
+			flush()
+			word = append(word, r)
+		default:
+			word = append(word, r)
 		}
+		prev = r
 	}
-	kinds := 0
-	for _, has := range []bool{lower, upper, digit} {
-		if has {
-			kinds++
-		}
-	}
-	return kinds >= 3 || kinds == 2 && len(run) >= 32
+	flush()
+	return out
 }

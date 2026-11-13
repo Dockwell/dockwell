@@ -407,7 +407,7 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
                 <li key={r.id} className="variables-item">
                   <div className="variables-item-head">
                     <KeyCell row={r} />
-                    <RowActions row={r} scope={chosen?.id ?? ""} store={all} onEdit={setEditing} />
+                    <RowActions row={r} scope={chosen?.id ?? ""} store={list.data?.variables} onEdit={setEditing} />
                   </div>
                   <ValueCell row={r} />
                   <span className="variables-item-source">
@@ -421,7 +421,7 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
             <VariablesTable
               rows={shown}
               scope={chosen?.id ?? ""}
-              store={all}
+              store={list.data?.variables}
               caption={t`Variables and secrets in ${envName}`}
               onEdit={setEditing}
             />
@@ -435,7 +435,7 @@ export function VariablesPage({ environment, query, app, onEnvironment }: Variab
 interface TableProps {
   rows: readonly Row[];
   scope: string;
-  store: readonly EnvironmentVariable[];
+  store: readonly EnvironmentVariable[] | undefined;
   caption: string;
   onEdit: (v: EnvironmentVariable) => void;
 }
@@ -641,7 +641,7 @@ interface RowActionsProps {
   row: Row;
   scope: string;
   /** What the environment has, which a value made shared may be already. */
-  store: readonly EnvironmentVariable[];
+  store: readonly EnvironmentVariable[] | undefined;
   onEdit: (v: EnvironmentVariable) => void;
 }
 
@@ -664,7 +664,7 @@ function OwnActions({
   service: ServiceInfo;
   row: EnvRow;
   scope: string;
-  store: readonly EnvironmentVariable[];
+  store: readonly EnvironmentVariable[] | undefined;
 }) {
   const { t } = useLingui();
   const sheet = useChangeSheet();
@@ -683,7 +683,9 @@ function OwnActions({
       ? t`The environment has a secret ${name} already. Rename one to share this.`
       : why === "other"
         ? t`The environment has a variable ${name} with another value. Rename one to share this.`
-        : mayPlan.reason;
+        : why === "reading"
+          ? t`Waits until the environment's variables and secrets load.`
+          : mayPlan.reason;
   return (
     <span className="variables-actions">
       {row.now?.kind === "runtime" && name === "PORT" ? null : (

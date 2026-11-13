@@ -2427,6 +2427,9 @@ msgstr "变量"
 msgid "Variable {from}"
 msgstr "变量 {from}"
 
+msgid "Waits until the environment's variables and secrets load."
+msgstr "等环境的变量和密钥加载完成后才可用。"
+
 msgid "added, not applied"
 msgstr "已添加，未应用"
 

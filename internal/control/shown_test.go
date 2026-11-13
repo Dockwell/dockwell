@@ -15,6 +15,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -124,12 +125,27 @@ func testAnInstallShowsItsPlainValues(t *testing.T, backend store.Backend) {
 		t.Errorf("showing a value it keeps: %v", err)
 	}
 
-	// It waits while its server is away.
-	done, err := f.server.catalogs.ShowPlainValues(t.Context(), func(string) bool { return false })
-	if err != nil || done {
-		t.Fatalf("ShowPlainValues with the server away: done %t, %v", done, err)
+	// It waits while its server is away, and looking again before it's back plans
+	// nothing, so Activity doesn't fill with changes it discards.
+	countChanges := func() int {
+		t.Helper()
+		res, err := c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(res.Msg.GetChanges())
 	}
-	done, err = f.server.catalogs.ShowPlainValues(t.Context(), func(string) bool { return true })
+	before := countChanges()
+	for range 3 {
+		done, err := f.server.catalogs.ShowPlainValues(t.Context(), func(string) bool { return false })
+		if err != nil || done {
+			t.Fatalf("ShowPlainValues with the server away: done %t, %v", done, err)
+		}
+	}
+	if got := countChanges(); got != before {
+		t.Fatalf("looking while the server is away made %d changes", got-before)
+	}
+	done, err := f.server.catalogs.ShowPlainValues(t.Context(), func(string) bool { return true })
 	if err != nil || !done {
 		t.Fatalf("ShowPlainValues: done %t, %v", done, err)
 	}
@@ -211,5 +227,87 @@ func asUnshown(t *testing.T, f *fullServer, services []string) {
 	}
 	if err := f.engine.Apply(t.Context(), plan.Change); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// While an app waits for a server that's away, looking again plans nothing until
+// that server is back, and one whose plan would change what its server runs, as
+// after drift, is left hidden once and never proposed again: Activity doesn't fill
+// with changes Dockwell discards (ADR 0081).
+func TestShowingInstallsLeavesNoTrailWhileItWaits(t *testing.T) {
+	storetest.Each(t, testShowingInstallsLeavesNoTrailWhileItWaits)
+}
+
+func testShowingInstallsLeavesNoTrailWhileItWaits(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	near := f.addDockerServer(t)
+	far := f.addServerNamed(t, "hz-2", nil, nil)
+	pullsAnything(near)
+	pullsAnything(far)
+	c := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	servers, err := dockwellv1connect.NewServerServiceClient(b, b.origin).ListServers(t.Context(), connect.NewRequest(&dockwellv1.ListServersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := map[string]string{}
+	for _, s := range servers.Msg.GetServers() {
+		id[s.GetName()] = s.GetId()
+	}
+	apply(t, c, installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "blog", Servers: []string{id["hz-1"]}}))
+	apply(t, c, installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "away", Servers: []string{id["hz-2"]}}))
+	asUnshown(t, f, []string{"wordpress", "db"})
+	// hz-1's database drifted: showing its values would put it back, which is no part of showing.
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	list, err := svc.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range list.Msg.GetServices() {
+		if s.GetResource().GetName() == "db" && s.GetDeployments()[0].GetServerId() == id["hz-1"] {
+			near.Edit(docker.Project(s.GetResource().GetScope())+"-db-1", func(ct *docker.Container) {
+				ct.Config.Env = append(ct.Config.Env, "BY_HAND=1")
+			})
+		}
+	}
+	countChanges := func() int {
+		t.Helper()
+		res, err := c.ListChanges(t.Context(), connect.NewRequest(&dockwellv1.ListChangesRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(res.Msg.GetChanges())
+	}
+	nearOnly := func(s string) bool { return s == id["hz-1"] }
+	if done, err := f.server.catalogs.ShowPlainValues(t.Context(), nearOnly); err != nil || done {
+		t.Fatalf("the first look: done %t, %v", done, err)
+	}
+	after := countChanges()
+	for range 3 {
+		if done, err := f.server.catalogs.ShowPlainValues(t.Context(), nearOnly); err != nil || done {
+			t.Fatalf("a look while hz-2 is away: done %t, %v", done, err)
+		}
+	}
+	if got := countChanges(); got != after {
+		t.Fatalf("looking again while hz-2 is away made %d changes", got-after)
+	}
+	// hz-2 is back: what waited for it shows, and the drifted database stays hidden.
+	if done, err := f.server.catalogs.ShowPlainValues(t.Context(), func(string) bool { return true }); err != nil || !done {
+		t.Fatalf("the look once hz-2 is back: done %t, %v", done, err)
+	}
+	list, err = svc.ListServices(t.Context(), connect.NewRequest(&dockwellv1.ListServicesRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range list.Msg.GetServices() {
+		on := s.GetDeployments()[0].GetServerId()
+		shows := len(s.GetSpec().GetShownEnv()) > 0
+		switch {
+		case s.GetResource().GetName() == "db" && on == id["hz-1"] && shows:
+			t.Errorf("the drifted database shows %v", s.GetSpec().GetShownEnv())
+		case (s.GetResource().GetName() != "db" || on != id["hz-1"]) && !shows:
+			t.Errorf("%s on %s shows nothing", s.GetResource().GetName(), on)
+		}
 	}
 }
