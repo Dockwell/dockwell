@@ -45,3 +45,24 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* A reference in running text or a fact's value: the words as they were, a link's manners. */
+.dw-ref-plain {
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.dw-ref-plain:hover {
+  color: var(--link);
+  text-decoration-color: currentColor;
+}
+
+.dw-ref-plain:focus-visible {
+  outline: none;
+  border-radius: 2px;
+  box-shadow: var(--focus-ring);
+}

@@ -16,8 +16,10 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
+import { useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { RefLink } from "../shell/RefLink";
 import { AddUserSheet } from "./AddUserSheet";
 import { useThisDatabase } from "./DatabaseLayout";
 import { engineName, firstReading, makesUsers, readOf } from "./useDatabases";
@@ -81,6 +83,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const transport = useTransport();
   const may = useMay();
   const mayChange = may(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
+  const named = useServicesNamed(db.resource?.scope);
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
   const mongo = db.engine === DatabaseEngine.MONGODB;
@@ -143,9 +146,16 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
             render: (u) =>
               u.usedBy.length > 0 ? (
                 <span className="databases-tags">
-                  {u.usedBy.map((app) => (
-                    <Tag key={app}>{app}</Tag>
-                  ))}
+                  {u.usedBy.map((app) => {
+                    const service = named.get(app);
+                    return service ? (
+                      <RefLink key={app} kind="app" id={service.id}>
+                        {app}
+                      </RefLink>
+                    ) : (
+                      <Tag key={app}>{app}</Tag>
+                    );
+                  })}
                 </span>
               ) : (
                 <span className="databases-muted">{u.secret ? t`No app yet` : ""}</span>

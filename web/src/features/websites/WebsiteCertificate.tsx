@@ -10,6 +10,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { DomainNote, useDomainState, useSilent } from "../apps/DomainNote";
 import type { DomainLook } from "../apps/domains";
 import { EmptyState } from "../shell/EmptyState";
+import { RefLink } from "../shell/RefLink";
 import { useWebsiteValue } from "./WebsiteLayout";
 
 /**
@@ -89,7 +90,11 @@ function ServerCertificate({ server, several }: { server: DomainServer; several:
             <Trans>Server</Trans>
           </dt>
           <dd>
-            <code>{server.serverName}</code>
+            <code>
+              <RefLink kind="server" id={server.serverId} look="plain">
+                {server.serverName}
+              </RefLink>
+            </code>
           </dd>
         </div>
       ) : null}

@@ -11173,6 +11173,11 @@ components:
                         How a restore drill of it went, for backup.drill (ADR 0068). error says what
                          failed, or why it wasn't checked.
                     format: enum
+                serverId:
+                    type: string
+                    description: |-
+                        The server, by ID, for its page. Numbered apart, as open work adds to this
+                         message.
             description: EventBackup is what became of one backup.
         EventDesiredSent:
             type: object

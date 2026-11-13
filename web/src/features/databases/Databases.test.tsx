@@ -40,6 +40,7 @@ import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, running, SERVER } from "../../test/apps";
 import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
+import { expectNamesLinked } from "../../test/links";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { gist } from "./DatabaseOverview";
@@ -221,6 +222,17 @@ describe("the databases list", () => {
     expect(rows[0]).toHaveTextContent("No volume");
     expect(screen.getByText("2 on hz-1")).toBeVisible();
     await expectAccessible(container);
+  });
+
+  it("names each app beside a database, and each server it's on, as a link to its page", async () => {
+    const adminerApp = anApp("adminer", "adminer:5");
+    renderAt(
+      "/databases",
+      api([cache(), aDatabase()], { services: { listServices: () => ({ services: [adminerApp] }) } }),
+    );
+    const table = await screen.findByRole("table", { name: "Databases" });
+    expect(await within(table).findByRole("link", { name: "adminer" })).toHaveAttribute("href", "/apps/svc_adminer");
+    expectNamesLinked(table, ["adminer", "hz-1"]);
   });
 
   it("shows what happened to them lately, from each one's own timeline", async () => {

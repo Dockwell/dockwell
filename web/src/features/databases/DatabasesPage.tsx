@@ -42,7 +42,7 @@ import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe } from "../activity/describe";
 import { HealthBadge, useHealthWords } from "../apps/Health";
 import { type HealthView, useHealth } from "../apps/health";
-import { usePlaces } from "../apps/useServices";
+import { usePlaces, useServicesNamed } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import type { VolumeChoice } from "../backups/useBackups";
@@ -52,6 +52,7 @@ import { useCatalog } from "../catalog/useCatalog";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { RefLink } from "../shell/RefLink";
 import { Meter } from "./Meter";
 import {
   engineAndVersion,
@@ -268,8 +269,19 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
         </span>
       );
     },
-    server: (db) => <code className="databases-servers">{db.readings.map((r) => r.serverName).join(", ")}</code>,
-    beside: (db) => <Beside names={db.beside} />,
+    server: (db) => (
+      <code className="databases-servers">
+        {db.readings.map((r, i) => (
+          <span key={r.serverId}>
+            {i > 0 ? ", " : null}
+            <RefLink kind="server" id={r.serverId} look="plain">
+              {r.serverName}
+            </RefLink>
+          </span>
+        ))}
+      </code>
+    ),
+    beside: (db) => <Beside names={db.beside} environment={db.resource?.scope} />,
   };
   const columns: TableColumn<Database>[] = heads.map((head) => ({
     ...head,
@@ -302,17 +314,25 @@ function Unread({ db }: { db: Database }) {
   );
 }
 
-/** The services beside a database, as tags, as many as fit at a glance. */
-function Beside({ names }: { names: readonly string[] }) {
+/** The services beside a database, each a link to its page, as many as fit at a glance. */
+function Beside({ names, environment }: { names: readonly string[]; environment: string | undefined }) {
   const { t } = useLingui();
+  const named = useServicesNamed(environment);
   if (names.length === 0) return <span className="databases-muted">{t`Nothing`}</span>;
   const shown = names.slice(0, 3);
   const left = names.length - shown.length;
   return (
     <span className="databases-tags">
-      {shown.map((name) => (
-        <Tag key={name}>{name}</Tag>
-      ))}
+      {shown.map((name) => {
+        const app = named.get(name);
+        return app ? (
+          <RefLink key={name} kind="app" id={app.id}>
+            {name}
+          </RefLink>
+        ) : (
+          <Tag key={name}>{name}</Tag>
+        );
+      })}
       {left > 0 ? <span className="databases-muted">{t`+${left}`}</span> : null}
     </span>
   );

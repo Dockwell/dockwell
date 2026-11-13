@@ -44,6 +44,7 @@ import {
   snapshot,
   webPlanned,
 } from "../../test/changes";
+import { expectNamesLinked } from "../../test/links";
 import { type Api, feed, onPhone, quietWatch, renderAt, untilAborted } from "../../test/render";
 
 const HOUR = 3_600_000;
@@ -1312,6 +1313,18 @@ describe("Activity's health", () => {
     // Its word is the state, which a screen reader hears alone: not "Stopped: Paused".
     expect(row.querySelector(".dw-tl-meta .dw-sr")).toBeNull();
     await expectAccessible(container);
+  });
+
+  it("names the app and the server in its facts, each a link to its page", async () => {
+    const user = userEvent.setup();
+    renderAt("/activity", {
+      events: { watchEvents: feedOf(snapshot([health("evt_1", HealthState.UNHEALTHY)])), listEvents: () => ({}) },
+    });
+    await user.click(await screen.findByRole("row", { name: /web turned unhealthy on hz-1/ }));
+    const detail = await screen.findByRole("region", { name: /web turned unhealthy on hz-1/ });
+    expect(within(detail).getByRole("link", { name: "hz-1" })).toHaveAttribute("href", "/servers/srv_1");
+    expect(within(detail).getByRole("link", { name: "web" })).toHaveAttribute("href", "/apps/svc_web");
+    expectNamesLinked(detail.querySelector("dl") as HTMLElement, ["hz-1", "web"]);
   });
 
   it("marks a pause as its state is, grey, and what went wrong in its tone", async () => {

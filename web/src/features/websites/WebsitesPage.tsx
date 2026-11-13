@@ -29,6 +29,7 @@ import type { HealthView } from "../apps/health";
 import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { RefLink } from "../shell/RefLink";
 import { Runtimes } from "./Runtimes";
 import { Certificate, CertificateCell, type Row, SiteStanding, SiteStatus, useWebsiteRows } from "./Standing";
 import { kindOf, targetOf } from "./website";
@@ -235,7 +236,13 @@ function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProp
       type: (row) => typeWord(row.site),
       status: (row) => <SiteStatus row={row} health={health} read={read} />,
       certificate: (row) => <CertificateCell row={row} read={read} />,
-      server: (row) => <code className="apps-servers apps-clip">{row.site.serverName}</code>,
+      server: (row) => (
+        <code className="apps-servers apps-clip">
+          <RefLink kind="server" id={row.site.serverId} look="plain">
+            {row.site.serverName}
+          </RefLink>
+        </code>
+      ),
       changed: (row) => {
         if (!row.site.updateTime) return <span aria-hidden="true">—</span>;
         const when = timestampDate(row.site.updateTime);

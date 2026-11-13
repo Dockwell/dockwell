@@ -10,6 +10,7 @@ import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { MachineWords } from "../changes/FailureNotice";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { RefLink } from "../shell/RefLink";
 import type { AppHealth, HealthKind, RunsOnServer, Unread } from "./health";
 
 /** What a check said, as a sentence: the agent writes it to go inside one. */
@@ -228,7 +229,13 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
         const showTime = server.kind !== "not-running" && server.kind !== "paused" && server.kind !== "unknown";
         return (
           <li key={server.serverId} className="app-runs-row">
-            {fleet ? <code className="app-runs-server">{server.serverName}</code> : null}
+            {fleet ? (
+              <code className="app-runs-server">
+                <RefLink kind="server" id={server.serverId} look="plain">
+                  {server.serverName}
+                </RefLink>
+              </code>
+            ) : null}
             <StatusBadge
               status={server.status}
               label={words.kind(server.kind)}

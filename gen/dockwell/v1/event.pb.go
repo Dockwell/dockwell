@@ -1453,7 +1453,10 @@ type EventBackup struct {
 	Destination string `protobuf:"bytes,7,opt,name=destination,proto3" json:"destination,omitempty"`
 	// How a restore drill of it went, for backup.drill (ADR 0068). error says what
 	// failed, or why it wasn't checked.
-	Drill         DrillResult `protobuf:"varint,8,opt,name=drill,proto3,enum=dockwell.v1.DrillResult" json:"drill,omitempty"`
+	Drill DrillResult `protobuf:"varint,8,opt,name=drill,proto3,enum=dockwell.v1.DrillResult" json:"drill,omitempty"`
+	// The server, by ID, for its page. Numbered apart, as open work adds to this
+	// message.
+	ServerId      string `protobuf:"bytes,60,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1542,6 +1545,13 @@ func (x *EventBackup) GetDrill() DrillResult {
 		return x.Drill
 	}
 	return DrillResult_DRILL_RESULT_UNSPECIFIED
+}
+
+func (x *EventBackup) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
 }
 
 // EventPublicAddress is a server's public address as a person changed it.
@@ -2038,7 +2048,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\x03end\x18\x04 \x01(\v2\x18.dockwell.v1.TerminalEndR\x03end\x12\x14\n" +
 	"\x05error\x18\x05 \x01(\tR\x05error\x12\x1c\n" +
 	"\tcontainer\x18\x06 \x01(\tR\tcontainer\x12!\n" +
-	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\x90\x02\n" +
+	"\fcontainer_id\x18\a \x01(\tR\vcontainerId\"\xad\x02\n" +
 	"\vEventBackup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06volume\x18\x02 \x01(\tR\x06volume\x12\x1f\n" +
@@ -2049,7 +2059,8 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"size_bytes\x18\x05 \x01(\x03R\tsizeBytes\x12\x14\n" +
 	"\x05error\x18\x06 \x01(\tR\x05error\x12 \n" +
 	"\vdestination\x18\a \x01(\tR\vdestination\x12.\n" +
-	"\x05drill\x18\b \x01(\x0e2\x18.dockwell.v1.DrillResultR\x05drill\"J\n" +
+	"\x05drill\x18\b \x01(\x0e2\x18.dockwell.v1.DrillResultR\x05drill\x12\x1b\n" +
+	"\tserver_id\x18< \x01(\tR\bserverId\"J\n" +
 	"\x12EventPublicAddress\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
 	"\bprevious\x18\x02 \x01(\tR\bprevious\"\x91\x02\n" +
