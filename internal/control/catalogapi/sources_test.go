@@ -433,3 +433,33 @@ func TestAStoresCommitKeptByAnOlderConverterIsReadAgain(t *testing.T) {
 func planSVG(dir, key, commit string) ([]byte, error) {
 	return os.ReadFile(filepath.Join(dir, "plans", key, commit, "media", "page.svg"))
 }
+
+// A read of a source is every reader's: a person who leaves the page while its
+// entries are checked doesn't cancel each entry's read, so what's kept never says
+// every entry failed for a reason none of them has.
+func TestALeftReadStillChecksEveryEntry(t *testing.T) {
+	own, err := os.ReadFile("../../catalog/snapshot/entries/memos.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
+	file = regexp.MustCompile(`(?m)^icon: .*$`).ReplaceAllString(file, "")
+	fetch := func(context.Context, *http.Client, string, string, string, gitfetch.Limits) (map[string][]byte, error) {
+		return map[string][]byte{"memos-src.yaml": []byte(file)}, nil
+	}
+	s := &Sources{Dir: t.TempDir(), Fetch: fetch}
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("c", 40)}
+	if _, err := s.files(t.Context(), spec); err != nil {
+		t.Fatal(err)
+	}
+	left, cancel := context.WithCancel(t.Context())
+	cancel()
+	got, err := s.readSource(left, "community", spec, claims{})
+	if err != nil || len(got.entries) != 1 {
+		t.Fatalf("a read whose asker left: %d entries, refused %v, %v", len(got.entries), got.refused, err)
+	}
+	again, err := s.readSource(t.Context(), "community", spec, claims{})
+	if err != nil || len(again.entries) != 1 {
+		t.Errorf("what was kept of it: %d entries, refused %v, %v", len(again.entries), again.refused, err)
+	}
+}
