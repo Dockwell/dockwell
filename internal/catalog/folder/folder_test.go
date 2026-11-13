@@ -4,6 +4,8 @@ package folder
 
 import (
 	"bytes"
+	"context"
+	"os"
 	"strings"
 	"testing"
 )
@@ -78,5 +80,23 @@ func TestPrepare(t *testing.T) {
 	}
 	if _, err := Prepare("logo.png", []byte("<svg/>")); err == nil {
 		t.Error("Prepare took an SVG image named as a PNG one")
+	}
+}
+
+// An entry whose Compose file wasn't read as the read was cut short, or the reader
+// busy, makes the check unsettled, so nobody keeps what it says of that entry.
+func TestACheckCutShortIsUnsettled(t *testing.T) {
+	own, err := os.ReadFile("../snapshot/entries/memos.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	got := Check(ctx, "community", map[string][]byte{"memos.yaml": own}, map[string]bool{}, map[string]Taken{}, Options{})
+	if !got.Unsettled || len(got.Entries) != 0 {
+		t.Errorf("a check cut short: unsettled %t, %d entries", got.Unsettled, len(got.Entries))
+	}
+	if got := Check(t.Context(), "community", map[string][]byte{"memos.yaml": own}, map[string]bool{}, map[string]Taken{}, Options{}); got.Unsettled {
+		t.Errorf("a whole check is unsettled: %v", got.Refused)
 	}
 }

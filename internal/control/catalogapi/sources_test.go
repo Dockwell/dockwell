@@ -463,3 +463,108 @@ func TestALeftReadStillChecksEveryEntry(t *testing.T) {
 		t.Errorf("what was kept of it: %d entries, refused %v, %v", len(again.entries), again.refused, err)
 	}
 }
+
+// Readers of the same commit at once share one check, as they share its fetch: twenty
+// lists after a restart, each closed at once, start one check, not twenty, and every
+// reader gets what it found.
+func TestReadersShareOneCheck(t *testing.T) {
+	s, spec := memosSource(t)
+	var checks atomic.Int32
+	waiting := make(chan struct{})
+	s.beforeCheck = func() {
+		checks.Add(1)
+		<-waiting
+	}
+	const readers = 20
+	var wg sync.WaitGroup
+	results := make([]sourceRead, readers)
+	for i := range readers {
+		wg.Go(func() {
+			ctx, cancel := context.WithCancel(t.Context())
+			if i%2 == 0 {
+				cancel() // as a browser that closed the page at once
+			} else {
+				defer cancel()
+			}
+			results[i], _ = s.readSource(ctx, "community", spec, claims{})
+		})
+	}
+	// Every reader in, waiting on the one check.
+	waitFor(t, func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return len(s.checking) == 1
+	})
+	close(waiting)
+	wg.Wait()
+	if n := checks.Load(); n != 1 {
+		t.Errorf("%d readers at once started %d checks, want 1", readers, n)
+	}
+	got, err := s.readSource(t.Context(), "community", spec, claims{})
+	if err != nil || len(got.entries) != 1 {
+		t.Errorf("what the check kept: %d entries, refused %v, %v", len(got.entries), got.refused, err)
+	}
+}
+
+// A check cut short keeps nothing: what it said of each entry it couldn't read holds
+// for nobody, and the next read checks again.
+func TestACheckCutShortIsKeptForNobody(t *testing.T) {
+	s, spec := memosSource(t)
+	was := checkWait
+	checkWait = time.Nanosecond
+	_, err := s.readSource(t.Context(), "community", spec, claims{})
+	checkWait = was
+	if err == nil {
+		t.Fatal("a check cut short said nothing")
+	}
+	got, err := s.readSource(t.Context(), "community", spec, claims{})
+	if err != nil || len(got.entries) != 1 {
+		t.Errorf("the next read: %d entries, refused %v, %v", len(got.entries), got.refused, err)
+	}
+}
+
+// memosSource is a source of one entry, Dockwell's own Memos as another's, fetched.
+func memosSource(t *testing.T) (*Sources, *resourcev1.CatalogSource) {
+	t.Helper()
+	own, err := os.ReadFile("../../catalog/snapshot/entries/memos.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := strings.Replace(string(own), "id: memos\n", "id: memos-src\n", 1)
+	file = regexp.MustCompile(`(?m)^icon: .*$`).ReplaceAllString(file, "")
+	fetch := func(context.Context, *http.Client, string, string, string, gitfetch.Limits) (map[string][]byte, error) {
+		return map[string][]byte{"memos-src.yaml": []byte(file)}, nil
+	}
+	s := &Sources{Dir: t.TempDir(), Fetch: fetch}
+	spec := &resourcev1.CatalogSource{Repository: "https://example.com/catalog", Commit: strings.Repeat("e", 40)}
+	if _, err := s.files(t.Context(), spec); err != nil {
+		t.Fatal(err)
+	}
+	return s, spec
+}
+
+// waitFor waits a few seconds for ok.
+func waitFor(t *testing.T, ok func() bool) {
+	t.Helper()
+	for range 500 {
+		if ok() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("waited too long")
+}
+
+// A read where an entry's Compose file wasn't read as the reader was busy is kept for
+// nobody, as one cut short isn't.
+func TestAnUnsettledReadIsNotKept(t *testing.T) {
+	if settled(sourceRead{unsettled: true}, nil) == nil {
+		t.Error("an unsettled read would be kept")
+	}
+	if settled(sourceRead{}, context.DeadlineExceeded) == nil {
+		t.Error("a read cut short would be kept")
+	}
+	if err := settled(sourceRead{}, nil); err != nil {
+		t.Errorf("a whole read wouldn't be kept: %v", err)
+	}
+}

@@ -47,10 +47,6 @@ const (
 	// the catalog tries it again, so a host that's down doesn't make every view of
 	// the catalog wait for it.
 	unreadWait = 5 * time.Minute
-	// checkWait is the most checking a commit's entries may take, each read as an
-	// install would read it, apart from whoever asked: a commit of a store's 2,000
-	// apps checks in well under it.
-	checkWait = 3 * time.Minute
 	// plansKept is how many commits read for plans are kept, the newest, so a plan
 	// that's applied finds its commit read.
 	plansKept = 4
@@ -80,6 +76,15 @@ type Sources struct {
 	read     map[string]sourceRead
 	unread   map[string]unread
 	fetching map[string]*fetching
+	// checking are the checks of sources' entries under way, by what they read, which
+	// a read of the same waits for, so readers at once share one check.
+	checking map[string]*checkingRead
+	// beforeCheck, where a test sets it, runs as a check starts, before it reads.
+	beforeCheck func()
+	// images are images as served, by what each file holds, and imageBytes what they
+	// come to (served).
+	images     map[[32]byte]servedImage
+	imageBytes int
 	// guessed are the layouts read of commits, by repository, folder and commit, as a
 	// form asks again and again of the one a person is typing, and detecting is the
 	// one read of a commit's folders that's made at a time for it.
@@ -88,6 +93,31 @@ type Sources struct {
 	// slot holds the one fetch the control plane makes at a time, as a pack's index
 	// and what's made of it take memory while it's read, and reads at once add up.
 	slot chan struct{}
+}
+
+// checkWait is the most checking a commit's entries may take, each read as an install
+// would read it, apart from whoever asked: a commit of a store's 2,000 apps checks in
+// well under it. A test shortens it.
+var checkWait = 3 * time.Minute
+
+// settled says why a check's read can't be kept, if it can't: the check ran out of
+// its time, cut, or an entry's Compose file wasn't read as the reader was busy.
+func settled(got sourceRead, cut error) error {
+	switch {
+	case cut != nil:
+		return fmt.Errorf("checking its entries took over %s, so Dockwell checks them again at the next read: %w", checkWait, cut)
+	case got.unsettled:
+		return errors.New("Dockwell was too busy reading other Compose files to check all of its apps, so it checks them again at the next read") //nolint:staticcheck // it starts with a name
+	}
+	return nil
+}
+
+// checkingRead is a check of a source's entries under way, which a read of the same
+// commit and IDs before it waits for.
+type checkingRead struct {
+	done chan struct{}
+	got  sourceRead
+	err  error
 }
 
 // fetching is a fetch under way, which a read of the same commit waits for.
@@ -162,6 +192,9 @@ type sourceRead struct {
 	// licence its repository says, for a source converted as it's read.
 	apps    int
 	license string
+	// unsettled says an entry's Compose file wasn't read for a reason of the server's
+	// (folder.Result.Unsettled), so the read is kept for nobody.
+	unsettled bool
 }
 
 // files returns a commit's files in a source's folder: as kept, or fetched and kept
@@ -700,26 +733,59 @@ func (s *Sources) readSource(ctx context.Context, name string, spec *resourcev1.
 		return sourceRead{}, err
 	}
 	s.forget(spec)
-	// The check is every reader's, as the fetch is: a person who leaves the page
-	// mid-check would otherwise cancel each entry's read, and what's kept would say
-	// every one failed. One that runs out of its own time keeps nothing, and the
-	// next read checks again.
-	checking, done := context.WithTimeout(context.WithoutCancel(ctx), checkWait)
-	got = checkSource(checking, name, spec, files, taken)
-	cut := checking.Err()
-	done()
-	if cut != nil {
-		return sourceRead{}, fmt.Errorf("checking its entries took over %s, so Dockwell checks them again at the next read: %w", checkWait, cut)
-	}
+	return s.check(ctx, key, name, spec, files, taken)
+}
+
+// check checks a source's entries once for every reader of the same commit and IDs
+// before it: a read that comes while one is under way waits for it, as reads of a
+// commit wait for its fetch. The check is every reader's, so one who leaves the page
+// doesn't cut it short, within checkWait of its own. A check cut short, or one where
+// an entry's Compose file wasn't read as the reader was busy, is kept for nobody, and
+// the next read checks again.
+func (s *Sources) check(ctx context.Context, key, name string, spec *resourcev1.CatalogSource, files commitFiles, taken claims) (sourceRead, error) {
 	s.mu.Lock()
-	// What's read is kept for each commit and the IDs before it, which moves as
-	// sources do, so it's let go of whole once it holds mostReads.
-	if s.read == nil || len(s.read) >= mostReads {
-		s.read = map[string]sourceRead{}
+	if got, ok := s.read[key]; ok {
+		s.mu.Unlock()
+		return got, nil
 	}
-	s.read[key] = got
+	if c, ok := s.checking[key]; ok {
+		s.mu.Unlock()
+		select {
+		case <-c.done:
+			return c.got, c.err
+		case <-ctx.Done():
+			return sourceRead{}, ctx.Err()
+		}
+	}
+	if s.checking == nil {
+		s.checking = map[string]*checkingRead{}
+	}
+	c := &checkingRead{done: make(chan struct{})}
+	s.checking[key] = c
+	hook := s.beforeCheck
 	s.mu.Unlock()
-	return got, nil
+	if hook != nil {
+		hook()
+	}
+	checking, done := context.WithTimeout(context.WithoutCancel(ctx), checkWait)
+	c.got = checkSource(checking, name, spec, files, taken)
+	if c.err = settled(c.got, checking.Err()); c.err != nil {
+		c.got = sourceRead{}
+	}
+	done()
+	s.mu.Lock()
+	delete(s.checking, key)
+	if c.err == nil {
+		// What's read is kept for each commit and the IDs before it, which moves as
+		// sources do, so it's let go of whole once it holds mostReads.
+		if s.read == nil || len(s.read) >= mostReads {
+			s.read = map[string]sourceRead{}
+		}
+		s.read[key] = c.got
+	}
+	s.mu.Unlock()
+	close(c.done)
+	return c.got, c.err
 }
 
 // checkSource checks each entry of a source as Dockwell's own are, through package
@@ -782,7 +848,7 @@ func checkFiles(ctx context.Context, name string, spec *resourcev1.CatalogSource
 			shot.Path = at(shot.GetPath())
 		}
 	}
-	out.entries, out.also = got.Entries, got.Also
+	out.entries, out.also, out.unsettled = got.Entries, got.Also, got.Unsettled
 	return out
 }
 

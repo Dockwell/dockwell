@@ -4,6 +4,7 @@ package catalogapi
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"io"
 	"io/fs"
 	"net/http"
@@ -48,14 +49,11 @@ func (s *Sources) Media(authorize func(*http.Request) error) http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		kind, err := folder.Image(image, data)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
 		// An SVG image is served as svgclean writes it, whoever kept it, as the
-		// snapshot's are read as the build holds them.
-		if data, err = folder.Prepare(image, data); err != nil {
+		// snapshot's are read as the build holds them: once a file, as what's kept of a
+		// commit never changes.
+		data, kind, err := s.served(image, data)
+		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
@@ -109,4 +107,41 @@ func (s *Sources) readImage(key, commit, image string) ([]byte, time.Time, error
 		return nil, time.Time{}, os.ErrNotExist
 	}
 	return data, info.ModTime(), nil
+}
+
+// mostServed is how many bytes of images served the control plane keeps ready, let
+// go of whole past it: a commit's images are 32 MiB at most, and most are logos of a
+// few KiB.
+const mostServed = 16 << 20
+
+// servedImage is an image as it was served: its bytes and its type.
+type servedImage struct {
+	data []byte
+	kind string
+}
+
+// served is an image as folder.Served makes it, kept by what the file holds, so an
+// SVG image is cleaned once however often it's asked for. What's kept is by the
+// file's bytes, never its path, so a commit that's no longer kept still serves
+// nothing.
+func (s *Sources) served(name string, raw []byte) ([]byte, string, error) {
+	key := sha256.Sum256(append([]byte(name+"\x00"), raw...))
+	s.mu.Lock()
+	got, ok := s.images[key]
+	s.mu.Unlock()
+	if ok {
+		return got.data, got.kind, nil
+	}
+	data, kind, err := folder.Served(name, raw)
+	if err != nil {
+		return nil, "", err
+	}
+	s.mu.Lock()
+	if s.images == nil || s.imageBytes+len(data) > mostServed {
+		s.images, s.imageBytes = map[[32]byte]servedImage{}, 0
+	}
+	s.images[key] = servedImage{data: data, kind: kind}
+	s.imageBytes += len(data)
+	s.mu.Unlock()
+	return data, kind, nil
 }

@@ -102,17 +102,25 @@ func Image(name string, data []byte) (string, error) {
 // it is, once Image takes it, and an SVG image as svgclean writes it anew, so
 // nothing of the file but what draws is ever kept.
 func Prepare(name string, data []byte) ([]byte, error) {
+	out, _, err := Served(name, data)
+	return out, err
+}
+
+// Served is Prepare, with the content type the image is served as, in one reading
+// of the file.
+func Served(name string, data []byte) ([]byte, string, error) {
 	if Vector(name) {
 		clean, err := svgclean.Clean(data)
 		if err != nil {
-			return nil, fmt.Errorf("it can't be shown as an SVG image: %w. Save it as a plain SVG, WebP, PNG or JPEG", err)
+			return nil, "", fmt.Errorf("it can't be shown as an SVG image: %w. Save it as a plain SVG, WebP, PNG or JPEG", err)
 		}
-		return clean, nil
+		return clean, "image/svg+xml", nil
 	}
-	if _, err := Image(name, data); err != nil {
-		return nil, err
+	kind, err := Image(name, data)
+	if err != nil {
+		return nil, "", err
 	}
-	return data, nil
+	return data, kind, nil
 }
 
 // Refusal is a file the catalog leaves out, or an image an entry loses, and why.
@@ -146,6 +154,10 @@ type Result struct {
 	// Refused is each file it leaves out, and each image an entry names that it
 	// can't show, with why.
 	Refused []Refusal
+	// Unsettled says some entry's Compose file wasn't read for a reason of the
+	// server's, not the entry's: the reader was busy, or the read was cut short. What
+	// the check says of that entry holds for this read alone, so it's never kept.
+	Unsettled bool
 }
 
 // Taken is what a catalog before this one has of an ID: whose it is, as a reason
@@ -206,6 +218,9 @@ func Check(ctx context.Context, name string, files map[string][]byte, media map[
 		}
 		if !opts.Proved {
 			if err := ReadsAsInstall(ctx, e, opts.Tagged); err != nil {
+				if errors.Is(err, compose.ErrBusy) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					out.Unsettled = true
+				}
 				refuse(file, err.Error(), KindCheck)
 				continue
 			}
