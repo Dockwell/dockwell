@@ -565,12 +565,13 @@ function useExpires(): (invite: Invite) => string {
   };
 }
 
-/** Stops an open invite working. */
+/** Stops an open invite working, once a second press says so: its link stops at once, and can't come back. */
 function RevokeInvite({ invite }: { invite: Invite }) {
   const { t } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
   const explain = useAuthError();
+  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
   const revoke = async () => {
@@ -583,22 +584,39 @@ function RevokeInvite({ invite }: { invite: Invite }) {
       });
     } catch (err) {
       setProblem(explain(err));
+      setConfirming(false);
     } finally {
       setBusy(false);
     }
   };
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        icon="x"
-        loading={busy}
-        onClick={() => void revoke()}
-        aria-label={t`Revoke the invite for ${invite.email}`}
-      >
-        <Trans>Revoke</Trans>
-      </Button>
+      {confirming ? (
+        <>
+          <Button
+            variant="danger"
+            size="sm"
+            loading={busy}
+            onClick={() => void revoke()}
+            aria-label={t`Revoke the invite for ${invite.email}: its link stops working`}
+          >
+            <Trans>Revoke</Trans>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setConfirming(false)}>
+            <Trans>Keep</Trans>
+          </Button>
+        </>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="x"
+          onClick={() => setConfirming(true)}
+          aria-label={t`Revoke the invite for ${invite.email}`}
+        >
+          <Trans>Revoke</Trans>
+        </Button>
+      )}
       {problem ? (
         <span className="members-problem" role="alert">
           {problem}

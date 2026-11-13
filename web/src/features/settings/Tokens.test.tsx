@@ -103,11 +103,14 @@ describe("API tokens", () => {
     await expectAccessible(container);
   });
 
-  it("says when there are no tokens yet, and how to make one", async () => {
+  it("says when there are no tokens yet, and starts one from there", async () => {
+    const user = userEvent.setup();
     renderAt("/settings/api-tokens", api({ listTokens: () => ({ tokens: [] }) }));
     expect(await screen.findByRole("heading", { name: "No tokens yet" })).toBeVisible();
     expect(screen.getByText(/Make one for each script or integration/)).toBeVisible();
     expect(screen.getByText("0 tokens")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Make a token" }));
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus();
   });
 
   it("creates a token, confirmed with a passkey, and shows its secret once, partly hidden until asked", async () => {

@@ -216,7 +216,9 @@ async function main() {
   );
 
   step("revoking takes it off the list, and Activity has each of them");
-  await people.getByRole("button", { name: "Revoke the invite for ada@example.com" }).click();
+  // A revoked link can't come back, so it takes a second press, which says so.
+  await people.getByRole("button", { name: "Revoke the invite for ada@example.com", exact: true }).click();
+  await people.getByRole("button", { name: "Revoke the invite for ada@example.com: its link stops working" }).click();
   await until(
     "the invite to go",
     async () => (await people.getByRole("row").filter({ hasText: "ada@example.com" }).count()) === 0,

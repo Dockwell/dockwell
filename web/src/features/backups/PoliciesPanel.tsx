@@ -38,13 +38,24 @@ export function PoliciesPanel({ policies, onAdd }: { policies: readonly BackupPo
       title={t`Schedules`}
       flush
       actions={
-        <Button size="sm" variant="ghost" icon="plus" onClick={onAdd} {...mayPlan.off}>
-          <Trans>Add</Trans>
-        </Button>
+        // While there's none, the empty state's Add a schedule is the one way in.
+        policies.length > 0 ? (
+          <Button size="sm" variant="ghost" icon="plus" onClick={onAdd} {...mayPlan.off}>
+            <Trans>Add</Trans>
+          </Button>
+        ) : undefined
       }
     >
       {policies.length === 0 ? (
-        <EmptyState icon="calendar" title={<Trans>No schedules yet</Trans>}>
+        <EmptyState
+          icon="calendar"
+          title={<Trans>No schedules yet</Trans>}
+          action={
+            <Button size="sm" icon="plus" onClick={onAdd} {...mayPlan.off}>
+              <Trans>Add a schedule</Trans>
+            </Button>
+          }
+        >
           <p>
             <Trans>A backup you take by hand stays until you delete it.</Trans>
           </p>

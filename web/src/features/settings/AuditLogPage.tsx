@@ -141,6 +141,15 @@ export function AuditLogPage() {
   ];
   const narrowed =
     filters.query !== "" || filters.actor !== AuditActor.UNSPECIFIED || filters.surface !== Surface.UNSPECIFIED;
+  // The range a step longer than the one chosen, for a log that shows nothing in it.
+  const longer: { range: Range; label: string } | undefined =
+    filters.range === "day"
+      ? { range: "week", label: t`Show the last 7 days` }
+      : filters.range === "week"
+        ? { range: "month", label: t`Show the last 30 days` }
+        : filters.range === "month"
+          ? { range: "all", label: t`Show everything` }
+          : undefined;
 
   return (
     <Page
@@ -199,21 +208,37 @@ export function AuditLogPage() {
           <EmptyState
             icon={narrowed ? "search" : "file"}
             title={narrowed ? <Trans>Nothing matches</Trans> : <Trans>Nothing happened in this range</Trans>}
-          >
-            <p>
-              {narrowed ? (
-                <Trans>Pick a longer range, or clear the filters.</Trans>
-              ) : (
-                <Trans>Pick a longer one to see more.</Trans>
-              )}
-            </p>
-          </EmptyState>
+            action={
+              // What would show more is a press, not a sentence: the filters off, the range a step longer.
+              narrowed || longer ? (
+                <>
+                  {narrowed ? (
+                    <Button
+                      icon="x"
+                      onClick={() => {
+                        setTyped("");
+                        set({ query: "", actor: AuditActor.UNSPECIFIED, surface: Surface.UNSPECIFIED });
+                      }}
+                    >
+                      <Trans>Clear filters</Trans>
+                    </Button>
+                  ) : null}
+                  {longer ? (
+                    <Button variant={narrowed ? "ghost" : "secondary"} onClick={() => set({ range: longer.range })}>
+                      {longer.label}
+                    </Button>
+                  ) : null}
+                </>
+              ) : undefined
+            }
+          />
         ) : phone ? (
           <PhoneLog events={events} />
         ) : (
           <LogTable events={events} />
         )}
-        {log.data ? (
+        {/* With nothing to count, the empty state's buttons say what would show more. */}
+        {log.data && events.length > 0 ? (
           <div className="audit-foot">
             <p className="settings-meta">
               <Count count={events.length} more={log.hasNextPage} range={filters.range} />

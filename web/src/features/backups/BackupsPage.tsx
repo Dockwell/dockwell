@@ -35,6 +35,7 @@ import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -102,8 +103,22 @@ export function BackupsPage() {
                 <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
               </EmptyState>
             ) : (
-              <EmptyState icon="archive" title={t`Nothing to back up yet`}>
-                <Trans>A backup is of a volume. Add one to an app, or install a database from the catalog.</Trans>
+              <EmptyState
+                icon="archive"
+                title={t`Nothing to back up yet`}
+                action={
+                  // The two ways a volume comes: a database from the catalog, or an app that keeps one.
+                  <>
+                    <RouterButtonLink to="/catalog" search={{ category: "databases" }} icon="database">
+                      <Trans>Install a database</Trans>
+                    </RouterButtonLink>
+                    <RouterButtonLink to="/apps/new" variant="ghost" icon="plus">
+                      <Trans>New app</Trans>
+                    </RouterButtonLink>
+                  </>
+                }
+              >
+                <Trans>A backup is of a volume, and no app keeps one yet.</Trans>
               </EmptyState>
             )
           ) : (

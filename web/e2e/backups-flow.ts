@@ -95,7 +95,8 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   step("backups: a schedule says what it costs, and is a plan");
   await page.goto(`${origin}/backups`);
   const schedules = page.getByRole("region", { name: "Schedules" });
-  await schedules.getByRole("button", { name: "Add" }).click();
+  // While there's none, Add is the empty state's.
+  await schedules.getByRole("button", { name: /^Add( a schedule)?$/ }).click();
   const schedule = page.getByRole("dialog", { name: "Back up on a schedule" });
   await pickTheDatabase(schedule);
   await schedule.getByText(/takes about/).waitFor({ timeout: 20_000 });
@@ -110,7 +111,7 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
 
   step("backups: a destination asks for what signs in, keeps a passphrase out of the way, and the plan shows neither");
   const destinations = page.getByRole("region", { name: "Destinations" });
-  await destinations.getByRole("button", { name: "Add" }).click();
+  await destinations.getByRole("button", { name: /^Add( storage)?$/ }).click();
   const adding = page.getByRole("dialog", { name: "Add a destination" });
   const signsIn = "e2e-secret-that-signs-in";
   await adding.getByLabel("Storage").selectOption("other");

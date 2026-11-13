@@ -462,6 +462,9 @@ msgstr "Changes"
 msgid "Changes, servers joining and sign-ins show up here as they happen."
 msgstr "Changes, servers joining and sign-ins show up here as they happen."
 
+msgid "Clear filters"
+msgstr "Clear filters"
+
 msgid "Close details"
 msgstr "Close details"
 
@@ -507,8 +510,8 @@ msgstr "Not on record"
 msgid "Nothing here yet"
 msgstr "Nothing here yet"
 
-msgid "Nothing matches these filters. Clear them to see everything."
-msgstr "Nothing matches these filters. Clear them to see everything."
+msgid "Nothing matches these filters."
+msgstr "Nothing matches these filters."
 
 msgid "Open plan"
 msgstr "Open plan"
@@ -6030,8 +6033,8 @@ msgstr "The server's disk, and {destination}"
 msgid "What it is"
 msgstr "What it is"
 
-msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
-msgstr "A backup is of a volume. Add one to an app, or install a database from the catalog."
+msgid "A backup is of a volume, and no app keeps one yet."
+msgstr "A backup is of a volume, and no app keeps one yet."
 
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
@@ -6068,6 +6071,9 @@ msgstr "Dockwell can't read its backups"
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
 msgstr "Fetch this backup of {0}"
+
+msgid "Install a database"
+msgstr "Install a database"
 
 #. placeholder {0}: b.fetchError
 msgid "It couldn't be fetched: {0}"
@@ -6296,6 +6302,9 @@ msgstr "{bucket} is in {movedTo}"
 msgid "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
 msgstr "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
 
+msgid "Add storage"
+msgstr "Add storage"
+
 msgid "Destinations"
 msgstr "Destinations"
 
@@ -6323,6 +6332,9 @@ msgstr "{0} backups, {1}"
 
 msgid "A backup you take by hand stays until you delete it."
 msgstr "A backup you take by hand stays until you delete it."
+
+msgid "Add a schedule"
+msgstr "Add a schedule"
 
 msgid "Checks a restore monthly"
 msgstr "Checks a restore monthly"
@@ -10989,12 +11001,6 @@ msgstr "All the servers keep"
 msgid "Can't read these logs now"
 msgstr "Can't read these logs now"
 
-msgid "Choose a longer range, or follow what it writes next."
-msgstr "Choose a longer range, or follow what it writes next."
-
-msgid "Clear filters"
-msgstr "Clear filters"
-
 msgid "Close the search"
 msgstr "Close the search"
 
@@ -11012,9 +11018,6 @@ msgstr "Copy these lines"
 
 msgid "Copy this line"
 msgstr "Copy this line"
-
-msgid "Deploy it, and its logs show here as it starts."
-msgstr "Deploy it, and its logs show here as it starts."
 
 msgid "Deployment"
 msgstr "Deployment"
@@ -11034,6 +11037,9 @@ msgstr "Errors in this log"
 msgid "Filter log lines"
 msgstr "Filter log lines"
 
+msgid "Follow live"
+msgstr "Follow live"
+
 msgid "From {spanWords}"
 msgstr "From {spanWords}"
 
@@ -11049,8 +11055,11 @@ msgstr "It may have been removed. Docker keeps a container's log only as long as
 msgid "It reads each container's log, at most for 30 s."
 msgstr "It reads each container's log, at most for 30 s."
 
-msgid "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
-msgstr "Its agent isn't connected, so its lines weren't read. Check the server, then search again."
+msgid "Its agent isn't connected, so its lines weren't read."
+msgstr "Its agent isn't connected, so its lines weren't read."
+
+msgid "Its logs show here as it starts."
+msgstr "Its logs show here as it starts."
 
 msgid "Its logs show here once they can be read."
 msgstr "Its logs show here once they can be read."
@@ -11118,6 +11127,9 @@ msgstr "Reading logs"
 msgid "Running now"
 msgstr "Running now"
 
+msgid "Search again"
+msgstr "Search again"
+
 msgid "Search all the servers keep"
 msgstr "Search all the servers keep"
 
@@ -11138,6 +11150,12 @@ msgstr "Show older matches"
 
 msgid "Show the current logs"
 msgstr "Show the current logs"
+
+msgid "Show the last 1 h"
+msgstr "Show the last 1 h"
+
+msgid "Show the last 24 h"
+msgstr "Show the last 24 h"
 
 msgid "Start of the log"
 msgstr "Start of the log"
@@ -13644,14 +13662,8 @@ msgstr "Panel"
 msgid "People"
 msgstr "People"
 
-msgid "Pick a longer one to see more."
-msgstr "Pick a longer one to see more."
-
 msgid "Pick a longer range to see more."
 msgstr "Pick a longer range to see more."
-
-msgid "Pick a longer range, or clear the filters."
-msgstr "Pick a longer range, or clear the filters."
 
 msgid "Recorded"
 msgstr "Recorded"
@@ -13672,6 +13684,15 @@ msgstr "Shells on the control server"
 #. placeholder {0}: event.action
 msgid "Show details for {0} at {time}"
 msgstr "Show details for {0} at {time}"
+
+msgid "Show everything"
+msgstr "Show everything"
+
+msgid "Show the last 30 days"
+msgstr "Show the last 30 days"
+
+msgid "Show the last 7 days"
+msgstr "Show the last 7 days"
 
 msgid "Target"
 msgstr "Target"
@@ -14260,6 +14281,10 @@ msgstr "Revoke"
 msgid "Revoke the invite for {0}"
 msgstr "Revoke the invite for {0}"
 
+#. placeholder {0}: invite.email
+msgid "Revoke the invite for {0}: its link stops working"
+msgstr "Revoke the invite for {0}: its link stops working"
+
 #. placeholder {0}: sent.email
 msgid "Send this link to {0}"
 msgstr "Send this link to {0}"
@@ -14496,6 +14521,9 @@ msgstr "Last used"
 
 msgid "Loading tokens"
 msgstr "Loading tokens"
+
+msgid "Make a token"
+msgstr "Make a token"
 
 msgid "Make one for each script or integration, so you can revoke one without stopping the rest."
 msgstr "Make one for each script or integration, so you can revoke one without stopping the rest."

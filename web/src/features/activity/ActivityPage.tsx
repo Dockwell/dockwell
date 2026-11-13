@@ -187,9 +187,20 @@ export function ActivityPage({
   } else if (events.length === 0) {
     body = (
       <Panel>
-        <EmptyState icon="activity" title={t`Nothing here yet`}>
+        <EmptyState
+          icon="activity"
+          title={t`Nothing here yet`}
+          action={
+            // Filters that leave nothing are cleared in a press, not by hand, one at a time.
+            filtered(search) ? (
+              <Button icon="x" onClick={() => onSearch({})}>
+                <Trans>Clear filters</Trans>
+              </Button>
+            ) : undefined
+          }
+        >
           {filtered(search) ? (
-            <Trans>Nothing matches these filters. Clear them to see everything.</Trans>
+            <Trans>Nothing matches these filters.</Trans>
           ) : (
             <Trans>Changes, servers joining and sign-ins show up here as they happen.</Trans>
           )}
