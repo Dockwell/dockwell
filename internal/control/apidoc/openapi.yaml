@@ -17920,6 +17920,7 @@ components:
                         - UPDATE_PROBLEM_AGENT_OUTDATED
                         - UPDATE_PROBLEM_NOT_RUNNING
                         - UPDATE_PROBLEM_LOCAL_IMAGE
+                        - UPDATE_PROBLEM_KEPT_BY_DOCKWELL
                     type: string
                     description: |-
                         Why it couldn't be checked, or isn't, when check is failed or not checked.

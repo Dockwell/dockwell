@@ -220,6 +220,24 @@ describe("the update card on an app's page", () => {
     expect(await screen.findByText("Can't check: the image is private, or not on its registry")).toBeVisible();
   });
 
+  it("says Dockwell keeps current what it pins, with nothing to check", async () => {
+    const web = anApp(
+      "web",
+      "caddy:2.11.7-alpine@sha256:e70b",
+      {},
+      {
+        update: create(ServiceUpdateSchema, {
+          check: UpdateCheck.NOT_CHECKED,
+          problem: UpdateProblem.KEPT_BY_DOCKWELL,
+        }),
+      },
+    );
+    renderAt("/apps/svc_web", api([web]));
+    const card = (await screen.findByRole("heading", { name: "Updates" })).closest("section") as HTMLElement;
+    expect(within(card).getByText("Not checked: Dockwell keeps it current")).toBeVisible();
+    expect(within(card).queryByRole("button", { name: "Check now" })).toBeNull();
+  });
+
   it("says nothing before an app's first check", async () => {
     renderAt("/apps/svc_web", api([anApp("web", "nginx:1.27")]));
     await screen.findByRole("heading", { name: "Configuration" });

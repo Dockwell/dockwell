@@ -20,7 +20,9 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/website"
 )
 
 const (
@@ -53,6 +55,10 @@ type subject struct {
 	kept bool
 	// install says it's a catalog install's, which its catalog says of.
 	install bool
+	// pinned says Dockwell picks and pins its image itself, and moves it with its
+	// own releases, as a website's web and PHP servers' (ADR 0039): nothing is
+	// checked for it, and it reads as kept current by Dockwell.
+	pinned bool
 }
 
 // Run checks each server's services every Every, until ctx ends, and a
@@ -102,10 +108,21 @@ func (k *Keeper) tick(ctx context.Context) error {
 		return nil
 	}
 	byHome := map[string][]subject{}
+	var marking []subject
 	for i := range subjects {
-		if s := &subjects[i]; s.home != "" && !s.install {
+		s := &subjects[i]
+		switch {
+		case s.pinned:
+			// Said once, and again as it runs another image: no registry is asked.
+			if !s.kept || s.row.Problem != keptByDockwell || s.row.Image != checkedAs(s.Spec) {
+				marking = append(marking, *s)
+			}
+		case s.home != "" && !s.install:
 			byHome[s.home] = append(byHome[s.home], *s)
 		}
+	}
+	if err := k.markKept(ctx, marking); err != nil {
+		return err
 	}
 	for _, server := range slices.Sorted(maps.Keys(byHome)) {
 		list := byHome[server]
@@ -211,6 +228,11 @@ func (k *Keeper) check(ctx context.Context, server string, list []subject) {
 			break
 		}
 		row := store.ServiceUpdate{ServiceID: s.ID, ServerID: server, Image: checkedAs(s.Spec), TriedAt: now, NextAt: next}
+		if s.pinned {
+			row.State, row.Problem = notChecked, keptByDockwell
+			rows = append(rows, row)
+			continue
+		}
 		var prev []*dockwellv1.AvailableUpdate
 		if s.kept && s.row.Image == row.Image {
 			prev, row.CheckedAt, row.Found = decodeFound(s.row.Found), s.row.CheckedAt, s.row.Found
@@ -245,6 +267,69 @@ func (k *Keeper) check(ctx context.Context, server string, list []subject) {
 	if err != nil && k.Logger != nil && ctx.Err() == nil {
 		k.Logger.WarnContext(ctx, "can't keep what the check of the apps' updates found", slog.String("server", server), slog.String("error", err.Error()))
 	}
+}
+
+// What a service Dockwell pins reads as.
+var (
+	notChecked     = int32(dockwellv1.UpdateCheck_UPDATE_CHECK_NOT_CHECKED)
+	keptByDockwell = int32(dockwellv1.UpdateProblem_UPDATE_PROBLEM_KEPT_BY_DOCKWELL)
+)
+
+// markKept notes services whose image Dockwell pins as kept current by Dockwell,
+// with nothing checked, wherever they run, connected or not.
+func (k *Keeper) markKept(ctx context.Context, list []subject) error {
+	if len(list) == 0 {
+		return nil
+	}
+	now := k.now()
+	return k.DB.Update(ctx, func(tx *store.Tx) error {
+		for i := range list {
+			s := &list[i]
+			row := store.ServiceUpdate{
+				ServiceID: s.ID, ServerID: s.home, Image: checkedAs(s.Spec), TriedAt: now, NextAt: now.Add(k.every()),
+				State: notChecked, Problem: keptByDockwell,
+			}
+			if err := tx.PutServiceUpdateCheck(ctx, row); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// pinnedBy says Dockwell picks and pins a service's image itself: a website's web
+// server, which runs the image the ingress pins, and its PHP, whose version is
+// picked on the website's page (ADR 0039).
+func pinnedBy(websites map[string]bool, env, name string) bool {
+	return websites[env] && (name == website.WebService || name == website.PHPService)
+}
+
+// websiteEnvironments are the environments of the projects made as websites.
+func (k *Keeper) websiteEnvironments(ctx context.Context, tx *store.Tx) (map[string]bool, error) {
+	tree, err := scope.Load(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]bool{}
+	for _, p := range tree.Projects {
+		r, err := tx.GetResource(ctx, string(scope.ProjectKind), tree.Organization.ID, p.Name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		spec, err := k.Secrets.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			continue // what can't be read is checked as any other's
+		}
+		if project, ok := spec.(*resourcev1.Project); ok && project.GetWebsite() != nil {
+			for _, e := range p.Environments {
+				out[e.ID] = true
+			}
+		}
+	}
+	return out, nil
 }
 
 // readImage asks a server's agent what's newer than an image, once for every
@@ -511,6 +596,10 @@ func (k *Keeper) load(ctx context.Context) ([]subject, []string, error) {
 		if err := environmentsProjects(ctx, tx, projects); err != nil {
 			return err
 		}
+		websites, err := k.websiteEnvironments(ctx, tx)
+		if err != nil {
+			return err
+		}
 		rows, err := tx.ServiceUpdates(ctx, nil)
 		if err != nil {
 			return err
@@ -562,6 +651,7 @@ func (k *Keeper) load(ctx context.Context) ([]subject, []string, error) {
 				}
 				s.row, s.kept = rows[s.ID]
 				_, s.install = installs[projects[s.Environment]]
+				s.pinned = pinnedBy(websites, s.Environment, s.Name)
 				out = append(out, s)
 			}
 			if len(list) < pageSize {

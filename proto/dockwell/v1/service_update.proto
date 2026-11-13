@@ -306,6 +306,10 @@ enum UpdateProblem {
   UPDATE_PROBLEM_NOT_RUNNING = 6 [(dockwell.v1.word) = "not_running"];
   // Its image was built or loaded on its server, so no registry has it.
   UPDATE_PROBLEM_LOCAL_IMAGE = 7 [(dockwell.v1.word) = "local_image"];
+  // Dockwell picks and pins its image itself and moves it with its own releases,
+  // as it does a website's web and PHP servers' (ADR 0039), so nothing is checked
+  // and nobody has anything to act on.
+  UPDATE_PROBLEM_KEPT_BY_DOCKWELL = 8 [(dockwell.v1.word) = "kept_by_dockwell"];
 }
 
 // UpdateSource is where what a service runs comes from, which says what's

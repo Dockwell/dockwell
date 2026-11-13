@@ -4853,6 +4853,9 @@ msgstr "新构建"
 msgid "Not checked yet"
 msgstr "尚未检查"
 
+msgid "Not checked: Dockwell keeps it current"
+msgstr "不检查：由 Dockwell 保持最新"
+
 msgid "Not now"
 msgstr "暂不"
 
@@ -15855,6 +15858,9 @@ msgstr "交给 index.php"
 
 msgid "How it serves"
 msgstr "提供方式"
+
+msgid "Kept current by Dockwell"
+msgstr "由 Dockwell 保持最新"
 
 msgid "Sends each request straight to the port"
 msgstr "将每个请求直接发送到该端口"

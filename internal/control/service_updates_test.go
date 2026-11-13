@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,9 +21,12 @@ import (
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
+	"github.com/dockwell/dockwell/internal/website"
 )
 
 const (
@@ -301,5 +305,96 @@ func TestAnUpdateIsSentOnceItsRuleIsOn(t *testing.T) {
 	ticks(12)
 	if got := h.of("update-available"); len(got) != 2 || !strings.HasPrefix(got[1], "resolved:") {
 		t.Errorf("sent %q, want firing then resolved", got)
+	}
+}
+
+// #561: a website's own servers run images Dockwell picks and pins, as the ingress
+// pins its web server's (ADR 0039). On a server with nothing but a website, a check
+// asks no registry, its web server reads as kept current by Dockwell, asked of the
+// server or of the service, nothing counts, and the update alert stays quiet.
+func TestAWebsitesOwnServersAreKeptCurrentByDockwell(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+	f.probe = connects
+	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+	pullsAnything(e)
+	var asked atomic.Int32
+	reg := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		asked.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(reg.Close)
+	srv := f.lastDocker
+	srv.stop()
+	waitConnected(t, f, srv.id.ServerID, false)
+	srv.images = agent.ImageReads{Test: reg.URL}
+	srv.run(t)
+	waitConnected(t, f, srv.id.ServerID, true)
+
+	c := changeClient(b, b.origin)
+	made, err := websiteClient(b, b.origin).CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+		Domain: "blog.example.com", Website: toURL("https://backend.example.com/"),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	applyReviewed(t, c, made.Msg.GetChange())
+
+	u := dockwellv1connect.NewServiceUpdateServiceClient(b, b.origin, connect.WithProtoJSON())
+	checked, err := u.CheckServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.CheckServiceUpdatesRequest{Server: "hz-1"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := ""
+	for _, s := range checked.Msg.GetServices() {
+		if s.GetResource().GetName() != website.WebService {
+			continue
+		}
+		web = s.GetId()
+		if got := s.GetUpdate(); got.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_NOT_CHECKED || got.GetProblem() != dockwellv1.UpdateProblem_UPDATE_PROBLEM_KEPT_BY_DOCKWELL {
+			t.Errorf("the website's web server reads as %v", got)
+		}
+	}
+	if web == "" {
+		t.Fatalf("the check lists no web server: %v", checked.Msg.GetServices())
+	}
+	if _, err := u.CheckServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.CheckServiceUpdatesRequest{Id: web})); err != nil {
+		t.Fatal(err)
+	}
+	if n := asked.Load(); n != 0 {
+		t.Errorf("a website-only server's check asked a registry %d times", n)
+	}
+	listed, err := u.ListServiceUpdates(t.Context(), connect.NewRequest(&dockwellv1.ListServiceUpdatesRequest{Available: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Msg.GetServices()) != 0 {
+		t.Errorf("updates that count: %v", listed.Msg.GetServices())
+	}
+
+	at := &clock{now: time.Now()}
+	ev := evaluatorOn(f, at)
+	ev.Updates = appUpdates(f.server.updates)
+	apply(t, c, propose(t, c, "Tell of updates", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: string(alert.RuleKind), Name: "update-available"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_AlertRule{AlertRule: &resourcev1.AlertRule{
+			Condition: resourcev1.AlertRule_CONDITION_UPDATE_AVAILABLE, Severity: resourcev1.AlertRule_SEVERITY_WARNING,
+		}}},
+	}))
+	for range 12 {
+		tickOn(t, ev)
+		at.add(alerts.Every)
+	}
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		open, err := tx.OpenAlerts(t.Context())
+		for i := range open {
+			if open[i].RuleName == "update-available" {
+				t.Errorf("the update alert fired: %s", open[i].Title)
+			}
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

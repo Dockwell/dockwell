@@ -14,6 +14,8 @@ import {
   HealthState,
   PlanAction,
   ServiceSchema,
+  UpdateCheck,
+  UpdateProblem,
   type UpdateWebsiteRequest,
   type WatchChangeResponse,
   type WatchLogsResponse,
@@ -1252,6 +1254,24 @@ describe("A PHP website", () => {
     expect(serves).toHaveTextContent("Upload limit64 MiB");
     expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/websites/prj_shop/files");
     await expectAccessible(container);
+  });
+
+  it("says Dockwell keeps a website's own servers current, once their check says so", async () => {
+    onWideScreen();
+    const kept = { update: { check: UpdateCheck.NOT_CHECKED, problem: UpdateProblem.KEPT_BY_DOCKWELL } };
+    const web = anApp("shopweb", "caddy:2.11.7-alpine@sha256:e70b", {}, kept);
+    const php = anApp("shopphp", "wordpress@sha256:83", {}, kept);
+    renderAt("/websites/prj_shop", api([shop], { services: { listServices: () => ({ services: [web, php] }) } }));
+    const parts = await screen.findByRole("region", { name: "How it serves" });
+    await waitFor(() => expect(within(parts).getAllByText("Kept current by Dockwell")).toHaveLength(2));
+  });
+
+  it("says nothing of who keeps a website's server current before its check", async () => {
+    onWideScreen();
+    renderAt("/websites/prj_blog", api([blog]));
+    const parts = await screen.findByRole("region", { name: "How it serves" });
+    await within(parts).findByText("Web server");
+    expect(within(parts).queryByText("Kept current by Dockwell")).toBeNull();
   });
 
   it("configures as PHP, and plans a new version", async () => {

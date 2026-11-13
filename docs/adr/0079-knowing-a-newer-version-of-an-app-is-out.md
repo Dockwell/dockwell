@@ -41,6 +41,7 @@ Each service is checked on its own, and a Compose stack's update is the set of i
 - **Any other tag**, such as `latest`, `stable` or `edge`: whether it points at a new image, by digest. A tag that isn't a version gets only that check.
 - **An app built from Git**: whether the branch it builds has a newer commit than the one that runs, from the same read of the repository's refs that planning a build makes. It isn't counted in commits, as counting needs the history, which a fetch would take. A tag or a commit named as the ref never moves, and isn't checked.
 - **An app from a folder on the server** ([ADR 0058](0058-runtimes-an-app-from-a-folder.md)): whether its language's image has a new build, by digest. A newer version of the language is the runtime's choice, which ChangeServiceRuntime already offers.
+- **A website's web and PHP servers** ([ADR 0039](0039-websites-as-projects-of-their-own.md)): nothing. Dockwell picks and pins their images and moves them with its own releases, so no registry is asked, nothing is counted and no alert fires. Each reads as not checked, with `problem` kept by Dockwell, and the website's page says Dockwell keeps it current (#561).
 
 ### Versions, and how a step is classed
 

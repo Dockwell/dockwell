@@ -528,6 +528,14 @@
   color: var(--ink-muted);
 }
 
+/* A line of its own under the part, such as who keeps its image current. */
+.website-part-note {
+  flex-basis: 100%;
+  margin-top: calc(-1 * var(--space-1));
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 .website-part-link {
   color: var(--link);
   font-size: 13px;
