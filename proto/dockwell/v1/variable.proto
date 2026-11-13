@@ -56,6 +56,46 @@ service VariableService {
       body: "*"
     };
   }
+
+  // RevealServiceValue returns one of a service's own environment variables
+  // that reads hidden, as it may be a secret, to the person who asks, as
+  // RevealSecret does a secret's: it needs a signed-in session and a proof
+  // from FinishStepUp for that value, and no API token can call it. Every
+  // reveal is in the audit log. See
+  // docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+  rpc RevealServiceValue(RevealServiceValueRequest) returns (RevealServiceValueResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/services/{service_id}/values/{name}:reveal"
+      body: "*"
+    };
+  }
+}
+
+// RevealServiceValueRequest names one of a service's own environment variables
+// to reveal.
+message RevealServiceValueRequest {
+  // The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string service_id = 1;
+  // The variable's name, as the service's own environment has it, such as
+  // "SESSION_SECRET".
+  string name = 2;
+  // The proof from FinishStepUp, for revealing this value, its target the
+  // service's ID and the name as "svc_…:NAME". It works once, within a minute,
+  // in the session that made it.
+  string proof = 3;
+}
+
+// RevealServiceValueResponse carries the value.
+message RevealServiceValueResponse {
+  // The value.
+  string value = 1;
+  // The service's revision it is from.
+  int64 revision = 2;
 }
 
 // ListVariablesRequest names an environment.

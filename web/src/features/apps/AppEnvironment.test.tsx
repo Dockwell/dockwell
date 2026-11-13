@@ -7,16 +7,19 @@ import {
   HostAccessKind,
   HostAccessSchema,
   type ProposeChangeRequest,
+  type RevealServiceValueRequest,
   type ServiceInfo,
+  StepUpAction,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aRevision, places } from "../../test/apps";
+import { authError, stubPasskeys } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -91,7 +94,10 @@ const add = async (user: ReturnType<typeof userEvent.setup>, key: string, value:
 };
 const bar = () => screen.getByRole("region", { name: "Unapplied changes" });
 
-afterEach(() => forgetDrafts());
+afterEach(() => {
+  forgetDrafts();
+  vi.unstubAllGlobals();
+});
 /** The page with what the app uses read, which a busy machine takes longer to draw. */
 const ready = () => screen.findByText("info", undefined, { timeout: 5000 });
 
@@ -442,6 +448,87 @@ describe("an app's own values", () => {
     await user.click(within(form("DB_HOST")).getByRole("button", { name: "Change" }));
     expect(within(form("DB_HOST")).getByRole("alert")).toHaveTextContent("A secret needs a value.");
     expect(screen.queryByRole("region", { name: "Unapplied changes" })).toBeNull();
+  });
+});
+
+describe("an app's own value that may be a secret", () => {
+  const withReveal = (proposals: ProposeChangeRequest[], asked: RevealServiceValueRequest[], steps: unknown[]) => {
+    const more = api(anInstalledApp(), proposals);
+    more.auth = {
+      beginStepUp: (req) => {
+        steps.push(req);
+        return { ceremonyId: "cer_1", optionsJson: JSON.stringify({ challenge: "q83v", rpId: "localhost" }) };
+      },
+      finishStepUp: () => ({ proof: "proof_1" }),
+    };
+    more.variables = {
+      listVariables: () => ({ environmentId: "env_prod", variables }),
+      revealServiceValue: (req) => {
+        asked.push(req);
+        if (req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+        return { value: "replica", revision: 7n };
+      },
+    };
+    return more;
+  };
+
+  it("reveals with a passkey, for that value alone, and once seen can be said to be no secret", async () => {
+    stubPasskeys();
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const asked: RevealServiceValueRequest[] = [];
+    const steps: unknown[] = [];
+    renderAt("/apps/svc_web/environment", withReveal(proposals, asked, steps));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Reveal DB_EXTRA" }));
+    expect(await screen.findByText("replica")).toBeVisible();
+    expect(steps).toEqual([
+      expect.objectContaining({ action: StepUpAction.REVEAL_SERVICE_VALUE, target: "svc_web:DB_EXTRA" }),
+    ]);
+    expect(asked.at(-1)).toEqual(expect.objectContaining({ serviceId: "svc_web", name: "DB_EXTRA", proof: "proof_1" }));
+    await user.click(screen.getByRole("button", { name: "DB_EXTRA is no secret: show it" }));
+    expect(screen.getByRole("cell", { name: "DB_EXTRA, changed, not applied" })).toBeVisible();
+    await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const spec =
+      proposals[0]?.edits[0]?.spec?.kind.case === "service" ? proposals[0].edits[0].spec.kind.value : undefined;
+    expect(spec?.runs.case === "app" ? spec.runs.value.env : undefined).toEqual({ DB_EXTRA: "replica" });
+    expect(spec?.shownEnv).toEqual(["DB_EXTRA", "DB_HOST", "DB_NAME"]);
+  });
+
+  it("becomes a secret with the value it has, which nobody types again", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/environment", api(anInstalledApp(), proposals));
+    await ready();
+    // One it shows has nothing to keep secret, so it offers to share it instead.
+    expect(screen.queryByRole("button", { name: "Make DB_HOST a secret" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Make DB_EXTRA a secret" }));
+    expect(within(screen.getByRole("row", { name: /^DB_EXTRA/ })).getByText("New secret")).toBeVisible();
+    await user.click(within(bar()).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(proposals[0]?.summary).toBe("Make DB_EXTRA on web a secret");
+    const edit = proposals[0]?.edits[0];
+    expect(edit?.envToSecrets).toEqual(["DB_EXTRA"]);
+    expect(edit?.keepEnv).toEqual(["DB_HOST", "DB_NAME"]);
+    expect(edit?.baseRevision).toBe(7n);
+  });
+
+  it("says why it can't become a secret where the environment has the name", async () => {
+    const more = api(anInstalledApp());
+    more.variables = {
+      listVariables: () => ({
+        environmentId: "env_prod",
+        variables: [...variables, ...store({ id: "sec_extra", name: "DB_EXTRA", secret: true })],
+      }),
+    };
+    renderAt("/apps/svc_web/environment", more);
+    await ready();
+    const make = screen.getByRole("button", { name: "Make DB_EXTRA a secret" });
+    expect(make).toHaveAttribute("aria-disabled", "true");
+    expect(make).toHaveAccessibleDescription(
+      "The environment has a secret DB_EXTRA already. Rename one to keep this as a secret.",
+    );
   });
 });
 

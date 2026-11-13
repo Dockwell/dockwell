@@ -35,6 +35,7 @@ import {
   TokenService,
   UpdateService,
   VariableService,
+  VolumeService,
   WebsiteService,
 } from "@dockwell/api";
 import { PHONE_QUERY } from "@dockwell/ui";
@@ -60,6 +61,7 @@ export type Api = {
   events?: Partial<ServiceImpl<typeof EventService>>;
   resources?: Partial<ServiceImpl<typeof ResourceService>>;
   variables?: Partial<ServiceImpl<typeof VariableService>>;
+  volumes?: Partial<ServiceImpl<typeof VolumeService>>;
   domains?: Partial<ServiceImpl<typeof DomainService>>;
   services?: Partial<ServiceImpl<typeof ServiceService>>;
   compose?: Partial<ServiceImpl<typeof ComposeService>>;
@@ -123,6 +125,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(EventService, { listEvents: () => ({}), watchEvents: quietWatch, ...api.events });
       service(ResourceService, { listResources: () => ({}), ...api.resources });
       service(VariableService, api.variables ?? {});
+      service(VolumeService, api.volumes ?? {});
       service(DomainService, { listDomains: () => ({}), ...api.domains });
       service(ServiceService, { listServices: () => ({}), ...api.services });
       service(ComposeService, api.compose ?? {});

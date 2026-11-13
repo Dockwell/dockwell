@@ -1743,7 +1743,11 @@ type EventSubject struct {
 	// True for a file or folder deleted for good, which can't be put back.
 	ForGood bool `protobuf:"varint,102,opt,name=for_good,json=forGood,proto3" json:"for_good,omitempty"`
 	// How many bytes, for a file uploaded or downloaded.
-	SizeBytes     uint64 `protobuf:"varint,103,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	SizeBytes uint64 `protobuf:"varint,103,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// For service.value_reveal, which of the service's own environment variables
+	// was revealed, by name; never its value. Numbered apart, as open work adds to
+	// this message.
+	ValueName     string `protobuf:"bytes,60,opt,name=value_name,json=valueName,proto3" json:"value_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1832,6 +1836,13 @@ func (x *EventSubject) GetSizeBytes() uint64 {
 		return x.SizeBytes
 	}
 	return 0
+}
+
+func (x *EventSubject) GetValueName() string {
+	if x != nil {
+		return x.ValueName
+	}
+	return ""
 }
 
 // EventMember is who a member's event is about, with what role, where.
@@ -2072,7 +2083,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
 	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
 	"\x05flips\x18\x06 \x01(\x05R\x05flips\x120\n" +
-	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xcf\x01\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xee\x01\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -2082,7 +2093,9 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\vway_back_in\x18e \x01(\bR\twayBackIn\x12\x19\n" +
 	"\bfor_good\x18f \x01(\bR\aforGood\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18g \x01(\x04R\tsizeBytes\"\xba\x01\n" +
+	"size_bytes\x18g \x01(\x04R\tsizeBytes\x12\x1d\n" +
+	"\n" +
+	"value_name\x18< \x01(\tR\tvalueName\"\xba\x01\n" +
 	"\vEventMember\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12%\n" +

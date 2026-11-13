@@ -47,3 +47,7 @@ Some of what Docker counts can be on another disk, such as a volume bound to one
 - What runs in the background on a server's behalf now depends on who is watching. A feature that needs samples while nobody looks, such as an alert on sustained CPU, needs its own decision on what that costs, as alerts are free (PRD principle 3) and should stay cheap.
 - `GetServerDiskUse` is a read with a real cost on the server. It's an `EFFECT_READ` like the rest of `ServerService`, so any token that reads servers can ask; the agent's 30 s answer bounds how often that reaches Docker.
 - Processes (#209's second part) follow the same rule: listed only while a page shows them.
+
+## As built later: what each volume holds
+
+`ServerDiskUse.volume_use` (60) lists each volume Docker keeps, with what it holds, where its files are and how many containers use it, from the same `/system/df` read, so it costs nothing more. `VolumeService.GetVolume` asks the agents of a volume's servers for it when its page opens, a viewer's in the volume's project, where `GetServerDiskUse` is an admin's: one volume's size says nothing of the rest of the disk.

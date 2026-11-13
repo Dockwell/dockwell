@@ -23,6 +23,9 @@ import { runtimeEnv } from "./runtime";
  *   says;
  * - share makes one of the app's own, shown, a variable of its environment the
  *   app uses, which other apps can use too;
+ * - secret makes one of the app's own a secret of its environment the app uses,
+ *   with the value it has, which the control plane moves, so a hidden one needn't
+ *   be typed again (ADR 0081);
  * - remove takes one out of the app. One of its environment's stays there.
  */
 export type EnvEdit =
@@ -30,6 +33,7 @@ export type EnvEdit =
   | { op: "use"; name: string; from: string; secret: boolean }
   | { op: "change"; name: string; value: string; secret?: boolean; hidden?: boolean }
   | { op: "share"; name: string; value: string }
+  | { op: "secret"; name: string }
   | { op: "remove"; name: string };
 
 /** A row of the editor: what the app has, with what's pending on it. */
@@ -77,10 +81,26 @@ export function envCounts(pending: ReadonlyMap<string, EnvEdit>): { added: numbe
   let removed = 0;
   for (const edit of pending.values()) {
     if (edit.op === "add" || edit.op === "use") added++;
-    else if (edit.op === "change" || edit.op === "share") changed++;
+    else if (edit.op === "change" || edit.op === "share" || edit.op === "secret") changed++;
     else removed++;
   }
   return { added, changed, removed };
+}
+
+/**
+ * Why one of the app's own values can't be made a secret of its environment as it
+ * is, or undefined when it can: what the environment has isn't read yet, or it has
+ * a secret or a variable of that name, which making one would change for every
+ * app that uses it.
+ */
+export function cantMakeSecret(
+  row: EnvRow,
+  store: readonly EnvironmentVariable[] | undefined,
+): "reading" | "secret" | "variable" | undefined {
+  if (store === undefined) return "reading";
+  const there = store.find((v) => v.name === row.name);
+  if (!there) return undefined;
+  return there.secret ? "secret" : "variable";
 }
 
 /**
@@ -154,6 +174,7 @@ export function envEdits(
   const app = spec.runs.case === "app" ? spec.runs.value : undefined;
   const own: Record<string, string> = {};
   const dropped = new Set<string>();
+  const moved: string[] = [];
   const shown = new Set(spec.shownEnv);
   let touched = false;
   const setOwn = (name: string, value: string) => {
@@ -200,6 +221,12 @@ export function envEdits(
         touched = true;
         break;
       }
+      case "secret":
+        if (was?.kind !== "own") break;
+        moved.push(name);
+        dropped.add(name);
+        touched = true;
+        break;
       case "remove":
         if (!was) break;
         if (was.kind === "own" || was.kind === "runtime") dropped.add(name);
@@ -218,6 +245,7 @@ export function envEdits(
       spec: { kind: { case: "service", value: spec } },
       baseRevision: service.revision,
       keepEnv: keepEnv.sort(),
+      ...(moved.length > 0 ? { envToSecrets: moved.sort() } : {}),
     });
   }
   return edits;

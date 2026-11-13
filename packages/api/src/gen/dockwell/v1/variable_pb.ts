@@ -18,7 +18,74 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/variable.proto.
  */
 export const file_dockwell_v1_variable: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS92YXJpYWJsZS5wcm90bxILZG9ja3dlbGwudjEiYwoUTGlzdFZhcmlhYmxlc1JlcXVlc3QSEwoLZW52aXJvbm1lbnQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJ9ChVMaXN0VmFyaWFibGVzUmVzcG9uc2USFgoOZW52aXJvbm1lbnRfaWQYASABKAkSMwoJdmFyaWFibGVzGAIgAygLMiAuZG9ja3dlbGwudjEuRW52aXJvbm1lbnRWYXJpYWJsZRIXCg9uZXh0X3BhZ2VfdG9rZW4YAyABKAki9wEKE0Vudmlyb25tZW50VmFyaWFibGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZzZWNyZXQYAyABKAgSDQoFdmFsdWUYBCABKAkSEAoIcmV2aXNpb24YBSABKAMSLwoLdXBkYXRlX3RpbWUYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiYKCnVwZGF0ZWRfYnkYByABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIRCgljaGFuZ2VfaWQYCCABKAkSKQoHdXNlZF9ieRgJIAMoCzIYLmRvY2t3ZWxsLnYxLlZhcmlhYmxlVXNlIkAKC1ZhcmlhYmxlVXNlEhIKCnNlcnZpY2VfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIMCgRuYW1lGAMgASgJIjAKE1JldmVhbFNlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSDQoFcHJvb2YYAiABKAkiNwoUUmV2ZWFsU2VjcmV0UmVzcG9uc2USDQoFdmFsdWUYASABKAkSEAoIcmV2aXNpb24YAiABKAMy8gcKD1ZhcmlhYmxlU2VydmljZRKAAQoNTGlzdFZhcmlhYmxlcxIhLmRvY2t3ZWxsLnYxLkxpc3RWYXJpYWJsZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdFZhcmlhYmxlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvdmFyaWFibGVzEosBCgxSZXZlYWxTZWNyZXQSIC5kb2Nrd2VsbC52MS5SZXZlYWxTZWNyZXRSZXF1ZXN0GiEuZG9ja3dlbGwudjEuUmV2ZWFsU2VjcmV0UmVzcG9uc2UiNqC7GAGwuxgBwLsYA8i7GATQuxgEgtPkkwIcOgEqIhcvdjEvc2VjcmV0cy97aWR9OnJldmVhbBrNBaK7GKQCCgl2YXJpYWJsZXMSlgJBIHZhcmlhYmxlIGlzIGEgdmFsdWUgb2YgYW4gZW52aXJvbm1lbnQgdGhhdCBpdHMgc2VydmljZXMgdXNlLCBzdWNoIGFzIExPR19MRVZFTD1pbmZvLiBJdCBpc24ndCBzZWNyZXQ6IHBsYW5zIGFuZCB0aGUgcGFuZWwgc2hvdyBpdC4gU2VydmljZXMgdXNlIHZhcmlhYmxlcyBhbmQgc2VjcmV0cyBieSByZWZlcmVuY2UsIHVuZGVyIHRoZSBuYW1lcyB0aGV5IGV4cGVjdCwgc28gY2hhbmdpbmcgb25lIGlzIGEgcGxhbiB0aGF0IHJlc3RhcnRzIGV2ZXJ5IHNlcnZpY2UgdGhhdCB1c2VzIGl0LqK7GJ8DCgdzZWNyZXRzEpMDQSBzZWNyZXQgaXMgYSB2YWx1ZSBvZiBhbiBlbnZpcm9ubWVudCB0aGF0IGl0cyBzZXJ2aWNlcyB1c2Ugd2l0aG91dCBhbnlvbmUgcmVhZGluZyBpdCBiYWNrLCBzdWNoIGFzIGEgZGF0YWJhc2UgcGFzc3dvcmQuIERvY2t3ZWxsIGtlZXBzIGl0IGVuY3J5cHRlZCwgc2VuZHMgaXQgb25seSB0byB0aGUgc2VydmVycyB0aGF0IHJ1biBhIHNlcnZpY2UgdGhhdCB1c2VzIGl0LCBhbmQgbmV2ZXIgc2hvd3MgaXQgaW4gcGxhbnMsIGhpc3Rvcnkgb3IgbG9ncy4gSXRzIHZhbHVlIGlzIHJlYWQgZnJvbSBzdGFuZGFyZCBpbnB1dCBvciBhIGZpbGUsIG5ldmVyIGZyb20gYSBmbGFnLiBSZXZlYWxpbmcgaXQgdGFrZXMgYSBwYXNza2V5LCBpbiB0aGUgcGFuZWwsIGFuZCBpcyBhdWRpdGVkOiBubyBBUEkgdG9rZW4gY2FuLkKmAQoPY29tLmRvY2t3ZWxsLnYxQg1WYXJpYWJsZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS92YXJpYWJsZS5wcm90bxILZG9ja3dlbGwudjEiTAoZUmV2ZWFsU2VydmljZVZhbHVlUmVxdWVzdBISCgpzZXJ2aWNlX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFcHJvb2YYAyABKAkiPQoaUmV2ZWFsU2VydmljZVZhbHVlUmVzcG9uc2USDQoFdmFsdWUYASABKAkSEAoIcmV2aXNpb24YAiABKAMiYwoUTGlzdFZhcmlhYmxlc1JlcXVlc3QSEwoLZW52aXJvbm1lbnQYASABKAkSDwoHcHJvamVjdBgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJ9ChVMaXN0VmFyaWFibGVzUmVzcG9uc2USFgoOZW52aXJvbm1lbnRfaWQYASABKAkSMwoJdmFyaWFibGVzGAIgAygLMiAuZG9ja3dlbGwudjEuRW52aXJvbm1lbnRWYXJpYWJsZRIXCg9uZXh0X3BhZ2VfdG9rZW4YAyABKAki9wEKE0Vudmlyb25tZW50VmFyaWFibGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIOCgZzZWNyZXQYAyABKAgSDQoFdmFsdWUYBCABKAkSEAoIcmV2aXNpb24YBSABKAMSLwoLdXBkYXRlX3RpbWUYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiYKCnVwZGF0ZWRfYnkYByABKAsyEi5kb2Nrd2VsbC52MS5BY3RvchIRCgljaGFuZ2VfaWQYCCABKAkSKQoHdXNlZF9ieRgJIAMoCzIYLmRvY2t3ZWxsLnYxLlZhcmlhYmxlVXNlIkAKC1ZhcmlhYmxlVXNlEhIKCnNlcnZpY2VfaWQYASABKAkSDwoHc2VydmljZRgCIAEoCRIMCgRuYW1lGAMgASgJIjAKE1JldmVhbFNlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSDQoFcHJvb2YYAiABKAkiNwoUUmV2ZWFsU2VjcmV0UmVzcG9uc2USDQoFdmFsdWUYASABKAkSEAoIcmV2aXNpb24YAiABKAMyqQkKD1ZhcmlhYmxlU2VydmljZRKAAQoNTGlzdFZhcmlhYmxlcxIhLmRvY2t3ZWxsLnYxLkxpc3RWYXJpYWJsZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuTGlzdFZhcmlhYmxlc1Jlc3BvbnNlIiiQAgGguxgBwLsYAsi7GALQuxgEgtPkkwIPEg0vdjEvdmFyaWFibGVzEosBCgxSZXZlYWxTZWNyZXQSIC5kb2Nrd2VsbC52MS5SZXZlYWxTZWNyZXRSZXF1ZXN0GiEuZG9ja3dlbGwudjEuUmV2ZWFsU2VjcmV0UmVzcG9uc2UiNqC7GAGwuxgBwLsYA8i7GATQuxgEgtPkkwIcOgEqIhcvdjEvc2VjcmV0cy97aWR9OnJldmVhbBK0AQoSUmV2ZWFsU2VydmljZVZhbHVlEiYuZG9ja3dlbGwudjEuUmV2ZWFsU2VydmljZVZhbHVlUmVxdWVzdBonLmRvY2t3ZWxsLnYxLlJldmVhbFNlcnZpY2VWYWx1ZVJlc3BvbnNlIk2guxgBsLsYAcC7GAPIuxgE0LsYBILT5JMCMzoBKiIuL3YxL3NlcnZpY2VzL3tzZXJ2aWNlX2lkfS92YWx1ZXMve25hbWV9OnJldmVhbBrNBaK7GKQCCgl2YXJpYWJsZXMSlgJBIHZhcmlhYmxlIGlzIGEgdmFsdWUgb2YgYW4gZW52aXJvbm1lbnQgdGhhdCBpdHMgc2VydmljZXMgdXNlLCBzdWNoIGFzIExPR19MRVZFTD1pbmZvLiBJdCBpc24ndCBzZWNyZXQ6IHBsYW5zIGFuZCB0aGUgcGFuZWwgc2hvdyBpdC4gU2VydmljZXMgdXNlIHZhcmlhYmxlcyBhbmQgc2VjcmV0cyBieSByZWZlcmVuY2UsIHVuZGVyIHRoZSBuYW1lcyB0aGV5IGV4cGVjdCwgc28gY2hhbmdpbmcgb25lIGlzIGEgcGxhbiB0aGF0IHJlc3RhcnRzIGV2ZXJ5IHNlcnZpY2UgdGhhdCB1c2VzIGl0LqK7GJ8DCgdzZWNyZXRzEpMDQSBzZWNyZXQgaXMgYSB2YWx1ZSBvZiBhbiBlbnZpcm9ubWVudCB0aGF0IGl0cyBzZXJ2aWNlcyB1c2Ugd2l0aG91dCBhbnlvbmUgcmVhZGluZyBpdCBiYWNrLCBzdWNoIGFzIGEgZGF0YWJhc2UgcGFzc3dvcmQuIERvY2t3ZWxsIGtlZXBzIGl0IGVuY3J5cHRlZCwgc2VuZHMgaXQgb25seSB0byB0aGUgc2VydmVycyB0aGF0IHJ1biBhIHNlcnZpY2UgdGhhdCB1c2VzIGl0LCBhbmQgbmV2ZXIgc2hvd3MgaXQgaW4gcGxhbnMsIGhpc3Rvcnkgb3IgbG9ncy4gSXRzIHZhbHVlIGlzIHJlYWQgZnJvbSBzdGFuZGFyZCBpbnB1dCBvciBhIGZpbGUsIG5ldmVyIGZyb20gYSBmbGFnLiBSZXZlYWxpbmcgaXQgdGFrZXMgYSBwYXNza2V5LCBpbiB0aGUgcGFuZWwsIGFuZCBpcyBhdWRpdGVkOiBubyBBUEkgdG9rZW4gY2FuLkKmAQoPY29tLmRvY2t3ZWxsLnYxQg1WYXJpYWJsZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+
+/**
+ * RevealServiceValueRequest names one of a service's own environment variables
+ * to reveal.
+ *
+ * @generated from message dockwell.v1.RevealServiceValueRequest
+ */
+export type RevealServiceValueRequest = Message<"dockwell.v1.RevealServiceValueRequest"> & {
+  /**
+   * The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string service_id = 1;
+   */
+  serviceId: string;
+
+  /**
+   * The variable's name, as the service's own environment has it, such as
+   * "SESSION_SECRET".
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * The proof from FinishStepUp, for revealing this value, its target the
+   * service's ID and the name as "svc_…:NAME". It works once, within a minute,
+   * in the session that made it.
+   *
+   * @generated from field: string proof = 3;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.RevealServiceValueRequest.
+ * Use `create(RevealServiceValueRequestSchema)` to create a new message.
+ */
+export const RevealServiceValueRequestSchema: GenMessage<RevealServiceValueRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_variable, 0);
+
+/**
+ * RevealServiceValueResponse carries the value.
+ *
+ * @generated from message dockwell.v1.RevealServiceValueResponse
+ */
+export type RevealServiceValueResponse = Message<"dockwell.v1.RevealServiceValueResponse"> & {
+  /**
+   * The value.
+   *
+   * @generated from field: string value = 1;
+   */
+  value: string;
+
+  /**
+   * The service's revision it is from.
+   *
+   * @generated from field: int64 revision = 2;
+   */
+  revision: bigint;
+};
+
+/**
+ * Describes the message dockwell.v1.RevealServiceValueResponse.
+ * Use `create(RevealServiceValueResponseSchema)` to create a new message.
+ */
+export const RevealServiceValueResponseSchema: GenMessage<RevealServiceValueResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_variable, 1);
 
 /**
  * ListVariablesRequest names an environment.
@@ -65,7 +132,7 @@ export type ListVariablesRequest = Message<"dockwell.v1.ListVariablesRequest"> &
  * Use `create(ListVariablesRequestSchema)` to create a new message.
  */
 export const ListVariablesRequestSchema: GenMessage<ListVariablesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_variable, 0);
+  messageDesc(file_dockwell_v1_variable, 2);
 
 /**
  * ListVariablesResponse is an environment's variables and secrets.
@@ -100,7 +167,7 @@ export type ListVariablesResponse = Message<"dockwell.v1.ListVariablesResponse">
  * Use `create(ListVariablesResponseSchema)` to create a new message.
  */
 export const ListVariablesResponseSchema: GenMessage<ListVariablesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_variable, 1);
+  messageDesc(file_dockwell_v1_variable, 3);
 
 /**
  * EnvironmentVariable is one variable or secret of an environment, as its
@@ -178,7 +245,7 @@ export type EnvironmentVariable = Message<"dockwell.v1.EnvironmentVariable"> & {
  * Use `create(EnvironmentVariableSchema)` to create a new message.
  */
 export const EnvironmentVariableSchema: GenMessage<EnvironmentVariable> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_variable, 2);
+  messageDesc(file_dockwell_v1_variable, 4);
 
 /**
  * VariableUse is a service that uses a variable or secret.
@@ -213,7 +280,7 @@ export type VariableUse = Message<"dockwell.v1.VariableUse"> & {
  * Use `create(VariableUseSchema)` to create a new message.
  */
 export const VariableUseSchema: GenMessage<VariableUse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_variable, 3);
+  messageDesc(file_dockwell_v1_variable, 5);
 
 /**
  * RevealSecretRequest names a secret to reveal.
@@ -242,7 +309,7 @@ export type RevealSecretRequest = Message<"dockwell.v1.RevealSecretRequest"> & {
  * Use `create(RevealSecretRequestSchema)` to create a new message.
  */
 export const RevealSecretRequestSchema: GenMessage<RevealSecretRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_variable, 4);
+  messageDesc(file_dockwell_v1_variable, 6);
 
 /**
  * RevealSecretResponse carries a secret's value.
@@ -270,7 +337,7 @@ export type RevealSecretResponse = Message<"dockwell.v1.RevealSecretResponse"> &
  * Use `create(RevealSecretResponseSchema)` to create a new message.
  */
 export const RevealSecretResponseSchema: GenMessage<RevealSecretResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_variable, 5);
+  messageDesc(file_dockwell_v1_variable, 7);
 
 /**
  * VariableService reads an environment's variables and secrets, and reveals
@@ -311,6 +378,21 @@ export const VariableService: GenService<{
     methodKind: "unary";
     input: typeof RevealSecretRequestSchema;
     output: typeof RevealSecretResponseSchema;
+  },
+  /**
+   * RevealServiceValue returns one of a service's own environment variables
+   * that reads hidden, as it may be a secret, to the person who asks, as
+   * RevealSecret does a secret's: it needs a signed-in session and a proof
+   * from FinishStepUp for that value, and no API token can call it. Every
+   * reveal is in the audit log. See
+   * docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+   *
+   * @generated from rpc dockwell.v1.VariableService.RevealServiceValue
+   */
+  revealServiceValue: {
+    methodKind: "unary";
+    input: typeof RevealServiceValueRequestSchema;
+    output: typeof RevealServiceValueResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_variable, 0);

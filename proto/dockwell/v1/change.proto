@@ -369,6 +369,16 @@ message Edit {
   // Refused on any other kind, and without delete. See
   // docs/adr/0074-projects-you-can-see-and-that-go-with-their-last-app.md.
   bool with_contents = 8;
+  // A service's own environment variables to make secrets of its environment,
+  // by the same name, with the values it has now, which it then uses in their
+  // place. The change makes each secret with the value the service holds, so
+  // nobody reads a hidden value to make it a secret, which a passkey reveals
+  // from then on. Each must be one the service has now, not empty, and not one
+  // the spec sets or keep_env keeps; the environment can't have a variable or
+  // secret of the name already. Only with base_revision, as for keep_env. See
+  // docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md. Numbered
+  // apart, as open work adds to this message.
+  repeated string env_to_secrets = 60;
 }
 
 // ResourceRef names a resource.

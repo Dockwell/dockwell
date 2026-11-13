@@ -41,6 +41,9 @@ const (
 	// VariableServiceRevealSecretProcedure is the fully-qualified name of the VariableService's
 	// RevealSecret RPC.
 	VariableServiceRevealSecretProcedure = "/dockwell.v1.VariableService/RevealSecret"
+	// VariableServiceRevealServiceValueProcedure is the fully-qualified name of the VariableService's
+	// RevealServiceValue RPC.
+	VariableServiceRevealServiceValueProcedure = "/dockwell.v1.VariableService/RevealServiceValue"
 )
 
 // VariableServiceClient is a client for the dockwell.v1.VariableService service.
@@ -54,6 +57,13 @@ type VariableServiceClient interface {
 	// passkey moments before, which works once. No API token can call it.
 	// Every reveal is in the audit log.
 	RevealSecret(context.Context, *connect.Request[v1.RevealSecretRequest]) (*connect.Response[v1.RevealSecretResponse], error)
+	// RevealServiceValue returns one of a service's own environment variables
+	// that reads hidden, as it may be a secret, to the person who asks, as
+	// RevealSecret does a secret's: it needs a signed-in session and a proof
+	// from FinishStepUp for that value, and no API token can call it. Every
+	// reveal is in the audit log. See
+	// docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+	RevealServiceValue(context.Context, *connect.Request[v1.RevealServiceValueRequest]) (*connect.Response[v1.RevealServiceValueResponse], error)
 }
 
 // NewVariableServiceClient constructs a client for the dockwell.v1.VariableService service. By
@@ -80,13 +90,20 @@ func NewVariableServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(variableServiceMethods.ByName("RevealSecret")),
 			connect.WithClientOptions(opts...),
 		),
+		revealServiceValue: connect.NewClient[v1.RevealServiceValueRequest, v1.RevealServiceValueResponse](
+			httpClient,
+			baseURL+VariableServiceRevealServiceValueProcedure,
+			connect.WithSchema(variableServiceMethods.ByName("RevealServiceValue")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // variableServiceClient implements VariableServiceClient.
 type variableServiceClient struct {
-	listVariables *connect.Client[v1.ListVariablesRequest, v1.ListVariablesResponse]
-	revealSecret  *connect.Client[v1.RevealSecretRequest, v1.RevealSecretResponse]
+	listVariables      *connect.Client[v1.ListVariablesRequest, v1.ListVariablesResponse]
+	revealSecret       *connect.Client[v1.RevealSecretRequest, v1.RevealSecretResponse]
+	revealServiceValue *connect.Client[v1.RevealServiceValueRequest, v1.RevealServiceValueResponse]
 }
 
 // ListVariables calls dockwell.v1.VariableService.ListVariables.
@@ -97,6 +114,11 @@ func (c *variableServiceClient) ListVariables(ctx context.Context, req *connect.
 // RevealSecret calls dockwell.v1.VariableService.RevealSecret.
 func (c *variableServiceClient) RevealSecret(ctx context.Context, req *connect.Request[v1.RevealSecretRequest]) (*connect.Response[v1.RevealSecretResponse], error) {
 	return c.revealSecret.CallUnary(ctx, req)
+}
+
+// RevealServiceValue calls dockwell.v1.VariableService.RevealServiceValue.
+func (c *variableServiceClient) RevealServiceValue(ctx context.Context, req *connect.Request[v1.RevealServiceValueRequest]) (*connect.Response[v1.RevealServiceValueResponse], error) {
+	return c.revealServiceValue.CallUnary(ctx, req)
 }
 
 // VariableServiceHandler is an implementation of the dockwell.v1.VariableService service.
@@ -110,6 +132,13 @@ type VariableServiceHandler interface {
 	// passkey moments before, which works once. No API token can call it.
 	// Every reveal is in the audit log.
 	RevealSecret(context.Context, *connect.Request[v1.RevealSecretRequest]) (*connect.Response[v1.RevealSecretResponse], error)
+	// RevealServiceValue returns one of a service's own environment variables
+	// that reads hidden, as it may be a secret, to the person who asks, as
+	// RevealSecret does a secret's: it needs a signed-in session and a proof
+	// from FinishStepUp for that value, and no API token can call it. Every
+	// reveal is in the audit log. See
+	// docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md.
+	RevealServiceValue(context.Context, *connect.Request[v1.RevealServiceValueRequest]) (*connect.Response[v1.RevealServiceValueResponse], error)
 }
 
 // NewVariableServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -132,12 +161,20 @@ func NewVariableServiceHandler(svc VariableServiceHandler, opts ...connect.Handl
 		connect.WithSchema(variableServiceMethods.ByName("RevealSecret")),
 		connect.WithHandlerOptions(opts...),
 	)
+	variableServiceRevealServiceValueHandler := connect.NewUnaryHandler(
+		VariableServiceRevealServiceValueProcedure,
+		svc.RevealServiceValue,
+		connect.WithSchema(variableServiceMethods.ByName("RevealServiceValue")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.VariableService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case VariableServiceListVariablesProcedure:
 			variableServiceListVariablesHandler.ServeHTTP(w, r)
 		case VariableServiceRevealSecretProcedure:
 			variableServiceRevealSecretHandler.ServeHTTP(w, r)
+		case VariableServiceRevealServiceValueProcedure:
+			variableServiceRevealServiceValueHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -153,4 +190,8 @@ func (UnimplementedVariableServiceHandler) ListVariables(context.Context, *conne
 
 func (UnimplementedVariableServiceHandler) RevealSecret(context.Context, *connect.Request[v1.RevealSecretRequest]) (*connect.Response[v1.RevealSecretResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.VariableService.RevealSecret is not implemented"))
+}
+
+func (UnimplementedVariableServiceHandler) RevealServiceValue(context.Context, *connect.Request[v1.RevealServiceValueRequest]) (*connect.Response[v1.RevealServiceValueResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.VariableService.RevealServiceValue is not implemented"))
 }

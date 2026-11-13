@@ -37,8 +37,10 @@ type DiskUsageContainer struct {
 
 // DiskUsageVolume is one volume's share.
 type DiskUsageVolume struct {
-	Name      string
-	UsageData *VolumeUsage
+	Name string
+	// Mountpoint is where its files are on the server.
+	Mountpoint string
+	UsageData  *VolumeUsage
 }
 
 // VolumeUsage is what a volume holds, and who uses it.

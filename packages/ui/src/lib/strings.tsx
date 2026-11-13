@@ -116,6 +116,10 @@ export interface UIStrings {
     /** Read before an old and a new value. */
     from: string;
     to: string;
+    /** The button by a value cut short to its digest's first 12 digits, which copies it whole; given the value as shown. */
+    copyWhole: (shown: string) => string;
+    /** The same, once it has copied. */
+    copiedWhole: string;
   };
   /** Timeline: the default undo button. */
   undo: string;
@@ -319,6 +323,8 @@ export const englishStrings: UIStrings = {
     hidden: "hidden",
     from: "from",
     to: "to",
+    copyWhole: (shown) => `Copy ${shown} in full`,
+    copiedWhole: "Copied in full",
   },
   undo: "Undo",
   dnsRecord: {

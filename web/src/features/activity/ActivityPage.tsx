@@ -846,7 +846,7 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
               </>
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
-            {event.backup ? <BackupFacts backup={event.backup} /> : null}
+            {event.backup ? <BackupFacts backup={event.backup} volumeId={event.subject?.id ?? ""} /> : null}
             {event.alert ? <AlertFacts alert={event.alert} /> : null}
             {event.terminal ? <TerminalFacts terminal={event.terminal} /> : null}
             {event.desiredSent ? <DesiredSentFacts sent={event.desiredSent} /> : null}
@@ -1001,14 +1001,32 @@ function Subject({ id, name }: { id: string; name: string }) {
 }
 
 /** What became of a backup, in the facts of an event: of what, where, and why it failed. */
-function BackupFacts({ backup }: { backup: EventBackup }) {
+function BackupFacts({ backup, volumeId }: { backup: EventBackup; volumeId: string }) {
   const { t, i18n } = useLingui();
   return (
     <>
       <dt>{t`Volume`}</dt>
       <dd>
-        <code className="activity-code">{backup.volume}</code>
+        <code className="activity-code">
+          {volumeId ? (
+            <RefLink kind="volume" id={volumeId} look="plain">
+              {backup.volume}
+            </RefLink>
+          ) : (
+            backup.volume
+          )}
+        </code>
       </dd>
+      {backup.id ? (
+        <>
+          <dt>{t`Backup`}</dt>
+          <dd>
+            <RefLink kind="backup" id={backup.id} look="plain">
+              {t`Open the backup`}
+            </RefLink>
+          </dd>
+        </>
+      ) : null}
       <dt>{t`Server`}</dt>
       <dd>
         <code className="activity-code">

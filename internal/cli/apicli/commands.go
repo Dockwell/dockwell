@@ -15,6 +15,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
+	servicekind "github.com/dockwell/dockwell/internal/resource/service"
 )
 
 // GroupID is the help group the API commands are listed under.
@@ -349,6 +350,14 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 			cmd.Flags().BoolVar(&contents, "with-contents", false,
 				"delete what lives in it too, in the same change: its apps, routes, volumes, variables and secrets. The plan lists each")
 		}
+		// An update of a service keeps the values of its own it doesn't set, as some read
+		// back hidden and would otherwise be emptied (ADR 0081).
+		var removeEnv []string
+		keepsEnv := v.verb == "update" && kind == servicekind.Kind
+		if keepsEnv {
+			cmd.Flags().StringArrayVar(&removeEnv, "remove-env", nil,
+				"one of its own environment variables to take out; repeat it for each. Every other one it has and this doesn't set stays as it is")
+		}
 		verb := v.verb
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -369,6 +378,11 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 			}
 			req := &dockwellv1.ProposeChangeRequest{Summary: summary, Edits: []*dockwellv1.Edit{edit}}
 			r := &runner{env: env, opts: o, command: cmd.CommandPath(), choiceFlag: where.flagFor}
+			if keepsEnv {
+				if err := r.keepOwnEnv(cmd.Context(), edit, removeEnv); err != nil {
+					return err
+				}
+			}
 			return r.kind(cmd, req, verb, kind, name, k.Noun)
 		}
 		parent.AddCommand(cmd)

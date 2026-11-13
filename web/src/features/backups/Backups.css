@@ -287,3 +287,72 @@
   gap: var(--space-2);
   align-items: center;
 }
+
+/* A backup's own page: its facts, a label and a value a row. */
+.backup-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.backup-fact {
+  display: contents;
+}
+
+.backup-fact dt {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.backup-fact dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.backup-hash {
+  font-size: 12px;
+}
+
+/* Where it sits: quiet, above its name, as an app's crumbs read. */
+.backup-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.backup-crumbs a {
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+}
+
+.backup-crumbs a:hover {
+  color: var(--ink);
+}
+
+.backup-crumbs a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* On a phone, its actions after what it is, each as wide as it can be. */
+.backup-actionbar {
+  margin-top: var(--space-4);
+}
+
+.backup-actionbar .backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.backup-actionbar .dw-btn {
+  flex: 1 1 auto;
+}

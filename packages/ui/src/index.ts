@@ -39,6 +39,8 @@ export {
 export { Metric, type MetricProps } from "./components/Metric/Metric";
 export { Panel, type PanelProps } from "./components/Panel/Panel";
 export {
+  DigestValue,
+  hasDigest,
   type PlanAction,
   type PlanChange,
   PlanDiff,

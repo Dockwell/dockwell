@@ -17,7 +17,10 @@ interface Shown {
   problem?: string;
 }
 
-/** The secrets revealed on a page, by ID, and how to reveal and hide them. */
+/**
+ * The secrets revealed on a page, by ID, and how to reveal and hide them; and the
+ * app's own values that read hidden, by ownValueKey.
+ */
 export interface Reveals {
   get(id: string): Shown;
   reveal(id: string): void;
@@ -75,9 +78,15 @@ export function useReveals(environment?: string): Reveals {
       const signal = leaving.current.signal;
       void (async () => {
         try {
-          const revealed = await withStepUpIfAsked(transport, StepUpAction.REVEAL_SECRET, id, (proof) =>
-            createClient(VariableService, transport).revealSecret({ id, proof }, { signal }),
-          );
+          const client = createClient(VariableService, transport);
+          const own = ownValue(id);
+          const revealed = own
+            ? await withStepUpIfAsked(transport, StepUpAction.REVEAL_SERVICE_VALUE, id, (proof) =>
+                client.revealServiceValue({ serviceId: own.service, name: own.name, proof }, { signal }),
+              )
+            : await withStepUpIfAsked(transport, StepUpAction.REVEAL_SECRET, id, (proof) =>
+                client.revealSecret({ id, proof }, { signal }),
+              );
           if (signal.aborted) return; // the page is gone, and the value with this call
           set(id, { value: revealed.value });
           clearTimeout(timers.current.get(id));
@@ -97,6 +106,20 @@ export function useReveals(environment?: string): Reveals {
     () => ({ get: (id: string) => shown[id] ?? {}, reveal, hide, environment }),
     [shown, reveal, hide, environment],
   );
+}
+
+/**
+ * What a reveal of one of an app's own values that reads hidden goes by: the
+ * service's ID and the name, as "svc_…:NAME", which is the step-up's target too
+ * (ADR 0081). A secret's ID has no colon.
+ */
+export function ownValueKey(service: string, name: string): string {
+  return `${service}:${name}`;
+}
+
+function ownValue(id: string): { service: string; name: string } | undefined {
+  const at = id.indexOf(":");
+  return at < 0 ? undefined : { service: id.slice(0, at), name: id.slice(at + 1) };
 }
 
 /** One secret's reveal, from the page's RevealsProvider. */

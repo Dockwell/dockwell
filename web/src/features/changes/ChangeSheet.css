@@ -665,8 +665,8 @@ a.plan-reach-at:focus-visible {
   min-height: 44px;
 }
 
+/* A phone gives the values the room the name's indent takes on a wider screen. */
 .plan-view.is-phone .dw-plan-changes {
-  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   padding-left: var(--space-4);
 }
 

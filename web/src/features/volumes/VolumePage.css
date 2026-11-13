@@ -1,0 +1,105 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A volume's own page: its servers, the apps that mount it, and its backups. */
+.volume-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+/* Where it sits: quiet, above its name, as an app's crumbs read. */
+.volume-crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.volume-crumbs a {
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+}
+
+.volume-crumbs a:hover {
+  color: var(--ink);
+}
+
+.volume-crumbs a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.volume-servers,
+.volume-mounts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.volume-server,
+.volume-mount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) 0;
+}
+
+.volume-server + .volume-server,
+.volume-mount + .volume-mount {
+  border-top: 1px solid var(--line);
+}
+
+.volume-size {
+  font-variant-numeric: tabular-nums;
+}
+
+.volume-target {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.volume-spacer {
+  flex: 1 1 auto;
+}
+
+.volume-muted,
+.volume-note {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.volume-note {
+  margin: var(--space-2) 0 0;
+}
+
+.volume-backups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.volume-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* On a phone, Delete after what it holds, as wide as the page. */
+.volume-actionbar {
+  display: flex;
+}
+
+.volume-actionbar .dw-btn {
+  flex: 1 1 auto;
+}

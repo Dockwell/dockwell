@@ -25,6 +25,129 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// RevealServiceValueRequest names one of a service's own environment variables
+// to reveal.
+type RevealServiceValueRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServiceId string `protobuf:"bytes,1,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
+	// The variable's name, as the service's own environment has it, such as
+	// "SESSION_SECRET".
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// The proof from FinishStepUp, for revealing this value, its target the
+	// service's ID and the name as "svc_…:NAME". It works once, within a minute,
+	// in the session that made it.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevealServiceValueRequest) Reset() {
+	*x = RevealServiceValueRequest{}
+	mi := &file_dockwell_v1_variable_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevealServiceValueRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevealServiceValueRequest) ProtoMessage() {}
+
+func (x *RevealServiceValueRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_variable_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevealServiceValueRequest.ProtoReflect.Descriptor instead.
+func (*RevealServiceValueRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *RevealServiceValueRequest) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
+func (x *RevealServiceValueRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RevealServiceValueRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// RevealServiceValueResponse carries the value.
+type RevealServiceValueResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The value.
+	Value string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
+	// The service's revision it is from.
+	Revision      int64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevealServiceValueResponse) Reset() {
+	*x = RevealServiceValueResponse{}
+	mi := &file_dockwell_v1_variable_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevealServiceValueResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevealServiceValueResponse) ProtoMessage() {}
+
+func (x *RevealServiceValueResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_variable_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevealServiceValueResponse.ProtoReflect.Descriptor instead.
+func (*RevealServiceValueResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RevealServiceValueResponse) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *RevealServiceValueResponse) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
 // ListVariablesRequest names an environment.
 type ListVariablesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -47,7 +170,7 @@ type ListVariablesRequest struct {
 
 func (x *ListVariablesRequest) Reset() {
 	*x = ListVariablesRequest{}
-	mi := &file_dockwell_v1_variable_proto_msgTypes[0]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59,7 +182,7 @@ func (x *ListVariablesRequest) String() string {
 func (*ListVariablesRequest) ProtoMessage() {}
 
 func (x *ListVariablesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_variable_proto_msgTypes[0]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -72,7 +195,7 @@ func (x *ListVariablesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVariablesRequest.ProtoReflect.Descriptor instead.
 func (*ListVariablesRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{0}
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListVariablesRequest) GetEnvironment() string {
@@ -118,7 +241,7 @@ type ListVariablesResponse struct {
 
 func (x *ListVariablesResponse) Reset() {
 	*x = ListVariablesResponse{}
-	mi := &file_dockwell_v1_variable_proto_msgTypes[1]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -130,7 +253,7 @@ func (x *ListVariablesResponse) String() string {
 func (*ListVariablesResponse) ProtoMessage() {}
 
 func (x *ListVariablesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_variable_proto_msgTypes[1]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -143,7 +266,7 @@ func (x *ListVariablesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVariablesResponse.ProtoReflect.Descriptor instead.
 func (*ListVariablesResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListVariablesResponse) GetEnvironmentId() string {
@@ -195,7 +318,7 @@ type EnvironmentVariable struct {
 
 func (x *EnvironmentVariable) Reset() {
 	*x = EnvironmentVariable{}
-	mi := &file_dockwell_v1_variable_proto_msgTypes[2]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -207,7 +330,7 @@ func (x *EnvironmentVariable) String() string {
 func (*EnvironmentVariable) ProtoMessage() {}
 
 func (x *EnvironmentVariable) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_variable_proto_msgTypes[2]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -220,7 +343,7 @@ func (x *EnvironmentVariable) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnvironmentVariable.ProtoReflect.Descriptor instead.
 func (*EnvironmentVariable) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{2}
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *EnvironmentVariable) GetId() string {
@@ -301,7 +424,7 @@ type VariableUse struct {
 
 func (x *VariableUse) Reset() {
 	*x = VariableUse{}
-	mi := &file_dockwell_v1_variable_proto_msgTypes[3]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +436,7 @@ func (x *VariableUse) String() string {
 func (*VariableUse) ProtoMessage() {}
 
 func (x *VariableUse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_variable_proto_msgTypes[3]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +449,7 @@ func (x *VariableUse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VariableUse.ProtoReflect.Descriptor instead.
 func (*VariableUse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{3}
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *VariableUse) GetServiceId() string {
@@ -364,7 +487,7 @@ type RevealSecretRequest struct {
 
 func (x *RevealSecretRequest) Reset() {
 	*x = RevealSecretRequest{}
-	mi := &file_dockwell_v1_variable_proto_msgTypes[4]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -376,7 +499,7 @@ func (x *RevealSecretRequest) String() string {
 func (*RevealSecretRequest) ProtoMessage() {}
 
 func (x *RevealSecretRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_variable_proto_msgTypes[4]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -389,7 +512,7 @@ func (x *RevealSecretRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevealSecretRequest.ProtoReflect.Descriptor instead.
 func (*RevealSecretRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{4}
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RevealSecretRequest) GetId() string {
@@ -419,7 +542,7 @@ type RevealSecretResponse struct {
 
 func (x *RevealSecretResponse) Reset() {
 	*x = RevealSecretResponse{}
-	mi := &file_dockwell_v1_variable_proto_msgTypes[5]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -431,7 +554,7 @@ func (x *RevealSecretResponse) String() string {
 func (*RevealSecretResponse) ProtoMessage() {}
 
 func (x *RevealSecretResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_variable_proto_msgTypes[5]
+	mi := &file_dockwell_v1_variable_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -444,7 +567,7 @@ func (x *RevealSecretResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevealSecretResponse.ProtoReflect.Descriptor instead.
 func (*RevealSecretResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{5}
+	return file_dockwell_v1_variable_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RevealSecretResponse) GetValue() string {
@@ -465,7 +588,15 @@ var File_dockwell_v1_variable_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_variable_proto_rawDesc = "" +
 	"\n" +
-	"\x1adockwell/v1/variable.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8e\x01\n" +
+	"\x1adockwell/v1/variable.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"d\n" +
+	"\x19RevealServiceValueRequest\x12\x1d\n" +
+	"\n" +
+	"service_id\x18\x01 \x01(\tR\tserviceId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"N\n" +
+	"\x1aRevealServiceValueResponse\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\"\x8e\x01\n" +
 	"\x14ListVariablesRequest\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x1b\n" +
@@ -498,10 +629,11 @@ const file_dockwell_v1_variable_proto_rawDesc = "" +
 	"\x05proof\x18\x02 \x01(\tR\x05proof\"H\n" +
 	"\x14RevealSecretResponse\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x03R\brevision2\xf2\a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision2\xa9\t\n" +
 	"\x0fVariableService\x12\x80\x01\n" +
 	"\rListVariables\x12!.dockwell.v1.ListVariablesRequest\x1a\".dockwell.v1.ListVariablesResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/variables\x90\x02\x01\x12\x8b\x01\n" +
-	"\fRevealSecret\x12 .dockwell.v1.RevealSecretRequest\x1a!.dockwell.v1.RevealSecretResponse\"6\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/secrets/{id}:reveal\x1a\xcd\x05\xa2\xbb\x18\xa4\x02\n" +
+	"\fRevealSecret\x12 .dockwell.v1.RevealSecretRequest\x1a!.dockwell.v1.RevealSecretResponse\"6\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1c:\x01*\"\x17/v1/secrets/{id}:reveal\x12\xb4\x01\n" +
+	"\x12RevealServiceValue\x12&.dockwell.v1.RevealServiceValueRequest\x1a'.dockwell.v1.RevealServiceValueResponse\"M\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x023:\x01*\"./v1/services/{service_id}/values/{name}:reveal\x1a\xcd\x05\xa2\xbb\x18\xa4\x02\n" +
 	"\tvariables\x12\x96\x02A variable is a value of an environment that its services use, such as LOG_LEVEL=info. It isn't secret: plans and the panel show it. Services use variables and secrets by reference, under the names they expect, so changing one is a plan that restarts every service that uses it.\xa2\xbb\x18\x9f\x03\n" +
 	"\asecrets\x12\x93\x03A secret is a value of an environment that its services use without anyone reading it back, such as a database password. Dockwell keeps it encrypted, sends it only to the servers that run a service that uses it, and never shows it in plans, history or logs. Its value is read from standard input or a file, never from a flag. Revealing it takes a passkey, in the panel, and is audited: no API token can.B\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rVariableProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
@@ -518,28 +650,32 @@ func file_dockwell_v1_variable_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_variable_proto_rawDescData
 }
 
-var file_dockwell_v1_variable_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_dockwell_v1_variable_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_dockwell_v1_variable_proto_goTypes = []any{
-	(*ListVariablesRequest)(nil),  // 0: dockwell.v1.ListVariablesRequest
-	(*ListVariablesResponse)(nil), // 1: dockwell.v1.ListVariablesResponse
-	(*EnvironmentVariable)(nil),   // 2: dockwell.v1.EnvironmentVariable
-	(*VariableUse)(nil),           // 3: dockwell.v1.VariableUse
-	(*RevealSecretRequest)(nil),   // 4: dockwell.v1.RevealSecretRequest
-	(*RevealSecretResponse)(nil),  // 5: dockwell.v1.RevealSecretResponse
-	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
-	(*Actor)(nil),                 // 7: dockwell.v1.Actor
+	(*RevealServiceValueRequest)(nil),  // 0: dockwell.v1.RevealServiceValueRequest
+	(*RevealServiceValueResponse)(nil), // 1: dockwell.v1.RevealServiceValueResponse
+	(*ListVariablesRequest)(nil),       // 2: dockwell.v1.ListVariablesRequest
+	(*ListVariablesResponse)(nil),      // 3: dockwell.v1.ListVariablesResponse
+	(*EnvironmentVariable)(nil),        // 4: dockwell.v1.EnvironmentVariable
+	(*VariableUse)(nil),                // 5: dockwell.v1.VariableUse
+	(*RevealSecretRequest)(nil),        // 6: dockwell.v1.RevealSecretRequest
+	(*RevealSecretResponse)(nil),       // 7: dockwell.v1.RevealSecretResponse
+	(*timestamppb.Timestamp)(nil),      // 8: google.protobuf.Timestamp
+	(*Actor)(nil),                      // 9: dockwell.v1.Actor
 }
 var file_dockwell_v1_variable_proto_depIdxs = []int32{
-	2, // 0: dockwell.v1.ListVariablesResponse.variables:type_name -> dockwell.v1.EnvironmentVariable
-	6, // 1: dockwell.v1.EnvironmentVariable.update_time:type_name -> google.protobuf.Timestamp
-	7, // 2: dockwell.v1.EnvironmentVariable.updated_by:type_name -> dockwell.v1.Actor
-	3, // 3: dockwell.v1.EnvironmentVariable.used_by:type_name -> dockwell.v1.VariableUse
-	0, // 4: dockwell.v1.VariableService.ListVariables:input_type -> dockwell.v1.ListVariablesRequest
-	4, // 5: dockwell.v1.VariableService.RevealSecret:input_type -> dockwell.v1.RevealSecretRequest
-	1, // 6: dockwell.v1.VariableService.ListVariables:output_type -> dockwell.v1.ListVariablesResponse
-	5, // 7: dockwell.v1.VariableService.RevealSecret:output_type -> dockwell.v1.RevealSecretResponse
-	6, // [6:8] is the sub-list for method output_type
-	4, // [4:6] is the sub-list for method input_type
+	4, // 0: dockwell.v1.ListVariablesResponse.variables:type_name -> dockwell.v1.EnvironmentVariable
+	8, // 1: dockwell.v1.EnvironmentVariable.update_time:type_name -> google.protobuf.Timestamp
+	9, // 2: dockwell.v1.EnvironmentVariable.updated_by:type_name -> dockwell.v1.Actor
+	5, // 3: dockwell.v1.EnvironmentVariable.used_by:type_name -> dockwell.v1.VariableUse
+	2, // 4: dockwell.v1.VariableService.ListVariables:input_type -> dockwell.v1.ListVariablesRequest
+	6, // 5: dockwell.v1.VariableService.RevealSecret:input_type -> dockwell.v1.RevealSecretRequest
+	0, // 6: dockwell.v1.VariableService.RevealServiceValue:input_type -> dockwell.v1.RevealServiceValueRequest
+	3, // 7: dockwell.v1.VariableService.ListVariables:output_type -> dockwell.v1.ListVariablesResponse
+	7, // 8: dockwell.v1.VariableService.RevealSecret:output_type -> dockwell.v1.RevealSecretResponse
+	1, // 9: dockwell.v1.VariableService.RevealServiceValue:output_type -> dockwell.v1.RevealServiceValueResponse
+	7, // [7:10] is the sub-list for method output_type
+	4, // [4:7] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
 	4, // [4:4] is the sub-list for extension extendee
 	0, // [0:4] is the sub-list for field type_name
@@ -558,7 +694,7 @@ func file_dockwell_v1_variable_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_variable_proto_rawDesc), len(file_dockwell_v1_variable_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -906,6 +906,10 @@ enum StepUpAction {
   // Setting the least anyone may choose, with SettingsService.SetStepUpFloor.
   // It has no target. It asks each time, whatever the choice.
   STEP_UP_ACTION_SET_STEP_UP_FLOOR = 241;
+  // Reveals one of a service's own environment variables that reads hidden.
+  // Its target is the service's ID and the name, as "svc_…:NAME". Numbered
+  // apart, as open work adds to this enum.
+  STEP_UP_ACTION_REVEAL_SERVICE_VALUE = 60;
 }
 
 // StepUpPolicy is how often someone is asked for their passkey again, for

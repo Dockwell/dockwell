@@ -249,6 +249,11 @@
   margin: 0;
 }
 
+/* The detail is a narrow panel: its plan's values take the room the name's indent takes on a wide sheet. */
+.activity-detail-section .dw-plan-changes {
+  padding-left: var(--space-4);
+}
+
 .activity-detail-actions {
   display: flex;
   flex-wrap: wrap;

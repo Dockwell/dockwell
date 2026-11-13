@@ -31,13 +31,13 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useTanstackQuery } from "@tanstack/react-query";
-import { type FormEvent, type Ref, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { passkeysAvailable } from "../../lib/webauthn";
 import { nameOf } from "../apps/app";
-import { cantShare, type EnvRow, envEdits, envRows } from "../apps/envEdit";
+import { cantMakeSecret, cantShare, type EnvRow, envEdits, envRows } from "../apps/envEdit";
 import { useServices } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useProjectDelete } from "../projects/deleteProject";
@@ -47,11 +47,11 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
 import { ProjectPicker } from "./ProjectPicker";
-import { RevealsProvider, useReveal, useReveals } from "./useReveal";
+import { ownValueKey, RevealsProvider, useReveal, useReveals } from "./useReveal";
 import "./VariablesPage.css";
 import { useActorWords } from "../activity/actor";
 import { MayEdit } from "../auth/MayEdit";
-import { useMay } from "../auth/may";
+import { type Offer, useMay } from "../auth/may";
 
 /** A name a process's environment takes, as the control plane checks it. */
 const NAME = /^[A-Za-z_][A-Za-z0-9_]{0,254}$/;
@@ -478,19 +478,36 @@ function KeyCell({ row }: { row: Row }) {
 }
 
 function ValueCell({ row }: { row: Row }) {
-  const { t } = useLingui();
   if ("own" in row) {
     const value = row.own.row.now?.value ?? row.own.row.runtimeValue;
     if (value !== undefined) return <code className="variables-value">{value}</code>;
-    // One of its own that may be a secret: no response carries it, and nothing reveals it.
-    return (
-      <span className="variables-masked" role="img" aria-label={t`Hidden`} title={t`Hidden, as it may be a secret`}>
-        ••••••••••••
-      </span>
-    );
+    return <OwnHidden service={row.own.service} name={row.name} />;
   }
   if (!row.shared.secret) return <code className="variables-value">{row.shared.value}</code>;
   return <SecretValue variable={row.shared} />;
+}
+
+/**
+ * One of an app's own values that may be a secret: a passkey reveals it, and
+ * once seen, saying it's none shows it, in one plan (ADR 0081).
+ */
+function OwnHidden({ service, name }: { service: ServiceInfo; name: string }) {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const app = nameOf(service);
+  return (
+    <OwnHiddenValue
+      service={service.id}
+      name={name}
+      onShow={(value) =>
+        sheet.open({
+          kind: "propose",
+          summary: t`Show ${name} on ${app}`,
+          edits: envEdits(service, new Map([[name, { op: "change", name, value }]])),
+        })
+      }
+    />
+  );
 }
 
 /** Where a value comes from: the environment, shared by name, or the app itself. */
@@ -506,14 +523,65 @@ function Source({ row }: { row: Row }) {
 
 /** A secret's value: hidden, until a passkey reveals it, for a minute. */
 export function SecretValue({ variable }: { variable: EnvironmentVariable }) {
-  const { t } = useLingui();
-  const name = variable.name;
   const shown = useReveal(variable.id);
   // Revealing is a developer's, and an admin's in a protected environment: off, with why, otherwise (ADR 0059).
   const mayReveal = useMay()(
     VariableService.method.revealSecret,
     shown.environment ? { environment: shown.environment } : undefined,
   );
+  return <Revealable name={variable.name} shown={shown} offer={mayReveal} />;
+}
+
+/**
+ * One of an app's own values that reads hidden, as it may be a secret: hidden,
+ * until a passkey reveals it, for a minute, on record, as a secret is (ADR 0081).
+ * Revealed, onShow, where given, lets a person say it's no secret, so it shows.
+ */
+export function OwnHiddenValue({
+  service,
+  name,
+  onShow,
+}: {
+  service: string;
+  name: string;
+  onShow?: ((value: string) => void) | undefined;
+}) {
+  const { t } = useLingui();
+  const shown = useReveal(ownValueKey(service, name));
+  const mayReveal = useMay()(
+    VariableService.method.revealServiceValue,
+    shown.environment ? { environment: shown.environment } : undefined,
+  );
+  const value = shown.value;
+  return (
+    <Revealable
+      name={name}
+      shown={shown}
+      offer={mayReveal}
+      after={
+        onShow && value !== undefined ? (
+          <Button size="sm" variant="ghost" aria-label={t`${name} is no secret: show it`} onClick={() => onShow(value)}>
+            <Trans>Not a secret</Trans>
+          </Button>
+        ) : null
+      }
+    />
+  );
+}
+
+/** A value hidden until revealed: Reveal, then the value with Copy and Hide, and what goes after. */
+function Revealable({
+  name,
+  shown,
+  offer,
+  after,
+}: {
+  name: string;
+  shown: ReturnType<typeof useReveal>;
+  offer: Offer;
+  after?: ReactNode;
+}) {
+  const { t } = useLingui();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -546,7 +614,7 @@ export function SecretValue({ variable }: { variable: EnvironmentVariable }) {
             disabled={!passkeysAvailable()}
             aria-label={t`Reveal ${name}`}
             onClick={shown.reveal}
-            {...mayReveal.off}
+            {...offer.off}
           >
             <span className="variables-button-word">
               <Trans>Reveal</Trans>
@@ -564,6 +632,7 @@ export function SecretValue({ variable }: { variable: EnvironmentVariable }) {
             onClick={() => void copy(shown.value ?? "")}
           />
           <Button size="sm" variant="ghost" icon="x" aria-label={t`Hide ${name}`} onClick={shown.hide} />
+          {after}
           <span className="dw-sr" aria-live="polite">
             {copied ? t`Copied ${name}` : ""}
           </span>
@@ -678,6 +747,21 @@ function OwnActions({
       summary: t`Make ${name} on ${app} a shared variable`,
       edits: envEdits(service, new Map([[name, { op: "share", name, value: row.now?.value ?? "" }]]), store),
     });
+  const makeSecret = () =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Make ${name} on ${app} a secret`,
+      edits: envEdits(service, new Map([[name, { op: "secret", name }]]), store),
+    });
+  const blocked = cantMakeSecret(row, store);
+  const secretOff =
+    blocked === "secret"
+      ? t`The environment has a secret ${name} already. Rename one to keep this as a secret.`
+      : blocked === "variable"
+        ? t`The environment has a variable ${name} already. Rename one to keep this as a secret.`
+        : blocked === "reading"
+          ? t`Waits until the environment's variables and secrets load.`
+          : mayPlan.reason;
   const off =
     why === "secret"
       ? t`The environment has a secret ${name} already. Rename one to share this.`
@@ -709,6 +793,17 @@ function OwnActions({
           aria-label={t`Make ${name} on ${app} shared`}
           onClick={share}
           off={off || undefined}
+        />
+      ) : row.now?.kind === "own" ? (
+        // One that's hidden may be a secret: it becomes one, with the value it has, unread.
+        <Button
+          className="variables-act-share"
+          size="sm"
+          variant="ghost"
+          icon="lock"
+          aria-label={t`Make ${name} on ${app} a secret`}
+          onClick={makeSecret}
+          off={secretOff || undefined}
         />
       ) : null}
     </span>

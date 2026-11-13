@@ -230,9 +230,19 @@ describe("a plan's fields, in words", () => {
       kind: "service",
       changes: [
         create(FieldChangeSchema, { path: "variables[FEATURE_FLAGS]", op: FieldOp.ADDED, to: "FEATURE_FLAGS" }),
+        create(FieldChangeSchema, {
+          path: "secrets[WORDPRESS_DB_PASSWORD]",
+          op: FieldOp.ADDED,
+          to: "MARIADB_PASSWORD",
+        }),
       ],
     });
-    expect(reads(rows)).toEqual(["variables FEATURE_FLAGS to FEATURE_FLAGS"]);
+    // A shared value's name is the value, and the name the app has it by follows where it differs,
+    // so a long name never makes the field column wide for every row.
+    expect(reads(rows)).toEqual([
+      "uses variable to FEATURE_FLAGS",
+      "uses secret to MARIADB_PASSWORD as WORDPRESS_DB_PASSWORD",
+    ]);
   });
 
   it("says a value it uses moved on, not the revision it's pinned to", () => {
@@ -245,7 +255,7 @@ describe("a plan's fields, in words", () => {
         create(FieldChangeSchema, { path: "variables[NEW_ONE]", op: FieldOp.ADDED, to: "NEW_ONE" }),
       ],
     });
-    expect(reads(rows)).toEqual(["SMTP_HOST to uses its newer value [change]", "variables NEW_ONE to NEW_ONE"]);
+    expect(reads(rows)).toEqual(["SMTP_HOST to uses its newer value [change]", "uses variable to NEW_ONE"]);
   });
 
   it("names a database user and what it's given in words", () => {

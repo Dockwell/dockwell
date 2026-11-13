@@ -126,10 +126,17 @@ var (
 		backups.ActionTestDestination,
 		// An app opened through the panel, which is as much as a secret revealed (ADR 0061).
 		"service.open",
+		// One of an app's own values that reads hidden, revealed (ADR 0081).
+		ActionRevealServiceValue,
 		fileRead, fileRefuse, fileDownload, changeApplyUnconfirmed,
 		"member.invite", "member.invite_revoke", "member.join",
 	}
 )
+
+// ActionRevealServiceValue is the audit log's word for revealing one of an app's own
+// values that reads hidden. Its subject is the value's name, and its target the
+// service (ADR 0081).
+const ActionRevealServiceValue = "service.value_reveal"
 
 // Handler implements EventService.
 type Handler struct {
@@ -675,6 +682,9 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 				Dropped: uint32(max(told.Dropped, 0)), //nolint:gosec // at most 1<<20
 			}
 		}
+	}
+	if a.Action == ActionRevealServiceValue && e.Subject != nil {
+		e.Subject.ValueName = a.Subject // only ever a variable's name, as internal/control/variables writes it
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
 		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files

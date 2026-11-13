@@ -19,6 +19,8 @@ const PAGES: Record<(typeof REF_KINDS)[number], string> = {
   website: "/websites/x",
   entry: "/catalog/x",
   alert: "/alerts/x",
+  volume: "/volumes/x",
+  backup: "/backups/x",
 };
 
 function renderLinks() {
@@ -63,7 +65,9 @@ describe("a reference to a thing", () => {
     expect(refKindOf("chg_01")).toBe("change");
     expect(refKindOf("prj_01")).toBe("project");
     expect(refKindOf("alt_01")).toBe("alert");
-    expect(refKindOf("bkp_01")).toBeUndefined();
+    expect(refKindOf("bkp_01")).toBe("backup");
+    expect(refKindOf("vol_01")).toBe("volume");
+    expect(refKindOf("res_01")).toBeUndefined();
     expect(refKindOf("hz-1")).toBeUndefined();
   });
 });

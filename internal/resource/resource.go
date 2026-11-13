@@ -1654,6 +1654,23 @@ type Valuer interface {
 	Value(spec proto.Message) string
 }
 
+// ValueMaker is a kind whose spec is a value of its own, which another resource's
+// value can be moved into (ValueMover).
+type ValueMaker interface {
+	// MakeValue is a spec holding value.
+	MakeValue(value string) proto.Message
+}
+
+// ValueMover is a kind whose spec holds values of its own that it can hand to a
+// resource of their own, as a service hands its own environment variable to a
+// secret of its environment (ADR 0081). The value goes from one spec to another in
+// the control plane, so nobody reads it on the way.
+type ValueMover interface {
+	// MoveValues takes each value names names out of desired, using one of the kind
+	// it says of each name instead, and says each value current had, by name.
+	MoveValues(current, desired proto.Message, names []string) (Kind, map[string]string, error)
+}
+
 // Use is one resource that another uses, in the same scope.
 type Use struct {
 	// As is the name the user sees it as, such as DATABASE_URL.

@@ -1509,7 +1509,17 @@ type Edit struct {
 	// confirmation, as any data loss does, and its server keeps it for 7 days.
 	// Refused on any other kind, and without delete. See
 	// docs/adr/0074-projects-you-can-see-and-that-go-with-their-last-app.md.
-	WithContents  bool `protobuf:"varint,8,opt,name=with_contents,json=withContents,proto3" json:"with_contents,omitempty"`
+	WithContents bool `protobuf:"varint,8,opt,name=with_contents,json=withContents,proto3" json:"with_contents,omitempty"`
+	// A service's own environment variables to make secrets of its environment,
+	// by the same name, with the values it has now, which it then uses in their
+	// place. The change makes each secret with the value the service holds, so
+	// nobody reads a hidden value to make it a secret, which a passkey reveals
+	// from then on. Each must be one the service has now, not empty, and not one
+	// the spec sets or keep_env keeps; the environment can't have a variable or
+	// secret of the name already. Only with base_revision, as for keep_env. See
+	// docs/adr/0081-an-apps-own-values-shown-and-its-secrets-kept.md. Numbered
+	// apart, as open work adds to this message.
+	EnvToSecrets  []string `protobuf:"bytes,60,rep,name=env_to_secrets,json=envToSecrets,proto3" json:"env_to_secrets,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1598,6 +1608,13 @@ func (x *Edit) GetWithContents() bool {
 		return x.WithContents
 	}
 	return false
+}
+
+func (x *Edit) GetEnvToSecrets() []string {
+	if x != nil {
+		return x.EnvToSecrets
+	}
+	return nil
 }
 
 // ResourceRef names a resource.
@@ -8067,7 +8084,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12'\n" +
 	"\x05edits\x18\x02 \x03(\v2\x11.dockwell.v1.EditR\x05edits\x12\x1f\n" +
 	"\vskip_backup\x18\x03 \x01(\bR\n" +
-	"skipBackup\"\xa3\x02\n" +
+	"skipBackup\"\xc9\x02\n" +
 	"\x04Edit\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x124\n" +
 	"\x04spec\x18\x02 \x01(\v2 .dockwell.resource.v1alpha1.SpecR\x04spec\x12\x16\n" +
@@ -8076,7 +8093,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aproject\x18\x05 \x01(\tR\aproject\x12#\n" +
 	"\rbase_revision\x18\x06 \x01(\x03R\fbaseRevision\x12\x19\n" +
 	"\bkeep_env\x18\a \x03(\tR\akeepEnv\x12#\n" +
-	"\rwith_contents\x18\b \x01(\bR\fwithContents\"K\n" +
+	"\rwith_contents\x18\b \x01(\bR\fwithContents\x12$\n" +
+	"\x0eenv_to_secrets\x18< \x03(\tR\fenvToSecrets\"K\n" +
 	"\vResourceRef\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05scope\x18\x02 \x01(\tR\x05scope\x12\x12\n" +

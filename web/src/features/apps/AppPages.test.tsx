@@ -245,7 +245,9 @@ describe("an app's frame", () => {
     expect(await screen.findByRole("region", { name: "Logs" })).toBeVisible();
     await user.click(within(tabs).getByRole("link", { name: "Environment" }));
     expect(await screen.findByRole("cell", { name: "API_KEY" })).toBeVisible();
-    expect(screen.getAllByRole("cell", { name: "Hidden" })).toHaveLength(2);
+    // Each of its own reads hidden, and a passkey reveals it (ADR 0081).
+    expect(screen.getAllByRole("img", { name: "Hidden" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Reveal / })).toHaveLength(2);
     expect(screen.getAllByRole("cell", { name: "Set on this app" })).toHaveLength(2);
   });
 
@@ -4124,6 +4126,39 @@ describe("an app's deployments", () => {
     expect(within(diff).getByText("broken").closest("ins")).toBeInTheDocument();
     expect(diff).not.toHaveTextContent("meilisearch");
     expect(container.querySelector(".deploy-image")).toHaveTextContent("getmeili/meilisearch:broken");
+  });
+
+  it("cuts the digest of the image a first revision pinned short, whole on hover, and says which values it shows", async () => {
+    const pinned = `wordpress:7.1.3-apache@sha256:${"8901759bfbb7".padEnd(64, "e")}`;
+    const list = [
+      aRevision(1n, "wordpress:7.1.3-apache", {
+        changes: [
+          { path: "app.image", op: FieldOp.ADDED, to: pinned },
+          { path: "shown_env", op: FieldOp.ADDED, to: "WORDPRESS_DB_HOST, WORDPRESS_DB_NAME" },
+        ],
+      }),
+    ];
+    const { container } = renderAt(
+      "/apps/svc_web/deployments",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
+      }),
+    );
+    await screen.findByRole("table", { name: "Revisions of web" });
+    const diff = await waitFor(() => {
+      const found = container.querySelector(".deploy-diff");
+      if (!found) throw new Error("no diff yet");
+      return found as HTMLElement;
+    });
+    const image = within(diff).getByTitle(pinned);
+    expect(image).toHaveTextContent(/^wordpress:7\.1\.3-apache@sha256:8901759bfbb7$/);
+    expect(image.closest("ins")).toBeInTheDocument();
+    expect(diff).not.toHaveTextContent(pinned);
+    expect(
+      within(diff).getByRole("button", { name: "Copy wordpress:7.1.3-apache@sha256:8901759bfbb7 in full" }),
+    ).toBeInTheDocument();
+    expect(within(diff).getByText("shows the values of")).toBeInTheDocument();
+    expect(diff).not.toHaveTextContent("shown env");
   });
 
   it("reads what a revision changed in the plan's words, each value whole, the old then an arrow then the new", async () => {

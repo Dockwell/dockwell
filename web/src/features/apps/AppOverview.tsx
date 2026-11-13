@@ -15,6 +15,7 @@ import {
   HealthCheckKind,
   type Mount,
   Protocol,
+  ResourceService,
   RestartPolicy,
   type ServiceInfo,
   ServiceService,
@@ -37,7 +38,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -54,6 +55,7 @@ import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { ReadFailed } from "../shell/ReadFailed";
+import { RefLink } from "../shell/RefLink";
 import { useRuntimes } from "../websites/website";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
@@ -1278,27 +1280,52 @@ function ConfigurationPanel() {
 /** What it keeps, and anything of the server's it reaches. */
 function VolumesPanel({ app }: { app: Container | undefined }) {
   const { t } = useLingui();
+  const { service } = useApp();
   const mounts = app?.mounts ?? [];
+  const volumeIds = useVolumeIds(service.resource?.scope);
   if (mounts.length === 0) return null;
   return (
     <Panel title={t`Volumes`} flush>
       <ul className="app-mounts">
         {mounts.map((mount) => (
-          <MountRow key={mount.target} mount={mount} />
+          <MountRow key={mount.target} mount={mount} volumeId={volumeIds.get(mount.source.value ?? "")} />
         ))}
       </ul>
     </Panel>
   );
 }
 
-function MountRow({ mount }: { mount: Mount }) {
+/** The volumes of an environment by name, to open each one's page. */
+function useVolumeIds(environment: string | undefined): ReadonlyMap<string, string> {
+  const volumes = useQuery(ResourceService.method.listResources, { kind: "volume" }).data?.resources;
+  return useMemo(
+    () =>
+      new Map(
+        (volumes ?? [])
+          .filter((v) => v.resource?.scope === environment)
+          .map((v) => [v.resource?.name ?? "", v.id] as const),
+      ),
+    [volumes, environment],
+  );
+}
+
+function MountRow({ mount, volumeId }: { mount: Mount; volumeId: string | undefined }) {
   const { t } = useLingui();
   const isPath = mount.source.case === "hostPath";
   return (
     <li className="app-mount">
       <span className="app-mount-source">
         <Icon name={isPath ? "server" : "archive"} size={14} />
-        <code>{mount.source.value}</code>
+        <code>
+          {/* A volume of its environment opens its own page (#566). */}
+          {!isPath && volumeId ? (
+            <RefLink kind="volume" id={volumeId} look="plain">
+              {mount.source.value}
+            </RefLink>
+          ) : (
+            mount.source.value
+          )}
+        </code>
       </span>
       <span className="app-mount-target">
         <Icon name="arrow-right" size={12} />

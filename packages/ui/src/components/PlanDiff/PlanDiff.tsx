@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Fragment, isValidElement, type ReactNode, useId, useState } from "react";
+import { isValidElement, type ReactNode, useId, useState } from "react";
 
 import { cx, hasContent } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
+import { CopyButton } from "../CopyButton/CopyButton";
 import { Icon } from "../Icon/Icon";
 import type { IconName } from "../Icon/icons";
 import "./PlanDiff.css";
@@ -209,8 +210,9 @@ export function PlanDiff({ resources, impact, done = false, noSummary = false, a
         )}
         {changes.length > 0 ? (
           <dl id={changesId} className="dw-plan-changes" hidden={!open}>
+            {/* Each field and its value side by side where both fit, the value under it where they don't (.dw-plan-change). */}
             {changes.map((change) => (
-              <Fragment key={change.path}>
+              <div key={change.path} className="dw-plan-change">
                 <dt
                   className={cx(
                     change.label ? "dw-plan-label" : "dw-plan-path",
@@ -246,7 +248,7 @@ export function PlanDiff({ resources, impact, done = false, noSummary = false, a
                   ) : null}
                   {change.hidden ? <Hidden label={strings.planDiff.hidden} /> : null}
                 </dd>
-              </Fragment>
+              </div>
             ))}
           </dl>
         ) : null}
@@ -322,7 +324,59 @@ function PlanValueView({
 }) {
   if (isSecret(value)) return <Hidden label={hiddenLabel} />;
   if (isValidElement(value)) return <span className={cx(className, "is-words")}>{value}</span>;
+  if (typeof value === "string" && DIGEST.test(value)) return <DigestValue value={value} className={className} />;
   return <span className={className}>{value as ReactNode}</span>;
+}
+
+/** A value that ends in a content digest, such as an image pinned by one: "wordpress:7.1@sha256:8901…". */
+const DIGEST = /^(.*?)(@?)(sha256:)([0-9a-f]{64})$/;
+
+/** Whether a value ends in a content digest, which DigestValue cuts short. */
+export function hasDigest(value: string): boolean {
+  return DIGEST.test(value);
+}
+
+/** A value with its digest cut to 12 digits, as Docker and the rest of the panel shorten one. */
+function shortDigest(value: string): string {
+  const part = DIGEST.exec(value);
+  if (!part) return value;
+  return `${part[1]}${part[2]}${part[3]}${(part[4] ?? "").slice(0, 12)}`;
+}
+
+/**
+ * A value that ends in a digest, with the digest cut short so it takes a line
+ * rather than ten, the whole of it on hover, and a button that copies it whole.
+ * Its line may break before the digest, never inside it. A value with no digest
+ * reads as it is.
+ */
+export function DigestValue({ value, className }: { value: string; className?: string | undefined }) {
+  const strings = useUIStrings();
+  const part = DIGEST.exec(value);
+  if (!part) return <span className={className}>{value}</span>;
+  const [, name = "", at = "", algorithm = "", digits = ""] = part;
+  const shown = shortDigest(value);
+  return (
+    <span className="dw-digest">
+      <span className={cx(className, "dw-digest-value")} title={value}>
+        {name}
+        {name ? <wbr /> : null}
+        <span className="dw-digest-hash">
+          {at}
+          {algorithm}
+          {digits.slice(0, 12)}
+        </span>
+      </span>
+      <CopyButton
+        iconOnly
+        size="sm"
+        variant="ghost"
+        className="dw-digest-copy"
+        text={value}
+        label={strings.planDiff.copyWhole(shown)}
+        copiedLabel={strings.planDiff.copiedWhole}
+      />
+    </span>
+  );
 }
 
 function isSecret(value: PlanValue): value is { secret: true } {

@@ -7,7 +7,17 @@ import type { ReactNode } from "react";
 import "./RefLink.css";
 
 /** The kinds of thing a reference names, each with the page it opens. */
-export type RefKind = "app" | "database" | "server" | "change" | "project" | "website" | "entry" | "alert";
+export type RefKind =
+  | "app"
+  | "database"
+  | "server"
+  | "change"
+  | "project"
+  | "website"
+  | "entry"
+  | "alert"
+  | "volume"
+  | "backup";
 
 /** Every kind, for a test that each opens its page. */
 export const REF_KINDS: readonly RefKind[] = [
@@ -19,6 +29,8 @@ export const REF_KINDS: readonly RefKind[] = [
   "website",
   "entry",
   "alert",
+  "volume",
+  "backup",
 ];
 
 const ICONS: Record<RefKind, IconName> = {
@@ -30,10 +42,20 @@ const ICONS: Record<RefKind, IconName> = {
   website: "globe",
   entry: "grid",
   alert: "bell",
+  volume: "layers",
+  backup: "archive",
 };
 
 /** The kinds whose ID says what it is, by its prefix, as IDs are made (internal/id). */
-const BY_PREFIX: Record<string, RefKind> = { srv: "server", svc: "app", chg: "change", prj: "project", alt: "alert" };
+const BY_PREFIX: Record<string, RefKind> = {
+  srv: "server",
+  svc: "app",
+  chg: "change",
+  prj: "project",
+  alt: "alert",
+  bkp: "backup",
+  vol: "volume",
+};
 
 /** The kind of thing an ID names, by its prefix, or undefined for one with no page. */
 export function refKindOf(id: string): RefKind | undefined {
@@ -118,6 +140,18 @@ export function RefLink({ kind, id, children, look = "chip", className }: RefLin
     case "alert":
       return (
         <Link to="/alerts/$alertId" params={{ alertId: id }} className={classes}>
+          {inner}
+        </Link>
+      );
+    case "volume":
+      return (
+        <Link to="/volumes/$volumeId" params={{ volumeId: id }} className={classes}>
+          {inner}
+        </Link>
+      );
+    case "backup":
+      return (
+        <Link to="/backups/$backupId" params={{ backupId: id }} className={classes}>
           {inner}
         </Link>
       );

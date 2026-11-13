@@ -584,6 +584,19 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
         }
         case "secret.reveal":
           return { title: name ? t`Revealed the secret ${name}` : t`Revealed a secret`, icon: "eye" };
+        case "service.value_reveal": {
+          // One of an app's own values, by its name: the app is the subject, and the value is never kept.
+          const value = event.subject?.valueName ?? "";
+          return {
+            title:
+              value && name
+                ? t`Revealed the value ${value} of ${name}`
+                : value
+                  ? t`Revealed the value ${value} of an app`
+                  : t`Revealed a value an app sets`,
+            icon: "eye",
+          };
+        }
         case "secrets.rotate_key":
           return { title: t`Rotated the key that wraps every secret`, icon: "key" };
       }

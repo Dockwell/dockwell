@@ -388,6 +388,22 @@ message ServerDiskUse {
   uint32 containers = 14;
   // How many volumes there are.
   uint32 volumes = 15;
+  // Each volume Docker keeps, with what it holds, for a volume's own page.
+  // Numbered apart, as open work adds to this message.
+  repeated VolumeDiskUse volume_use = 60;
+}
+
+// VolumeDiskUse is what one volume holds on a server, as Docker adds it up.
+message VolumeDiskUse {
+  // Its name in Docker, such as "default-production_data".
+  string name = 1;
+  // What it holds, in bytes, or -1 when Docker can't say, as for a volume
+  // another driver keeps.
+  int64 size_bytes = 2;
+  // Where its files are on the server.
+  string mountpoint = 3;
+  // How many containers use it.
+  uint32 containers = 4;
 }
 
 // SetServerPublicAddressRequest says what a server's public address is.

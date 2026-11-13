@@ -48,8 +48,14 @@ msgstr "命令栏"
 msgid "Connect"
 msgstr "连接"
 
+msgid "Copied in full"
+msgstr "已完整复制"
+
 msgid "Copied {value}"
 msgstr "已复制 {value}"
+
+msgid "Copy {shown} in full"
+msgstr "完整复制 {shown}"
 
 msgid "Copy {value}"
 msgstr "复制 {value}"
@@ -438,6 +444,9 @@ msgstr "所有执行者"
 msgid "Applied"
 msgstr "已应用"
 
+msgid "Backup"
+msgstr "备份"
+
 msgid "Backups"
 msgstr "备份"
 
@@ -506,6 +515,9 @@ msgstr "打开计划"
 
 msgid "Open the app"
 msgstr "打开应用"
+
+msgid "Open the backup"
+msgstr "打开该备份"
 
 msgid "Open the file"
 msgstr "打开文件"
@@ -936,8 +948,17 @@ msgstr "已恢复：{title}"
 msgid "Revealed a secret"
 msgstr "显示了一个密钥"
 
+msgid "Revealed a value an app sets"
+msgstr "显示了某个应用设置的值"
+
 msgid "Revealed the secret {name}"
 msgstr "显示了密钥 {name}"
+
+msgid "Revealed the value {value} of an app"
+msgstr "显示了某个应用的值 {value}"
+
+msgid "Revealed the value {value} of {name}"
+msgstr "显示了 {name} 的值 {value}"
 
 msgid "Revoked an API token"
 msgstr "撤销了 API 令牌"
@@ -2317,8 +2338,14 @@ msgstr "把新的保存为密钥"
 msgid "Key"
 msgstr "键"
 
+msgid "Make {key} on {name} a secret"
+msgstr "将 {name} 上的 {key} 改为密钥"
+
 msgid "Make {key} on {name} a shared variable"
 msgstr "将 {name} 上的 {key} 改为共享变量"
+
+msgid "Make {name} a secret"
+msgstr "将 {name} 改为密钥"
 
 msgid "Make {name} shared"
 msgstr "共享 {name}"
@@ -2389,6 +2416,9 @@ msgstr "共享变量"
 msgid "Source"
 msgstr "来源"
 
+msgid "The environment has a secret {name} already. Rename one to keep this as a secret."
+msgstr "环境中已有密钥 {name}。重命名其中一个后才能将它保存为密钥。"
+
 msgid "The environment has a secret {name} already. Rename one to share this."
 msgstr "环境中已有密钥 {name}。重命名其中一个后才能共享。"
 
@@ -2397,6 +2427,9 @@ msgstr "环境中已有密钥 {target}。重命名其中一个后才能将它保
 
 msgid "The environment has a secret {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有密钥 {trimmed}。可以直接使用它，或换一个名称。"
+
+msgid "The environment has a variable {name} already. Rename one to keep this as a secret."
+msgstr "环境中已有变量 {name}。重命名其中一个后才能将它保存为密钥。"
 
 msgid "The environment has a variable {name} with another value. Rename one to share this."
 msgstr "环境中已有值不同的变量 {name}。重命名其中一个后才能共享。"
@@ -5929,6 +5962,65 @@ msgstr "无论结果如何，复制结束后被停止的内容都会重新启动
 msgid "{0, plural, one {{list} runs on this volume} other {{list} run on this volume}}"
 msgstr "{0, plural, other {{list} 正在此卷上运行}}"
 
+msgid "Backup of {volume}"
+msgstr "{volume} 的备份"
+
+#. placeholder {0}: actions.refused.get(backup.id)
+#. placeholder {0}: refused.get(b.id)
+msgid "Can't check it now: {0}"
+msgstr "现在无法检查：{0}"
+
+msgid "Check it"
+msgstr "检查"
+
+msgid "Checked"
+msgstr "已检查"
+
+msgid "Delete this backup"
+msgstr "删除此备份"
+
+msgid "Dockwell can't read this backup"
+msgstr "Dockwell 无法读取这个备份"
+
+msgid "Fetch"
+msgstr "取回"
+
+msgid "Fingerprint"
+msgstr "指纹"
+
+msgid "How"
+msgstr "方式"
+
+msgid "Kept on"
+msgstr "存放于"
+
+msgid "Not yet"
+msgstr "尚未运行"
+
+msgid "Nowhere it can be restored from now"
+msgstr "目前无处可以恢复"
+
+msgid "Reading the backup"
+msgstr "正在读取备份"
+
+msgid "Restore"
+msgstr "恢复"
+
+msgid "Schedule"
+msgstr "计划"
+
+msgid "Started"
+msgstr "开始时间"
+
+msgid "The server's disk"
+msgstr "服务器磁盘"
+
+msgid "The server's disk, and {destination}"
+msgstr "服务器磁盘和 {destination}"
+
+msgid "What it is"
+msgstr "基本信息"
+
 msgid "A backup is of a volume. Add one to an app, or install a database from the catalog."
 msgstr "备份的对象是卷。请为应用添加卷，或从应用目录安装数据库。"
 
@@ -5941,10 +6033,6 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
-
-#. placeholder {0}: refused.get(b.id)
-msgid "Can't check it now: {0}"
-msgstr "现在无法检查：{0}"
 
 msgid "Check it restores"
 msgstr "检查能否恢复"
@@ -5961,9 +6049,6 @@ msgstr "从两处都删除"
 msgid "Delete it"
 msgstr "删除"
 
-msgid "Delete this backup"
-msgstr "删除此备份"
-
 #. placeholder {0}: backup.volume
 msgid "Delete this backup of {0}"
 msgstr "删除 {0} 的这份备份"
@@ -5971,15 +6056,9 @@ msgstr "删除 {0} 的这份备份"
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
 
-msgid "Fetch"
-msgstr "取回"
-
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
 msgstr "取回 {0} 的这个备份"
-
-msgid "How"
-msgstr "方式"
 
 #. placeholder {0}: b.fetchError
 msgid "It couldn't be fetched: {0}"
@@ -6025,9 +6104,6 @@ msgstr "最近的运行"
 msgid "Remove from the server only"
 msgstr "仅从服务器移除"
 
-msgid "Restore"
-msgstr "恢复"
-
 msgid "Restore check failed {ago}: {why}"
 msgstr "恢复检查失败（{ago}）：{why}"
 
@@ -6040,9 +6116,6 @@ msgstr "使用较早的密码短语加密"
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
 msgstr "正在发送到 {0}"
-
-msgid "Started"
-msgstr "开始时间"
 
 msgid "This backup didn't come back"
 msgstr "未能取回此备份"
@@ -8065,6 +8138,9 @@ msgctxt "bytes pulled"
 msgid "{0} of {1}"
 msgstr "{0} / {1}"
 
+msgid "<0>{name}</0> as <1>{key}</1>"
+msgstr "<0>{name}</0>，作为 <1>{key}</1>"
+
 msgid "<0>{source}</0> at <1>{target}</1>"
 msgstr "<0>{source}</0> 挂载到 <1>{target}</1>"
 
@@ -8204,6 +8280,9 @@ msgstr "不运行入口点"
 msgid "shared memory"
 msgstr "共享内存"
 
+msgid "shows the values of"
+msgstr "显示这些值"
+
 msgid "sources"
 msgstr "来源"
 
@@ -8218,6 +8297,12 @@ msgstr "tmpfs 大小"
 
 msgid "uses its newer value"
 msgstr "使用它的新值"
+
+msgid "uses secret"
+msgstr "使用密钥"
+
+msgid "uses variable"
+msgstr "使用变量"
 
 msgid "yes"
 msgstr "是"
@@ -9013,9 +9098,6 @@ msgstr "构建并部署 {commit}"
 msgid "Building and deploying {commit}"
 msgstr "正在构建并部署 {commit}"
 
-msgid "Checked"
-msgstr "已检查"
-
 msgid "Couldn't check"
 msgstr "无法检查"
 
@@ -9711,9 +9793,6 @@ msgstr "它的服务器没有说明"
 
 msgid "Kept in the secret <0>{secret}</0>"
 msgstr "保存在密钥 <0>{secret}</0> 中"
-
-msgid "Kept on"
-msgstr "存放于"
 
 msgid "Keys asked for that were there"
 msgstr "查询的键中命中的比例"
@@ -14860,9 +14939,6 @@ msgstr "星期"
 msgid "On day"
 msgstr "日期"
 
-msgid "Schedule"
-msgstr "计划"
-
 msgid "That isn't cron Dockwell reads."
 msgstr "Dockwell 无法识别这个 cron。"
 
@@ -15117,9 +15193,6 @@ msgstr "还没有计划任务"
 
 msgid "Not scheduled"
 msgstr "未安排"
-
-msgid "Not yet"
-msgstr "尚未运行"
 
 msgid "On its own schedule"
 msgstr "按自定义计划"
@@ -15936,9 +16009,6 @@ msgstr "已复制 {name}"
 msgid "Copy {name}"
 msgstr "复制 {name}"
 
-msgid "Hidden, as it may be a secret"
-msgstr "可能是密钥，已隐藏"
-
 msgid "Hide {name}"
 msgstr "隐藏 {name}"
 
@@ -15947,6 +16017,9 @@ msgstr "它原是普通变量，能查看此环境的人仍能看到它。请为
 
 msgid "Loading variables and secrets"
 msgstr "正在加载变量和密钥"
+
+msgid "Make {name} on {app} a secret"
+msgstr "将 {app} 上的 {name} 改为密钥"
 
 msgid "Make {name} on {app} a shared variable"
 msgstr "将 {app} 上的 {name} 改为共享变量"
@@ -15965,6 +16038,9 @@ msgstr "请为它命名，例如 DATABASE_URL。"
 
 msgid "No variables or secrets in {envName} yet"
 msgstr "{envName} 中还没有变量或密钥"
+
+msgid "Not a secret"
+msgstr "不是密钥"
 
 msgid "Not used yet"
 msgstr "尚未使用"
@@ -15991,6 +16067,9 @@ msgstr "在应用上设置"
 msgid "Shared"
 msgstr "共享"
 
+msgid "Show {name} on {app}"
+msgstr "显示 {app} 上的 {name}"
+
 msgid "The old value stays in this variable's history"
 msgstr "旧值仍保留在该变量的历史中"
 
@@ -16007,11 +16086,54 @@ msgstr "{envName} 中的应用运行时使用的值，包括共享的和各自�
 msgid "as {0}"
 msgstr "作为 {0}"
 
+msgid "{name} is no secret: show it"
+msgstr "{name} 不是密钥：显示它"
+
 msgid "{onlyName} runs with nothing of its own or shared"
 msgstr "{onlyName} 没有自己的值，也没有使用共享的值"
 
 msgid "{own, plural, one {# set on an app} other {# set on apps}}"
 msgstr "{own, plural, other {# 个在应用上设置}}"
+
+msgid "Delete the volume {name}"
+msgstr "删除卷 {name}"
+
+msgid "Dockwell can't read this volume"
+msgstr "Dockwell 无法读取这个卷"
+
+msgid "Its driver's options stay hidden, as they may hold a password."
+msgstr "它的驱动选项可能包含密码，所以保持隐藏。"
+
+msgid "Mounted by"
+msgstr "挂载者"
+
+msgid "No app mounts it"
+msgstr "没有应用挂载它"
+
+msgid "No app mounts it, so deleting it stops nothing."
+msgstr "没有应用挂载它，所以删除它不会停止任何东西。"
+
+msgid "On its servers"
+msgstr "所在服务器"
+
+msgid "Open its files"
+msgstr "打开它的文件"
+
+msgid "Reading the volume"
+msgstr "正在读取卷"
+
+#. placeholder {0}: s.containers
+msgid "{0, plural, one {# container uses it} other {# containers use it}}"
+msgstr "{0, plural, other {# 个容器在使用它}}"
+
+msgid "{count, plural, one {Mounted by # app} other {Mounted by # apps}}"
+msgstr "{count, plural, other {由 # 个应用挂载}}"
+
+msgid "{mounts} · Driver {driver}"
+msgstr "{mounts} · 驱动 {driver}"
+
+msgid "{users} mounts it. Take it off first, then delete it."
+msgstr "{users} 挂载了它。先移除挂载，再删除它。"
 
 msgid "A static site, sent as its files are."
 msgstr "静态网站，文件原样发送。"

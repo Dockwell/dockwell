@@ -42,6 +42,7 @@ export * from "./gen/dockwell/v1/terminal_pb";
 export * from "./gen/dockwell/v1/token_pb";
 export * from "./gen/dockwell/v1/update_pb";
 export * from "./gen/dockwell/v1/variable_pb";
+export * from "./gen/dockwell/v1/volume_pb";
 export * from "./gen/dockwell/v1/website_pb";
 // The REST paths and field behaviours the schema declares, which name the CLI's
 // commands and flags, as a panel that writes a CLI command reads them.
