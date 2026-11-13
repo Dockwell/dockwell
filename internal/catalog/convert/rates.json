@@ -29,7 +29,6 @@
         "cloudbeaver",
         "cloudflared",
         "code-server",
-        "comfyui",
         "convertx",
         "copaw",
         "cyberchef",
@@ -69,7 +68,6 @@
         "lobe-chat",
         "localai",
         "lsky-pro",
-        "manticoresearch",
         "mariadb",
         "maxkb",
         "mcsmanager-daemon",
@@ -133,7 +131,7 @@
       "leftOut": {
         "another-app": 25,
         "arch": 25,
-        "cant-run": 9,
+        "cant-run": 11,
         "cant-say": 4,
         "check": 2,
         "platform": 11,
@@ -288,7 +286,6 @@
         "gotenberg",
         "gotify",
         "grafana",
-        "graylog",
         "grimoire",
         "grist",
         "healthchecks",
@@ -523,7 +520,7 @@
         "zitadel"
       ],
       "leftOut": {
-        "cant-run": 50,
+        "cant-run": 51,
         "cant-say": 22,
         "check": 70,
         "file": 1,
@@ -781,9 +778,9 @@
       ],
       "leftOut": {
         "arch": 1,
-        "cant-run": 20,
+        "cant-run": 21,
         "cant-say": 18,
-        "check": 62,
+        "check": 61,
         "made-up": 8,
         "platform": 1,
         "skipped": 34
