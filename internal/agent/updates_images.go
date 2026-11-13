@@ -27,8 +27,9 @@ const sourceLabel = "org.opencontainers.image.source"
 // imageUpdates says what's newer than an image the server runs (ADR 0079): the
 // digest its tag points at, with a HEAD, which no registry counts as a pull,
 // and for a tag that's a version, the newest tag of each kind of step in its
-// track, from one list of the repository's tags. It keeps nothing: the control
-// plane keeps what it found.
+// track, from one list of the repository's tags. The control plane keeps what it
+// found; the agent keeps only the tag's digest, beside what a plan's reads keep, so
+// an update planned right after its check pins the build the check saw (ADR 0085).
 func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCall) (*agentv1.ImageUpdatesResult, error) {
 	if im.o.Off != "" {
 		return nil, errors.New(im.o.Off)
@@ -69,6 +70,11 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 	if err != nil {
 		res.Detail = line(err.Error())
 		return res, nil
+	}
+	if digest != "" {
+		im.mu.Lock()
+		im.digests.put(ref.String(), digest, im.now())
+		im.mu.Unlock()
 	}
 	if !call.GetTags() || !registry.IsVersion(ref.Tag) {
 		return res, nil

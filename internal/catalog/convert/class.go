@@ -102,3 +102,14 @@ func (c Class) Key() string {
 	}
 	return "cant-say"
 }
+
+// ClassOfKey is the class a word such as "scripts" says, or the key itself, as a
+// class, for one the converter doesn't give.
+func ClassOfKey(key string) Class {
+	for c, k := range classKeys {
+		if k == key {
+			return c
+		}
+	}
+	return Class(key)
+}

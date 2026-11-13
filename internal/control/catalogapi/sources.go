@@ -1467,7 +1467,11 @@ func (h *Handler) ListCatalogStores(ctx context.Context, _ *connect.Request[dock
 		info := &dockwellv1.CatalogStore{
 			Id: st.ID, Name: st.Name, Label: st.Label, Repository: st.Upstream, Format: formatEnum(st.Format),
 			Branch: st.Branch, License: st.License, Homepage: st.Homepage,
-			Apps: st.Measured.Apps, Installs: st.Measured.Installs, Commit: st.Measured.Commit,
+		}
+		// What it converted to at the commit the repository pins, as `make
+		// store-rates` records it (ADR 0085), for a person to weigh it by.
+		if m, ok := convert.MeasuredOf(st.Format); ok {
+			info.Apps, info.Installs, info.Commit = uint32(m.Apps), uint32(m.Converted), m.Commit //nolint:gosec // a store holds 2,000 apps at most
 		}
 		for _, src := range list {
 			if storeOf(src.spec).ID != st.ID {

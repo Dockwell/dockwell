@@ -67,10 +67,6 @@ type Store struct {
 	// Homepage is the store's own project site, and Branch the branch a source of it
 	// follows, its repository's default.
 	Homepage, Branch string
-	// Measured is how many apps it held, and how many of them converted, at a commit,
-	// as this build's converter read it, for a person to weigh it before adding it
-	// (ADR 0083). Measure again when the converter reads more of it.
-	Measured Measured
 	// License is what its upstream publishes under.
 	License string
 	// Root is the folder it keeps its apps in, such as apps.
@@ -87,19 +83,12 @@ type Store struct {
 	read func(ctx context.Context, t *tree, root string) ([]App, error)
 }
 
-// Measured is what a store held at a commit, as the converter read it.
-type Measured struct {
-	Commit         string
-	Apps, Installs uint32
-}
-
 // Stores are the formats the control plane converts.
 var Stores = []Store{
 	{
 		Format: FormatOnePanel, ID: "onepanel", Label: "1Panel", Name: "1Panel's app store", License: "GPL-3.0-only", Root: "apps",
 		Upstream: "https://github.com/1Panel-dev/appstore", Layout: "1Panel's format",
 		Homepage: "https://1panel.pro", Branch: "dev",
-		Measured: Measured{Commit: "55061b992f663dcf670f01ff7013f186b4d2aeda", Apps: 269, Installs: 93},
 		// apps/<key>/<version>/..., where a version's own folders are read for what
 		// they hold, as a script or a shipped file leaves its app out.
 		Descend: func(p string, depth int) bool { return strings.HasPrefix(p+"/", "apps/") && depth <= 6 },
@@ -119,7 +108,6 @@ var Stores = []Store{
 		Format: FormatDokploy, ID: "dokploy", Label: "Dokploy", Name: "Dokploy's templates", License: "MIT", Root: "blueprints",
 		Upstream: "https://github.com/Dokploy/templates", Layout: "Dokploy's format",
 		Homepage: "https://dokploy.com", Branch: "canary",
-		Measured: Measured{Commit: "4f0ddfb507c721a8925891b70f50714660f8ee54", Apps: 612, Installs: 169},
 		Descend:  func(p string, depth int) bool { return strings.HasPrefix(p+"/", "blueprints/") && depth <= 6 },
 		Want: func(p string) bool {
 			parts := strings.Split(p, "/")
@@ -131,7 +119,6 @@ var Stores = []Store{
 		Format: FormatCoolify, ID: "coolify", Label: "Coolify", Name: "Coolify's templates", License: "Apache-2.0", Root: "templates/compose",
 		Upstream: "https://github.com/coollabsio/coolify", Layout: "Coolify's format",
 		Homepage: "https://coolify.io", Branch: "main",
-		Measured: Measured{Commit: "93c7e53e9f07bfdb1c776899cb2e559e5a49aa34", Apps: 384, Installs: 78},
 		// Its templates, and the folder of logos they name, as # logo: svgs/<name>.
 		Descend: func(p string, depth int) bool {
 			return p == "templates" || p == "templates/compose" || p == "public" || p == "public/svgs"
@@ -485,8 +472,11 @@ func hostAccessWords(reaches []string) string {
 }
 
 // tagged checks each image of a file the server converts is one an install can pin:
-// named by a version, from a registry that isn't this server's or a private
-// network's, and written plainly, as the catalog reads an image by its line.
+// named by a tag, from a registry that isn't this server's or a private network's,
+// and written plainly, as the catalog reads an image by its line. A tag that moves,
+// such as latest, is pinned when an install is planned, as a version's tag is, and
+// an image named with no tag is written as latest, which is what Docker pulls for it,
+// so the plan names the tag it pins (ADR 0085).
 func tagged(file []byte) ([]byte, error) {
 	doc, err := parseFile(file)
 	if err != nil {
@@ -504,12 +494,12 @@ func tagged(file []byte) ([]byte, error) {
 		if strings.ContainsAny(image, " \t\r\n#\"'") {
 			return nil, leave(ClassCantSay, "its service %s's image %q isn't a reference Docker reads", name, image)
 		}
+		if untagged(image) {
+			image += ":latest"
+		}
 		r, err := parseRef(image)
 		if err != nil {
 			return nil, leave(ClassNoVersion, "%s", err)
-		}
-		if r.digest == "" && unversioned[r.tag] {
-			return nil, leave(ClassNoVersion, "its service %s's image is %s, which names no version", name, image)
 		}
 		if why := privateRegistry(r); why != "" {
 			return nil, leave(ClassCantSay, "its service %s's image is on %s, which is %s, where a store's app may not pull from", name, r.host, why)
@@ -517,4 +507,14 @@ func tagged(file []byte) ([]byte, error) {
 		img.Value, img.Style, img.LineComment = image, 0, ""
 	}
 	return encodeFile(doc)
+}
+
+// untagged says an image names neither a tag nor a digest, as nginx and
+// ghcr.io/acme/app do, where Docker pulls latest. A registry's port, as in
+// registry:5000/app, is no tag.
+func untagged(image string) bool {
+	if strings.Contains(image, "@") {
+		return false
+	}
+	return strings.LastIndex(image, ":") <= strings.LastIndex(image, "/")
 }

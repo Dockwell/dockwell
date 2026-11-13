@@ -531,9 +531,10 @@ func TestItReadsOnlyFilesInsideTheCheckout(t *testing.T) {
 // Every app in the store is in the report, and a folder kept with a placeholder is no
 // file it ships.
 func TestEveryAppIsCounted(t *testing.T) {
-	apps := readFixture(t)
-	if a := apps["onlylatest"]; a.Class != ClassNoVersion || !strings.Contains(a.LeftOut, "only a version named latest") {
-		t.Errorf("an app with only latest: %s, %q", a.Class, a.LeftOut)
+	// A catalog that's published pins each image as it's converted, so a version that
+	// moves stays out of it; a server converts it, as an install pins it (ADR 0085).
+	if r := convertFixture(t, converter(), "onlylatest"); r.Entry != nil || r.Class != ClassNoVersion || !strings.Contains(r.LeftOut, "its only version is latest") {
+		t.Errorf("an app with only latest: %s, %q", r.Class, r.LeftOut)
 	}
 	if r := convertFixture(t, converter(), "keep"); r.Entry == nil {
 		t.Errorf("data/.gitkeep counted as a file it ships: %s", r.LeftOut)

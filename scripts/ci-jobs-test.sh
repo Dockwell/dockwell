@@ -20,9 +20,9 @@ failed=0
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 
-all="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd every-leg"
+all="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd every-leg"
 # Go code: every CI job, the budgets, and some install legs.
-go="go docker-go caddy-go docker-e2e catalog-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
+go="go docker-go caddy-go docker-e2e catalog-docker store-docker docker-panel logs-load containers-load transfers-load chaos e2e schema panel snapshot budgets install systemd"
 web="schema panel e2e docker-panel"
 install="snapshot install systemd every-leg"
 
@@ -71,6 +71,10 @@ picks "go chaos" scripts/chaos/recovery_test.go
 picks "chaos" scripts/docker-stops-evidence.sh
 picks "$go" scripts/check-panel-size.sh
 picks "$go" internal/catalog/catalog.go
+# The converter, the record of what each store converts to, and the script that
+# installs a sample of each on Docker: Go code, which Other stores on Docker runs.
+picks "$go" internal/catalog/convert/rates.json
+picks "$go" scripts/store-e2e.sh
 # go vet ./... compiles a Go file anywhere.
 picks "$go" docs/example/main.go
 picks "go docker-go caddy-go" internal/agent/files/stuck_test.go
