@@ -25,6 +25,7 @@ import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { intentOf, isFleet, keepsData, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
 import { RebootPlan } from "./RebootPlan";
+import { UnitLine, UnitPlan } from "./UnitPlan";
 import { type ChangeWords, type Tense, useChangeWords } from "./words";
 
 /** How a step's verb reads, from how it is going. */
@@ -195,6 +196,8 @@ function StepRow({
             </Trans>
           ) : step.install ? (
             <InstallLine install={step.install} server={server} />
+          ) : step.unit ? (
+            <UnitLine unit={step.unit} server={server} />
           ) : (
             <>
               {step.adopts
@@ -255,6 +258,7 @@ function StepRow({
       {said ? <span className="plan-step-meta">{said}</span> : null}
       {planning && step.install ? <InstallList install={step.install} server={server} serverId={serverId} /> : null}
       {planning && step.reboot ? <RebootPlan reboot={step.reboot} server={server} serverId={serverId} /> : null}
+      {planning && step.unit ? <UnitPlan unit={step.unit} server={server} serverId={serverId} /> : null}
     </li>
   );
 }

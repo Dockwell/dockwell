@@ -25,6 +25,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // Deadline bounds each run of a tool.
@@ -43,6 +44,9 @@ var (
 var Properties = []string{
 	"Id", "Description", "LoadState", "ActiveState", "SubState", "UnitFileState",
 	"MainPID", "MemoryCurrent", "StateChangeTimestamp", "ExecMainStatus", "Result",
+	// What the panel offers (ADR 0082): the names a unit goes by, for its guard,
+	// and what systemd lets a person do to it by hand.
+	"Names", "CanStart", "CanStop", "CanReload", "RefuseManualStart", "RefuseManualStop",
 }
 
 // Needed are the units Dockwell needs on a server, by systemd's names and
@@ -217,6 +221,11 @@ func parseShow(out []byte) []*dockwellv1.SystemServiceInfo {
 			Detail:      props["SubState"],
 			AtBoot:      props["UnitFileState"],
 			Needed:      slices.Contains(Needed, props["Id"]),
+			Guard:       dockwellv1.SystemServiceGuard(resource.GuardOf(append(strings.Fields(props["Names"]), props["Id"])...)),
+			// An older systemd that doesn't say reads as one that lets a person.
+			StartRefused: props["CanStart"] == "no" || props["RefuseManualStart"] == "yes",
+			StopRefused:  props["CanStop"] == "no" || props["RefuseManualStop"] == "yes",
+			CanReload:    props["CanReload"] == "yes",
 		}
 		if t, err := time.Parse("Mon 2006-01-02 15:04:05 MST", props["StateChangeTimestamp"]); err == nil {
 			s.Since = timestamppb.New(t)
@@ -299,7 +308,10 @@ func parseRCStatus(out []byte) []*dockwellv1.SystemServiceInfo {
 			}
 			continue
 		}
-		s := &dockwellv1.SystemServiceInfo{Name: m[1], Detail: m[2], State: rcState(m[2]), AtBoot: runlevel, Needed: slices.Contains(Needed, m[1])}
+		s := &dockwellv1.SystemServiceInfo{
+			Name: m[1], Detail: m[2], State: rcState(m[2]), AtBoot: runlevel, Needed: slices.Contains(Needed, m[1]),
+			Guard: dockwellv1.SystemServiceGuard(resource.GuardOf(m[1])),
+		}
 		seen[m[1]] = s
 		services = append(services, s)
 	}

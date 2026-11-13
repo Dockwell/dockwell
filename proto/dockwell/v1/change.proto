@@ -240,6 +240,30 @@ service ChangeService {
     };
   }
 
+  // PlanSystemServiceAction plans an action on one of a server's system
+  // services, its systemd units or OpenRC services: starting, stopping,
+  // restarting or reloading it, or enabling, disabling, masking or unmasking it
+  // at boot, on each server named. Each is an edit of the server's host that
+  // makes no revision, as a reboot is: Dockwell keeps no desired state for a
+  // unit, which the server's packages own, and undoing an action plans the one
+  // that puts back how the unit stood. The plan says how the unit stands, what
+  // stops or restarts with it and what starts it again. What Dockwell needs on
+  // the server is guarded: its own units refuse every action, and Docker, SSH
+  // and the network refuse a stop, a disable and a mask. A risky action, such as
+  // restarting SSH or Docker, takes a person's passkey to apply. See
+  // docs/adr/0082-acting-on-a-servers-system-services.md.
+  rpc PlanSystemServiceAction(PlanSystemServiceActionRequest) returns (PlanSystemServiceActionResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/servers:planSystemServiceAction"
+      body: "*"
+    };
+  }
+
   // ListDrift compares what servers have with the latest revision of each
   // resource they should have, and returns every difference. It asks each
   // connected server's agent, and changes nothing.
@@ -574,6 +598,110 @@ message PlanRebootRequest {
 message PlanRebootResponse {
   // The change, planned, with its plan.
   Change change = 1;
+}
+
+// PlanSystemServiceActionRequest names a system service, what to do to it, and
+// the servers to do it on.
+message PlanSystemServiceActionRequest {
+  // The servers, by ID. One server is a set of one.
+  repeated string server_ids = 1;
+  // The unit's name, such as "nginx.service", or an OpenRC service's, such as
+  // "nginx". An alias acts on the unit it names, and meets that unit's guard.
+  string name = 2;
+  // What to do to it.
+  SystemServiceAction action = 3;
+  // What the change is for, for the timeline. Empty says what it does.
+  string summary = 4;
+}
+
+// PlanSystemServiceActionResponse carries the planned action.
+message PlanSystemServiceActionResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// SystemServiceAction is what a change does to one of a server's system services
+// (ADR 0082).
+enum SystemServiceAction {
+  SYSTEM_SERVICE_ACTION_UNSPECIFIED = 0;
+  // Starts it.
+  SYSTEM_SERVICE_ACTION_START = 1 [(dockwell.v1.word) = "Start"];
+  // Stops it, with what stops with it.
+  SYSTEM_SERVICE_ACTION_STOP = 2 [(dockwell.v1.word) = "Stop"];
+  // Stops it and starts it again, or starts one that failed or is stopped.
+  SYSTEM_SERVICE_ACTION_RESTART = 3 [(dockwell.v1.word) = "Restart"];
+  // Has it read its configuration again, where it can, without stopping.
+  SYSTEM_SERVICE_ACTION_RELOAD = 4 [(dockwell.v1.word) = "Reload"];
+  // Starts it at boot.
+  SYSTEM_SERVICE_ACTION_ENABLE = 5 [(dockwell.v1.word) = "Enable"];
+  // Keeps it from starting at boot, though another unit may still start it.
+  SYSTEM_SERVICE_ACTION_DISABLE = 6 [(dockwell.v1.word) = "Disable"];
+  // Keeps it from starting at all, by hand or as another unit needs it. systemd
+  // only.
+  SYSTEM_SERVICE_ACTION_MASK = 7 [(dockwell.v1.word) = "Mask"];
+  // Lets a masked unit start again. systemd only.
+  SYSTEM_SERVICE_ACTION_UNMASK = 8 [(dockwell.v1.word) = "Unmask"];
+}
+
+// SystemServiceGuard is how Dockwell guards one of a server's system services,
+// as it needs it to reach the server or to run what's there (ADR 0082).
+enum SystemServiceGuard {
+  // Nothing guarded: any action, with no passkey.
+  SYSTEM_SERVICE_GUARD_UNSPECIFIED = 0;
+  // Dockwell's own agent, or the access that guards it: every action is refused.
+  SYSTEM_SERVICE_GUARD_DOCKWELL = 1 [(dockwell.v1.word) = "Dockwell"];
+  // Docker or containerd: a stop, a disable and a mask are refused, and a
+  // restart takes the passkey and the plan's typed code, as it stops every
+  // container on the server.
+  SYSTEM_SERVICE_GUARD_DOCKER = 2 [(dockwell.v1.word) = "Docker"];
+  // The SSH server: a stop, a disable and a mask are refused, and a restart or
+  // a reload takes the passkey, once sshd's config passes its own check.
+  SYSTEM_SERVICE_GUARD_SSH = 3 [(dockwell.v1.word) = "SSH"];
+  // How the server reaches the network: a stop, a disable and a mask are
+  // refused, and a restart takes the passkey and the plan's typed code.
+  SYSTEM_SERVICE_GUARD_NETWORK = 4 [(dockwell.v1.word) = "Network"];
+  // The server's firewall: every action but a start, an enable and an unmask
+  // takes the passkey, and a stop, a disable or a mask the typed code too, as
+  // every port it closes opens.
+  SYSTEM_SERVICE_GUARD_FIREWALL = 5 [(dockwell.v1.word) = "Firewall"];
+}
+
+// HostUnit is what an action on one of a server's system services does, as its
+// agent planned it (ADR 0082).
+message HostUnit {
+  // The unit's own name, as its init knows it: an alias reads as the unit it
+  // names.
+  string name = 1;
+  // What the change does to it.
+  SystemServiceAction action = 2;
+  // True when it ran as the plan was made.
+  bool was_running = 3;
+  // How it stood, in its init's own word, such as "active", "failed" or
+  // "inactive" under systemd, or "started" under OpenRC.
+  string was_state = 4;
+  // Whether it started at boot, in its init's own word, such as "enabled",
+  // "disabled" or "masked", or an OpenRC runlevel, or empty for none: what an
+  // undo puts back.
+  string was_at_boot = 5;
+  // Each running unit that stops or restarts with it, for a stop or a restart:
+  // those that need it, are bound to it or are part of it.
+  repeated string with = 6;
+  // Each active unit that starts it again, for a stop, such as its socket, which
+  // starts it on the next connection, or its timer.
+  repeated string triggers = 7;
+  // How Dockwell guards it.
+  SystemServiceGuard guard = 8;
+  // True when applying it takes the plan's typed code as well as the passkey:
+  // it stops everything on the server, may cut the agent off, or opens every
+  // port the firewall closes.
+  bool confirm = 9;
+  // True when it restarts Docker, with every container on the server.
+  bool docker_restarts = 10;
+  // True under OpenRC.
+  bool openrc = 11;
+  // True when applying it takes a person's passkey, as it's as good as root:
+  // restarting SSH, Docker or the network, or stopping the firewall.
+  bool passkey = 12;
 }
 
 // HostReboot is what rebooting a server does (ADR 0064): everything on it goes
@@ -1087,6 +1215,9 @@ message PlannedResource {
   PackageInstall install = 9;
   // What rebooting its server does, for a server's host the change reboots.
   HostReboot reboot = 10;
+  // What an action on one of its server's system services does, for a server's
+  // host the change acts on a unit of (ADR 0082). Track S takes 70 to 79 here.
+  HostUnit unit = 70;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what
@@ -1369,6 +1500,9 @@ message PlanStep {
   PackageInstall install = 45;
   // What rebooting does, for a step that reboots its server.
   HostReboot reboot = 46;
+  // What an action on one of its server's system services does, for a step that
+  // takes one (ADR 0082). Track S takes 70 to 79 here.
+  HostUnit unit = 70;
   // What a step that moves a database to a newer release does beside replacing
   // its container, by a dump into a new volume (ADR 0080). Numbered in the
   // updates area's block, 260 to 269.

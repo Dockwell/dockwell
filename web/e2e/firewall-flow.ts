@@ -90,6 +90,11 @@ export function hostTools(dir: string): string {
   mkdirSync(join(dir, "run", "systemd", "system"), { recursive: true });
   mkdirSync(join(dir, "usr", "bin"), { recursive: true });
   const fix = resolve("internal/agent/system/testdata/systemd");
+  // A restart or a start of nginx.service, the fixtures' failed unit, leaves it running, as the
+  // system services flow's action does (ADR 0082); its journal says why it failed.
+  const state = join(dir, "var", "lib", "stand");
+  mkdirSync(state, { recursive: true });
+  mkdirSync(join(dir, "run", "systemd", "journal"), { recursive: true });
   writeFileSync(
     join(dir, "usr", "bin", "systemctl"),
     [
@@ -97,13 +102,25 @@ export function hostTools(dir: string): string {
       'case "$1 $2" in',
       `"list-units --type=service") cat '${fix}/list-units.txt' ;;`,
       `"list-unit-files --type=service") cat '${fix}/list-unit-files.txt' ;;`,
-      `"show --property=Id,"*) cat '${fix}/show.txt' ;;`,
+      `"show --property=Id,"*) if [ -e '${state}/nginx.running' ]; then sed '/^Id=nginx.service$/,/^$/{s/^ActiveState=.*/ActiveState=active/;s/^SubState=.*/SubState=running/;s/^Result=.*/Result=success/}' '${fix}/show.txt'; else cat '${fix}/show.txt'; fi ;;`,
+      `"restart --no-pager"|"start --no-pager") touch '${state}/nginx.running' ;;`,
       '*) echo "systemctl: not found" >&2; exit 127 ;;',
       "esac",
       "",
     ].join("\n"),
     { mode: 0o755 },
   );
+  const entry = (cursor: string, pid: string, message: string) =>
+    `{"__CURSOR":"${cursor}","__REALTIME_TIMESTAMP":"1762963200000000","_SYSTEMD_UNIT":"${pid === "1" ? "init.scope" : "nginx.service"}","_PID":"${pid}","PRIORITY":"${pid === "1" ? "3" : "6"}","MESSAGE":"${message}"}`;
+  writeFileSync(
+    join(state, "journal"),
+    `${[
+      entry("c3", "1", "nginx.service: Failed with result 'exit-code'."),
+      entry("c2", "4242", "nginx: configuration file /etc/nginx/nginx.conf test failed"),
+      entry("c1", "4242", "nginx: [emerg] unknown directive in /etc/nginx/sites-enabled/default:12"),
+    ].join("\n")}\n`,
+  );
+  writeFileSync(join(dir, "usr", "bin", "journalctl"), `#!/bin/sh\ncat '${state}/journal'\n`, { mode: 0o755 });
   return dir;
 }
 

@@ -532,6 +532,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if change := d.GetReboot(); change != "" {
 				want.Reboot = &resource.RebootAsked{Change: change}
 			}
+			if u := d.GetUnit(); u != nil {
+				want.Unit = &resource.UnitAsked{Change: u.GetChangeId(), Name: u.GetName(), Action: resourcepb.UnitActionFrom(u.GetAction())}
+			}
 			if in := d.GetInstallUpdates(); in != nil {
 				want.Install = &resource.InstallAsked{Change: in.GetChangeId(), All: in.GetAll(), Names: in.GetNames(), Packages: resourcepb.PackagesFrom(in.GetPackages())}
 			}
@@ -711,6 +714,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_SystemServices{SystemServices: &agentv1.SystemServicesResult{List: list}}}
+	case call.GetSystemLog() != nil:
+		if c.cfg.System == nil {
+			return fail(errors.New("this agent doesn't read the system log"))
+		}
+		ask := call.GetSystemLog()
+		page, err := c.cfg.System.Journal(ctx, ask.GetUnit(), ask.GetLevel(), ask.GetBefore(), int(ask.GetLimit()))
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SystemLog{SystemLog: &agentv1.SystemLogResult{Lines: page.Lines, More: page.More, Source: page.Source}}}
 	case call.GetProcesses() != nil:
 		list, err := c.cfg.procs.list(ctx)
 		if err != nil {

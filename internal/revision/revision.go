@@ -129,6 +129,9 @@ type Engine struct {
 	controlServer string
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
+	// onUnit hears of each step that acted on a server's system service, by the
+	// server's ID.
+	onUnit func(server string)
 	// sources reads what a build's branch or tag names now, and detector how its
 	// commit builds (ADR 0046).
 	sources  Sources
@@ -230,6 +233,9 @@ type Edit struct {
 	// Reboot reboots its server, for a server's host: a step that passes once the
 	// server's agent connects from another boot, which makes no revision (ADR 0064).
 	Reboot bool
+	// Unit acts on one of its server's system services, for a server's host: a step
+	// that makes no revision (ADR 0082). Its Change is filled in as it's proposed.
+	Unit *resource.UnitAsked
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
 	// servers still in the fleet; a new one runs on the only server when
@@ -425,6 +431,10 @@ type ResourcePlan struct {
 	// Reboot says the change reboots its server, for a server's host, which makes
 	// no revision and can't be undone (ADR 0064).
 	Reboot *resource.Reboot `json:",omitempty"`
+	// Unit says what the change does to one of its server's system services, for
+	// a server's host, which makes no revision (ADR 0082). Undoing it plans the
+	// action that puts back how the unit stood.
+	Unit *resource.Unit `json:",omitempty"`
 	// Restore says what the change brings its data back from, which makes no
 	// revision either.
 	Restore *resource.RestoreSource `json:",omitempty"`
@@ -523,7 +533,9 @@ func (p *Plan) Counts() Counts {
 // than it could, which a person approves (ADR 0021).
 func (p *Plan) HostAccess() bool {
 	// An install of updates reaches the whole server, as root, which a person approves.
-	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil })
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil
+	})
 }
 
 // AsGoodAsRoot reports a plan that lets something reach as much as root can on a
@@ -533,7 +545,9 @@ func (p *Plan) AsGoodAsRoot() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
 		// A package's maintainer scripts run as root, as an install of updates does,
 		// and a reboot is root's to ask.
-		return r.Install != nil || r.Reboot != nil || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		// An action on a system service is when its guard says so, as restarting SSH
+		// or Docker is (ADR 0082).
+		return r.Install != nil || r.Reboot != nil || r.Unit != nil && r.Unit.Passkey() || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
 	})
 }
 
@@ -632,12 +646,14 @@ type item struct {
 	install *resource.InstallAsked
 	// reboot names the reboot the change asks of a server's host: the change's ID.
 	reboot string
+	// unit is the action the change asks of one of a server's system services.
+	unit *resource.UnitAsked
 }
 
 // noRevision reports an item that acts on a resource as it is, so it has nothing
 // to roll back, and what goes wrong leaves its revision as it was.
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.unit != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -802,6 +818,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		}
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Reboot && ed.Ref == items[i].ref }) {
 			items[i].reboot = changeID
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Unit != nil && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].unit = &resource.UnitAsked{Change: changeID, Name: p.Edits[j].Unit.Name, Action: p.Edits[j].Unit.Action}
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Install != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].install = &resource.InstallAsked{Change: changeID, All: p.Edits[j].Install.All, Names: p.Edits[j].Install.Names}
@@ -2258,6 +2277,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	access := map[string][]resource.Access{}   // what each item gains on its servers
 	installs := map[string]*resource.Install{} // what each server's host installs
 	reboots := map[string]*resource.Reboot{}   // which servers' hosts reboot
+	units := map[string]*resource.Unit{}       // what each server's host does to a unit
 	keeps := map[string][]resource.Access{}    // what each keeps while it runs something else
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
@@ -2427,6 +2447,13 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				reboots[ids[s.Ref]] = s.Reboot
 				fmt.Fprintf(fp, "reboot %s|%s|%t\n", server, ref(s.Ref), s.Reboot.ControlServer)
 			}
+			// What an action on a unit does is what the agent read of it: a unit that
+			// moved since makes the plan stale.
+			if u := s.Unit; u != nil {
+				units[ids[s.Ref]] = u
+				fmt.Fprintf(fp, "unit %s|%s|%s|%s|%t|%s|%s|%s|%d|%t\n", server, ref(s.Ref), u.Name, u.Action, u.WasRunning, u.WasAtBoot,
+					strings.Join(u.With, ","), strings.Join(u.Triggers, ","), u.Guard, u.DockerRestarts)
+			}
 			if s.Action == resource.ActionNone {
 				was := unfinishedOn(its, s.Ref, server)
 				if was == nil {
@@ -2495,7 +2522,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	masked := e.switchSides(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
-		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id]
+		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id]
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -2687,7 +2714,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked()}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -3710,6 +3737,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
 		called()
+		if q.step.Unit != nil && e.onUnit != nil {
+			// However it went, the unit stands somewhere new: whoever watches its
+			// server's system services reads them again now (ADR 0082).
+			e.onUnit(q.server)
+		}
 		switch {
 		case err == nil:
 		case e.stoppedBy(err):
@@ -4050,6 +4082,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.restore, it.backups, it.move = restoreIn(c, ref)
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
+			it.unit = unitIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -4235,6 +4268,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		it.restore, it.backups, it.move = restoreIn(c, ref)
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
+		it.unit = unitIn(c, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
@@ -5088,6 +5122,9 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	}
 	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Reboot != nil }) {
 		return nil, fault.New(ErrCantUndo, "a reboot can't be undone: %s rebooted its server, and nothing it changed is to put back", changeID)
+	}
+	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Unit != nil }) {
+		return e.undoUnits(ctx, c, took, by)
 	}
 	if c.State != store.ChangeApplied && (c.State != store.ChangeFailed || !restores) {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)

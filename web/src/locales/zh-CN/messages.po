@@ -7040,6 +7040,12 @@ msgstr "重启无法撤销，因为它不会改变任何可恢复的内容。"
 msgid "A step failed, so the change stopped there."
 msgstr "有一个步骤失败，更改就此停止。"
 
+msgid "Acted on {name} on {server}"
+msgstr "已在 {server} 上处理 {name}"
+
+msgid "Acting on {name} on {server}"
+msgstr "正在 {server} 上处理 {name}"
+
 msgid "An admin or the owner applies this"
 msgstr "此计划由管理员或所有者应用"
 
@@ -7081,6 +7087,9 @@ msgstr "无法读取此应用的访问地址"
 msgid "Delete {subject}"
 msgstr "删除 {subject}"
 
+msgid "Disabling {name} at boot on {server}"
+msgstr "正在取消 {name} 在 {server} 上的开机启动"
+
 msgid "Discarded"
 msgstr "已丢弃"
 
@@ -7092,6 +7101,9 @@ msgstr "Dockwell 进行此更改以回滚一次失败的更改。"
 
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "如果失败，每个应用都会回滚到当前运行的版本"
+
+msgid "Enabling {name} at boot on {server}"
+msgstr "正在设置 {name} 在 {server} 上开机启动"
 
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "此计划要求的一切都已就绪，没有需要应用的内容。"
@@ -7125,6 +7137,12 @@ msgstr "请仅在信任其运行内容时保留。"
 
 msgid "Leave it for an admin"
 msgstr "留给管理员处理"
+
+msgid "Masked {name} on {server}"
+msgstr "已在 {server} 上屏蔽 {name}"
+
+msgid "Masking {name} on {server}"
+msgstr "正在 {server} 上屏蔽 {name}"
 
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "接下来，将 {on} 上的隧道指向 http://127.0.0.1:80。使用 https:// 会失败，因为此路由不使用证书。"
@@ -7168,6 +7186,18 @@ msgstr "重启 {server} 失败"
 msgid "Recorded and applied. Nothing had to run on a server."
 msgstr "已记录并应用。无需在服务器上运行任何内容。"
 
+msgid "Reloaded {name} on {server}"
+msgstr "已在 {server} 上重载 {name}"
+
+msgid "Reloading {name} on {server}"
+msgstr "正在 {server} 上重载 {name}"
+
+msgid "Restarted {name} on {server}"
+msgstr "已在 {server} 上重启 {name}"
+
+msgid "Restarting {name} on {server}"
+msgstr "正在 {server} 上重启 {name}"
+
 msgid "Rolling back failed"
 msgstr "回滚失败"
 
@@ -7177,8 +7207,20 @@ msgstr "如果失败，将回滚到 <0>{back}</0>"
 msgid "See the guide"
 msgstr "查看指南"
 
+msgid "Started {name} on {server}"
+msgstr "已在 {server} 上启动 {name}"
+
+msgid "Starting {name} on {server}"
+msgstr "正在 {server} 上启动 {name}"
+
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
+
+msgid "Stopped {name} on {server}"
+msgstr "已在 {server} 上停止 {name}"
+
+msgid "Stopping {name} on {server}"
+msgstr "正在 {server} 上停止 {name}"
 
 msgid "That didn't apply"
 msgstr "未能应用"
@@ -7213,6 +7255,12 @@ msgstr "如果发生替换，{undoDays} 天内可撤销"
 msgid "Undo until {deadline}"
 msgstr "可撤销至 {deadline}"
 
+msgid "Unmasked {name} on {server}"
+msgstr "已在 {server} 上取消屏蔽 {name}"
+
+msgid "Unmasking {name} on {server}"
+msgstr "正在 {server} 上取消屏蔽 {name}"
+
 msgid "Updates are installed on {server}"
 msgstr "{server} 上的更新已安装"
 
@@ -7246,6 +7294,12 @@ msgstr "恢复前其上的一切都会离线"
 msgid "no downtime expected"
 msgstr "预计不会停机"
 
+msgid "nothing stops"
+msgstr "不会停止任何东西"
+
+msgid "nothing stops now; it counts at the next boot"
+msgstr "现在不会停止任何东西，下次开机时生效"
+
 msgid "rolling, with nothing stopped"
 msgstr "滚动发布，不停止任何内容"
 
@@ -7255,6 +7309,12 @@ msgstr "访问者将失去 {0} 个地址"
 
 msgid "visitors lose {lost}"
 msgstr "访问者将失去 {lost}"
+
+msgid "what it serves pauses while it restarts"
+msgstr "重启期间其提供的服务会暂停"
+
+msgid "what it serves stops until it's started"
+msgstr "其提供的服务会停止，直到再次启动"
 
 #. placeholder {0}: apps.length || live.length
 msgid "{0, plural, one {# app is deployed} other {# apps are deployed}}"
@@ -7310,6 +7370,9 @@ msgstr "{apps} 和 {dbs} 将停止，你可以在 {deadline} 之前撤销。"
 msgid "{apps} and {dbs} stop."
 msgstr "{apps} 和 {dbs} 将停止。"
 
+msgid "{ing} failed"
+msgstr "{ing}失败"
+
 msgid "{made} is deployed"
 msgstr "{made} 已部署"
 
@@ -7325,8 +7388,14 @@ msgstr "{name} 正在运行"
 msgid "{name} is starting"
 msgstr "{name} 正在启动"
 
+msgid "{name} no longer starts at boot on {server}"
+msgstr "{name} 不再在 {server} 上开机启动"
+
 msgid "{name} ran to its end"
 msgstr "{name} 已运行完毕"
+
+msgid "{name} starts at boot on {server}"
+msgstr "{name} 会在 {server} 上开机启动"
 
 msgid "{same} stays as it is"
 msgstr "{same} 保持不变"
@@ -7720,6 +7789,54 @@ msgstr "此次变更在涉及它之前就已停止，Dockwell 已恢复其余部
 
 msgid "What ran before runs again"
 msgstr "之前运行的内容已重新运行"
+
+msgid "Another unit that needs it can still start it"
+msgstr "依赖它的其他单元仍可启动它"
+
+msgid "At boot it reads {atBoot} now"
+msgstr "当前开机状态为 {atBoot}"
+
+msgid "Every port the firewall closes on {server} opens while it's stopped"
+msgstr "停止期间，防火墙在 {server} 上关闭的所有端口都会打开"
+
+msgid "Mask <0>{name}</0> on {server}"
+msgstr "在 {server} 上屏蔽 <0>{name}</0>"
+
+msgid "Nothing can start it, by hand or as another unit needs it, until it's unmasked"
+msgstr "取消屏蔽之前，无论手动还是被其他单元依赖，都无法启动它"
+
+msgid "Reload <0>{name}</0> on {server}"
+msgstr "在 {server} 上重载 <0>{name}</0>"
+
+msgid "Restart <0>{name}</0> on {server}"
+msgstr "在 {server} 上重启 <0>{name}</0>"
+
+msgid "Restarts {withIt} with it, as they need it"
+msgstr "{withIt} 依赖它，会随之重启"
+
+msgid "Start <0>{name}</0> at boot on {server}"
+msgstr "让 <0>{name}</0> 在 {server} 上开机启动"
+
+msgid "Start <0>{name}</0> on {server}"
+msgstr "在 {server} 上启动 <0>{name}</0>"
+
+msgid "Stop <0>{name}</0> on {server}"
+msgstr "在 {server} 上停止 <0>{name}</0>"
+
+msgid "Stop <0>{name}</0> starting at boot on {server}"
+msgstr "取消 <0>{name}</0> 在 {server} 上的开机启动"
+
+msgid "Stops {withIt} with it, as they need it"
+msgstr "{withIt} 依赖它，会随之停止"
+
+msgid "Unmask <0>{name}</0> on {server}"
+msgstr "在 {server} 上取消屏蔽 <0>{name}</0>"
+
+msgid "{server} may drop off the network for a moment"
+msgstr "{server} 可能会短暂断网"
+
+msgid "{triggers} starts it again when it's asked for"
+msgstr "有请求时，{triggers} 会再次启动它"
 
 msgid "From <0>{from}</0> to <1>{to}</1>"
 msgstr "从 <0>{from}</0> 到 <1>{to}</1>"
@@ -12641,23 +12758,74 @@ msgstr "即服务商控制台显示的地址。之后所有关于 DNS 的提示�
 msgid "What the internet knows this server by"
 msgstr "互联网识别此服务器所用的地址"
 
+msgctxt "system log level"
+msgid "Errors"
+msgstr "错误"
+
+msgctxt "system log level"
+msgid "Everything"
+msgstr "全部"
+
+msgid "Level"
+msgstr "级别"
+
+msgid "Nothing at this level from {unit}."
+msgstr "{unit} 在此级别没有日志。"
+
+msgid "Nothing from {unit} in the system log."
+msgstr "系统日志中没有 {unit} 的内容。"
+
+msgid "Older lines"
+msgstr "更早的日志"
+
+msgid "System log of {unit}"
+msgstr "{unit} 的系统日志"
+
+msgctxt "system log level"
+msgid "Warnings and up"
+msgstr "警告及以上"
+
+msgid "{server} keeps no system log Dockwell reads."
+msgstr "{server} 没有 Dockwell 可读取的系统日志。"
+
 msgctxt "system services"
 msgid "All"
 msgstr "全部"
 
+msgid "Applying…"
+msgstr "应用中…"
+
 msgid "At boot"
 msgstr "开机启动"
 
+msgid "Disabling…"
+msgstr "取消开机启动中…"
+
 msgid "Dockwell needs it"
 msgstr "Dockwell 依赖它"
+
+msgid "Dockwell runs as this service"
+msgstr "Dockwell 以此服务运行"
 
 msgctxt "at boot"
 msgid "Doesn't start"
 msgstr "不启动"
 
+msgid "Don't start at boot"
+msgstr "取消开机启动"
+
+msgid "Enabling…"
+msgstr "设置开机启动中…"
+
+msgid "Every app on {name} runs in Docker"
+msgstr "{name} 上的所有应用都运行在 Docker 中"
+
 msgctxt "system services"
 msgid "Failed"
 msgstr "失败"
+
+msgid "Failed {failedAgo}"
+msgstr "{failedAgo}失败"
 
 msgid "Filter by name or description"
 msgstr "按名称或描述筛选"
@@ -12668,15 +12836,47 @@ msgstr "筛选系统服务"
 msgid "Init state"
 msgstr "init 状态"
 
+msgid "It didn't work"
+msgstr "操作未成功"
+
+msgid "It starts when another unit needs it"
+msgstr "它会在其他单元需要时启动"
+
+msgid "It stops with the unit that needs it"
+msgstr "它会随依赖它的单元一起停止"
+
+msgid "It's how you reach {name} over SSH"
+msgstr "这是你通过 SSH 连接 {name} 的方式"
+
 msgid "It's older than the control plane, so it can't list system services."
 msgstr "它比控制平面旧，因此无法列出系统服务。"
+
+msgid "Its agent is older than the control plane, so it can't act on system services"
+msgstr "它的 agent 比控制平面旧，无法操作系统服务"
 
 msgid "Main process"
 msgstr "主进程"
 
+msgctxt "system service"
+msgid "Mask"
+msgstr "屏蔽"
+
+msgid "Mask, so nothing starts it"
+msgstr "屏蔽，使其无法被启动"
+
 msgctxt "at boot"
 msgid "Masked"
 msgstr "已屏蔽"
+
+msgid "Masked: nothing starts it"
+msgstr "已屏蔽：无法被启动"
+
+msgid "Masking…"
+msgstr "屏蔽中…"
+
+msgctxt "system service actions"
+msgid "More"
+msgstr "更多"
 
 #. placeholder {0}: server.name
 msgid "Needs it on {0}"
@@ -12692,13 +12892,51 @@ msgstr "不随开机启动"
 msgid "Nothing has failed on {0}."
 msgstr "{0} 上没有失败的服务。"
 
+msgid "Open the change"
+msgstr "打开变更"
+
+msgctxt "system service"
+msgid "Reload"
+msgstr "重载"
+
+msgid "Reloading…"
+msgstr "重载中…"
+
+msgctxt "system service"
+msgid "Restart"
+msgstr "重启"
+
+msgid "Restarting…"
+msgstr "重启中…"
+
+msgctxt "system service"
+msgid "Retry"
+msgstr "重试"
+
 msgctxt "system services"
 msgid "Running"
 msgstr "正在运行"
 
+msgctxt "system service"
+msgid "Start"
+msgstr "启动"
+
+msgid "Start at boot"
+msgstr "开机启动"
+
+msgid "Starting…"
+msgstr "启动中…"
+
 msgctxt "at boot"
 msgid "Starts"
 msgstr "启动"
+
+msgctxt "system service"
+msgid "Stop"
+msgstr "停止"
+
+msgid "Stopping…"
+msgstr "停止中…"
 
 #. placeholder {0}: server.name
 msgid "System services on {0}"
@@ -12707,6 +12945,16 @@ msgstr "{0} 上的系统服务"
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
 msgstr "{0} 上的代理未连接，所以现在无法读取它的系统服务。代理重新连接后，此页面会再次读取。"
+
+msgctxt "system service"
+msgid "Unmask"
+msgstr "取消屏蔽"
+
+msgid "Unmasking…"
+msgstr "取消屏蔽中…"
+
+msgid "Waits for the action on {other} to end"
+msgstr "等待 {other} 上的操作结束"
 
 msgctxt "at boot"
 msgid "When needed"
@@ -12727,6 +12975,9 @@ msgstr "{0} 使用 Dockwell 无法读取的 init 系统启动服务。Dockwell �
 #. placeholder {1}: s.exitStatus
 msgid "{0}, status {1}"
 msgstr "{0}，状态 {1}"
+
+msgid "{name} reaches the network through it"
+msgstr "{name} 通过它连接网络"
 
 msgid "Being removed"
 msgstr "正在移除"

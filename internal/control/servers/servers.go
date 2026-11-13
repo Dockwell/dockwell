@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -39,6 +40,10 @@ type Service struct {
 	// every systemEvery, once for every watch of it.
 	systemFeeds *feeds.Hub[dockwellv1.SystemServiceList]
 	systemEvery time.Duration
+	// audited is when each reader's reading of each server's system log last went
+	// on record.
+	auditMu sync.Mutex
+	audited map[string]time.Time
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)

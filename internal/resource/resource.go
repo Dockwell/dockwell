@@ -282,6 +282,9 @@ type Decision struct {
 	Install *Install `json:",omitempty"`
 	// Reboot says a step reboots its server, for a server's host (ADR 0064).
 	Reboot *Reboot `json:",omitempty"`
+	// Unit says what a step does to one of its server's system services, for a
+	// server's host (ADR 0082). Its fingerprint covers it.
+	Unit *Unit `json:",omitempty"`
 	// Returning names stopped containers Docker starts again when it next
 	// restarts, and that may then take the ports a server's proxy needs. It never
 	// stops a plan, and a fingerprint leaves it out.

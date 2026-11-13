@@ -61,6 +61,9 @@ const (
 	// ServerServiceWatchSystemServicesProcedure is the fully-qualified name of the ServerService's
 	// WatchSystemServices RPC.
 	ServerServiceWatchSystemServicesProcedure = "/dockwell.v1.ServerService/WatchSystemServices"
+	// ServerServiceReadSystemLogProcedure is the fully-qualified name of the ServerService's
+	// ReadSystemLog RPC.
+	ServerServiceReadSystemLogProcedure = "/dockwell.v1.ServerService/ReadSystemLog"
 )
 
 // ServerServiceClient is a client for the dockwell.v1.ServerService service.
@@ -116,6 +119,16 @@ type ServerServiceClient interface {
 	// systemctl over SSH. It has no REST path, as streams have none.
 	// See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
 	WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest]) (*connect.ServerStreamForClient[v1.WatchSystemServicesResponse], error)
+	// ReadSystemLog reads a server's system log back, newest first, a page at a
+	// time: its journal, or /var/log/messages on a server with none, narrowed to
+	// one system service and to a level. Each line says when, at what level,
+	// which unit or program wrote it, and its process. Reading it goes on the
+	// activity log as logs.read, at most once an hour for one reader and one
+	// server, never what was read for, and a reading that can't be recorded isn't
+	// served. No API token reads it, as a system log holds what every program on
+	// the server writes, sudo's command lines among it.
+	// See docs/adr/0082-acting-on-a-servers-system-services.md.
+	ReadSystemLog(context.Context, *connect.Request[v1.ReadSystemLogRequest]) (*connect.Response[v1.ReadSystemLogResponse], error)
 }
 
 // NewServerServiceClient constructs a client for the dockwell.v1.ServerService service. By default,
@@ -188,6 +201,13 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(serverServiceMethods.ByName("WatchSystemServices")),
 			connect.WithClientOptions(opts...),
 		),
+		readSystemLog: connect.NewClient[v1.ReadSystemLogRequest, v1.ReadSystemLogResponse](
+			httpClient,
+			baseURL+ServerServiceReadSystemLogProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("ReadSystemLog")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -202,6 +222,7 @@ type serverServiceClient struct {
 	createJoinTicket       *connect.Client[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse]
 	getJoinTicket          *connect.Client[v1.GetJoinTicketRequest, v1.GetJoinTicketResponse]
 	watchSystemServices    *connect.Client[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse]
+	readSystemLog          *connect.Client[v1.ReadSystemLogRequest, v1.ReadSystemLogResponse]
 }
 
 // ListServers calls dockwell.v1.ServerService.ListServers.
@@ -247,6 +268,11 @@ func (c *serverServiceClient) GetJoinTicket(ctx context.Context, req *connect.Re
 // WatchSystemServices calls dockwell.v1.ServerService.WatchSystemServices.
 func (c *serverServiceClient) WatchSystemServices(ctx context.Context, req *connect.Request[v1.WatchSystemServicesRequest]) (*connect.ServerStreamForClient[v1.WatchSystemServicesResponse], error) {
 	return c.watchSystemServices.CallServerStream(ctx, req)
+}
+
+// ReadSystemLog calls dockwell.v1.ServerService.ReadSystemLog.
+func (c *serverServiceClient) ReadSystemLog(ctx context.Context, req *connect.Request[v1.ReadSystemLogRequest]) (*connect.Response[v1.ReadSystemLogResponse], error) {
+	return c.readSystemLog.CallUnary(ctx, req)
 }
 
 // ServerServiceHandler is an implementation of the dockwell.v1.ServerService service.
@@ -302,6 +328,16 @@ type ServerServiceHandler interface {
 	// systemctl over SSH. It has no REST path, as streams have none.
 	// See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
 	WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest], *connect.ServerStream[v1.WatchSystemServicesResponse]) error
+	// ReadSystemLog reads a server's system log back, newest first, a page at a
+	// time: its journal, or /var/log/messages on a server with none, narrowed to
+	// one system service and to a level. Each line says when, at what level,
+	// which unit or program wrote it, and its process. Reading it goes on the
+	// activity log as logs.read, at most once an hour for one reader and one
+	// server, never what was read for, and a reading that can't be recorded isn't
+	// served. No API token reads it, as a system log holds what every program on
+	// the server writes, sudo's command lines among it.
+	// See docs/adr/0082-acting-on-a-servers-system-services.md.
+	ReadSystemLog(context.Context, *connect.Request[v1.ReadSystemLogRequest]) (*connect.Response[v1.ReadSystemLogResponse], error)
 }
 
 // NewServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -370,6 +406,13 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(serverServiceMethods.ByName("WatchSystemServices")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceReadSystemLogHandler := connect.NewUnaryHandler(
+		ServerServiceReadSystemLogProcedure,
+		svc.ReadSystemLog,
+		connect.WithSchema(serverServiceMethods.ByName("ReadSystemLog")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServerServiceListServersProcedure:
@@ -390,6 +433,8 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceGetJoinTicketHandler.ServeHTTP(w, r)
 		case ServerServiceWatchSystemServicesProcedure:
 			serverServiceWatchSystemServicesHandler.ServeHTTP(w, r)
+		case ServerServiceReadSystemLogProcedure:
+			serverServiceReadSystemLogHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -433,4 +478,8 @@ func (UnimplementedServerServiceHandler) GetJoinTicket(context.Context, *connect
 
 func (UnimplementedServerServiceHandler) WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest], *connect.ServerStream[v1.WatchSystemServicesResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.WatchSystemServices is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) ReadSystemLog(context.Context, *connect.Request[v1.ReadSystemLogRequest]) (*connect.Response[v1.ReadSystemLogResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.ReadSystemLog is not implemented"))
 }

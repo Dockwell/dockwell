@@ -2,6 +2,7 @@
 
 - Status: Proposed
 - Date: 2026-11-10
+- Amended: 2026-11-12, slice 3 decided in ADR 0082 (#567)
 
 ## Context
 
@@ -77,6 +78,8 @@ No redaction: an admin has a root terminal on the server already ([ADR 0037](003
 The agent protocol takes this area's block: `Call.system_services` and its result 235, and `Call.system_log`, which follows and reads, and its result 236. Fields of the public schema are numbered its own way, from each message's next free number.
 
 ### Slice 3, acting on a unit
+
+Decided in [ADR 0082](0082-acting-on-a-servers-system-services.md), which also builds reading a unit's journal back (`ReadSystemLog`) and leaves ADR 0067's 236 unused. What follows is what this record said before it.
 
 - **A restart** is a change with a plan and no revision, as [ADR 0027](0027-health-checks-rollouts-and-rollback.md)'s restart of a service is (PRD principle 2). Whether it ships before ADR 0064 is accepted is the owner's call.
 - **Start, stop, enable, disable and mask** are either desired state on [ADR 0064](https://github.com/Dockwell/dockwell/pull/462)'s `server.host` resource, put back when someone changes them over SSH as ADR 0054's drift would, or plans with no revision: the owner's call, in that slice's record.

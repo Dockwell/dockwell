@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/fault"
@@ -265,7 +266,9 @@ func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
 	var docker []string
 	for i := range plan.Resources {
 		// A reboot takes down everything on its server, as Docker restarting does.
-		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts || plan.Resources[i].Reboot != nil {
+		// So does restarting Docker as a system service (ADR 0082).
+		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts || plan.Resources[i].Reboot != nil ||
+			plan.Resources[i].Unit != nil && plan.Resources[i].Unit.DockerRestarts {
 			docker = append(docker, plan.Resources[i].Ref.Scope)
 		}
 	}
@@ -645,6 +648,11 @@ func stepMessage(state StepState, st *resource.Step, server string) string {
 		case StepFailed, StepSkipped:
 		}
 	}
+	if u := st.Unit; u != nil {
+		if m := unitMessage(state, u, server); m != "" {
+			return m
+		}
+	}
 	if st.Restart != "" {
 		what := fmt.Sprintf("%s %s on %s", st.Ref.Kind, st.Ref.Name, server)
 		switch state {
@@ -658,6 +666,41 @@ func stepMessage(state StepState, st *resource.Step, server string) string {
 		}
 	}
 	return message(state, st.Action, st.Ref, server)
+}
+
+// unitWords are each action on a system service as a step under way, and done.
+var unitWords = map[resource.UnitAction][2]string{
+	resource.UnitStart:   {"Starting", "Started"},
+	resource.UnitStop:    {"Stopping", "Stopped"},
+	resource.UnitRestart: {"Restarting", "Restarted"},
+	resource.UnitReload:  {"Reloading", "Reloaded"},
+	resource.UnitEnable:  {"Enabling", "Enabled"},
+	resource.UnitDisable: {"Disabling", "Disabled"},
+	resource.UnitMask:    {"Masking", "Masked"},
+	resource.UnitUnmask:  {"Unmasking", "Unmasked"},
+}
+
+// unitMessage is what a step that acts on a system service says (ADR 0082), or ""
+// for a state it says nothing of its own in.
+func unitMessage(state StepState, u *resource.Unit, server string) string {
+	words, ok := unitWords[u.Action]
+	if !ok {
+		return ""
+	}
+	what := u.Name + " on " + server
+	if u.Action == resource.UnitEnable || u.Action == resource.UnitDisable {
+		what += " at boot"
+	}
+	switch state {
+	case StepQueued:
+		return "Waiting to " + strings.ToLower(u.Action.Verb()) + " " + what
+	case StepRunning:
+		return words[0] + " " + what
+	case StepDone:
+		return words[1] + " " + what
+	case StepFailed, StepSkipped, StepWaiting:
+	}
+	return ""
 }
 
 // DecodePlan reads a plan as the store keeps it.

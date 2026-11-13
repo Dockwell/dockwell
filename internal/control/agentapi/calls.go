@@ -474,7 +474,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(),
-		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(),
+		followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
@@ -559,6 +559,9 @@ type Session struct {
 	readsUpdates bool
 	// bootID is the boot the agent said it's on; empty from one that doesn't reboot.
 	bootID string
+	// actsOnUnits says the agent acts on the server's system services and reads its
+	// system log (ADR 0082).
+	actsOnUnits bool
 	// followsPace says the agent sends stats at the pace each Pace says. One
 	// that doesn't is never told one.
 	followsPace bool
@@ -876,6 +879,33 @@ func (s *Session) SystemServices(ctx context.Context) (*dockwellv1.SystemService
 	return r.GetSystemServices().GetList(), nil
 }
 
+// ActsOnUnits reports an agent that acts on its server's system services and reads
+// its system log (ADR 0082).
+func (s *Session) ActsOnUnits() bool { return s.actsOnUnits }
+
+// SystemLogTimeout bounds reading a page of a server's system log: one journalctl
+// run of 10 s at most, and room for the answer.
+const SystemLogTimeout = 20 * time.Second
+
+// SystemLog asks the agent for a page of the server's system log, newest first
+// (ADR 0082).
+func (s *Session) SystemLog(ctx context.Context, ask *agentv1.SystemLogCall) (*agentv1.SystemLogResult, error) {
+	if !s.actsOnUnits {
+		return nil, ErrOlderAgent
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_SystemLog{SystemLog: ask}}, SystemLogTimeout, nil)
+	if unknownCall(err) {
+		return nil, ErrOlderAgent
+	}
+	if err != nil {
+		return nil, err
+	}
+	if r.GetSystemLog() == nil {
+		return nil, ErrOlderAgent
+	}
+	return r.GetSystemLog(), nil
+}
+
 // EndProcessTimeout bounds ending a process: SIGTERM's 10 s, SIGKILL's 5, and room
 // for the answer to come back.
 const EndProcessTimeout = 20 * time.Second
@@ -1170,6 +1200,13 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 					"Update its agent by running the install script on the server again", s.name)
 			}
 			dr.Reboot = r.Change
+		}
+		if u := d.Unit; u != nil {
+			if !s.actsOnUnits {
+				return nil, fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't act on system services. "+
+					"Update its agent by running the install script on the server again", s.name)
+			}
+			dr.Unit = &agentv1.UnitAction{ChangeId: u.Change, Name: u.Name, Action: resourcepb.UnitAction(u.Action)}
 		}
 		call.Desired = append(call.Desired, dr)
 	}

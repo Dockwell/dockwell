@@ -7,6 +7,7 @@ import {
   FieldOp,
   type HostAccess,
   HostAccessKind,
+  type HostUnit,
   IngressChange,
   type Intent,
   IntentKind,
@@ -17,6 +18,7 @@ import {
   type ServerPlan,
   type StepProgress,
   StepState,
+  SystemServiceAction,
 } from "@dockwell/api";
 import type { PlanAction as DiffAction, PlanKind, PlanResource } from "@dockwell/ui";
 
@@ -46,6 +48,22 @@ export function restarts(plan: Plan | undefined): boolean {
 /** Whether a plan installs a server's updates (ADR 0064): as good as root, and with no undo. */
 export function installs(plan: Plan | undefined): boolean {
   return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.install !== undefined));
+}
+
+/** The action a plan takes on a system service, for a server's host (ADR 0082), if it takes one. */
+export function unitOf(plan: Plan | undefined): HostUnit | undefined {
+  for (const s of plan?.servers ?? []) {
+    for (const step of s.steps) if (step.unit) return step.unit;
+  }
+  return plan?.resources.find((r) => r.unit)?.unit;
+}
+
+/** Whether a plan acts on a system service and has no undo: a restart or a reload puts nothing back. */
+export function unitWithoutUndo(plan: Plan | undefined): boolean {
+  const unit = unitOf(plan);
+  return (
+    unit !== undefined && (unit.action === SystemServiceAction.RESTART || unit.action === SystemServiceAction.RELOAD)
+  );
 }
 
 /** A plan that reboots a server, for its host (ADR 0064). */

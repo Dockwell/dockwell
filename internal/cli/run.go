@@ -389,17 +389,19 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	packages := serverUpdates(stdio, logger, dir.Agent())
 	// A server's host installs its updates in a unit of systemd's own (ADR 0064).
 	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
+	// The same reader lists the server's system services and acts on them (ADR 0082).
+	units := serverSystem(stdio)
 	return agent.Config{
 		Drivers: resource.NewRegistry(&containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			&database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
-			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}}),
+			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units}),
 		Updates:   packages,
 		Collector: collector, Domains: routes, Public: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
-		System: serverSystem(stdio),
+		System: units,
 	}
 }
 

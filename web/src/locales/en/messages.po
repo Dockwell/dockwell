@@ -7040,6 +7040,12 @@ msgstr "A restart has no undo, as it changes nothing to go back to."
 msgid "A step failed, so the change stopped there."
 msgstr "A step failed, so the change stopped there."
 
+msgid "Acted on {name} on {server}"
+msgstr "Acted on {name} on {server}"
+
+msgid "Acting on {name} on {server}"
+msgstr "Acting on {name} on {server}"
+
 msgid "An admin or the owner applies this"
 msgstr "An admin or the owner applies this"
 
@@ -7081,6 +7087,9 @@ msgstr "Couldn't read the addresses this is reached at"
 msgid "Delete {subject}"
 msgstr "Delete {subject}"
 
+msgid "Disabling {name} at boot on {server}"
+msgstr "Disabling {name} at boot on {server}"
+
 msgid "Discarded"
 msgstr "Discarded"
 
@@ -7092,6 +7101,9 @@ msgstr "Dockwell made this change to roll back a failed one."
 
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "Each app rolls back to what it runs now if this fails"
+
+msgid "Enabling {name} at boot on {server}"
+msgstr "Enabling {name} at boot on {server}"
 
 msgid "Everything this plan asks for is already as it says, so there is nothing to apply."
 msgstr "Everything this plan asks for is already as it says, so there is nothing to apply."
@@ -7125,6 +7137,12 @@ msgstr "Keep this only if you trust what it runs."
 
 msgid "Leave it for an admin"
 msgstr "Leave it for an admin"
+
+msgid "Masked {name} on {server}"
+msgstr "Masked {name} on {server}"
+
+msgid "Masking {name} on {server}"
+msgstr "Masking {name} on {server}"
 
 msgid "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
 msgstr "Next, point the tunnel on {on} at http://127.0.0.1:80. https:// there fails, as this route takes no certificate."
@@ -7168,6 +7186,18 @@ msgstr "Rebooting {server} failed"
 msgid "Recorded and applied. Nothing had to run on a server."
 msgstr "Recorded and applied. Nothing had to run on a server."
 
+msgid "Reloaded {name} on {server}"
+msgstr "Reloaded {name} on {server}"
+
+msgid "Reloading {name} on {server}"
+msgstr "Reloading {name} on {server}"
+
+msgid "Restarted {name} on {server}"
+msgstr "Restarted {name} on {server}"
+
+msgid "Restarting {name} on {server}"
+msgstr "Restarting {name} on {server}"
+
 msgid "Rolling back failed"
 msgstr "Rolling back failed"
 
@@ -7177,8 +7207,20 @@ msgstr "Rolls back to <0>{back}</0> if it fails"
 msgid "See the guide"
 msgstr "See the guide"
 
+msgid "Started {name} on {server}"
+msgstr "Started {name} on {server}"
+
+msgid "Starting {name} on {server}"
+msgstr "Starting {name} on {server}"
+
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "Steps run one at a time on each server, servers side by side."
+
+msgid "Stopped {name} on {server}"
+msgstr "Stopped {name} on {server}"
+
+msgid "Stopping {name} on {server}"
+msgstr "Stopping {name} on {server}"
 
 msgid "That didn't apply"
 msgstr "That didn't apply"
@@ -7213,6 +7255,12 @@ msgstr "Undo for {undoDays} days if this replaces anything"
 msgid "Undo until {deadline}"
 msgstr "Undo until {deadline}"
 
+msgid "Unmasked {name} on {server}"
+msgstr "Unmasked {name} on {server}"
+
+msgid "Unmasking {name} on {server}"
+msgstr "Unmasking {name} on {server}"
+
 msgid "Updates are installed on {server}"
 msgstr "Updates are installed on {server}"
 
@@ -7246,6 +7294,12 @@ msgstr "everything there is offline until it's back"
 msgid "no downtime expected"
 msgstr "no downtime expected"
 
+msgid "nothing stops"
+msgstr "nothing stops"
+
+msgid "nothing stops now; it counts at the next boot"
+msgstr "nothing stops now; it counts at the next boot"
+
 msgid "rolling, with nothing stopped"
 msgstr "rolling, with nothing stopped"
 
@@ -7255,6 +7309,12 @@ msgstr "visitors lose {0} addresses"
 
 msgid "visitors lose {lost}"
 msgstr "visitors lose {lost}"
+
+msgid "what it serves pauses while it restarts"
+msgstr "what it serves pauses while it restarts"
+
+msgid "what it serves stops until it's started"
+msgstr "what it serves stops until it's started"
 
 #. placeholder {0}: apps.length || live.length
 msgid "{0, plural, one {# app is deployed} other {# apps are deployed}}"
@@ -7310,6 +7370,9 @@ msgstr "{apps} and {dbs} stop, and you can undo this until {deadline}."
 msgid "{apps} and {dbs} stop."
 msgstr "{apps} and {dbs} stop."
 
+msgid "{ing} failed"
+msgstr "{ing} failed"
+
 msgid "{made} is deployed"
 msgstr "{made} is deployed"
 
@@ -7325,8 +7388,14 @@ msgstr "{name} is running"
 msgid "{name} is starting"
 msgstr "{name} is starting"
 
+msgid "{name} no longer starts at boot on {server}"
+msgstr "{name} no longer starts at boot on {server}"
+
 msgid "{name} ran to its end"
 msgstr "{name} ran to its end"
+
+msgid "{name} starts at boot on {server}"
+msgstr "{name} starts at boot on {server}"
 
 msgid "{same} stays as it is"
 msgstr "{same} stays as it is"
@@ -7720,6 +7789,54 @@ msgstr "This stopped before it reached that, and Dockwell put back the rest."
 
 msgid "What ran before runs again"
 msgstr "What ran before runs again"
+
+msgid "Another unit that needs it can still start it"
+msgstr "Another unit that needs it can still start it"
+
+msgid "At boot it reads {atBoot} now"
+msgstr "At boot it reads {atBoot} now"
+
+msgid "Every port the firewall closes on {server} opens while it's stopped"
+msgstr "Every port the firewall closes on {server} opens while it's stopped"
+
+msgid "Mask <0>{name}</0> on {server}"
+msgstr "Mask <0>{name}</0> on {server}"
+
+msgid "Nothing can start it, by hand or as another unit needs it, until it's unmasked"
+msgstr "Nothing can start it, by hand or as another unit needs it, until it's unmasked"
+
+msgid "Reload <0>{name}</0> on {server}"
+msgstr "Reload <0>{name}</0> on {server}"
+
+msgid "Restart <0>{name}</0> on {server}"
+msgstr "Restart <0>{name}</0> on {server}"
+
+msgid "Restarts {withIt} with it, as they need it"
+msgstr "Restarts {withIt} with it, as they need it"
+
+msgid "Start <0>{name}</0> at boot on {server}"
+msgstr "Start <0>{name}</0> at boot on {server}"
+
+msgid "Start <0>{name}</0> on {server}"
+msgstr "Start <0>{name}</0> on {server}"
+
+msgid "Stop <0>{name}</0> on {server}"
+msgstr "Stop <0>{name}</0> on {server}"
+
+msgid "Stop <0>{name}</0> starting at boot on {server}"
+msgstr "Stop <0>{name}</0> starting at boot on {server}"
+
+msgid "Stops {withIt} with it, as they need it"
+msgstr "Stops {withIt} with it, as they need it"
+
+msgid "Unmask <0>{name}</0> on {server}"
+msgstr "Unmask <0>{name}</0> on {server}"
+
+msgid "{server} may drop off the network for a moment"
+msgstr "{server} may drop off the network for a moment"
+
+msgid "{triggers} starts it again when it's asked for"
+msgstr "{triggers} starts it again when it's asked for"
 
 msgid "From <0>{from}</0> to <1>{to}</1>"
 msgstr "From <0>{from}</0> to <1>{to}</1>"
@@ -12641,23 +12758,74 @@ msgstr "The address your provider's console shows. Every word about DNS uses it 
 msgid "What the internet knows this server by"
 msgstr "What the internet knows this server by"
 
+msgctxt "system log level"
+msgid "Errors"
+msgstr "Errors"
+
+msgctxt "system log level"
+msgid "Everything"
+msgstr "Everything"
+
+msgid "Level"
+msgstr "Level"
+
+msgid "Nothing at this level from {unit}."
+msgstr "Nothing at this level from {unit}."
+
+msgid "Nothing from {unit} in the system log."
+msgstr "Nothing from {unit} in the system log."
+
+msgid "Older lines"
+msgstr "Older lines"
+
+msgid "System log of {unit}"
+msgstr "System log of {unit}"
+
+msgctxt "system log level"
+msgid "Warnings and up"
+msgstr "Warnings and up"
+
+msgid "{server} keeps no system log Dockwell reads."
+msgstr "{server} keeps no system log Dockwell reads."
+
 msgctxt "system services"
 msgid "All"
 msgstr "All"
 
+msgid "Applying…"
+msgstr "Applying…"
+
 msgid "At boot"
 msgstr "At boot"
 
+msgid "Disabling…"
+msgstr "Disabling…"
+
 msgid "Dockwell needs it"
 msgstr "Dockwell needs it"
+
+msgid "Dockwell runs as this service"
+msgstr "Dockwell runs as this service"
 
 msgctxt "at boot"
 msgid "Doesn't start"
 msgstr "Doesn't start"
 
+msgid "Don't start at boot"
+msgstr "Don't start at boot"
+
+msgid "Enabling…"
+msgstr "Enabling…"
+
+msgid "Every app on {name} runs in Docker"
+msgstr "Every app on {name} runs in Docker"
+
 msgctxt "system services"
 msgid "Failed"
 msgstr "Failed"
+
+msgid "Failed {failedAgo}"
+msgstr "Failed {failedAgo}"
 
 msgid "Filter by name or description"
 msgstr "Filter by name or description"
@@ -12668,15 +12836,47 @@ msgstr "Filter system services"
 msgid "Init state"
 msgstr "Init state"
 
+msgid "It didn't work"
+msgstr "It didn't work"
+
+msgid "It starts when another unit needs it"
+msgstr "It starts when another unit needs it"
+
+msgid "It stops with the unit that needs it"
+msgstr "It stops with the unit that needs it"
+
+msgid "It's how you reach {name} over SSH"
+msgstr "It's how you reach {name} over SSH"
+
 msgid "It's older than the control plane, so it can't list system services."
 msgstr "It's older than the control plane, so it can't list system services."
+
+msgid "Its agent is older than the control plane, so it can't act on system services"
+msgstr "Its agent is older than the control plane, so it can't act on system services"
 
 msgid "Main process"
 msgstr "Main process"
 
+msgctxt "system service"
+msgid "Mask"
+msgstr "Mask"
+
+msgid "Mask, so nothing starts it"
+msgstr "Mask, so nothing starts it"
+
 msgctxt "at boot"
 msgid "Masked"
 msgstr "Masked"
+
+msgid "Masked: nothing starts it"
+msgstr "Masked: nothing starts it"
+
+msgid "Masking…"
+msgstr "Masking…"
+
+msgctxt "system service actions"
+msgid "More"
+msgstr "More"
 
 #. placeholder {0}: server.name
 msgid "Needs it on {0}"
@@ -12692,13 +12892,51 @@ msgstr "Not started at boot"
 msgid "Nothing has failed on {0}."
 msgstr "Nothing has failed on {0}."
 
+msgid "Open the change"
+msgstr "Open the change"
+
+msgctxt "system service"
+msgid "Reload"
+msgstr "Reload"
+
+msgid "Reloading…"
+msgstr "Reloading…"
+
+msgctxt "system service"
+msgid "Restart"
+msgstr "Restart"
+
+msgid "Restarting…"
+msgstr "Restarting…"
+
+msgctxt "system service"
+msgid "Retry"
+msgstr "Retry"
+
 msgctxt "system services"
 msgid "Running"
 msgstr "Running"
 
+msgctxt "system service"
+msgid "Start"
+msgstr "Start"
+
+msgid "Start at boot"
+msgstr "Start at boot"
+
+msgid "Starting…"
+msgstr "Starting…"
+
 msgctxt "at boot"
 msgid "Starts"
 msgstr "Starts"
+
+msgctxt "system service"
+msgid "Stop"
+msgstr "Stop"
+
+msgid "Stopping…"
+msgstr "Stopping…"
 
 #. placeholder {0}: server.name
 msgid "System services on {0}"
@@ -12707,6 +12945,16 @@ msgstr "System services on {0}"
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
 msgstr "The agent on {0} isn't connected, so its system services can't be read now. This page reads again when it reconnects."
+
+msgctxt "system service"
+msgid "Unmask"
+msgstr "Unmask"
+
+msgid "Unmasking…"
+msgstr "Unmasking…"
+
+msgid "Waits for the action on {other} to end"
+msgstr "Waits for the action on {other} to end"
 
 msgctxt "at boot"
 msgid "When needed"
@@ -12727,6 +12975,9 @@ msgstr "{0} starts its services with an init Dockwell doesn't read. It reads sys
 #. placeholder {1}: s.exitStatus
 msgid "{0}, status {1}"
 msgstr "{0}, status {1}"
+
+msgid "{name} reaches the network through it"
+msgstr "{name} reaches the network through it"
 
 msgid "Being removed"
 msgstr "Being removed"

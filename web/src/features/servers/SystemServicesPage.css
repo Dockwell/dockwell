@@ -36,3 +36,63 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+
+/* A unit's actions (ADR 0082): its likely one first, then the rest, wrapping on a phone. */
+.sys-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sys-desc {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* What a unit's own process said before it failed: its words, wrapped, never cut mid-sheet. */
+.sys-why {
+  display: block;
+  font: var(--text-code-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* On a row, the line that says why in one line, whole on hover. */
+.sys-why-line {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font: var(--text-code-sm);
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A row's one action shows on its hover or focus, and stays for a failed unit or one under way. */
+.sys-act {
+  display: inline-flex;
+}
+
+@media (hover: hover) {
+  .procs-table tr:not(:hover):not(:focus-within) .sys-act:not([data-shown]) {
+    opacity: 0;
+  }
+}
+
+.sys-failed {
+  color: var(--critical);
+  overflow-wrap: anywhere;
+}
+
+.sys-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sys-log-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
