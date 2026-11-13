@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -122,7 +121,9 @@ func checkMembers(n *resourcev1.Network) error {
 }
 
 // shortID is a container's ID as Docker gives it as an alias.
-var shortID = regexp.MustCompile(`^[0-9a-f]{12}$`)
+func shortID(s string) bool {
+	return len(s) == 12 && strings.Trim(s, "0123456789abcdef") == ""
+}
 
 // MemberTarget is where a network's member runs: its environment's project, and its
 // service.
@@ -298,7 +299,7 @@ func (d *Driver) members(ctx context.Context, t Target) ([]*resourcev1.NetworkMe
 		if ep := c.NetworkSettings.Networks[t.Name]; ep != nil {
 			// Docker adds the container's own name and short ID; the alias is what's left.
 			for _, a := range ep.Aliases {
-				if !slices.Contains(c.Names, "/"+a) && !shortID.MatchString(a) && !strings.HasPrefix(c.ID, a) {
+				if !slices.Contains(c.Names, "/"+a) && !shortID(a) && !strings.HasPrefix(c.ID, a) {
 					m.Alias = a
 					break
 				}

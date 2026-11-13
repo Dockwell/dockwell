@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -279,7 +280,7 @@ func (d *UserDriver) refusals(ctx context.Context, to *docker.Container, e *Engi
 
 // restricts reports a psql that takes \restrict, as psql -V says its release.
 func restricts(version string) bool {
-	m := psqlRelease.FindStringSubmatch(version)
+	m := psqlRelease().FindStringSubmatch(version)
 	if m == nil {
 		return false
 	}
@@ -293,7 +294,7 @@ func restricts(version string) bool {
 	return ok && minor >= at
 }
 
-var psqlRelease = regexp.MustCompile(`\(PostgreSQL\) (\d+)\.(\d+)`)
+var psqlRelease = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`\(PostgreSQL\) (\d+)\.(\d+)`) })
 
 // throwaway runs cmd in a container of image made for it, on network alone, with
 // nothing mounted and every capability dropped, and removes it after.
@@ -371,12 +372,16 @@ func (c *counting) Write(b []byte) (int, error) {
 // definer is a DEFINER clause of MySQL's and MariaDB's dumps, in any case and
 // spacing: an account, its host where it has one (a MariaDB role has none), or
 // CURRENT_USER or CURRENT_ROLE.
-var definer = regexp.MustCompile("(?i)\\bDEFINER\\s*=\\s*(?:`[^`]*`|'[^']*'|\"[^\"]*\"|[^\\s@*/;]+)(?:\\s*@\\s*(?:`[^`]*`|'[^']*'|\"[^\"]*\"|[^\\s*/;]+))?(?:\\s*\\(\\s*\\))?\\s*")
+var definer = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile("(?i)\\bDEFINER\\s*=\\s*(?:`[^`]*`|'[^']*'|\"[^\"]*\"|[^\\s@*/;]+)(?:\\s*@\\s*(?:`[^`]*`|'[^']*'|\"[^\"]*\"|[^\\s*/;]+))?(?:\\s*\\(\\s*\\))?\\s*")
+})
 
 // makes reports a line that starts a statement that can carry a DEFINER: one that
 // makes or changes a view, routine, trigger or event, as itself or in a versioned
 // comment, in any case. A line of data never starts so.
-var makes = regexp.MustCompile(`(?i)^\s*(?:/\*!\d*\s*)?(?:CREATE|ALTER)\b|^\s*/\*!\d*\s*DEFINER\b`)
+var makes = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(?i)^\s*(?:/\*!\d*\s*)?(?:CREATE|ALTER)\b|^\s*/\*!\d*\s*DEFINER\b`)
+})
 
 // withoutDefiners takes the DEFINER clauses out of a MySQL or MariaDB dump, so each
 // view, routine, trigger and event is the loading user's, not an account of the old
@@ -384,8 +389,8 @@ var makes = regexp.MustCompile(`(?i)^\s*(?:/\*!\d*\s*)?(?:CREATE|ALTER)\b|^\s*/\
 // such a statement, wherever on it the clause stands.
 func withoutDefiners(r io.Reader) io.Reader {
 	return byLine(r, func(line []byte) []byte {
-		if makes.Match(line) && bytes.Contains(bytes.ToUpper(line), []byte("DEFINER")) {
-			return definer.ReplaceAll(line, nil)
+		if makes().Match(line) && bytes.Contains(bytes.ToUpper(line), []byte("DEFINER")) {
+			return definer().ReplaceAll(line, nil)
 		}
 		return line
 	})
@@ -393,10 +398,11 @@ func withoutDefiners(r io.Reader) io.Reader {
 
 // restrictLine is the line pg_dump from 17.6, 16.10, 15.14, 14.19 and 13.22 on
 // starts a dump with, and unrestrictLine the one it ends it with, each with a key
-// of its own.
+// of its own. Each pattern here is made the first time a copy needs it, as the
+// agent starts with as little as it can (ADR 0060).
 var (
-	restrictLine   = regexp.MustCompile(`^\\restrict ([A-Za-z0-9]+)\r?\n?$`)
-	unrestrictLine = regexp.MustCompile(`^\\unrestrict ([A-Za-z0-9]+)\r?\n?$`)
+	restrictLine   = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^\\restrict ([A-Za-z0-9]+)\r?\n?$`) })
+	unrestrictLine = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`^\\unrestrict ([A-Za-z0-9]+)\r?\n?$`) })
 )
 
 // withoutRestrict takes out the \restrict a dump starts with and the \unrestrict
@@ -406,11 +412,11 @@ func withoutRestrict(r io.Reader) io.Reader {
 	key, lines := "", 0
 	return byLine(r, func(line []byte) []byte {
 		lines++
-		if m := restrictLine.FindSubmatch(line); m != nil && key == "" && lines <= 20 {
+		if m := restrictLine().FindSubmatch(line); m != nil && key == "" && lines <= 20 {
 			key = string(m[1])
 			return nil
 		}
-		if m := unrestrictLine.FindSubmatch(line); m != nil && key != "" && string(m[1]) == key {
+		if m := unrestrictLine().FindSubmatch(line); m != nil && key != "" && string(m[1]) == key {
 			return nil
 		}
 		return line
