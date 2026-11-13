@@ -990,26 +990,57 @@ func (s *Session) call(ctx context.Context, c *agentv1.Call, fallback time.Durat
 		}
 		r, err := s.callOnce(ctx, c)
 		if !errors.Is(err, ErrMoving) {
-			return r, s.timedOut(err, timeout)
+			return r, s.timedOut(err, timeout, deadline)
 		}
 		next, err := s.agents.next(ctx, s)
 		if err != nil {
-			return nil, s.timedOut(err, timeout)
+			return nil, s.timedOut(err, timeout, deadline)
 		}
 		s = next
 	}
 }
 
-// timedOut says, of a call that ran out of time, how long it had. Its time
-// may run out on the agent first, as the agent's clock started later or ran
-// faster, so what the agent said counts as well as the call's own deadline.
-func (s *Session) timedOut(err error, timeout time.Duration) error {
-	if err != nil && errors.Is(err, context.DeadlineExceeded) {
+// timedOut says which time ran out, of a call that ran out of time. Where the
+// control plane stopped waiting, the agent didn't answer within the call's time.
+// Where the agent answered that a time of its own ran out, that is its answer, and
+// reads with its words: the call's time, which the agent's clock may end just before
+// the control plane's own deadline, or a wait on the server, such as a container's
+// start, which may end long before it. That one reads as when the agent answered,
+// never as no answer within the call's time, as #606's Docker run read "didn't
+// answer within 10 min" of an agent that answered in 30 s.
+func (s *Session) timedOut(err error, timeout time.Duration, deadline time.Time) error {
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	var said outOfTime
+	if !errors.As(err, &said) {
 		return fault.New(err, "%s's agent didn't answer within %s, so Dockwell stopped waiting. What it was asked may still be running, "+
 			"or stuck on something on the server, such as Docker or a network mount. Check those on %s, then try again",
 			s.name, human.Duration(timeout.Round(time.Second)), s.name)
 	}
-	return err
+	words := strings.TrimRight(strings.TrimSpace(said.message), ".")
+	if left := time.Until(deadline); left > endsWithTheCall(timeout) {
+		return fault.New(err, "%s's agent answered %s that a wait on the server ran out, so it stopped: %s. Check that on %s, then try again",
+			s.name, answeredAfter(timeout-left), words, s.name)
+	}
+	return fault.New(err, "%s's agent ran out of the %s this had, so it stopped: %s. What it was doing may be left half done, "+
+		"or stuck on something on the server, such as Docker or a network mount. Check those on %s, then try again",
+		s.name, human.Duration(timeout.Round(time.Second)), words, s.name)
+}
+
+// endsWithTheCall is how near the call's own deadline an agent that says its time ran
+// out has to answer for that time to be the call's, as its clock may run a little
+// ahead. Sooner, a wait of its own ran out.
+func endsWithTheCall(timeout time.Duration) time.Duration {
+	return max(time.Second, timeout/50)
+}
+
+// answeredAfter says how long an agent took to answer, for a message.
+func answeredAfter(took time.Duration) string {
+	if took < time.Second {
+		return "within a second"
+	}
+	return "after " + human.Duration(took.Round(time.Second))
 }
 
 // outOfTime is what an agent said of a call whose time ran out there.

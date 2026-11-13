@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/health"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/container/containertest"
@@ -734,8 +735,11 @@ func TestCallsAreCancelledOnTheAgent(t *testing.T) {
 // A stream that drops fails the calls waiting on it at once, saying the
 // step may or may not have run; once the agent reconnects, calls reach it
 // again.
-// A call whose time runs out on the agent, whose answer may beat the control
-// plane's own deadline, is still a call that ran out of time, with its words.
+// A call whose time runs out on the agent, long before the control plane's own
+// deadline, as a wait on the server does, is still a call that ran out of time. It
+// reads as the agent's answer, with its words and when it came, never as an agent
+// that didn't answer within the call's 10 min, as #606's Docker run read of an
+// agent that answered in 30 s.
 func TestTimeRunningOutOnTheAgentCountsAsTime(t *testing.T) {
 	s := startStack(t, 5*time.Second)
 	id := s.enrollLocal(t)
@@ -743,8 +747,19 @@ func TestTimeRunningOutOnTheAgentCountsAsTime(t *testing.T) {
 	a := waitForAgent(t, s.agents, id.ServerID, true)
 	step := resource.Step{Ref: resource.Ref{Kind: firewall.Kind, Scope: id.ServerID, Name: "http"}, Decision: resource.Decision{Action: resource.ActionCreate}}
 	err := a.Apply(t.Context(), step, &resourcev1.FirewallRule{Port: 80})
-	if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "didn't answer within") {
-		t.Errorf("err = %v, want it to say the agent didn't answer in time", err)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want a call that ran out of time", err)
+	}
+	said := err.Error()
+	for _, want := range []string{"'s agent answered within a second that a wait on the server ran out, so it stopped: ", "can't create firewall.rule http", "then try again"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("it says %q, without %q", said, want)
+		}
+	}
+	for _, not := range []string{"didn't answer", human.Duration(agentapi.ApplyTimeout)} {
+		if strings.Contains(said, not) {
+			t.Errorf("it says %q, with %q, of an agent that answered at once", said, not)
+		}
 	}
 	if plain, _ := resource.Explain(err); !strings.HasPrefix(plain, "The step's time ran out") {
 		t.Errorf("it reads %q", plain)
