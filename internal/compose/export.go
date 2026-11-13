@@ -57,6 +57,17 @@ type (
 		GroupAdd    []string          `yaml:"group_add,omitempty"`
 		ExtraHosts  []string          `yaml:"extra_hosts,omitempty"`
 		Privileged  bool              `yaml:"privileged,omitempty"`
+		// What a container asks of itself (ADR 0085).
+		Hostname   string                 `yaml:"hostname,omitempty"`
+		Init       bool                   `yaml:"init,omitempty"`
+		Tty        bool                   `yaml:"tty,omitempty"`
+		StdinOpen  bool                   `yaml:"stdin_open,omitempty"`
+		StopSignal string                 `yaml:"stop_signal,omitempty"`
+		Ulimits    map[string]ulimitEntry `yaml:"ulimits,omitempty"`
+		ReadOnly   bool                   `yaml:"read_only,omitempty"`
+		PidsLimit  int64                  `yaml:"pids_limit,omitempty"`
+		DNS        []string               `yaml:"dns,omitempty"`
+		Security   []string               `yaml:"security_opt,omitempty"`
 		// Logging keeps the rotation Dockwell sets on what docker compose makes
 		// from the file, which it would otherwise leave without a limit, except on
 		// a server whose Docker logs elsewhere by default, which keeps its choice.
@@ -66,6 +77,10 @@ type (
 	}
 	joinEntry struct {
 		Aliases []string `yaml:"aliases,omitempty"`
+	}
+	ulimitEntry struct {
+		Soft int64 `yaml:"soft"`
+		Hard int64 `yaml:"hard"`
 	}
 	deployEntry struct {
 		Resources    *limitsEntry `yaml:"resources,omitempty"`
@@ -257,6 +272,17 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			entry.Restart += ":" + strconv.FormatUint(uint64(n), 10)
 		}
 		entry.StopGrace, entry.ShmSize, entry.Expose = c.GetStopGracePeriod(), c.GetShmSize(), c.GetExpose()
+		entry.Hostname, entry.Init, entry.Tty, entry.StdinOpen = escape(c.GetHostname()), c.GetInit(), c.GetTty(), c.GetStdinOpen()
+		entry.StopSignal, entry.ReadOnly, entry.PidsLimit, entry.DNS = c.GetStopSignal(), c.GetReadOnly(), c.GetPidsLimit(), c.GetDns()
+		if c.GetNoNewPrivileges() {
+			entry.Security = []string{"no-new-privileges:true"}
+		}
+		for _, u := range c.GetUlimits() {
+			if entry.Ulimits == nil {
+				entry.Ulimits = map[string]ulimitEntry{}
+			}
+			entry.Ulimits[u.GetName()] = ulimitEntry{Soft: u.GetSoft(), Hard: u.GetHard()}
+		}
 		for _, t := range c.GetTmpfs() {
 			v := t.GetTarget()
 			if t.GetSize() != "" {

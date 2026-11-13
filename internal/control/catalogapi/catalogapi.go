@@ -331,8 +331,9 @@ func (h *Handler) ListCatalogInstalls(ctx context.Context, _ *connect.Request[do
 
 // InstallUpgrade is what one catalog install can move to.
 type InstallUpgrade struct {
-	// FromVersion is the app's version it runs.
+	// FromVersion is the app's version it runs, and Release its entry's release.
 	FromVersion string
+	Release     uint32
 	// ToVersion and ToRelease are its entry's newer release, empty and 0 when
 	// it's up to date or its catalog no longer has its entry.
 	ToVersion string
@@ -356,7 +357,7 @@ func (h *Handler) InstallUpgrades(ctx context.Context) (map[string]InstallUpgrad
 			return err
 		}
 		for _, in := range installs {
-			u := InstallUpgrade{FromVersion: in.GetPin().GetVersion(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease()}
+			u := InstallUpgrade{FromVersion: in.GetPin().GetVersion(), Release: in.GetPin().GetRelease(), ToVersion: in.GetUpgrade().GetVersion(), ToRelease: in.GetUpgrade().GetRelease()}
 			if entry, known := s.entryFor(in.GetPin()); known {
 				u.AppSource = entry.GetAppSource()
 			}
@@ -418,7 +419,7 @@ func (h *Handler) installs(ctx context.Context, tx *store.Tx, s sourced) ([]*doc
 
 // UpgradeCatalogInstall plans an install's newest release.
 func (h *Handler) UpgradeCatalogInstall(ctx context.Context, req *connect.Request[dockwellv1.UpgradeCatalogInstallRequest]) (*connect.Response[dockwellv1.UpgradeCatalogInstallResponse], error) {
-	change, err := h.upgrade(ctx, req.Msg, "")
+	change, err := h.upgrade(ctx, req.Msg, "", false)
 	if err != nil {
 		return nil, err
 	}
@@ -446,14 +447,15 @@ func (h *Handler) IsInstall(ctx context.Context, project string) (bool, error) {
 
 // UpgradeInstall plans upgrading the install a project is, by its ID, as
 // UpgradeCatalogInstall does, for an update of one of its services (ADR 0080).
-// Empty summary says what it upgrades.
-func (h *Handler) UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string) (*dockwellv1.Change, error) {
-	return h.upgrade(ctx, &dockwellv1.UpgradeCatalogInstallRequest{Id: project, SkipBackup: skipBackup}, summary)
+// Empty summary says what it upgrades. rebuild takes only the new build of each
+// image it runs by a tag that moves, at the release it runs (ADR 0085).
+func (h *Handler) UpgradeInstall(ctx context.Context, project string, skipBackup bool, summary string, rebuild bool) (*dockwellv1.Change, error) {
+	return h.upgrade(ctx, &dockwellv1.UpgradeCatalogInstallRequest{Id: project, SkipBackup: skipBackup}, summary, rebuild)
 }
 
 // upgrade plans an install's upgrade, with summary for the timeline, or what it
-// upgrades, from and to, where that's empty.
-func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInstallRequest, summary string) (*dockwellv1.Change, error) {
+// upgrades, from and to, where that's empty. rebuildOnly takes a new build alone.
+func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInstallRequest, summary string, rebuildOnly bool) (*dockwellv1.Change, error) {
 	s, err := h.catalog(ctx)
 	if err != nil {
 		return nil, err
@@ -465,21 +467,45 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	install := found.install
 	pin := install.GetPin()
 	entry, ok := s.entryFor(pin)
+	// A tag that moves, such as latest, names no version, so a new build of it is the
+	// only way such an app moves on: with no newer release, it's what an upgrade takes
+	// (ADR 0085).
+	newer := ok && catalog.Upgrades(entry, pin)
+	moving := catalog.MovingImages(entry.GetCompose())
+	rebuild := ok && !newer && len(moving) > 0 && catalog.Unpin(string(pin.GetFile())) == catalog.Unpin(entry.GetCompose())
 	switch {
 	case !ok && s.origins[pin.GetEntry()] != (origin{}):
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s. The %s in the catalog is %s's, another app: install it under another name to move to it", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion(), pin.GetEntry(), s.origins[pin.GetEntry()].words()), "not_in_catalog")
 	case !ok:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s came from %s, which has no %s now, so it stays on %s", install.GetProject(), originOf(pin).words(), pin.GetEntry(), pin.GetVersion()), "not_in_catalog")
-	case !catalog.Upgrades(entry, pin):
+	case !newer && !rebuild:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on %s %s", install.GetProject(), entry.GetName(), pin.GetVersion()), "up_to_date")
 	case len(pin.GetFile()) == 0:
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s was installed before Dockwell kept what its entry's file gave, so an upgrade can't tell that from what you changed, and it stays on %s. To move on, install the new version under another name and bring its data across", install.GetProject(), pin.GetVersion()), "no_record")
+	case rebuildOnly && newer:
+		// A new build was offered at the release it runs, and its catalog has moved
+		// on since: taking the build mustn't take the release, which a person may
+		// have skipped, so the release stays an update of its own.
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s's catalog has moved on to %s %s, release %d, so a new build alone would leave that out. Take the release as its own update, which brings the newest builds too", install.GetProject(), entry.GetName(), entry.GetVersion(), entry.GetRelease()), "newer_release")
+	case rebuildOnly && !rebuild:
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s runs no image by a tag that moves at release %d, so it has no new build to take alone", install.GetProject(), pin.GetRelease()), "no_rebuild")
 	}
 	// An image whose tag the release keeps stays at the build the install runs, and
-	// one it moves is pinned to the build its new tag points at now.
-	entry, pinNotes, err := h.pinImages(ctx, entry, h.serverOf(ctx, install.GetEnvironmentId()), catalog.PinnedDigests(string(pin.GetFile())))
+	// one it moves is pinned to the build its new tag points at now. A tag that moves
+	// by itself is read again, for the build it points at now.
+	had := catalog.PinnedDigests(string(pin.GetFile()))
+	for _, image := range moving {
+		delete(had, image)
+	}
+	entry, pinNotes, err := h.pinImages(ctx, entry, h.serverOf(ctx, install.GetEnvironmentId()), had)
 	if err != nil {
 		return nil, err
+	}
+	if rebuild {
+		if maps.Equal(catalog.PinnedDigests(entry.GetCompose()), catalog.PinnedDigests(string(pin.GetFile()))) {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s is up to date, on the newest build of %s", install.GetProject(), strings.Join(moving, " and ")), "up_to_date")
+		}
+		summary = cmp.Or(summary, fmt.Sprintf("Update %s to the newest build of %s", install.GetProject(), strings.Join(moving, " and ")))
 	}
 	// Its needs stay met as they are, and one the release adds takes its first way.
 	server := h.serverOf(ctx, install.GetEnvironmentId())

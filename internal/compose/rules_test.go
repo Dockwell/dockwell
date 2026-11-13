@@ -156,7 +156,6 @@ func TestComposeRefusals(t *testing.T) {
 		"secrets":        svc("    secrets: [s]\n"),
 		"configs":        svc("    configs: [s]\n"),
 		"device":         svc("    device_cgroup_rules: [a]\n"),
-		"init":           svc("    init: true\n"),
 		"runtime":        svc("    runtime: runc\n"),
 		"gpus":           svc("    gpus: all\n"),
 		"tmpfs in long":  svc("    volumes:\n      - {type: bind, source: /srv, target: /x, tmpfs: {size: 1}}\n"),

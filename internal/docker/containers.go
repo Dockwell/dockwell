@@ -19,8 +19,11 @@ import (
 // it: the fields Dockwell uses. The engine fills in what a container
 // leaves out from its image, such as Cmd and Env.
 type Config struct {
-	Image string   `json:"Image,omitempty"`
-	Cmd   []string `json:"Cmd,omitempty"`
+	// Hostname is its own name, which the engine sets to the start of its ID
+	// unless asked for another.
+	Hostname string   `json:"Hostname,omitempty"`
+	Image    string   `json:"Image,omitempty"`
+	Cmd      []string `json:"Cmd,omitempty"`
 	// Entrypoint nil takes the image's, and empty runs none.
 	Entrypoint   []string            `json:"Entrypoint"`
 	Env          []string            `json:"Env,omitempty"`
@@ -103,6 +106,20 @@ type HostConfig struct {
 	UsernsMode string `json:"UsernsMode,omitempty"`
 	// SecurityOpt sets options such as no-new-privileges.
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
+	// Init runs the engine's init as its first process; nil takes the engine's
+	// default, which is none unless the daemon says otherwise.
+	Init *bool `json:"Init,omitempty"`
+	// Ulimits are its processes' limits, and DNS the servers it asks for names.
+	Ulimits []Ulimit `json:"Ulimits,omitempty"`
+	DNS     []string `json:"Dns,omitempty"`
+}
+
+// Ulimit is one of a container's process limits, as ulimit names it, such as
+// nofile. -1 is no limit.
+type Ulimit struct {
+	Name string `json:"Name"`
+	Soft int64  `json:"Soft"`
+	Hard int64  `json:"Hard"`
 }
 
 // Mount is a volume, bind or tmpfs mount, as HostConfig.Mounts has it.

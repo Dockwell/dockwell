@@ -3,6 +3,7 @@
 package serviceupdates
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -100,6 +101,30 @@ func TestCatalogUpdate(t *testing.T) {
 	}
 }
 
+// A catalog install that runs an image by a tag that moves is offered each new build
+// its check found, at the release it runs, so taking it upgrades the install and no
+// image is named; what else its check found isn't an install's to take (ADR 0085).
+func TestNewBuildsOfACatalogInstall(t *testing.T) {
+	now := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+	u := catalogUpdate(CatalogInstall{FromVersion: "latest", Release: 1762947277}, now)
+	found := &dockwellv1.ServiceUpdate{Available: []*dockwellv1.AvailableUpdate{
+		{Kind: dockwellv1.UpdateKind_UPDATE_KIND_MAJOR, ToVersion: "2.0"},
+		{Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, FromVersion: "latest", ToVersion: "latest", ToDigest: "sha256:" + strings.Repeat("b", 64)},
+	}}
+	newBuilds(u, found, CatalogInstall{Release: 1762947277})
+	if u.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE || len(u.GetAvailable()) != 1 {
+		t.Fatalf("the install's update = %v", u)
+	}
+	if a := u.GetAvailable()[0]; a.GetKind() != dockwellv1.UpdateKind_UPDATE_KIND_DIGEST || a.GetCatalogRelease() != 1762947277 {
+		t.Errorf("the new build = %v", a)
+	}
+	still := catalogUpdate(CatalogInstall{FromVersion: "latest"}, now)
+	newBuilds(still, nil, CatalogInstall{})
+	if still.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_UP_TO_DATE || len(still.GetAvailable()) != 0 {
+		t.Errorf("an install with no new build = %v", still)
+	}
+}
+
 // What a person skipped is marked, and sets the state by what's left; a snooze
 // that ended says nothing.
 func TestApplyPerson(t *testing.T) {
@@ -163,5 +188,40 @@ func TestParseDuration(t *testing.T) {
 	}
 	if _, err := parseDuration("soon"); err == nil {
 		t.Error("parseDuration(soon) took it")
+	}
+}
+
+// A catalog release whose version stays, or names a tag that moves, such as latest,
+// is skipped by its release number, so skipping it never skips the next release,
+// nor a new build; one whose version moves on is skipped by its version (ADR 0085).
+func TestACatalogReleaseIsSkippedByItsNumber(t *testing.T) {
+	release := dockwellv1.UpdateKind_UPDATE_KIND_RELEASE
+	for _, tc := range []struct {
+		a    *dockwellv1.AvailableUpdate
+		want string
+	}{
+		{&dockwellv1.AvailableUpdate{Kind: release, FromVersion: "latest", ToVersion: "latest", CatalogRelease: 7}, "release:7"},
+		{&dockwellv1.AvailableUpdate{Kind: release, FromVersion: "1.2.0", ToVersion: "1.2.0", CatalogRelease: 8}, "release:8"},
+		{&dockwellv1.AvailableUpdate{Kind: release, FromVersion: "stable", ToVersion: "main", CatalogRelease: 9}, "release:9"},
+		{&dockwellv1.AvailableUpdate{Kind: dockwellv1.UpdateKind_UPDATE_KIND_MINOR, FromVersion: "1.2.0", ToVersion: "1.3.0", CatalogRelease: 9}, "1.3.0"},
+		{&dockwellv1.AvailableUpdate{Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, ToDigest: "sha256:bbbb", CatalogRelease: 7}, "sha256:bbbb"},
+		{&dockwellv1.AvailableUpdate{Kind: dockwellv1.UpdateKind_UPDATE_KIND_MINOR, FromVersion: "16.3", ToVersion: "16.4"}, "16.4"},
+	} {
+		if got := target(tc.a); got != tc.want {
+			t.Errorf("%v skips as %q, want %q", tc.a, got, tc.want)
+		}
+	}
+	u := &dockwellv1.ServiceUpdate{Check: dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE, Available: []*dockwellv1.AvailableUpdate{
+		{Kind: release, FromVersion: "latest", ToVersion: "latest", CatalogRelease: 7},
+		{Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, ToDigest: "sha256:bbbb", CatalogRelease: 6},
+	}}
+	applyPerson(u, store.ServiceUpdate{Skipped: `["release:7"]`}, time.Now())
+	for _, a := range u.GetAvailable() {
+		if a.GetSkipAs() == "" || a.GetSkipped() != (a.GetKind() == release) {
+			t.Errorf("%v: skip_as %q, skipped %v", a.GetKind(), a.GetSkipAs(), a.GetSkipped())
+		}
+	}
+	if u.GetCheck() != dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE {
+		t.Errorf("with the release skipped, the new build is still offered: %v", u.GetCheck())
 	}
 }

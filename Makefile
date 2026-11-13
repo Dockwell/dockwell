@@ -220,6 +220,19 @@ catalog-e2e: build-go ## Install, check, upgrade and remove catalog apps on this
 	@test -n "$(APPS)" || { echo 'catalog-e2e: name the apps to try, such as make catalog-e2e APPS="pgadmin redis"' >&2; exit 1; }
 	scripts/catalog-e2e.sh $(BIN) $(APPS)
 
+.PHONY: store-rates
+store-rates: ## Convert 1Panel's, Dokploy's and Coolify's stores at the commits the repository pins, as a server does, and fail if an app stops converting (RECORD=1 writes the record, PIN=1 moves each store to its branch first)
+	go run ./cmd/dockwell-catalog rates $(if $(RECORD),--record) $(if $(PIN),--pin)
+
+# A sample of what each store brings: small apps, one at least from each, on a tag
+# that moves, one named with no tag, one by a version, one with a generated secret
+# inside its command, and one with a hostname of its own (ADR 0085).
+STORE_APPS ?= 1panel/linux-command dokploy/excalidraw dokploy/mazanoke coolify/privatebin dokploy/keydb 1panel/rabbitmq
+
+.PHONY: store-e2e
+store-e2e: build-go ## Install a sample of 1Panel's, Dokploy's and Coolify's apps, converted on the server at the pinned commits, on this machine's Docker (STORE_APPS names them)
+	scripts/store-e2e.sh $(BIN) $(STORE_APPS)
+
 .PHONY: budgets
 budgets: build build-agent ## Fail if the builds are over their idle memory budgets; BASELINE=other/dockwell and BASELINE_AGENT=other/dockwell-agent measure those too (about 7 minutes)
 	scripts/budgets.sh $(BIN) $(AGENT_BIN)

@@ -1975,7 +1975,14 @@ type Hello struct {
 	// What the agent keeps of what its server should run (ADR 0054), so the
 	// control plane sends what it lacks. An agent that sends none keeps nothing,
 	// and is sent nothing to keep.
-	Desired       *DesiredHeld `protobuf:"bytes,160,opt,name=desired,proto3" json:"desired,omitempty"`
+	Desired *DesiredHeld `protobuf:"bytes,160,opt,name=desired,proto3" json:"desired,omitempty"`
+	// True when the agent sets what a container asks of itself: its hostname, an
+	// init, a terminal, its input kept open, its stop signal, its limits, a
+	// read-only filesystem, a most of processes, its DNS servers and
+	// no-new-privileges (Container 90 to 99, ADR 0085). The control plane plans none
+	// of them on an agent that doesn't say so, which would leave them out. Other
+	// stores' work takes 300 to 309 in agent messages.
+	OwnSettings   bool `protobuf:"varint,300,opt,name=own_settings,json=ownSettings,proto3" json:"own_settings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2176,6 +2183,13 @@ func (x *Hello) GetDesired() *DesiredHeld {
 		return x.Desired
 	}
 	return nil
+}
+
+func (x *Hello) GetOwnSettings() bool {
+	if x != nil {
+		return x.OwnSettings
+	}
+	return false
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -13729,7 +13743,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xbd\a\n" +
+	"\bDraining\"\xe1\a\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -13754,7 +13768,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06drills\x18\xdd\x01 \x01(\bR\x06drills\x12\x1b\n" +
 	"\bforwards\x18\xca\x01 \x01(\bR\bforwards\x12(\n" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x129\n" +
-	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\"r\n" +
+	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
+	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
 	"\adamaged\x18\x02 \x01(\rR\adamaged\x12\x14\n" +

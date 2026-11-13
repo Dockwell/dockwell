@@ -430,8 +430,9 @@ func TestASecretInsideALongerValue(t *testing.T) {
 }
 
 // A secret a Dokploy template writes out keeps its name wherever the file uses it, so
-// it's generated in a command as anywhere else, and the catalog refuses it inside a
-// longer one. A code to get in with is a secret too (the narrow check of #327).
+// it's generated in a command as anywhere else, where a word names it as the
+// container is made (ADR 0085). A code to get in with is a secret too (the narrow
+// check of #327).
 func TestADokploySecretKeepsItsName(t *testing.T) {
 	results := convertTree(t, Dokploy, DokploySource("abc"), map[string]string{
 		"blueprints/redis/docker-compose.yml": "services:\n  web:\n    image: example/web:1.0.0\n  cache:\n    image: example/cache:1.0.0\n" +
@@ -442,8 +443,10 @@ func TestADokploySecretKeepsItsName(t *testing.T) {
 		"blueprints/lobe/docker-compose.yml": "services:\n  web:\n    image: example/web:1.0.0\n    environment:\n      ACCESS_CODE: lobe66\n",
 		"blueprints/lobe/template.toml":      dokployVars + dokployRoute,
 	})
-	if r := results["redis"]; r.Entry != nil || !strings.Contains(r.LeftOut, "REDIS_PASSWORD") || strings.Contains(r.LeftOut, "hunter22") {
-		t.Errorf("a secret in a command: %s, %q", r.Class, r.LeftOut)
+	redis := entryOf(t, results, "redis")
+	if in := inputsByName(redis)["REDIS_PASSWORD"]; in.GetGenerate() != 32 || strings.Contains(redis.GetCompose(), "hunter22") ||
+		!strings.Contains(redis.GetCompose(), "--requirepass ${REDIS_PASSWORD}") {
+		t.Errorf("a secret in a command is %v, and its file:\n%s", in, redis.GetCompose())
 	}
 	auth := entryOf(t, results, "auth")
 	if in := inputsByName(auth)["DB_PASSWORD"]; in.GetGenerate() != 32 || strings.Contains(auth.GetCompose(), "hunter22") ||

@@ -151,8 +151,8 @@ message SkipServiceUpdateRequest {
   string project = 2;
   // The environment of a service named by name, by name or ID.
   string environment = 3;
-  // The version, as an AvailableUpdate's to_version says it, such as "17.2", or
-  // its to_digest, for a new build, or its to_commit.
+  // The version, as an AvailableUpdate's skip_as says it: its to_version, such as
+  // "17.2", its to_digest, for a new build, its to_commit, or "release:7".
   string version = 4;
   // Takes the skip back, so the version shows again.
   bool unskip = 5;
@@ -250,6 +250,11 @@ message AvailableUpdate {
   // True when a person skipped this very version for this service. It counts
   // nowhere and sends no alert, and a newer one still shows.
   bool skipped = 13;
+  // What skipping it names it by, as SkipServiceUpdate's version takes it: its
+  // version, its new digest, its commit, or "release:7" for a catalog release whose
+  // version stays, or names a tag that moves, such as latest, so skipping one
+  // release never skips the next (ADR 0085). Other stores' work takes 90 to 99 here.
+  string skip_as = 90;
 }
 
 // UpdateKind is the size of a step from what runs to a newer version.

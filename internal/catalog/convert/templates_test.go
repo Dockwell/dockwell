@@ -277,3 +277,28 @@ func TestTemplatesReadOnlyTheirCheckout(t *testing.T) {
 		}
 	}
 }
+
+// M1: a store's app that locks memory with no limit is left out, as locked memory
+// can't be reclaimed from the server; one with a limit converts (ADR 0085).
+func TestAStoresAppLocksNoUnlimitedMemory(t *testing.T) {
+	board, err := os.ReadFile("testdata/coolify/templates/compose/board.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	with := func(limits string) string {
+		return strings.Replace(string(board), "    image: example/board:3.2.1\n", "    image: example/board:3.2.1\n    ulimits:\n"+limits, 1)
+	}
+	results := convertTree(t, Coolify, CoolifySource("abc"), map[string]string{
+		"templates/compose/unlimited.yaml": with("      memlock: -1\n"),
+		"templates/compose/softhard.yaml":  with("      memlock: {soft: -1, hard: -1}\n"),
+		"templates/compose/limited.yaml":   with("      memlock: {soft: 65536, hard: 65536}\n      nofile: 65536\n"),
+	})
+	for _, id := range []string{"unlimited", "softhard"} {
+		if r := results[id]; r.Entry != nil || r.Class != ClassCantRun || !strings.Contains(r.LeftOut, "locks memory with no limit") {
+			t.Errorf("%s: %s, %q", id, r.Class, r.LeftOut)
+		}
+	}
+	if r := results["limited"]; strings.Contains(r.LeftOut, "locks memory") {
+		t.Errorf("a limited memlock: %q", r.LeftOut)
+	}
+}

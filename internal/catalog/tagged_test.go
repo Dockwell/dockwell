@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -50,8 +51,14 @@ func TestCheckTaggedTakesAVersionsTag(t *testing.T) {
 	if len(image) == 0 || !strings.HasPrefix(image[0], "postgres:") {
 		t.Fatalf("TaggedImages = %v", image)
 	}
+	// A tag that moves is pinned when an install is planned too, and its newer builds
+	// are updates (ADR 0085).
+	moving := proto.CloneOf(e)
+	moving.Compose = strings.Replace(e.GetCompose(), "image: "+image[0], "image: postgres:latest", 1)
+	if err := catalog.CheckTagged(moving); err != nil {
+		t.Errorf("CheckTagged refused a moving tag: %v", err)
+	}
 	for name, edit := range map[string]func(string) string{
-		"latest": func(s string) string { return strings.Replace(s, "image: "+image[0], "image: postgres:latest", 1) },
 		"no tag": func(s string) string { return strings.Replace(s, "image: "+image[0], "image: postgres", 1) },
 		"quoted": func(s string) string { return strings.Replace(s, "image: "+image[0], `image: "`+image[0]+`"`, 1) },
 		"a comment": func(s string) string {
@@ -99,5 +106,24 @@ func TestPinsOfATaggedEntry(t *testing.T) {
 	newer.Compose = strings.Replace(newer.GetCompose(), image, image+".1", 1)
 	if !catalog.Upgrades(newer, pin) {
 		t.Error("a higher release that moves the tag offers no upgrade")
+	}
+}
+
+// A tag that moves names no version: latest, stable and the rest, and an image named
+// with no tag, which Docker pulls as latest, with or without the digest an install
+// pinned it to (ADR 0085).
+func TestMoving(t *testing.T) {
+	digest := "@sha256:" + strings.Repeat("a", 64)
+	for image, want := range map[string]bool{
+		"nginx": true, "nginx:latest": true, "nginx:latest" + digest: true, "acme/web:stable": true, "registry:5000/web": true,
+		"nginx" + digest: false, "nginx:1.27": false, "nginx:1.27" + digest: false, "registry:5000/web:1.0": false, "acme/web:16-alpine": false,
+	} {
+		if got := catalog.Moving(image); got != want {
+			t.Errorf("Moving(%q) = %v, want %v", image, got, want)
+		}
+	}
+	compose := "services:\n  web:\n    image: nginx:latest\n  db:\n    image: postgres:16.4\n  cache:\n    image: redis:stable" + digest + "\n"
+	if got := catalog.MovingImages(compose); !slices.Equal(got, []string{"nginx:latest", "redis:stable"}) {
+		t.Errorf("MovingImages = %v", got)
 	}
 }

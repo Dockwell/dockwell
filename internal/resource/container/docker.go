@@ -246,6 +246,8 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	add("user", spec.GetUser() != "")
 	add("working_dir", spec.GetWorkingDir() != "")
 	add("shm_size", spec.GetShmSize() != "")
+	add("hostname", spec.GetHostname() != "")
+	add("stop_signal", spec.GetStopSignal() != "")
 	for _, p := range spec.GetExpose() {
 		set = append(set, "expose:"+p)
 	}
@@ -286,6 +288,10 @@ type referenceWords struct {
 	Command    []string `json:"command,omitempty"`
 	Entrypoint []string `json:"entrypoint,omitempty"`
 	Test       []string `json:"healthcheck.test,omitempty"`
+	// Scripts says which word of each field is a shell's script, which keeps its
+	// names for the shell (binding.RenderField). A label from before has none, and
+	// its container had every value written in.
+	Scripts map[string]int `json:"scripts,omitempty"`
 }
 
 // referencesLabel is LabelReferences for a spec, or empty when it lists nothing.
@@ -304,6 +310,14 @@ func referencesLabel(spec *resourcev1.Container) string {
 	if words.Command == nil && words.Entrypoint == nil && words.Test == nil {
 		return ""
 	}
+	for _, field := range spec.GetReferences() {
+		if s := binding.ScriptIn(spec, field); s >= 0 {
+			if words.Scripts == nil {
+				words.Scripts = map[string]int{}
+			}
+			words.Scripts[field] = s
+		}
+	}
 	b, _ := json.Marshal(words)
 	return string(b)
 }
@@ -313,7 +327,7 @@ func referencesLabel(spec *resourcev1.Container) string {
 // holds this text: Labels, the config hash and what a plan reads all go by the spec.
 func rendered(req *docker.CreateRequest, spec *resourcev1.Container) error {
 	for _, field := range spec.GetReferences() {
-		words, err := binding.Render(binding.WordsOf(spec, field), spec.GetEnv())
+		words, err := binding.RenderField(binding.WordsOf(spec, field), spec.GetEnv(), binding.ScriptIn(spec, field))
 		if err != nil {
 			return fmt.Errorf("can't write the %s: %w. Plan the change again", field, err)
 		}
@@ -353,11 +367,21 @@ func readWords(c *docker.Container, out *resourcev1.Container) {
 			return nil
 		}
 		out.References = append(out.References, field)
-		got, err := binding.Render(want, env)
-		if field == binding.FieldEntrypoint {
-			got = noEntrypoint(got)
+		script, ok := words.Scripts[field]
+		if !ok {
+			script = -1
 		}
-		if !unreadable && err == nil && slices.Equal(got, have) {
+		comesTo := func(script int) bool {
+			got, err := binding.RenderField(want, env, script)
+			if field == binding.FieldEntrypoint {
+				got = noEntrypoint(got)
+			}
+			return err == nil && slices.Equal(got, have)
+		}
+		// docker compose, running an export, writes each value into a script, as
+		// Compose does any value it's given, where Dockwell keeps the name for the
+		// shell: that container is the spec too.
+		if !unreadable && (comesTo(script) || script >= 0 && comesTo(-1)) {
 			return want
 		}
 		return []string{binding.Unread}
@@ -621,6 +645,12 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	req.HostConfig.Privileged, req.HostConfig.CapAdd, req.HostConfig.CapDrop, req.HostConfig.GroupAdd =
 		spec.GetPrivileged(), spec.GetCapAdd(), spec.GetCapDrop(), spec.GetGroupAdd()
 	req.HostConfig.ExtraHosts = spec.GetExtraHosts()
+	req.Hostname, req.Tty, req.OpenStdin, req.StopSignal = spec.GetHostname(), spec.GetTty(), spec.GetStdinOpen(), spec.GetStopSignal()
+	req.HostConfig.Init, req.HostConfig.Ulimits, req.HostConfig.DNS = dockerInit(spec), dockerUlimits(spec), spec.GetDns()
+	req.HostConfig.ReadonlyRootfs, req.HostConfig.PidsLimit = spec.GetReadOnly(), spec.GetPidsLimit()
+	if spec.GetNoNewPrivileges() {
+		req.HostConfig.SecurityOpt = []string{noNewPrivileges}
+	}
 	req.HostConfig.NanoCPUs = cpuNanos(spec.GetResources().GetCpus())
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
@@ -916,6 +946,25 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 		ExtraHosts:     extraHostsOf(c.HostConfig.ExtraHosts),
 		Resources:      projectResources(&c.HostConfig),
 		Tmpfs:          projectTmpfs(&c.HostConfig),
+		Init:           c.HostConfig.Init != nil && *c.HostConfig.Init,
+		Tty:            c.Config.Tty,
+		StdinOpen:      c.Config.OpenStdin,
+		Ulimits:        ulimitsOf(c.HostConfig.Ulimits),
+		ReadOnly:       c.HostConfig.ReadonlyRootfs,
+		PidsLimit:      max(c.HostConfig.PidsLimit, 0),
+		Dns:            c.HostConfig.DNS,
+		NoNewPrivileges: slices.ContainsFunc(c.HostConfig.SecurityOpt, func(o string) bool {
+			on, ok := NoNewPrivileges(o)
+			return ok && on
+		}),
+	}
+	// Docker names each container for the start of its ID unless asked for another,
+	// and gives one on the server's network the server's name.
+	if h := c.Config.Hostname; set["hostname"] || h != "" && !strings.HasPrefix(c.ID, h) && c.HostConfig.NetworkMode != "host" {
+		out.Hostname = h
+	}
+	if s := c.Config.StopSignal; set["stop_signal"] || s != "" && s != img.StopSignal {
+		out.StopSignal = s
 	}
 	if s := c.HostConfig.ShmSize; set["shm_size"] || s != dockerShmSize {
 		out.ShmSize = FormatMemory(s)

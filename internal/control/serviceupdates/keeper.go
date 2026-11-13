@@ -15,6 +15,7 @@ import (
 	"math/rand/v2"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -76,6 +78,8 @@ type CatalogInstall struct {
 	// newer release's, both empty and 0 when it's up to date.
 	FromVersion, ToVersion string
 	ToRelease              uint32
+	// Release is the release of its entry it runs.
+	Release uint32
 	// Notes is where the app's releases are, an https address, or empty.
 	Notes string
 }
@@ -195,7 +199,9 @@ func decodeSkipped(s string) []string {
 }
 
 // target is what skipping an update names it by: its version, its new digest
-// for a new build, or its commit.
+// for a new build, or its commit. A catalog release whose version stays, or names
+// a tag that moves, such as latest, is named by its release number, so skipping
+// it never skips the next one (ADR 0085).
 func target(a *dockwellv1.AvailableUpdate) string {
 	switch a.GetKind() {
 	case dockwellv1.UpdateKind_UPDATE_KIND_DIGEST:
@@ -204,6 +210,9 @@ func target(a *dockwellv1.AvailableUpdate) string {
 		return a.GetToCommit()
 	case dockwellv1.UpdateKind_UPDATE_KIND_UNSPECIFIED, dockwellv1.UpdateKind_UPDATE_KIND_PATCH, dockwellv1.UpdateKind_UPDATE_KIND_MINOR,
 		dockwellv1.UpdateKind_UPDATE_KIND_MAJOR, dockwellv1.UpdateKind_UPDATE_KIND_RELEASE:
+	}
+	if r := a.GetCatalogRelease(); r > 0 && (registry.Step(a.GetFromVersion(), a.GetToVersion()) == registry.KindNone || catalog.MovingTags[a.GetToVersion()]) {
+		return "release:" + strconv.FormatUint(uint64(r), 10)
 	}
 	return a.GetToVersion()
 }
@@ -294,6 +303,9 @@ func (k *Keeper) Describe(ctx context.Context, subjects []Subject) (map[string]*
 		switch {
 		case isInstall:
 			u = catalogUpdate(install, now)
+			if kept && s.Spec != nil && catalog.Moving(imageOf(s.Spec)) {
+				newBuilds(u, k.keptUpdate(row, s), install)
+			}
 		case kept && s.Spec != nil:
 			u = k.keptUpdate(row, s)
 		default:
@@ -387,13 +399,35 @@ func catalogUpdate(c CatalogInstall, now time.Time) *dockwellv1.ServiceUpdate {
 	return u
 }
 
+// newBuilds adds to a catalog install's update each new build its check found of an
+// image the install runs by a tag that moves, such as latest, which upgrading the
+// install takes (ADR 0085). Each is offered at the release it runs, as it upgrades
+// through its catalog and takes no image.
+func newBuilds(u, found *dockwellv1.ServiceUpdate, install CatalogInstall) {
+	if found == nil {
+		return
+	}
+	for _, a := range found.GetAvailable() {
+		if a.GetKind() != dockwellv1.UpdateKind_UPDATE_KIND_DIGEST {
+			continue
+		}
+		a.CatalogRelease = install.Release
+		u.Available = append(u.Available, a)
+	}
+	if len(u.Available) > 0 {
+		u.Check = dockwellv1.UpdateCheck_UPDATE_CHECK_AVAILABLE
+	}
+	sortAvailable(u.Available)
+}
+
 // applyPerson marks what a person skipped, says a snooze, and sets the check's
 // state by what's left.
 func applyPerson(u *dockwellv1.ServiceUpdate, row store.ServiceUpdate, now time.Time) {
 	skipped := decodeSkipped(row.Skipped)
 	left := 0
 	for _, a := range u.GetAvailable() {
-		a.Skipped = slices.Contains(skipped, target(a))
+		a.SkipAs = target(a)
+		a.Skipped = slices.Contains(skipped, a.GetSkipAs())
 		if !a.GetSkipped() {
 			left++
 		}

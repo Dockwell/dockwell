@@ -157,10 +157,18 @@ var (
 	serviceKeys = keys("image", "command", "entrypoint", "environment", "ports", "restart", "labels", "volumes",
 		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose", "stop_grace_period",
 		"container_name", "build", "deploy", "cpus", "mem_limit", "mem_reservation",
-		"cap_add", "cap_drop", "group_add", "privileged", "logging", "shm_size", "tmpfs", "extra_hosts")
+		"cap_add", "cap_drop", "group_add", "privileged", "logging", "shm_size", "tmpfs", "extra_hosts",
+		// What a container asks of itself (ADR 0085). Dockwell pulls the digest a plan
+		// pins whenever a server hasn't it, so a pull policy says nothing it does, and
+		// is taken and dropped, but for build.
+		"hostname", "init", "tty", "stdin_open", "stop_signal", "ulimits", "read_only", "pids_limit", "dns", "pull_policy",
+		"security_opt")
 	volumeKeys  = keys("driver", "driver_opts", "labels")
 	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
-	healthKeys  = keys("test", "interval", "timeout", "start_period", "retries", "disable")
+	// start_interval is how often a check runs while start_period lasts, which only
+	// says how soon a new container is first seen healthy, and Docker before 25
+	// doesn't keep it, so it's taken and dropped: checks run at interval throughout.
+	healthKeys  = keys("test", "interval", "timeout", "start_period", "start_interval", "retries", "disable")
 	deployKeys  = keys("resources", "replicas", "update_config")
 	updateKeys  = keys("order", "parallelism", "failure_action")
 	portKeys    = keys("target", "published", "host_ip", "protocol", "mode")
@@ -430,6 +438,51 @@ func checkPortRanges(dict map[string]any) error {
 	return nil
 }
 
+// numberUlimits writes each of a service's limits as the number it is, as one a
+// variable gave arrives as text, which compose-go takes as a number and panics on
+// (ADR 0085). Text that's no whole number is refused by its name.
+func numberUlimits(dict map[string]any) error {
+	services, _ := dict["services"].(map[string]any)
+	for _, name := range slices.Sorted(maps.Keys(services)) {
+		svc, _ := services[name].(map[string]any)
+		limits, _ := svc["ulimits"].(map[string]any)
+		for _, limit := range slices.Sorted(maps.Keys(limits)) {
+			at := place{"the service " + name, "ulimits." + limit}
+			number := func(v any) (any, error) {
+				s, ok := v.(string)
+				if !ok {
+					return v, nil
+				}
+				n, err := strconv.Atoi(strings.TrimSpace(s))
+				if err != nil {
+					return nil, invalidAt(at, "the service %s's limit %s is %q, where it takes a whole number, or -1 for no limit", name, limit, s)
+				}
+				return n, nil
+			}
+			switch v := limits[limit].(type) {
+			case map[string]any:
+				for _, k := range []string{"soft", "hard"} {
+					if _, set := v[k]; !set {
+						continue
+					}
+					n, err := number(v[k])
+					if err != nil {
+						return err
+					}
+					v[k] = n
+				}
+			default:
+				n, err := number(v)
+				if err != nil {
+					return err
+				}
+				limits[limit] = n
+			}
+		}
+	}
+	return nil
+}
+
 // portsIn is how many ports a short-form mapping's largest range holds.
 func portsIn(mapping string) int {
 	mapping, _, _ = strings.Cut(mapping, "/")
@@ -604,6 +657,9 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if err := checkPortRanges(dict); err != nil {
 		return nil, err
 	}
+	if err := numberUlimits(dict); err != nil {
+		return nil, err
+	}
 	extensions, err := takeExtensions(dict)
 	if err != nil {
 		return nil, err
@@ -685,7 +741,15 @@ func checkPlanWords(s *Stack) error {
 // loader does: each type that reads its own short forms, such as a
 // command given as one string, does, and strings become the numbers and
 // booleans they stand for.
-func decode(dict map[string]any, out *model) error {
+func decode(dict map[string]any, out *model) (err error) {
+	// compose-go asserts what a value is in places, and panics on what it didn't
+	// expect. What's read may be a stranger's file, read as a store refreshes with
+	// nobody watching (ADR 0078), so a panic there is a file Dockwell can't read.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("a value isn't what Compose takes there (%v)", r)
+		}
+	}()
 	hook := func(from, to reflect.Value) (any, error) {
 		type decoder interface{ DecodeMapstructure(any) error }
 		u, ok := to.Interface().(decoder)
@@ -878,6 +942,41 @@ func ordered(services types.Services) ([]string, error) {
 	return out, nil
 }
 
+// ownSettings reads what a service asks of its container itself, as Compose names
+// it: its hostname, an init, a terminal, its input kept open, its stop signal, its
+// limits, a read-only filesystem, how many processes it runs and its DNS servers
+// (ADR 0085).
+func ownSettings(what string, s *types.ServiceConfig, c *resourcev1.Container) error {
+	if s.PullPolicy == types.PullPolicyBuild {
+		return invalidAt(place{what, "pull_policy"}, "%s %s", what, why["build"])
+	}
+	c.Hostname, c.Tty, c.StdinOpen, c.StopSignal, c.ReadOnly = s.Hostname, s.Tty, s.StdinOpen, s.StopSignal, s.ReadOnly
+	c.Init = s.Init != nil && *s.Init
+	for _, opt := range s.SecurityOpt {
+		on, ok := container.NoNewPrivileges(opt)
+		if !ok {
+			return invalidAt(place{what, "security_opt"}, "%s uses security_opt %s, which Dockwell can't run yet, as it loosens what confines the container. "+
+				"Remove it; no-new-privileges:true is the one Dockwell takes", what, opt)
+		}
+		c.NoNewPrivileges = on
+	}
+	// Compose's -1 is no limit, as a spec's 0 is.
+	c.PidsLimit = max(s.PidsLimit, 0)
+	c.Dns = slices.Clone(s.DNS)
+	for _, name := range slices.Sorted(maps.Keys(s.Ulimits)) {
+		u := s.Ulimits[name]
+		if u == nil {
+			return invalidAt(place{what, "ulimits." + name}, "%s gives the limit %s no value. Give one, such as %s: 65535, or soft and hard", what, name, name)
+		}
+		soft, hard := int64(u.Soft), int64(u.Hard)
+		if u.Single != 0 {
+			soft, hard = int64(u.Single), int64(u.Single)
+		}
+		c.Ulimits = append(c.Ulimits, &resourcev1.Ulimit{Name: name, Soft: soft, Hard: hard})
+	}
+	return nil
+}
+
 // extraHosts are a file's extra_hosts as a spec keeps them, hostname:address, which
 // compose-go reads from a list or a mapping into one map.
 func extraHosts(h types.HostsList) []string {
@@ -943,6 +1042,9 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	c.CapAdd, c.CapDrop, c.GroupAdd, c.Privileged, c.Resources = s.CapAdd, s.CapDrop, s.GroupAdd, s.Privileged, p.limits[name]
 	c.ShmSize, c.Tmpfs = p.memory[name].shm, p.memory[name].tmpfs
 	c.ExtraHosts = extraHosts(s.ExtraHosts)
+	if err := ownSettings(what, s, c); err != nil {
+		return nil, err
+	}
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {
 		v := s.Environment[k]
 		if v == nil && slices.ContainsFunc(uses, func(u resource.Use) bool { return u.As == k }) {

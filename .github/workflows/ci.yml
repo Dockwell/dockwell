@@ -320,6 +320,46 @@ jobs:
           echo "The Catalog on Docker groups ended: $RESULT"
           test "$RESULT" = success
 
+  store-docker:
+    name: Other stores on Docker
+    runs-on: ubuntu-24.04
+    # About 5 minutes, most of it pulling the sample's images.
+    timeout-minutes: 20
+    # 1Panel's app store, Dokploy's templates and Coolify's, at the commits
+    # internal/catalog/convert/rates.json pins: each converts on the server as its
+    # record says, so a change that makes an app stop converting fails here, and a
+    # sample of what converts installs, runs and answers on real Docker, with
+    # Dockwell as root, as on a server (ADR 0085).
+    env:
+      E2E_ROOT: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # It runs a stranger's images as root, so the job's token stays out of the
+          # checkout's Git config.
+          persist-credentials: false
+      # The steps after this one run only when this change needs this job,
+      # from the files it changes (docs/adr/0050-ci-runs-what-a-change-needs.md).
+      - name: Whether this change needs this job
+        id: pick
+        run: scripts/ci-jobs.sh needs store-docker
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.pick.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/go.sum
+      - name: What each store converts to
+        if: steps.pick.outputs.run == 'true'
+        run: make store-rates
+      - name: Docker
+        if: steps.pick.outputs.run == 'true'
+        run: docker version
+      - name: A sample of each store's apps end to end
+        if: steps.pick.outputs.run == 'true'
+        run: make store-e2e
+
   docker-panel:
     name: Panel end to end on Docker
     runs-on: ubuntu-24.04

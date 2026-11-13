@@ -117,12 +117,56 @@ message Container {
   // and reaches nothing a container couldn't without it. Numbered in the
   // catalog's block, 80 to 89, apart from fields other work adds.
   repeated string extra_hosts = 80;
+  // What follows is what other stores' apps ask of their containers, as Compose
+  // names it (ADR 0085), numbered in that work's block, 90 to 99. Each changes
+  // only the container itself, and reaches nothing on the server.
+  //
+  // Its own hostname, which it sees as its name, such as "mail.example.com".
+  // Empty takes Docker's, the first 12 of its ID. What reaches it by name on a
+  // network goes by its service's name, whatever this says.
+  string hostname = 90;
+  // Runs a small init as its first process, Docker's own, which reaps what its
+  // processes leave behind and passes signals on, as Compose's init.
+  bool init = 91;
+  // Gives it a terminal, as Compose's tty, for an app that only starts with one.
+  bool tty = 92;
+  // Keeps its standard input open, as Compose's stdin_open, for an app that
+  // exits when its input ends.
+  bool stdin_open = 93;
+  // The signal that asks it to stop, such as "SIGQUIT", before stop_grace_period
+  // ends with a kill. Empty takes its image's, or SIGTERM.
+  string stop_signal = 94;
+  // Limits its processes have, such as how many files each may open, as Compose's
+  // ulimits. One left out takes Docker's.
+  repeated Ulimit ulimits = 95;
+  // Mounts its own filesystem read-only, as Compose's read_only, so it writes
+  // only to its mounts and tmpfs.
+  bool read_only = 96;
+  // The most processes it may run at once, as Compose's pids_limit. 0 sets none.
+  int64 pids_limit = 97;
+  // The DNS servers it asks, by address, such as "1.1.1.1", in order. Empty asks
+  // what Docker gives it.
+  repeated string dns = 98;
+  // Keeps its processes from gaining privileges they didn't start with, as through
+  // a setuid program, as Compose's security_opt: [no-new-privileges:true].
+  bool no_new_privileges = 99;
   // The registry login its image is pulled with, by name, a login its project may
   // use. Empty pulls with the one login for the image's registry its project may
   // use, when there's exactly one, and with none otherwise. See
   // docs/adr/0086-registry-logins-for-private-images.md. Numbered in the block
   // registry logins hold, 100 to 109.
   string registry_login = 100;
+}
+
+// Ulimit is a limit of a container's processes, by its name, as ulimit says it.
+message Ulimit {
+  // Which limit, such as "nofile" for open files, "nproc" for processes, or
+  // "memlock" for locked memory.
+  string name = 1;
+  // The limit a process starts with, and the most it may raise it to. -1 is no
+  // limit.
+  int64 soft = 2;
+  int64 hard = 3;
 }
 
 // Tmpfs is a filesystem held in memory, at a path in a container.

@@ -17,10 +17,8 @@ import (
 
 // reading is what a container's settings are read against.
 type reading struct {
-	c *docker.Container
-	// imageSignal is the stop signal its image gives it.
-	imageSignal string
-	info        *docker.Info
+	c    *docker.Container
+	info *docker.Info
 }
 
 // A rule reads the value of a key of a container's settings, and names what it runs
@@ -84,12 +82,13 @@ var hostConfigRules = map[string]rule{
 	// A spec holds these, as Project reads them.
 	"CapAdd": kept, "CapDrop": kept, "GroupAdd": kept, "ExtraHosts": kept, "Memory": kept, "MemoryReservation": kept,
 	"NanoCpus": kept, "Privileged": kept, "RestartPolicy": kept, "ShmSize": kept,
+	"Dns": kept, "Init": kept, "ReadonlyRootfs": kept, "PidsLimit": kept, "Ulimits": kept,
 	// These say how it was started, or follow from what's refused below by name: the
 	// paths Docker masks depend on its version and on security_opt and privileged.
 	"ConsoleSize": kept, "ContainerIDFile": kept, "MaskedPaths": kept, "ReadonlyPaths": kept,
 
 	"Binds": readBinds, "CgroupnsMode": readCgroupns, "LogConfig": readLogging, "MemorySwap": readSwap,
-	"Mounts": readMountList, "NetworkMode": readNetworkMode, "PidsLimit": readPidsLimit, "Runtime": readRuntime,
+	"Mounts": readMountList, "NetworkMode": readNetworkMode, "Runtime": readRuntime,
 	"PortBindings": readPortBindings, "Tmpfs": readTmpfs,
 
 	"Annotations": only("annotations"), "AutoRemove": only("auto remove (--rm)"),
@@ -101,14 +100,14 @@ var hostConfigRules = map[string]rule{
 	"CpuRealtimePeriod": only("cpu_rt_period"), "CpuRealtimeRuntime": only("cpu_rt_runtime"),
 	"CpuShares": only("cpu_shares"), "CpusetCpus": only("cpuset"), "CpusetMems": only("cpuset memory nodes"),
 	"DeviceCgroupRules": only("device_cgroup_rules"), "DeviceRequests": only("gpus"), "Devices": only("devices"),
-	"Dns": only("dns"), "DnsOptions": only("dns_opt"), "DnsSearch": only("dns_search"),
+	"DnsOptions": only("dns_opt"), "DnsSearch": only("dns_search"),
 	"IOMaximumBandwidth": only("an I/O limit"), "IOMaximumIOps": only("an I/O limit"),
-	"Init": only("init"), "IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
+	"IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
 	"Links": only("links"), "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
 	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid"), "PublishAllPorts": only("publish_all_ports (-P)"),
-	"ReadonlyRootfs": only("read_only"), "SecurityOpt": only("security_opt"),
-	"StorageOpt": only("storage_opt"), "Sysctls": only("sysctls"), "UTSMode": only("uts"),
-	"Ulimits": only("ulimits"), "Umask": only("umask"), "UsernsMode": only("userns_mode"),
+	"SecurityOpt": readSecurityOpt,
+	"StorageOpt":  only("storage_opt"), "Sysctls": only("sysctls"), "UTSMode": only("uts"),
+	"Umask": only("umask"), "UsernsMode": only("userns_mode"),
 	"VolumeDriver": only("volume_driver"), "VolumesFrom": only("volumes_from"),
 }
 
@@ -116,24 +115,24 @@ var hostConfigRules = map[string]rule{
 var configRules = map[string]rule{
 	// A spec holds these.
 	"Cmd": kept, "Entrypoint": kept, "Env": kept, "ExposedPorts": kept, "Image": kept, "Labels": kept, "StopTimeout": kept,
-	"User": kept, "WorkingDir": kept,
+	"User": kept, "WorkingDir": kept, "OpenStdin": kept, "Tty": kept,
 	// How it was started, and what its image says, which it says again. A replace
 	// carries each anonymous volume over, whoever asked for it: see createRequest.
 	"ArgsEscaped": kept, "AttachStderr": kept, "AttachStdin": kept, "AttachStdout": kept,
 	"OnBuild": kept, "Shell": kept, "StdinOnce": kept, "Volumes": kept,
 
-	"Healthcheck": readHealthcheck, "Hostname": readHostname, "StopSignal": readStopSignal,
+	"Hostname": kept, "StopSignal": kept,
+	"Healthcheck": readHealthcheck,
 
 	"Domainname": only("domainname"), "MacAddress": only("mac_address"), "NetworkDisabled": only("network_mode: none"),
-	"OpenStdin": only("stdin_open"), "Tty": only("tty"),
 }
 
 // noSpecHolds lists what a container runs with that no spec can say, so a replace
 // would drop it without a word. What Dockwell can't run is refused by name, never
 // dropped (ADR 0021), and being taken on is the promise that a later change of image
 // is safe.
-func noSpecHolds(c *docker.Container, o *docker.Options, imageSignal string, info *docker.Info) []string {
-	r := &reading{c: c, imageSignal: imageSignal, info: info}
+func noSpecHolds(c *docker.Container, o *docker.Options, info *docker.Info) []string {
+	r := &reading{c: c, info: info}
 	out := readKeys("Config", o.Config, configRules, r)
 	out = append(out, readKeys("HostConfig", o.HostConfig, hostConfigRules, r)...)
 	for _, name := range slices.Sorted(maps.Keys(o.NetworkSettings.Networks)) {
@@ -410,14 +409,6 @@ func readSwap(raw json.RawMessage, r *reading) []string {
 	return nil
 }
 
-func readPidsLimit(raw json.RawMessage, _ *reading) []string {
-	var limit int64
-	if !isZero(raw) && (json.Unmarshal(raw, &limit) != nil || limit > 0) {
-		return []string{"pids_limit"}
-	}
-	return nil
-}
-
 func readNetworkMode(raw json.RawMessage, _ *reading) []string {
 	var mode string
 	if json.Unmarshal(raw, &mode) != nil {
@@ -453,31 +444,6 @@ func readRuntime(raw json.RawMessage, r *reading) []string {
 	return []string{"runtime: " + runtime}
 }
 
-// readHostname reads a container's hostname: its own ID unless someone said, and the
-// server's on the server's own network.
-func readHostname(raw json.RawMessage, r *reading) []string {
-	var name string
-	if json.Unmarshal(raw, &name) != nil {
-		return []string{"Config.Hostname"}
-	}
-	onHost := r.c.HostConfig.NetworkMode == "host" && name == r.info.Name
-	if name == "" || strings.HasPrefix(r.c.ID, name) || onHost {
-		return nil
-	}
-	return []string{"hostname"}
-}
-
-func readStopSignal(raw json.RawMessage, r *reading) []string {
-	var signal string
-	if json.Unmarshal(raw, &signal) != nil {
-		return []string{"Config.StopSignal"}
-	}
-	if signal != "" && signal != r.imageSignal {
-		return []string{"stop_signal"}
-	}
-	return nil
-}
-
 // readHealthcheck reads what a spec's health check can't hold.
 func readHealthcheck(raw json.RawMessage, _ *reading) []string {
 	var check map[string]json.RawMessage
@@ -486,6 +452,24 @@ func readHealthcheck(raw json.RawMessage, _ *reading) []string {
 	}
 	if !isZero(check["StartInterval"]) {
 		return []string{"healthcheck start_interval"}
+	}
+	return nil
+}
+
+// readSecurityOpt reads a container's security options: no-new-privileges a spec
+// holds (ADR 0085), and any other option is named.
+func readSecurityOpt(raw json.RawMessage, _ *reading) []string {
+	var opts []string
+	if isZero(raw) {
+		return nil
+	}
+	if json.Unmarshal(raw, &opts) != nil {
+		return []string{"security_opt"}
+	}
+	for _, o := range opts {
+		if _, ok := NoNewPrivileges(o); !ok {
+			return []string{"security_opt"}
+		}
 	}
 	return nil
 }

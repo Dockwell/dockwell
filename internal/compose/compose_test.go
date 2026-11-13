@@ -404,3 +404,75 @@ func TestExtraHosts(t *testing.T) {
 		})
 	}
 }
+
+// What a service asks of its container itself reads into its spec, and an export
+// writes it back as it came (ADR 0085). A pull policy and a check's start interval
+// go in no spec, as they change nothing Dockwell does.
+func TestWhatAContainerAsksOfItself(t *testing.T) {
+	file := `services:
+  web:
+    image: nginx:1.27
+    hostname: mail.example.com
+    init: true
+    tty: true
+    stdin_open: true
+    stop_signal: SIGQUIT
+    read_only: true
+    pids_limit: 200
+    dns: [10.0.0.53, 1.1.1.1]
+    pull_policy: always
+    security_opt: [no-new-privileges:true]
+    ulimits:
+      nproc: 65535
+      nofile: {soft: "20000", hard: 40000}
+    healthcheck: {test: [CMD, run], start_interval: 5s}
+`
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := stack.Services[0].Spec.GetApp()
+	if c.GetHostname() != "mail.example.com" || !c.GetInit() || !c.GetTty() || !c.GetStdinOpen() || c.GetStopSignal() != "SIGQUIT" ||
+		!c.GetReadOnly() || c.GetPidsLimit() != 200 || !slices.Equal(c.GetDns(), []string{"10.0.0.53", "1.1.1.1"}) || !c.GetNoNewPrivileges() {
+		t.Errorf("reads as %v", c)
+	}
+	limits := map[string][2]int64{}
+	for _, u := range c.GetUlimits() {
+		limits[u.GetName()] = [2]int64{u.GetSoft(), u.GetHard()}
+	}
+	if limits["nproc"] != [2]int64{65535, 65535} || limits["nofile"] != [2]int64{20000, 40000} {
+		t.Errorf("limits read as %v", limits)
+	}
+	out, err := compose.Export("env_x", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := compose.Read(t.Context(), compose.Input{File: out.File})
+	if err != nil {
+		t.Fatalf("the export doesn't read back: %v\n%s", err, out.File)
+	}
+	if got := again.Services[0].Spec.GetApp(); !proto.Equal(got, c) {
+		t.Errorf("the export reads back as another spec: %v\n%s", resource.Diff(c, got), out.File)
+	}
+	if strings.Contains(string(out.File), "pull_policy") || strings.Contains(string(out.File), "start_interval") {
+		t.Errorf("the export writes what no spec holds:\n%s", out.File)
+	}
+}
+
+// A pull policy of build builds an image, which Dockwell can't, and a limit that's no
+// number is refused by its name, not with a panic in what reads the file.
+func TestWhatAContainerAsksOfItselfThatDockwellCant(t *testing.T) {
+	for name, c := range map[string]struct{ file, want string }{
+		"a build":           {"services:\n  web:\n    image: nginx:1.27\n    pull_policy: build\n", "builds an image"},
+		"a limit of a word": {"services:\n  web:\n    image: nginx:1.27\n    ulimits: {nofile: {soft: \"${N}\", hard: 4096}}\n", "takes a whole number"},
+		"seccomp loosened":  {"services:\n  web:\n    image: nginx:1.27\n    security_opt: [\"seccomp:unconfined\"]\n", "loosens what confines the container"},
+		"apparmor loosened": {"services:\n  web:\n    image: nginx:1.27\n    security_opt: [\"apparmor=unconfined\"]\n", "loosens what confines the container"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := compose.Read(t.Context(), compose.Input{File: []byte(c.file), Variables: map[string]string{"N": "lots"}})
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("Read = %v, want %q", err, c.want)
+			}
+		})
+	}
+}

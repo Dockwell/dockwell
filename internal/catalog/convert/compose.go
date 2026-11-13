@@ -97,6 +97,11 @@ func rewrite(app App) (rewritten, error) {
 				return out, leave(ClassCantSay, "its service %s has %s, which an entry can't carry", name, key)
 			}
 		}
+		// Memory locked with no limit can't be reclaimed from the server, so a store's
+		// app doesn't get it (ADR 0085).
+		if unlimitedMemlock(mapGet(mapGet(svc, "ulimits"), "memlock")) {
+			return out, leave(ClassCantRun, "its service %s locks memory with no limit (ulimits memlock -1), which can't be reclaimed from the server, so a store's app doesn't get it", name)
+		}
 		if n := mapGet(svc, "container_name"); n != nil {
 			named[n.Value] = name
 		}
@@ -1210,4 +1215,18 @@ var bareVar = regexp.MustCompile(`(^|[^$])\$([A-Za-z_][A-Za-z0-9_]*)`)
 // braceVars writes $NAME as ${NAME}, which Compose reads the same.
 func braceVars(s string) string {
 	return bareVar.ReplaceAllString(s, "${1}$${${2}}")
+}
+
+// unlimitedMemlock reports a memlock limit of -1, as one number or either of soft and
+// hard.
+func unlimitedMemlock(n *yaml.Node) bool {
+	switch {
+	case n == nil:
+		return false
+	case n.Kind == yaml.ScalarNode:
+		return strings.TrimSpace(n.Value) == "-1"
+	case n.Kind == yaml.MappingNode:
+		return unlimitedMemlock(mapGet(n, "soft")) || unlimitedMemlock(mapGet(n, "hard"))
+	}
+	return false
 }

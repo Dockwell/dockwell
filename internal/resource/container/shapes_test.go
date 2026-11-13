@@ -68,7 +68,13 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 		Restart: resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE, RestartRetries: 5,
 		ShmSize: "1G", Tmpfs: []*resourcev1.Tmpfs{{Target: "/run/cache", Size: "64M"}, {Target: "/tmp"}},
 		ExtraHosts: []string{"host.docker.internal:host-gateway", "db.example.com:10.0.0.5"},
+		Hostname:   "mail.example.com", Init: true, Tty: true, StdinOpen: true, StopSignal: "quit", ReadOnly: true, PidsLimit: 200,
+		Ulimits: []*resourcev1.Ulimit{{Name: "nproc", Soft: 65535, Hard: 65535}, {Name: "memlock", Soft: -1, Hard: -1}},
+		Dns:     []string{"10.0.0.53", "1.1.1.1"}, NoNewPrivileges: true,
 	})
+	if spec.GetApp().GetStopSignal() != "SIGQUIT" || spec.GetApp().GetUlimits()[0].GetName() != "memlock" {
+		t.Errorf("Validate keeps %q and %v, not in the form Docker reports", spec.GetApp().GetStopSignal(), spec.GetApp().GetUlimits())
+	}
 	planAndApply(t, l, webRef(), spec)
 	c := e.Container(service.ContainerName(webRef()))
 	h := c.HostConfig
@@ -87,6 +93,14 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 	if !slices.Equal(h.ExtraHosts, []string{"db.example.com:10.0.0.5", "host.docker.internal:host-gateway"}) {
 		t.Errorf("hosts on Docker: %v", h.ExtraHosts)
 	}
+	// What a container asks of itself, as Docker takes it (ADR 0085).
+	if cfg := c.Config; cfg.Hostname != "mail.example.com" || !cfg.Tty || !cfg.OpenStdin || cfg.StopSignal != "SIGQUIT" {
+		t.Errorf("its own settings on Docker: %+v", cfg)
+	}
+	if h.Init == nil || !*h.Init || !h.ReadonlyRootfs || !slices.Equal(h.SecurityOpt, []string{"no-new-privileges"}) || h.PidsLimit != 200 || !slices.Equal(h.DNS, []string{"10.0.0.53", "1.1.1.1"}) ||
+		len(h.Ulimits) != 2 || h.Ulimits[0] != (docker.Ulimit{Name: "memlock", Soft: -1, Hard: -1}) {
+		t.Errorf("its own limits on Docker: %+v", h)
+	}
 	if h.RestartPolicy.Name != "on-failure" || h.RestartPolicy.MaximumRetryCount != 5 {
 		t.Errorf("restart on Docker: %+v", h.RestartPolicy)
 	}
@@ -102,6 +116,24 @@ func TestAServiceRunsAndReadsBackAsItsSpec(t *testing.T) {
 	}
 	if !proto.Equal(got[0], spec) {
 		t.Errorf("reads back as a different spec, which would show as drift: %v", resource.Diff(spec, got[0]))
+	}
+}
+
+// A container that names no hostname reads back with none, though Docker names it
+// for its ID, and one that names its image's stop signal reads back as naming it.
+func TestDockersOwnHostnameIsNotDrift(t *testing.T) {
+	e, l := shapesEngine(t)
+	spec := svc(&resourcev1.Container{})
+	planAndApply(t, l, webRef(), spec)
+	if c, err := e.Client().InspectContainer(t.Context(), service.ContainerName(webRef())); err != nil || c.Config.Hostname == "" {
+		t.Fatalf("the fake engine names no hostname (%v), where Docker names one for the ID, so this proves nothing", err)
+	}
+	got, err := l.Observe(t.Context(), []resource.Ref{webRef()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(got[0], spec) {
+		t.Errorf("Docker's own hostname reads as drift: %v", resource.Diff(spec, got[0]))
 	}
 }
 
@@ -455,6 +487,22 @@ func TestWhatASpecTakes(t *testing.T) {
 		"one name twice":               {&resourcev1.Container{Networks: []string{"a"}, Aliases: []string{"x", "X"}}, "listed twice"},
 		"an environment's network":     {&resourcev1.Container{ExternalNetworks: []string{"ENV_01ABC_back"}}, "has the form of an environment's"},
 		"another form of a container":  {&resourcev1.Container{Networks: []string{"a"}, Aliases: []string{"env_01abc-web-1"}}, "has the form of a service's container"},
+		"a hostname with a space":      {&resourcev1.Container{Hostname: "mail server"}, "isn't a hostname"},
+		"a hostname on host":           {&resourcev1.Container{Hostname: "mail", HostNetwork: true}, "takes no hostname of its own"},
+		"a signal that isn't":          {&resourcev1.Container{StopSignal: "SIGSTOP!"}, "isn't a signal Docker sends"},
+		"a signal past 64":             {&resourcev1.Container{StopSignal: "99"}, "isn't a signal Docker sends"},
+		"a limit that isn't":           {&resourcev1.Container{Ulimits: []*resourcev1.Ulimit{{Name: "files", Soft: 1, Hard: 1}}}, "isn't a limit Docker sets"},
+		"a limit twice":                {&resourcev1.Container{Ulimits: []*resourcev1.Ulimit{{Name: "nofile", Soft: 1, Hard: 1}, {Name: "NOFILE", Soft: 2, Hard: 2}}}, "set twice"},
+		"a soft limit past the hard":   {&resourcev1.Container{Ulimits: []*resourcev1.Ulimit{{Name: "nofile", Soft: 4096, Hard: 1024}}}, "past its hard limit"},
+		"no soft limit under a hard":   {&resourcev1.Container{Ulimits: []*resourcev1.Ulimit{{Name: "memlock", Soft: -1, Hard: 1024}}}, "past its hard limit"},
+		"a limit under -1":             {&resourcev1.Container{Ulimits: []*resourcev1.Ulimit{{Name: "nproc", Soft: -2, Hard: -1}}}, "or -1 for no limit"},
+		"fewer than no processes":      {&resourcev1.Container{PidsLimit: -1}, "0 for no limit"},
+		"a DNS server by name":         {&resourcev1.Container{Dns: []string{"dns.example.com"}}, "isn't an IP address"},
+		"a DNS server on loopback":     {&resourcev1.Container{Dns: []string{"127.0.0.53"}}, "is this server's own address, which a container may not ask"},
+		"a DNS server link-local":      {&resourcev1.Container{Dns: []string{"169.254.169.254"}}, "where a cloud keeps its metadata service"},
+		"a DNS server unspecified":     {&resourcev1.Container{Dns: []string{"0.0.0.0"}}, "is an unspecified address"},
+		"a DNS server multicast":       {&resourcev1.Container{Dns: []string{"ff02::fb"}}, "is a multicast address"},
+		"too many DNS servers":         {&resourcev1.Container{Dns: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5", "10.0.0.6", "10.0.0.7", "10.0.0.8", "10.0.0.9"}}, "up to 8"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c.spec.Image = "nginx:1.27"

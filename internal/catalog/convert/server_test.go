@@ -109,7 +109,11 @@ func TestOnServerConvertsWithoutAPerson(t *testing.T) {
 	if agent := got["agent"]; agent.Entry == nil && agent.Class == ClassWords {
 		t.Errorf("agent waits for its words on the server: %s", agent.LeftOut)
 	}
-	for id, class := range map[string]Class{"scripted": ClassScripts, "amd64only": ClassArch, "onlylatest": ClassNoVersion, "withdb": ClassAnotherApp, "shipped": ClassShipped} {
+	// A version that moves converts, as an install pins the build it points at (ADR 0085).
+	if r := got["onlylatest"]; r.Entry == nil || r.Entry.GetVersion() != "latest" || !strings.Contains(r.Entry.GetCompose(), "image: example/a:latest\n") {
+		t.Errorf("onlylatest: %v, left out %q", r.Entry, r.LeftOut)
+	}
+	for id, class := range map[string]Class{"scripted": ClassScripts, "amd64only": ClassArch, "withdb": ClassAnotherApp, "shipped": ClassShipped} {
 		if r := got[id]; r.Entry != nil || r.Class != class {
 			t.Errorf("%s: class %q (%s), want %q", id, r.Class, r.LeftOut, class)
 		}
@@ -405,5 +409,89 @@ func TestOnServerIsDeterministicAndSaysWhereItsFrom(t *testing.T) {
 	}
 	if got := store.SourceName("https://github.com/coollabsio/coolify/"); got != "Coolify's templates" {
 		t.Errorf("Coolify's own repository reads as %q", got)
+	}
+}
+
+// A tag that moves, such as latest, converts on the server, as an install pins the
+// build it points at when it's planned, and an image named with no tag is written as
+// latest, what Docker pulls for it. The offline converter, which pins as it
+// converts, still leaves such an app out (ADR 0085).
+func TestOnServerTakesATagThatMoves(t *testing.T) {
+	store := storeOf(t, FormatCoolify)
+	src := Source{Name: store.Name, Repository: "https://example.com/coolify", Commit: strings.Repeat("c", 40), License: "Apache-2.0"}
+	plain := "# slogan: Plain.\n# port: 80\nservices:\n  web:\n    image: nginx:1.27\n    environment:\n      - SERVICE_URL_WEB_80\n"
+	l := listingOf(t, store, t.TempDir(), map[string]string{
+		"templates/compose/latest.yaml":   strings.Replace(plain, "nginx:1.27", "nginx:latest", 1),
+		"templates/compose/bare.yaml":     strings.Replace(plain, "nginx:1.27", "ghcr.io/acme/web", 1),
+		"templates/compose/port.yaml":     strings.Replace(plain, "nginx:1.27", "registry.example.com:5000/web", 1),
+		"templates/compose/stable.yaml":   strings.Replace(plain, "nginx:1.27", "acme/web:stable", 1),
+		"templates/compose/variable.yaml": strings.Replace(plain, "nginx:1.27", "acme/web:${TAG:-latest}", 1),
+	})
+	run, err := OnServer(t.Context(), store, l, src, committed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := resultsByID(run)
+	for id, want := range map[string]string{
+		"latest": "image: nginx:latest\n",
+		"bare":   "image: ghcr.io/acme/web:latest\n",
+		"port":   "image: registry.example.com:5000/web:latest\n",
+		"stable": "image: acme/web:stable\n",
+	} {
+		r := got[id]
+		if r.Entry == nil {
+			t.Errorf("%s was left out: %s", id, r.LeftOut)
+			continue
+		}
+		if !strings.Contains(r.Entry.GetCompose(), want) {
+			t.Errorf("%s names its image as:\n%s", id, r.Entry.GetCompose())
+		}
+		if err := catalog.CheckTagged(r.Entry); err != nil {
+			t.Errorf("%s fails the catalog's check: %v", id, err)
+		}
+	}
+	if v := got["latest"].Entry.GetVersion(); v != "latest" {
+		t.Errorf("latest's version is %q", v)
+	}
+	if r := got["variable"]; r.Entry != nil || r.Class != ClassCantSay {
+		t.Errorf("an image from a variable converted: %s, %q", r.Class, r.LeftOut)
+	}
+}
+
+func TestUntagged(t *testing.T) {
+	for image, want := range map[string]bool{
+		"nginx": true, "ghcr.io/acme/web": true, "registry:5000/web": true, "localhost:5000/a/b": true,
+		"nginx:1.27": false, "nginx:latest": false, "registry:5000/web:1.0": false, "nginx@sha256:" + strings.Repeat("a", 64): false,
+	} {
+		if got := untagged(image); got != want {
+			t.Errorf("untagged(%q) = %v, want %v", image, got, want)
+		}
+	}
+}
+
+// What each store converted to when the repository last measured it is in the
+// binary, for a panel to say before a person adds the store (ADR 0085).
+func TestEachStoreIsMeasured(t *testing.T) {
+	for _, s := range Stores {
+		m, ok := MeasuredOf(s.Format)
+		if !ok || m.Apps == 0 || m.Converted == 0 || m.Converted > m.Apps || len(m.Commit) != 40 {
+			t.Errorf("%s measured %+v, %v", s.Format, m, ok)
+		}
+	}
+	if _, ok := MeasuredOf(FormatDockwell); ok {
+		t.Error("Dockwell's own format reads as a store that's measured")
+	}
+}
+
+// An app whose reading panics is left out, with the reason, and the rest of the store
+// converts (ADR 0085).
+func TestOnServerLeavesOutAnAppThatPanics(t *testing.T) {
+	c := &Converter{OnServer: true, Release: 1, Now: committed}
+	r := c.convertSafely(t.Context(), App{
+		ID: "bad", Path: "apps/bad/1.0", Shipped: func(string) bool { panic("a stranger's file") },
+		Compose: []byte("services:\n  web:\n    image: nginx:1.27\n    volumes: [\"./conf:/etc/conf\"]\n"),
+	})
+	if r.Entry != nil || r.Class != ClassFile || !strings.Contains(r.LeftOut, "a stranger's file") {
+		t.Errorf("an app that panics = %+v", r)
 	}
 }

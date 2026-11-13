@@ -130,6 +130,117 @@ func Render(words []string, values map[string]string) ([]string, error) {
 	return out, nil
 }
 
+// RenderField writes words with the values they name, as Render does, except in a
+// shell's script, the word at script, which sh -c or a CMD-SHELL test reads: there
+// each ${NAME} stays for the shell to read from the container's environment, where
+// its value is. Spliced into the script, a value would show in the process's
+// command line to every user of the server, and one with a quote, a $( or a ;
+// would change what the script does (ADR 0085). The name is quoted for the shell,
+// whatever quotes it stands in, so a value is one word and never read as code.
+// script is -1 for a field with no script.
+func RenderField(words []string, values map[string]string, script int) ([]string, error) {
+	if words == nil {
+		return nil, nil
+	}
+	out := make([]string, len(words))
+	for i, w := range words {
+		var b strings.Builder
+		var missing string
+		q := quoting{}
+		err := readWord(w, func(s string) {
+			b.WriteString(s)
+			if i == script {
+				q.read(s)
+			}
+		}, func(n string) {
+			v, ok := values[n]
+			if !ok && missing == "" {
+				missing = n
+			}
+			if i != script {
+				b.WriteString(v)
+				return
+			}
+			b.WriteString(q.name(n))
+		})
+		if err != nil {
+			return nil, fmt.Errorf("word %d has %w", i+1, err)
+		}
+		if missing != "" {
+			return nil, fmt.Errorf("there's no value for %s, which word %d names", missing, i+1)
+		}
+		out[i] = b.String()
+	}
+	return out, nil
+}
+
+// quoting follows the quotes of a shell's script as it's written, so a name can be
+// written in a form the shell reads as one word wherever it stands.
+type quoting struct {
+	single, double, escaped bool
+}
+
+// read takes in text of the script.
+func (q *quoting) read(s string) {
+	for _, c := range s {
+		switch {
+		case q.escaped:
+			q.escaped = false
+		case q.single:
+			q.single = c != '\''
+		case c == '\\':
+			q.escaped = true
+		case q.double:
+			q.double = c != '"'
+		case c == '\'':
+			q.single = true
+		case c == '"':
+			q.double = true
+		}
+	}
+}
+
+// name is how a name is written where the script is: "${NAME}" outside quotes,
+// ${NAME} inside double quotes, and '"${NAME}"' inside single quotes, which end and
+// open again around it.
+func (q *quoting) name(n string) string {
+	switch {
+	case q.single:
+		return `'"${` + n + `}"'`
+	case q.double:
+		return "${" + n + "}"
+	}
+	return `"${` + n + `}"`
+}
+
+// ScriptIn is where a container's field holds a shell's script, as the index of its
+// word, or -1: the word sh -c reads, across the entrypoint and the command as Docker
+// runs one after the other, or a CMD-SHELL test's.
+func ScriptIn(c *resourcev1.Container, field string) int {
+	entrypoint, command := c.GetEntrypoint(), c.GetCommand()
+	switch field {
+	case FieldEntrypoint:
+		if s := shellScript(slices.Concat(entrypoint, command)); s >= 0 && s < len(entrypoint) {
+			return s
+		}
+	case FieldCommand:
+		if s := shellScript(slices.Concat(entrypoint, command)); s >= len(entrypoint) {
+			return s - len(entrypoint)
+		}
+	case FieldTest:
+		test := c.GetHealthcheck().GetTest()
+		switch {
+		case len(test) == 2 && test[0] == "CMD-SHELL":
+			return 1
+		case len(test) > 1 && test[0] == "CMD":
+			if s := shellScript(test[1:]); s >= 0 {
+				return s + 1
+			}
+		}
+	}
+	return -1
+}
+
 // WordsOf says what a field of a container holds, for a field that may name
 // values.
 func WordsOf(c *resourcev1.Container, field string) []string {

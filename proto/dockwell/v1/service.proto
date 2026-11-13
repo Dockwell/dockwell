@@ -395,6 +395,12 @@ message UpgradeServiceRequest {
   // The environment of a service named by name, by name or ID, when its
   // project has more than one.
   string environment = 6;
+  // For a service of a catalog install: take only the new build of each image it
+  // runs by a tag that moves, at the release it runs, as its update of the kind
+  // digest offers. When its catalog has moved on to a newer release, that's
+  // refused, and the release stays an update of its own (ADR 0085). Other
+  // stores' work takes 90 to 99 here.
+  bool rebuild = 90;
 }
 
 // UpgradeServiceResponse carries the planned update.

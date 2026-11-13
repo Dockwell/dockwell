@@ -238,6 +238,38 @@ func Digest(d string) bool { return digestShape.MatchString(d) }
 // MovingTags are tags that name a branch rather than a version, which moves.
 var MovingTags = map[string]bool{"latest": true, "stable": true, "main": true, "master": true, "nightly": true, "dev": true, "develop": true, "edge": true, "beta": true, "server": true}
 
+// Moving says an image names a tag that moves, such as latest, with or without the
+// digest an install pinned it to: what runs is the build the tag pointed at when the
+// install's plan pinned it, and a newer build is an update to it. An image named with
+// no tag is latest, as Docker pulls it, unless a digest alone names it, which follows
+// nothing.
+func Moving(image string) bool {
+	image, digest, pinned := strings.Cut(image, "@")
+	colon := strings.LastIndex(image, ":")
+	if colon <= strings.LastIndex(image, "/") {
+		return !pinned || digest == ""
+	}
+	return MovingTags[image[colon+1:]]
+}
+
+// MovingImages are the images an entry's services run by a tag that moves, as its
+// file names them, once each.
+func MovingImages(compose string) []string {
+	var out []string
+	for _, image := range TaggedImages(compose) {
+		if Moving(image) {
+			out = append(out, image)
+		}
+	}
+	for image := range PinnedDigests(compose) {
+		if Moving(image) && !slices.Contains(out, image) {
+			out = append(out, image)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // MaxGenerate is the most characters a secret an entry generates may have, as an
 // entry is a stranger's file once it comes from a source, and generating one costs
 // the control plane what it says.
@@ -372,9 +404,10 @@ func Check(e *catalogv1.Entry) error {
 }
 
 // CheckTagged checks an entry as Check does, but for its images, which it may name
-// by a tag that names a version, written plainly, rather than by digest: one the
-// control plane converted from another store, which an install pins when it's
-// planned (ADR 0078).
+// by a tag, written plainly, rather than by digest: one the control plane converted
+// from another store, which an install pins when it's planned (ADR 0078). A tag that
+// moves, such as latest, is pinned as a version's is, and its newer builds are
+// updates (ADR 0085).
 func CheckTagged(e *catalogv1.Entry) error {
 	return check(e, true)
 }
@@ -410,8 +443,8 @@ func check(e *catalogv1.Entry, byTag bool) error {
 				return fmt.Errorf("%s isn't pinned by digest. Add its @sha256 digest", strings.TrimSpace(line))
 			case m == nil:
 				return fmt.Errorf("%s doesn't name its image plainly, by a version", strings.TrimSpace(line))
-			case MovingTags[m[2][strings.LastIndex(m[2], ":")+1:]] || strings.Contains(m[2][strings.LastIndex(m[2], ":"):], "/"):
-				return fmt.Errorf("%s names no version", strings.TrimSpace(line))
+			case strings.Contains(m[2][strings.LastIndex(m[2], ":"):], "/"):
+				return fmt.Errorf("%s names no tag", strings.TrimSpace(line))
 			}
 		}
 	}
@@ -552,9 +585,15 @@ func composeServices(compose string) (map[string]any, error) {
 }
 
 // standsAlone refuses a secret inside a longer value. An upgrade stands something in for
-// a secret it never opens, which reaches a service only as a whole value, by reference,
-// so in a longer one it would write that in place of the secret, and a rotation couldn't
-// reach it either. It reads the file's YAML, as text can't tell "a ${X} b" from "${X}".
+// a secret it never opens, which reaches a service's environment only as a whole value,
+// by reference, so in a longer one it would write that in place of the secret, and a
+// rotation couldn't reach it either. It reads the file's YAML, as text can't tell
+// "a ${X} b" from "${X}".
+//
+// A service's command, entrypoint and health check's test are kept by the names their
+// words use, and each word is written with the values it names as the container is
+// made (ADR 0022), so a secret may stand anywhere in one of their words, as in
+// redis-server --requirepass ${PASSWORD} or --api-key=${KEY} (ADR 0085).
 func standsAlone(file, name string) error {
 	var tree any
 	if err := yaml.Unmarshal([]byte(file), &tree); err != nil {
@@ -585,7 +624,51 @@ func standsAlone(file, name string) error {
 		}
 		return nil
 	}
-	return walk(tree)
+	top, ok := tree.(map[string]any)
+	if !ok {
+		return walk(tree)
+	}
+	for _, key := range slices.Sorted(maps.Keys(top)) {
+		if key != "services" {
+			if err := walk(top[key]); err != nil {
+				return err
+			}
+			continue
+		}
+		services, ok := top[key].(map[string]any)
+		if !ok {
+			if err := walk(top[key]); err != nil {
+				return err
+			}
+			continue
+		}
+		for _, svcName := range slices.Sorted(maps.Keys(services)) {
+			svc, ok := services[svcName].(map[string]any)
+			if !ok {
+				if err := walk(services[svcName]); err != nil {
+					return err
+				}
+				continue
+			}
+			for _, field := range slices.Sorted(maps.Keys(svc)) {
+				value := svc[field]
+				switch field {
+				case "command", "entrypoint":
+					continue
+				case "healthcheck":
+					if check, ok := value.(map[string]any); ok {
+						rest := maps.Clone(check)
+						delete(rest, "test")
+						value = rest
+					}
+				}
+				if err := walk(value); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // typed reports an input whose value is text a person may type, which can say how

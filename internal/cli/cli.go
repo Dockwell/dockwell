@@ -67,8 +67,11 @@ const (
 	envTestOnePanel = "DOCKWELL_TEST_ONEPANEL"
 	// envTestRegistry names, in a test, the registry every read of an image goes
 	// to, such as the fake engine's, under DOCKWELL_TEST, and only then: without
-	// it, a test reads no image from a registry (ADR 0062).
-	envTestRegistry = "DOCKWELL_TEST_REGISTRY"
+	// it, a test reads no image from a registry (ADR 0062). testRegistryPublic in
+	// it reads each image's own registry, as a server does, for a test on real
+	// Docker that pulls from them anyway (scripts/store-e2e.sh, ADR 0085).
+	envTestRegistry    = "DOCKWELL_TEST_REGISTRY"
+	testRegistryPublic = "public"
 	// envTestAway is how long the agent goes without a stream before it puts back
 	// what its server should run, and how often it looks then, as a duration such
 	// as "2s", under DOCKWELL_TEST, and only then, so the chaos tests needn't wait

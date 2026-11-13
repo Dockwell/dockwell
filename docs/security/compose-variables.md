@@ -35,6 +35,8 @@ These are what the warning leaves out, on purpose. `TestEveryFieldAVariableReach
 | `name:`, and a service's `image`, `container_name`, `network_mode`, `networks`, `user`, `cap_add`, `cap_drop` and `group_add` | Each is a name, and shows as what it is. Nearly every real file writes these from a variable, so a warning there would be on nearly every plan, and the one about a password in a command would go unread. |
 | `ports`, `restart`, `cpus`, `mem_limit`, `mem_reservation`, `shm_size`, `deploy`, `privileged`, and a health check's times, retries and `disable` | Each is a number or one of a few words. |
 | `volumes`, `tmpfs` and `working_dir` | Each is a path, and shows as what it is. |
+| A service's `hostname`, `init`, `tty`, `stdin_open`, `read_only`, `stop_signal`, `pids_limit`, `ulimits`, `dns` and `security_opt` | Each is a name, a switch, a signal, a count or an address, and shows as what it is ([ADR 0085](../adr/0085-most-of-other-stores-apps-installed-safely.md)). |
+| A service's `pull_policy`, and a health check's `start_interval` | Neither goes in a spec: Dockwell pulls the digest a plan pins, and checks a container at its interval from the start. |
 | A volume's or a network's `driver`, and a network's `internal`, `external` and `name` | Each is a name or a word. |
 | `expose` and `depends_on` | They change nothing on one server, or order the change, so neither is kept. |
 | A value in `environment`, and a volume's `driver_opts` | They're sensitive, so they are blanked. A list entry's name isn't, so a variable in one does warn. |

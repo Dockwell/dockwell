@@ -273,11 +273,11 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 	runByHand(t, e, "in-word", func(r *docker.CreateRequest) {
 		r.Cmd = []string{"nginx", "--password=" + secretValue}
 	})
-	runByHand(t, e, "own-rootfs", func(r *docker.CreateRequest) {
-		r.HostConfig.ReadonlyRootfs = true
+	runByHand(t, e, "no-oom-kill", func(r *docker.CreateRequest) {
 		r.HostConfig.PortBindings = nil
 		r.HostConfig.Binds = nil
 	})
+	e.Reports("no-oom-kill", "HostConfig", map[string]any{"OomKillDisable": true})
 	// A name that's taken would move the service that has it onto this server.
 	apply(t, changeClient(b, b.origin), propose(t, changeClient(b, b.origin), "Run web", runImage("ghcr.io/acme/shop:1.4")))
 	runByHand(t, e, "alongside", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
@@ -288,21 +288,20 @@ func TestWhatCantBeTakenOnSaysWhy(t *testing.T) {
 	// One thing is it and that, and more are them and those.
 	runByHand(t, e, "two-things", func(r *docker.CreateRequest) {
 		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
-		r.HostConfig.ReadonlyRootfs = true
 	})
-	e.Reports("two-things", "HostConfig", map[string]any{"CpuQuota": 50000})
+	e.Reports("two-things", "HostConfig", map[string]any{"CpuQuota": 50000, "OomKillDisable": true})
 	_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "two-things"}))
 	if err == nil || !strings.Contains(err.Error(), "would drop them without a word") || !strings.Contains(err.Error(), "without those") {
 		t.Errorf("taking on what has two things: %v", err)
 	}
-	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "own-rootfs"}))
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "no-oom-kill"}))
 	if err == nil || !strings.Contains(err.Error(), "without that, then take it on") {
 		t.Errorf("taking on what has one thing: %v", err)
 	}
 
 	for name, says := range map[string]string{
-		"in-word":    "so a plan would show it to anyone",
-		"own-rootfs": "would drop it without a word",
+		"in-word":     "so a plan would show it to anyone",
+		"no-oom-kill": "would drop it without a word",
 	} {
 		_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: name}))
 		if err == nil || !strings.Contains(err.Error(), says) || !strings.Contains(err.Error(), "It stays as it is") {
@@ -841,13 +840,15 @@ func TestARefusalSaysEverythingAtOnce(t *testing.T) {
 			}
 		}
 	}
-	readOnly := func(r *docker.CreateRequest) { r.HostConfig.ReadonlyRootfs = true }
+	// A setting no spec holds, as Docker reports it.
+	noOOMKill := func(name string) { e.Reports(name, "HostConfig", map[string]any{"OomKillDisable": true}) }
 
 	composeContainer(t, e, "mix", "web", "mix-web-1", nil)
 	composeContainer(t, e, "mix", "web", "mix-web-2", nil)
-	composeContainer(t, e, "mix", "db", "mix-db-1", readOnly)
+	composeContainer(t, e, "mix", "db", "mix-db-1", nil)
+	noOOMKill("mix-db-1")
 	says("a scaled service beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "mix"}),
-		"mix-web-1 and mix-web-2 are the service web", "--scale web=1", "mix-db-1 runs with read_only", "It all stays as it is")
+		"mix-web-1 and mix-web-2 are the service web", "--scale web=1", "mix-db-1 runs with oom_kill_disable", "It all stays as it is")
 
 	// Two services that come to one name are no scaled service, so no --scale helps.
 	composeContainer(t, e, "split", "api_v1", "split-api_v1-1", nil)
@@ -864,9 +865,10 @@ func TestARefusalSaysEverythingAtOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyConfirmed(t, changeClient(b, b.origin), planned.Msg.GetChange())
-	composeContainer(t, e, "shop2", "web", "shop2-web-1", readOnly)
+	composeContainer(t, e, "shop2", "web", "shop2-web-1", nil)
+	noOOMKill("shop2-web-1")
 	says("a name it runs beside what can't come", take(&dockwellv1.AdoptComposeRequest{Name: "shop2", Project: "shop"}),
-		"the project shop runs a service web already", "shop2-web-1 runs with read_only")
+		"the project shop runs a service web already", "shop2-web-1 runs with oom_kill_disable")
 }
 
 // Compose gives a service its name on every network it joins, so two installs of one
@@ -1213,7 +1215,8 @@ func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
 	e.AddNetwork(docker.Network{ID: "scalednet", Name: "scaled_default", Driver: "bridge"})
 	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
 
-	composeContainer(t, e, "shop", "web", "shop-web-1", func(r *docker.CreateRequest) { r.HostConfig.ReadonlyRootfs = true })
+	composeContainer(t, e, "shop", "web", "shop-web-1", nil)
+	e.Reports("shop-web-1", "HostConfig", map[string]any{"OomKillDisable": true})
 	composeContainer(t, e, "shop", "db", "shop-db-1", func(r *docker.CreateRequest) {
 		r.Cmd = []string{"db", "--password=" + secretValue}
 	})
@@ -1221,7 +1224,7 @@ func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
 	composeContainer(t, e, "scaled", "web", "scaled-web-2", nil)
 
 	_, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: "shop"}))
-	if err == nil || !strings.Contains(err.Error(), "shop-web-1 runs with read_only") || !strings.Contains(err.Error(), "shop-db-1 holds the value of DB_PASSWORD") {
+	if err == nil || !strings.Contains(err.Error(), "shop-web-1 runs with oom_kill_disable") || !strings.Contains(err.Error(), "shop-db-1 holds the value of DB_PASSWORD") {
 		t.Errorf("a project with what can't come: %v", err)
 	}
 	if err != nil && strings.Contains(err.Error(), secretValue) {

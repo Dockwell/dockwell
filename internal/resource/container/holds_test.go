@@ -104,7 +104,7 @@ func TestWhatEveryContainerHasIsNoReason(t *testing.T) {
 				ctr.HostConfig.NetworkMode = "host"
 				o.Config["Hostname"] = json.RawMessage(`"hz-1"`)
 			}
-			if got := noSpecHolds(&ctr, o, "SIGQUIT", using); len(got) != 0 {
+			if got := noSpecHolds(&ctr, o, using); len(got) != 0 {
 				t.Errorf("noSpecHolds = %v, want nothing", got)
 			}
 		})
@@ -133,12 +133,12 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 		"IpcMode":              {`"host"`, "ipc"},
 		"CgroupnsMode":         {`"host"`, "cgroupns_mode: host"},
 		"NetworkMode":          {`"none"`, "network_mode: none"},
-		"PidsLimit":            {"100", "pids_limit"},
 		"Runtime":              {`"runsc"`, "runtime: runsc"},
+		"SecurityOpt":          {`["seccomp=unconfined"]`, "security_opt"},
 		"SomethingDockerAdded": {`{"on": true}`, "HostConfig.SomethingDockerAdded"},
 	} {
 		t.Run(key, func(t *testing.T) {
-			got := noSpecHolds(c, options(t, map[string]string{key: s.value}), "SIGQUIT", info)
+			got := noSpecHolds(c, options(t, map[string]string{key: s.value}), info)
 			if !slices.Contains(got, s.says) {
 				t.Errorf("noSpecHolds = %v, want %q", got, s.says)
 			}
@@ -149,7 +149,7 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	got := noSpecHolds(c, options(t, map[string]string{
 		"Mounts": `[{"Type": "volume", "Source": "a", "Target": "/a", "VolumeOptions": {"NoCopy": true}},
 			{"Type": "bind", "Source": "/b", "Target": "/b", "BindOptions": {"Propagation": "rshared"}}]`,
-	}), "SIGQUIT", info)
+	}), info)
 	if !slices.Equal(got, []string{"VolumeOptions on /a", "rshared on /b"}) {
 		t.Errorf("noSpecHolds of mount options = %v", got)
 	}
@@ -157,17 +157,23 @@ func TestEachThingASpecCantHoldIsNamed(t *testing.T) {
 	// Of a tmpfs, a spec holds its path and its size alone.
 	got = noSpecHolds(c, options(t, map[string]string{
 		"Mounts": `[{"Type": "tmpfs", "Target": "/c", "TmpfsOptions": {"SizeBytes": 1048576, "Mode": 448}}, {"Type": "tmpfs", "Target": "/d", "ReadOnly": true}]`,
-	}), "SIGQUIT", info)
+	}), info)
 	if !slices.Equal(got, []string{"Mode on /c", "read_only on /d"}) {
 		t.Errorf("noSpecHolds of a tmpfs mount's options = %v", got)
 	}
 
-	// A hostname of its own is one someone chose, on any network.
+	// A hostname, a stop signal and the rest of what a container asks of itself, a
+	// spec holds (ADR 0085); a health check's start interval it doesn't.
 	o := options(t, nil)
 	o.Config["Hostname"] = json.RawMessage(`"db-primary"`)
 	o.Config["StopSignal"] = json.RawMessage(`"SIGTERM"`)
+	o.Config["Tty"] = json.RawMessage(`true`)
+	o.HostConfig["Init"] = json.RawMessage(`true`)
+	o.HostConfig["Ulimits"] = json.RawMessage(`[{"Name": "nofile", "Soft": 1024, "Hard": 4096}]`)
+	o.HostConfig["PidsLimit"] = json.RawMessage(`100`)
+	o.HostConfig["SecurityOpt"] = json.RawMessage(`["no-new-privileges:true"]`)
 	o.Config["Healthcheck"] = json.RawMessage(`{"Test": ["CMD", "true"], "StartInterval": 1000000000}`)
-	if got := noSpecHolds(c, o, "SIGQUIT", info); !slices.Equal(got, []string{"healthcheck start_interval", "hostname", "stop_signal"}) {
+	if got := noSpecHolds(c, o, info); !slices.Equal(got, []string{"healthcheck start_interval"}) {
 		t.Errorf("noSpecHolds of its Config = %v", got)
 	}
 }
