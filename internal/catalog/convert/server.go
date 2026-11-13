@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"path"
 	"slices"
@@ -41,10 +42,11 @@ const (
 	// Version is the converter's version, which goes up whenever what it writes
 	// changes, so a commit converted by an older one is converted again. 2 reads a
 	// store's logos and words (ADR 0083), 3 takes a tag that moves, 4 a container's
-	// own settings and a secret inside a command's word (ADR 0085), and 5 leaves out
-	// a path that climbs out of a folder a person names, and says whether a
-	// repository states no licence or one Dockwell doesn't recognise (ADR 0083).
-	Version = 5
+	// own settings and a secret inside a command's word (ADR 0085), 5 leaves out a
+	// path that climbs out of a folder a person names, and says whether a repository
+	// states no licence or one Dockwell doesn't recognise (ADR 0083), and 6 the files
+	// an app ships beside its Compose file (ADR 0085).
+	Version = 6
 	// MaxConverted is the most a commit may convert to, as a source of Dockwell's own
 	// entries reads 16 MiB of a commit at most.
 	MaxConverted = 16 << 20
@@ -381,19 +383,21 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 	}
 	c := &Converter{Source: src, OnServer: true, Release: release, Now: committed}
 	var run Run
-	size := 0
 	for i := range apps {
 		if err := ctx.Err(); err != nil {
 			return Run{}, err
 		}
-		r := c.convertSafely(ctx, apps[i])
-		if r.Entry != nil {
-			r.Icon, r.Screenshots = apps[i].Icon, apps[i].Screenshots
-			if size += proto.Size(r.Entry); size > MaxConverted {
+		run.Results = append(run.Results, c.convertSafely(ctx, apps[i]))
+	}
+	readShipped(ctx, c, l, apps, run.Results)
+	size := 0
+	for i := range run.Results {
+		if e := run.Results[i].Entry; e != nil {
+			run.Results[i].Icon, run.Results[i].Screenshots = apps[i].Icon, apps[i].Screenshots
+			if size += proto.Size(e); size > MaxConverted {
 				return Run{}, fmt.Errorf("what it converts to comes to over %d MiB, more than a source keeps of one commit", MaxConverted>>20)
 			}
 		}
-		run.Results = append(run.Results, r)
 	}
 	// By ID, then by where each is, so two apps that come to one ID, such as my_app and
 	// my-app, always keep the same one, and the other says why it's left out.
@@ -408,6 +412,41 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		}
 	}
 	return run, nil
+}
+
+// maxShippedReads is the most shipped files a commit's apps may have read for them,
+// in a round of its own, after the adapter has read the rest.
+const maxShippedReads = 500
+
+// readShipped reads the shipped files the apps mount that the adapter didn't, in one
+// round, and converts those apps again (ADR 0085). A round that fails, or asks for
+// too much, leaves them out as they were, saying the files weren't read.
+func readShipped(ctx context.Context, c *Converter, l *Listing, apps []App, results []Result) {
+	if l.ReadMore == nil {
+		return
+	}
+	var paths []string
+	for i := range results {
+		paths = append(paths, results[i].Unread...)
+	}
+	slices.Sort(paths)
+	paths = slices.Compact(paths)
+	if len(paths) == 0 || len(paths) > maxShippedReads {
+		return
+	}
+	got, err := l.ReadMore(ctx, paths)
+	if err != nil {
+		return
+	}
+	if l.Read == nil {
+		l.Read = map[string][]byte{}
+	}
+	maps.Copy(l.Read, got)
+	for i := range results {
+		if len(results[i].Unread) > 0 {
+			results[i] = c.convertSafely(ctx, apps[i])
+		}
+	}
 }
 
 // convertSafely converts one app, and leaves it out, saying so, if anything reading

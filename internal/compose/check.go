@@ -397,8 +397,8 @@ func scanVariables(s string, depth int, note func(name string, op byte) bool) {
 }
 
 var (
-	owner     = regexp.MustCompile(`^the (service|volume|network) ([^' ]+)(?:'s (.+))?$`)
-	mentioned = regexp.MustCompile(`^the (service|volume|network) ([^' ]+)`)
+	owner     = regexp.MustCompile(`^the (service|volume|network|config) ([^' ]+)(?:'s (.+))?$`)
+	mentioned = regexp.MustCompile(`^the (service|volume|network|config) ([^' ]+)`)
 	yamlLine  = regexp.MustCompile(`\bline (\d+)\b`)
 	yamlKey   = regexp.MustCompile(`mapping key "([^"]+)" already defined`)
 	indexed   = regexp.MustCompile(`\[(\d+)\]$`)

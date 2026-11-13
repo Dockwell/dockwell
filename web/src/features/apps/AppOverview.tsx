@@ -1312,6 +1312,20 @@ function useVolumeIds(environment: string | undefined): ReadonlyMap<string, stri
 function MountRow({ mount, volumeId }: { mount: Mount; volumeId: string | undefined }) {
   const { t } = useLingui();
   const isPath = mount.source.case === "hostPath";
+  if (mount.source.case === "file") {
+    return (
+      <li className="app-mount">
+        <span className="app-mount-source">
+          <Icon name="file" size={14} />
+          <span>{t`A file Dockwell writes`}</span>
+        </span>
+        <span className="app-mount-target">
+          <Icon name="arrow-right" size={12} />
+          <code>{mount.target}</code>
+        </span>
+      </li>
+    );
+  }
   return (
     <li className="app-mount">
       <span className="app-mount-source">

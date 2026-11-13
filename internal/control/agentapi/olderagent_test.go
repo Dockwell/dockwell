@@ -186,3 +186,28 @@ func TestAnOlderAgentIsRefusedWhatAContainerAsksOfItself(t *testing.T) {
 		t.Errorf("an older agent, with nothing asked = %v", err)
 	}
 }
+
+// An agent that doesn't say it writes the files a container mounts is refused a spec
+// that mounts one, with the fix, and an agent that says so takes it (ADR 0085).
+func TestAnOlderAgentIsRefusedAFileToWrite(t *testing.T) {
+	web := resource.Ref{Kind: service.Kind, Scope: "env_1", Name: "web"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27", Mounts: []*resourcev1.Mount{
+		{Target: "/etc/nginx/nginx.conf", ReadOnly: true, Source: &resourcev1.Mount_File{File: &resourcev1.MountFile{Content: "events {}\n"}}},
+	}}}}
+	errSent := errors.New("the test stops the call here")
+	open := func(writes bool) *Session {
+		a := NewAgents(resource.NewRegistry(&service.Driver{}), slog.New(slog.DiscardHandler))
+		a.CheckNaming(&naming{})
+		return a.open("srv_1", "hz-1", &agentv1.Hello{Kinds: []string{string(service.Kind)}, WritesReferences: true, WritesFiles: writes}, func(*agentv1.ConnectResponse) error { return errSent })
+	}
+	_, err := open(false).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}})
+	if !errors.Is(err, resource.ErrAgentTooOld) || !strings.Contains(err.Error(), "from before Dockwell wrote the files a container mounts, which web does") {
+		t.Errorf("an older agent, planning = %v", err)
+	}
+	if err := open(false).Apply(t.Context(), resource.Step{Ref: web}, spec); !errors.Is(err, resource.ErrAgentTooOld) {
+		t.Errorf("an older agent, applying = %v", err)
+	}
+	if _, err := open(true).Plan(t.Context(), []resource.Desired{{Ref: web, Spec: spec}}); errors.Is(err, resource.ErrAgentTooOld) {
+		t.Errorf("an agent that writes files = %v", err)
+	}
+}

@@ -507,6 +507,10 @@ message Hello {
   // of them on an agent that doesn't say so, which would leave them out. Other
   // stores' work takes 300 to 309 in agent messages.
   bool own_settings = 300;
+  // True when the agent writes the files a container mounts (Mount.file), and
+  // binds them in, read-only (ADR 0085). The control plane plans no such mount on
+  // an agent that doesn't say so.
+  bool writes_files = 301;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.

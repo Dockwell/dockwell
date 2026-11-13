@@ -15061,6 +15061,14 @@ components:
                 hostPath:
                     type: string
                     description: An absolute path on the server, such as "/srv/uploads".
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/MountFile'
+                    description: |-
+                        A file Dockwell writes for it, such as a config file an app ships beside
+                         its Compose file, mounted read-only at target, as Compose's configs. It
+                         reaches nothing on the server. Numbered in other stores' block, 90 to 99
+                         (ADR 0085).
                 target:
                     type: string
                     description: Where it appears in the container, as an absolute path.
@@ -15094,6 +15102,23 @@ components:
                          as "82:82", with mode 0755. Docker would make it root's. A folder that's there
                          keeps its owner. Numbered apart, as open work adds to this message.
             description: Mount puts a volume, or a directory on the server, into a container.
+        MountFile:
+            type: object
+            properties:
+                content:
+                    type: string
+                    description: |-
+                        What it holds, 256 KiB at most, as text: a config file, never a secret,
+                         which a plan shows.
+                mode:
+                    type: integer
+                    description: |-
+                        Its permissions, such as 0444 (292), the default when 0. It's always
+                         read-only in the container, whatever these say.
+                    format: uint32
+            description: |-
+                MountFile is a file Dockwell writes for a container: what it holds, and who
+                 may read it.
         MoveFileRequest:
             type: object
             properties:

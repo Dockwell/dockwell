@@ -720,6 +720,32 @@
   color: var(--ink-muted);
 }
 
+/* A file Dockwell writes: a line, with what it holds one click away. */
+.app-settings-file details {
+  min-width: 0;
+  width: 100%;
+}
+
+.app-settings-file summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.app-settings-file-content {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font: var(--text-code-sm);
+  white-space: pre;
+}
+
 .app-settings-rows {
   display: flex;
   flex-direction: column;

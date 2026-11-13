@@ -345,7 +345,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	kept := &volume.Kept{Path: filepath.Join(dir.Agent(), "deleted-volumes.json")}
 	// What no container may mount, as this server has it: its data
 	// directory, Docker's, and where symlinks lead.
-	paths := &container.Paths{Client: client, DataDir: dir.Root}
+	paths := &container.Paths{Client: client, DataDir: dir.Root, Files: filepath.Join(dir.Agent(), "files")}
 	proxy := &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)}
 	routes := &ingress.Manager{
 		Client: client, Dir: dir.Ingress(), Panel: panel, OwnPorts: ownPorts, Logger: logger, KeeperImage: proxy.Reference(),
@@ -357,8 +357,10 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	archive := &logs.Archive{Dir: filepath.Join(dir.Agent(), "kept-logs"), Client: client, Logger: logger}
 	keptImages := &container.KeptImages{Path: filepath.Join(dir.Agent(), "kept-images.json"), Client: client}
 	go keptImages.KeepPruned(ctx, logger)
+	mounted := &container.Files{Dir: paths.Files, Client: client}
+	go mounted.KeepPruned(ctx, logger)
 	containers := container.Driver{Runtime: &container.Docker{
-		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Ingress: routes, Logs: archive,
+		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Files: mounted, Ingress: routes, Logs: archive,
 		BeforeReplace: database.Reader{Client: client}.BeforeReplace, Room: dockerRoom(client), Kept: keptImages,
 		PullLogins: &container.PullLogins{Path: filepath.Join(dir.Agent(), "pull-logins.json")},
 	}}

@@ -153,7 +153,7 @@ func Message(err error) string {
 // rather than dropped, so nothing in a file is quietly ignored, apart from
 // x- extensions and what changes nothing on one server, such as expose.
 var (
-	topKeys     = keys("name", "version", "services", "volumes", "networks")
+	topKeys     = keys("name", "version", "services", "volumes", "networks", "configs")
 	serviceKeys = keys("image", "command", "entrypoint", "environment", "ports", "restart", "labels", "volumes",
 		"networks", "network_mode", "user", "working_dir", "healthcheck", "depends_on", "expose", "stop_grace_period",
 		"container_name", "build", "deploy", "cpus", "mem_limit", "mem_reservation",
@@ -162,8 +162,13 @@ var (
 		// pins whenever a server hasn't it, so a pull policy says nothing it does, and
 		// is taken and dropped, but for build.
 		"hostname", "init", "tty", "stdin_open", "stop_signal", "ulimits", "read_only", "pids_limit", "dns", "pull_policy",
-		"security_opt")
-	volumeKeys  = keys("driver", "driver_opts", "labels")
+		"security_opt",
+		// A file Dockwell writes for it, which Compose calls a config (ADR 0085).
+		"configs")
+	volumeKeys = keys("driver", "driver_opts", "labels")
+	// A config is a file the Compose file writes out as its content.
+	configKeys  = keys("content")
+	configRef   = keys("source", "target", "mode", "uid", "gid")
 	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
 	// start_interval is how often a check runs while start_period lasts, which only
 	// says how soon a new container is first seen healthy, and Docker before 25
@@ -193,7 +198,6 @@ var (
 		"extends":    "extends another service, which Dockwell can't follow yet. Write the service out in full",
 		"profiles":   "is in `profiles`, which Dockwell doesn't select. Remove `profiles` to run it, or the service to leave it out",
 		"secrets":    "uses Compose `secrets`, which Dockwell can't run yet. Pass the values as environment variables",
-		"configs":    "uses Compose `configs`, which Dockwell can't run yet. Mount the files from the server instead",
 		"include":    "includes other files, which Dockwell doesn't have. Put everything in one file",
 		"external":   "is `external`, made outside the file, and a service can only join a network that is, for now. Let the file make the volume, or mount its path on the server",
 		"pid":        "shares a process namespace, which Dockwell can't run yet: with the server's, it sees and signals every process there. Remove `pid`",
@@ -342,6 +346,13 @@ func checkRaw(file []byte) (map[string]any, error) {
 		if err := checkDeploy(what, svc); err != nil {
 			return nil, err
 		}
+		for _, c := range list(svc["configs"]) {
+			if m, ok := c.(map[string]any); ok {
+				if err := check(what+"'s config", m, configRef); err != nil {
+					return nil, err
+				}
+			}
+		}
 		if deps, ok := svc["depends_on"].(map[string]any); ok {
 			for _, d := range slices.Sorted(maps.Keys(deps)) {
 				if m, ok := deps[d].(map[string]any); ok {
@@ -350,6 +361,26 @@ func checkRaw(file []byte) (map[string]any, error) {
 					}
 				}
 			}
+		}
+	}
+	configs, _ := raw["configs"].(map[string]any)
+	for _, name := range slices.Sorted(maps.Keys(configs)) {
+		what := "the config " + name
+		m, _ := configs[name].(map[string]any)
+		for key, how := range map[string]string{
+			"file":        "reads a file beside the Compose file, which Dockwell doesn't have. Write what it holds as content",
+			"environment": "takes what it holds from a variable of the shell, which Dockwell doesn't pass. Write it as content",
+			"external":    "is `external`, made outside the file, as Swarm keeps them. Write what it holds as content",
+		} {
+			if _, ok := m[key]; ok {
+				return nil, invalidAt(place{what, key}, "%s %s", what, how)
+			}
+		}
+		if err := check(what, m, configKeys); err != nil {
+			return nil, err
+		}
+		if _, ok := m["content"]; !ok {
+			return nil, invalid("%s has no content. Write what the file holds as content: |", what)
 		}
 	}
 	for section, allowed := range map[string]map[string]bool{"volumes": volumeKeys, "networks": networkKeys} {
@@ -515,6 +546,7 @@ type model struct {
 	Services types.Services `yaml:"services"`
 	Volumes  types.Volumes  `yaml:"volumes"`
 	Networks types.Networks `yaml:"networks"`
+	Configs  types.Configs  `yaml:"configs"`
 	// limits are each service's limits, which takeResources read.
 	limits map[string]*resourcev1.Resources
 	// memory is what each service holds in memory, which takeMemory read.
@@ -977,6 +1009,35 @@ func ownSettings(what string, s *types.ServiceConfig, c *resourcev1.Container) e
 	return nil
 }
 
+// configMounts mounts each config a service names as a file Dockwell writes,
+// read-only, at its target, or at /<name> as Compose has it (ADR 0085). Docker
+// writes it as root's, so a uid or gid other than root's is refused, and the mode
+// says who may read it.
+func configMounts(what string, s *types.ServiceConfig, configs types.Configs, c *resourcev1.Container) error {
+	for i, ref := range s.Configs {
+		at := place{what, "configs"}.index(i)
+		cfg, ok := configs[ref.Source]
+		if !ok {
+			return invalidAt(at, "%s uses the config %s, which the file doesn't write. Add it under configs, with its content", what, ref.Source)
+		}
+		for _, id := range []string{ref.UID, ref.GID} {
+			if id != "" && id != "0" {
+				return invalidAt(at, "%s mounts the config %s as %s's, and Dockwell writes a file as root's, which any user reads. Leave out uid and gid, or give mode to say who reads it", what, ref.Source, id)
+			}
+		}
+		target := cmp.Or(ref.Target, "/"+ref.Source)
+		if !path.IsAbs(target) {
+			target = "/" + target
+		}
+		f := &resourcev1.MountFile{Content: cfg.Content}
+		if ref.Mode != nil {
+			f.Mode = uint32(*ref.Mode) //nolint:gosec // a file's mode, which Validate holds to 0555
+		}
+		c.Mounts = append(c.Mounts, &resourcev1.Mount{Target: target, ReadOnly: true, Source: &resourcev1.Mount_File{File: f}})
+	}
+	return nil
+}
+
 // extraHosts are a file's extra_hosts as a spec keeps them, hostname:address, which
 // compose-go reads from a list or a mapping into one map.
 func extraHosts(h types.HostsList) []string {
@@ -1043,6 +1104,9 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	c.ShmSize, c.Tmpfs = p.memory[name].shm, p.memory[name].tmpfs
 	c.ExtraHosts = extraHosts(s.ExtraHosts)
 	if err := ownSettings(what, s, c); err != nil {
+		return nil, err
+	}
+	if err := configMounts(what, s, p.Configs, c); err != nil {
 		return nil, err
 	}
 	for _, k := range slices.Sorted(maps.Keys(s.Environment)) {

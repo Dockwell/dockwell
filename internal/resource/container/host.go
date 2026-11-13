@@ -611,6 +611,10 @@ type Paths struct {
 	Client *docker.Client
 	// DataDir is the agent's data directory.
 	DataDir string
+	// Files is the folder the agent keeps the files containers mount in (Files),
+	// whose binds are Dockwell's own, made from a plan's spec, and never a path a
+	// person approved to lead somewhere (ADR 0085).
+	Files string
 }
 
 // LeadsAsMade checks where the server paths c mounts lead, before something starts
@@ -653,6 +657,9 @@ func (p *Paths) movedSince(ctx context.Context, c *docker.Container, planned map
 		source := m.Source
 		switch m.Type {
 		case "bind":
+			if p.Files != "" && path.Dir(path.Clean(source)) == path.Clean(p.Files) {
+				continue
+			}
 		case "volume":
 			v, err := p.Client.InspectVolume(ctx, m.Name)
 			switch {

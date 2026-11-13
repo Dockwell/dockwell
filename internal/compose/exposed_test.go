@@ -109,6 +109,10 @@ func fieldRows() []fieldRow {
 		serviceRow("ulimits", "    ulimits: {nofile: {soft: \"${V}\", hard: 8192}}\n", "4096", "4096"),
 		serviceRow("dns", "    dns: [\"${V}\"]\n", "10.0.0.53", "10.0.0.53"),
 		serviceRow("security_opt", "    security_opt: [\"no-new-privileges:${V}\"]\n", "true", "true"),
+		// A config's name and where it goes are names; what it holds is free text, which
+		// the plan shows on each service that mounts it.
+		serviceRow("configs", "    configs: [{source: conf, target: \"/etc/${V}\"}]\nconfigs:\n  conf:\n    content: x\n", marker, marker),
+		warns(serviceRow("configs", "    configs: [conf]\nconfigs:\n  conf:\n    content: \"key = ${V}\"\n", marker, marker)),
 		// What changes nothing Dockwell does, which goes in no spec.
 		serviceRow("pull_policy", "    pull_policy: ${V}\n", "always", ""),
 		serviceRow("healthcheck.start_interval", "    healthcheck: {test: [CMD, run], start_interval: \"${V}\"}\n", "5s", ""),

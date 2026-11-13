@@ -476,3 +476,69 @@ func TestWhatAContainerAsksOfItselfThatDockwellCant(t *testing.T) {
 		})
 	}
 }
+
+// A config a file writes out as its content is a file Dockwell writes for each
+// service that mounts it, read-only, at its target or at /<name>, and an export
+// writes it back as a config (ADR 0085). One read from a file, a variable of the
+// shell or Swarm is refused with what to do, and so is one written as another
+// user's.
+func TestConfigsAreFilesDockwellWrites(t *testing.T) {
+	file := `services:
+  web:
+    image: nginx:1.27
+    configs:
+      - source: nginx
+        target: /etc/nginx/nginx.conf
+      - source: run
+        mode: 0555
+      - motd
+configs:
+  nginx:
+    content: |
+      events {}
+  run:
+    content: "#!/bin/sh\nexec nginx\n"
+  motd:
+    content: hello
+`
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]*resourcev1.MountFile{}
+	for _, m := range stack.Services[0].Spec.GetApp().GetMounts() {
+		if !m.GetReadOnly() {
+			t.Errorf("the file at %s isn't read-only", m.GetTarget())
+		}
+		files[m.GetTarget()] = m.GetFile()
+	}
+	if files["/etc/nginx/nginx.conf"].GetContent() != "events {}\n" || files["/run"].GetMode() != 0o555 || files["/motd"].GetContent() != "hello" {
+		t.Errorf("mounts read as %v", files)
+	}
+	out, err := compose.Export("env_x", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := compose.Read(t.Context(), compose.Input{File: out.File})
+	if err != nil {
+		t.Fatalf("the export doesn't read back: %v\n%s", err, out.File)
+	}
+	if got, want := again.Services[0].Spec.GetApp(), stack.Services[0].Spec.GetApp(); !proto.Equal(got, want) {
+		t.Errorf("the export reads back as another spec: %v\n%s", resource.Diff(want, got), out.File)
+	}
+
+	for name, c := range map[string]struct{ file, want string }{
+		"from a file":        {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c:\n    file: ./nginx.conf\n", "Write what it holds as content"},
+		"from the shell":     {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c:\n    environment: CONF\n", "Write it as content"},
+		"from Swarm":         {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c:\n    external: true\n", "Write what it holds as content"},
+		"one not written":    {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\n", "doesn't write"},
+		"another's":          {"services:\n  web:\n    image: nginx:1.27\n    configs: [{source: c, uid: \"1000\"}]\nconfigs:\n  c:\n    content: x\n", "as root's"},
+		"with nothing in it": {"services:\n  web:\n    image: nginx:1.27\n    configs: [c]\nconfigs:\n  c: {}\n", "has no content"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := compose.Read(t.Context(), compose.Input{File: []byte(c.file)}); err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("Read = %v, want %q", err, c.want)
+			}
+		})
+	}
+}

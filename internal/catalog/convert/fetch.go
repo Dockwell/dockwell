@@ -15,7 +15,8 @@ import (
 
 // A Fetched commit is what the control plane reads of a store's commit: the
 // listing its adapter reads, the store's source as its entries say it, with the
-// licence read from the repository's own LICENSE, and when the commit was made.
+// licence read from the repository's own LICENSE, and when the commit was made. Its
+// listing reads more of the commit until Close.
 type Fetched struct {
 	Listing *Listing
 	Source  Source
@@ -78,6 +79,7 @@ func Fetch(ctx context.Context, client *http.Client, store Store, repo, commit, 
 	var want []gitfetch.Entry
 	byPath := map[string]gitfetch.Entry{}
 	for _, e := range listed {
+		byPath[rel(e.Path)] = e
 		if e.Dir {
 			l.Dirs[rel(e.Path)] = true
 			continue
@@ -118,6 +120,25 @@ func Fetch(ctx context.Context, client *http.Client, store Store, repo, commit, 
 	}
 	if src.License = RepositoryLicense(len(licenseFile) > 0, text); src.License != "NONE" && src.License != "NOASSERTION" {
 		src.LicenseText, src.CopyrightInLicense = text, src.License == "MIT"
+	}
+	// What an app mounts of what its folder ships, by the paths in the store's
+	// folder, each within what a file read of a store may be.
+	l.ReadMore = func(ctx context.Context, paths []string) (map[string][]byte, error) {
+		var entries []gitfetch.Entry
+		for _, p := range paths {
+			if e, ok := byPath[p]; ok && !e.Dir {
+				entries = append(entries, e)
+			}
+		}
+		files, _, err := snap.Read(ctx, entries)
+		if err != nil {
+			return nil, err
+		}
+		out := map[string][]byte{}
+		for p, b := range files {
+			out[rel(p)] = b
+		}
+		return out, nil
 	}
 	kept = true
 	return Fetched{Listing: l, Source: src, Time: snap.Time, Snapshot: snap, ByPath: byPath}, nil

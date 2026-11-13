@@ -405,6 +405,9 @@ func Validate(c *resourcev1.Container) error {
 	if err := validateOwn(c); err != nil {
 		return err
 	}
+	if err := validateFiles(c); err != nil {
+		return err
+	}
 	if err := validateStopGrace(c); err != nil {
 		return err
 	}
@@ -643,8 +646,12 @@ func validateMounts(c *resourcev1.Container) error {
 				}
 				m.MakeOwner = resource.FormatOwner(uid, gid)
 			}
+		case *resourcev1.Mount_File:
+			if err := validateFile(m, src.File); err != nil {
+				return err
+			}
 		default:
-			return fmt.Errorf("the mount at %s needs a volume or a server path to mount", m.Target)
+			return fmt.Errorf("the mount at %s needs a volume, a server path or a file to mount", m.Target)
 		}
 		if seen[m.Target] {
 			return fmt.Errorf("two mounts share the target %s; give each its own", m.Target)

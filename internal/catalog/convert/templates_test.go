@@ -118,7 +118,6 @@ func TestDokployWritesWhatItsTemplateMakes(t *testing.T) {
 func TestDokployLeavesOutWhatAnEntryCantSay(t *testing.T) {
 	apps := appsOf(t, Dokploy, "testdata/dokploy")
 	for id, want := range map[string]string{
-		"files":     "it ships 1 files beside its Compose file",
 		"urlsecret": "puts a value it makes up, db_password, inside a longer one",
 	} {
 		r := templateConverter(DokploySource("abc")).Convert(t.Context(), apps[id])
@@ -300,5 +299,45 @@ func TestAStoresAppLocksNoUnlimitedMemory(t *testing.T) {
 	}
 	if r := results["limited"]; strings.Contains(r.LeftOut, "locks memory") {
 		t.Errorf("a limited memlock: %q", r.LeftOut)
+	}
+}
+
+// A file a Dokploy template writes into its files folder, which its Compose file
+// mounts, is a file Dockwell writes, read-only, as the template wrote it: its $ are
+// its own, and a value it makes up can't go in one (ADR 0085).
+func TestADokployTemplatesFilesAreFilesDockwellWrites(t *testing.T) {
+	compose := "services:\n  web:\n    image: example/broker:2.0.0\n    volumes:\n      - ../files/broker.conf:/etc/broker/broker.conf:ro\n      - data:/data\n"
+	results := convertTree(t, Dokploy, DokploySource("abc"), map[string]string{
+		"blueprints/broker/docker-compose.yml": compose,
+		"blueprints/broker/template.toml": dokployVars + dokployRoute + "[[config.mounts]]\nfilePath = \"/broker.conf\"\n" +
+			"content = \"\"\"\nlistener 1883\nlog_dest $stdout\n\"\"\"\n",
+		"blueprints/secret/docker-compose.yml": compose,
+		"blueprints/secret/template.toml": dokployVars + dokployRoute + "[[config.mounts]]\nfilePath = \"broker.conf\"\n" +
+			"content = \"\"\"\npassword ${password:32}\n\"\"\"\n",
+		// A config file is larger than any value a template sets: 20 KiB is a file's.
+		"blueprints/large/docker-compose.yml": compose,
+		"blueprints/large/template.toml": dokployVars + dokployRoute + "[[config.mounts]]\nfilePath = \"broker.conf\"\n" +
+			"content = \"\"\"\n" + strings.Repeat("# a line of the broker's own settings\n", 512) + "\"\"\"\n",
+		"blueprints/huge/docker-compose.yml": compose,
+		"blueprints/huge/template.toml": dokployVars + dokployRoute + "[[config.mounts]]\nfilePath = \"broker.conf\"\n" +
+			"content = \"\"\"\n" + strings.Repeat("# a line of the broker's own settings\n", 4000) + "\"\"\"\n",
+	})
+	e := entryOf(t, results, "broker")
+	for _, want := range []string{"configs:\n", "source: web-etc-broker-broker.conf", "target: /etc/broker/broker.conf", "listener 1883\n", "log_dest $$stdout"} {
+		if !strings.Contains(e.GetCompose(), want) {
+			t.Errorf("its file doesn't say %q:\n%s", want, e.GetCompose())
+		}
+	}
+	if strings.Contains(e.GetCompose(), "../files") || strings.Contains(e.GetCompose(), "./broker.conf") {
+		t.Errorf("its file still mounts the template's file:\n%s", e.GetCompose())
+	}
+	if r := results["secret"]; r.Entry != nil || r.Class != ClassInside {
+		t.Errorf("a made-up value in a file: %s, %q", r.Class, r.LeftOut)
+	}
+	if !strings.Contains(entryOf(t, results, "large").GetCompose(), "a line of the broker's own settings") {
+		t.Errorf("a file of 20 KiB isn't written")
+	}
+	if r := results["huge"]; r.Entry != nil || r.Class != ClassShipped || !strings.Contains(r.LeftOut, "broker.conf: it holds over 128 KiB") {
+		t.Errorf("a file of 150 KiB: %s, %q", r.Class, r.LeftOut)
 	}
 }

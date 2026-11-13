@@ -1168,8 +1168,13 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			return "", nil, err
 		}
 	}
-	// What Docker would make root's, Dockwell makes as the mount says, first.
+	// What Docker would make root's, Dockwell makes as the mount says, first, and
+	// each file it mounts is there before it is.
 	if err := d.makeFolders(spec); err != nil {
+		undo()
+		return "", nil, err
+	}
+	if err := d.writeFiles(spec); err != nil {
 		undo()
 		return "", nil, err
 	}

@@ -629,6 +629,11 @@ func standsAlone(file, name string) error {
 		return walk(tree)
 	}
 	for _, key := range slices.Sorted(maps.Keys(top)) {
+		if key == "configs" && uses.MatchString(fmt.Sprint(top[key])) {
+			// A config's content is a file Dockwell writes and a plan shows, never a
+			// secret, even as all it holds (ADR 0085).
+			return fmt.Errorf("a config writes the secret %s into a file a plan shows, which an upgrade and a rotation couldn't reach either. Give the app the secret in its environment", name)
+		}
 		if key != "services" {
 			if err := walk(top[key]); err != nil {
 				return err

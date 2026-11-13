@@ -18,6 +18,7 @@ import (
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	"github.com/dockwell/dockwell/internal/catalog"
+	"github.com/dockwell/dockwell/internal/compose"
 )
 
 var now = time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
@@ -241,7 +242,6 @@ func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
 	for id, want := range map[string]string{
 		"scripted": "runs scripts on the server",
 		"withdb":   "uses postgresql from another app",
-		"shipped":  "it ships conf/app.conf beside its Compose file",
 	} {
 		r := convertFixture(t, converter(), id)
 		if r.Entry != nil || !strings.Contains(r.LeftOut, want) {
@@ -496,5 +496,26 @@ func TestHelpers(t *testing.T) {
 	}
 	if got := renameVars("a=${PANEL_X} b=${PANEL_X:-${PANEL_Y}} c=$${PANEL_X}", map[string]string{"PANEL_X": "X", "PANEL_Y": "Y"}); got != "a=${X} b=${X:-${Y}} c=$${PANEL_X}" {
 		t.Errorf("renameVars = %q", got)
+	}
+}
+
+// A file 1Panel ships beside an app's Compose file, which the app mounts, is a file
+// Dockwell writes, read-only, as 1Panel ships it (ADR 0085).
+func TestAFileOnePanelShipsIsAFileDockwellWrites(t *testing.T) {
+	r := convertFixture(t, converter(), "shipped")
+	if r.Entry == nil {
+		t.Fatalf("shipped was left out: %s", r.LeftOut)
+	}
+	content, err := os.ReadFile("testdata/onepanel/apps/shipped/2.0.0/conf/app.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(r.Entry.GetCompose()), Variables: map[string]string{"PORT": "8080"}})
+	if err != nil {
+		t.Fatalf("its file doesn't read: %v\n%s", err, r.Entry.GetCompose())
+	}
+	m := stack.Services[0].Spec.GetApp().GetMounts()
+	if len(m) != 1 || m[0].GetTarget() != "/etc/app.conf" || m[0].GetFile().GetContent() != string(content) || !m[0].GetReadOnly() {
+		t.Errorf("it mounts %v, where 1Panel ships %q", m, content)
 	}
 }

@@ -729,6 +729,9 @@ func TestCheckRefuses(t *testing.T) {
 		"a secret inside a label": {func(e *catalogv1.Entry) {
 			e.Compose = strings.Replace(e.GetCompose(), "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}", "POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}\n    labels: {key: \"k-${POSTGRES_PASSWORD}\"}", 1)
 		}, "inside a longer value"},
+		"a secret as all a config holds": {func(e *catalogv1.Entry) {
+			e.Compose += "configs:\n  pass:\n    content: ${POSTGRES_PASSWORD}\n"
+		}, "into a file a plan shows"},
 		"short secret": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 8 }, "at least 16"},
 		"a secret longer than Dockwell generates": {func(e *catalogv1.Entry) { e.Inputs[1].Generate = 1 << 30 }, "more than the 256 Dockwell generates"},
 		"a database it doesn't run":               {func(e *catalogv1.Entry) { e.Databases = []string{"cache"} }, "marks cache as a database"},
