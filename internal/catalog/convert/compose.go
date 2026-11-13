@@ -78,6 +78,14 @@ func rewrite(app App) (rewritten, error) {
 	}
 	// Compose reads $NAME as ${NAME}, and the rest of this reads the second.
 	walkScalars(root, func(n *yaml.Node) { n.Value = braceVars(n.Value) })
+	// An image whose tag, or name, a variable gives with a default is the default: a
+	// new version is a new release of the entry, and an install pins the build either
+	// way (ADR 0085).
+	for _, name := range serviceNames(doc) {
+		if img := mapGet(service(doc, name), "image"); img != nil {
+			img.Value = imageDefaults.ReplaceAllString(img.Value, "$1")
+		}
+	}
 	externals := map[string]bool{}
 	if nets := mapGet(root, "networks"); nets != nil {
 		for i := 0; i+1 < len(nets.Content); i += 2 {
@@ -882,6 +890,10 @@ func addOwner(svc *yaml.Node, target, owner string) {
 	mapDel(owners, target)
 	owners.Content = append(owners.Content, scalar(target), &yaml.Node{Kind: yaml.ScalarNode, Value: owner, Style: yaml.DoubleQuotedStyle})
 }
+
+// imageDefaults finds a variable with a default in an image, ${TAG:-1.2} or
+// ${TAG-1.2}, whose default holds no variable of its own.
+var imageDefaults = regexp.MustCompile(`\$\{[A-Za-z_][A-Za-z0-9_]*:?-([^${}]*)\}`)
 
 // volumeLike is a named volume's name, as Compose tells one from a path.
 var volumeLike = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)

@@ -151,6 +151,9 @@ var fileShape = sync.OnceValue(func() *shape {
 			"update_config": object("update_config: {order: stop-first}", map[string]*shape{
 				"order": str("order: stop-first"), "parallelism": number("parallelism: 1"), "failure_action": str("failure_action: rollback"),
 			}),
+			"restart_policy": object("restart_policy: {condition: on-failure}", map[string]*shape{
+				"condition": str("condition: on-failure"), "delay": str("delay: 5s"), "max_attempts": number("max_attempts: 3"), "window": str("window: 2m"),
+			}),
 		}},
 		"user":        str(`user: "1000"`),
 		"working_dir": str("working_dir: /app"),

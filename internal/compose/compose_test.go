@@ -4,6 +4,8 @@ package compose_test
 
 import (
 	"errors"
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -485,6 +487,40 @@ func TestWhatAContainerAsksOfItselfThatDockwellCant(t *testing.T) {
 // writes it back as a config (ADR 0085). One read from a file, a variable of the
 // shell or Swarm is refused with what to do, and so is one written as another
 // user's.
+// A deploy's restart_policy is the container's restart, as docker compose up reads it,
+// where the service sets none of its own (ADR 0085).
+func TestARestartPolicyIsTheContainersRestart(t *testing.T) {
+	file := `services:
+  a: {image: nginx:1.27, deploy: {restart_policy: {condition: on-failure, max_attempts: 3, delay: 5s}}}
+  b: {image: nginx:1.27, deploy: {restart_policy: {condition: any}}}
+  c: {image: nginx:1.27, deploy: {restart_policy: {condition: none}, replicas: 1}}
+  d: {image: nginx:1.27, restart: unless-stopped, deploy: {restart_policy: {condition: none}}}
+`
+	stack, err := compose.Read(t.Context(), compose.Input{File: []byte(file)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, s := range stack.Services {
+		app := s.Spec.GetApp()
+		got[s.Name] = fmt.Sprintf("%v/%d", app.GetRestart(), app.GetRestartRetries())
+	}
+	want := map[string]string{
+		"a": "RESTART_POLICY_ON_FAILURE/3", "b": "RESTART_POLICY_ALWAYS/0", "c": "RESTART_POLICY_NO/0", "d": "RESTART_POLICY_UNLESS_STOPPED/0",
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("restarts = %v, want %v", got, want)
+	}
+	for bad, why := range map[string]string{
+		"services: {a: {image: nginx:1.27, deploy: {restart_policy: {condition: sometimes}}}}":    "the condition \"sometimes\"",
+		"services: {a: {image: nginx:1.27, deploy: {restart_policy: {condition: any, nope: 1}}}}": "deploy.restart_policy uses `nope`",
+	} {
+		if _, err := compose.Read(t.Context(), compose.Input{File: []byte(bad)}); err == nil || !strings.Contains(err.Error(), why) {
+			t.Errorf("%s: %v, want %q", bad, err, why)
+		}
+	}
+}
+
 // Whom a volume or a server path is made for is the service's x-dockwell's, by the
 // mount's target, as Compose has no field for it, and an export writes it back
 // (ADR 0085).

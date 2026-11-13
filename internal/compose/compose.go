@@ -173,8 +173,10 @@ var (
 	// start_interval is how often a check runs while start_period lasts, which only
 	// says how soon a new container is first seen healthy, and Docker before 25
 	// doesn't keep it, so it's taken and dropped: checks run at interval throughout.
-	healthKeys  = keys("test", "interval", "timeout", "start_period", "start_interval", "retries", "disable")
-	deployKeys  = keys("resources", "replicas", "update_config")
+	healthKeys = keys("test", "interval", "timeout", "start_period", "start_interval", "retries", "disable")
+	deployKeys = keys("resources", "replicas", "update_config", "restart_policy")
+	// restartKeys are what a deploy's restart_policy takes, as docker compose reads it.
+	restartKeys = keys("condition", "delay", "max_attempts", "window")
 	updateKeys  = keys("order", "parallelism", "failure_action")
 	portKeys    = keys("target", "published", "host_ip", "protocol", "mode")
 	mountKeys   = keys("type", "source", "target", "read_only", "bind", "tmpfs", "consistency")
@@ -469,6 +471,54 @@ func checkPortRanges(dict map[string]any) error {
 	return nil
 }
 
+// restartFromDeploy reads a deploy's restart_policy as the container's restart, as
+// docker compose up does where the service sets no restart of its own: none is no,
+// on-failure is on-failure, with max_attempts as its count, and any is always. Its
+// delay and window are a swarm's, which Docker's restart has no field for, so they
+// go (ADR 0085).
+func restartFromDeploy(dict map[string]any) error {
+	services, _ := dict["services"].(map[string]any)
+	for _, name := range slices.Sorted(maps.Keys(services)) {
+		svc, _ := services[name].(map[string]any)
+		deploy, _ := svc["deploy"].(map[string]any)
+		policy, ok := deploy["restart_policy"].(map[string]any)
+		if !ok {
+			continue
+		}
+		delete(deploy, "restart_policy")
+		if len(deploy) == 0 {
+			delete(svc, "deploy")
+		}
+		if r, set := svc["restart"]; set && r != nil && r != "" {
+			continue
+		}
+		at := place{"the service " + name, "deploy.restart_policy.condition"}
+		condition, _ := policy["condition"].(string)
+		var restart string
+		switch strings.TrimSpace(condition) {
+		case "none":
+			restart = "no"
+		case "on-failure":
+			restart = "on-failure"
+			if n, ok := policy["max_attempts"]; ok && n != nil {
+				count, err := strconv.ParseUint(strings.TrimSpace(fmt.Sprint(n)), 10, 31)
+				if err != nil {
+					return invalidAt(at, "the service %s's restart_policy has max_attempts %v, where it takes a number of times, such as 5", name, n)
+				}
+				if count > 0 {
+					restart += ":" + strconv.FormatUint(count, 10)
+				}
+			}
+		case "", "any":
+			restart = "always"
+		default:
+			return invalidAt(at, "the service %s's restart_policy has the condition %q, which Docker doesn't take. Use none, on-failure or any", name, condition)
+		}
+		svc["restart"] = restart
+	}
+	return nil
+}
+
 // numberUlimits writes each of a service's limits as the number it is, as one a
 // variable gave arrives as text, which compose-go takes as a number and panics on
 // (ADR 0085). Text that's no whole number is refused by its name.
@@ -690,6 +740,9 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 		return nil, err
 	}
 	if err := numberUlimits(dict); err != nil {
+		return nil, err
+	}
+	if err := restartFromDeploy(dict); err != nil {
 		return nil, err
 	}
 	extensions, err := takeExtensions(dict)

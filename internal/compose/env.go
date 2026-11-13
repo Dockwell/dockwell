@@ -282,6 +282,11 @@ func checkDeploy(what string, svc map[string]any) error {
 			return err
 		}
 	}
+	if r, ok := deploy["restart_policy"].(map[string]any); ok {
+		if err := check(what+"'s deploy.restart_policy", r, restartKeys); err != nil {
+			return err
+		}
+	}
 	resources, ok := deploy["resources"].(map[string]any)
 	if !ok {
 		return nil

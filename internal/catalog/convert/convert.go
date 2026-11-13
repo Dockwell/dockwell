@@ -306,6 +306,11 @@ func (c *Converter) keep(id string, was *catalogv1.Entry, why string, class Clas
 }
 
 func (c *Converter) convert(ctx context.Context, app App) Result {
+	// An entry's ID starts with a letter, so a store's that starts with a digit, as
+	// 2fauth does, takes a word first (ADR 0085).
+	if app.ID != "" && app.ID[0] >= '0' && app.ID[0] <= '9' {
+		app.ID = "app-" + app.ID
+	}
 	r := Result{ID: app.ID, Path: app.Path}
 	fail := func(err error, fallback Class) Result {
 		r.LeftOut, r.Class = err.Error(), classOf(err, fallback)

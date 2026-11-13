@@ -141,17 +141,27 @@ An upgrade's `chown -R` of data an app already wrote isn't taken: the data keeps
 - **An install or an upgrade on a server of another architecture is refused**, naming it and where to put it: "Board runs on amd64 servers alone, as its source says, and hz-2 is arm64. Install it on an amd64 server." A server that hasn't said its architecture yet is let through, as pulling the image says it then.
 - **The panel says "Runs on amd64 servers"** on the app's card and page, and its install form offers only servers it runs on.
 
+### Common cases that left apps out
+
+*Added with the sixth slice of #570.*
+
+- **A value a service takes from Dokploy's env by its name alone,** as `- POSTGRES_DB`, which docker compose reads from the `.env` Dokploy writes beside the file, is written out as `POSTGRES_DB=${POSTGRES_DB}`, which the template's value stands in for. A name the template doesn't set is one a person may set in Dokploy, and is an input here, optional.
+- **A value a template makes up under a name an input can't take,** as `DFLY_requirepass` or `admin_email`, keeps its name in the app's environment, and its input takes the name in capitals.
+- **An image whose tag, or name, a variable gives with a default,** as `ghcr.io/acme/app:${APP_VERSION:-release}`, is the default: a new version is a new release of the entry, and an install pins the build either way. One with no default still stays out.
+- **An app whose ID starts with a digit,** as 2fauth's, takes `app-` first, as an entry's ID starts with a letter.
+- **The Compose importer reads a deploy's `restart_policy`** as the container's restart, as docker compose up does where the service sets none: `none` is no, `on-failure` is on-failure with `max_attempts` as its count, and `any` is always. Its `delay` and `window` are a swarm's, which Docker's restart has no field for, so they go.
+
 ### Numbers
 
 ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90), `Container` 90 to 99, `Mount.file` (90) and its `MountFile`, and the agent's `Hello.own_settings` (300), `Hello.writes_files` (301) and `Hello.owns_volumes` (302); `Entry.architectures` (50); `CatalogInstall.release` in Go alone, and `ImageUpdatesCall` as it is.
 
 ### As built, 13 Nov 2026
 
-| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | Rate |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 52% |
-| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 61% |
-| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 62% |
+| Store | Apps | Moving tags | With a container's own settings and secrets in commands | With files | With scripts as steps | On amd64 alone | Common cases | Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1Panel's app store | 269 | 99 | 112 | 123 | 142 | 156 | 156 | 57% |
+| Dokploy's templates | 612 | 299 | 331 | 374 | 374 | 374 | 388 | 63% |
+| Coolify's templates | 384 | 199 | 224 | 240 | 240 | 240 | 246 | 64% |
 
 ## What we turned down
 

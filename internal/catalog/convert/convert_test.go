@@ -254,7 +254,6 @@ func TestAnAppIsLeftOutWithItsReason(t *testing.T) {
 		file, want string
 	}{
 		"a branch, not a version":      {"services:\n  a:\n    image: example/a:latest\n", "names no version"},
-		"an image from a variable":     {"services:\n  a:\n    image: ${IMAGE:-example/a:1.0}\n", "comes from a variable"},
 		"a variable no field fills":    {"services:\n  a:\n    image: ${IMAGE}\n", "uses IMAGE, which its platform fills in"},
 		"a value 1Panel fills in":      {"services:\n  a:\n    image: example/a:1.0\n    environment:\n      - DB=${PANEL_DB_PORT}\n", "PANEL_DB_PORT, which its platform fills in"},
 		"a build":                      {"services:\n  a:\n    build: .\n", "has build"},

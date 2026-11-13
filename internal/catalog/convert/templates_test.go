@@ -212,6 +212,47 @@ func TestCoolifysAmd64AloneIsOfferedOnAmd64Servers(t *testing.T) {
 	}
 }
 
+// Common cases that left apps out convert (ADR 0085): a value a service takes from
+// Dokploy's env by its name alone, a made-up value under a name an input can't take,
+// an image whose tag a variable gives with a default, and an ID that starts with a
+// digit.
+func TestCommonCasesConvert(t *testing.T) {
+	compose := "services:\n  web:\n    image: example/web:${WEB_TAG:-2.1.0}\n    environment:\n      - POSTGRES_DB\n      - SMTP_HOST\n      - DFLY_requirepass=${DFLY_requirepass}\n    ports:\n      - 3000\n  cache:\n    image: example/cache:1.0.0\n    environment:\n      POSTGRES_DB:\n"
+	template := dokployVars + "pass = \"${password:32}\"\n" + "[config]\n[config.env]\nPOSTGRES_DB = \"notes\"\nDFLY_requirepass = \"${pass}\"\n" + dokployRoute
+	results := convertTree(t, Dokploy, DokploySource("abc"), map[string]string{
+		"blueprints/notes/docker-compose.yml": compose,
+		"blueprints/notes/template.toml":      template,
+		"blueprints/2fa/docker-compose.yml":   "services:\n  web:\n    image: example/web:2.1.0\n    ports:\n      - 3000\n",
+		"blueprints/2fa/template.toml":        dokployVars + dokployRoute,
+	})
+	e := entryOf(t, results, "notes")
+	file := e.GetCompose()
+	for _, want := range []string{"POSTGRES_DB=notes", "POSTGRES_DB: notes", "DFLY_requirepass=${DFLY_REQUIREPASS}", "image: example/web:2.1.0"} {
+		if !strings.Contains(file, want) {
+			t.Errorf("its file doesn't say %q:\n%s", want, file)
+		}
+	}
+	in := map[string]*catalogv1.Input{}
+	for _, i := range e.GetInputs() {
+		in[i.GetName()] = i
+	}
+	if p := in["DFLY_REQUIREPASS"]; p.GetType() != catalogv1.InputType_INPUT_TYPE_SECRET || p.GetGenerate() != 32 {
+		t.Errorf("DFLY_REQUIREPASS is %v", p)
+	}
+	if h := in["SMTP_HOST"]; !h.GetOptional() || !strings.Contains(file, "SMTP_HOST=${SMTP_HOST}") {
+		t.Errorf("a name the template doesn't set is %v, in\n%s", h, file)
+	}
+	if _, ok := in["WEB_TAG"]; ok {
+		t.Errorf("the image's tag is still an input")
+	}
+	if e.GetVersion() != "2.1.0" {
+		t.Errorf("its version is %q, from the image's tag", e.GetVersion())
+	}
+	if r := results["2fa"]; r.ID != "app-2fa" || strings.Contains(r.LeftOut, "isn't a valid catalog entry name") {
+		t.Errorf("2fa: %s, %q", r.ID, r.LeftOut)
+	}
+}
+
 func TestCoolifyLeavesOutWhatAnEntryCantSay(t *testing.T) {
 	apps := appsOf(t, Coolify, "testdata/coolify")
 	for id, want := range map[string]string{

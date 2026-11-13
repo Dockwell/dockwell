@@ -251,7 +251,19 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 		case claimed[made.id] != "":
 			literal[key] = "${" + claimed[made.id] + "}"
 		case !inputLike.MatchString(key):
-			return nil, nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", key)
+			// The app reads it by its own name, such as DFLY_requirepass, and the
+			// input that makes it up takes the name an entry's input can, such as
+			// DFLY_REQUIREPASS.
+			input := envInputName(key)
+			if !inputLike.MatchString(input) || taken[input] {
+				return nil, nil, nil, leave(ClassCantSay, "its template's %s makes up a value, under a name an entry's input can't take", key)
+			}
+			taken[input] = true
+			claimed[made.id] = input
+			literal[key] = "${" + input + "}"
+			f := made.field
+			f.Name, f.Label = input, labelOf(input)
+			fields = append(fields, f)
 		default:
 			claimed[made.id] = key
 			f := made.field
@@ -262,6 +274,7 @@ func dokployCompose(file []byte, t *dokployTemplate) ([]byte, []Field, map[strin
 	if err := envFile(doc, keys); err != nil {
 		return nil, nil, nil, err
 	}
+	passThrough(doc, keys)
 	// A variable of the template's own that the file uses directly, which Dokploy
 	// writes into the file too: what it comes to, or the field it makes.
 	direct := map[string]bool{}
@@ -691,6 +704,44 @@ func envFile(doc *yaml.Node, keys []string) error {
 	return nil
 }
 
+// envInputName is the name an entry's input can take for a variable's, such as
+// ADMIN_EMAIL for admin_email or APP_OPENSSL_KEY_V1 for _APP_OPENSSL_KEY_V1.
+func envInputName(name string) string {
+	return strings.TrimLeft(strings.ToUpper(name), "_")
+}
+
+// passThrough writes out a value a service's environment takes from the template's
+// env by its name alone, as `- POSTGRES_DB` takes Dokploy's .env, which writes it
+// beside the file: as POSTGRES_DB=${POSTGRES_DB}, which the template's value then
+// stands in for, as anywhere else in the file. A name the template doesn't set is
+// one a person may set in Dokploy, and so in Dockwell, as an input.
+func passThrough(doc *yaml.Node, keys []string) {
+	passes := func(k string) bool { return slices.Contains(keys, k) || inputLike.MatchString(k) }
+	for _, name := range serviceNames(doc) {
+		env := mapGet(service(doc, name), "environment")
+		if env == nil {
+			continue
+		}
+		switch env.Kind {
+		case yaml.SequenceNode:
+			for _, n := range env.Content {
+				if n.Kind == yaml.ScalarNode && !strings.Contains(n.Value, "=") && passes(strings.TrimSpace(n.Value)) {
+					k := strings.TrimSpace(n.Value)
+					n.Value, n.Style = k+"=${"+k+"}", 0
+				}
+			}
+		case yaml.MappingNode:
+			for i := 0; i+1 < len(env.Content); i += 2 {
+				k, v := env.Content[i].Value, env.Content[i+1]
+				if passes(k) && v.Kind == yaml.ScalarNode && (v.Tag == "!!null" || v.Value == "" && v.Style == 0) {
+					env.Content[i+1] = scalar("${" + k + "}")
+				}
+			}
+		default:
+		}
+	}
+}
+
 // publish publishes a port of a service that a platform reaches through its own
 // proxy, which Dockwell's reaches on loopback, by variable: in place of a port the
 // file publishes already, or beside the rest. A service on the server's own network
@@ -752,10 +803,13 @@ func webTag(file []byte, fields []Field) string {
 	}
 	tag := func(svc *yaml.Node) string {
 		if img := mapGet(svc, "image"); img != nil {
-			if untagged(strings.TrimSpace(img.Value)) && !strings.Contains(img.Value, "$") {
+			// A tag a variable gives with a default is the default, as the entry's
+			// image is (ADR 0085).
+			image := imageDefaults.ReplaceAllString(braceVars(img.Value), "$1")
+			if untagged(strings.TrimSpace(image)) && !strings.Contains(image, "$") {
 				return "latest" // what Docker pulls for an image named with no tag
 			}
-			if r, err := parseRef(img.Value); err == nil {
+			if r, err := parseRef(image); err == nil && !strings.Contains(r.tag, "$") {
 				return r.tag
 			}
 		}

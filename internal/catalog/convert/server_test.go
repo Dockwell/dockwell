@@ -430,7 +430,9 @@ func TestOnServerTakesATagThatMoves(t *testing.T) {
 		"templates/compose/bare.yaml":     strings.Replace(plain, "nginx:1.27", "ghcr.io/acme/web", 1),
 		"templates/compose/port.yaml":     strings.Replace(plain, "nginx:1.27", "registry.example.com:5000/web", 1),
 		"templates/compose/stable.yaml":   strings.Replace(plain, "nginx:1.27", "acme/web:stable", 1),
-		"templates/compose/variable.yaml": strings.Replace(plain, "nginx:1.27", "acme/web:${TAG:-latest}", 1),
+		"templates/compose/variable.yaml": strings.Replace(plain, "nginx:1.27", "acme/web:${TAG}", 1),
+		// A tag a variable gives with a default is the default (ADR 0085).
+		"templates/compose/defaulted.yaml": strings.Replace(plain, "nginx:1.27", "acme/web:${TAG:-latest}", 1),
 	})
 	run, err := OnServer(t.Context(), store, l, src, committed)
 	if err != nil {
@@ -460,6 +462,9 @@ func TestOnServerTakesATagThatMoves(t *testing.T) {
 	}
 	if r := got["variable"]; r.Entry != nil || r.Class != ClassCantSay {
 		t.Errorf("an image from a variable converted: %s, %q", r.Class, r.LeftOut)
+	}
+	if r := got["defaulted"]; r.Entry == nil || !strings.Contains(r.Entry.GetCompose(), "image: acme/web:latest\n") {
+		t.Errorf("an image with a defaulted tag: %v, %q", r.Entry.GetCompose(), r.LeftOut)
 	}
 }
 
