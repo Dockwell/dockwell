@@ -58,3 +58,47 @@ func (e *Engine) undoUnits(ctx context.Context, c store.Change, took *Plan, by B
 	}
 	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, c.ID, true)
 }
+
+// Stopping the panel an import came from (ADR 0089) is an edit of the server's
+// host that makes no revision, as an action on a unit is. Its plan keeps how each
+// of the panel's own containers stood, so undoing it plans starting each again.
+
+// panelIn is what change c asks of the panel on ref's server, as its plan says, or
+// nil: what a resume plans again, keeping how each part stood before the change
+// began, so a stop that resumes doesn't read what it stopped as how it was.
+func panelIn(c store.Change, ref resource.Ref) *resource.PanelAsked {
+	p, err := DecodePlan(c.Plan)
+	if err != nil {
+		return nil
+	}
+	for i := range p.Resources {
+		if q := p.Resources[i].Panel; p.Resources[i].Ref == ref && q != nil {
+			return &resource.PanelAsked{Change: c.ID, Kind: q.Kind, Start: q.Start, Parts: q.Parts}
+		}
+	}
+	return nil
+}
+
+// undoPanels plans starting again what change c stopped of a panel, each part as
+// it stood. A start has nothing of its own to put back.
+func (e *Engine) undoPanels(ctx context.Context, c store.Change, took *Plan, by By) (*Plan, error) {
+	if c.State != store.ChangeApplied {
+		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", c.ID, c.State)
+	}
+	if err := e.withinUndoWindow(c); err != nil {
+		return nil, err
+	}
+	var edits []Edit
+	for i := range took.Resources {
+		r := &took.Resources[i]
+		if r.Panel == nil {
+			continue
+		}
+		back, ok := r.Panel.Undone()
+		if !ok {
+			return nil, fault.New(ErrCantUndo, "%s can't be undone: it started %s again. Stop %s again to put that back", c.ID, r.Panel.Name(), r.Panel.Name())
+		}
+		edits = append(edits, Edit{Ref: r.Ref, Spec: &resourcev1.ServerHost{}, Panel: &back})
+	}
+	return e.propose(ctx, Proposal{Summary: "Undo: " + c.Summary, Actor: by.Actor, Via: by.Via, Edits: edits}, c.ID, true)
+}

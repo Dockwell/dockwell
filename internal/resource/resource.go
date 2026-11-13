@@ -285,6 +285,10 @@ type Decision struct {
 	// Unit says what a step does to one of its server's system services, for a
 	// server's host (ADR 0082). Its fingerprint covers it.
 	Unit *Unit `json:",omitempty"`
+	// Panel says what a step does to the panel an import came from, stopping or
+	// starting its own containers, for a server's host (ADR 0089). Its fingerprint
+	// covers it.
+	Panel *Panel `json:",omitempty"`
 	// RegistryLogin names the registry login the step's pull signs in with, as the
 	// control plane picked it (ADR 0086). Its fingerprint covers it, so a login
 	// added between a plan and its apply makes the plan stale.

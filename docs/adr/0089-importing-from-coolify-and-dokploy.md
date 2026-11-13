@@ -71,7 +71,18 @@ As in ADR 0056: every import is a plan a person reviews and applies; one thing t
 
 ### Stopping the panel after
 
-Once its apps are taken on, the panel goes on running beside Dockwell until a person stops it. The next step, brought ahead of the screen and the domains after the security review, gives that one step, as stopping the panel also ends its auto deploys and its scheduled tasks: a change that stops the panel's own containers, Coolify's six or Dokploy's three services and its proxy, planned as an action on the server's host is ([ADR 0082](0082-acting-on-a-servers-system-services.md)), with no revision, whose undo starts them again. Nothing of the panel is deleted: its database and folders stay, so starting it again brings it back as it was.
+Once its apps are taken on, the panel goes on running beside Dockwell until a person stops it. The next step, brought ahead of the screen and the domains after the security review, gives that one step, as stopping the panel also ends its auto deploys and its scheduled tasks: a change that stops the panel's own containers and services, planned as an action on the server's host is ([ADR 0082](0082-acting-on-a-servers-system-services.md)), with no revision, whose undo starts them again. Nothing of the panel is deleted: its database and folders stay, so starting it again brings it back as it was.
+
+#### Stopping the panel, as built
+
+- **`ImportService.PlanStopPanel`** names a server and a panel, and plans one edit of the server's host, flagged as stopping that panel. It's a plan method for an admin, with the install reach, and a person's: a token can't plan one, as with every action on the server's host. Where nothing of the panel runs, nothing is planned and it says so; an agent from before says to update it (`Hello.stops_panels`).
+- **What stops.** Coolify's `coolify`, `coolify-realtime`, `coolify-sentinel`, `coolify-redis` and `coolify-db`, in that order: the panel first, so it doesn't see its database go. Dokploy's Swarm services `dokploy`, `dokploy-redis` and `dokploy-postgres`, scaled to none. One already stopped, and staying so, isn't planned.
+- **What stays.** The panel's proxy, `coolify-proxy` or `dokploy-traefik`: it serves the domains of what was taken on until those come as routes, a step of its own, which the plan says. What the panel ran isn't touched.
+- **It stays stopped.** A container's restart policy becomes `no` before it stops, as Coolify starts its own with `always`, which Docker and a reboot would start again. A Swarm service's update carries its whole spec, as Swarm takes it: the agent reads it as Docker has it, keeps every field and number as it was, changes the replicas alone, and names the version it read, so a change made meanwhile is refused, not written over.
+- **The plan keeps how each stood:** running or not, its restart policy, or its replicas. Its fingerprint covers them, so a part that moved since makes the plan stale. A stop that resumes keeps what its plan read, not what it has stopped since.
+- **Undoing it starts each again as it stood,** its state first, the panel last, as a change with its own plan. That start has no undo of its own; stopping again does it.
+- **The agent acts on the panel's own alone.** What a start puts back comes from a plan, so the agent takes only the panel's own names, never its proxy, a restart policy Docker has, and at most 16 replicas.
+- **The panel offers it** on a server's Overview where Coolify's or Dokploy's own app runs, as a callout a person can put away, until the import's screen gives it its row. The CLI's is `dockwell import stop-panel`.
 
 ### A token, where one is needed
 
@@ -83,7 +94,7 @@ A server's Move in tab offers each panel it finds running, beside 1Panel, and an
 
 ### Numbers
 
-The agent protocol takes 330 to 339: `Hello.reads_panels` (330), and `read_panel` in `Call` and `CallResult` (331).
+The agent protocol takes 330 to 339: `Hello.reads_panels` (330), `read_panel` in `Call` and `CallResult` (331), `Hello.stops_panels` (332) and `DesiredResource.panel` (333). The API's plan takes 131 in `PlannedResource` and `PlanStep` for `panel`, in the 130 to 139 the import holds in existing messages.
 
 ## Consequences
 

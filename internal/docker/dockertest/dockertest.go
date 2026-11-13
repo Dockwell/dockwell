@@ -17,6 +17,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net"
 	"net/http"
@@ -82,8 +83,15 @@ type Image struct {
 type Engine struct {
 	// Services are the Swarm services it runs, as a swarm's manager lists them. Nil
 	// is an engine that isn't in a swarm.
-	Services    []docker.Service
-	memoryKills []memoryKill
+	Services []docker.Service
+	// ServiceExtras are fields of each service's spec, by its ID, that Service
+	// doesn't type, such as EndpointSpec, which the engine gives back as they are,
+	// as Docker keeps what a client doesn't know of. An update keeps what it's sent.
+	ServiceExtras map[string]map[string]json.RawMessage
+	// ServiceUpdates are the specs each update of a service was sent, as
+	// "<id> <spec>".
+	ServiceUpdates []string
+	memoryKills    []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
 	ahead time.Duration
@@ -474,6 +482,10 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, e.Services)
+	case parts[0] == "services" && len(parts) == 2 && r.Method == http.MethodGet:
+		e.inspectService(w, parts[1])
+	case parts[0] == "services" && len(parts) == 3 && parts[2] == "update" && r.Method == http.MethodPost:
+		e.updateService(w, r, parts[1])
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":
@@ -2452,4 +2464,72 @@ func (e *Engine) signedIn(r *http.Request, ref string) bool {
 		src, ok = e.Find(ref)
 	}
 	return !ok || src.Login == "" || src.Login == given
+}
+
+// service is the Swarm service of an ID or a name, or nil.
+func (e *Engine) service(id string) *docker.Service {
+	for i := range e.Services {
+		if e.Services[i].ID == id || e.Services[i].Spec.Name == id {
+			return &e.Services[i]
+		}
+	}
+	return nil
+}
+
+// serviceJSON is a service as Docker gives one, with the fields of its spec that
+// Service doesn't type.
+func (e *Engine) serviceJSON(svc *docker.Service) map[string]any {
+	var out map[string]any
+	b, _ := json.Marshal(svc)
+	_ = json.Unmarshal(b, &out)
+	spec, _ := out["Spec"].(map[string]any)
+	for k, v := range e.ServiceExtras[svc.ID] {
+		spec[k] = v
+	}
+	return out
+}
+
+func (e *Engine) inspectService(w http.ResponseWriter, id string) {
+	svc := e.service(id)
+	if svc == nil {
+		fail(w, http.StatusNotFound, "service %s not found", id)
+		return
+	}
+	writeJSON(w, http.StatusOK, e.serviceJSON(svc))
+}
+
+// updateService takes a service's whole spec, as Docker does, refusing one sent
+// for a version it has moved on from.
+func (e *Engine) updateService(w http.ResponseWriter, r *http.Request, id string) {
+	svc := e.service(id)
+	if svc == nil {
+		fail(w, http.StatusNotFound, "service %s not found", id)
+		return
+	}
+	if r.URL.Query().Get("version") != strconv.FormatUint(svc.Version.Index, 10) {
+		fail(w, http.StatusBadRequest, "update out of sequence")
+		return
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		fail(w, http.StatusBadRequest, "%v", err)
+		return
+	}
+	var spec docker.ServiceSpec
+	var all map[string]json.RawMessage
+	if json.Unmarshal(body, &spec) != nil || json.Unmarshal(body, &all) != nil {
+		fail(w, http.StatusBadRequest, "can't read the spec")
+		return
+	}
+	e.ServiceUpdates = append(e.ServiceUpdates, svc.ID+" "+string(body))
+	for _, typed := range []string{"Name", "Labels", "TaskTemplate", "Mode"} {
+		delete(all, typed)
+	}
+	if e.ServiceExtras == nil {
+		e.ServiceExtras = map[string]map[string]json.RawMessage{}
+	}
+	e.ServiceExtras[svc.ID] = all
+	svc.Spec = spec
+	svc.Version.Index++
+	writeJSON(w, http.StatusOK, map[string]any{"Warnings": nil})
 }

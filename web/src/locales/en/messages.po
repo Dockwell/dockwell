@@ -7811,6 +7811,9 @@ msgstr "See the guide"
 msgid "Started {name} on {server}"
 msgstr "Started {name} on {server}"
 
+msgid "Starting {name} again on {server}"
+msgstr "Starting {name} again on {server}"
+
 msgid "Starting {name} on {server}"
 msgstr "Starting {name} on {server}"
 
@@ -8001,11 +8004,17 @@ msgstr "{name} is running"
 msgid "{name} is starting"
 msgstr "{name} is starting"
 
+msgid "{name} is stopped on {server}"
+msgstr "{name} is stopped on {server}"
+
 msgid "{name} no longer starts at boot on {server}"
 msgstr "{name} no longer starts at boot on {server}"
 
 msgid "{name} ran to its end"
 msgstr "{name} ran to its end"
+
+msgid "{name} runs again on {server}"
+msgstr "{name} runs again on {server}"
 
 msgid "{name} starts at boot on {server}"
 msgstr "{name} starts at boot on {server}"
@@ -8166,6 +8175,28 @@ msgstr "Details"
 
 msgid "Dockwell made this change because of what failed"
 msgstr "Dockwell made this change because of what failed"
+
+msgid "Scales the Swarm services {services} to none"
+msgstr "Scales the Swarm services {services} to none"
+
+msgid "Start {name} again on <0>{server}</0>"
+msgstr "Start {name} again on <0>{server}</0>"
+
+#. placeholder {0}: list(panel.parts.map((p) => p.name))
+msgid "Starts {0} as each stood before the stop"
+msgstr "Starts {0} as each stood before the stop"
+
+msgid "Stop {name} on <0>{server}</0>"
+msgstr "Stop {name} on <0>{server}</0>"
+
+msgid "Stops {containers}, which stay stopped when Docker or {server} restarts"
+msgstr "Stops {containers}, which stay stopped when Docker or {server} restarts"
+
+msgid "What {name} ran keeps running, and nothing of {name} is deleted"
+msgstr "What {name} ran keeps running, and nothing of {name} is deleted"
+
+msgid "{stays} keeps serving the domains of what was taken on"
+msgstr "{stays} keeps serving the domains of what was taken on"
 
 msgid "About {span} down, and up to {bound} until healthy"
 msgstr "About {span} down, and up to {bound} until healthy"
@@ -11231,6 +11262,15 @@ msgstr "{0, plural, one {# thing found} other {# things found}}"
 
 msgid "{count, plural, one {Show it} other {Show all #}}"
 msgstr "{count, plural, one {Show it} other {Show all #}}"
+
+msgid "Stop {name}"
+msgstr "Stop {name}"
+
+msgid "Stopping it ends its deploys, and what it ran keeps running."
+msgstr "Stopping it ends its deploys, and what it ran keeps running."
+
+msgid "{name} runs on this server"
+msgstr "{name} runs on this server"
 
 msgid "Read this deploy's logs"
 msgstr "Read this deploy's logs"

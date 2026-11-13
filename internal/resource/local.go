@@ -53,6 +53,9 @@ type Desired struct {
 	// Unit acts on one of the server's system services as a step of this change.
 	// Its kind is a UnitActor.
 	Unit *UnitAsked
+	// Panel stops or starts the own containers of the panel an import came from, as
+	// a step of this change. Its kind is a PanelActor.
+	Panel *PanelAsked
 	// Prepare gives what plans this resource, alone, what only it may use, such as
 	// the registry login its image is pulled with (ADR 0086). It's never kept.
 	Prepare func(context.Context) context.Context `json:"-"`
@@ -314,7 +317,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Prepare: want.Prepare}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Prepare: want.Prepare}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -376,6 +379,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				if step.Leads, err = leadsOf(ctx, d, want.Ref, spec); err != nil {
 					return nil, err
 				}
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Panel != nil {
+			p, ok := d.(PanelActor)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't stop a panel for a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := p.JudgePanel(ctx, want.Ref, *want.Panel)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
 			}
 			steps = append(steps, step)
 			continue
@@ -678,6 +696,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return cantApply(ctx, step, fmt.Errorf("this agent can't act on system services for a %s", step.Ref.Kind))
 		}
 		return u.ApplyUnit(ctx, step)
+	}
+	if step.Panel != nil {
+		p, ok := d.(PanelActor)
+		if !ok {
+			return cantApply(ctx, step, fmt.Errorf("this agent can't stop a panel for a %s", step.Ref.Kind))
+		}
+		return p.ApplyPanel(ctx, step)
 	}
 	if step.Reboot != nil {
 		r, ok := d.(Rebooter)

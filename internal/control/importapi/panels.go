@@ -384,3 +384,36 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 		w.name, srv.GetName(), human.List(taken), w.proxy, w.name)})
 	return h.changes.Propose(ctx, "Take on what "+w.name+" runs on "+srv.GetName(), edits, nil, also)
 }
+
+// PlanStopPanel plans stopping the panel an import came from on a server: its own
+// containers and services, never what it ran, and never its proxy, which serves
+// the domains of what was taken on until those come as routes. Undoing it starts
+// each again as it stood.
+func (h *Handler) PlanStopPanel(ctx context.Context, req *connect.Request[dockwellv1.PlanStopPanelRequest]) (*connect.Response[dockwellv1.PlanStopPanelResponse], error) {
+	kind, err := changes.PanelKindOf(req.Msg.GetPanel())
+	if err != nil {
+		return nil, err
+	}
+	w := panels[req.Msg.GetPanel()]
+	srv, err := h.fleet.Get(req.Msg.GetServerId())
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", req.Msg.GetServerId()), "not_found")
+	}
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	session, ok := h.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnavailable,
+			fmt.Errorf("%s's agent isn't connected, so Dockwell can't read how %s stands there. Try again once it reconnects", srv.GetName(), w.name), "server_offline")
+	}
+	if !session.StopsPanels() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to stop %s. Update the agent on %s, then try again", srv.GetName(), w.name, srv.GetName()), "agent_outdated")
+	}
+	c, err := h.changes.PlanPanelStop(ctx, srv, kind, strings.TrimSpace(req.Msg.GetSummary()))
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.PlanStopPanelResponse{Change: c}), nil
+}

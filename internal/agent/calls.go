@@ -538,6 +538,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if u := d.GetUnit(); u != nil {
 				want.Unit = &resource.UnitAsked{Change: u.GetChangeId(), Name: u.GetName(), Action: resourcepb.UnitActionFrom(u.GetAction())}
 			}
+			if p := d.GetPanel(); p != nil {
+				want.Panel = &resource.PanelAsked{Change: p.GetChangeId(), Kind: resourcepb.PanelKindFrom(p.GetPanel()), Start: p.GetStart(), Parts: resourcepb.PanelPartsFrom(p.GetParts())}
+			}
 			if in := d.GetInstallUpdates(); in != nil {
 				want.Install = &resource.InstallAsked{Change: in.GetChangeId(), All: in.GetAll(), Names: in.GetNames(), Packages: resourcepb.PackagesFrom(in.GetPackages())}
 			}

@@ -510,6 +510,9 @@ message Hello {
   // Docker and the panel's folders (ReadPanelCall). Importing from them takes 330
   // to 339 in agent messages (ADR 0089).
   bool reads_panels = 330;
+  // True when the agent stops and starts the own containers and services of
+  // Coolify or Dokploy as a step of a change (DesiredResource.panel).
+  bool stops_panels = 332;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.
@@ -2118,6 +2121,24 @@ message DesiredResource {
   // each registry, sealed to this stream's delivery key as a step's values are
   // (ADR 0086). Numbered in the block registry logins hold, 310 to 319.
   bytes build_registry_auths = 315;
+  // Stops or starts the own containers and services of the panel an import came
+  // from, for its host (ADR 0089). Numbered in the import's block, 330 to 339.
+  PanelAction panel = 333;
+}
+
+// PanelAction is stopping or starting the own containers and services of Coolify
+// or Dokploy on the server. The agent acts on none but the panel's own, and never
+// its proxy.
+message PanelAction {
+  // The change.
+  string change_id = 1;
+  // The panel.
+  dockwell.v1.PanelKind panel = 2;
+  // True to start them again, as parts say each stood; otherwise a stop.
+  bool start = 3;
+  // How each stood before a stop, as its plan kept it: what a start puts back,
+  // and what a stop that resumes keeps.
+  repeated dockwell.v1.HostPanelPart parts = 4;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.

@@ -236,6 +236,10 @@ type Edit struct {
 	// Unit acts on one of its server's system services, for a server's host: a step
 	// that makes no revision (ADR 0082). Its Change is filled in as it's proposed.
 	Unit *resource.UnitAsked
+	// Panel stops or starts the own containers of the panel an import came from,
+	// for a server's host: a step that makes no revision (ADR 0089). Its Change is
+	// filled in as it's proposed.
+	Panel *resource.PanelAsked
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
 	// servers still in the fleet; a new one runs on the only server when
@@ -440,6 +444,10 @@ type ResourcePlan struct {
 	// a server's host, which makes no revision (ADR 0082). Undoing it plans the
 	// action that puts back how the unit stood.
 	Unit *resource.Unit `json:",omitempty"`
+	// Panel says what the change does to the panel an import came from, for a
+	// server's host, which makes no revision (ADR 0089). Undoing a stop plans
+	// starting each part again as it stood.
+	Panel *resource.Panel `json:",omitempty"`
 	// Restore says what the change brings its data back from, which makes no
 	// revision either.
 	Restore *resource.RestoreSource `json:",omitempty"`
@@ -539,7 +547,7 @@ func (p *Plan) Counts() Counts {
 func (p *Plan) HostAccess() bool {
 	// An install of updates reaches the whole server, as root, which a person approves.
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
-		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil
+		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil
 	})
 }
 
@@ -675,6 +683,9 @@ type item struct {
 	reboot string
 	// unit is the action the change asks of one of a server's system services.
 	unit *resource.UnitAsked
+	// panel is stopping or starting the panel an import came from, on a server's
+	// host.
+	panel *resource.PanelAsked
 	// follows says the change took it in because it uses a value the change
 	// changes, as an app restarts with its database user's new password: Dockwell's
 	// own item, not the person's edit, which may be in another project, through a
@@ -685,7 +696,7 @@ type item struct {
 // noRevision reports an item that acts on a resource as it is, so it has nothing
 // to roll back, and what goes wrong leaves its revision as it was.
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.unit != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -858,6 +869,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Unit != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].unit = &resource.UnitAsked{Change: changeID, Name: p.Edits[j].Unit.Name, Action: p.Edits[j].Unit.Action}
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Panel != nil && ed.Ref == items[i].ref }); j >= 0 {
+			asked := *p.Edits[j].Panel
+			asked.Change = changeID
+			items[i].panel = &asked
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Install != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].install = &resource.InstallAsked{Change: changeID, All: p.Edits[j].Install.All, Names: p.Edits[j].Install.Names}
@@ -2348,6 +2364,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	installs := map[string]*resource.Install{} // what each server's host installs
 	reboots := map[string]*resource.Reboot{}   // which servers' hosts reboot
 	units := map[string]*resource.Unit{}       // what each server's host does to a unit
+	panels := map[string]*resource.Panel{}     // what each server's host does to a panel
 	keeps := map[string][]resource.Access{}    // what each keeps while it runs something else
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
@@ -2528,6 +2545,16 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				fmt.Fprintf(fp, "unit %s|%s|%s|%s|%t|%s|%s|%s|%d|%t\n", server, ref(s.Ref), u.Name, u.Action, u.WasRunning, u.WasAtBoot,
 					strings.Join(u.With, ","), strings.Join(u.Triggers, ","), u.Guard, u.DockerRestarts)
 			}
+			// What stopping a panel stops is what the agent read of each part: one that
+			// moved since makes the plan stale (ADR 0089).
+			if p := s.Panel; p != nil {
+				panels[ids[s.Ref]] = p
+				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Stays)
+				for _, part := range p.Parts {
+					fmt.Fprintf(fp, "|%s,%t,%t,%s,%d", part.Name, part.Swarm, part.WasRunning, part.WasRestart, part.WasReplicas)
+				}
+				fmt.Fprintln(fp)
+			}
 			// Which login a pull signs in with is the control plane's pick: a login
 			// added or removed since makes the plan stale (ADR 0086).
 			if s.RegistryLogin != "" {
@@ -2626,7 +2653,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	masked := e.switchSides(items)
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
-		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id]
+		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit, rp.Panel = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id], panels[items[i].id]
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
 				rp.Changes[j].Sensitive, rp.Changes[j].From, rp.Changes[j].To = true, "", ""
@@ -2829,7 +2856,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -4198,6 +4225,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
 			it.unit = unitIn(c, ref)
+			it.panel = panelIn(c, ref)
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -4384,6 +4412,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
 		it.unit = unitIn(c, ref)
+		it.panel = panelIn(c, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {
@@ -5255,6 +5284,9 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	}
 	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Unit != nil }) {
 		return e.undoUnits(ctx, c, took, by)
+	}
+	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Panel != nil }) {
+		return e.undoPanels(ctx, c, took, by)
 	}
 	if c.State != store.ChangeApplied && (c.State != store.ChangeFailed || !restores) {
 		return nil, fault.New(ErrCantUndo, "%s is %s, and only applied changes can be undone", changeID, c.State)

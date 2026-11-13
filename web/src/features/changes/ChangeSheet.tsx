@@ -89,6 +89,7 @@ import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
 import { type Notice, needsConfirming, needsPasskey, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
+import { panelName } from "./PanelPlan";
 import { PlanSteps } from "./PlanSteps";
 import {
   canUndo,
@@ -111,6 +112,8 @@ import {
   madeProject,
   onlyDeletes,
   onlyIfNewer,
+  panelOf,
+  panelStartsAgain,
   reboots,
   replacesIfNewer,
   restarts,
@@ -700,7 +703,7 @@ function ChangeSheet({
   const undoNote = (
     <span className="dw-sheet-note">
       <Icon name="undo" size={14} />
-      {restarts(plan) || installs(plan) || reboots(plan) || unitWithoutUndo(plan) ? (
+      {restarts(plan) || installs(plan) || reboots(plan) || unitWithoutUndo(plan) || panelStartsAgain(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -1032,6 +1035,18 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     if (phase === "failed") return t`${ing} failed`;
     if (phase === "history" || phase === "arrived") return ed;
   }
+  // Stopping the panel an import came from says so, and starting it again (ADR 0089).
+  const panel = panelOf(plan);
+  if (panel) {
+    const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
+    const name = panelName(panel.kind);
+    const [ing, ed] = panel.start
+      ? [t`Starting ${name} again on ${server}`, t`${name} runs again on ${server}`]
+      : [t`Stopping ${name} on ${server}`, t`${name} is stopped on ${server}`];
+    if (phase === "applying") return ing;
+    if (phase === "failed") return t`${ing} failed`;
+    if (phase === "history" || phase === "arrived") return ed;
+  }
   // An install says what it does, not that its server's host is changed.
   if (installs(plan)) {
     const server = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? "";
@@ -1251,8 +1266,12 @@ function PlanBody({
   // say nothing more once it has landed, and a person reading a plan has the plan.
   // An install's packages are its plan (ADR 0064): its step lists them as it's reviewed. So is what a
   // reboot takes offline.
-  const installs = plan?.servers.some((s) => s.steps.some((st) => st.install || st.reboot || st.unit)) ?? false;
-  const unitOnly = (plan?.resources.length ?? 0) > 0 && (plan?.resources.every((r) => r.unit !== undefined) ?? false);
+  // So is what stopping a panel stops (ADR 0089).
+  const installs =
+    plan?.servers.some((s) => s.steps.some((st) => st.install || st.reboot || st.unit || st.panel)) ?? false;
+  const unitOnly =
+    (plan?.resources.length ?? 0) > 0 &&
+    (plan?.resources.every((r) => r.unit !== undefined || r.panel !== undefined) ?? false);
   // An update on one server says how it goes as its phases, which say what its steps would (ADR 0080).
   const upgrade = upgradeOf(plan);
   const phased = upgrade !== undefined && !fleet;

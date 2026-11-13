@@ -3995,6 +3995,46 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:stopPanel:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                PlanStopPanel plans stopping the panel an import came from: Coolify's own
+                 containers, or Dokploy's own Swarm services, never what it ran, so its auto
+                 deploys and its scheduled tasks stop with it. Its proxy goes on running, as it
+                 serves the domains of what was taken on until those come as routes. Each
+                 container's restart policy becomes "no", so it stays stopped with Docker and
+                 the server. It's an edit of the server's host that makes no revision, as an
+                 action on a system service is; nothing of the panel is deleted, and undoing
+                 it starts each again as it stood. A person applies it.
+            operationId: ImportService_PlanStopPanel
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanStopPanelRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanStopPanelResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/processes/{pid}:end:
         post:
             tags:
@@ -13616,6 +13656,54 @@ components:
                          "0.0.0.0" holds the port's IPv4, here or as a port Docker publishes. A
                          socket on "::" alone takes IPv4 too, as Linux has it by default.
             description: HostListener is a port something on the server listens on, beyond loopback.
+        HostPanel:
+            type: object
+            properties:
+                kind:
+                    type: string
+                    description: 'The panel: "coolify" or "dokploy".'
+                start:
+                    type: boolean
+                    description: True when it starts them again; otherwise it stops them.
+                parts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/HostPanelPart'
+                    description: |-
+                        Each of the panel's own containers or services it acts on, in the order it
+                         acts.
+                stays:
+                    type: string
+                    description: |-
+                        The panel's proxy, which goes on running: it serves the domains of what was
+                         taken on until those come as routes, a step of its own.
+            description: |-
+                HostPanel is what stopping or starting the panel an import came from does, for a
+                 server's host (docs/adr/0089-importing-from-coolify-and-dokploy.md): its own
+                 containers and Swarm services, never what it ran. Nothing of it is deleted, so
+                 its undo starts each again as it stood.
+        HostPanelPart:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "coolify-db".
+                swarm:
+                    type: boolean
+                    description: True for a Swarm service, which a stop scales to none.
+                wasRunning:
+                    type: boolean
+                    description: True when it ran as the stop was planned.
+                wasRestart:
+                    type: string
+                    description: |-
+                        A container's restart policy as the stop was planned, such as "always". A
+                         stop sets it to "no", so the panel doesn't start again with Docker or the
+                         server, and a start puts it back.
+                wasReplicas:
+                    type: string
+                    description: How many replicas a Swarm service ran as the stop was planned.
+            description: HostPanelPart is one of a panel's own containers or Swarm services.
         HostReboot:
             type: object
             properties:
@@ -17395,6 +17483,12 @@ components:
                     description: |-
                         What an action on one of its server's system services does, for a step that
                          takes one (ADR 0082). Track S takes 70 to 79 here.
+                panel:
+                    allOf:
+                        - $ref: '#/components/schemas/HostPanel'
+                    description: |-
+                        What stopping or starting the panel an import came from does, for a step
+                         that does that (ADR 0089).
                 registryLogin:
                     type: string
                     description: |-
@@ -17424,6 +17518,32 @@ components:
                          its container, by a dump into a new volume (ADR 0080). Numbered in the
                          updates area's block, 260 to 269.
             description: PlanStep is what applying does to one resource on one server.
+        PlanStopPanelRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                panel:
+                    enum:
+                        - PANEL_KIND_UNSPECIFIED
+                        - PANEL_KIND_COOLIFY
+                        - PANEL_KIND_DOKPLOY
+                    type: string
+                    description: The panel to stop.
+                    format: enum
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it stops.
+            description: PlanStopPanelRequest names the server and the panel to stop there.
+        PlanStopPanelResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned for a person to apply.
+            description: PlanStopPanelResponse carries the planned stop.
         PlanSummary:
             type: object
             properties:
@@ -17555,6 +17675,12 @@ components:
                     description: |-
                         What an action on one of its server's system services does, for a server's
                          host the change acts on a unit of (ADR 0082). Track S takes 70 to 79 here.
+                panel:
+                    allOf:
+                        - $ref: '#/components/schemas/HostPanel'
+                    description: |-
+                        What stopping or starting the panel an import came from does, for a server's
+                         host the change does that on (ADR 0089).
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object

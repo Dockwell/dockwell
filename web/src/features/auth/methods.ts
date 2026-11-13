@@ -172,6 +172,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ImportService.importCoolify": "unused",
   "ImportService.importDokploy": "unused",
   "ImportService.importOnePanel": "may",
+  "ImportService.planStopPanel": "may",
 
   "LogService.listLogSources": "read",
   "LogService.readLogs": "read",

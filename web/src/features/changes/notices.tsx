@@ -81,6 +81,8 @@ export function needsConfirming(plan: Plan | undefined): boolean {
   // the server off, or opens the firewall (ADR 0082).
   const units = plan.resources.filter((r) => r.unit !== undefined);
   if (units.length > 0 && units.length === plan.resources.length) return units.some((r) => r.unit?.confirm === true);
+  // Stopping the panel an import came from reaches nothing new, and its undo starts it again (ADR 0089).
+  if (plan.resources.length > 0 && plan.resources.every((r) => r.panel !== undefined)) return false;
   return plan.hostAccess && access.length === 0;
 }
 

@@ -4,6 +4,7 @@ import { Connection } from "@dockwell/api";
 import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 
 import { OnePanelCallout } from "../import/OnePanelImport";
+import { StopPanelCallout } from "../import/StopPanel";
 import { RebootCallout } from "../updates/reboot";
 import { ContainersPanel } from "./ContainersPanel";
 import { DiskUsePanel } from "./DiskUse";
@@ -35,6 +36,7 @@ export function ServerOverview({ id }: { id: string }) {
             <ServerCallout server={server} />
           )}
           <OnePanelCallout server={server} />
+          <StopPanelCallout server={server} />
           <RebootCallout server={server} />
           {/* A phone leads with M-Server.dc.html's: how it is, what runs, and what happened. */}
           {phone ? (
