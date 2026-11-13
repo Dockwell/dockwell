@@ -25,11 +25,32 @@ type Asker interface {
 // (RFC 5737), which no list should name.
 const strangerAddress = "192.0.2.1"
 
-// Spellings are what the stranger check also asks a private path as, written as a
-// stranger would send them: Tomcat, Jetty and Undertow take ";x" off each segment and
-// then resolve "..", and IIS reads "\\" as "/", so each reads as the path there.
-func Spellings(path string) []string {
-	return []string{path + ";x", "/;x" + path, "/x/..;" + path, "/%5c" + strings.TrimPrefix(path, "/")}
+// Spellings are what the stranger check also asks a private route as, written as a
+// stranger would send them, of its path, or "/" for a root: Tomcat, Jetty and
+// Undertow take ";x" off each segment and then resolve "..", IIS reads "\\" as "/",
+// and a server that doesn't check UTF-8 reads an overlong "/" as one, so each reads as
+// the path there. Caddy's matchers see the path cleaned, so a target that resolves to
+// a public path above it, or one beside, goes there unless the domain refuses it.
+// Each other path on the domain is asked from below it too, as /api/..;/ would reach
+// a private root through a public /api (#606's review and its final check, H2).
+func Spellings(path string, beside []string) []string {
+	target := path
+	if target == "" {
+		target = "/"
+	}
+	rest := strings.TrimPrefix(target, "/")
+	out := []string{"/;x" + target, "/x/..;" + target, "/%5c" + rest, "/x/;/.." + target, "/x/.;/.." + target, "/x/%3b/.." + target, "/x%c0%af..%c0%af" + rest}
+	if path != "" {
+		out = append([]string{path + ";x"}, out...)
+	}
+	for _, other := range beside {
+		if other == "" || other == path {
+			continue
+		}
+		other = strings.TrimSuffix(other, "/")
+		out = append(out, other+"/..;"+target, other+"/.;/.."+target, other+"/x%5c..%5c..%5c"+rest)
+	}
+	return out
 }
 
 // asksFrom is the loopback address a stranger check comes from.
@@ -83,12 +104,9 @@ func AskStrangers(ctx context.Context, asker Asker, routes []Route) map[string][
 				break
 			}
 			check.Status, check.Said, check.Outcome = uint32(status), said, outcomeOf(status) //nolint:gosec // an HTTP status, 100 to 599
-			// A path's other spellings, which an app may read as the path, should keep
-			// a stranger out as well (#606's review, H2).
-			if r.Path == "" {
-				break
-			}
-			for _, spelling := range Spellings(r.Path) {
+			// A route's other spellings, which an app may read as its path, should keep a
+			// stranger out as well (#606's review, H2).
+			for _, spelling := range Spellings(r.Path, pathsOn(routes, r)) {
 				if check.GetOutcome() == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
 					break
 				}
@@ -110,6 +128,20 @@ func AskStrangers(ctx context.Context, asker Asker, routes []Route) map[string][
 			return 0
 		})
 	}
+	return out
+}
+
+// pathsOn is the paths of the routes beside r on its domain, each once, so the
+// stranger check asks r's spellings from below them too.
+func pathsOn(routes []Route, r *Route) []string {
+	var out []string
+	for i := range routes {
+		o := &routes[i]
+		if o.Domain == r.Domain && o.Path != r.Path && o.Path != "" && !slices.Contains(out, o.Path) {
+			out = append(out, o.Path)
+		}
+	}
+	slices.Sort(out)
 	return out
 }
 

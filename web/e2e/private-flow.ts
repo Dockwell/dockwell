@@ -48,12 +48,32 @@ function aDomain(
   );
 }
 
+/** An app as GET /v1/services lists it, with the ports it publishes. */
+interface Listed {
+  resource: { name: string; scope: string };
+  spec?: { app?: { ports?: { hostIp?: string }[] } };
+}
+
+/** Whether an app publishes a port on every address of its server, a way in around any route to it. */
+function publishes(service: Listed): boolean {
+  return (service.spec?.app?.ports ?? []).some((p) => !p.hostIp || p.hostIp === "0.0.0.0" || p.hostIp === "::");
+}
+
 async function privateFlow(page: Page, { origin, step, shoot }: FlowRun) {
   const read = async <T>(path: string): Promise<T> => (await (await page.request.get(`${origin}${path}`)).json()) as T;
-  const { services } = await read<{ services: { resource: { name: string; scope: string } }[] }>("/v1/services");
+  const { services } = await read<{ services: Listed[] }>("/v1/services");
   // The catalog flow's adminer, or any app there is: a route to it is all this needs.
   const adminer =
     services.find((service) => service.resource.name === "adminer") ?? services[0] ?? fail("no app is there");
+  // A private route reads as a stranger's outcome only with no way around it: an app that
+  // publishes no port, and that no public route reaches (#606's review, M2).
+  const quiet =
+    services.find(
+      (service) =>
+        service.resource.scope === adminer.resource.scope &&
+        service.resource.name !== adminer.resource.name &&
+        !publishes(service),
+    ) ?? fail(`no app beside ${adminer.resource.name} publishes no port`);
   const { servers } = await read<{ servers: { id: string; name: string }[] }>("/v1/servers");
   const server = servers[0] ?? fail("no server is there");
   const stubbed = /DomainService\/ListDomains/;
@@ -63,7 +83,8 @@ async function privateFlow(page: Page, { origin, step, shoot }: FlowRun) {
       contentType: "application/proto",
       body: Buffer.concat([
         aDomain(adminer.resource.scope, server, "open.example.com", adminer.resource.name, []),
-        aDomain(adminer.resource.scope, server, "locked.example.com", adminer.resource.name, ["ci"]),
+        aDomain(adminer.resource.scope, server, "around.example.com", adminer.resource.name, ["ci"]),
+        aDomain(adminer.resource.scope, server, "locked.example.com", quiet.resource.name, ["ci"]),
       ]),
     }),
   );
@@ -74,6 +95,14 @@ async function privateFlow(page: Page, { origin, step, shoot }: FlowRun) {
   await row("locked.example.com")
     .getByText("Private · A stranger is asked for a password")
     .waitFor({ timeout: 15_000 });
+
+  step("private: one whose app is open around it says where, over what a stranger got");
+  const around = publishes(adminer)
+    ? /^Private here · open on port \d+$/
+    : /^Private here · open at open\.example\.com/;
+  await row("around.example.com").getByText(around).waitFor();
+  if ((await row("around.example.com").getByText("A stranger is asked for a password").count()) !== 0)
+    fail("a route its app is open around reads as keeping strangers out");
   await shoot(page, "private-list");
 
   step("private: from a row, the sheet makes a password, shown once, as this browser reaches the panel on loopback");

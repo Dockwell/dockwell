@@ -56,8 +56,9 @@ const (
 	plainNoneID   = derivedPrefix + "none"
 	// secureNoneID is the same for the HTTPS server, and is made anew with it.
 	secureNoneID = derivedPrefix + "secure-none"
-	// secureSpellingsID and plainSpellingsID refuse what no browser writes, on a
-	// domain with a private path, ahead of all its routes (oddSpellings).
+	// secureSpellingsID and plainSpellingsID refuse a request target an app could read
+	// as another route's path, on a domain with a private route and another route,
+	// ahead of all its routes (withSpellings).
 	secureSpellingsID = derivedPrefix + "secure-spellings"
 	plainSpellingsID  = derivedPrefix + "spellings"
 	routesPath        = "/config/apps/http/servers/" + serverName + "/routes"
@@ -2036,59 +2037,88 @@ var noSite = []map[string]any{{
 	"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
 }}
 
-// oddSpellings matches a decoded path no browser writes, and that a server behind may
-// read as another: a ";" or "\\" anywhere, a control character, a "." or ".." segment,
-// or one with something odd after it, a byte encoded twice, "::$" as NTFS names a
-// file's stream, or Unicode white space at the end. Tomcat, Jetty and Undertow take
-// ";x" off every segment and then resolve "..", and IIS reads "\\" as "/", so
-// /x/..;/admin, /;x/admin or /%5cadmin would reach a private /admin through a public
-// route above it (#606's review, H2). A browser resolves dot segments and encodes
-// what it sends once, so these come from no one a site serves.
-const oddSpellings = `[;\\\x00-\x1f\x7f]|(?:^|/)\.{1,2}(?:$|/|[^/\w.-])|%[0-9A-Fa-f]{2}|::\$|[\s\p{Z}\x{feff}]$`
+// asSentFine is every request target a domain with a private route takes, as the
+// client wrote it ({http.request.orig_uri}), before Caddy decodes it or resolves dot
+// segments: "*", or a path, in origin form or after a scheme and host, with any query.
+// Each segment is letters, digits, "-_~.!$&'()*+,=:@|^[]" and percent-encoded bytes
+// of 0x80 and up, and doesn't end in ".". So it has no ";", "\", "#", control byte,
+// raw byte past ASCII, ASCII byte written as %XX, "." or ".." segment, or segment
+// with a trailing dot. Caddy's matchers see the path cleaned, as /x/;/../admin is
+// /admin to a path matcher and /x/..;/admin goes on as it is, while Tomcat, Jetty and
+// Undertow take ";x" off each segment before they resolve "..", IIS reads "\" as "/",
+// and Windows takes trailing dots off, so an app behind can read either as another
+// route's path (#606's review, H2). Checked on Caddy 2.11.7, whose vars_regexp reads
+// the placeholder as it is, with nothing in it expanded.
+const asSentFine = `^(?:\*|(?:[A-Za-z][A-Za-z0-9+.\-]*://[^/?#]*)?(?:/(?:(?:` + segmentByte + `|\.)*` + segmentByte + `)?)+(?:\?.*)?)$`
 
-// withSpellings answers 400 to an odd spelling of a path (oddSpellings) on each
-// domain that has a private path, ahead of all its routes, so none of them can be
-// reached by one, the public route above the private path among them. A domain's
-// private path keeps its own pattern too (privateVariants). On the plain HTTP server
-// it answers only what the domain's routes answer, so anyone else still can't tell
+// segmentByte is a byte of a path segment, as asSentFine takes it, other than ".".
+const segmentByte = `(?:[A-Za-z0-9\-_~!$&'()*+,=:@|^\[\]]|%[89A-Fa-f][0-9A-Fa-f])`
+
+// decodedOdd matches a decoded path ({http.request.orig_uri.path}) with what an app
+// may read as something else, which asSentFine can't see in its percent-encoding:
+// bytes that aren't UTF-8, such as an overlong "/" (%c0%af), which Go reads as
+// U+FFFD; a control character; a character no one sees, such as a zero-width space;
+// a full-width or other look-alike of "/", "\\" or ".", which some servers fold to
+// ASCII; Unicode white space at the end of a segment, which Windows takes off; and
+// ":$", as NTFS names a file's stream. Joiners (U+200C, U+200D) are letters' own in
+// Persian and Indic text, so they stay.
+const decodedOdd = `[\x{FFFD}\p{Cc}\x{00AD}\x{061C}\x{180E}\x{200B}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2060}-\x{206F}\x{FEFF}\x{FFF9}-\x{FFFB}` +
+	`\x{FF0F}\x{FF3C}\x{FF0E}\x{2215}\x{2216}\x{2044}\x{FE68}\x{FE52}\x{29F5}\x{29F8}\x{29F9}\x{2024}\x{2025}\x{00A5}\x{20A9}]|\p{Z}(?:/|$)|:\$`
+
+// spelledOdd is the 400 for a request target asSentFine refuses, or decodedOdd finds.
+var spelledOdd = []map[string]any{{
+	"handler": "static_response", "status_code": http.StatusBadRequest,
+	"body":    "This site doesn't take this address as written: part of it could be read as another path.\n",
+	"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
+}}
+
+// withSpellings answers 400, ahead of all its routes, to a request on a domain with a
+// private route and another route, root included, whose target an app could read as
+// another route's path: one asSentFine refuses, as the client wrote it, or one
+// decodedOdd finds. So no public route on the domain carries a private path's other
+// spelling, nor a private root's one below a public path, as /api/..;/secret would.
+// A domain with one route, or none private, is as it was. On the plain HTTP server it
+// answers only what the domain's routes answer, so anyone else still can't tell
 // they're there.
 func withSpellings(list []json.RawMessage, id string) ([]json.RawMessage, error) {
-	var domains []string
-	var reached []matcher
+	routes := map[string]int{}
+	var private []string
 	for _, raw := range list {
 		read, ok := readRoute(raw)
-		if !ok || read.Edited || read.Path == "" || !keepsOut(read) || slices.Contains(domains, read.Domain) {
+		if !ok {
 			continue
 		}
-		domains = append(domains, read.Domain)
+		routes[read.Domain]++
+		if !read.Edited && keepsOut(read) && !slices.Contains(private, read.Domain) {
+			private = append(private, read.Domain)
+		}
 	}
+	domains := slices.DeleteFunc(private, func(d string) bool { return routes[d] < 2 })
 	if len(domains) == 0 {
 		return list, nil
 	}
 	slices.Sort(domains)
-	odd := &pattern{Pattern: oddSpellings}
+	fine := matcher{VarsRegexp: map[string]pattern{"{http.request.orig_uri}": {Pattern: asSentFine}}}
+	odd := map[string]pattern{"{http.request.orig_uri.path}": {Pattern: decodedOdd}}
+	var reached []matcher
 	for _, raw := range list {
 		read, ok := readRoute(raw)
 		if !ok || read.Edited || !slices.Contains(domains, read.Domain) {
 			continue
 		}
-		m := matcher{Host: []string{read.Domain}, PathRegexp: odd}
+		at := matcher{Host: []string{read.Domain}}
 		if read.Plain {
-			m.Protocol, m.RemoteIP = plainProtocol, reachOf(read)
+			at.Protocol, at.RemoteIP = plainProtocol, reachOf(read)
 		}
-		if !slices.ContainsFunc(reached, func(o matcher) bool { return reflect.DeepEqual(o, m) }) {
-			reached = append(reached, m)
+		notFine, decoded := at, at
+		notFine.Not, decoded.VarsRegexp = []matcher{fine}, odd
+		for _, m := range []*matcher{&notFine, &decoded} {
+			if !slices.ContainsFunc(reached, func(o matcher) bool { return reflect.DeepEqual(o, *m) }) {
+				reached = append(reached, *m)
+			}
 		}
 	}
-	route, err := json.Marshal(map[string]any{
-		"@id": id, "terminal": true,
-		"match": reached,
-		"handle": []map[string]any{{
-			"handler": "static_response", "status_code": http.StatusBadRequest,
-			"body":    "This address isn't one a browser writes.\n",
-			"headers": map[string][]string{"Content-Type": {"text/plain; charset=utf-8"}, "Cache-Control": {"no-store"}},
-		}},
-	})
+	route, err := json.Marshal(map[string]any{"@id": id, "terminal": true, "match": reached, "handle": spelledOdd})
 	if err != nil {
 		return nil, err
 	}

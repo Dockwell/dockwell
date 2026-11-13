@@ -350,7 +350,8 @@ func TestACertificateComesForAPrivateRouteOnRealCaddy(t *testing.T) {
 
 // What a stranger gets, as the server asks its own Caddy: 403 off a list, 401 for a
 // password, through a tunnel here as an address no list names, over HTTPS and plain
-// HTTP, and "can't tell" where the server itself is on the list.
+// HTTP, and "can't tell" where the server itself is on the list. A private route's
+// other spellings keep a stranger out too, a private root's below a public path.
 func TestTheStrangerCheckOnRealCaddy(t *testing.T) {
 	c := startPlain(t)
 	up := backend(t, "web")
@@ -366,7 +367,12 @@ func TestTheStrangerCheckOnRealCaddy(t *testing.T) {
 	shop := aRoute("dockwell.env.shop", "shop.example.net", "", up)
 	admin := aRoute("dockwell.env.admin", "shop.example.net", "/admin", up)
 	admin.Allow = []string{"203.0.113.0/24"}
-	for _, r := range []ingress.Route{listed, password, tunnel, open, shop, admin} {
+	// A private root under a public path, asked from below it, as /api/.;/../ would
+	// reach the root's app through /api (#606's final check of H2).
+	root := aRoute("dockwell.env.root", "root.example.net", "", up)
+	root.Allow = []string{"203.0.113.0/24"}
+	api := aRoute("dockwell.env.api", "root.example.net", "/api", up)
+	for _, r := range []ingress.Route{listed, password, tunnel, open, shop, admin, root, api} {
 		put(t, c, r)
 	}
 	// Its certificate is Caddy's own, and comes in a moment.
@@ -382,6 +388,7 @@ func TestTheStrangerCheckOnRealCaddy(t *testing.T) {
 		"tunnel.example.net":   dockwellv1.StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT,
 		"open.example.net":     dockwellv1.StrangerOutcome_STRANGER_OUTCOME_CANT_TELL,
 		"shop.example.net":     dockwellv1.StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT,
+		"root.example.net":     dockwellv1.StrangerOutcome_STRANGER_OUTCOME_KEPT_OUT,
 	} {
 		if len(got[domain]) != 1 || got[domain][0].GetOutcome() != want {
 			t.Errorf("%s reads %v, want %v", domain, got[domain], want)
@@ -399,23 +406,34 @@ func TestTheStrangerCheckOnRealCaddy(t *testing.T) {
 	}
 }
 
-// A private path's other spellings reach it, not the public route above it: an app
-// such as Tomcat takes ";x" off, and Windows servers trailing dots and spaces, so
-// each would serve the private path to anyone. What only starts the same is another
-// path. A hand edit of the spellings it catches reads as edited (#606's review, H2).
+// A private route's other spellings reach neither a public route nor anything an app
+// behind could read as the private path: Caddy's matchers see a path decoded and
+// cleaned, while Tomcat takes ";x" off before it resolves "..", IIS reads "\\" as "/",
+// and Windows takes trailing dots and spaces off. So on a domain with a private route
+// and another, a target no browser writes for a site's own links gets 400, as the
+// client wrote it, below a public path to a private root too. A domain with one
+// route, or none private, is as it was. A hand edit of the spellings a private path
+// catches reads as edited (#606's review and its final check, H2).
 func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 	c := startPlain(t)
 	own := ownAddress(t)
 	up := backend(t, "web")
-	root := plainRoute("dockwell.env.shop", privateDomain, up)
-	root.PlainForAnyone = true
-	admin := plainRoute("dockwell.env.admin", privateDomain, up)
-	admin.Path, admin.PlainForAnyone, admin.Allow = "/admin", true, []string{"198.51.100.7/32"}
-	put(t, c, root)
-	put(t, c, admin)
+	plainFor := func(id, domain, path string, allow ...string) ingress.Route {
+		r := plainRoute(id, domain, up)
+		r.Path, r.PlainForAnyone, r.Allow = path, true, allow
+		put(t, c, r)
+		return r
+	}
+	plainFor("dockwell.env.shop", privateDomain, "")
+	admin := plainFor("dockwell.env.admin", privateDomain, "/admin", "198.51.100.7/32")
 	readsAs(t, c, admin)
+	plainFor("dockwell.env.root", "root.example.net", "", "198.51.100.7/32")
+	plainFor("dockwell.env.api", "root.example.net", "/api")
+	plainFor("dockwell.env.alone", "alone.example.net", "", "198.51.100.7/32")
+	plainFor("dockwell.env.other", "other.example.net", "")
+	plainFor("dockwell.env.other-api", "other.example.net", "/api")
 	// Each as a visitor writes it on the request line, with nothing cleaned or escaped again.
-	status := func(path string) int {
+	status := func(host, target string) int {
 		t.Helper()
 		conn, err := net.Dial("tcp", net.JoinHostPort(own, strconv.Itoa(c.http)))
 		if err != nil {
@@ -423,21 +441,18 @@ func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 		}
 		defer conn.Close()
 		_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
-		if _, err := fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, privateDomain); err != nil {
+		if _, err := fmt.Fprintf(conn, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", target, host); err != nil {
 			t.Fatal(err)
 		}
 		res, err := http.ReadResponse(bufio.NewReader(conn), nil)
 		if err != nil {
-			t.Fatalf("GET %s: %v", path, err)
+			t.Fatalf("GET %s: %v", target, err)
 		}
 		_ = res.Body.Close()
 		return res.StatusCode
 	}
-	other := plainRoute("dockwell.env.other", "other.example.net", up)
-	other.PlainForAnyone = true
-	put(t, c, other)
-	for _, p := range []string{"/admin", "/admin/x", "/ADMIN", "//admin", "/x/../admin", "/%61dmin", "/admin%2fx"} {
-		if got := status(p); got != http.StatusForbidden {
+	for _, p := range []string{"/admin", "/admin/x", "/ADMIN", "//admin"} {
+		if got := status(privateDomain, p); got != http.StatusForbidden {
 			t.Errorf("%s reaches %d, want the private path's 403", p, got)
 		}
 	}
@@ -447,38 +462,47 @@ func TestAPrivatePathsOtherSpellingsReachItOnRealCaddy(t *testing.T) {
 		"/admin;x=1", "/admin%3bx", "/admin%3B", "/admin%00", "/admin%20", "/admin%09", "/admin%5cx", "/admin.", "/admin..",
 		"/admin%2e", "/Admin;jsessionid=1", "/x/..;/admin", "/;x/admin", "/.;/admin", "/admin;x/html", "/admin/x/..;/html",
 		"/%5cadmin", "/x%5c..%5cadmin", "/admin%253b", "/admin%c2%a0", "/admin%e3%80%80", "/admin%7f", "/admin::$DATA", "/x/%2e%2e/admin",
+		// What Caddy cleans to a public path, and Tomcat reads after taking ";x" off.
+		"/x/;/../admin", "/x/.;/../admin", "/x/.;x/../admin", "/x/;x/../admin", "/x/y/z/..;/../../admin", "/x/%3b/../admin",
+		"/x/%2e%3b/../admin", "/x/;/%2e%2e/admin", "/admin%5cx/..", "/x/%5c/../admin", "/x/admin/../../admin",
+		"http://" + privateDomain + "/x/;/../admin", "http://" + privateDomain + "/x/..;/admin",
+		// The lows: a trailing dot or space in a segment, overlong UTF-8, look-alikes, "#" and "?" encoded, what no one sees.
+		"/admin./x", "/admin%20/x", "/x%c0%af..%c0%afadmin", "/%c0%afadmin", "/%ef%bc%8fadmin", "/x%ef%bc%bc..%ef%bc%bcadmin",
+		"/admin%23", "/admin%3f", "/admin%e2%80%8b",
 	} {
-		if got := status(p); got != http.StatusBadRequest && got != http.StatusForbidden {
+		if got := status(privateDomain, p); got != http.StatusBadRequest && got != http.StatusForbidden {
 			t.Errorf("%s reaches %d, want 400 or the private path's 403", p, got)
 		}
 	}
 	// The public route answers these, whatever its app says of them.
-	for _, p := range []string{"/", "/adminx", "/admin.php", "/admin2", "/administrator", "/who", "/.well-known/security.txt", "/a.b/c", "/..x"} {
-		if got := status(p); got == http.StatusForbidden || got == http.StatusBadRequest {
+	for _, p := range []string{
+		"/", "/adminx", "/admin.php", "/admin2", "/administrator", "/who", "/.well-known/security.txt", "/a.b/c", "/..x",
+		"/caf%C3%A9", "/x?q=a;b&r=%2f..%2f", "/~user/a(1)",
+	} {
+		if got := status(privateDomain, p); got == http.StatusForbidden || got == http.StatusBadRequest {
 			t.Errorf("%s answers %d, want the public route", p, got)
 		}
 	}
-	// A domain with no private path is as it was.
-	conn := func(host, path string) int {
-		t.Helper()
-		nc, err := net.Dial("tcp", net.JoinHostPort(own, strconv.Itoa(c.http)))
-		if err != nil {
-			t.Fatal(err)
+	// Below a public path to a private root: an app reads these as the root's.
+	for _, p := range []string{"/api/..;/secret", "/api/.;/../secret", "/api/x%5c..%5c..%5csecret", "/api/;/../secret", "/api/%2e%2e/secret", "/api/x/..%c0%afsecret"} {
+		if got := status("root.example.net", p); got != http.StatusBadRequest && got != http.StatusForbidden {
+			t.Errorf("%s on a private root reaches %d, want 400 or its 403", p, got)
 		}
-		defer nc.Close()
-		_ = nc.SetDeadline(time.Now().Add(10 * time.Second))
-		if _, err := fmt.Fprintf(nc, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host); err != nil {
-			t.Fatal(err)
-		}
-		res, err := http.ReadResponse(bufio.NewReader(nc), nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_ = res.Body.Close()
-		return res.StatusCode
 	}
-	if got := conn("other.example.net", "/who;jsessionid=1"); got == http.StatusBadRequest {
-		t.Errorf("a domain with no private path refuses ;jsessionid: %d", got)
+	if got := status("root.example.net", "/api/x"); got == http.StatusForbidden || got == http.StatusBadRequest {
+		t.Errorf("the public path below a private root answers %d", got)
+	}
+	if got := status("root.example.net", "/secret"); got != http.StatusForbidden {
+		t.Errorf("a private root answers %d", got)
+	}
+	// A domain whose one route is private has nothing to fall to, and one with none private is as it was.
+	if got := status("alone.example.net", "/x;y"); got != http.StatusForbidden {
+		t.Errorf("a domain with one private route answers ;y with %d, want its 403", got)
+	}
+	for _, p := range []string{"/who;jsessionid=1", "/x/..;/admin", "/%5cadmin", "/admin%253b", "/admin%c2%a0", "/admin::$DATA", "/api/..;/x", "/a%20b", "/.well-known/acme-challenge/x"} {
+		if got := status("other.example.net", p); got == http.StatusBadRequest {
+			t.Errorf("a domain with no private route refuses %s", p)
+		}
 	}
 
 	rt := routeJSON(admin)
