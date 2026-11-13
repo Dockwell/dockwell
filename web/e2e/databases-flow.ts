@@ -54,6 +54,11 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await engines.getByRole("link", { name: /PostgreSQL/ }).waitFor();
   if ((await engines.getByRole("link", { name: /Adminer|pgAdmin/ }).count()) !== 0)
     fail("Create a database offers a tool that makes no database");
+  // One tile for each engine, however many catalogs have it, and the rest one step away (#599).
+  const names = await engines.locator(".databases-engine-name").allTextContents();
+  if (new Set(names).size !== names.length) fail(`Create a database shows an engine twice: ${names.join(", ")}`);
+  const more = await page.getByRole("link", { name: "More in the catalog" }).getAttribute("href");
+  if (more !== "/catalog?category=databases") fail(`More in the catalog opens ${more}`);
 
   step("databases: New database opens here, from its defaults, with its engine picked from a list");
   await page.getByRole("link", { name: "New database" }).click();

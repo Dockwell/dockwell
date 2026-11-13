@@ -9,7 +9,6 @@ import {
   type Change,
   ChangeState,
   type Companion,
-  type Entry,
   type HostAccess,
   HostAccessKind,
   type Input,
@@ -63,6 +62,7 @@ import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
+import { type EngineGroup, groupOf } from "./engines";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
 import { engineName, entriesFor, needsRequest, optionsByNeed, takesLine } from "./needs";
@@ -108,7 +108,8 @@ const entryRestart = (part: CatalogPart) =>
  * types is made and sealed by the control plane, so it's never here. Once it
  * applies, it leads to where what it made is used: a database's page, with how
  * to connect, or the app's. Given engines, it's New database: the engine is the
- * first line, picked from them, and picking another keeps the sheet open.
+ * first line, one choice for each engine, then its version, with the catalog each
+ * comes from, the default first, and picking another keeps the sheet open.
  */
 export function InstallSheet({
   id,
@@ -120,8 +121,8 @@ export function InstallSheet({
   /** The catalog to install it from, by its source's name, where several have it; empty is the one it's listed from. */
   catalog?: string;
   onClose: () => void;
-  /** The databases to pick from, for New database on the Databases page. */
-  engines?: { entries: readonly Entry[]; onPick: (id: string) => void };
+  /** The engines to pick from, for New database on the Databases page. */
+  engines?: { groups: readonly EngineGroup[]; onPick: (id: string) => void };
 }) {
   const { t } = useLingui();
   const words = useAppWords();
@@ -582,7 +583,7 @@ export function InstallSheet({
           <>
             <div className="catalog-chosen-list">
               {engines ? (
-                <EnginePicker entries={engines.entries} value={id} onPick={engines.onPick} disabled={busy} />
+                <EnginePicker groups={engines.groups} value={id} onPick={engines.onPick} disabled={busy} />
               ) : (
                 <Chosen label={t`Version`} value={entry.version} />
               )}
@@ -919,14 +920,18 @@ function Limits({
   );
 }
 
-/** The engine of a new database, picked from those the catalog has, each with its newest version. */
+/**
+ * The engine of a new database, one choice for each engine the catalog makes, and
+ * then its version, where catalogs bring more than one, each with the catalog it
+ * comes from, the default first: Dockwell's own, then the newest stable.
+ */
 function EnginePicker({
-  entries,
+  groups,
   value,
   onPick,
   disabled,
 }: {
-  entries: readonly Entry[];
+  groups: readonly EngineGroup[];
   value: string;
   onPick: (id: string) => void;
   // While its plan is asked for, the pick stays as it is.
@@ -934,27 +939,61 @@ function EnginePicker({
 }) {
   const { t } = useLingui();
   const id = useId();
+  const versionsId = useId();
+  const { origins } = useOrigins();
+  const sourceNames = useSourceNames();
+  const picked = groupOf(groups, value);
+  const entry = picked?.entries.find((e) => e.id === value);
   return (
-    <fieldset className="catalog-engines" aria-labelledby={id} disabled={disabled}>
-      <span id={id} className="catalog-chosen-label">
-        {t`Engine`}
-      </span>
-      <span className="catalog-engines-list">
-        {entries.map((entry) => (
-          <label key={entry.id} className={cx("catalog-engine", entry.id === value && "is-picked")}>
-            <input
-              type="radio"
-              name={id}
-              value={entry.id}
-              checked={entry.id === value}
-              onChange={() => onPick(entry.id)}
-            />
-            <span className="catalog-engine-name">{entry.name}</span>
-            <code className="catalog-engine-version">{entry.version}</code>
-          </label>
-        ))}
-      </span>
-    </fieldset>
+    <>
+      <fieldset className="catalog-engines" aria-labelledby={id} disabled={disabled}>
+        <span id={id} className="catalog-chosen-label">
+          {t`Engine`}
+        </span>
+        <span className="catalog-engines-list">
+          {groups.map((group) => {
+            const first = group.entries[0];
+            if (!first) return null;
+            return (
+              <label key={group.engine} className={cx("catalog-engine", group === picked && "is-picked")}>
+                <input
+                  type="radio"
+                  name={id}
+                  value={first.id}
+                  checked={group === picked}
+                  onChange={() => onPick(first.id)}
+                />
+                <span className="catalog-engine-name">{group.name}</span>
+              </label>
+            );
+          })}
+        </span>
+      </fieldset>
+      {picked && picked.entries.length > 1 ? (
+        <fieldset className="catalog-engines" aria-labelledby={versionsId} disabled={disabled}>
+          <span id={versionsId} className="catalog-chosen-label">
+            {t`Version`}
+          </span>
+          <span className="catalog-engines-list">
+            {picked.entries.map((e) => (
+              <label key={e.id} className={cx("catalog-engine", e.id === value && "is-picked")}>
+                <input
+                  type="radio"
+                  name={versionsId}
+                  value={e.id}
+                  checked={e.id === value}
+                  onChange={() => onPick(e.id)}
+                />
+                <code className="catalog-engine-name">{e.version}</code>
+                <span className="catalog-engine-from">{sourceNames(origins.get(e.id)?.name ?? "")}</span>
+              </label>
+            ))}
+          </span>
+        </fieldset>
+      ) : entry ? (
+        <Chosen label={t`Version`} value={entry.version} />
+      ) : null}
+    </>
   );
 }
 

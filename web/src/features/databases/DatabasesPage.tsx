@@ -2,16 +2,7 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
-import {
-  type Backup,
-  BackupState,
-  CatalogService,
-  type Database,
-  type Entry,
-  type Event,
-  EventKind,
-  EventService,
-} from "@dockwell/api";
+import { type Backup, BackupState, type Database, Engine, type Event, EventKind, EventService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -33,7 +24,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueries } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, useLayoutEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
@@ -47,8 +38,9 @@ import { BackUpSheet } from "../backups/BackUpSheet";
 import { usePolicies } from "../backups/PoliciesPanel";
 import type { VolumeChoice } from "../backups/useBackups";
 import { useMethodWord, useScheduleWords } from "../backups/words";
+import { type EngineGroup, useEngineGroups } from "../catalog/engines";
 import { InstallSheet } from "../catalog/InstallSheet";
-import { useCatalog } from "../catalog/useCatalog";
+import { AppIcon } from "../catalog/media";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -64,6 +56,7 @@ import {
   useDatabases,
   useStrangers,
 } from "./useDatabases";
+import "../catalog/Catalog.css";
 import "./Databases.css";
 
 /** How many events the recent activity shows. */
@@ -98,8 +91,9 @@ export function DatabasesPage({
     ? plural(view.servers?.length ?? 0, { one: "# server", other: "# servers" })
     : (view.only?.name ?? "");
   const lead = query.isPending || !where ? undefined : plural(count, { one: `# on ${where}`, other: `# on ${where}` });
-  const engines = useEngines();
-  const firstEngine = engines.find((e) => e.id === "postgres")?.id ?? engines[0]?.id;
+  const engines = useEngineGroups();
+  // PostgreSQL first, where the catalog makes it, as the database most apps take.
+  const firstEngine = (engines.groups.find((g) => g.engine === Engine.POSTGRESQL) ?? engines.groups[0])?.entries[0]?.id;
   const newDatabase = firstEngine ? (
     <RouterButtonLink to="/databases" search={{ new: firstEngine }} variant="primary" icon="plus">
       <Trans>New database</Trans>
@@ -123,19 +117,34 @@ export function DatabasesPage({
       {query.isPending ? (
         <DatabasesSkeleton fleet={view.fleet} />
       ) : count === 0 && !query.error ? (
-        <EmptyState icon="database" title={t`No databases yet`} action={newDatabase}>
-          <Trans>PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server.</Trans>
+        <EmptyState
+          icon="database"
+          title={t`No databases yet`}
+          className="databases-empty"
+          action={engines.groups.length === 0 && !engines.pending ? <MoreInCatalog /> : undefined}
+          choices={
+            engines.groups.length > 0 || engines.pending ? (
+              <>
+                <EngineTiles groups={engines.groups} pending={engines.pending} />
+                <p className="databases-more">
+                  <MoreInCatalog />
+                </p>
+              </>
+            ) : undefined
+          }
+        >
+          <Trans>From the catalog, with its password kept as a secret</Trans>
         </EmptyState>
       ) : phone ? (
         <PhoneList databases={databases} fleet={view.fleet} />
       ) : count > 0 ? (
         <DatabasesTable databases={databases} fleet={view.fleet} />
       ) : null}
-      <Engines engines={engines} />
+      {count > 0 ? <Engines groups={engines.groups} pending={engines.pending} /> : null}
       {search.new ? (
         <InstallSheet
           id={search.new}
-          engines={{ entries: engines, onPick: (id) => onSearch({ new: id }) }}
+          engines={{ groups: engines.groups, onPick: (id) => onSearch({ new: id }) }}
           onClose={() => onSearch({})}
         />
       ) : null}
@@ -424,27 +433,55 @@ function DatabasesSkeleton({ fleet }: { fleet: boolean }) {
   );
 }
 
+/** How many tiles stand in for the engines while the catalog is read. */
+const PLACEHOLDERS = 4;
+
+/** The narrowest an engine's tile reads well at, its logo, name and version on a line. */
+const TILE_MIN = 160;
+
 /**
- * The catalog's databases, as engines a new database is made from: its database
- * entries that install one, which leaves out the tools that only manage one, such
- * as Adminer. Each entry's parts say, and the install sheet reads them too.
+ * How many columns count tiles take in a row width wide, with gap between them: as
+ * many as fit, at least TILE_MIN each, and then as few as keep the rows even, so six
+ * tiles four to a row are two rows of three, not four and two.
  */
-function useEngines(): Entry[] {
-  const transport = useTransport();
-  const entries = (useCatalog().data?.entries ?? []).filter((e) => e.category === "databases");
-  const reads = useQueries({
-    queries: entries.map((entry) => ({
-      ...createQueryOptions(CatalogService.method.getCatalogEntry, { id: entry.id }, { transport }),
-      staleTime: 60_000,
-    })),
-  });
-  return entries.filter((_, i) => reads[i]?.data?.parts.some((part) => part.database));
+export function balancedColumns(count: number, width: number, gap: number): number {
+  if (count <= 0 || width <= 0) return 1;
+  const fit = Math.max(1, Math.floor((width + gap) / (TILE_MIN + gap)));
+  const rows = Math.ceil(count / Math.min(count, fit));
+  return Math.ceil(count / rows);
 }
 
-/** The engines, each a way to make a database. */
-function Engines({ engines: entries }: { engines: readonly Entry[] }) {
-  const { t } = useLingui();
-  if (entries.length === 0) return null;
+/** The columns a grid of count tiles takes at its width, as it changes, and the ref that measures it. */
+function useBalancedColumns(count: number): [(el: HTMLUListElement | null) => void, number | undefined] {
+  const [el, setEl] = useState<HTMLUListElement | null>(null);
+  const [columns, setColumns] = useState<number>();
+  useLayoutEffect(() => {
+    if (!el) return;
+    const measure = () => {
+      const gap = Number.parseFloat(getComputedStyle(el).columnGap) || 0;
+      setColumns(balancedColumns(count, el.clientWidth, gap));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const seen = new ResizeObserver(measure);
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [el, count]);
+  return [setEl, columns];
+}
+
+/** The catalog, narrowed to its databases, for an engine or a tool New database doesn't show. */
+function MoreInCatalog() {
+  return (
+    <Link to="/catalog" search={{ category: "databases" }} className="databases-panel-link">
+      <Trans>More in the catalog</Trans>
+    </Link>
+  );
+}
+
+/** The engines, each a way to make a database, with the catalog's other databases one step away. */
+function Engines({ groups, pending }: { groups: readonly EngineGroup[]; pending: boolean }) {
+  if (groups.length === 0 && !pending) return null;
   return (
     <section className="databases-engines" aria-labelledby="databases-create">
       <div className="databases-section-head">
@@ -454,26 +491,62 @@ function Engines({ engines: entries }: { engines: readonly Entry[] }) {
         <span className="databases-muted">
           <Trans>From the catalog, with its password kept as a secret</Trans>
         </span>
+        <span className="database-section-action">
+          <MoreInCatalog />
+        </span>
       </div>
-      <ul aria-label={t`Engines`} className="databases-engine-grid">
-        {entries.map((entry) => (
-          <li key={entry.id}>
-            <Link
-              to="/databases"
-              search={{ new: entry.id }}
-              className="dw-btn dw-btn-secondary dw-btn-md databases-engine"
-            >
-              <span className="databases-engine-plus" aria-hidden="true">
-                <Icon name="plus" size={14} />
-              </span>
-              <span>{entry.name}</span>
-              <span className="databases-engine-fill" />
-              <span className="databases-engine-version">{entry.version}</span>
-            </Link>
-          </li>
+      <EngineTiles groups={groups} pending={pending} />
+    </section>
+  );
+}
+
+/**
+ * One tile for each engine, with its logo and the version a new one takes unless
+ * the sheet says otherwise, in a grid whose columns share the row evenly. The
+ * catalog an engine comes from, and any other version, are picked in the sheet, so
+ * the grid keeps its size however many catalogs Dockwell reads (#599).
+ */
+function EngineTiles({ groups, pending }: { groups: readonly EngineGroup[]; pending: boolean }) {
+  const { t } = useLingui();
+  const count = groups.length || PLACEHOLDERS;
+  const [grid, columns] = useBalancedColumns(count);
+  const style = columns ? ({ "--databases-engine-columns": columns } as CSSProperties) : undefined;
+  if (groups.length === 0) {
+    return (
+      <ul ref={grid} style={style} aria-label={t`Engines`} aria-busy="true" className="databases-engine-grid">
+        {Array.from({ length: PLACEHOLDERS }, (_, k) => `placeholder-${k}`).map((k) => (
+          <li key={k} className="databases-engine is-placeholder" />
         ))}
       </ul>
-    </section>
+    );
+  }
+  return (
+    <ul
+      ref={grid}
+      style={style}
+      aria-label={t`Engines`}
+      aria-busy={pending || undefined}
+      className={cx("databases-engine-grid", count % (columns ?? count) !== 0 && "is-uneven")}
+    >
+      {groups.map((group) => {
+        const first = group.entries[0];
+        if (!first) return null;
+        return (
+          <li key={group.engine}>
+            <Link to="/databases" search={{ new: first.id }} className="databases-engine">
+              <AppIcon name={group.name} path={first.icon} />
+              <span className="databases-engine-text">
+                <span className="databases-engine-name">{group.name}</span>
+                <span className="databases-engine-version">{first.version}</span>
+              </span>
+              <span className="databases-engine-plus" aria-hidden="true">
+                <Icon name="plus" size={16} />
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

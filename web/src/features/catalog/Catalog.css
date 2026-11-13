@@ -1333,6 +1333,12 @@
   font-size: 12px;
 }
 
+/* A version's catalog, beside it. */
+.catalog-engine-from {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 .catalog-sheet.is-phone .catalog-engines {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);

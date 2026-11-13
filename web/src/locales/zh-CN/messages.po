@@ -10013,6 +10013,9 @@ msgstr "最近运行"
 msgid "Loading the databases"
 msgstr "正在加载数据库"
 
+msgid "More in the catalog"
+msgstr "应用目录中的更多"
+
 msgid "No databases yet"
 msgstr "还没有数据库"
 
@@ -10027,9 +10030,6 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
-
-msgid "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
-msgstr "来自应用目录，或已在服务器上运行的 PostgreSQL、MySQL、MariaDB、Redis 或 Valkey。"
 
 msgid "Reading what happened"
 msgstr "正在读取动态"

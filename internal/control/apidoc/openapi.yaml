@@ -8366,6 +8366,23 @@ components:
                         When Docker restarts it, as the entry gives it. Unspecified is the driver's
                          default, unless-stopped.
                     format: enum
+                engine:
+                    enum:
+                        - ENGINE_UNSPECIFIED
+                        - ENGINE_POSTGRESQL
+                        - ENGINE_MYSQL
+                        - ENGINE_MARIADB
+                        - ENGINE_REDIS
+                        - ENGINE_VALKEY
+                        - ENGINE_MONGODB
+                        - ENGINE_CLICKHOUSE
+                    type: string
+                    description: |-
+                        For a database, the engine Dockwell knows it runs, by its image, such as
+                         PostgreSQL for postgres:17.11. Unspecified for any other part, and for a
+                         database whose image Dockwell doesn't know. Numbered in the block catalog
+                         sources' presentation holds (ADR 0083).
+                    format: enum
             description: CatalogPart is one service an entry installs.
         CatalogPin:
             type: object

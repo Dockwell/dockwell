@@ -13,6 +13,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
@@ -89,6 +90,27 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 		}
 		if parts := describeParts(got.Msg.GetParts()); !slices.Equal(parts, want) {
 			t.Errorf("%s says it installs %q, want %q", id, parts, want)
+		}
+	}
+
+	// A database part says the engine Dockwell knows its image as, so New database
+	// shows one choice for each engine, and an app's own parts say none (#599).
+	for id, want := range map[string][]catalogv1.Engine{
+		"postgres":  {catalogv1.Engine_ENGINE_UNSPECIFIED, catalogv1.Engine_ENGINE_POSTGRESQL},
+		"mariadb":   {catalogv1.Engine_ENGINE_UNSPECIFIED, catalogv1.Engine_ENGINE_MARIADB},
+		"redis":     {catalogv1.Engine_ENGINE_REDIS},
+		"plausible": {catalogv1.Engine_ENGINE_UNSPECIFIED, catalogv1.Engine_ENGINE_POSTGRESQL, catalogv1.Engine_ENGINE_CLICKHOUSE},
+	} {
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var engines []catalogv1.Engine
+		for _, p := range got.Msg.GetParts() {
+			engines = append(engines, p.GetEngine())
+		}
+		if !slices.Equal(engines, want) {
+			t.Errorf("%s's parts say the engines %v, want %v", id, engines, want)
 		}
 	}
 

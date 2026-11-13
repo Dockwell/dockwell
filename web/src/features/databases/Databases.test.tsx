@@ -18,6 +18,7 @@ import {
   DatabaseEngine,
   DatabaseReadingSchema,
   DatabaseSchema,
+  Engine,
   EntrySchema,
   EventKind,
   type ListBackupsRequest,
@@ -44,6 +45,7 @@ import { expectNamesLinked } from "../../test/links";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { gist } from "./DatabaseOverview";
+import { balancedColumns } from "./DatabasesPage";
 import { connectionURL, engineOfImage } from "./useDatabases";
 
 const now = Date.now();
@@ -167,15 +169,50 @@ const mysql = create(EntrySchema, { id: "mysql", name: "MySQL", category: "datab
 const tunnel = create(EntrySchema, { id: "cloudflared", name: "Cloudflare Tunnel", category: "networking" });
 // A tool that manages databases, among the catalog's databases, which makes none.
 const adminer = create(EntrySchema, { id: "adminer", name: "Adminer", category: "databases", version: "6.2.0" });
+// Another catalog's PostgreSQL, under another ID, and an app among the databases that
+// brings one of its own (#599).
+const storePostgres = create(EntrySchema, {
+  id: "postgresql",
+  name: "PostgreSQL",
+  category: "databases",
+  version: "18.7-alpine",
+});
+const metabase = create(EntrySchema, { id: "metabase", name: "Metabase", category: "databases", version: "0.56" });
+const ENGINES: Record<string, Engine> = {
+  postgres: Engine.POSTGRESQL,
+  postgresql: Engine.POSTGRESQL,
+  mysql: Engine.MYSQL,
+};
 
-/** What installing an entry runs: a database for an engine, an app for a tool. */
+/** What installing an entry runs: a database for an engine, an app for a tool, and an app with a database beside it. */
 const catalogEntry = (req: { id: string }) => {
-  const entry = [postgres, mysql, adminer, tunnel].find((e) => e.id === req.id) ?? postgres;
+  const entry = [postgres, mysql, adminer, tunnel, storePostgres, metabase].find((e) => e.id === req.id) ?? postgres;
   const parts =
     req.id === "adminer"
       ? [{ service: "adminer", image: "adminer:6.2.0", opens: true }]
-      : [{ service: "db", image: `${req.id}:${entry.version}`, database: true, volumes: ["data"] }];
+      : req.id === "metabase"
+        ? [
+            { service: "metabase", image: "metabase/metabase:0.56", opens: true },
+            { service: "db", image: "postgres:17", database: true, engine: Engine.POSTGRESQL, volumes: ["data"] },
+          ]
+        : [
+            {
+              service: "db",
+              image: `${req.id}:${entry.version}`,
+              database: true,
+              engine: ENGINES[req.id] ?? Engine.UNSPECIFIED,
+              volumes: ["data"],
+            },
+          ];
   return { entry, project: req.id === "postgres" ? "postgres-2" : req.id, values: {}, parts };
+};
+
+/** 1Panel's store as a source, with its PostgreSQL and its Metabase. */
+const onePanel = {
+  name: "onepanel",
+  store: "onepanel",
+  source: { repository: "https://github.com/1Panel-dev/appstore", commit: "a".repeat(40) },
+  entries: ["postgresql", "metabase"],
 };
 
 function api(databases: Database[], more: Api = {}): Api {
@@ -267,18 +304,75 @@ describe("the databases list", () => {
     expect(asked).toEqual(expect.arrayContaining(["svc_db", "vol_data"]));
   });
 
-  it("offers the catalog's engines, each opening New database here, and leaves out the tools", async () => {
-    renderAt("/databases", api([aDatabase()]));
-    const engines = await screen.findByRole("list", { name: "Engines" });
-    await waitFor(() =>
-      expect(
-        within(engines)
-          .getAllByRole("link")
-          .map((l) => l.textContent),
-      ).toEqual(["PostgreSQL17.11", "MySQL8.4.11"]),
+  it("offers one tile for each engine, however many catalogs have it, and leaves out the tools and the apps that bring one", async () => {
+    const { container } = renderAt(
+      "/databases",
+      api([aDatabase()], {
+        catalog: {
+          listCatalogEntries: () => ({ entries: [tunnel, adminer, metabase, postgres, storePostgres, mysql] }),
+          getCatalogEntry: catalogEntry,
+          listCatalogSources: () => ({ sources: [onePanel] }),
+        },
+      }),
     );
-    expect(within(engines).getAllByRole("link")[1]).toHaveAttribute("href", "/databases?new=mysql");
+    const engines = await screen.findByRole("list", { name: "Engines" });
+    await waitFor(() => expect(engines).not.toHaveAttribute("aria-busy"));
+    const tiles = within(engines).getAllByRole("link");
+    expect(tiles.map((l) => l.querySelector(".databases-engine-name")?.textContent)).toEqual(["PostgreSQL", "MySQL"]);
+    // Dockwell's own PostgreSQL is the one a tile makes, whatever version another catalog has.
+    expect(tiles[0]).toHaveAttribute("href", "/databases?new=postgres");
+    expect(tiles[0]).toHaveTextContent("17.11");
+    expect(tiles[1]).toHaveAttribute("href", "/databases?new=mysql");
+    expect(screen.getByRole("link", { name: "More in the catalog" })).toHaveAttribute(
+      "href",
+      "/catalog?category=databases",
+    );
     expect(screen.getByRole("link", { name: "New database" })).toHaveAttribute("href", "/databases?new=postgres");
+    await expectAccessible(container);
+  });
+
+  it("picks the version, and the catalog it comes from, in the sheet, Dockwell's own first", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/databases?new=postgres",
+      api([aDatabase()], {
+        catalog: {
+          listCatalogEntries: () => ({ entries: [adminer, metabase, postgres, storePostgres, mysql] }),
+          getCatalogEntry: catalogEntry,
+          listCatalogSources: () => ({ sources: [onePanel] }),
+          installCatalogEntry: () => {
+            throw new ConnectError("stop here", Code.FailedPrecondition);
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New database" });
+    const engine = within(sheet).getByRole("group", { name: "Engine" });
+    await waitFor(() => expect(within(engine).getAllByRole("radio")).toHaveLength(2));
+    expect(within(engine).queryByRole("radio", { name: /Metabase/ })).not.toBeInTheDocument();
+    const version = await within(sheet).findByRole("group", { name: "Version" });
+    const versions = within(version).getAllByRole("radio");
+    expect(versions.map((r) => r.closest("label")?.textContent)).toEqual([
+      expect.stringMatching(/^17\.11Dockwell's own$/),
+      expect.stringMatching(/^18\.7-alpine1Panel/),
+    ]);
+    expect(versions[0]).toBeChecked();
+    await user.click(versions[1] as HTMLElement);
+    await waitFor(() => expect(within(sheet).getByRole("group", { name: "Name" })).toHaveTextContent("postgresql"));
+    // Still PostgreSQL, and still the one sheet.
+    expect(within(engine).getByRole("radio", { name: /PostgreSQL/ })).toBeChecked();
+    expect(screen.getByRole("dialog", { name: "New database" })).toBe(sheet);
+  });
+
+  it("lays the tiles out in even rows at any width", () => {
+    expect(balancedColumns(6, 1160, 16)).toBe(6);
+    // Four fit, but two rows of three are even, where four and two aren't.
+    expect(balancedColumns(6, 760, 16)).toBe(3);
+    expect(balancedColumns(7, 760, 16)).toBe(4);
+    expect(balancedColumns(4, 1160, 16)).toBe(4);
+    expect(balancedColumns(5, 358, 8)).toBe(2);
+    expect(balancedColumns(1, 1160, 16)).toBe(1);
+    expect(balancedColumns(3, 0, 16)).toBe(1);
   });
 
   it("makes a new database from its defaults, with its engine picked from a list", async () => {
@@ -339,14 +433,17 @@ describe("the databases list", () => {
     expect(within(engine).getByRole("radio", { name: /PostgreSQL/ })).toBeChecked();
   });
 
-  it("says what a database is when there's none, and where to get one", async () => {
+  it("offers the engines as the empty state's choices when there's no database yet", async () => {
     const { container } = renderAt("/databases", api([]));
-    expect(await screen.findByRole("heading", { level: 2, name: "No databases yet" })).toBeVisible();
-    expect(
-      screen.getByText(/PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server/),
-    ).toBeVisible();
-    // New database waits for the catalog's engines.
-    expect(await screen.findByRole("link", { name: "New database" })).toBeVisible();
+    const empty = (await screen.findByRole("heading", { level: 2, name: "No databases yet" })).closest(
+      ".empty-state",
+    ) as HTMLElement;
+    const engines = await within(empty).findByRole("list", { name: "Engines" });
+    await waitFor(() => expect(within(engines).getAllByRole("link")).toHaveLength(2));
+    expect(within(empty).getByRole("link", { name: "More in the catalog" })).toBeVisible();
+    // The tiles are the way in: no second row of them, and no button beside them.
+    expect(screen.queryByRole("heading", { name: "Create a database" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "New database" })).not.toBeInTheDocument();
     await expectAccessible(container);
   });
 

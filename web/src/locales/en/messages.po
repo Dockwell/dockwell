@@ -10013,6 +10013,9 @@ msgstr "Last run"
 msgid "Loading the databases"
 msgstr "Loading the databases"
 
+msgid "More in the catalog"
+msgstr "More in the catalog"
+
 msgid "No databases yet"
 msgstr "No databases yet"
 
@@ -10027,9 +10030,6 @@ msgstr "Nothing changed on the servers. The page tries again by itself."
 
 msgid "Nothing has happened to them lately"
 msgstr "Nothing has happened to them lately"
-
-msgid "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
-msgstr "PostgreSQL, MySQL, MariaDB, Redis or Valkey, from the catalog or already running on a server."
 
 msgid "Reading what happened"
 msgstr "Reading what happened"
