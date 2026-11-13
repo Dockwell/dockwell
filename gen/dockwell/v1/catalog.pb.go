@@ -1525,9 +1525,10 @@ type CatalogSourceInfo struct {
 	// (ADR 0083).
 	Store string `protobuf:"bytes,30,opt,name=store,proto3" json:"store,omitempty"`
 	// For another store's catalog, the licence its repository states, as an SPDX
-	// identifier, or NOASSERTION where it states none Dockwell can tell, which the
-	// panel says as "None stated". Empty for a catalog of Dockwell's own format, whose
-	// entries each say theirs (ADR 0083).
+	// identifier: NONE where it has no licence file, which the panel says as "None
+	// stated", or NOASSERTION where its licence file is none Dockwell recognises,
+	// "Not recognised". Empty for a catalog of Dockwell's own format, whose entries
+	// each say theirs (ADR 0083).
 	License       string `protobuf:"bytes,31,opt,name=license,proto3" json:"license,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

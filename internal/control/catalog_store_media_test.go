@@ -98,6 +98,9 @@ func TestAStoresAppShowsItsOwnLogoAndWords(t *testing.T) {
 	}
 }
 
+// onePixelPNG is a whole PNG image of one pixel, as an image's check reads its size.
+const onePixelPNG = "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a\x00\x00\x00\x0d\x49\x48\x44\x52\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0b\x49\x44\x41\x54\x78\x9c\x63\x60\x00\x02\x00\x00\x05\x00\x01\x7a\x5e\xab\x3f\x00\x00\x00\x00\x49\x45\x4e\x44\xae\x42\x60\x82"
+
 // communitySourceNamed is a source a test adds, by its name.
 func communitySourceNamed(t *testing.T, cat dockwellv1connect.CatalogServiceClient, name string) *dockwellv1.CatalogSourceInfo {
 	t.Helper()
@@ -116,10 +119,12 @@ func communitySourceNamed(t *testing.T, cat dockwellv1connect.CatalogServiceClie
 
 // A store's screenshots, where it keeps them in its own repository, come with its
 // app: CasaOS links them through jsDelivr, and they're read from the commit, raster
-// alone, with a caption and the address the store gave each, and served as any
-// source's image (ADR 0083).
+// alone, with a caption, kept by names no logo has, and served as any source's
+// image. Where the original is shown is the repository's own page of the file, or
+// the repository's page on a host whose pages Dockwell doesn't know, never the
+// address the store gave (ADR 0083).
 func TestAStoresScreenshotsComeWithItsApp(t *testing.T) {
-	png := "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
+	png := onePixelPNG
 	link := func(file string) string {
 		return "https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Board/" + file
 	}
@@ -178,7 +183,7 @@ x-casaos:
 	}
 	for i, n := range []string{"1", "3"} {
 		s := shots[i]
-		if !strings.HasSuffix(s.GetPath(), "/"+head+"/board-"+n+".png") || s.GetSource() != link("screenshot-"+n+".png") || s.GetCaption() == "" {
+		if !strings.HasSuffix(s.GetPath(), "/"+head+"/board_shot-"+n+".png") || s.GetSource() != strings.TrimSuffix(repo.URL, "/.git") || s.GetCaption() == "" {
 			t.Errorf("screenshot %d = %v", i, s)
 		}
 	}

@@ -1216,18 +1216,27 @@ describe("Other stores' catalogs", () => {
     expect(asked?.format).toBe(CatalogFormat.ONEPANEL);
   });
 
-  it("says a store's licence, or None stated where its repository states none", async () => {
+  it("says a store's licence, None stated where its repository has none, and Not recognised where Dockwell can't name it", async () => {
     const unlicensed = create(CatalogSourceInfoSchema, {
       name: "apps",
       source: { repository: "https://github.com/example/apps", commit: COMMIT, format: CatalogFormat.UMBREL },
       entries: ["notes-src"],
+      license: "NONE",
+    });
+    const unknown = create(CatalogSourceInfoSchema, {
+      name: "more",
+      source: { repository: "https://github.com/example/more", commit: COMMIT, format: CatalogFormat.CASAOS },
+      entries: ["board-src"],
       license: "NOASSERTION",
     });
     const licensed = create(CatalogSourceInfoSchema, { ...store, license: "GPL-3.0-only" });
-    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [licensed, unlicensed] }) }));
+    renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [licensed, unlicensed, unknown] }) }));
     const none = (await screen.findByRole("heading", { name: "example/apps" })).closest("section") as HTMLElement;
     expect(within(none).getByText("None stated")).toBeVisible();
-    expect(within(none).queryByText("NOASSERTION")).toBeNull();
+    expect(within(none).queryByText("NONE")).toBeNull();
+    const other = screen.getByRole("heading", { name: "example/more" }).closest("section") as HTMLElement;
+    expect(within(other).getByText("Not recognised")).toBeVisible();
+    expect(within(other).queryByText("NOASSERTION")).toBeNull();
     const gpl = screen.getByRole("heading", { name: "1Panel" }).closest("section") as HTMLElement;
     expect(within(gpl).getByText("GPL-3.0-only")).toBeVisible();
   });

@@ -5,14 +5,67 @@ package folder
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
+	"hash/crc32"
 	"os"
 	"strings"
 	"testing"
 )
 
+// onePixel is a whole PNG image of one pixel.
+const onePixel = "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a\x00\x00\x00\x0d\x49\x48\x44\x52\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0b\x49\x44\x41\x54\x78\x9c\x63\x60\x00\x02\x00\x00\x05\x00\x01\x7a\x5e\xab\x3f\x00\x00\x00\x00\x49\x45\x4e\x44\xae\x42\x60\x82"
+
+// pngSaying is the start of a PNG image whose header says it's w by h pixels, all a
+// reading of its size needs.
+func pngSaying(w, h uint32) []byte {
+	ihdr := append([]byte("IHDR"), binary.BigEndian.AppendUint32(binary.BigEndian.AppendUint32(nil, w), h)...)
+	ihdr = append(ihdr, 8, 6, 0, 0, 0)
+	out := append([]byte("\x89PNG\r\n\x1a\n"), 0, 0, 0, 13)
+	out = append(out, ihdr...)
+	return binary.BigEndian.AppendUint32(out, crc32.ChecksumIEEE(ihdr))
+}
+
+// A raster image is as large as its header says, and a browser decodes it whole, so
+// a small file that says 30000 by 30000 pixels is refused: 4096 a side and 16 MP at
+// most, and a logo 1024 a side (the review of #589, M3).
+func TestImageBoundsItsPixels(t *testing.T) {
+	for name, tc := range map[string]struct {
+		w, h uint32
+		want string
+	}{
+		"one pixel":       {1, 1, ""},
+		"a wide screen":   {3840, 2160, ""},
+		"16 MP":           {4000, 4000, ""},
+		"a side too long": {30000, 30000, "over the 4096 a side"},
+		"a long strip":    {4097, 1, "over the 4096 a side"},
+		"too many pixels": {4096, 4096, "over the 16 MP"},
+		"no pixels":       {0, 10, "Save it again"},
+	} {
+		_, err := Image("shot.png", pngSaying(tc.w, tc.h))
+		switch {
+		case tc.want == "" && err != nil:
+			t.Errorf("%s: %v", name, err)
+		case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+			t.Errorf("%s: %v, want %q", name, err, tc.want)
+		}
+	}
+	if err := Within("logo.png", pngSaying(1024, 1024), LogoPixels); err != nil {
+		t.Errorf("a logo of 1024 pixels: %v", err)
+	}
+	if err := Within("logo.png", pngSaying(2000, 2000), LogoPixels); err == nil || !strings.Contains(err.Error(), "over the 1024 a side") {
+		t.Errorf("a logo of 2000 pixels: %v", err)
+	}
+	if _, err := Image("shot.png", []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")); err == nil {
+		t.Error("an image whose size can't be read passes")
+	}
+	if _, err := Prepare("shot.png", pngSaying(30000, 30000)); err == nil {
+		t.Error("Prepare keeps an image of 30000 by 30000 pixels")
+	}
+}
+
 // An image is what its first bytes say, WebP, PNG or JPEG alone, and its name's
 // extension must say the same, so nothing a browser would run passes for one.
-func TestImage(t *testing.T) {
+func TestSniff(t *testing.T) {
 	webp := []byte("RIFF\x10\x00\x00\x00WEBPVP8 ")
 	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\r")
 	jpeg := []byte("\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01")
@@ -35,7 +88,7 @@ func TestImage(t *testing.T) {
 		"not an SVG":  {"logo.svg", png, "can't be shown as an SVG image"},
 		"HTML as SVG": {"logo.svg", []byte("<html><script>x()</script></html>"), "can't be shown as an SVG image"},
 	} {
-		got, err := Image(tc.file, tc.head)
+		got, err := Sniff(tc.file, tc.head)
 		if err != nil {
 			got = err.Error()
 		}
@@ -74,7 +127,7 @@ func TestPrepare(t *testing.T) {
 	if err != nil || string(kept) != `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1"/></svg>` {
 		t.Errorf("Prepare(logo.svg) = %q, %v", kept, err)
 	}
-	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+	png := []byte(onePixel)
 	if kept, err := Prepare("logo.png", png); err != nil || !bytes.Equal(kept, png) {
 		t.Errorf("Prepare(logo.png) = %q, %v", kept, err)
 	}

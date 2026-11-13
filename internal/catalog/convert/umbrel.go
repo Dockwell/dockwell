@@ -40,7 +40,7 @@ var (
 	umbrelData = regexp.MustCompile(`\$\{APP_DATA_DIR\}(/data)?(/|$)`)
 	// umbrelDownloads is Umbrel's folder of a person's downloads, which an entry asks
 	// for as a folder a person names.
-	umbrelDownloads = regexp.MustCompile(`\$\{UMBREL_ROOT\}/data/storage/downloads\b`)
+	umbrelDownloads = regexp.MustCompile(`\$\{UMBREL_ROOT\}/data/storage/downloads([/:]|$)`)
 	// umbrelHost is the container Umbrel's proxy reaches the app at: the app's ID, the
 	// service, and Compose's number for it, as actual_web_1.
 	umbrelHost = regexp.MustCompile(`^[a-z0-9-]+_([a-z0-9_-]+?)_\d+$`)
@@ -165,18 +165,26 @@ func umbrelCompose(file []byte, id string) ([]byte, []Field, error) {
 		}
 	}
 	images := imageNodes(doc)
-	names := serviceNames(doc)
+	containers := map[string]string{}
+	for _, name := range serviceNames(doc) {
+		containers[id+"_"+name+"_1"] = name
+	}
+	var climbing string
 	walkScalars(root, func(n *yaml.Node) {
 		if images[n] {
 			return
 		}
-		v := umbrelData.ReplaceAllString(braceVars(n.Value), "./data$2")
-		for _, name := range names {
-			v = strings.ReplaceAll(v, id+"_"+name+"_1", name)
+		v := braceVars(n.Value)
+		if climbsAfter(umbrelData, v) || climbsAfter(umbrelDownloads, v) {
+			climbing = cmp.Or(climbing, n.Value)
 		}
-		v = umbrelDownloads.ReplaceAllLiteralString(v, "${DOWNLOADS_DIR}")
+		v = renamed(umbrelData.ReplaceAllString(v, "./data$2"), containers)
+		v = inFolder(umbrelDownloads, v, "${DOWNLOADS_DIR}")
 		n.Value = strings.ReplaceAll(v, "${DEVICE_DOMAIN_NAME}", "localhost")
 	})
+	if climbing != "" {
+		return nil, nil, leave(ClassCantSay, "it names %s, which climbs out of the folder it starts in", climbing)
+	}
 	out, err := encodeFile(doc)
 	if err != nil {
 		return nil, nil, err
@@ -191,6 +199,37 @@ func umbrelCompose(file []byte, id string) ([]byte, []Field, error) {
 		fields = append(fields, downloadsField)
 	}
 	return out, fields, nil
+}
+
+// renamed is a value with each container name Umbrel gives a service, as
+// planka_db_1, written as the service's name, in one pass over the value. A name is
+// one only where it stands whole, so planka_db_10 and myplanka_db_1 keep theirs.
+func renamed(v string, containers map[string]string) string {
+	if len(containers) == 0 || !strings.Contains(v, "_1") {
+		return v
+	}
+	nameChar := func(b byte) bool {
+		return b == '_' || b == '-' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
+	}
+	var out strings.Builder
+	for i := 0; i < len(v); {
+		j := i
+		for j < len(v) && nameChar(v[j]) {
+			j++
+		}
+		if j == i {
+			out.WriteByte(v[i])
+			i++
+			continue
+		}
+		if to, ok := containers[v[i:j]]; ok {
+			out.WriteString(to)
+		} else {
+			out.WriteString(v[i:j])
+		}
+		i = j
+	}
+	return out.String()
 }
 
 // envValue is a variable's value in a service's environment, written as a mapping or

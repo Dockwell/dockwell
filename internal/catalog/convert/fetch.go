@@ -34,6 +34,19 @@ func (f Fetched) Close() {
 	}
 }
 
+// RepositoryLicense is the licence a repository's licence file states, as an SPDX
+// identifier: NONE where it has no licence file, and NOASSERTION where its file is
+// none Dockwell recognises, as SPDX says the two (ADR 0083).
+func RepositoryLicense(hasFile bool, file []byte) string {
+	if !hasFile {
+		return "NONE"
+	}
+	if found := LicenseOf(file); found != "" {
+		return found
+	}
+	return "NOASSERTION"
+}
+
 // Fetch reads a store's commit in two rounds, as the control plane does (ADR 0078):
 // its folders, with no file's contents, and then only the files its adapter reads,
 // and the repository's licence at its top. dir is the folder in the repository the
@@ -98,12 +111,13 @@ func Fetch(ctx context.Context, client *http.Client, store Store, repo, commit, 
 	for _, p := range big {
 		l.Big[rel(p)] = true
 	}
-	src := Source{Name: store.SourceName(repo), Repository: repo, Commit: commit, License: "NOASSERTION"}
+	src := Source{Name: store.SourceName(repo), Repository: repo, Commit: commit}
+	var text []byte
 	if len(licenseFile) > 0 {
-		text := files[licenseFile[0].Path]
-		if found := LicenseOf(text); found != "" {
-			src.License, src.LicenseText, src.CopyrightInLicense = found, text, found == "MIT"
-		}
+		text = files[licenseFile[0].Path]
+	}
+	if src.License = RepositoryLicense(len(licenseFile) > 0, text); src.License != "NONE" && src.License != "NOASSERTION" {
+		src.LicenseText, src.CopyrightInLicense = text, src.License == "MIT"
 	}
 	kept = true
 	return Fetched{Listing: l, Source: src, Time: snap.Time, Snapshot: snap, ByPath: byPath}, nil

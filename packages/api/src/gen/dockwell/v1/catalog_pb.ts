@@ -964,9 +964,10 @@ export type CatalogSourceInfo = Message<"dockwell.v1.CatalogSourceInfo"> & {
 
   /**
    * For another store's catalog, the licence its repository states, as an SPDX
-   * identifier, or NOASSERTION where it states none Dockwell can tell, which the
-   * panel says as "None stated". Empty for a catalog of Dockwell's own format, whose
-   * entries each say theirs (ADR 0083).
+   * identifier: NONE where it has no licence file, which the panel says as "None
+   * stated", or NOASSERTION where its licence file is none Dockwell recognises,
+   * "Not recognised". Empty for a catalog of Dockwell's own format, whose entries
+   * each say theirs (ADR 0083).
    *
    * @generated from field: string license = 31;
    */

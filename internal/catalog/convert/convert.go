@@ -122,16 +122,15 @@ type App struct {
 	Readme      string
 	Words       map[string]Words
 	// Screenshots are the pictures of the app the source keeps in its own repository,
-	// each by its path from the source's folder and the address the source gives it,
-	// in the source's order (ADR 0083).
+	// each by its path from the source's folder, in the source's order (ADR 0083).
 	Screenshots []Shot
 }
 
-// Shot is a picture of an app a source keeps in its repository: where, from the
-// source's folder, and the HTTPS address the source names it by, which is never
-// fetched.
+// Shot is a picture of an app a source keeps in its repository, by its path from the
+// source's folder. Where a person sees the original is a page of the repository at
+// the commit read, never an address the source gives, which could name anything.
 type Shot struct {
-	Path, Source string
+	Path string
 }
 
 // Kind is what a field asks for.

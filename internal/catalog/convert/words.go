@@ -55,9 +55,10 @@ func IconName(id, from string) string {
 }
 
 // ShotName is the name a screenshot is kept by in the folder media: the entry's ID,
-// its place, and its extension, lowercased, such as memos-2.png.
+// its place, and its extension, lowercased, such as memos_shot-2.png. An ID has no
+// underscore, so no screenshot is named as an app's logo, IconName, is.
 func ShotName(id string, n int, from string) string {
-	return fmt.Sprintf("%s-%d%s", id, n, strings.ToLower(path.Ext(from)))
+	return fmt.Sprintf("%s_shot-%d%s", id, n, strings.ToLower(path.Ext(from)))
 }
 
 // ShotCaption is what a screenshot from a store says it shows, where the store gives

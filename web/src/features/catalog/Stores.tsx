@@ -36,12 +36,22 @@ export function useStoreName(): (store: CatalogStore) => string {
 }
 
 /**
- * A licence as a person reads it: its SPDX identifier, or "None stated" where the
- * repository states none Dockwell can tell, as an honest state (ADR 0083).
+ * A licence as a person reads it: its SPDX identifier, "None stated" where the
+ * repository has no licence file, and "Not recognised" where its licence file is
+ * none Dockwell recognises, as honest states (ADR 0083).
  */
 export function useLicenceWords(): (license: string) => string {
   const { t } = useLingui();
-  return (license) => (license === "NOASSERTION" ? t`None stated` : license);
+  return (license) => {
+    switch (license) {
+      case "NONE":
+        return t`None stated`;
+      case "NOASSERTION":
+        return t({ message: "Not recognised", context: "licence" });
+      default:
+        return license;
+    }
+  };
 }
 
 /** A name for a store's source: the store's ID, or the next one no source has. */

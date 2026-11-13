@@ -53,8 +53,8 @@ var (
 	casaosAppData = regexp.MustCompile(`^/DATA/AppData/([A-Za-z0-9_.-]+)(/|$)`)
 	// casaosMedia and casaosDownloads are a person's folders, which an entry asks for
 	// as folders a person names.
-	casaosMedia     = regexp.MustCompile(`^/DATA/Media\b`)
-	casaosDownloads = regexp.MustCompile(`^/DATA/Downloads\b`)
+	casaosMedia     = regexp.MustCompile(`^/DATA/Media(/|$)`)
+	casaosDownloads = regexp.MustCompile(`^/DATA/Downloads(/|$)`)
 )
 
 // downloadsField is the folder of a person's downloads, where an app binds CasaOS's.
@@ -116,7 +116,7 @@ func casaosRead(t *tree, dir string) App {
 	app.Icon = casaosFile(t, at, meta.Icon)
 	for _, link := range meta.Screenshots {
 		if p := casaosFile(t, at, link); p != "" && len(app.Screenshots) < 8 {
-			app.Screenshots = append(app.Screenshots, Shot{Path: p, Source: link})
+			app.Screenshots = append(app.Screenshots, Shot{Path: p})
 		}
 	}
 	if len(meta.Architectures) > 0 && (!slices.Contains(meta.Architectures, "amd64") || !slices.Contains(meta.Architectures, "arm64")) {
@@ -211,6 +211,8 @@ func casaosCompose(doc *yaml.Node, id, main, webPort string) ([]byte, []Field, e
 				}
 				data := casaosAppData.FindStringSubmatch(host)
 				switch {
+				case climbsAfter(casaosAppData, host) || climbsAfter(casaosMedia, host) || climbsAfter(casaosDownloads, host):
+					return nil, nil, leave(ClassCantSay, "its service %s binds %s, which climbs out of the folder it names", name, host)
 				case len(data) > 1 && !strings.EqualFold(data[1], own) && !strings.EqualFold(data[1], id):
 					return nil, nil, leave(ClassAnotherApp, "its service %s binds %s, another app's data in CasaOS", name, host)
 				case len(data) > 1:
@@ -220,10 +222,10 @@ func casaosCompose(doc *yaml.Node, id, main, webPort string) ([]byte, []Field, e
 						host = "./data"
 					}
 				case casaosMedia.MatchString(host):
-					host = casaosMedia.ReplaceAllLiteralString(host, "${MEDIA_DIR}")
+					host = inFolder(casaosMedia, host, "${MEDIA_DIR}")
 					ask(mediaField)
 				case casaosDownloads.MatchString(host):
-					host = casaosDownloads.ReplaceAllLiteralString(host, "${DOWNLOADS_DIR}")
+					host = inFolder(casaosDownloads, host, "${DOWNLOADS_DIR}")
 					ask(downloadsField)
 				case host == "/DATA" || strings.HasPrefix(host, "/DATA/"):
 					return nil, nil, leave(ClassCantSay, "its service %s binds %s, a folder of CasaOS's own, which an entry can't know", name, host)

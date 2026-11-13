@@ -50,8 +50,8 @@ func TestOnServerReadsCasaOSsStore(t *testing.T) {
 		t.Errorf("notes' logo is %q", notes.Icon)
 	}
 	want := []Shot{
-		{Path: "Apps/Notes/screenshot-1.png", Source: "https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@main/Apps/Notes/screenshot-1.png"},
-		{Path: "Apps/Notes/screenshot-2.png", Source: "https://raw.githubusercontent.com/IceWhaleTech/CasaOS-AppStore/main/Apps/Notes/screenshot-2.png"},
+		{Path: "Apps/Notes/screenshot-1.png"},
+		{Path: "Apps/Notes/screenshot-2.png"},
 	}
 	if !slices.Equal(notes.Screenshots, want) {
 		t.Errorf("notes' screenshots = %v, want %v: another app's file and another host's address never count", notes.Screenshots, want)
@@ -73,7 +73,7 @@ func TestOnServerReadsUmbrelsStore(t *testing.T) {
 	if !store.Unlisted {
 		t.Error("Umbrel's store is one a person adds in one click")
 	}
-	src := Source{Name: store.Name, Repository: "https://example.com/umbrel-apps", Commit: strings.Repeat("a", 40), License: "NOASSERTION"}
+	src := Source{Name: store.Name, Repository: "https://example.com/umbrel-apps", Commit: strings.Repeat("a", 40), License: "NONE"}
 	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/umbrel", nil), src, committed)
 	if err != nil {
 		t.Fatal(err)

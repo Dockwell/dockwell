@@ -171,7 +171,7 @@ var Stores = []Store{
 		read: casaosApps,
 	},
 	{
-		Format: FormatUmbrel, ID: "umbrel", Label: "Umbrel", Name: "Umbrel's app store", License: "NOASSERTION", Root: ".",
+		Format: FormatUmbrel, ID: "umbrel", Label: "Umbrel", Name: "Umbrel's app store", License: "NONE", Root: ".",
 		Upstream: "https://github.com/getumbrel/umbrel-apps", Layout: "Umbrel's format",
 		Homepage: "https://umbrel.com", Branch: "master", Unlisted: true,
 		// <id>/ at its top, with umbrel-app.yml and its Compose file, and whether it has
@@ -539,10 +539,14 @@ func (c *Converter) serverWords(ctx context.Context, e *catalogv1.Entry, app App
 }
 
 // fromNote says where an entry comes from, and under which licence, or that its
-// repository states none, as an honest state rather than an identifier.
+// repository states none, or one Dockwell doesn't recognise, as an honest state
+// rather than an identifier.
 func fromNote(source, license string) string {
-	if license == "" || license == "NOASSERTION" {
+	switch license {
+	case "", "NONE":
 		return "From " + source + ", whose repository states no licence"
+	case "NOASSERTION":
+		return "From " + source + ", under a licence Dockwell doesn't recognise"
 	}
 	return "From " + source + ", under " + license
 }

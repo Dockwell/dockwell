@@ -585,7 +585,7 @@ func readKept(dir string) (commitFiles, error) {
 		if err != nil {
 			return commitFiles{}, err
 		}
-		_, out.media[e.Name()] = folder.Image(e.Name(), head)
+		_, out.media[e.Name()] = folder.Sniff(e.Name(), head)
 		if folder.Vector(e.Name()) {
 			// An SVG image is told by the whole of it, as svgclean wrote it.
 			out.media[e.Name()] = vectorKept(filepath.Join(dir, folder.Media, e.Name()), e.Name())
@@ -651,7 +651,7 @@ var readSnapshot = sync.OnceValues(func() (commitFiles, bool) {
 		if err != nil {
 			return commitFiles{}, false
 		}
-		_, out.media[e.Name()] = folder.Image(e.Name(), head)
+		_, out.media[e.Name()] = folder.Sniff(e.Name(), head)
 	}
 	return out, true
 })
@@ -688,7 +688,7 @@ func vectorKept(file, name string) error {
 	return err
 }
 
-// readHead reads the first bytes of a file, as many as folder.Image looks at.
+// readHead reads the first bytes of a file, as many as folder.Sniff looks at.
 func readHead(file string) ([]byte, error) {
 	f, err := os.Open(file) //nolint:gosec // what this kept, under the control plane's own folder
 	if err != nil {

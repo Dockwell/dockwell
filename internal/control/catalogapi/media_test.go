@@ -26,7 +26,7 @@ func TestASourcesImagesAreServed(t *testing.T) {
 			"notes.yaml":       []byte("id: notes\n"),
 			"media/logo.png":   png,
 			"media/page.png":   []byte("<html><script>alert(1)</script></html>"),
-			"media/photo.jpeg": []byte("\xff\xd8\xff\xe0\x00\x10JFIF"),
+			"media/photo.jpeg": jpeg,
 		}, nil
 	}
 	s := &Sources{Dir: t.TempDir(), Fetch: fetch}

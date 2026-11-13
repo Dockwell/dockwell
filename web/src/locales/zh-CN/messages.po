@@ -7093,6 +7093,10 @@ msgstr "前往 {0}"
 msgid "None stated"
 msgstr "未声明"
 
+msgctxt "licence"
+msgid "Not recognised"
+msgstr "无法识别"
+
 #. placeholder {0}: store.apps
 #. placeholder {1}: store.installs
 #. placeholder {2}: store.installs

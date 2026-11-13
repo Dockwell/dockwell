@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/url"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -132,7 +134,9 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
 	}
-	images := storeIcons(ctx, snap, run, byPath)
+	images := storeMedia(ctx, snap, run, byPath, func(file string) string {
+		return cmp.Or(fileAt(spec.GetRepository(), spec.GetCommit(), file), repositoryPage(spec.GetRepository()))
+	})
 	out := map[string][]byte{}
 	rec := leftOutRecord{Format: store.Format, Version: convert.Version, License: src.License, Apps: len(run.Results)}
 	date := got.Time.UTC().Format(time.DateOnly)
@@ -161,13 +165,36 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	return out, images, nil
 }
 
-// storeIcons reads the logo of each app that converts, in a round of its own, within
-// the limits of a catalog's images (ADR 0077): 1,000 at most, 1 MiB each, 32 MiB
-// together, by the names they're kept by in the folder media, as folder.Prepare
-// keeps them, and names each in its entry's icon. A logo that can't be read, or
-// shown, leaves its app without one, and a round that fails leaves every app without
-// one, as an app's place never hangs on its logo (ADR 0083). ctx is the fetch's.
-func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry) map[string][]byte {
+// mediaPack is what one commit's logos and screenshots may take from its host in
+// all, in bytes of the packs their rounds fetch: a snapshot's bound for one pack, so
+// a store of large images costs no more than one fetch could, however often a
+// followed source is read. A test lowers it.
+var mediaPack int64 = 64 << 20
+
+// storeMedia reads the logos, then the screenshots, of the apps that convert, as
+// images by the names they're kept by in the folder media, within the limits of a
+// catalog's images (ADR 0077) and, all its rounds together, within mediaPack. A
+// screenshot's original is the page source gives for its file (ADR 0083). ctx is
+// the fetch's.
+func storeMedia(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry, source func(string) string) map[string][]byte {
+	images := map[string][]byte{}
+	start := snap.Fetched()
+	left := func() int64 { return mediaPack - (snap.Fetched() - start) }
+	storeIcons(ctx, snap, run, listed, images, left)
+	storeShots(ctx, snap, run, listed, images, left, source)
+	if len(images) == 0 {
+		return nil
+	}
+	return images
+}
+
+// storeIcons reads the logo of each app that converts, in a round of its own, into
+// images, and names each in its entry's icon: a raster logo LogoPixels at most, as
+// the panel draws one a few dozen pixels wide. A logo that can't be read, or shown,
+// leaves its app without one, and a round that fails leaves every app without one,
+// as an app's place never hangs on its logo (ADR 0083). left is what's left of the
+// rounds' budget.
+func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry, images map[string][]byte, left func() int64) {
 	var want []gitfetch.Entry
 	owners := map[string][]int{}
 	for i := range run.Results {
@@ -187,16 +214,15 @@ func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, l
 		}
 		owners[e.Path] = append(owners[e.Path], i)
 	}
-	if len(want) == 0 {
-		return nil
+	if len(want) == 0 || left() <= 0 {
+		return
 	}
 	lim := folder.MediaLimits
-	read, _, err := snap.ReadWithin(ctx, want, gitfetch.ReadLimits{Files: lim.Files, File: lim.File, Total: lim.Total})
+	read, _, err := snap.ReadWithin(ctx, want, gitfetch.ReadLimits{Files: lim.Files, File: lim.File, Total: lim.Total, Pack: left()})
 	if err != nil {
-		return nil
+		return
 	}
-	images := map[string][]byte{}
-	var kept int64
+	kept := keptBytes(images)
 	for _, e := range want {
 		data, ok := read[e.Path]
 		if !ok {
@@ -209,7 +235,7 @@ func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, l
 				continue
 			}
 			prepared, err := folder.Prepare(name, data)
-			if err != nil || len(images) == lim.Files || kept+int64(len(prepared)) > lim.Total {
+			if err != nil || folder.Within(name, data, folder.LogoPixels) != nil || len(images) == lim.Files || kept+int64(len(prepared)) > lim.Total {
 				continue
 			}
 			kept += int64(len(prepared))
@@ -217,16 +243,24 @@ func storeIcons(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, l
 			r.Entry.Icon = folder.Media + "/" + name
 		}
 	}
-	storeShots(ctx, snap, run, listed, images)
-	return images
+}
+
+// keptBytes is what images hold in all.
+func keptBytes(images map[string][]byte) int64 {
+	var n int64
+	for _, data := range images {
+		n += int64(len(data))
+	}
+	return n
 }
 
 // Screenshots a store keeps are read after its logos, in what's left of the limits of
 // a catalog's images, at most shotsAnApp an app, each app's first before any app's
 // second, so a store of many apps gives each one a picture before the budget ends.
 // They're asked for shotsARound at a time, as a commit's objects come with no sizes,
-// and a pack of them is held to the snapshot's own bound. A screenshot is a raster
-// image, never an SVG one.
+// each round's pack held to what's left of mediaPack, and the rounds stop after one
+// that keeps nothing, or whose files are mostly over the most an image may be, as
+// the next is likely the same. A screenshot is a raster image, never an SVG one.
 const (
 	shotsAnApp  = 3
 	shotsARound = 16
@@ -234,18 +268,15 @@ const (
 )
 
 // storeShots reads the screenshots of the apps that convert into images, beside the
-// logos already there, and names each in its entry, with a caption and the address
-// the store gives it.
-func storeShots(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry, images map[string][]byte) {
+// logos there, and names each in its entry, with a caption and the page source gives
+// for its file, leaving out one it gives none for, as an entry's screenshot names
+// where its original is. left is what's left of the rounds' budget.
+func storeShots(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, listed map[string]gitfetch.Entry, images map[string][]byte, left func() int64, source func(string) string) {
 	lim := folder.MediaLimits
-	var kept int64
-	for _, data := range images {
-		kept += int64(len(data))
-	}
+	kept := keptBytes(images)
 	type want struct {
 		result, n int
 		entry     gitfetch.Entry
-		source    string
 	}
 	var queue []want
 	for n := range shotsAnApp {
@@ -255,26 +286,28 @@ func storeShots(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, l
 				continue
 			}
 			if e, ok := listed[r.Screenshots[n].Path]; ok {
-				queue = append(queue, want{result: i, n: n + 1, entry: e, source: r.Screenshots[n].Source})
+				queue = append(queue, want{result: i, n: n + 1, entry: e})
 			}
 		}
 	}
-	for round := 0; round < shotRounds && len(queue) > 0 && kept < lim.Total && len(images) < lim.Files; round++ {
+	for round := 0; round < shotRounds && len(queue) > 0 && kept < lim.Total && len(images) < lim.Files && left() > 0; round++ {
 		batch := queue[:min(shotsARound, len(queue))]
 		queue = queue[len(batch):]
 		entries := make([]gitfetch.Entry, len(batch))
 		for i, w := range batch {
 			entries[i] = w.entry
 		}
-		read, _, err := snap.ReadWithin(ctx, entries, gitfetch.ReadLimits{Files: shotsARound, File: lim.File, Total: lim.Total - kept})
+		read, big, err := snap.ReadWithin(ctx, entries, gitfetch.ReadLimits{Files: shotsARound, File: lim.File, Total: lim.Total - kept, Pack: left()})
 		if err != nil {
 			return
 		}
+		got := 0
 		for _, w := range batch {
 			data, ok := read[w.entry.Path]
 			r := &run.Results[w.result]
 			name := convert.ShotName(r.ID, w.n, w.entry.Path)
-			if !ok || !folder.ImageName(name) {
+			from := source(w.entry.Path)
+			if !ok || !folder.ImageName(name) || from == "" {
 				continue
 			}
 			prepared, err := folder.Prepare(name, data)
@@ -282,15 +315,60 @@ func storeShots(ctx context.Context, snap *gitfetch.Snapshot, run convert.Run, l
 				continue
 			}
 			kept += int64(len(prepared))
+			got++
 			images[name] = prepared
 			r.Entry.Screenshots = append(r.Entry.Screenshots, &catalogv1.Screenshot{
 				Path:    folder.Media + "/" + name,
 				Caption: convert.ShotCaption(r.Entry.GetName(), w.n),
-				Source:  w.source,
+				Source:  from,
 			})
+		}
+		if got == 0 || 2*len(big) > len(batch) {
+			return
 		}
 	}
 }
+
+// fileAt is the page that shows a file of a repository at a commit, on the hosts
+// whose pages Dockwell knows the shape of: GitHub, GitLab and Codeberg. Elsewhere
+// it's empty, as no page is better than a wrong one.
+func fileAt(repository, commit, file string) string {
+	u, err := url.Parse(strings.TrimSuffix(strings.TrimSuffix(repository, "/"), ".git"))
+	if err != nil || u.Scheme != "https" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || strings.Count(strings.Trim(u.Path, "/"), "/") != 1 || !commitShape.MatchString(commit) {
+		return ""
+	}
+	segments := strings.Split(file, "/")
+	for i, seg := range segments {
+		if seg == "" || seg == "." || seg == ".." {
+			return ""
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	at := "/blob/"
+	switch strings.ToLower(u.Host) {
+	case "github.com":
+	case "gitlab.com":
+		at = "/-/blob/"
+	case "codeberg.org":
+		at = "/src/commit/"
+	default:
+		return ""
+	}
+	return "https://" + strings.ToLower(u.Host) + "/" + strings.Trim(u.Path, "/") + at + commit + "/" + strings.Join(segments, "/")
+}
+
+// repositoryPage is a repository's own page, as its HTTPS address without .git, for
+// a screenshot from a host whose pages of a file Dockwell doesn't know, or empty.
+func repositoryPage(repository string) string {
+	u, err := url.Parse(strings.TrimSuffix(strings.TrimSuffix(repository, "/"), ".git"))
+	if err != nil || u.Scheme != "https" || u.User != nil || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+		return ""
+	}
+	return "https://" + u.Host + strings.TrimSuffix(u.EscapedPath(), "/")
+}
+
+// commitShape is a commit's name, in full.
+var commitShape = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 // What a converted commit keeps of each app it leaves out: its ID and folder, and a
 // reason, each cut to a length a person reads, as a store names them, and 2,000 apps
@@ -469,9 +547,12 @@ func convertedWords(spec *resourcev1.CatalogSource, entries []*catalogv1.Entry, 
 	}
 	n := len(entries)
 	reads := fmt.Sprintf("It reads %d %s from %s, at %s, as %s", n, plural(n, "app", "apps"), where, spec.GetCommit()[:12], formatWords(spec))
-	if license == "NOASSERTION" || license == "" {
+	switch license {
+	case "NONE", "":
 		// A repository with no licence grants no rights to its files: the plan says so as it is.
-		return reads + ", and its repository states no licence Dockwell can tell."
+		return reads + ", and its repository states no licence."
+	case "NOASSERTION":
+		return reads + ", under a licence Dockwell doesn't recognise."
 	}
 	return reads + ", under " + license + "."
 }

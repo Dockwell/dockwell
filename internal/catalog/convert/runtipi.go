@@ -82,7 +82,7 @@ var runtipiPlatform = strings.NewReplacer(
 // runtipiMedia is Runtipi's folder of a person's media on the server, which an entry
 // asks for as a folder a person names, MEDIA_DIR, as the plan shows it as a path on
 // the server for them to approve. Runtipi's own folder otherwise leaves the app out.
-var runtipiMedia = regexp.MustCompile(`\$\{ROOT_FOLDER_HOST\}/media\b`)
+var runtipiMedia = regexp.MustCompile(`\$\{ROOT_FOLDER_HOST\}/media([/:]|$)`)
 
 // mediaField is the folder of a person's media, where an app binds Runtipi's.
 var mediaField = Field{Name: "MEDIA_DIR", Label: "Media folder on the server", Kind: Text, Default: "/srv/media"}
@@ -253,10 +253,18 @@ func runtipiCompose(file []byte) ([]byte, error) {
 		return nil, err
 	}
 	root := doc.Content[0]
+	var climbing string
 	walkScalars(root, func(n *yaml.Node) {
-		n.Value = runtipiData.ReplaceAllString(braceVars(n.Value), "./data$2")
-		n.Value = runtipiMedia.ReplaceAllLiteralString(runtipiPlatform.Replace(n.Value), "${MEDIA_DIR}")
+		v := braceVars(n.Value)
+		if climbsAfter(runtipiData, v) || climbsAfter(runtipiMedia, v) {
+			climbing = cmp.Or(climbing, n.Value)
+		}
+		v = runtipiData.ReplaceAllString(v, "./data$2")
+		n.Value = inFolder(runtipiMedia, runtipiPlatform.Replace(v), "${MEDIA_DIR}")
 	})
+	if climbing != "" {
+		return nil, leave(ClassCantSay, "it names %s, which climbs out of the folder it starts in", climbing)
+	}
 	for _, name := range serviceNames(doc) {
 		svc := service(doc, name)
 		if nets := mapGet(svc, "networks"); nets != nil {
