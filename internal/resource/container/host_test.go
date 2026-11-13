@@ -1020,3 +1020,34 @@ func TestWhatHasNoRecordAsksOnlyWhereAPathGivesMore(t *testing.T) {
 		})
 	}
 }
+
+// M1: a real-time priority is what SYS_NICE gives, which a person approves: with it
+// the app's processes take the CPU ahead of the agent and the control plane, whatever
+// its cpus limit. Other limits, such as nice and memlock, ask nothing (ADR 0085).
+func TestARealTimePriorityIsAccess(t *testing.T) {
+	for name, c := range map[string]struct {
+		limits []*resourcev1.Ulimit
+		caps   []string
+		want   []string
+	}{
+		"rtprio":               {limits: []*resourcev1.Ulimit{{Name: "rtprio", Soft: 99, Hard: 99}}, want: []string{"SYS_NICE"}},
+		"rtprio hard alone":    {limits: []*resourcev1.Ulimit{{Name: "rtprio", Soft: 0, Hard: 99}}, want: []string{"SYS_NICE"}},
+		"rtprio of 0":          {limits: []*resourcev1.Ulimit{{Name: "rtprio", Soft: 0, Hard: 0}}},
+		"nice and memlock":     {limits: []*resourcev1.Ulimit{{Name: "nice", Soft: 40, Hard: 40}, {Name: "memlock", Soft: -1, Hard: -1}}},
+		"rtprio with SYS_NICE": {limits: []*resourcev1.Ulimit{{Name: "rtprio", Soft: 99, Hard: 99}}, caps: []string{"SYS_NICE"}, want: []string{"SYS_NICE"}},
+	} {
+		spec := &resourcev1.Container{Image: "nginx:1.27", Ulimits: c.limits, CapAdd: c.caps}
+		if err := container.Validate(spec); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		var got []string
+		for _, a := range container.ServiceAccess(spec) {
+			if a.Kind == resource.AccessCapability {
+				got = append(got, a.Path)
+			}
+		}
+		if !slices.Equal(got, c.want) {
+			t.Errorf("%s: capabilities asked %v, want %v", name, got, c.want)
+		}
+	}
+}

@@ -498,6 +498,10 @@ func TestWhatASpecTakes(t *testing.T) {
 		"a limit under -1":             {&resourcev1.Container{Ulimits: []*resourcev1.Ulimit{{Name: "nproc", Soft: -2, Hard: -1}}}, "or -1 for no limit"},
 		"fewer than no processes":      {&resourcev1.Container{PidsLimit: -1}, "0 for no limit"},
 		"a DNS server by name":         {&resourcev1.Container{Dns: []string{"dns.example.com"}}, "isn't an IP address"},
+		"a DNS server on loopback":     {&resourcev1.Container{Dns: []string{"127.0.0.53"}}, "is this server's own address, which a container may not ask"},
+		"a DNS server link-local":      {&resourcev1.Container{Dns: []string{"169.254.169.254"}}, "where a cloud keeps its metadata service"},
+		"a DNS server unspecified":     {&resourcev1.Container{Dns: []string{"0.0.0.0"}}, "is an unspecified address"},
+		"a DNS server multicast":       {&resourcev1.Container{Dns: []string{"ff02::fb"}}, "is a multicast address"},
 		"too many DNS servers":         {&resourcev1.Container{Dns: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4", "10.0.0.5", "10.0.0.6", "10.0.0.7", "10.0.0.8", "10.0.0.9"}}, "up to 8"},
 	} {
 		t.Run(name, func(t *testing.T) {

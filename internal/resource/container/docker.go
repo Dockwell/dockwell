@@ -288,6 +288,10 @@ type referenceWords struct {
 	Command    []string `json:"command,omitempty"`
 	Entrypoint []string `json:"entrypoint,omitempty"`
 	Test       []string `json:"healthcheck.test,omitempty"`
+	// Scripts says which word of each field is a shell's script, which keeps its
+	// names for the shell (binding.RenderField). A label from before has none, and
+	// its container had every value written in.
+	Scripts map[string]int `json:"scripts,omitempty"`
 }
 
 // referencesLabel is LabelReferences for a spec, or empty when it lists nothing.
@@ -306,6 +310,14 @@ func referencesLabel(spec *resourcev1.Container) string {
 	if words.Command == nil && words.Entrypoint == nil && words.Test == nil {
 		return ""
 	}
+	for _, field := range spec.GetReferences() {
+		if s := binding.ScriptIn(spec, field); s >= 0 {
+			if words.Scripts == nil {
+				words.Scripts = map[string]int{}
+			}
+			words.Scripts[field] = s
+		}
+	}
 	b, _ := json.Marshal(words)
 	return string(b)
 }
@@ -315,7 +327,7 @@ func referencesLabel(spec *resourcev1.Container) string {
 // holds this text: Labels, the config hash and what a plan reads all go by the spec.
 func rendered(req *docker.CreateRequest, spec *resourcev1.Container) error {
 	for _, field := range spec.GetReferences() {
-		words, err := binding.Render(binding.WordsOf(spec, field), spec.GetEnv())
+		words, err := binding.RenderField(binding.WordsOf(spec, field), spec.GetEnv(), binding.ScriptIn(spec, field))
 		if err != nil {
 			return fmt.Errorf("can't write the %s: %w. Plan the change again", field, err)
 		}
@@ -355,7 +367,11 @@ func readWords(c *docker.Container, out *resourcev1.Container) {
 			return nil
 		}
 		out.References = append(out.References, field)
-		got, err := binding.Render(want, env)
+		script, ok := words.Scripts[field]
+		if !ok {
+			script = -1
+		}
+		got, err := binding.RenderField(want, env, script)
 		if field == binding.FieldEntrypoint {
 			got = noEntrypoint(got)
 		}

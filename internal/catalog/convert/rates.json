@@ -29,7 +29,6 @@
         "cloudbeaver",
         "cloudflared",
         "code-server",
-        "comfyui",
         "convertx",
         "copaw",
         "cyberchef",
@@ -123,12 +122,12 @@
       "leftOut": {
         "another-app": 25,
         "arch": 25,
-        "cant-run": 9,
+        "cant-run": 11,
         "cant-say": 4,
         "check": 2,
         "platform": 3,
         "scripts": 63,
-        "shipped": 25
+        "shipped": 24
       }
     },
     {
@@ -271,7 +270,6 @@
         "gotenberg",
         "gotify",
         "grafana",
-        "graylog",
         "grimoire",
         "grist",
         "healthchecks",
@@ -471,7 +469,7 @@
         "zitadel"
       ],
       "leftOut": {
-        "cant-run": 45,
+        "cant-run": 46,
         "cant-say": 13,
         "check": 62,
         "file": 1,
@@ -714,9 +712,9 @@
       ],
       "leftOut": {
         "arch": 1,
-        "cant-run": 17,
+        "cant-run": 18,
         "cant-say": 17,
-        "check": 52,
+        "check": 51,
         "made-up": 8,
         "platform": 1,
         "shipped": 30,

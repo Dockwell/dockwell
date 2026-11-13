@@ -12,6 +12,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/netguard"
 )
 
 // What an app asks of its container itself, as Compose names it: its hostname, an
@@ -64,6 +65,11 @@ func validateOwn(c *resourcev1.Container) error {
 		ip, err := netip.ParseAddr(s)
 		if err != nil || ip.Zone() != "" {
 			return fmt.Errorf("the DNS server %q isn't an IP address. Give one, such as 1.1.1.1", s)
+		}
+		// A container asks its DNS server everything it looks up, so it's held to
+		// where a request a person names may go, in netguard's words (ADR 0085).
+		if why := netguard.Forbidden(ip.String(), netguard.Options{Private: true}); why != "" {
+			return fmt.Errorf("the DNS server %s is %s, which a container may not ask. Give a resolver on the internet, such as 1.1.1.1, or one on a private network", ip, why)
 		}
 		c.Dns[i] = ip.String()
 	}

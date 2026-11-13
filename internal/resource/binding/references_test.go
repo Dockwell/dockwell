@@ -180,3 +180,45 @@ func TestNamedAsText(t *testing.T) {
 		}
 	}
 }
+
+// L1 and L2: a shell's script keeps each name for the shell to read from the
+// container's environment, quoted for where it stands, so a value is never in the
+// script, nor in the process's command line, and never read as code. Other words
+// have their values written in, as before (ADR 0085).
+func TestAScriptKeepsItsNamesForTheShell(t *testing.T) {
+	values := map[string]string{"PW": "x'; rm -rf / $(id) \"y", "USER": "app"}
+	script := "redis-server --requirepass ${PW} --user=${USER}; echo '${PW}' \"${PW}\" \\'${PW}"
+	got, err := binding.RenderField([]string{"sh", "-c", script}, values, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "redis-server --requirepass \"${PW}\" --user=\"${USER}\"; echo ''\"${PW}\"'' \"${PW}\" \\'\"${PW}\""
+	if got[2] != want {
+		t.Errorf("the script is\n%s\nwant\n%s", got[2], want)
+	}
+	if strings.Contains(strings.Join(got, " "), "rm -rf") {
+		t.Errorf("a value was written into the script: %q", got)
+	}
+	if got, _ := binding.RenderField([]string{"redis-server", "--requirepass", "${PW}"}, values, -1); got[2] != values["PW"] {
+		t.Errorf("a word that isn't a script is %q", got[2])
+	}
+	if _, err := binding.RenderField([]string{"sh", "-c", "echo ${NOPE}"}, values, 2); err == nil || !strings.Contains(err.Error(), "no value for NOPE") {
+		t.Errorf("a name with no value in a script: %v", err)
+	}
+	for name, c := range map[string]struct {
+		spec  *resourcev1.Container
+		field string
+		want  int
+	}{
+		"a command after sh -c": {&resourcev1.Container{Entrypoint: []string{"sh", "-c"}, Command: []string{"echo ${X}"}}, binding.FieldCommand, 0},
+		"its entrypoint":        {&resourcev1.Container{Entrypoint: []string{"sh", "-c"}, Command: []string{"echo ${X}"}}, binding.FieldEntrypoint, -1},
+		"a command of its own":  {&resourcev1.Container{Command: []string{"bash", "-ec", "echo ${X}"}}, binding.FieldCommand, 2},
+		"no shell":              {&resourcev1.Container{Command: []string{"redis-server", "${X}"}}, binding.FieldCommand, -1},
+		"a CMD-SHELL test":      {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD-SHELL", "redis-cli -a ${X} ping"}}}, binding.FieldTest, 1},
+		"a CMD test with sh -c": {&resourcev1.Container{Healthcheck: &resourcev1.Healthcheck{Test: []string{"CMD", "sh", "-c", "redis-cli -a ${X} ping"}}}, binding.FieldTest, 3},
+	} {
+		if got := binding.ScriptIn(c.spec, c.field); got != c.want {
+			t.Errorf("%s: the script is word %d, want %d", name, got, c.want)
+		}
+	}
+}

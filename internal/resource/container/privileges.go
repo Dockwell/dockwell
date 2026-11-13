@@ -114,5 +114,20 @@ func privilegeAccess(c *resourcev1.Container) []resource.Access {
 	for _, g := range c.GetGroupAdd() {
 		out = append(out, resource.Access{Kind: resource.AccessGroup, Path: g, SameAsRoot: rootGroups[g]})
 	}
+	// A real-time priority lets the app's processes take the CPU ahead of everything
+	// on the server, its agent and control plane among them, whatever its cpus limit,
+	// on a kernel that doesn't group real-time tasks: what SYS_NICE gives, which a
+	// person approves (ADR 0085).
+	if realTime(c) && !slices.Contains(c.GetCapAdd(), "SYS_NICE") && !slices.Contains(c.GetCapAdd(), "ALL") {
+		out = append(out, resource.Access{Kind: resource.AccessCapability, Path: "SYS_NICE"})
+	}
 	return out
+}
+
+// realTime reports a container whose processes may take a real-time priority, by a
+// limit of rtprio above 0.
+func realTime(c *resourcev1.Container) bool {
+	return slices.ContainsFunc(c.GetUlimits(), func(u *resourcev1.Ulimit) bool {
+		return u.GetName() == "rtprio" && (u.GetSoft() != 0 || u.GetHard() != 0)
+	})
 }

@@ -73,6 +73,8 @@ A store's file that names `latest` never changes when `latest` moves, so the cat
 After moving tags, the Compose keys Dockwell refused were the next gate: `hostname` in 23 apps, `ulimits` 17, `pull_policy` 13, `stdin_open` 9, `security_opt` 9 (mostly `no-new-privileges:true`), `read_only` 6, `init` 5, a health check's `start_interval` 5, `pids_limit` 4, `dns` 3, `tty` 3 and `stop_signal` 2. Each changes the container alone, and none reaches the server, so each is now a field of the container, as Compose names it:
 
 - **A spec holds `hostname`, `init`, `tty`, `stdin_open`, `stop_signal`, `ulimits`, `read_only`, `pids_limit`, `dns` and `no_new_privileges`** (Container 90 to 99), checked as Docker would take them: a hostname as a DNS name, and none on the server's own network, which has the server's; a signal by its name or number, written as SIGQUIT; a limit Docker knows, its soft limit within its hard; a count of 0 or more; up to 8 DNS servers, by address. They read back from Docker as the spec has them, so none is drift: a hostname Docker gave for the ID, or a stop signal the image gives, isn't one the spec set. The Compose importer reads and exports each, and a container Dockwell takes on keeps them (ADR 0021).
+- **A real-time priority is access a person approves.** A limit of `rtprio` above 0 lets the app's processes take the CPU ahead of everything on the server, its agent and control plane among them, whatever its cpus limit, on a kernel that doesn't group real-time tasks: it counts as `SYS_NICE`, as a plan shows it. A store's app that locks memory with no limit (`memlock: -1`) is left out, as locked memory can't be reclaimed from the server.
+- **A DNS server is held to where a request a person names may go**, in netguard's words: loopback, link-local, unspecified, multicast and reserved addresses are refused.
 - **Of `security_opt`, only `no-new-privileges` is taken.** It tightens what a container may do. `seccomp:unconfined`, `apparmor:unconfined` and `label:disable` loosen what confines it, and are refused by name, as before.
 - **A pull policy and a health check's start interval are taken and dropped.** Dockwell pulls the digest a plan pins whenever a server hasn't it, so a policy says nothing it does; `build`, which builds, is refused as a build is. A start interval only says how often a check runs while the start period lasts, which Docker before 25 doesn't keep: Dockwell checks at the interval throughout, so a new container is seen healthy a little later at worst.
 - **An agent says it sets them, in its `Hello` (`own_settings`, 300).** The control plane plans none of them on an agent that doesn't, which would leave them out: "the agent on hz-2 is from before Dockwell set a container's hostname, limits and the like, which web asks for, so it would leave them out. Update the agent on hz-2."
@@ -84,6 +86,8 @@ After moving tags, the Compose keys Dockwell refused were the next gate: `hostna
 
 The catalog refused a secret anywhere but a value of its own, as an upgrade stands something in for a secret it never opens. That holds for an environment's value, where `postgres://u:${PASSWORD}@db/x` would carry the stand-in. It doesn't for a command, an entrypoint or a health check's test, which keep a value by name, with the value written into each word as the container is made, and a rotation reaching it ([ADR 0022](0022-secrets-encrypted-at-rest.md)). So a secret may now stand anywhere in one of their words, as in `redis-server --requirepass ${PASSWORD}` or `--api-key=${KEY}`, which 19 of the stores' apps write. A test installs such an app from a converted store and upgrades it: the spec keeps the names, the secret comes by reference, the container gets the secret itself, and the upgrade keeps it.
 
+In a shell's script, the word `sh -c` or a `CMD-SHELL` test reads, a name isn't written in: it stays for the shell to read from the container's environment, where the value is, quoted for where it stands (`"${PASSWORD}"` outside quotes, `'"${PASSWORD}"'` inside single ones). Written in, a value would show in the process's command line to every user of the server, and a typed one with a quote, a `$(` or a `;` would change what the script does. The references label says which word is a script, so the container reads back as its spec, and a container made before keeps the form it has. In any other word the value is the program's own argument, as it is for any program given a password on its command line.
+
 A secret inside an environment's value, over 100 of the stores' apps and most of them a companion database's URL, is left for the need that writes it (ADR 0084), or a mechanism that writes an environment's value as a command's words are.
 
 ### Numbers
@@ -94,8 +98,8 @@ ADR 0085. `UpgradeServiceRequest.rebuild` (90) and `AvailableUpdate.skip_as` (90
 
 | Store | Apps | Moving tags | With a container's own settings and secrets in commands | Rate |
 | --- | ---: | ---: | ---: | ---: |
-| 1Panel's app store | 269 | 99 | 113 | 42% |
-| Dokploy's templates | 612 | 299 | 332 | 54% |
+| 1Panel's app store | 269 | 99 | 112 | 41% |
+| Dokploy's templates | 612 | 299 | 331 | 54% |
 | Coolify's templates | 384 | 199 | 224 | 58% |
 
 ## What we turned down
