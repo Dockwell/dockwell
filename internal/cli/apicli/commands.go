@@ -247,6 +247,8 @@ var proposers = map[string]bool{
 	"dockwell.v1.WebsiteService.UpdateWebsite":           true,
 	"dockwell.v1.WebsiteService.DeleteWebsite":           true,
 	"dockwell.v1.ImportService.ImportOnePanel":           true,
+	"dockwell.v1.ImportService.ImportCoolify":            true,
+	"dockwell.v1.ImportService.ImportDokploy":            true,
 	"dockwell.v1.DatabaseService.CreateDatabaseUser":     true,
 	"dockwell.v1.DatabaseService.ChangeDatabasePassword": true,
 }

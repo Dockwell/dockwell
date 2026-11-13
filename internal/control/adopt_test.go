@@ -667,14 +667,15 @@ func TestAPlanSaysWhatElseManagesAContainer(t *testing.T) {
 		t.Errorf("a plan after the first still says %v", n)
 	}
 
-	// Another tool's remove hasn't been read, so it isn't told to use it, or not.
+	// Coolify's delete is read from its source (ADR 0089): it removes what the
+	// resource mounts, so it isn't to be used.
 	runByHand(t, e, "coolify-web", func(r *docker.CreateRequest) {
 		compose("web", "/data/coolify/applications/x")(r)
 		r.Labels["coolify.managed"] = "true"
 	})
 	n = managed(adopt(t, cc, "coolify-web", "web"))
-	if n == nil || n.GetNames()[0] != "Coolify" || strings.Contains(n.GetMessage(), "keep its data") ||
-		!strings.Contains(n.GetMessage(), "find out what that does to /data/coolify/applications/x") {
+	if n == nil || n.GetNames()[0] != "Coolify" || !strings.Contains(n.GetMessage(), "Don't delete it in Coolify") ||
+		!strings.Contains(n.GetMessage(), "/data/coolify/applications/x, which holds what this service binds") {
 		t.Errorf("taking on what Coolify made says %v", n)
 	}
 

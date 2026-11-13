@@ -629,10 +629,11 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 	return project, nil
 }
 
-// FreeProject is want, or, where a project has that name, the first of
-// want-1panel, want-1panel-2 and on that none has: a project to take something on
-// into that's no one else's.
-func (h *Handler) FreeProject(ctx context.Context, want string) (string, error) {
+// FreeProject is want, or, where a project has that name or claimed has it, the
+// first of want-<from>, want-<from>-2 and on that none has, such as blog-1panel: a
+// project to take something on into that's no one else's, nor another's of the
+// same import.
+func (h *Handler) FreeProject(ctx context.Context, want, from string, claimed map[string]bool) (string, error) {
 	var names []string
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
@@ -648,11 +649,11 @@ func (h *Handler) FreeProject(ctx context.Context, want string) (string, error) 
 		name := want
 		switch {
 		case i == 1:
-			name = want + "-1panel"
+			name = want + "-" + from
 		case i > 1:
-			name = fmt.Sprintf("%s-1panel-%d", want, i)
+			name = fmt.Sprintf("%s-%s-%d", want, from, i)
 		}
-		if !slices.Contains(names, name) {
+		if !slices.Contains(names, name) && !claimed[name] {
 			return name, nil
 		}
 	}

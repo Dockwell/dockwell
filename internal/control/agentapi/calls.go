@@ -480,8 +480,8 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(),
-		loadsCertificates: hello.GetLoadsCertificates(),
-		pending:           map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
+		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(),
+		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 	}
 	s.setKinds(hello.GetKinds(), hello.GetUnavailable())
 	if d := hello.GetDesired(); d != nil {
@@ -588,6 +588,8 @@ type Session struct {
 	followsPace bool
 	// readsOnePanel says the agent reads what 1Panel keeps (ADR 0056).
 	readsOnePanel bool
+	// readsPanels says the agent reads what Coolify or Dokploy runs (ADR 0089).
+	readsPanels bool
 	// terminals says the agent opens terminals, and openTerminals which it had
 	// as the stream opened, which is then.
 	terminals          bool

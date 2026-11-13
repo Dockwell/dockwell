@@ -133,6 +133,9 @@ type Config struct {
 	// OnePanel reads what 1Panel keeps on this server, for an import (ADR 0056).
 	// Nil reads nothing.
 	OnePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// Panels reads what Coolify or Dokploy runs on this server, from Docker and its
+	// folders, for an import (ADR 0089).
+	Panels func(context.Context, dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error)
 	// Images says how images are read from their registries, for a form (ADR
 	// 0062). The zero value reads them as the server's Docker reaches registries.
 	Images ImageReads
@@ -629,7 +632,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	offered := readyKinds(ctx, cfg.Drivers)
 	offered.log(ctx, cfg.Logger)
-	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, Links: cfg.Docker != nil, KeepsRoutesPrivate: true}
+	hello := &agentv1.Hello{Build: cfg.Build.Proto(), Inventory: cfg.Collector.Inventory(ctx), DeliveryKey: key.Public(), WritesReferences: true, GuardsWaysIn: true, MakesFolders: true, OwnSettings: true, WritesFiles: true, OwnsVolumes: true, Updates: cfg.Updates != nil, FollowsPace: true, ReadsOnepanel: cfg.OnePanel != nil, ManagesFiles: true, TransfersFiles: true, PagesListings: true, FirstPasswords: true, Forwards: cfg.Docker != nil, Drills: cfg.Backups != nil, ActsOnUnits: cfg.System != nil, RegistryLogins: true, BuildLogins: true, Links: cfg.Docker != nil, ReadsPanels: cfg.Panels != nil, KeepsRoutesPrivate: true}
 	if cfg.Updates != nil {
 		// A server whose host reboots says which boot it's on, so a reboot passes once
 		// it connects from another (ADR 0064).

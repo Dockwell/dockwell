@@ -128,6 +128,8 @@ ImageService.GetImage                          read         developer  developer
 ImageService.ListImageTags                     read         developer  developer  project
 ImageService.ListRegistryLogins                read         viewer     viewer     named
 ImageService.SearchImages                      read         developer  developer  project
+ImportService.ImportCoolify                    plan         admin      admin      install
+ImportService.ImportDokploy                    plan         admin      admin      install
 ImportService.ImportOnePanel                   plan         admin      admin      install
 LogService.ListLogSources                      read         viewer     viewer     project
 LogService.ReadLogs                            read         viewer     viewer     project

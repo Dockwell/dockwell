@@ -38,6 +38,164 @@ service ImportService {
       body: "*"
     };
   }
+
+  // ImportCoolify reads what Coolify runs on a server, from Docker and its
+  // folders, never its database or its API: its applications, services and
+  // databases, their domains, and its own containers. It says what Dockwell would
+  // do with each and why. For a person, it also plans the change that takes on
+  // each that runs as a Compose project, as AdoptCompose does, with its volumes
+  // where they are. A token gets what was found and no change. Nothing secret
+  // comes back from the read: no environment, and no label beyond a domain. See
+  // docs/adr/0089-importing-from-coolify-and-dokploy.md.
+  rpc ImportCoolify(ImportCoolifyRequest) returns (ImportCoolifyResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "coolify"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:coolify"
+      body: "*"
+    };
+  }
+
+  // ImportDokploy reads what Dokploy runs on a server, from Docker and its
+  // folders, never its database or its API, as ImportCoolify does: its Compose
+  // apps, applications and databases, their domains, and its own services. It
+  // plans taking on each Compose app it runs with docker compose; what it runs as
+  // a Swarm service stays, with why.
+  rpc ImportDokploy(ImportDokployRequest) returns (ImportDokployResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "dokploy"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:dokploy"
+      body: "*"
+    };
+  }
+}
+
+// ImportCoolifyRequest names the server to import from.
+message ImportCoolifyRequest {
+  // The server running Coolify, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Read and say what an import would do, and plan nothing, for a client that
+  // plans only when a person asks to review it.
+  bool skip_plan = 2;
+}
+
+// ImportCoolifyResponse is what Coolify runs on the server, and what an import
+// would do with each thing.
+message ImportCoolifyResponse {
+  // What was found, as Docker and Coolify's folders say.
+  Panel found = 1;
+  // What an import would do, a step for each thing found, in the order the plan
+  // would take them.
+  repeated ImportStep steps = 2;
+  // The change that takes on what can come now, planned for a person to apply.
+  // Empty for a token, where nothing can come, and where Dockwell can't read what
+  // runs on the server now.
+  Change change = 3;
+}
+
+// ImportDokployRequest names the server to import from.
+message ImportDokployRequest {
+  // The server running Dokploy, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Read and say what an import would do, and plan nothing.
+  bool skip_plan = 2;
+}
+
+// ImportDokployResponse is what Dokploy runs on the server, and what an import
+// would do with each thing, as ImportCoolifyResponse is.
+message ImportDokployResponse {
+  // What was found, as Docker and Dokploy's folders say.
+  Panel found = 1;
+  // What an import would do with each thing found.
+  repeated ImportStep steps = 2;
+  // The change that takes on what can come now, as ImportCoolifyResponse's.
+  Change change = 3;
+}
+
+// PanelKind is a panel an import reads from Docker and its folders.
+enum PanelKind {
+  PANEL_KIND_UNSPECIFIED = 0;
+  // Coolify, which runs what it deploys with docker compose.
+  PANEL_KIND_COOLIFY = 1;
+  // Dokploy, which runs Compose apps with docker compose or as Swarm stacks, and
+  // its applications and databases as Swarm services.
+  PANEL_KIND_DOKPLOY = 2;
+}
+
+// Panel is what a panel runs on a server, as Docker and its folders say, with
+// nothing secret in it.
+message Panel {
+  // Which panel it is.
+  PanelKind kind = 1;
+  // Its version, from its own image's tag, such as "4.7.5" or "v0.31.2". Empty
+  // where its own containers aren't there to say.
+  string version = 2;
+  // True when its version is one this importer was written from: Coolify 4.7 and
+  // Dokploy 0.31. Another is read the same way, by its labels and folders.
+  bool known_version = 3;
+  // The folder it keeps what it runs in, such as "/data/coolify" or
+  // "/etc/dokploy".
+  string folder = 4;
+  // What it runs for people: apps, services and databases.
+  repeated PanelApp apps = 5;
+  // Its own containers and services, such as coolify-db or dokploy-traefik.
+  repeated PanelContainer own = 6;
+}
+
+// PanelApp is something a panel runs for people: an app, a service from its
+// templates, or a database.
+message PanelApp {
+  // Its name, as the panel shows it, slugged as its labels have it, such as
+  // "blog".
+  string name = 1;
+  // What it is: "application", "service" or "database" for Coolify; "compose",
+  // "stack", "application", or a database engine such as "postgres" for Dokploy.
+  string kind = 2;
+  // The panel's project and environment it's in, such as "personal" and
+  // "production".
+  string project = 3;
+  string environment = 4;
+  // The panel's own ID for it: Coolify's UUID, or Dokploy's appName.
+  string id = 5;
+  // The Compose project its containers run as, where docker compose runs it.
+  string compose_project = 6;
+  // Its containers, by name.
+  repeated string containers = 7;
+  // The domains it answers on, as the panel's proxy has them.
+  repeated string domains = 8;
+  // Its folder, such as "/data/coolify/services/<uuid>".
+  string folder = 9;
+  // True when it runs as a Swarm service or stack, which Dockwell can't take on in
+  // place.
+  bool swarm = 10;
+  // True for a pull request's preview, which the panel makes and removes itself.
+  bool preview = 11;
+  // The image it runs, where it's one: a Swarm service's, or a database's.
+  string image = 12;
+}
+
+// PanelContainer is one of a panel's own containers or Swarm services.
+message PanelContainer {
+  // Its name, such as "coolify-proxy".
+  string name = 1;
+  // Its image.
+  string image = 2;
+  // What it's doing, such as "running" or "exited", or "service" for a Swarm
+  // service.
+  string state = 3;
 }
 
 // ImportOnePanelRequest names the server to import from.

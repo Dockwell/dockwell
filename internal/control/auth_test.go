@@ -128,6 +128,9 @@ type fullServer struct {
 	cloudflare *cftest.API
 	// onePanelRoot is where the next Docker server added has 1Panel installed, if anywhere.
 	onePanelRoot string
+	// panelsRoot is the next Docker server's root, for Coolify's and Dokploy's
+	// folders, if any.
+	panelsRoot string
 	// volumes wraps the volume driver of the next server added, to see what its
 	// agent hears. Nil leaves it as it is.
 	volumes func(*volume.Driver) resource.Type

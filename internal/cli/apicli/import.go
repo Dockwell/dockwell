@@ -16,6 +16,27 @@ import (
 func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 	found := res.GetFound()
 	fmt.Fprintf(w, "1Panel %s, under %s, read from %s. Nothing was changed.\n", found.GetVersion(), found.GetBaseDir(), found.GetRecords())
+	stepsView(w, "1Panel", res.GetSteps(), res.GetChange())
+}
+
+// panelView writes what an import from Coolify or Dokploy found and what it would
+// do, as importView does (docs/adr/0089-importing-from-coolify-and-dokploy.md).
+func panelView(w io.Writer, found *dockwellv1.Panel, steps []*dockwellv1.ImportStep, change *dockwellv1.Change) {
+	name := "Coolify"
+	if found.GetKind() == dockwellv1.PanelKind_PANEL_KIND_DOKPLOY {
+		name = "Dokploy"
+	}
+	version := found.GetVersion()
+	if version == "" {
+		version = "of a version its containers don't say"
+	}
+	fmt.Fprintf(w, "%s %s, read from Docker and %s. Nothing was changed.\n", name, version, found.GetFolder())
+	stepsView(w, name, steps, change)
+}
+
+// stepsView writes an import's steps, grouped by when each moves, each with what
+// it becomes and why, and says when nothing was planned for want of a person.
+func stepsView(w io.Writer, panel string, all []*dockwellv1.ImportStep, change *dockwellv1.Change) {
 	// Grouped by when each moves: in this plan, later once Dockwell has what it
 	// needs, or not at all.
 	type group struct {
@@ -40,12 +61,12 @@ func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 	}
 	groups = append(groups, group{"In Dockwell already", func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_DONE
-	}}, group{"Stays with 1Panel", func(s *dockwellv1.ImportStep) bool {
+	}}, group{"Stays with " + panel, func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
 	}})
 	for _, g := range groups {
 		var steps []*dockwellv1.ImportStep
-		for _, s := range res.GetSteps() {
+		for _, s := range all {
 			if g.in(s) {
 				steps = append(steps, s)
 			}
@@ -66,7 +87,7 @@ func importView(w io.Writer, res *dockwellv1.ImportOnePanelResponse) {
 	}
 	// A token reads what's there, and a person plans it, as a plan that takes a
 	// container on shows what a token can't read.
-	if res.GetChange() == nil && slices.ContainsFunc(res.GetSteps(), func(s *dockwellv1.ImportStep) bool {
+	if change == nil && slices.ContainsFunc(all, func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON && !strings.HasPrefix(s.GetReason(), "Dockwell can't read what runs")
 	}) {
 		fmt.Fprintln(w, "\nNothing was planned: the CLI signs in with an API token, and a plan that takes containers on takes a person. Sign in to the panel to plan it, from the server's page.")

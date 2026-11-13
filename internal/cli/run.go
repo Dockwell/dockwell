@@ -21,6 +21,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent"
 	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/collect"
@@ -32,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/panels"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
@@ -113,6 +115,7 @@ func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger
 	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.OnePanel = serverOnePanel(stdio)
+	cfg.Panels = serverPanels(stdio, cfg.Docker)
 	cfg.Images = imageReads(stdio)
 	cfg.Terminals = terminal.New(terminal.Options{
 		Logger: logger, Docker: cfg.Docker, AsGoodAsRoot: agent.ContainerAsGoodAsRoot(cfg.Drivers, cfg.Docker, (&container.Paths{Client: cfg.Docker, DataDir: dir.Root}).Follow, agent.ProcMounts),
@@ -355,6 +358,18 @@ func serverOnePanel(stdio IO) func(context.Context) (*agentv1.ReadOnePanelResult
 		}
 		return onepanel.Read(ctx, root)
 	}
+}
+
+// serverPanels reads what Coolify or Dokploy runs on this server (ADR 0089), from
+// Docker and the panel's folders. A test reads the folders under
+// DOCKWELL_TEST_PANELS, laid out as a server's root, and none without it.
+func serverPanels(stdio IO, client *docker.Client) func(context.Context, dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error) {
+	root := "/"
+	if isSet(stdio.Getenv(envTest)) {
+		root = stdio.Getenv(envTestPanels)
+	}
+	r := panels.Reader{Docker: client, Root: root}
+	return r.Read
 }
 
 // imageReads says where the agent reads images from (ADR 0062). A test asks

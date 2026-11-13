@@ -48,6 +48,8 @@ func ManagedBy(labels map[string]string) string {
 		return "1Panel"
 	case labels["coolify.managed"] == "true":
 		return "Coolify"
+	case strings.HasPrefix(dir, "/etc/dokploy/"), labels["dokploy.project"] != "":
+		return "Dokploy"
 	case portainerStack.MatchString(dir):
 		return "Portainer"
 	case strings.HasPrefix(dir, "/var/lib/casaos/"):

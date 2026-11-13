@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/enroll"
 	agentlogs "github.com/dockwell/dockwell/internal/agent/logs"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
+	"github.com/dockwell/dockwell/internal/agent/panels"
 	"github.com/dockwell/dockwell/internal/backup"
 	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/compose"
@@ -122,6 +123,7 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	if root := f.onePanelRoot; root != "" {
 		s.onePanel = func(ctx context.Context) (*agentv1.ReadOnePanelResult, error) { return onepanel.Read(ctx, root) }
 	}
+	s.panels = panels.Reader{Docker: client, Root: f.panelsRoot}.Read
 	s.connect(t, f)
 	f.lastDocker = s
 	return e

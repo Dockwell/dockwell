@@ -1,0 +1,304 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package importapi
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"maps"
+	"strings"
+
+	"connectrpc.com/connect"
+
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/control/containers"
+	"github.com/dockwell/dockwell/internal/control/fleet"
+	"github.com/dockwell/dockwell/internal/human"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/revision"
+)
+
+// panel is what an import says of a panel it reads from Docker and its folders
+// (docs/adr/0089-importing-from-coolify-and-dokploy.md).
+type panel struct {
+	// name is what people call it, and from the word its projects take where
+	// Dockwell has one of an app's name, such as blog-coolify.
+	name, from string
+	// proxy is its proxy's container, which holds ports 80 and 443.
+	proxy string
+	// known is the version this import was written from.
+	known string
+}
+
+var panels = map[dockwellv1.PanelKind]panel{
+	dockwellv1.PanelKind_PANEL_KIND_COOLIFY: {name: "Coolify", from: "coolify", proxy: "coolify-proxy", known: "4.7"},
+	dockwellv1.PanelKind_PANEL_KIND_DOKPLOY: {name: "Dokploy", from: "dokploy", proxy: "dokploy-traefik", known: "0.31"},
+}
+
+// ImportCoolify reads what Coolify runs on a server, and says what an import would
+// do with each thing. For a person, it plans taking on what runs as it is.
+func (h *Handler) ImportCoolify(ctx context.Context, req *connect.Request[dockwellv1.ImportCoolifyRequest]) (*connect.Response[dockwellv1.ImportCoolifyResponse], error) {
+	r, err := h.importPanel(ctx, req.Msg.GetServerId(), req.Msg.GetSkipPlan(), dockwellv1.PanelKind_PANEL_KIND_COOLIFY)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ImportCoolifyResponse{Found: r.found, Steps: r.steps, Change: r.change}), nil
+}
+
+// ImportDokploy reads what Dokploy runs on a server, as ImportCoolify does.
+func (h *Handler) ImportDokploy(ctx context.Context, req *connect.Request[dockwellv1.ImportDokployRequest]) (*connect.Response[dockwellv1.ImportDokployResponse], error) {
+	r, err := h.importPanel(ctx, req.Msg.GetServerId(), req.Msg.GetSkipPlan(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.ImportDokployResponse{Found: r.found, Steps: r.steps, Change: r.change}), nil
+}
+
+// imported is what an import from a panel found, would do, and planned.
+type imported struct {
+	found  *dockwellv1.Panel
+	steps  []*dockwellv1.ImportStep
+	change *dockwellv1.Change
+}
+
+func (h *Handler) importPanel(ctx context.Context, server string, skipPlan bool, kind dockwellv1.PanelKind) (*imported, error) {
+	w := panels[kind]
+	srv, err := h.fleet.Get(server)
+	if errors.Is(err, fleet.ErrNotFound) {
+		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no server %s. List them with ListServers", server), "not_found")
+	}
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	session, ok := h.agents.SessionPastMove(ctx, srv.GetId(), agentapi.MoveGrace)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnavailable,
+			fmt.Errorf("%s's agent isn't connected, so Dockwell can't read what %s runs there. Try again once it reconnects", srv.GetName(), w.name), "server_offline")
+	}
+	if !session.ReadsPanels() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to read what %s runs. Update the agent on %s, then try again", srv.GetName(), w.name, srv.GetName()), "agent_outdated")
+	}
+	out, err := session.ReadPanel(ctx, kind)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	if out.GetFound() == nil {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s doesn't run %s: %s. Run this for a server where %s runs", srv.GetName(), w.name, cut(out.GetNotHere(), w.name+" doesn't run here: "), w.name), "panel_not_found")
+	}
+	steps, apps := panelSteps(w, out.GetFound())
+	res := &imported{found: out.GetFound(), steps: steps}
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok || p.Token != nil {
+		return res, nil
+	}
+	if res.change, err = h.planPanel(ctx, srv, w, steps, apps, !skipPlan); err != nil {
+		return nil, err
+	}
+	if !skipPlan {
+		h.supersede(ctx, srv.GetId()+"/"+w.from+"/"+p.User.ID, res.change.GetId())
+	}
+	return res, nil
+}
+
+// cut is s without prefix.
+func cut(s, prefix string) string {
+	return strings.TrimPrefix(s, prefix)
+}
+
+// panelSteps are what an import would do with each app the panel runs, and with the
+// panel itself, and the app each step is of, nil for the panel's own.
+func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*dockwellv1.PanelApp) {
+	names := map[string]int{}
+	for _, a := range found.GetApps() {
+		names[a.GetName()]++
+	}
+	var steps []*dockwellv1.ImportStep
+	var apps []*dockwellv1.PanelApp
+	for _, a := range found.GetApps() {
+		name := a.GetName()
+		if names[name] > 1 {
+			// Two of one name, in two of the panel's projects, say which they are.
+			name = fmt.Sprintf("%s (%s)", name, strings.Trim(a.GetProject()+"/"+a.GetEnvironment(), "/"))
+		}
+		step := &dockwellv1.ImportStep{Kind: dockwellv1.ImportKind_IMPORT_KIND_APP, Name: name, Summary: summaryOf(w, a), Action: dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON}
+		if database(a) {
+			step.Kind = dockwellv1.ImportKind_IMPORT_KIND_DATABASE_SERVER
+		}
+		switch {
+		case a.GetPreview():
+			leave(step, fmt.Sprintf("It's a pull request's preview, which %s makes and removes with its pull request.", w.name))
+		case a.GetSwarm():
+			runs := "a Swarm service"
+			if a.GetKind() == "stack" {
+				runs = "a Swarm stack"
+			}
+			leave(step, fmt.Sprintf("%s runs it as %s, which Swarm keeps running whatever happens to its containers, so Dockwell can't take it on in place. A later step makes it again in Dockwell, on the same volumes, stopping it in %s as Dockwell's starts, with a moment down.", w.name, runs, w.name))
+		case a.GetComposeProject() == "":
+			leave(step, fmt.Sprintf("Docker runs none of its containers through docker compose, so there's nothing to take on as it runs. It stays as it is, in %s.", w.name))
+		default:
+			step.Reason = domainsReason(w, a)
+		}
+		steps = append(steps, step)
+		apps = append(apps, a)
+	}
+	own := make([]string, 0, len(found.GetOwn()))
+	for _, c := range found.GetOwn() {
+		own = append(own, c.GetName())
+	}
+	summary := w.name + " itself"
+	switch {
+	case found.GetVersion() == "":
+		summary += ", whose version its own containers don't say"
+	case !found.GetKnownVersion():
+		summary += fmt.Sprintf(" %s, read as %s %s is, which this import was written from", found.GetVersion(), w.name, w.known)
+	default:
+		summary += " " + found.GetVersion()
+	}
+	if len(own) > 0 {
+		summary += ": " + human.List(own)
+	}
+	steps = append(steps, &dockwellv1.ImportStep{
+		Kind: dockwellv1.ImportKind_IMPORT_KIND_PANEL, Name: w.name, Summary: summary, Action: dockwellv1.ImportAction_IMPORT_ACTION_LEAVE,
+		Reason: "It goes on running beside Dockwell, as nothing of it is changed. Which template each app came from, a Git source, scheduled tasks and backups stay with it, as Dockwell reads neither its database nor its API. Once its apps are taken on, stopping it is a step of its own, and starting it again brings it back as it was.",
+	})
+	apps = append(apps, nil)
+	return steps, apps
+}
+
+// database reports an app that's a database: one of Coolify's, or a database
+// engine Dokploy runs.
+func database(a *dockwellv1.PanelApp) bool {
+	switch a.GetKind() {
+	case "database", "postgres", "mysql", "mariadb", "mongo", "redis", "libsql":
+		return true
+	}
+	return false
+}
+
+// summaryOf says what an app is, in a few words.
+func summaryOf(w panel, a *dockwellv1.PanelApp) string {
+	var what string
+	switch a.GetKind() {
+	case "application":
+		what = "an application"
+	case "service":
+		what = fmt.Sprintf("a service from %s's templates", w.name)
+	case "database":
+		what = "a database"
+	case "compose":
+		what = "a Compose app"
+	case "stack":
+		what = "a Compose app run as a Swarm stack"
+	default:
+		what = "a " + a.GetKind() + " database"
+	}
+	if img := a.GetImage(); img != "" {
+		what += ", running " + img
+	}
+	if where := strings.Trim(a.GetProject()+" / "+a.GetEnvironment(), " /"); where != "" {
+		what += ", in " + where
+	}
+	if n := len(a.GetContainers()); n > 1 {
+		what += fmt.Sprintf(", %d containers", n)
+	}
+	return what
+}
+
+// domainsReason says how an app's domains come: as routes, once the panel's proxy
+// hands ports 80 and 443 to Dockwell, a step of its own.
+func domainsReason(w panel, a *dockwellv1.PanelApp) string {
+	switch d := a.GetDomains(); len(d) {
+	case 0:
+		return ""
+	case 1:
+		return fmt.Sprintf("Its domain, %s, comes as a route once %s hands ports 80 and 443 to Dockwell, a step of its own.", d[0], w.proxy)
+	default:
+		return fmt.Sprintf("Its domains, %s, come as routes once %s hands ports 80 and 443 to Dockwell, a step of its own.", human.List(d), w.proxy)
+	}
+}
+
+// planPanel reads what taking on each app that runs as a Compose project would be,
+// and plans the ones nothing stands in the way of, in one change, as plan does for
+// 1Panel's. Without propose, each step says what the plan would do, and nothing is
+// planned.
+func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, propose bool) (*dockwellv1.Change, error) {
+	r, err := h.taker.ReadRunning(ctx, srv.GetId())
+	if err != nil {
+		if connect.CodeOf(err) != connect.CodeUnavailable {
+			return nil, err
+		}
+		for i, s := range steps {
+			if apps[i] != nil && s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON {
+				s.Reason = strings.TrimSpace(fmt.Sprintf("Dockwell can't read what runs on %s now, so nothing is planned yet: %s. Try again once it can. %s",
+					srv.GetName(), strings.TrimSuffix(message(err), "."), s.GetReason()))
+			}
+		}
+		return nil, nil
+	}
+	var takings []*composeapi.Taking
+	var taken []string
+	claimed := map[string]bool{}
+	for i, step := range steps {
+		a := apps[i]
+		if a == nil || step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_TAKE_ON {
+			continue
+		}
+		if len(a.GetContainers()) > 0 {
+			as, err := h.taker.TakenOn(ctx, r, a.GetContainers()[0])
+			if err != nil {
+				return nil, err
+			}
+			if as != "" {
+				step.Action, step.Becomes, step.WaitsFor = dockwellv1.ImportAction_IMPORT_ACTION_DONE, "the project "+as+", taken on already", 0
+				step.Reason = strings.TrimSpace(fmt.Sprintf("Change it from Dockwell now. %s still lists it: leave it alone there, and don't delete it there, as that deletes what it mounts. %s", w.name, domainsReason(w, a)))
+				continue
+			}
+		}
+		want := containers.Label(strings.ToLower(a.GetName()))
+		project, err := h.taker.FreeProject(ctx, want, w.from, claimed)
+		if err != nil {
+			return nil, err
+		}
+		claimed[project] = true
+		t, err := h.taker.ReadTakingIn(ctx, r, a.GetComposeProject(), project, "")
+		switch {
+		case reason(err) == "not_found":
+			leave(step, fmt.Sprintf("%s lists it, but Docker runs no container of its Compose project, %s, so there's nothing to take on.", w.name, a.GetComposeProject()))
+			continue
+		case err != nil:
+			leave(step, sentences([]string{message(err)})+fmt.Sprintf(" It stays as it is, in %s.", w.name))
+			continue
+		case len(t.Refusals) > 0:
+			leave(step, sentences(actionable(t.Refusals))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with.", w.name))
+			continue
+		}
+		step.Becomes = fmt.Sprintf("the project %s, taken on as it runs, with no restart, its volumes where they are", t.Project)
+		if t.Project != want {
+			step.Becomes += fmt.Sprintf(", as Dockwell has a project %s already", want)
+		}
+		takings = append(takings, t)
+		taken = append(taken, step.GetName())
+	}
+	if len(takings) == 0 || !propose {
+		return nil, nil
+	}
+	also := changes.Also{Adopts: map[resource.Ref]changes.Adoption{}}
+	var edits []*dockwellv1.Edit
+	for _, t := range takings {
+		edits = append(edits, t.Edits...)
+		also.Edits = append(also.Edits, t.Made...)
+		also.Notes = append(also.Notes, t.Notes...)
+		maps.Copy(also.Adopts, t.Adopts)
+	}
+	also.Notes = append(also.Notes, revision.Note{Reason: "imports_" + w.from, Message: fmt.Sprintf(
+		"Takes on what %s runs on %s as it runs: %s. Their volumes stay where they are. Their domains come as routes once %s hands over ports 80 and 443, and %s itself goes on running until you stop it.",
+		w.name, srv.GetName(), human.List(taken), w.proxy, w.name)})
+	return h.changes.Propose(ctx, "Take on what "+w.name+" runs on "+srv.GetName(), edits, nil, also)
+}

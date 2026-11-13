@@ -47,7 +47,7 @@ type Taker interface {
 	ReadRunning(ctx context.Context, server string) (*containers.Running, error)
 	ReadTakingIn(ctx context.Context, r *containers.Running, name, project, environment string) (*composeapi.Taking, error)
 	TakenOn(ctx context.Context, r *containers.Running, name string) (string, error)
-	FreeProject(ctx context.Context, want string) (string, error)
+	FreeProject(ctx context.Context, want, from string, claimed map[string]bool) (string, error)
 }
 
 var _ dockwellv1connect.ImportServiceHandler = (*Handler)(nil)
@@ -188,7 +188,7 @@ func (h *Handler) plan(ctx context.Context, srv *dockwellv1.Server, found *dockw
 			}
 		}
 		name := strings.ToLower(step.GetName())
-		project, err := h.taker.FreeProject(ctx, containers.Label(name))
+		project, err := h.taker.FreeProject(ctx, containers.Label(name), "1panel", nil)
 		if err != nil {
 			return nil, err
 		}
