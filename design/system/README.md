@@ -41,6 +41,7 @@ Write like a senior operator: plain, specific and brief. Words label, state and 
 ### Colour
 
 - Ground the app in `canvas`; put panels, tables and inputs on `surface`; inset wells (logs, code, segmented tracks) in `surface-sunken`; float menus, the command bar, sheets and toasts on `surface-raised` with a shadow token.
+- Put a project's own logo or artwork on `art-ground`, light in both themes, as logos are drawn for a light ground; never set text on it.
 - Set text in `ink`; secondary text, labels and placeholders in `ink-muted` (both hold 4.5:1 on every surface token in both themes). Use `ink-faint` only for disabled text.
 - Divide with `line` hairlines. Give inputs and other controls whose edge matters a `line-strong` border (3:1 on every surface).
 - Fill the one primary button with `action` and its label with `on-action`. In dark mode `action` turns light and `on-action` dark; never hard-code white text on a fill.
