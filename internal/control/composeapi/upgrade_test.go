@@ -299,3 +299,13 @@ func TestHoldingAnAppClosesItsPorts(t *testing.T) {
 		}
 	}
 }
+
+// Docker before 28 lets machines on a server's local network reach a port bound to
+// 127.0.0.1, which a held app's plan says.
+func TestDockerBefore28ReachesLoopbackFromItsNetwork(t *testing.T) {
+	for version, before := range map[string]bool{"27.5.1": true, "20.10.24": true, "28.0.0": false, "29.1.2": false, "": false, "nightly": false} {
+		if got := beforeDocker28(version); got != before {
+			t.Errorf("Docker %q before 28 = %v", version, got)
+		}
+	}
+}

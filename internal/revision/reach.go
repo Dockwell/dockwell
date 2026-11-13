@@ -187,6 +187,8 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 		return nil
 	}
 	switch s := it.spec.(type) {
+	case *resourcev1.Link:
+		return e.checkLinkUser(ctx, tx, items, it, s)
 	case *resourcev1.Variable, *resourcev1.Secret:
 		return e.checkValueFrom(ctx, tx, items, it)
 	case *resourcev1.Network:
@@ -212,6 +214,45 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 		}
 	case *resourcev1.DatabaseUser:
 		return checkCopyFrom(items, it, s)
+	}
+	return nil
+}
+
+// checkLinkUser refuses a link that names a database user another link names, so
+// the user a link reads the password of is the one made for it, never another app's.
+func (e *Engine) checkLinkUser(ctx context.Context, tx *store.Tx, items []item, it *item, l *resourcev1.Link) error {
+	if l.GetUser() == "" {
+		return nil
+	}
+	if had, ok := it.current.(*resourcev1.Link); ok && had.GetUser() == l.GetUser() && had.GetService() == l.GetService() && had.GetMeetsEnvironment() == l.GetMeetsEnvironment() {
+		return nil
+	}
+	env := cmp.Or(l.GetMeetsEnvironment(), it.ref.Scope)
+	stored, err := tx.ListKind(ctx, string(linkKind))
+	if err != nil {
+		return err
+	}
+	refs := make([]resource.Ref, 0, len(stored)+len(items))
+	for _, r := range stored {
+		refs = append(refs, resource.Ref{Kind: linkKind, Scope: r.Scope, Name: r.Name})
+	}
+	for i := range items {
+		if items[i].ref.Kind == linkKind && !slices.Contains(refs, items[i].ref) {
+			refs = append(refs, items[i].ref)
+		}
+	}
+	for _, ref := range refs {
+		if ref == it.ref {
+			continue
+		}
+		spec, err := e.specAfter(ctx, tx, items, ref)
+		if err != nil {
+			return err
+		}
+		o, ok := spec.(*resourcev1.Link)
+		if ok && o.GetUser() == l.GetUser() && o.GetService() == l.GetService() && cmp.Or(o.GetMeetsEnvironment(), ref.Scope) == env {
+			return fault.New(ErrInvalid, "link %s names %s's user %s, which another link reads already. A link reads only the user made for it", it.ref.Name, l.GetService(), l.GetUser())
+		}
 	}
 	return nil
 }

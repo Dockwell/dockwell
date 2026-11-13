@@ -501,7 +501,7 @@ func TestAnInstallSharesAServerYouRun(t *testing.T) {
 	_, err = ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete the database", Edits: []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: made["database.user blog"], Name: "db"}, Delete: true,
 	}}}))
-	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "while the app in blog shares it") {
+	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "while the app in blog through its link db shares it") {
 		t.Errorf("deleting the shared database = %v", err)
 	}
 
@@ -574,6 +574,42 @@ func TestAnInstallSharesAServerYouRun(t *testing.T) {
 	protect(appEnv, resourcev1.Protection_PROTECTION_OPEN)
 	hold := aMember(t, f)
 	dbDeveloper := store.Grant{ProjectID: envProject(t, f, dbEnv), Role: store.RoleDeveloper}
+	// The choice lists only what the person may use: a viewer of the blog alone, or a
+	// developer of it, sees nothing of the database's project, and the database's
+	// developer sees the server without the name of the project that shares it.
+	offered := func() []*dockwellv1.CatalogNeedOption {
+		t.Helper()
+		got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "blog"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return slices.DeleteFunc(got.Msg.GetNeeds(), func(o *dockwellv1.CatalogNeedOption) bool { return o.GetService() != "db" })
+	}
+	for _, role := range []string{store.RoleViewer, store.RoleDeveloper} {
+		hold(store.Grant{ProjectID: envProject(t, f, appEnv), Role: role})
+		if got := offered(); len(got) != 0 {
+			t.Errorf("a %s of the blog alone is offered %v", role, got)
+		}
+	}
+	hold(dbDeveloper)
+	if got := offered(); len(got) != 1 || len(got[0].GetSharedWith()) != 0 {
+		t.Errorf("the database's developer is offered %v", got)
+	}
+	// Deleting the server is refused while the blog shares it, naming the blog only to
+	// someone who holds its project.
+	deleteDB := func() error {
+		_, err := ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete db", Edits: []*dockwellv1.Edit{
+			{Resource: &dockwellv1.ResourceRef{Kind: "service", Scope: dbEnv, Name: "db"}, Delete: true},
+		}}))
+		return err
+	}
+	if err := deleteDB(); err == nil || !strings.Contains(err.Error(), "can't go while an app in projects you can't see share it") || strings.Contains(err.Error(), "blog") {
+		t.Errorf("deleting the shared server, the database's developer reads %v", err)
+	}
+	hold(dbDeveloper, store.Grant{ProjectID: envProject(t, f, appEnv), Role: store.RoleViewer})
+	if err := deleteDB(); err == nil || !strings.Contains(err.Error(), "can't go while the app in blog through its link db shares it") {
+		t.Errorf("deleting the shared server, someone who sees the blog reads %v", err)
+	}
 	hold(dbDeveloper)
 	theirs := rotate("a-password-from-the-database-side")
 	if got := scopes(theirs); got[appEnv] || !got[dbEnv] {
@@ -1032,7 +1068,7 @@ func TestUseAnotherDatabase(t *testing.T) {
 	// Loaded as blog, the user made for it, signing in as them.
 	loaded := slices.ContainsFunc(shared.said, func(said string) bool {
 		cmd, _, _ := strings.Cut(said, "\n")
-		return strings.Contains(cmd, `psql`) && strings.Contains(cmd, `-U "$1" -d "$2"`) && strings.HasSuffix(cmd, " sh blog blog 5432")
+		return strings.Contains(cmd, `psql`) && strings.Contains(cmd, `-U "$u" -d "$d"`) && strings.Contains(cmd, " sh blog blog 5432 ") && !strings.HasSuffix(cmd, " 127.0.0.1")
 	})
 	shared.mu.Unlock()
 	own.mu.Lock()
@@ -1106,6 +1142,10 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 	}, &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: "adm"},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "admin.example.com", Service: "admin", Port: 80}}},
+	}, &dockwellv1.Edit{
+		// One to the port the blog publishes, on the server itself, which dials 127.0.0.1.
+		Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: "local"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: &resourcev1.Route{Domain: "local.example.com", HostPort: 18190}}},
 	}))
 	res, err := cat.SetCatalogNeed(t.Context(), connect.NewRequest(&dockwellv1.SetCatalogNeedRequest{Id: "blog", Need: "db", Choice: choice, StartEmpty: true}))
 	if err != nil {
@@ -1132,7 +1172,7 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		t.Error("a move that starts empty says it copies")
 	}
 	applyReviewed(t, ch, planned)
-	for _, name := range []string{"www", "adm"} {
+	for _, name := range []string{"www", "adm", "local"} {
 		if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: name}]; !got.GetHeld() {
 			t.Errorf("the ingress has the blog's route %s as %v", name, got)
 		}
@@ -1160,7 +1200,7 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		t.Errorf("the blog's route after starting empty is %v, %v", &held, err)
 	}
 	shared.mu.Lock()
-	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.Contains(said, `-U "$1" -d "$2"`) })
+	loaded := slices.ContainsFunc(shared.said, func(said string) bool { return strings.Contains(said, `-U "$u" -d "$d"`) })
 	shared.mu.Unlock()
 	if loaded {
 		t.Error("a move that starts empty copied the database")
@@ -1172,7 +1212,7 @@ func TestUseAnotherDatabaseStartingEmptyHoldsTheRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	applyReviewed(t, ch, opened.Msg.GetChange())
-	for _, name := range []string{"www", "adm"} {
+	for _, name := range []string{"www", "adm", "local"} {
 		if got := ing.routes[resource.Ref{Kind: "route", Scope: env, Name: name}]; got.GetHeld() {
 			t.Errorf("opened, the ingress has the blog's route %s as %v", name, got)
 		}

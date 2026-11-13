@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/composeapi"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -50,7 +51,39 @@ func (h *Handler) candidates(ctx context.Context) []catalog.Candidate {
 		h.logger.WarnContext(ctx, "couldn't list the database servers an app could share", "error", err.Error())
 		return nil
 	}
-	return list
+	// The choice lists only what the person may use: a server in a project where
+	// they may make its user, a developer or more (ADR 0084).
+	caller, ok := place.CallerFrom(ctx)
+	if !ok {
+		return list
+	}
+	return slices.DeleteFunc(list, func(c catalog.Candidate) bool {
+		held := place.Holds(caller.Grants, place.Place{Project: c.ProjectID, Environment: c.EnvironmentID})
+		return store.RoleRank(held) < store.RoleRank(store.RoleDeveloper)
+	})
+}
+
+// seenProjects says which projects, by name, the person in ctx holds a role in, to
+// narrow what a choice names of who else shares a server; nil holds every one.
+func (h *Handler) seenProjects(ctx context.Context) (map[string]bool, error) {
+	caller, ok := place.CallerFrom(ctx)
+	if !ok || store.RoleRank(place.Holds(caller.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return nil, nil
+	}
+	out := map[string]bool{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if place.Holds(caller.Grants, place.Place{Project: p.ID}) != "" {
+				out[p.Name] = true
+			}
+		}
+		return nil
+	})
+	return out, err
 }
 
 // asksToShare reports a request that meets a need with a server Dockwell runs.

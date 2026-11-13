@@ -129,9 +129,20 @@ func (h *Handler) GetCatalogEntry(ctx context.Context, req *connect.Request[dock
 		h.logger.WarnContext(ctx, "couldn't say what a catalog entry installs", slog.String("entry", entry.GetId()), slog.String("error", err.Error()))
 		parts = nil
 	}
+	needs := needOptions(entry, catalog.WaysWith(entry, s.lookup(), h.candidates(ctx), ""))
+	seen, err := h.seenProjects(ctx)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	if seen != nil {
+		// Who else shares a server is named only where the person holds that project.
+		for _, o := range needs {
+			o.SharedWith = slices.DeleteFunc(o.SharedWith, func(p string) bool { return !seen[p] })
+		}
+	}
 	return connect.NewResponse(&dockwellv1.GetCatalogEntryResponse{
 		Entry: entry, Project: free.project, Values: free.values, Parts: parts, Catalogs: s.catalogsOf(entry.GetId()),
-		Needs: needOptions(entry, catalog.WaysWith(entry, s.lookup(), h.candidates(ctx), "")),
+		Needs: needs,
 	}), nil
 }
 

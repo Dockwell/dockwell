@@ -55,6 +55,7 @@ var idNames = map[string]string{
 	dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure:      "project",
 	dockwellv1connect.CatalogServiceSetCatalogCompanionProcedure:        "project",
 	dockwellv1connect.CatalogServiceSetCatalogNeedProcedure:             "project",
+	dockwellv1connect.CatalogServiceOpenCatalogInstallProcedure:         "project",
 	dockwellv1connect.DatabaseServiceGetDatabaseProcedure:               "service",
 	dockwellv1connect.DatabaseServiceCreateDatabaseUserProcedure:        "service",
 	dockwellv1connect.DatabaseServiceChangeDatabasePasswordProcedure:    "service",

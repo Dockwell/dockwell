@@ -3,12 +3,14 @@
 package database
 
 import (
+	"cmp"
 	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -39,6 +41,16 @@ type fakePostgres struct {
 	loaded    map[string]string
 	loads     []fakeLoad
 	loadFails bool
+	// psql is what its psql -V says: 17.6 unless set. trusts lets anyone in with no
+	// password from any host, as POSTGRES_HOST_AUTH_METHOD=trust does; from loopback
+	// it always does, as the official image's pg_hba.conf has it. superuser and shell
+	// say a load became the administrator, or ran a shell, as a \connect or a \! it
+	// was given would have it; onLoad runs as each load starts.
+	psql      string
+	trusts    bool
+	superuser bool
+	shell     bool
+	onLoad    func()
 }
 
 // fakeLoad is how a load ran: its environment and the arguments after its script.
@@ -63,15 +75,57 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 		defer f.mu.Unlock()
 		_, _ = io.WriteString(x.Stdout, f.dump[x.Cmd[len(x.Cmd)-1]])
 		return 0
-	case strings.Contains(script, "psql") && strings.Contains(script, `-d "$2"`):
+	case slices.Equal(x.Cmd, []string{"psql", "-V"}):
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		_, _ = io.WriteString(x.Stdout, cmp.Or(f.psql, "psql (PostgreSQL) 17.6 (Debian 17.6-1.pgdg120+1)")+"\n")
+		return 0
+	case strings.Contains(script, "psql") && strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1"):
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		if f.trusts || x.Cmd[len(x.Cmd)-1] == "127.0.0.1" {
+			return 0
+		}
+		_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
+		return 2
+	case strings.Contains(script, "psql") && strings.Contains(script, `-d "$d"`):
+		if f.onLoad != nil {
+			f.onLoad()
+		}
 		b, _ := io.ReadAll(x.Stdin)
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		if f.loaded == nil {
 			f.loaded = map[string]string{}
 		}
-		args := x.Cmd[len(x.Cmd)-3:]
+		args := x.Cmd[4:]
 		f.loads = append(f.loads, fakeLoad{env: x.Env, args: args})
+		// What psql does with the client commands it's given.
+		restricted, kept := "", []string{}
+		for i, line := range strings.SplitAfter(string(b), "\n") {
+			cmd := strings.TrimSpace(line)
+			switch {
+			case i == 0 && strings.HasPrefix(cmd, `\restrict `):
+				restricted = strings.TrimPrefix(cmd, `\restrict `)
+				continue
+			case !strings.HasPrefix(cmd, `\`):
+				kept = append(kept, line)
+				continue
+			case restricted != "" && cmd != `\unrestrict `+restricted:
+				_, _ = io.WriteString(x.Stderr, "psql:<stdin>:"+strconv.Itoa(i+1)+": error: backslash commands are restricted; only \\unrestrict is allowed\n")
+				return 3
+			case strings.HasPrefix(cmd, `\connect - postgres`):
+				if f.trusts || args[3] == "127.0.0.1" {
+					f.superuser = true
+					continue
+				}
+				_, _ = io.WriteString(x.Stderr, "psql:<stdin>:"+strconv.Itoa(i+1)+": error: connection to server failed: FATAL:  password authentication failed for user \"postgres\"\n")
+				return 2
+			case strings.HasPrefix(cmd, `\!`):
+				f.shell = true
+			}
+		}
+		b = []byte(strings.Join(kept, ""))
 		if f.loadFails {
 			_, _ = io.WriteString(x.Stderr, "psql:<stdin>:2: ERROR:  relation \"posts\" already exists\n")
 			return 3
@@ -260,8 +314,38 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 		ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
 		return d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", Password: "BLOG_DATABASE_PASSWORD", CopyFrom: &resourcev1.DatabaseCopy{Environment: env, Service: "db", Database: "blog"}})
 	}
+	// As it loads, it's on an internal network of its own with the new server alone,
+	// whose address there it dials.
+	server := e.Container("env_1-db-1").ID
+	var onNet []string
+	var serverAddr string
+	internal := false
+	pg.onLoad = func() {
+		nets, err := client.ListNetworks(t.Context())
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		for _, n := range nets {
+			if _, ok := n.Labels[LabelCopy]; !ok {
+				continue
+			}
+			internal = n.Internal
+			for _, c := range n.Containers {
+				onNet = append(onNet, c.Name)
+			}
+			if c, err := client.InspectContainer(t.Context(), server); err == nil && c.NetworkSettings.Networks[n.Name] != nil {
+				serverAddr = c.NetworkSettings.Networks[n.Name].IPAddress
+			}
+		}
+	}
 	if err := copying("blog", "env_2"); err != nil {
 		t.Fatal(err)
+	}
+	pg.onLoad = nil
+	slices.Sort(onNet)
+	if !internal || len(onNet) != 2 || !strings.HasPrefix(onNet[0], "dockwell-copy-blog-") || onNet[1] != "env_1-db-1" || serverAddr == "" || serverAddr == "127.0.0.1" {
+		t.Errorf("the load's network is internal %v, with %v, the server at %q", internal, onNet, serverAddr)
 	}
 	if got := pg.loaded["blog"]; got != "CREATE TABLE posts (id int);\nINSERT INTO posts VALUES (1);\n" {
 		t.Errorf("the new server loaded %q", got)
@@ -272,7 +356,7 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 		t.Fatalf("loads %v", pg.loads)
 	}
 	load := pg.loads[0]
-	if !slices.Equal(load.args, []string{"blog", "blog", "5432"}) || !slices.Contains(load.env, "PGPASSWORD=a-password-no-one-typed") {
+	if !slices.Equal(load.args, []string{"blog", "blog", "5432", serverAddr}) || !slices.Contains(load.env, "PGPASSWORD=a-password-no-one-typed") {
 		t.Errorf("the load ran with %v, %v", load.args, load.env)
 	}
 	if slices.ContainsFunc(load.env, func(kv string) bool { return strings.HasPrefix(kv, "POSTGRES_PASSWORD=") }) {
@@ -281,6 +365,12 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 	list, err := client.ListContainers(t.Context(), map[string][]string{"label": {LabelCopy}})
 	if err != nil || len(list) != 0 {
 		t.Errorf("the container that loaded the copy is still there: %v, %v", list, err)
+	}
+	if nets, _ := client.ListNetworks(t.Context()); slices.ContainsFunc(nets, func(n docker.Network) bool { _, ok := n.Labels[LabelCopy]; return ok }) {
+		t.Errorf("the copy's network is still there: %v", nets)
+	}
+	if c, _ := client.InspectContainer(t.Context(), server); len(c.NetworkSettings.Networks) != 1 {
+		t.Errorf("after the copy, the server is on %v", c.NetworkSettings.Networks)
 	}
 	g, _, _ := d.recorded(resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"})
 	if g.Copying || !slices.Equal(g.CopiedFrom, []string{"env_2", "db", "blog"}) {
@@ -291,6 +381,63 @@ func TestAUserIsMadeWithACopyOfAnotherDatabase(t *testing.T) {
 	}
 	if pg.roles["wiki"] {
 		t.Error("a copy that failed left its user behind")
+	}
+}
+
+// A client command in what's loaded never signs in as the server's administrator
+// nor runs a shell: psql from 17.6 on refuses every one after the load's own
+// \restrict, an older one dials the server off loopback, where a password is asked
+// for, and a server that lets anyone in with no password isn't copied into at all.
+// The \restrict and \unrestrict a newer pg_dump writes don't get in the way (ADR
+// 0084, #590's review).
+func TestACopyRefusesClientCommands(t *testing.T) {
+	for _, c := range []struct {
+		name, psql, dump, says string
+		trusts                 bool
+	}{
+		{"connect, restricted", "", "CREATE TABLE posts (id int);\n\\connect - postgres\nALTER ROLE blog SUPERUSER;\n", "backslash commands are restricted", false},
+		{"connect, an older psql", "psql (PostgreSQL) 16.2", "CREATE TABLE posts (id int);\n\\connect - postgres\nALTER ROLE blog SUPERUSER;\n", "password authentication failed", false},
+		{"shell, restricted", "", "\\! id > /tmp/owned\n", "backslash commands are restricted", false},
+		{"a server that trusts its networks", "", "CREATE TABLE posts (id int);\n", "lets anyone on its networks sign in as its administrator with no password", true},
+		{"a newer pg_dump's own restrict", "", "--\n\\restrict abc123\n\nCREATE TABLE posts (id int);\n\\unrestrict abc123\n", "", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d, pg, e := userStand(t)
+			pg.psql, pg.trusts = c.psql, c.trusts
+			old := &fakePostgres{roles: map[string]bool{"postgres": true}, databases: map[string]string{"postgres": "postgres", "blog": "blog"}, dump: map[string]string{"blog": c.dump}}
+			e.AddLocalImage("postgres:16", dockertest.Image{Config: docker.Config{Cmd: []string{"postgres"}}, Exec: old.exec})
+			client := e.Client()
+			id, err := client.CreateContainer(t.Context(), "env_2-db-1", &docker.CreateRequest{Config: docker.Config{
+				Image: "postgres:16", Labels: map[string]string{docker.LabelProject: "env_2", docker.LabelService: "db", docker.LabelNumber: "1"},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := client.StartContainer(t.Context(), id); err != nil {
+				t.Fatal(err)
+			}
+			step := resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: "env_1", Name: "blog"}, Action: resource.ActionCreate}
+			ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+			err = d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", Password: "BLOG_DATABASE_PASSWORD", CopyFrom: &resourcev1.DatabaseCopy{Environment: "env_2", Service: "db", Database: "blog"}})
+			if c.says == "" {
+				if err != nil || pg.loaded["blog"] != "--\n\nCREATE TABLE posts (id int);\n" {
+					t.Fatalf("copying: %v, loaded %q", err, pg.loaded["blog"])
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), c.says) {
+				t.Errorf("copying: %v", err)
+			}
+			if pg.superuser || pg.shell {
+				t.Errorf("the load became the administrator %v, ran a shell %v", pg.superuser, pg.shell)
+			}
+			if c.trusts && len(pg.loads) != 0 {
+				t.Errorf("a server that trusts its networks was loaded into: %v", pg.loads)
+			}
+			if pg.roles["blog"] {
+				t.Error("a copy that was refused left its user behind")
+			}
+		})
 	}
 }
 
@@ -385,6 +532,20 @@ func TestACopyTakesOutDefiners(t *testing.T) {
 		"/*!50106 CREATE*/ /*!50117 */ /*!50106 EVENT `e` ON SCHEDULE EVERY 1 DAY DO SELECT 1 */"
 	if string(b) != want {
 		t.Errorf("got\n%s\nwant\n%s", b, want)
+	}
+	// Any case and spacing, a role with no host, a clause late on its line, and one
+	// in a comment of its own, as genuine dumps have them.
+	for in, want := range map[string]string{
+		"create definer=root@localhost procedure p()\n":                                          "create procedure p()\n",
+		"CREATE DEFINER=`app_admin` VIEW v AS SELECT 1;\n":                                       "CREATE VIEW v AS SELECT 1;\n",
+		"/*!50001 CREATE ALGORITHM=UNDEFINED DEFINER = `x`@`%` SQL SECURITY DEFINER VIEW v */\n": "/*!50001 CREATE ALGORITHM=UNDEFINED SQL SECURITY DEFINER VIEW v */\n",
+		"  /*!50017 definer='a'@'b'*/\n":                                                         "  /*!50017 */\n",
+		"ALTER DEFINER=CURRENT_USER() EVENT e ENABLE;\n":                                         "ALTER EVENT e ENABLE;\n",
+	} {
+		b, err := io.ReadAll(withoutDefiners(strings.NewReader(in)))
+		if err != nil || string(b) != want {
+			t.Errorf("%q became %q, %v", in, b, err)
+		}
 	}
 	// A line longer than what's read at once goes through whole.
 	long := strings.Repeat("x", 200<<10) + "\n" + "CREATE DEFINER=`a`@`%` VIEW v\n"

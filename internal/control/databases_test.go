@@ -214,6 +214,12 @@ func (s *pgState) image() dockertest.Image {
 	return dockertest.Image{
 		Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}},
 		Exec: func(x dockertest.Exec) int {
+			// Anyone signing in from another host needs a password, as the official
+			// image's pg_hba.conf has it.
+			if script := strings.Join(x.Cmd, " "); strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1") && x.Cmd[len(x.Cmd)-1] != "127.0.0.1" {
+				_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
+				return 2
+			}
 			b, _ := io.ReadAll(x.Stdin)
 			sql := string(b)
 			s.mu.Lock()

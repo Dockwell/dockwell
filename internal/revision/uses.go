@@ -13,7 +13,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
@@ -352,6 +354,11 @@ func (e *Engine) refuseLinkedGoing(ctx context.Context, tx *store.Tx, items []it
 	if err != nil {
 		return err
 	}
+	// Someone with no role where a link is reads how many, never which (ADR 0084).
+	caller, person := place.CallerFrom(ctx)
+	var named []string
+	hidden := 0
+	service := ""
 	for _, r := range links {
 		ref := resource.Ref{Kind: linkKind, Scope: r.Scope, Name: r.Name}
 		if r.Spec == nil || gone[ref] {
@@ -365,18 +372,36 @@ func (e *Engine) refuseLinkedGoing(ctx context.Context, tx *store.Tx, items []it
 		if !ok || l.GetMeetsEnvironment() == "" || !going[l.GetMeetsEnvironment()+"/"+l.GetService()] {
 			continue
 		}
-		project := r.Scope
+		service = l.GetService()
+		project, projectID := r.Scope, ""
 		if tree, err := scope.Load(ctx, tx); err == nil {
 			for _, p := range tree.Projects {
 				for _, env := range p.Environments {
 					if env.ID == r.Scope {
-						project = p.Name
+						project, projectID = p.Name, p.ID
 					}
 				}
 			}
 		}
-		return fault.New(ErrInvalid, "service %s can't go while the app in %s shares it through its link %s. Point that app at another database, or delete it, first",
-			l.GetService(), project, r.Name)
+		if person && place.Holds(caller.Grants, place.Place{Project: projectID, Environment: r.Scope}) == "" {
+			hidden++
+			continue
+		}
+		named = append(named, "the app in "+project+" through its link "+r.Name)
 	}
-	return nil
+	switch {
+	case len(named) == 0 && hidden == 0:
+		return nil
+	case len(named) == 0:
+		apps := "an app"
+		if hidden > 1 {
+			apps = fmt.Sprintf("%d apps", hidden)
+		}
+		return fault.New(ErrInvalid, "service %s can't go while %s in projects you can't see share it. Ask an admin to point them at another database first",
+			service, apps)
+	case hidden > 0:
+		named = append(named, fmt.Sprintf("%d more in projects you can't see", hidden))
+	}
+	return fault.New(ErrInvalid, "service %s can't go while %s shares it. Point each at another database, or delete it, first",
+		service, human.List(named))
 }

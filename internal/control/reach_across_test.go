@@ -110,6 +110,8 @@ func testOneProjectCantReachIntoAnother(t *testing.T, backend store.Backend) {
 		from("STOLEN", "SHOP_DB_PASSWORD", "db"), in(blog, serviceSpec("thief", map[string]string{"P": "STOLEN"}, hz1.id.ServerID)))
 	refused(connect.CodeInvalidArgument, "isn't the password of shop, the user link mine made there",
 		link("mine", data, "shop"), from("STOLEN", "ADMIN_PASSWORD", "mine"))
+	refused(connect.CodeInvalidArgument, "link again names db's user blog, which another link reads already",
+		link("again", data, "blog"), from("AGAIN", "BLOG_DB_PASSWORD", "again"))
 	refused(connect.CodeInvalidArgument, "network reach takes in other of another environment, which no link of its environment meets",
 		reach("reach", "other"))
 	refused(connect.CodeInvalidArgument, "no link in this change moves from it to mine",

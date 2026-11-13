@@ -4,12 +4,15 @@ package composeapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -109,9 +112,11 @@ func (h *Handler) PlanUpgrade(ctx context.Context, in Upgrade) (*dockwellv1.Chan
 	}
 	deletes = slices.DeleteFunc(deletes, func(r resource.Ref) bool { return r.Kind == service.Kind && slices.Contains(in.Keeps, r.Name) })
 	if in.Hold {
-		if err := hold(next, in.Name, in.Needs.Extra); err != nil {
+		held, err := h.holdWays(ctx, place.environment, next, &in)
+		if err != nil {
 			return nil, err
 		}
+		in.Notes = append(in.Notes, held...)
 	}
 	project := resource.Ref{Kind: scope.ProjectKind, Scope: place.organization, Name: place.project}
 	for i := range in.Notes {
@@ -523,6 +528,106 @@ func mergeList(to protoreflect.List, key func(protoreflect.Value) string, base, 
 }
 
 func sortedKeys[V any](m map[string]V) []string { return slices.Sorted(maps.Keys(m)) }
+
+// holdWays holds what reaches the app's published ports from the server itself, a
+// route of its environment that sends to one of those ports on the server, which
+// dials 127.0.0.1, then each port (hold). A route of another environment that sends
+// to one on the app's server can't be held from here, so it's refused with
+// cant_hold. Where the server's Docker is older than 28, which lets machines on its
+// local network reach a port bound to 127.0.0.1, the plan says so.
+func (h *Handler) holdWays(ctx context.Context, env string, next *compose.Stack, in *Upgrade) ([]revision.Note, error) {
+	ports := map[uint32]bool{}
+	for _, s := range next.Services {
+		for _, p := range s.Spec.GetApp().GetPorts() {
+			if p.GetHostPort() != 0 {
+				ports[p.GetHostPort()] = true
+			}
+		}
+	}
+	var notes []revision.Note
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		servers := map[string]bool{}
+		services, err := tx.ListResources(ctx, env, string(service.Kind))
+		if err != nil {
+			return err
+		}
+		for _, r := range services {
+			on, err := tx.Placement(ctx, r.ID, r.Revision)
+			if err != nil {
+				return err
+			}
+			for _, s := range on {
+				servers[s] = true
+			}
+		}
+		routes, err := tx.ListKind(ctx, "route")
+		if err != nil {
+			return err
+		}
+		for _, r := range routes {
+			spec := &resourcev1.Route{}
+			// A route is never sealed: it holds no secret.
+			if r.Spec == nil || proto.Unmarshal(r.Spec, spec) != nil || spec.GetService() != "" || !ports[spec.GetHostPort()] || spec.GetHeld() {
+				continue
+			}
+			if r.Scope == env {
+				spec.Held = true
+				in.Needs.Extra = append(in.Needs.Extra, &dockwellv1.Edit{
+					Resource: &dockwellv1.ResourceRef{Kind: "route", Scope: env, Name: r.Name},
+					Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: spec}},
+				})
+				continue
+			}
+			on, err := tx.Placement(ctx, r.ID, r.Revision)
+			if err != nil {
+				return err
+			}
+			if slices.ContainsFunc(on, func(s string) bool { return servers[s] }) {
+				return authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("a domain of another environment sends to port %d on %s's server, which Dockwell can't hold from here while %s starts empty, so whoever reaches it first could take it. Take that domain off the port first, or copy its database across instead", spec.GetHostPort(), in.Name, in.Name), "cant_hold")
+			}
+		}
+		if len(ports) == 0 {
+			return nil
+		}
+		reports, err := tx.ServerReports(ctx)
+		if err != nil {
+			return err
+		}
+		all, err := tx.ListServers(ctx)
+		if err != nil {
+			return err
+		}
+		for i := range all {
+			sv := &all[i]
+			var inv dockwellv1.ServerInventory
+			if !servers[sv.ID] || proto.Unmarshal(reports[sv.ID].Inventory, &inv) != nil || !beforeDocker28(inv.GetDockerVersion()) {
+				continue
+			}
+			notes = append(notes, revision.Note{
+				Reason: "hold_local_network",
+				Message: fmt.Sprintf("Docker %s on %s lets machines on its local network reach a port bound to 127.0.0.1, which Docker 28 closed, so while %s is held its ports are closed to the internet but not to that network. Update Docker on %s to 28 or later to close them there too",
+					inv.GetDockerVersion(), sv.Name, in.Name, sv.Name),
+				Names: []string{sv.Name},
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		var reason *connect.Error
+		if errors.As(err, &reason) {
+			return nil, err
+		}
+		return nil, h.internal(ctx, err)
+	}
+	return notes, hold(next, in.Name, in.Needs.Extra)
+}
+
+// beforeDocker28 reports a Docker Engine release before 28, as its version says.
+func beforeDocker28(version string) bool {
+	major, _, ok := strings.Cut(version, ".")
+	n, err := strconv.Atoi(major)
+	return ok && err == nil && n < 28
+}
 
 // hold has each port the file's services publish listen on the server alone, and
 // refuses an app that would still be open to strangers: one with a service on the
