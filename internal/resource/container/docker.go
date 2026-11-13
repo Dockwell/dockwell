@@ -692,7 +692,11 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 			req.HostConfig.Binds = append(req.HostConfig.Binds, bind(src.HostPath, m))
 		case *resourcev1.Mount_File:
 			if d.Files != nil {
-				req.HostConfig.Binds = append(req.HostConfig.Binds, d.Files.Path(src.File.GetContent(), fileMode(src.File))+":"+m.GetTarget()+":ro")
+				// A bind of HostConfig.Mounts fails where its source is missing, where
+				// Binds would make an empty folder in its place and start the app on it.
+				req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{
+					Type: "bind", Source: d.Files.Path(src.File.GetContent(), fileMode(src.File)), Target: m.GetTarget(), ReadOnly: true,
+				})
 			}
 		}
 	}

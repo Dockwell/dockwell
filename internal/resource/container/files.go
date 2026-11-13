@@ -50,10 +50,23 @@ func validateFile(m *resourcev1.Mount, f *resourcev1.MountFile) error {
 		return fmt.Errorf("the file mounted at %s has the mode %04o, and a file Dockwell writes is read-only: give it read and execute bits alone, such as 0444 or 0555", m.GetTarget(), f.GetMode())
 	case m.GetExternal() || m.GetMakeOwner() != "" || m.GetRelabel() != resourcev1.Relabel_RELABEL_UNSPECIFIED:
 		return fmt.Errorf("the file mounted at %s is one Dockwell writes, so it takes no external, make_owner or relabel. Leave them out", m.GetTarget())
+	case kernelFolder(m.GetTarget()):
+		return fmt.Errorf("the file mounted at %s would stand in the kernel's own folders, /proc, /sys and /dev, where a file Dockwell writes never goes. Mount it elsewhere", m.GetTarget())
 	}
 	f.Mode = fileMode(f)
 	m.ReadOnly = true
 	return nil
+}
+
+// kernelFolder reports a path in /proc, /sys or /dev, which the kernel fills in.
+func kernelFolder(target string) bool {
+	clean := filepath.Clean("/" + target)
+	for _, k := range []string{"/proc", "/sys", "/dev"} {
+		if clean == k || strings.HasPrefix(clean, k+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // validateFiles checks what a container's file mounts come to together.
@@ -103,7 +116,20 @@ func (f *Files) Path(content string, mode uint32) string {
 func (f *Files) Write(content string, mode uint32) (string, error) {
 	p := f.Path(content, mode)
 	if got, ok := f.Read(p); ok && got.GetContent() == content && got.GetMode() == mode {
+		// Kept again, as a container mounts it anew, so a prune counts its hour from
+		// now.
+		now := time.Now()
+		if err := os.Chtimes(p, now, now); err != nil {
+			return "", fmt.Errorf("can't keep a file a container mounts: %w", err)
+		}
 		return p, nil
+	}
+	// Docker makes a folder where a bind's source is missing, which a file can't be
+	// renamed over: an empty one goes, so the file takes its name.
+	if fi, err := os.Lstat(p); err == nil && fi.IsDir() {
+		if err := os.Remove(p); err != nil {
+			return "", fmt.Errorf("a folder holds the name of a file a container mounts, %s, and it isn't empty: %w. Remove it", p, err)
+		}
 	}
 	if err := os.MkdirAll(f.Dir, 0o700); err != nil {
 		return "", fmt.Errorf("can't make the folder the agent keeps files in: %w", err)
@@ -174,18 +200,37 @@ func (f *Files) Prune(ctx context.Context) error {
 		return err
 	}
 	used := map[string]bool{}
+	mine := func(source string) {
+		if filepath.Dir(source) == filepath.Clean(f.Dir) {
+			used[filepath.Base(source)] = true
+		}
+	}
 	for i := range list {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		c, err := f.Client.InspectContainer(ctx, list[i].ID)
-		if err != nil {
-			continue
+		switch {
+		case docker.IsNotFound(err):
+			continue // gone since it was listed
+		case err != nil:
+			// What it mounts isn't known, so nothing is known to be unused.
+			return fmt.Errorf("can't read what container %s mounts, so no file is removed: %w", list[i].ID, err)
 		}
 		for _, b := range c.HostConfig.Binds {
-			if source, _, _ := strings.Cut(b, ":"); filepath.Dir(source) == filepath.Clean(f.Dir) {
-				used[filepath.Base(source)] = true
+			source, _, _ := strings.Cut(b, ":")
+			mine(source)
+		}
+		for _, m := range c.HostConfig.Mounts {
+			if m.Type == "bind" {
+				mine(m.Source)
 			}
 		}
 	}
 	for _, e := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		info, err := e.Info()
 		if err != nil || used[e.Name()] || time.Since(info.ModTime()) < fileGrace {
 			continue
