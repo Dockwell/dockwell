@@ -41,6 +41,9 @@ const (
 	// DomainServiceCheckDomainProcedure is the fully-qualified name of the DomainService's CheckDomain
 	// RPC.
 	DomainServiceCheckDomainProcedure = "/dockwell.v1.DomainService/CheckDomain"
+	// DomainServiceListCertificatesProcedure is the fully-qualified name of the DomainService's
+	// ListCertificates RPC.
+	DomainServiceListCertificatesProcedure = "/dockwell.v1.DomainService/ListCertificates"
 	// DomainServiceListDnsProvidersProcedure is the fully-qualified name of the DomainService's
 	// ListDnsProviders RPC.
 	DomainServiceListDnsProvidersProcedure = "/dockwell.v1.DomainService/ListDnsProviders"
@@ -63,6 +66,12 @@ type DomainServiceClient interface {
 	// check 60 names a minute, and an answer that's a private address is only
 	// shown when it's the server's own.
 	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
+	// ListCertificates returns the certificates the control plane proves by DNS-01,
+	// sorted by name, with where each stands: issued and until when, on its way, or
+	// failed in the provider's or the authority's own words, and when it's tried
+	// again. A key is never returned. See
+	// docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+	ListCertificates(context.Context, *connect.Request[v1.ListCertificatesRequest]) (*connect.Response[v1.ListCertificatesResponse], error)
 	// ListDnsProviders returns the DNS providers an admin connected, sorted by
 	// name, with the zones each writes in, so a certificate can name one. A token
 	// is never returned. Below an admin, it says each one's ID, name and zones. See
@@ -101,6 +110,13 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listCertificates: connect.NewClient[v1.ListCertificatesRequest, v1.ListCertificatesResponse](
+			httpClient,
+			baseURL+DomainServiceListCertificatesProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("ListCertificates")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		listDnsProviders: connect.NewClient[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse](
 			httpClient,
 			baseURL+DomainServiceListDnsProvidersProcedure,
@@ -121,6 +137,7 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 type domainServiceClient struct {
 	listDomains      *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
 	checkDomain      *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
+	listCertificates *connect.Client[v1.ListCertificatesRequest, v1.ListCertificatesResponse]
 	listDnsProviders *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
 	checkDnsProvider *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
 }
@@ -133,6 +150,11 @@ func (c *domainServiceClient) ListDomains(ctx context.Context, req *connect.Requ
 // CheckDomain calls dockwell.v1.DomainService.CheckDomain.
 func (c *domainServiceClient) CheckDomain(ctx context.Context, req *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error) {
 	return c.checkDomain.CallUnary(ctx, req)
+}
+
+// ListCertificates calls dockwell.v1.DomainService.ListCertificates.
+func (c *domainServiceClient) ListCertificates(ctx context.Context, req *connect.Request[v1.ListCertificatesRequest]) (*connect.Response[v1.ListCertificatesResponse], error) {
+	return c.listCertificates.CallUnary(ctx, req)
 }
 
 // ListDnsProviders calls dockwell.v1.DomainService.ListDnsProviders.
@@ -159,6 +181,12 @@ type DomainServiceHandler interface {
 	// check 60 names a minute, and an answer that's a private address is only
 	// shown when it's the server's own.
 	CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error)
+	// ListCertificates returns the certificates the control plane proves by DNS-01,
+	// sorted by name, with where each stands: issued and until when, on its way, or
+	// failed in the provider's or the authority's own words, and when it's tried
+	// again. A key is never returned. See
+	// docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+	ListCertificates(context.Context, *connect.Request[v1.ListCertificatesRequest]) (*connect.Response[v1.ListCertificatesResponse], error)
 	// ListDnsProviders returns the DNS providers an admin connected, sorted by
 	// name, with the zones each writes in, so a certificate can name one. A token
 	// is never returned. Below an admin, it says each one's ID, name and zones. See
@@ -193,6 +221,13 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	domainServiceListCertificatesHandler := connect.NewUnaryHandler(
+		DomainServiceListCertificatesProcedure,
+		svc.ListCertificates,
+		connect.WithSchema(domainServiceMethods.ByName("ListCertificates")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	domainServiceListDnsProvidersHandler := connect.NewUnaryHandler(
 		DomainServiceListDnsProvidersProcedure,
 		svc.ListDnsProviders,
@@ -212,6 +247,8 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 			domainServiceListDomainsHandler.ServeHTTP(w, r)
 		case DomainServiceCheckDomainProcedure:
 			domainServiceCheckDomainHandler.ServeHTTP(w, r)
+		case DomainServiceListCertificatesProcedure:
+			domainServiceListCertificatesHandler.ServeHTTP(w, r)
 		case DomainServiceListDnsProvidersProcedure:
 			domainServiceListDnsProvidersHandler.ServeHTTP(w, r)
 		case DomainServiceCheckDnsProviderProcedure:
@@ -231,6 +268,10 @@ func (UnimplementedDomainServiceHandler) ListDomains(context.Context, *connect.R
 
 func (UnimplementedDomainServiceHandler) CheckDomain(context.Context, *connect.Request[v1.CheckDomainRequest]) (*connect.Response[v1.CheckDomainResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckDomain is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) ListCertificates(context.Context, *connect.Request[v1.ListCertificatesRequest]) (*connect.Response[v1.ListCertificatesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.ListCertificates is not implemented"))
 }
 
 func (UnimplementedDomainServiceHandler) ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error) {

@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/alerts"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/backups"
+	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	controlfiles "github.com/dockwell/dockwell/internal/control/files"
@@ -127,6 +128,8 @@ var (
 		backups.ActionTestDestination,
 		// A saved DNS provider's token, used again to write in its zones (ADR 0088).
 		dnsproviders.ActionCheck,
+		// A certificate's key by DNS going to a server (ADR 0088).
+		certificates.ActionDeliver,
 		// An app opened through the panel, which is as much as a secret revealed (ADR 0061).
 		"service.open",
 		// One of an app's own values that reads hidden, revealed (ADR 0081).

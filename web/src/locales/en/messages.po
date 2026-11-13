@@ -994,6 +994,12 @@ msgstr "Saved {path} on {server}"
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "Saved {path} on {server}, which can let someone back in"
 
+msgid "Sent a certificate's key, proven by DNS, to a server"
+msgstr "Sent a certificate's key, proven by DNS, to a server"
+
+msgid "Sent a certificate's key, proven by DNS, to {name}"
+msgstr "Sent a certificate's key, proven by DNS, to {name}"
+
 msgid "Sent a test to a new {kind} channel at {host}, which arrived"
 msgstr "Sent a test to a new {kind} channel at {host}, which arrived"
 
@@ -8810,6 +8816,9 @@ msgstr "That's what the server kept on {taken}, {size}."
 msgid "The catalog shows no apps from this commit."
 msgstr "The catalog shows no apps from this commit."
 
+msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
+msgstr "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
+
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
 
@@ -9108,6 +9117,12 @@ msgstr "{name} runs with the latest value of {names}"
 
 msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
 msgstr "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
+
+msgid "{name} sends a certificate's key for {path} to {server} for the first time"
+msgstr "{name} sends a certificate's key for {path} to {server} for the first time"
+
+msgid "{name} sends the key of the shared certificate for {names} to {server} for the first time"
+msgstr "{name} sends the key of the shared certificate for {names} to {server} for the first time"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} shares {server}'s own network"
@@ -9543,6 +9558,9 @@ msgstr "What's in front gets a 404 for {where}, so visitors see whatever it show
 msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 msgstr "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 
+msgid "a certificate's key for {path}, proven by DNS, going to this server for the first time"
+msgstr "a certificate's key for {path}, proven by DNS, going to this server for the first time"
+
 msgid "a shell command on the server, which runs as root"
 msgstr "a shell command on the server, which runs as root"
 
@@ -9599,6 +9617,9 @@ msgstr "the group {path}, which is the same as root"
 
 msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
 msgstr "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+
+msgid "the key of the shared certificate for {names}, proven by DNS, going to this server for the first time, for {path}"
+msgstr "the key of the shared certificate for {names}, proven by DNS, going to this server for the first time, for {path}"
 
 msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"

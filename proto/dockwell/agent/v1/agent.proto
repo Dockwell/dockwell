@@ -518,6 +518,11 @@ message Hello {
   // only on a server whose agent does. Connectable apps take 290 to 299 in agent
   // messages.
   bool links = 290;
+  // True when the agent serves the certificates the control plane proves by
+  // DNS-01 (put_certificates, ADR 0088). The control plane gives one that doesn't
+  // none, and its routes get their certificates from Caddy, as before. Numbered in
+  // the block DNS-01 holds, 320 to 329.
+  bool loads_certificates = 321;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -807,6 +812,10 @@ message Call {
     // Sign in at a registry with a login, saving nothing (ADR 0086). Numbered in the
     // block registry logins hold, 310 to 319.
     CheckRegistryLoginCall check_registry_login = 313;
+    // Serve these certificates, which the control plane proved by DNS-01 for this
+    // server's routes, and no others it gave before (ADR 0088). Numbered in the
+    // block DNS-01 holds, 320 to 329.
+    PutCertificatesCall put_certificates = 320;
     // Say what's newer than an image the server runs (ADR 0079). Knowing an
     // app's updates takes 250 to 259.
     ImageUpdatesCall image_updates = 250;
@@ -879,6 +888,32 @@ message ProcessesCall {}
 message ProcessesResult {
   // What runs.
   dockwell.v1.ProcessList list = 1;
+}
+
+// PutCertificatesCall is every certificate the control plane proved by DNS-01 that
+// this server's routes are served with (ADR 0088). One the agent loaded before and
+// isn't given now goes.
+message PutCertificatesCall {
+  // Each certificate's chain and key, in PEM, sealed to this stream's delivery key,
+  // as a step's values are: "<id>.chain" and "<id>.key".
+  bytes sealed = 1;
+  // The certificates, by ID, with the names each covers.
+  repeated PutCertificate certificates = 2;
+}
+
+// PutCertificate is one certificate a server serves.
+message PutCertificate {
+  // The certificate's ID, crt_….
+  string id = 1;
+  // The names it covers, such as "*.example.com" and "example.com".
+  repeated string names = 2;
+}
+
+// PutCertificatesResult says what the agent serves now.
+message PutCertificatesResult {
+  // How many certificates it loaded into the ingress, which is none on a server
+  // with no routes: they're loaded as its first comes.
+  int32 loaded = 1;
 }
 
 // CheckRegistryLoginCall asks the agent to sign in at a registry, as its pull would,
@@ -2242,6 +2277,8 @@ message CallResult {
     SystemLogResult system_log = 281;
     // How check_registry_login signed in.
     CheckRegistryLoginResult check_registry_login = 313;
+    // What put_certificates loaded.
+    PutCertificatesResult put_certificates = 320;
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
   }

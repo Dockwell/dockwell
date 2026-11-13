@@ -23,6 +23,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/certificates"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -56,6 +57,8 @@ type Handler struct {
 	callers *callers
 	// DNS are the DNS providers an admin connected (ADR 0088); nil has none.
 	DNS *dnsproviders.Providers
+	// Certificates are the certificates by DNS (ADR 0088); nil has none.
+	Certificates *certificates.Manager
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)

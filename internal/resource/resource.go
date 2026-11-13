@@ -1184,6 +1184,10 @@ const (
 	// AccessServerShell is a shell command the agent runs on the server as root, on
 	// a schedule (ADR 0053): the same as root.
 	AccessServerShell
+	// AccessCertificateKey is a certificate's key, proven by DNS by the control
+	// plane, going to the server for the first time, for the domain in Path (ADR
+	// 0088). An admin confirms it with a passkey.
+	AccessCertificateKey
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1404,6 +1408,11 @@ func AccessWords(a Access) string {
 		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
 	case AccessServerShell:
 		return "a shell command on the server, which runs as root"
+	case AccessCertificateKey:
+		if a.Detail != "" {
+			return "the key of the shared certificate for " + a.Detail + ", proven by DNS, going to this server for the first time, for " + plain(a.Path)
+		}
+		return "a certificate's key for " + plain(a.Path) + ", proven by DNS, going to this server for the first time"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }

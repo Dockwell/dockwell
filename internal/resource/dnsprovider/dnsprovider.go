@@ -143,7 +143,18 @@ func (Type) Validate(spec proto.Message) error {
 	if IsGlobalKey(p.GetApiToken()) {
 		return ErrGlobalKey
 	}
+	for _, id := range p.GetProjects() {
+		if !strings.HasPrefix(id, "prj_") {
+			return fmt.Errorf("%q isn't a project's ID. A DNS provider names the projects it proves names for by ID, such as prj_…", id)
+		}
+	}
 	return nil
+}
+
+// Serves says whether a provider proves names for project's routes: one that names
+// no project proves none.
+func Serves(p *resourcev1.DnsProvider, project string) bool {
+	return slices.Contains(p.GetProjects(), project)
 }
 
 // ErrGlobalKey is a Cloudflare Global API Key, which can do anything the account can,

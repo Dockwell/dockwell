@@ -6,13 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/store"
@@ -139,4 +142,66 @@ func (h *Handler) recordCheck(ctx context.Context, saved dnsproviders.Saved, zon
 			Subject: saved.ID, Target: saved.ID, Detail: string(detail), Surface: client.Surface(p),
 		})
 	})
+}
+
+// ListCertificates says where each certificate by DNS stands, never its key. A
+// server's own is named for its server.
+func (h *Handler) ListCertificates(ctx context.Context, _ *connect.Request[dockwellv1.ListCertificatesRequest]) (*connect.Response[dockwellv1.ListCertificatesResponse], error) {
+	out := &dockwellv1.ListCertificatesResponse{}
+	if h.Certificates == nil {
+		return connect.NewResponse(out), nil
+	}
+	list, err := h.Certificates.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	admin, mine := callerProjects(ctx)
+	for i := range list {
+		s := &list[i]
+		// Below an admin, those that serve a project the caller reads alone; a role
+		// on the whole install reads them all.
+		if !admin && mine != nil && !slices.ContainsFunc(s.Projects, func(p string) bool { return mine[p] }) {
+			continue
+		}
+		c := &dockwellv1.CertificateInfo{Id: s.Holder, Name: s.Name, Domains: s.Names, DnsProvider: s.Provider, Message: s.Message}
+		if h.servers != nil {
+			if srv, err := h.servers.Get(s.Holder); err == nil && srv != nil {
+				c.Name = srv.GetName()
+			}
+		}
+		switch {
+		case s.Issued:
+			c.State = dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED
+			c.ExpireTime = timestamppb.New(s.NotAfter)
+		case s.Failed:
+			c.State = dockwellv1.CertificateState_CERTIFICATE_STATE_FAILED
+		default:
+			c.State = dockwellv1.CertificateState_CERTIFICATE_STATE_PENDING
+		}
+		if !s.Next.IsZero() {
+			c.NextTime = timestamppb.New(s.Next)
+		}
+		out.Certificates = append(out.Certificates, c)
+	}
+	return connect.NewResponse(out), nil
+}
+
+// callerProjects says whether the caller is an admin of the install, and otherwise
+// which projects they hold a role in: nil for a role on the whole install.
+func callerProjects(ctx context.Context) (admin bool, projects map[string]bool) {
+	c, ok := place.CallerFrom(ctx)
+	if !ok {
+		return true, nil
+	}
+	if store.RoleRank(place.Holds(c.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return true, nil
+	}
+	projects = map[string]bool{}
+	for _, g := range c.Grants {
+		if g.ProjectID == store.Install {
+			return false, nil
+		}
+		projects[g.ProjectID] = true
+	}
+	return false, projects
 }

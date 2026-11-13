@@ -32,6 +32,7 @@ func TestAProvidersZones(t *testing.T) {
 		{&resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com", "EXAMPLE.com"}}, "named twice"},
 		{&resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "abc\ndef"}, "line break"},
 		{&resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "0123456789abcdef0123456789abcdef01234"}, "Global API Key"},
+		{&resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, Projects: []string{"shop"}}, "project's ID"},
 	} {
 		if err := (Type{}).Validate(c.p); err == nil || !strings.Contains(err.Error(), c.says) {
 			t.Errorf("Validate(%v) = %v, want %q", c.p, err, c.says)
@@ -73,5 +74,15 @@ func TestCovers(t *testing.T) {
 		if got := Covers("example.com", name); got != want {
 			t.Errorf("Covers(example.com, %s) = %v", name, got)
 		}
+	}
+}
+
+// A provider proves names for the projects it names, and none when it names none.
+func TestAProviderServesTheProjectsItNames(t *testing.T) {
+	if Serves(&resourcev1.DnsProvider{}, "prj_shop") {
+		t.Error("a provider that names no project proves names for one")
+	}
+	if !Serves(&resourcev1.DnsProvider{Projects: []string{"prj_shop"}}, "prj_shop") || Serves(&resourcev1.DnsProvider{Projects: []string{"prj_shop"}}, "prj_blog") {
+		t.Error("a provider proves names for projects it doesn't name, or not for one it does")
 	}
 }

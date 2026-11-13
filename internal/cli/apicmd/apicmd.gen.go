@@ -780,6 +780,17 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse](dockwellv1connect.CatalogServiceUpgradeCatalogInstallProcedure),
 		},
 		{
+			Name:      "dockwell.v1.DomainService.ListCertificates",
+			Procedure: dockwellv1connect.DomainServiceListCertificatesProcedure,
+			HTTP:      "GET /v1/certificates",
+			Noun:      "certificates",
+			Verb:      "list",
+			Short:     "Return the certificates the control plane proves by DNS-01",
+			Long:      "Return the certificates the control plane proves by DNS-01, sorted by name, with\nwhere each stands: issued and until when, on its way, or failed in the\nprovider's or the authority's own words, and when it's tried again. A key is\nnever returned. See\ndocs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Call:      apicli.Unary[v1.ListCertificatesRequest, v1.ListCertificatesResponse](dockwellv1connect.DomainServiceListCertificatesProcedure),
+		},
+		{
 			Name:      "dockwell.v1.ChangeService.ApplyChange",
 			Procedure: dockwellv1connect.ChangeServiceApplyChangeProcedure,
 			HTTP:      "POST /v1/changes/{id}:apply",
@@ -3001,6 +3012,7 @@ func Nouns() []apicli.Noun {
 		{Name: "backups", Short: "List, get, preview, create, delete, policies, destinations, fetch, restore or drill backups, and 1 more", Long: "BackupService is an app's volumes and databases, backed up on the server that\nhas them. Taking a backup is an event: it changes no desired state, so it makes\nno revision, and a failed one shows on the timeline. Restoring one is a change\nwith a plan, which says what it replaces and what stops, and which only a person\ncan apply. See docs/adr/0033-backups-of-volumes-and-databases.md.\n\nA backup holds what its app stored, secrets among them, so nothing here gives\nanyone its bytes."},
 		{Name: "builds", Short: "List, get, log, follow, detect, branches or cancel builds", Long: "BuildService says how the builds of services that build from Git went, and what\neach printed. A build is a step of the change that deploys what it makes: the\nchange's plan pins what it builds, and a build that fails or is cancelled leaves\nwhat runs as it was. See docs/adr/0046-builds-from-git.md.\n\nA build's log is a log, so reading it needs the logs grant, as a Dockerfile's\nstep can print what an app shouldn't. The values of the build's secrets are\nmasked in it.\n\nA build is its service's, in its project and environment (ADR 0049): a viewer\nthere reads it and its log, a developer reads how a repository would build, and\nstopping a build is stopping part of a change under way, so it is a developer's\nwhere the environment is open and an admin's where it is protected, as applying\nis. Asking a repository for its branches names nothing of a project, and has the\ncontrol server ask a URL, so it is a developer's, as checking a domain is."},
 		{Name: "catalog", Short: "List, get, installs, upgrade, open, install, sources or stores catalog, and 6 more", Long: "CatalogService lists the apps you can install, and plans installing one as a\nproject of its own: a Compose file with sensible ports and generated passwords,\nsealed, through the same plan as any other change. Nothing runs until you apply\nit. See docs/adr/0029-a-catalog-format-fed-from-other-catalogs.md."},
+		{Name: "certificates", Short: "List, create, update or delete certificates", Long: "Certificates the control plane proves by DNS-01 through a DNS provider, and\nrenews: for a wildcard, such as *.example.com, or for names the internet can't\nreach. Routes whose domains one covers, in the projects it serves, are served\nwith it on any server, and its key goes to those servers alone. A certificate is\ninstall-wide: an admin makes it as a change, with a plan. See\ndocs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.\n\ndockwell certificates create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 		{Name: "changes", Short: "Propose, get, list, apply, watch, undo, confirm or discard changes", Long: "A change is a set of edits to managed state, with the plan that carries them\nout. You propose edits and get a plan back; applying it writes immutable\nrevisions and runs its steps on the servers; undoing it makes a new plan that\nputs things back. A change applies only as it was planned, and a plan never\nshows a secret, only that it changed.\n\nSee docs/adr/0009-resources-revisions-and-plans.md and\ndocs/adr/0017-the-change-api-and-the-agent-stream.md."},
 		{Name: "claim-link", Short: "Check, begin or finish claim link", Long: "A claim link, which dockwell run and dockwell claim print, creates the install's\nowner with a passkey, and works once. dockwell claim-link check describes the\nserver a link claims, and dockwell claim-link begin and dockwell claim-link\nfinish make the passkey, which takes a browser: open the link in one."},
 		{Name: "compose", Short: "Import, adopt, check or export compose", Long: "ComposeService turns a Docker Compose file into a project's services, volumes\nand networks, and any of them back into one. Each file gets a project of its\nown, so two files with a service of one name run side by side, on networks of\ntheir own, as they do under docker compose. An environment is one Compose\nproject: its containers carry the labels Docker Compose gives its own, so docker\ncompose sees them, and an exported file runs the same with docker compose alone\n(PRD principle 6). See docs/adr/0021-the-docker-driver.md and\ndocs/adr/0026-the-app-screens.md."},
@@ -3343,6 +3355,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "host_port", Help: "A port on the server itself, such as 8080, in place of port, for a service on the server's own network, which a route can't send to by name, or with no service at all, for something that isn't a Dockwell service. The proxy dials 127.0.0.1 on it, so what's there sees every caller as local. It reaches past containers, so a person approves it, and any change to where it answers. Dockwell's own ports, and Docker's API, on 2375, 2376 or wherever dockerd listens, aren't taken."},
 				{Path: "plain_for_anyone", Help: "True for a route that says tls off to answer anyone who can reach this server's port 80, as for a site on a private network, or a load balancer whose addresses aren't known. It goes around whatever is in front, so a person approves it."},
 				{Path: "held", Help: "Held: the route answers that the app isn't open yet, and sends nothing on, until a person opens it, as an app whose first visitor makes its owner is held while it starts on an empty database, so its owner sets it up first, opening it through the panel (ADR 0084)."},
+				{Path: "proof", Help: "How the domain proves itself for its certificate (ADR 0088): empty for automatic, which is DNS-01 where a DNS provider whose zone holds it serves the route's project and the internet can't reach this server at the name, and HTTP-01 otherwise; \"http\" for HTTP-01 or TLS-ALPN-01 by the server's own proxy; \"dns\" for DNS-01 by the control plane. Every route of a domain says the same. Numbered in the block DNS-01 holds, 120 to 129."},
 			},
 		},
 		{
@@ -3531,6 +3544,18 @@ func Kinds() []*apicli.Kind {
 				{Path: "provider", Help: "Which provider's API: \"cloudflare\"."},
 				{Path: "zones", Help: "The zones it writes in, such as \"example.com\", each checked before it's saved."},
 				{Path: "api_token", Help: "The provider's API token: for Cloudflare, an API token with Zone:Read and DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an update to keep it.", Sensitive: true},
+				{Path: "projects", Help: "The projects whose routes' names it proves, by ID. Empty is none: proving a name by DNS works wherever it points, so an admin says which projects may."},
+			},
+		},
+		{
+			Field: "certificate",
+			Noun:  "certificates",
+			Short: "A certificate the control plane proves by DNS-01, for a wildcard or for names the internet can't reach, kind \"certificate\" (ADR 0088)",
+			Long:  "DnsCertificate is a certificate the control plane proves by DNS-01 through a DNS\nprovider, and renews, kind \"certificate\": for a wildcard, such as *.example.com,\nor for names the internet can't reach to prove over HTTP. Routes whose domains\nit covers, in the projects it serves, are served with it on any server, and its\nkey goes to those servers alone. It lives in the organization, and only an admin\nmakes one. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.",
+			Fields: []apicli.Field{
+				{Path: "domains", Help: "The names it covers, such as \"*.example.com\" and \"example.com\". A wildcard covers one label, as a certificate authority issues it."},
+				{Path: "dns_provider", Help: "The DNS provider that proves them, by name. Each name must be in one of its zones."},
+				{Path: "projects", Help: "The projects whose routes it serves, by ID. Empty is none, so making one gives no server its key until an admin says which projects."},
 			},
 		},
 	}

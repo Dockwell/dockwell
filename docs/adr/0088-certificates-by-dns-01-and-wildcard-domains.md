@@ -57,14 +57,17 @@ The default gives no server a key that serves another's names, so one stolen key
 - **A server's routes proven by DNS share one certificate of the server's own,** for exactly their names, with a key of its own: one order for them all, as a batch, made again as the set changes.
 - **A route says how its name is proven,** `proof` (120): empty for automatic, `http`, or `dns`. Automatic is DNS where a provider whose zone holds the name serves the route's project, and the plan's DNS check says HTTP can't reach the server: no record, a record elsewhere, as behind a tunnel that passes TLS on, or a server with private addresses alone. HTTP otherwise, by Caddy, as now. The plan says which, and the step carries it, so the fingerprint covers it. `dns` with no provider for the name refuses the plan, saying which to connect.
 - **Proof by DNS can be had for a name that points anywhere,** which HTTP-01 can't. So only the projects a provider names may use it, and a route of another refuses the plan.
-- **The first time a key goes to a server, an admin confirms it, with step-up.** The plan says so, "app.example.com is proven by DNS, and a certificate's key goes to hz-2 for the first time", as `host_access` of a new kind, `certificate_key`, which only an admin applies, confirming with their passkey ([ADR 0016](0016-scoped-api-tokens.md)). Later keys to that server, as it renews or its names change, need no one.
+- **The first time a key goes to a server, an admin confirms it, with step-up.** The plan says so, "app.example.com is proven by DNS, and a certificate's key goes to hz-2 for the first time", as `host_access` of a new kind, `certificate_key`, which only an admin applies, confirming with their passkey ([ADR 0016](0016-scoped-api-tokens.md)). Later keys to that server, as it renews or its names change, need no one. Where no key goes, as no provider proves the name, the plan says so and asks for no passkey.
+- **Up to 100 names on a server's own certificate.** A name past that gets none, and the plan says so, with the fix: a shared wildcard for its zone.
 
 ### A shared wildcard is an admin's choice
 
 A certificate by DNS that several servers share is a resource of kind `certificate`, install-wide, an admin's to make:
 
 ```proto
-message Certificate {
+// Kind "certificate". DnsCertificate, as the API's certificate state is
+// Certificate.
+message DnsCertificate {
   // The names it covers, such as "*.example.com" and "example.com". A
   // wildcard covers one label, as the CA issues it.
   repeated string domains = 1;
@@ -75,14 +78,14 @@ message Certificate {
 }
 ```
 
-- **Its names are checked as a route's domain is,** with the wildcard only as a whole first label, and each must be in one of its provider's zones.
-- **Its projects' routes under it are served with it,** on whichever servers they run, in place of a server's own certificate. Its key goes to those servers, each the first time with an admin's step-up, as above. Empty serves none, so making one gives no server anything until an admin says which projects.
+- **Its names are checked as a route's domain is,** with the wildcard only as a whole first label, and each must be in one of the zones its provider was saved with, which the plan checks, as the provider's token is used in those zones alone.
+- **Its projects' routes under it are served with it,** on whichever servers they run, in place of a server's own certificate. Its key goes to those servers, each the first time with an admin's step-up, as above: confirmed for that certificate and that server, whatever else the server has, with the plan naming the certificate's names. Empty serves none, so making one gives no server anything until an admin says which projects.
 - **A wildcard is one step.** On Domains, **Add a wildcard** for a zone a provider covers makes one certificate for `*.example.com` and `example.com`, with the project it's added from, as one plan.
 - **Up to 100 names each,** as Let's Encrypt allows, and 200 certificates.
 
 ### The panel's domain stays on the control server
 
-A certificate whose names cover the panel's domain, as a wildcard over it would, never goes to a server but the control server. A route on another server under it gets that server's own certificate instead, and the plan says why. A key that serves the panel's domain is a key to sign in with passkeys there ([ADR 0024](0024-the-caddy-ingress-driver.md#who-may-claim-a-domain)), so it stays where the panel is.
+A certificate whose names reach the panel's domain, as it's served or as it's saved, never goes to a server but the control server: one that covers it, as a wildcard over it would, one that is it, or one under it, whose key could set the panel's cookies. A route on another server under it gets that server's own certificate instead, and the plan says why. A key that serves the panel's domain is a key to sign in with passkeys there ([ADR 0024](0024-the-caddy-ingress-driver.md#who-may-claim-a-domain)), so it stays where the panel is.
 
 ### Issuing and renewing
 
@@ -91,6 +94,7 @@ A certificate whose names cover the panel's domain, as a wildcard over it would,
 - **A new key at every issuance,** renewals included.
 - **An order proves each name by DNS-01.** Before it writes `_acme-challenge.<name>`'s TXT record, the control plane writes down the name and value it will write, and the record's ID once it has one, in the store. It waits until the zone's own nameservers answer it, up to 2 minutes, asks the CA to validate, and deletes the record whatever happens. A crash mid-order leaves the note, and the control plane deletes what it names as it next starts.
 - **Renewal when the CA says,** by ACME Renewal Information (RFC 9773): the control plane asks the CA's `renewalInfo` for a window and renews inside it, and 30 days before the end, or at two thirds of a shorter life, where the CA says nothing. A failure backs off from 2 minutes to 6 hours, no more than 5 tries an hour for a set of names, under Let's Encrypt's limit on failed validations.
+- **Orders are spaced and capped.** A certificate whose names changed is ordered again an hour after its last order at the soonest, so routes coming and going don't use up the CA's limits, and Dockwell orders no more than 20 certificates a week for one registered domain, under Let's Encrypt's 50, which Caddy's and the panel's share. A name whose proof fails is dropped, the rest ordered without it, and it's tried again once a day, saying why.
 - **A failed delivery sends the stored certificate again,** and never orders another: what the CA issued is kept until it's replaced.
 - **A failure says why, in the provider's own words or the CA's.** A provider's API error is its message and code ("Cloudflare: Authentication error (10000)"); the CA's is its problem type and detail. Each with the fix. It's the certificate's state, and the existing alert rules read it: **certificate failed** fires on a renewal that failed, in those words, and **certificate expiring** as it does for Caddy's.
 
@@ -98,13 +102,14 @@ A certificate whose names cover the panel's domain, as a wildcard over it would,
 
 - **Sealed to its agent's stream with HPKE,** as a step's values are ([ADR 0022](0022-secrets-encrypted-at-rest.md)), as it's issued, renewed or first needed, and when the agent connects.
 - **The agent keeps its copy in its sealed desired-state cache** ([ADR 0054](0054-the-agent-keeps-its-desired-state.md)), and loads it into Caddy's `tls.certificates.load_pem`, tagged with the certificate's ID, listing the routes' names it covers in `automatic_https.skip_certificates`, so Caddy asks the CA for none of its own for them. Caddy keeps both in its last config, `ingress/config/autosave.json`, mode 0600, owned by Caddy's uid, in a directory of mode 0700; the agent's copy of that config, `ingress/last-good.json`, is root's, mode 0600. A reboot, an agent down or a control plane down go on serving it, as ADR 0024's principle 5 asks.
-- **Each key delivery is on the server's timeline,** with the certificate and its names, and never the key.
+- **Each key delivery is on the server's timeline,** with the certificate and its names, and never the key: once for each key, told by its certificate's serial, whatever restarts or reconnects send it again.
 - **It goes when it's no longer needed,** as the last route it serves on that server goes, or the certificate is removed or narrowed: the agent takes it out of Caddy's config, its last config, its own copy and its cache.
 
 ### Rotation and revocation
 
 - **Rotation is the real protection.** Browsers barely check revocation: Chrome reads a small list of its own, and Let's Encrypt has ended OCSP. So every issuance has a new key, and a key lives no longer than its certificate's 90 days at most.
-- **A server removed, or marked compromised,** has everything it held re-keyed and issued again, at once: each shared certificate it had goes to the servers left with a new key, and the old ones, and its own, are revoked with ACME's `revokeCert`, reason `keyCompromise`. The plan to remove a server, or to mark it compromised, says which certificates it re-issues.
+- **A server removed, or marked compromised,** has everything it held re-keyed and issued again, at once: each shared certificate it had goes to the servers left with a new key, and the old ones, and its own, are revoked with ACME's `revokeCert`, reason `keyCompromise`. The plan to remove a server, or to mark it compromised, says which certificates it re-issues. What an admin let it have is forgotten, so a server that joins again asks again.
+- **This comes before any agent loads a key.** Removal's re-keying and revocation are built in slice 2b, beside the agent's loading, and an agent says it loads certificates (`Hello.loads_certificates`) only from that release, so no key reaches a server before its removal can take it back.
 
 ### Renewal with the control plane down
 
@@ -126,8 +131,10 @@ Fields this adds to messages that exist take 120 to 129: the resource oneof's `d
 ### Slices
 
 1. DNS providers: the kind, Cloudflare, the live check, Settings, the CLI. This record.
-2. Certificates by DNS: a provider's projects, a route's proof, each server's own certificate, the shared kind, issuing and renewing on the control plane, delivery to agents with step-up the first time, Caddy loading them, and the agent's warnings and fallback.
-3. The panel's defaults, and the rest: **Add a wildcard** on Domains, **By DNS** in a route's form where HTTP can't reach, the CAA suggestion, re-issuing for a server removed or compromised, the account's key change, and alerts in the provider's words.
+2. Certificates by DNS, in two parts:
+   1. On the control plane: a provider's projects, a route's `proof`, each server's own certificate, the shared kind, issuing and renewing, ARI, the challenge records' note, an admin's step-up for a server's first key, giving agents what they need, each delivery on the server's timeline, and `ListCertificates`.
+   2. Re-keying and revoking what a server removed or marked compromised held, first; then, on the agent: `Hello.loads_certificates`, loading them into Caddy with `skip_certificates`, its sealed cache, the warnings and the fallback with the control plane down; and automatic proof, with `dns` refused where no provider proves the name.
+3. The panel's defaults, and the rest: **Add a wildcard** on Domains, **By DNS** in a route's form where HTTP can't reach, the CAA suggestion, the account's key change, and alerts in the provider's words.
 
 ## Alternatives considered
 

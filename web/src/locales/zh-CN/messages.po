@@ -994,6 +994,12 @@ msgstr "已保存 {server} 上的 {path}"
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "已保存 {server} 上的 {path}，这个文件可能让他人重新进入服务器"
 
+msgid "Sent a certificate's key, proven by DNS, to a server"
+msgstr "将通过 DNS 证明的证书密钥发送到了一台服务器"
+
+msgid "Sent a certificate's key, proven by DNS, to {name}"
+msgstr "将通过 DNS 证明的证书密钥发送到了 {name}"
+
 msgid "Sent a test to a new {kind} channel at {host}, which arrived"
 msgstr "向 {host} 上新的 {kind} 渠道发送了测试，已送达"
 
@@ -8810,6 +8816,9 @@ msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。"
 msgid "The catalog shows no apps from this commit."
 msgstr "应用目录不会显示这个提交中的任何应用。"
 
+msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
+msgstr "控制平面通过 DNS 证明 {path}。服务器上的密钥会从那里为其域名提供服务，因此第一次需要你用通行密钥确认。"
+
 msgid "The data stays as it is now"
 msgstr "数据保持现状"
 
@@ -9108,6 +9117,12 @@ msgstr "{name} 使用 {names} 的最新值运行"
 
 msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
 msgstr "{name} 按修订版本 {revision} 当时的方式运行 {image}（{digest}），即使该标签此后已指向别处"
+
+msgid "{name} sends a certificate's key for {path} to {server} for the first time"
+msgstr "{name} 首次将 {path} 的证书密钥发送到 {server}"
+
+msgid "{name} sends the key of the shared certificate for {names} to {server} for the first time"
+msgstr "{name} 首次将 {names} 的共享证书密钥发送到 {server}"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} 与 {server} 共用其自身的网络"
@@ -9543,6 +9558,9 @@ msgstr "前面的代理访问 {where} 会得到 404，因此访问者会看到�
 msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 msgstr "一个曾可访问 {path} 的卷的备份，可能含有那里的内容，相当于拥有 root"
 
+msgid "a certificate's key for {path}, proven by DNS, going to this server for the first time"
+msgstr "{path} 的证书密钥（通过 DNS 证明）首次发送到这台服务器"
+
 msgid "a shell command on the server, which runs as root"
 msgstr "服务器上的 shell 命令，以 root 身份运行"
 
@@ -9599,6 +9617,9 @@ msgstr "用户组 {path}，等同于 root"
 
 msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
 msgstr "用户组 {path}，如果它是服务器上拥有 Docker 套接字的用户组，则等同于 root"
+
+msgid "the key of the shared certificate for {names}, proven by DNS, going to this server for the first time, for {path}"
+msgstr "{names} 的共享证书密钥（通过 DNS 证明）首次发送到这台服务器，用于 {path}"
 
 msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "网络 {path}，它已在服务器上，服务在其中以自身名称和 {detail} 响应：该网络上的其他任何内容，包括其他项目的服务，都能访问它，它也能访问它们"

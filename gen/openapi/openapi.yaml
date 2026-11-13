@@ -1379,6 +1379,30 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/certificates:
+        get:
+            tags:
+                - DomainService
+            description: |-
+                ListCertificates returns the certificates the control plane proves by DNS-01,
+                 sorted by name, with where each stands: issued and until when, on its way, or
+                 failed in the provider's or the authority's own words, and when it's tried
+                 again. A key is never returned. See
+                 docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
+            operationId: DomainService_ListCertificates
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListCertificatesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/changes:
         get:
             tags:
@@ -8912,7 +8936,56 @@ components:
                     type: string
                     description: When an issued certificate expires. Renewing it is automatic.
                     format: date-time
+                byDns:
+                    type: string
+                    description: |-
+                        The certificate by DNS-01 that serves it, by name, when one does (ADR 0088).
+                         Unset for one Caddy got over HTTP. Numbered in the block DNS-01 holds, 120 to
+                         129.
             description: Certificate is where a domain's certificate stands on a server.
+        CertificateInfo:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, crt_….
+                name:
+                    type: string
+                    description: Its name.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: The names it covers.
+                dnsProvider:
+                    type: string
+                    description: The DNS provider that proves them, by name.
+                state:
+                    enum:
+                        - CERTIFICATE_STATE_UNSPECIFIED
+                        - CERTIFICATE_STATE_PENDING
+                        - CERTIFICATE_STATE_ISSUED
+                        - CERTIFICATE_STATE_FAILED
+                        - CERTIFICATE_STATE_NONE
+                    type: string
+                    description: Where it stands.
+                    format: enum
+                expireTime:
+                    type: string
+                    description: When the one issued expires, once one is.
+                    format: date-time
+                message:
+                    type: string
+                    description: |-
+                        For people, when the last try failed: the provider's or the authority's own
+                         words, and what to do. A failed renewal leaves the one issued serving.
+                nextTime:
+                    type: string
+                    description: |-
+                        When it's tried again, while it's on its way or failing; when it renews,
+                         once it's issued.
+                    format: date-time
+            description: CertificateInfo is a certificate by DNS-01 and where it stands, without its key.
         Change:
             type: object
             properties:
@@ -10855,6 +10928,35 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: DiskUsage is one filesystem's use.
+        DnsCertificate:
+            type: object
+            properties:
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The names it covers, such as "*.example.com" and "example.com". A wildcard
+                         covers one label, as a certificate authority issues it.
+                dnsProvider:
+                    type: string
+                    description: |-
+                        The DNS provider that proves them, by name. Each name must be in one of its
+                         zones.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The projects whose routes it serves, by ID. Empty is none, so making one gives
+                         no server its key until an admin says which projects.
+            description: |-
+                DnsCertificate is a certificate the control plane proves by DNS-01 through a DNS
+                 provider, and renews, kind "certificate": for a wildcard, such as *.example.com,
+                 or for names the internet can't reach to prove over HTTP. Routes whose domains it
+                 covers, in the projects it serves, are served with it on any server, and its key
+                 goes to those servers alone. It lives in the organization, and only an admin
+                 makes one. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
         DnsProvider:
             type: object
             properties:
@@ -10874,6 +10976,13 @@ components:
                         The provider's API token: for Cloudflare, an API token with Zone:Read and
                          DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an
                          update to keep it.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The projects whose routes' names it proves, by ID. Empty is none: proving a
+                         name by DNS works wherever it points, so an admin says which projects may.
             description: |-
                 DnsProvider is what writes the records of one or more DNS zones through a DNS
                  provider's API, so the control plane can prove a name by DNS-01 and get its
@@ -13163,6 +13272,7 @@ components:
                         - HOST_ACCESS_KIND_TAKES_ON
                         - HOST_ACCESS_KIND_BACKUP_OF
                         - HOST_ACCESS_KIND_SERVER_SHELL
+                        - HOST_ACCESS_KIND_CERTIFICATE_KEY
                     type: string
                     description: What it is.
                     format: enum
@@ -14672,6 +14782,15 @@ components:
                         $ref: '#/components/schemas/CatalogStore'
                     description: Each store, the one with the most apps that install first.
             description: ListCatalogStoresResponse is every store Dockwell reads directly.
+        ListCertificatesResponse:
+            type: object
+            properties:
+                certificates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CertificateInfo'
+                    description: Sorted by name.
+            description: ListCertificatesResponse holds the certificates by DNS-01.
         ListChangesResponse:
             type: object
             properties:
@@ -18150,6 +18269,15 @@ components:
                          a person opens it, as an app whose first visitor makes its owner is held while it
                          starts on an empty database, so its owner sets it up first, opening it through
                          the panel (ADR 0084).
+                proof:
+                    type: string
+                    description: |-
+                        How the domain proves itself for its certificate (ADR 0088): empty for
+                         automatic, which is DNS-01 where a DNS provider whose zone holds it serves the
+                         route's project and the internet can't reach this server at the name, and
+                         HTTP-01 otherwise; "http" for HTTP-01 or TLS-ALPN-01 by the server's own
+                         proxy; "dns" for DNS-01 by the control plane. Every route of a domain says the
+                         same. Numbered in the block DNS-01 holds, 120 to 129.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -20362,6 +20490,13 @@ components:
                         What writes a DNS zone's records, so the control plane can prove a name by
                          DNS-01, kind "dns.provider" (ADR 0088). Numbered in the block DNS-01 holds,
                          120 to 129.
+                certificate:
+                    allOf:
+                        - $ref: '#/components/schemas/DnsCertificate'
+                    description: |-
+                        A certificate the control plane proves by DNS-01, for a wildcard or for
+                         names the internet can't reach, kind "certificate" (ADR 0088). Numbered in
+                         the block DNS-01 holds, 120 to 129.
             description: |-
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes

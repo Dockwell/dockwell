@@ -30,6 +30,7 @@ func Commands() []string {
 		"builds",
 		"catalog",
 		"catalog-sources",
+		"certificates",
 		"changes",
 		"claim-link",
 		"compose",
