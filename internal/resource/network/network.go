@@ -120,9 +120,21 @@ func checkMembers(n *resourcev1.Network) error {
 	return nil
 }
 
-// shortID is a container's ID as Docker gives it as an alias.
-func shortID(s string) bool {
-	return len(s) == 12 && strings.Trim(s, "0123456789abcdef") == ""
+// aliasOn is the name a container answers to on a network, of those Docker lists:
+// Docker adds the container's own name, and before 25 its short ID, so the alias is
+// what's left. Only the short ID itself is Docker's: an alias such as "db" can begin
+// the container's ID, which is hex.
+func aliasOn(c *docker.ContainerSummary, network string) string {
+	ep := c.NetworkSettings.Networks[network]
+	if ep == nil {
+		return ""
+	}
+	for _, a := range ep.Aliases {
+		if !slices.Contains(c.Names, "/"+a) && (len(c.ID) < 12 || a != c.ID[:12]) {
+			return a
+		}
+	}
+	return ""
 }
 
 // MemberTarget is where a network's member runs: its environment's project, and its
@@ -295,17 +307,7 @@ func (d *Driver) members(ctx context.Context, t Target) ([]*resourcev1.NetworkMe
 			continue
 		}
 		seen[project+"/"+svc] = true
-		m := &resourcev1.NetworkMember{Environment: environmentOf(project), Service: svc}
-		if ep := c.NetworkSettings.Networks[t.Name]; ep != nil {
-			// Docker adds the container's own name and short ID; the alias is what's left.
-			for _, a := range ep.Aliases {
-				if !slices.Contains(c.Names, "/"+a) && !shortID(a) && !strings.HasPrefix(c.ID, a) {
-					m.Alias = a
-					break
-				}
-			}
-		}
-		out = append(out, m)
+		out = append(out, &resourcev1.NetworkMember{Environment: environmentOf(project), Service: svc, Alias: aliasOn(c, t.Name)})
 	}
 	slices.SortFunc(out, func(a, b *resourcev1.NetworkMember) int {
 		return strings.Compare(a.GetEnvironment()+"/"+a.GetService(), b.GetEnvironment()+"/"+b.GetService())
