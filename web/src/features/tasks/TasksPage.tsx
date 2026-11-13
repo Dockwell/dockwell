@@ -27,7 +27,9 @@ import { TaskPanel } from "./TaskPanel";
 import { TaskSheet } from "./TaskSheet";
 import { lastRunOf, nameOf, nextRunOf, offline, runStatus, targetOf, tookOf, useTasks, useTaskWords } from "./useTasks";
 import "./Tasks.css";
+import { useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { RefLink } from "../shell/RefLink";
 
 const ICONS: Readonly<Record<number, IconName>> = {
   [TaskKind.SHELL]: "server",
@@ -110,7 +112,9 @@ export function TasksPage() {
         <span className="tasks-target">
           <Icon name={ICONS[task.kind] ?? "server"} size={16} />
           <span className="dw-cell">
-            <span className={task.kind === TaskKind.APP ? undefined : "tasks-mono"}>{targetOf(task)}</span>
+            <span className={task.kind === TaskKind.APP ? undefined : "tasks-mono"}>
+              <Target task={task} />
+            </span>
             <span className="tasks-sub">{words.place(task)}</span>
           </span>
         </span>
@@ -350,5 +354,37 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
         </div>
       </div>
     </Panel>
+  );
+}
+
+/**
+ * What a task runs in, each name a link to its page: its app, or the servers its
+ * command runs on. A request's host is somewhere else, and stays words.
+ */
+function Target({ task }: { task: TaskInfo }) {
+  const named = useServicesNamed(task.resource?.scope);
+  const runs = task.spec?.runs;
+  if (runs?.case === "app") {
+    const app = named.get(runs.value.service);
+    return app ? (
+      <RefLink kind="app" id={app.id} look="plain">
+        {runs.value.service}
+      </RefLink>
+    ) : (
+      <>{runs.value.service}</>
+    );
+  }
+  if (runs?.case === "request" || task.servers.length === 0) return <>{targetOf(task)}</>;
+  return (
+    <>
+      {task.servers.map((s, i) => (
+        <span key={s.serverId}>
+          {i > 0 ? ", " : null}
+          <RefLink kind="server" id={s.serverId} look="plain">
+            {s.serverName}
+          </RefLink>
+        </span>
+      ))}
+    </>
   );
 }

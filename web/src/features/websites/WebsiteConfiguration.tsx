@@ -16,6 +16,7 @@ import { validPort } from "../apps/form";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { CopyButton } from "../servers/CopyButton";
+import { RefLink } from "../shell/RefLink";
 import { useCertificateWords } from "./Standing";
 import {
   changed,
@@ -335,7 +336,11 @@ function RouteView({ port }: { port: string }) {
                 <Trans>On</Trans>
               </dt>
               <dd>
-                <code>{row.site.serverName}</code>
+                <code>
+                  <RefLink kind="server" id={row.site.serverId} look="plain">
+                    {row.site.serverName}
+                  </RefLink>
+                </code>
               </dd>
             </>
           ) : null}

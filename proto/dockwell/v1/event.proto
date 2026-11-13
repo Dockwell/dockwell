@@ -365,6 +365,9 @@ message EventBackup {
   // How a restore drill of it went, for backup.drill (ADR 0068). error says what
   // failed, or why it wasn't checked.
   DrillResult drill = 8;
+  // The server, by ID, for its page. Numbered apart, as open work adds to this
+  // message.
+  string server_id = 60;
 }
 
 // EventPublicAddress is a server's public address as a person changed it.

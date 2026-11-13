@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { Page } from "../shell/Page";
+import { RefLink } from "../shell/RefLink";
 import { Facts, useEntryFacts } from "./access";
 import { Markdown } from "./Markdown";
 import { AppIcon, AppScreenshot, projectLink } from "./media";
@@ -379,7 +380,15 @@ export function CatalogDetailPage({
                   {installs.map((installed) => (
                     <div className="catalog-installation" key={installed.projectId || installed.project}>
                       <span className="catalog-installation-name">
-                        <strong>{installed.project}</strong>
+                        <strong>
+                          {installed.projectId ? (
+                            <RefLink kind="project" id={installed.projectId} look="plain">
+                              {installed.project}
+                            </RefLink>
+                          ) : (
+                            installed.project
+                          )}
+                        </strong>
                         <code>{installed.pin?.version}</code>
                       </span>
                       {installed.webServiceId ? (

@@ -592,7 +592,7 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		// writes holds no path and nothing of what's in a backup.
 		e.Kind = dockwellv1.EventKind_EVENT_KIND_BACKUP
 		e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject)}
-		e.Backup = &dockwellv1.EventBackup{ServerName: look.Name(a.Target)}
+		e.Backup = &dockwellv1.EventBackup{ServerId: a.Target, ServerName: look.Name(a.Target)}
 		if told, ok := backups.ReadTold(a.Detail); ok {
 			e.Backup.Id, e.Backup.Volume, e.Backup.SizeBytes, e.Backup.Error, e.Backup.Destination = told.ID, told.Volume, told.Size, told.Error, told.Destination
 			e.Backup.Method = resourcepb.BackupMethod(told.Method)

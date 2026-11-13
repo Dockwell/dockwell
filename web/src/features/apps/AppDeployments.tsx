@@ -46,6 +46,7 @@ import { useChangeWords } from "../changes/words";
 import { DeployLogLink } from "../logs/DeployLogLinks";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { ReadFailed } from "../shell/ReadFailed";
+import { RefLink } from "../shell/RefLink";
 import { useApp, useRevisions } from "./AppContext";
 import { ListSkeleton } from "./AppsPage";
 import {
@@ -789,7 +790,11 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
             {rev.deployments.map((d) => (
               <div key={d.serverId} className="deploy-rollout-row">
                 <dt>
-                  <code>{d.serverName}</code>
+                  <code>
+                    <RefLink kind="server" id={d.serverId} look="plain">
+                      {d.serverName}
+                    </RefLink>
+                  </code>
                 </dt>
                 <dd>
                   <StatusBadge

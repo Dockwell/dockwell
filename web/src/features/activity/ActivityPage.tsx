@@ -62,6 +62,7 @@ import { RecordedPlan } from "./RecordedPlan";
 import { type EventFilter, useEvents } from "./useEvents";
 import "./ActivityPage.css";
 import { placesOfChange, useMay } from "../auth/may";
+import { RefLink, refKindOf } from "../shell/RefLink";
 
 /** The kinds of event Activity filters by, as its search names them. */
 export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups" | "alerts";
@@ -839,7 +840,9 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
             {!change && event.subject && (event.subject.name || !event.alert) ? (
               <>
                 <dt>{t`About`}</dt>
-                <dd>{event.subject.name || <code className="activity-code">{event.subject.id}</code>}</dd>
+                <dd>
+                  <Subject id={event.subject.id} name={event.subject.name} />
+                </dd>
               </>
             ) : null}
             {event.health ? <HealthFacts event={event} /> : null}
@@ -942,7 +945,15 @@ function AlertFacts({ alert }: { alert: EventAlert }) {
         <>
           <dt>{t`Server`}</dt>
           <dd>
-            <code className="activity-code">{alert.serverName}</code>
+            <code className="activity-code">
+              {alert.serverId ? (
+                <RefLink kind="server" id={alert.serverId} look="plain">
+                  {alert.serverName}
+                </RefLink>
+              ) : (
+                alert.serverName
+              )}
+            </code>
           </dd>
         </>
       ) : null}
@@ -976,6 +987,19 @@ function RepeatFacts({ run }: { run: readonly Event[] }) {
   );
 }
 
+/** What an event is about, as a link to its page where it has one, by the kind its ID says. */
+function Subject({ id, name }: { id: string; name: string }) {
+  const kind = refKindOf(id);
+  const words = name || <code className="activity-code">{id}</code>;
+  return kind ? (
+    <RefLink kind={kind} id={id} look="plain">
+      {words}
+    </RefLink>
+  ) : (
+    words
+  );
+}
+
 /** What became of a backup, in the facts of an event: of what, where, and why it failed. */
 function BackupFacts({ backup }: { backup: EventBackup }) {
   const { t, i18n } = useLingui();
@@ -987,7 +1011,15 @@ function BackupFacts({ backup }: { backup: EventBackup }) {
       </dd>
       <dt>{t`Server`}</dt>
       <dd>
-        <code className="activity-code">{backup.serverName}</code>
+        <code className="activity-code">
+          {backup.serverId ? (
+            <RefLink kind="server" id={backup.serverId} look="plain">
+              {backup.serverName}
+            </RefLink>
+          ) : (
+            backup.serverName
+          )}
+        </code>
       </dd>
       {backup.sizeBytes > 0n ? (
         <>
@@ -1096,7 +1128,15 @@ function HealthFacts({ event }: { event: Event }) {
     <>
       <dt>{t`Server`}</dt>
       <dd>
-        <code className="activity-code">{event.health?.serverName}</code>
+        <code className="activity-code">
+          {event.health?.serverId ? (
+            <RefLink kind="server" id={event.health.serverId} look="plain">
+              {event.health.serverName}
+            </RefLink>
+          ) : (
+            event.health?.serverName
+          )}
+        </code>
       </dd>
       {look ? (
         <>

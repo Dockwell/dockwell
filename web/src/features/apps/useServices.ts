@@ -56,6 +56,23 @@ function selectServices(res: { services: ServiceInfo[] }): ServiceInfo[] {
   return res.services;
 }
 
+/**
+ * Each service of an environment by its name, for a screen that has a name to
+ * link to its page, as a database's users and neighbours are named.
+ */
+export function useServicesNamed(environment: string | undefined): ReadonlyMap<string, ServiceInfo> {
+  const services = useServices().data;
+  return useMemo(
+    () =>
+      new Map(
+        (services ?? [])
+          .filter((s) => environment !== undefined && s.resource?.scope === environment)
+          .map((s) => [s.resource?.name ?? "", s] as const),
+      ),
+    [services, environment],
+  );
+}
+
 /** What useApps gives: the apps, and how reading them goes. */
 export interface Apps {
   /** The apps, or undefined until both the services and the websites are read. */

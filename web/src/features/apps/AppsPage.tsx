@@ -62,6 +62,7 @@ import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
 import { ReadFailed } from "../shell/ReadFailed";
+import { RefLink } from "../shell/RefLink";
 import { useServicesWatch } from "./ServicesLive";
 
 /** The list's place, in its URL: its filters. */
@@ -878,14 +879,30 @@ function RunsOn({ service }: { service: ServiceInfo }) {
   }
   return (
     <code className="apps-servers apps-clip" title={names.join(", ")}>
-      {names.join(", ")}
+      {service.deployments.map((d, i) => (
+        <span key={d.serverId}>
+          {i > 0 ? ", " : null}
+          <RefLink kind="server" id={d.serverId} look="plain">
+            {d.serverName}
+          </RefLink>
+        </span>
+      ))}
     </code>
   );
 }
 
 function StackServers({ group }: { group: AppGroup }) {
-  const names = [...new Set(group.services.flatMap((s) => s.deployments.map((d) => d.serverName)))];
-  if (names.length === 1) return <code className="apps-servers apps-clip">{names[0]}</code>;
+  const servers = new Map(group.services.flatMap((s) => s.deployments.map((d) => [d.serverId, d.serverName] as const)));
+  const names = [...new Set(servers.values())];
+  const [only] = [...servers];
+  if (servers.size === 1 && only)
+    return (
+      <code className="apps-servers apps-clip">
+        <RefLink kind="server" id={only[0]} look="plain">
+          {only[1]}
+        </RefLink>
+      </code>
+    );
   const count = names.length;
   return <span title={names.join(", ")}>{plural(count, { one: "# server", other: "# servers" })}</span>;
 }

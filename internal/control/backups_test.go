@@ -400,7 +400,8 @@ func testAFailedBackupShowsOnTheTimeline(t *testing.T, backend store.Backend) {
 	var actions []string
 	for _, e := range res.Msg.GetEvents() {
 		actions = append(actions, e.GetAction())
-		if e.GetKind() != dockwellv1.EventKind_EVENT_KIND_BACKUP || e.GetBackup().GetVolume() != "data" || e.GetBackup().GetServerName() != "hz-1" || e.GetActor() == nil {
+		if e.GetKind() != dockwellv1.EventKind_EVENT_KIND_BACKUP || e.GetBackup().GetVolume() != "data" || e.GetBackup().GetServerName() != "hz-1" ||
+			!strings.HasPrefix(e.GetBackup().GetServerId(), "srv_") || e.GetActor() == nil {
 			t.Errorf("event = %v", e)
 		}
 	}

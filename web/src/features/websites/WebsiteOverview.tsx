@@ -13,6 +13,7 @@ import { WatchAddress } from "../alerts/WatchAddress";
 import { useDomainState, useSilent } from "../apps/DomainNote";
 import { visitorUrl } from "../apps/domains";
 import { useHealthWords } from "../apps/Health";
+import { RefLink } from "../shell/RefLink";
 import { DomainPanel } from "./WebsiteConfiguration";
 import { useServesWords } from "./WebsiteFields";
 import { useWebsiteValue } from "./WebsiteLayout";
@@ -180,7 +181,15 @@ function WhatItServes({ kind }: { kind: ReturnType<typeof kindOf> }) {
       [t`What isn't a file`, p.filesOnly ? t`Gets a 404` : t`Goes to index.php`],
     );
   }
-  if (site.serverName) facts.push([t`Server`, <code key="s">{site.serverName}</code>]);
+  if (site.serverName)
+    facts.push([
+      t`Server`,
+      <code key="s">
+        <RefLink kind="server" id={site.serverId} look="plain">
+          {site.serverName}
+        </RefLink>
+      </code>,
+    ]);
   if (site.updateTime) facts.push([t`Changed`, formatDateTime(timestampDate(site.updateTime), i18n.locale)]);
   return (
     <Panel
