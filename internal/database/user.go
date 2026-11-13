@@ -426,7 +426,32 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 	if !f.user || f.owner == "" {
 		return nil, nil
 	}
+	// A PostgreSQL user that can't make things in its database's public schema reads
+	// as not given its password, so the next plan gives it anew, which puts that right.
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+		cant, err := d.cantMake(ctx, c, e, ref.Name, Owned(ref.Name, out))
+		if err != nil {
+			return nil, err
+		}
+		if cant {
+			out.Revisions = nil
+		}
+	}
 	return out, nil
+}
+
+// cantMake reports a PostgreSQL user that can't make things in its database's public
+// schema, as one made on a server before 15, or upgraded from one, has it.
+func (d *UserDriver) cantMake(ctx context.Context, c *docker.Container, e *Engine, user, db string) (bool, error) {
+	if err := checkNames(user, db); err != nil {
+		return false, err
+	}
+	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
+	said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, "\\connect "+pgName(db)+"\nSELECT "+pgCantMake(user)+";\n")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(said)) == "t", nil
 }
 
 // Apply makes a user and its database, gives it its password anew, or drops both.
@@ -565,6 +590,15 @@ func (d *UserDriver) Verify(ctx context.Context, ref resource.Ref, desired proto
 		return fmt.Errorf("%s has no database %s after it was made", u.GetService(), db)
 	case e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL && f.owner != ref.Name:
 		return fmt.Errorf("the database %s is %s's, not %s's", db, f.owner, ref.Name)
+	case e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
+		return nil
+	}
+	cant, err := d.cantMake(ctx, c, e, ref.Name, db)
+	if err != nil {
+		return err
+	}
+	if cant {
+		return fmt.Errorf("%s can't make tables in its database %s: its public schema belongs to the server, so the app may fail as it starts. Apply the change again to give it to %s", ref.Name, db, ref.Name)
 	}
 	return nil
 }
@@ -582,7 +616,9 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 		}
 		alter := "ALTER ROLE " + pgName(user) + " LOGIN PASSWORD '" + verifier + "';\n"
 		if !create {
-			return alter, nil
+			// Giving it its password anew gives it its public schema too, where it can't
+			// make things there.
+			return alter + pgOwnPublic(user, db), nil
 		}
 		// Each part is made only where it isn't yet, so a step that stopped halfway
 		// finishes. No one else may connect to the new database, as PUBLIC may to
@@ -591,15 +627,16 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 		// shared by several apps keeps each to its own (ADR 0084, which amends ADR
 		// 0038). Before 15, PUBLIC may also make things in template1's public schema,
 		// which every later database would copy, so that's taken away too, last, in
-		// template1 itself; and as the new database's public schema is then no one's
-		// to make things in but the server's administrator's, its owner owns it, as
-		// from 15 a database's owner does. An owner keeps what it owns.
+		// template1 itself. Wherever the new database's public schema is then no
+		// one's to make things in but the server's administrator's, as before 15, or
+		// after an upgrade from before 15, its owner owns it, as from 15 a database's
+		// owner does. An owner keeps what it owns.
 		return "SELECT 'CREATE ROLE " + pgName(user) + " LOGIN' WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '" + user + "')\n\\gexec\n" +
 			alter +
 			"SELECT 'CREATE DATABASE " + pgName(db) + " OWNER " + pgName(user) + "' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = '" + db + "')\n\\gexec\n" +
 			"REVOKE ALL ON DATABASE " + pgName(db) + " FROM PUBLIC;\n" +
 			"SELECT format('REVOKE CONNECT ON DATABASE %I FROM PUBLIC', datname) FROM pg_database WHERE (NOT datistemplate OR datname = 'template1') AND datname <> '" + db + "'\n\\gexec\n" +
-			pgOldPublic(user, db), nil
+			pgOwnPublic(user, db) + pgOldPublic, nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB:
 		identified := "IDENTIFIED BY PASSWORD '" + mysqlNative(password) + "'"
 		if !create {
@@ -622,15 +659,30 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 	return "", fmt.Errorf("%s has no users of its own", e.Name)
 }
 
-// pgOldPublic, on a server before 15, gives user db's public schema, where only the
-// server's administrator may make things once template1's is closed to PUBLIC, as
-// from 15 a database's owner has it, and closes it and template1's to PUBLIC, where
-// they're open. It connects to each database, so it comes last.
-func pgOldPublic(user, db string) string {
-	return "SELECT current_setting('server_version_num')::int < 150000 AS dw_old_public\n\\gset\n" +
-		"\\if :dw_old_public\n\\connect " + pgName(db) + "\nALTER SCHEMA public OWNER TO " + pgName(user) + ";\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n" +
-		"\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n"
+// pgOwnPublic gives user db's public schema wherever it can't make things there: on
+// a server before 15 once template1's is closed to PUBLIC, which each later database
+// copies, or on one upgraded from before 15, whose public schemas are the server
+// administrator's. It's what from 15 a new database's owner has, and it's closed to
+// PUBLIC. It decides on what the schema allows, not the version, so a database
+// made before this came is put right the next time its user is applied. It leaves
+// the session in db.
+func pgOwnPublic(user, db string) string {
+	return "\\connect " + pgName(db) + "\n" +
+		"SELECT format('ALTER SCHEMA public OWNER TO %I', '" + user + "') WHERE " + pgCantMake(user) + "\n\\gexec\n" +
+		"SELECT 'REVOKE CREATE ON SCHEMA public FROM PUBLIC' WHERE to_regnamespace('public') IS NOT NULL\n\\gexec\n"
 }
+
+// pgCantMake is true where the database the session is in has a public schema user
+// can't make things in.
+func pgCantMake(user string) string {
+	return "CASE WHEN to_regnamespace('public') IS NULL THEN false ELSE NOT has_schema_privilege('" + user + "', 'public', 'CREATE') END"
+}
+
+// pgOldPublic, on a server before 15, closes template1's public schema to PUBLIC,
+// where it's open, as every later database copies it. It connects to template1, so
+// it comes last.
+const pgOldPublic = "SELECT current_setting('server_version_num')::int < 150000 AS dw_old_public\n\\gset\n" +
+	"\\if :dw_old_public\n\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n"
 
 // myCreate makes a MySQL or MariaDB user who can do anything in a new database, or
 // finishes one a step began. A grant reads _ in a database's name as any character,

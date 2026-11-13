@@ -55,6 +55,9 @@ type fakePostgres struct {
 	superuser bool
 	shell     bool
 	onLoad    func()
+	// closed are the databases whose public schema their owner can't make things in,
+	// as on a server before 15 once template1 was closed, or one upgraded from it.
+	closed map[string]bool
 }
 
 // fakeLoad is how a load ran: its environment and the arguments after its script.
@@ -68,6 +71,7 @@ var (
 	fakeCreateDB   = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)" OWNER "([a-z0-9_]+)"'`)
 	fakeAsk        = regexp.MustCompile(`'user', EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = '([a-z0-9_]+)'\), 'owner', coalesce\(\(SELECT pg_get_userbyid\(datdba\) FROM pg_database WHERE datname = '([a-z0-9_]+)'`)
 	fakeDropDB     = regexp.MustCompile(`DROP DATABASE IF EXISTS "([a-z0-9_]+)"`)
+	fakeConnect    = regexp.MustCompile(`\\connect "([a-z0-9_]+)"`)
 	fakeDropRole   = regexp.MustCompile(`DROP ROLE IF EXISTS "([a-z0-9_]+)"`)
 	fakeOwner      = regexp.MustCompile(`json_build_object\('owner', r.rolname\) FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = '([a-z0-9_]+)'`)
 )
@@ -154,6 +158,14 @@ func (f *fakePostgres) exec(x dockertest.Exec) int {
 		f.starting--
 		_, _ = io.WriteString(x.Stderr, "psql: error: connection to server on socket \"/var/run/postgresql/.s.PGSQL.5432\" failed: FATAL:  the database system is shutting down\n")
 		return 2
+	}
+	if m := fakeConnect.FindStringSubmatch(sql); m != nil && strings.Contains(sql, "has_schema_privilege(") {
+		if strings.Contains(sql, "format('ALTER SCHEMA public OWNER TO") {
+			delete(f.closed, m[1])
+		} else {
+			_, _ = io.WriteString(x.Stdout, map[bool]string{true: "t", false: "f"}[f.closed[m[1]]]+"\n")
+			return 0
+		}
 	}
 	if m := fakeOwner.FindStringSubmatch(sql); m != nil {
 		_, _ = io.WriteString(x.Stdout, `{"owner":"`+f.databases[m[1]]+`"}`+"\n")
@@ -651,5 +663,35 @@ func TestTheAgentChecksANameBeforeItsSQL(t *testing.T) {
 	}
 	if len(pg.said) != 0 {
 		t.Errorf("PostgreSQL was given %q", pg.said)
+	}
+}
+
+// A user whose database's public schema it can't make things in, as #596 left one on
+// a server before 15, fails its check, saying how to put it right, reads as needing
+// its password anew, and is put right by that (ADR 0084).
+func TestAUserWhosePublicSchemaIsClosedIsPutRight(t *testing.T) {
+	d, pg, _ := userStand(t)
+	if err := makeUser(t.Context(), d, "shop"); err != nil {
+		t.Fatal(err)
+	}
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	desired := &resourcev1.DatabaseUser{Service: "db", Password: "SHOP_DATABASE_PASSWORD", Revisions: map[string]int64{passwordUse: 3}}
+	pg.mu.Lock()
+	pg.closed = map[string]bool{"shop": true}
+	pg.mu.Unlock()
+	err := d.Verify(t.Context(), ref, desired)
+	if err == nil || !strings.Contains(err.Error(), "shop can't make tables in its database shop: its public schema belongs to the server") || !strings.Contains(err.Error(), "Apply the change again to give it to shop") {
+		t.Errorf("checking it = %v", err)
+	}
+	if got, err := d.Observe(t.Context(), ref); err != nil || got == nil || len(got.(*resourcev1.DatabaseUser).GetRevisions()) != 0 {
+		t.Errorf("it reads as %v, %v, want no password given", got, err)
+	}
+	step := resource.Step{Ref: ref, Action: resource.ActionUpdate}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+	if err := d.Apply(ctx, step, desired); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Verify(t.Context(), ref, desired); err != nil {
+		t.Errorf("given its password anew, it checks as %v", err)
 	}
 }

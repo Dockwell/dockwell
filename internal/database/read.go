@@ -193,8 +193,12 @@ var ErrStarting = errors.New("isn't taking connections yet")
 // connections yet.
 func startingUp(said string) bool {
 	lower := strings.ToLower(said)
-	// PostgreSQL's image starts it on an empty volume, stops it and starts it again.
-	for _, words := range []string{"error 2002", "error 2013", "the database system is starting up", "the database system is shutting down", "not yet accepting connections", "connection refused", "can't connect to local"} {
+	// PostgreSQL's image starts it on an empty volume, stops it and starts it again,
+	// ending what was connected to the server it set up with.
+	for _, words := range []string{
+		"error 2002", "error 2013", "the database system is starting up", "the database system is shutting down", "not yet accepting connections",
+		"connection refused", "can't connect to local", "terminating connection due to administrator command", "server closed the connection unexpectedly",
+	} {
 		if strings.Contains(lower, words) {
 			return true
 		}

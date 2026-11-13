@@ -172,7 +172,7 @@ jobs:
         run: |
           for v in 14 17; do
             grep -q -- "--- PASS: TestTwoAppsShareAPostgresOnRealDocker/postgres:$v-alpine" "$RUNNER_TEMP/docker.out" || {
-              echo "TestTwoAppsShareAPostgresOnRealDocker didn't pass on postgres:$v-alpine"
+              echo "TestTwoAppsShareAPostgresOnRealDocker didn't pass on postgres:$v-alpine, so a shared PostgreSQL $v may refuse an app its own tables. Read its output in Tests against Docker above."
               exit 1
             }
           done

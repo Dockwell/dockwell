@@ -19,7 +19,10 @@ import (
 // user and a database, and each makes a table in its own database's public schema,
 // while neither connects to the other's, nor makes anything in template1, which every
 // later database is made from (ADR 0084). Before 15, closing template1's public schema
-// to PUBLIC left each later database's public schema closed to its own owner.
+// to PUBLIC left each later database's public schema closed to its own owner, and a
+// server upgraded from before 15 keeps template1's that way: each new database's is
+// given to its user as it's made, and one made closed before that fails its check,
+// and is put right when its user is applied again.
 func TestTwoAppsShareAPostgresOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	for _, image := range []string{"postgres:14-alpine", "postgres:17-alpine"} {
@@ -42,13 +45,6 @@ func TestTwoAppsShareAPostgresOnRealDocker(t *testing.T) {
 				t.Fatal(err)
 			}
 			d := &UserDriver{Client: client, Dir: t.TempDir(), Wait: 2 * time.Minute, Every: time.Second}
-			for _, app := range []string{"shop", "blog"} {
-				step := resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: env, Name: app}, Action: resource.ActionCreate}
-				ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-for-" + app})
-				if err := d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", Password: strings.ToUpper(app) + "_DATABASE_PASSWORD"}); err != nil {
-					t.Fatalf("making %s's user: %v", app, err)
-				}
-			}
 			// psql as a user, on the server's own socket, which signs anyone in: what
 			// each may do is its roles', not how it signed in.
 			as := func(user, db, sql string) (string, bool) {
@@ -61,6 +57,32 @@ func TestTwoAppsShareAPostgresOnRealDocker(t *testing.T) {
 				}
 				return strings.TrimSpace(errs.String() + out.String()), code == 0
 			}
+			admin := func(db, sql string) {
+				t.Helper()
+				var said string
+				ok := false
+				// The image's first start ends with its setup server stopping.
+				for range 60 {
+					if said, ok = as("postgres", db, sql); ok {
+						return
+					}
+					time.Sleep(time.Second)
+				}
+				t.Fatalf("%s: %s", sql, said)
+			}
+			// template1's public schema as the server's own and closed, as #596 left it
+			// before 15, and as an upgrade from before 15 leaves it.
+			admin("template1", "ALTER SCHEMA public OWNER TO postgres; REVOKE CREATE ON SCHEMA public FROM PUBLIC")
+			apply := func(app string, action resource.Action) error {
+				step := resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: env, Name: app}, Action: action}
+				ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-for-" + app})
+				return d.Apply(ctx, step, &resourcev1.DatabaseUser{Service: "db", Password: strings.ToUpper(app) + "_DATABASE_PASSWORD"})
+			}
+			for _, app := range []string{"shop", "blog"} {
+				if err := apply(app, resource.ActionCreate); err != nil {
+					t.Fatalf("making %s's user: %v", app, err)
+				}
+			}
 			for _, app := range []string{"shop", "blog"} {
 				if said, ok := as(app, app, "CREATE TABLE posts (id integer)"); !ok {
 					t.Errorf("%s can't make a table in its own database: %s", app, said)
@@ -71,6 +93,24 @@ func TestTwoAppsShareAPostgresOnRealDocker(t *testing.T) {
 			}
 			if said, ok := as("shop", "template1", "SELECT 1"); ok || !strings.Contains(said, "permission denied") {
 				t.Errorf("shop connects to template1: %s", said)
+			}
+
+			// shop's database as #596 made it before 15: its check says so, and applying
+			// its user again puts it right.
+			admin("shop", "ALTER SCHEMA public OWNER TO postgres; REVOKE CREATE ON SCHEMA public FROM PUBLIC")
+			ref := resource.Ref{Kind: UserKind, Scope: env, Name: "shop"}
+			desired := &resourcev1.DatabaseUser{Service: "db", Password: "SHOP_DATABASE_PASSWORD"}
+			if err := d.Verify(t.Context(), ref, desired); err == nil || !strings.Contains(err.Error(), "shop can't make tables in its database shop") {
+				t.Errorf("checking shop with its public schema closed = %v", err)
+			}
+			if err := apply("shop", resource.ActionUpdate); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.Verify(t.Context(), ref, desired); err != nil {
+				t.Errorf("applied again, shop checks as %v", err)
+			}
+			if said, ok := as("shop", "shop", "CREATE TABLE comments (id integer)"); !ok {
+				t.Errorf("applied again, shop can't make a table: %s", said)
 			}
 		})
 	}

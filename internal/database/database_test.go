@@ -320,11 +320,12 @@ func TestMakingAUserKeepsThePasswordOutOfWhatServersLog(t *testing.T) {
 		"SELECT 'CREATE DATABASE \"shop\" OWNER \"shop\"' WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'shop')\n\\gexec\n",
 		"REVOKE ALL ON DATABASE \"shop\" FROM PUBLIC;\n",
 		// No one else connects to template1, which every later database is made from,
-		// and before 15 no one makes anything in its public schema (#595), but the new
-		// database's owner owns its own, as from 15.
+		// and before 15 no one makes anything in its public schema (#595); the new
+		// database's owner owns its own wherever it can't make things there, whatever
+		// the version, as from 15.
 		"WHERE (NOT datistemplate OR datname = 'template1') AND datname <> 'shop'\n\\gexec\n",
-		"\\if :dw_old_public\n\\connect \"shop\"\nALTER SCHEMA public OWNER TO \"shop\";\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n" +
-			"\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n",
+		"\\connect \"shop\"\nSELECT format('ALTER SCHEMA public OWNER TO %I', 'shop') WHERE CASE WHEN to_regnamespace('public') IS NULL THEN false ELSE NOT has_schema_privilege('shop', 'public', 'CREATE') END\n\\gexec\n",
+		"\\if :dw_old_public\n\\connect template1\nREVOKE CREATE ON SCHEMA public FROM PUBLIC;\n\\endif\n",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Errorf("PostgreSQL is given %q, without %q", sql, want)
