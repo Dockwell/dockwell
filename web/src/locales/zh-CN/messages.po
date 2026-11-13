@@ -6843,10 +6843,6 @@ msgstr "添加其他来源"
 msgid "Add {0}"
 msgstr "添加 {0}"
 
-msgctxt "catalog store"
-msgid "Added"
-msgstr "已添加"
-
 msgid "An app store, or any public Git repository"
 msgstr "应用商店，或任意公开 Git 仓库"
 
@@ -6980,6 +6976,10 @@ msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
 
 msgid "{short} (tag)"
 msgstr "{short}（标签）"
+
+msgctxt "catalog store"
+msgid "Added"
+msgstr "已添加"
 
 msgid "As counted at {at}"
 msgstr "统计于 {at}"

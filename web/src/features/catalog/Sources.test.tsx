@@ -1113,6 +1113,9 @@ describe("Other stores' catalogs", () => {
     expect(within(added).getByText("Added")).toBeVisible();
     expect(within(added).getByText("72 of 269 apps install")).toBeVisible();
     expect(within(added).queryByRole("button", { name: /^Add/ })).toBeNull();
+    // One action to a tile: Add, or the way to the source that reads it.
+    for (const tile of within(gallery).getAllByRole("listitem"))
+      expect(within(tile).getAllByRole("button")).toHaveLength(1);
     await user.click(within(added).getByRole("button", { name: "Go to 1Panel" }));
     expect(scrolled).toHaveBeenCalled();
     expect(screen.getByRole("heading", { name: "1Panel" })).toHaveFocus();

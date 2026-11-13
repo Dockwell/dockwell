@@ -31,7 +31,7 @@ import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import { AppIcon } from "./media";
 import { converted, FormatLine, LeftOut, repositoryKey, useFormatWords } from "./SourceFormats";
-import { StoreFacts, StoreGallery, StoreMark, storeSourceName, useStoreName, useStores } from "./Stores";
+import { StoreGallery, StoreMark, StoreTile, storeSourceName, useStoreName, useStores } from "./Stores";
 import { monogram, useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
@@ -741,21 +741,14 @@ export function SourceSheet({
               <Trans>App stores</Trans>
             </legend>
             <ul className="sources-pick-list">
-              {stores.map((store) => {
-                const added = store.source !== "";
-                return (
-                  <li key={store.id} className="store-tile">
-                    <StoreMark id={store.id} name={store.label} size={32} />
-                    <span className="store-tile-words">
-                      <span className="store-tile-name">{storeName(store)}</span>
-                      <StoreFacts store={store} />
-                    </span>
-                    {added ? (
-                      <span className="store-added">
-                        <Icon name="check" size={14} />
-                        <Trans context="catalog store">Added</Trans>
-                      </span>
-                    ) : (
+              {stores.map((store) => (
+                <StoreTile
+                  key={store.id}
+                  store={store}
+                  small
+                  // An added store says so in its line; the page's card is the way to it.
+                  action={
+                    store.source ? undefined : (
                       <Button
                         size="sm"
                         icon="plus"
@@ -764,10 +757,10 @@ export function SourceSheet({
                       >
                         <Trans context="catalog store">Add</Trans>
                       </Button>
-                    )}
-                  </li>
-                );
-              })}
+                    )
+                  }
+                />
+              ))}
             </ul>
           </fieldset>
         ) : null}

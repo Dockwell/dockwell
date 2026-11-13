@@ -6,7 +6,7 @@ import { CatalogService, type CatalogSourceInfo, type CatalogStore } from "@dock
 import { Button, cx, Icon } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useStoreFormatWords } from "./SourceFormats";
@@ -67,12 +67,21 @@ export function useAddStore(sources: readonly CatalogSourceInfo[]): (store: Cata
     });
 }
 
-/** What a store brings, in a line: how many of its apps install, and its licence. */
+/**
+ * What a store brings, in a line: that a source reads it, where one does, how many of
+ * its apps install, and its licence, which never wraps.
+ */
 export function StoreFacts({ store }: { store: CatalogStore }) {
   const { t } = useLingui();
   const at = store.commit.slice(0, 12);
   return (
     <span className="store-facts">
+      {store.source ? (
+        <span className="store-added">
+          <Icon name="check" size={12} />
+          <Trans context="catalog store">Added</Trans>
+        </span>
+      ) : null}
       <span title={store.live ? t`As read at ${at}` : t`As counted at ${at}`}>
         {store.live
           ? plural(store.apps, {
@@ -86,6 +95,32 @@ export function StoreFacts({ store }: { store: CatalogStore }) {
       </span>
       <span className="store-licence">{store.license}</span>
     </span>
+  );
+}
+
+/**
+ * One store, as a tile: its mark, its name on a line of its own, what it brings under
+ * it, and at most one action at the end, the same height as every tile in its row.
+ */
+export function StoreTile({
+  store,
+  action,
+  small = false,
+}: {
+  store: CatalogStore;
+  action?: ReactNode;
+  small?: boolean;
+}) {
+  const named = useStoreName();
+  return (
+    <li className="store-tile">
+      <StoreMark id={store.id} name={store.label} size={small ? 32 : 40} />
+      <span className="store-tile-words">
+        <span className="store-tile-name">{named(store)}</span>
+        <StoreFacts store={store} />
+      </span>
+      {action ? <span className="store-tile-action">{action}</span> : null}
+    </li>
   );
 }
 
@@ -118,18 +153,11 @@ export function StoreGallery({
       </h2>
       <ul className="store-tiles">
         {list.map((store) => (
-          <li key={store.id} className="store-tile">
-            <StoreMark id={store.id} name={store.label} />
-            <span className="store-tile-words">
-              <span className="store-tile-name">{named(store)}</span>
-              <StoreFacts store={store} />
-            </span>
-            {store.source ? (
-              <span className="store-tile-added">
-                <span className="store-added">
-                  <Icon name="check" size={14} />
-                  <Trans context="catalog store">Added</Trans>
-                </span>
+          <StoreTile
+            key={store.id}
+            store={store}
+            action={
+              store.source ? (
                 <Button
                   size="sm"
                   variant="ghost"
@@ -139,13 +167,13 @@ export function StoreGallery({
                 >
                   <Trans context="catalog store">Go to it</Trans>
                 </Button>
-              </span>
-            ) : (
-              <Button size="sm" icon="plus" aria-label={t`Add ${named(store)}`} {...off} onClick={() => add(store)}>
-                <Trans context="catalog store">Add</Trans>
-              </Button>
-            )}
-          </li>
+              ) : (
+                <Button size="sm" icon="plus" aria-label={t`Add ${named(store)}`} {...off} onClick={() => add(store)}>
+                  <Trans context="catalog store">Add</Trans>
+                </Button>
+              )
+            }
+          />
         ))}
       </ul>
     </section>

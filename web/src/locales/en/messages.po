@@ -6843,10 +6843,6 @@ msgstr "Add another source"
 msgid "Add {0}"
 msgstr "Add {0}"
 
-msgctxt "catalog store"
-msgid "Added"
-msgstr "Added"
-
 msgid "An app store, or any public Git repository"
 msgstr "An app store, or any public Git repository"
 
@@ -6980,6 +6976,10 @@ msgstr "{count, plural, one {Read. It has # branch or tag.} other {Read. It has 
 
 msgid "{short} (tag)"
 msgstr "{short} (tag)"
+
+msgctxt "catalog store"
+msgid "Added"
+msgstr "Added"
 
 msgid "As counted at {at}"
 msgstr "As counted at {at}"

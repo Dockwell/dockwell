@@ -48,17 +48,20 @@
   font-weight: 550;
 }
 
+/* Every tile in a row as wide and as tall as the others, the row filled, however many stores there are. */
 .store-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Its mark, its name on a line of its own and what it brings under it, and one action at the end. */
 .store-tile {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
@@ -70,16 +73,14 @@
 
 .store-tile-words {
   display: grid;
-  flex: 1 1 auto;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
 .store-tile-name {
-  overflow: hidden;
   font-weight: 550;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 20px;
+  overflow-wrap: anywhere;
 }
 
 .store-facts {
@@ -89,52 +90,32 @@
   gap: 2px var(--space-2);
   color: var(--ink-muted);
   font-size: 12px;
+  line-height: 18px;
 }
 
 .store-licence {
+  flex: none;
   padding: 0 6px;
   border: 1px solid var(--line);
   border-radius: var(--radius-xs);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 18px;
-}
-
-.store-tile-added {
-  display: inline-flex;
-  flex: none;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1);
+  white-space: nowrap;
 }
 
 .store-added {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   color: var(--healthy);
-  font-size: 13px;
   font-weight: 500;
+  white-space: nowrap;
 }
 
-.store-tile > .dw-btn {
+.store-tile-action {
+  display: inline-flex;
   flex: none;
-}
-
-/* On a phone, a store's name and what it brings take the line, and its action goes under them, at the end. */
-@media (max-width: 639.98px) {
-  .store-gallery .store-tile {
-    flex-wrap: wrap;
-  }
-
-  .store-gallery .store-tile-words {
-    flex-basis: calc(100% - 52px);
-  }
-
-  .store-gallery .store-tile-added,
-  .store-gallery .store-tile > .dw-btn {
-    margin-left: auto;
-  }
+  justify-self: end;
 }
