@@ -4,14 +4,17 @@ package catalogapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	catalogv1 "github.com/dockwell/dockwell/gen/dockwell/catalog/v1alpha1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/catalog/convert"
 	"github.com/dockwell/dockwell/internal/gitfetch/gitfetchtest"
 )
@@ -132,5 +135,42 @@ func TestALeftOutReasonIsCut(t *testing.T) {
 	got := cut(long, maxReason)
 	if r := []rune(got); len(r) != maxReason || !strings.HasSuffix(got, "…") || strings.ContainsAny(got, "\n\r") {
 		t.Errorf("a long reason is cut to %d characters: %q", len(r), got[:40])
+	}
+}
+
+// A store's commit dated after now follows the release of what's kept of the source's
+// commit before, as that one may have counted from now in the same second, so the later
+// commit's entries are an upgrade (#640).
+func TestACommitDatedAfterNowFollowsWhatsKept(t *testing.T) {
+	repo := gitfetchtest.New(t)
+	head := repo.CommitAt(time.Now().Add(time.Hour), map[string]string{
+		"LICENSE":                       "                                 Apache License\n                           Version 2.0, January 2004\n",
+		"templates/compose/my-app.yaml": "# slogan: An app.\n# port: 80\nservices:\n  web:\n    image: nginx:1.27\n",
+	})
+	spec := &resourcev1.CatalogSource{Repository: repo.URL, Commit: head, Format: resourcev1.CatalogFormat_CATALOG_FORMAT_COOLIFY}
+	s := &Sources{Dir: t.TempDir(), Client: gitfetchtest.Client()}
+	store, _ := convert.StoreOf(formatOf(spec))
+	// The commit before, read a moment ago, counted from now, as this one will.
+	before := uint32(time.Now().Unix()) + 5
+	raw, err := json.Marshal(leftOutRecord{Format: store.Format, Version: convert.Version, Release: before})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, _ := s.folders(&resourcev1.CatalogSource{Repository: spec.GetRepository(), Commit: strings.Repeat("a", 40), Format: spec.GetFormat()})
+	keep(kept, commitFiles{entries: map[string][]byte{}, leftOut: raw}, nil)
+
+	files, err := s.files(t.Context(), spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := catalog.Decode(files.entries["my-app.yaml"])
+	if err != nil {
+		t.Fatalf("the app didn't convert: %v; left out %s", err, files.leftOut)
+	}
+	if e.GetRelease() != before+1 {
+		t.Errorf("after release %d, the commit's entry has release %d", before, e.GetRelease())
+	}
+	if rec, ok := readLeftOut(files.leftOut, formatOf(spec)); !ok || rec.Release != before+1 {
+		t.Errorf("what's kept of the commit says release %d (%t), which the next one follows", rec.Release, ok)
 	}
 }
