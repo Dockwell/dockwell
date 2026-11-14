@@ -22,6 +22,10 @@ func (s *Session) ReadsPanels() bool { return s.readsPanels }
 // containers as a step of a change.
 func (s *Session) StopsPanels() bool { return s.stopsPanels }
 
+// ReadsPanelsStrictly reports an agent whose read of a panel's domains fails
+// closed: a domain comes over only where all that could guard it was read.
+func (s *Session) ReadsPanelsStrictly() bool { return s.readsPanelsStrictly }
+
 // ReadPanel asks the agent what a panel runs on its server, read-only, from Docker
 // and the panel's folders.
 func (s *Session) ReadPanel(ctx context.Context, kind dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error) {

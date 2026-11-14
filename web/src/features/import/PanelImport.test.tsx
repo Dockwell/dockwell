@@ -89,6 +89,7 @@ const handover = create(ChangeSchema, {
   plan: {
     fingerprint: "1a2b3c4d5e6f708192a3b4c5d6e7f809",
     hostAccess: true,
+    notes: [{ reason: "panel_domains_unguarded", message: "", names: ["blog.example.com"] }],
     resources: [
       { id: "res_host", resource: host, action: PlanAction.UPDATE, servers: ["srv_1"], panel: proxy },
       { id: "res_route", resource: route, action: PlanAction.CREATE, servers: ["srv_1"] },
@@ -132,6 +133,8 @@ describe("moving in from Coolify", () => {
       expect(sheet).toHaveTextContent("Stop coolify-proxy on hz-1, so Dockwell takes ports 80 and 443"),
     );
     expect(sheet).toHaveTextContent("its domains come as the routes below");
+    expect(sheet).toHaveTextContent("No login or address limit found on the old proxy");
+    expect(sheet).toHaveTextContent("blog.example.com");
     expect(sheet).toHaveTextContent("Undo for");
   });
 

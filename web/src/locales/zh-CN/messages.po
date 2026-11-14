@@ -9053,6 +9053,9 @@ msgstr "没有做过备份,数据保持现状"
 msgid "No branch or tag is at this commit now"
 msgstr "当前没有分支或标签指向这个提交"
 
+msgid "No login or address limit found on the old proxy"
+msgstr "在旧代理上未发现登录或地址限制"
+
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"

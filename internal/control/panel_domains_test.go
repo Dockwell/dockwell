@@ -16,6 +16,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/panels"
@@ -154,7 +155,8 @@ func TestHandingOverAPanelsDomains(t *testing.T) {
 		t.Fatal(err)
 	}
 	if change.GetSummary() != "Hand over Coolify's domains on hz-1" || !noteSays(change, "panel_domains", "Stops coolify-proxy, which holds ports 80 and 443 for Coolify") ||
-		!noteSays(change, "panel_domains", "These stop answering, as nothing in Dockwell serves them: wiki.example.com and coolify.example.com") {
+		!noteSays(change, "panel_domains", "These stop answering, as nothing in Dockwell serves them: wiki.example.com and coolify.example.com") ||
+		!noteSays(change, "panel_domains_unguarded", "No login or address limit found on the old proxy: blog.example.com") {
 		t.Errorf("the handover reads %q, %v", change.GetSummary(), change.GetPlan().GetNotes())
 	}
 	var kinds []string
@@ -308,5 +310,23 @@ func TestAGuardedPathKeepsItsDomainBehind(t *testing.T) {
 	}
 	if len(ing.routes) != 0 {
 		t.Errorf("routes were made: %v", ing.routes)
+	}
+	// The Move in page says the same as the plan: neither path comes.
+	read, err := ic.ImportCoolify(t.Context(), connect.NewRequest(&dockwellv1.ImportCoolifyRequest{ServerId: id, SkipPlan: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"IMPORT_KIND_DOMAIN app.example.com", "IMPORT_KIND_DOMAIN app.example.com/admin"} {
+		if s := panelSteps(read.Msg)[name]; s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE {
+			t.Errorf("the report has %s as %v", name, s)
+		}
+	}
+
+	// An agent from before the strict reader hands over no domain.
+	old := f.addOnePanelServer(t, t.TempDir(), func(h *agentv1.Hello) {
+		h.ReadsPanels, h.StopsPanels, h.ReadsPanelsStrictly, h.Forwards = true, true, false, true
+	}).id.ServerID
+	if _, err := ic.PlanPanelDomains(t.Context(), connect.NewRequest(&dockwellv1.PlanPanelDomainsRequest{ServerId: old, Panel: dockwellv1.PanelKind_PANEL_KIND_COOLIFY})); reasonOf(err) != "agent_outdated" {
+		t.Errorf("a handover through an agent from before the strict reader = %v", err)
 	}
 }

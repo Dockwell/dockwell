@@ -40,6 +40,12 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dynamic, "shop-k2m4.yml"), []byte(file), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Its Traefik's static configuration, as Dokploy's installer writes it, which
+	// guards no domain, as the strict reader checks before any comes over.
+	static := "entryPoints:\n  web:\n    address: :80\n  websecure:\n    address: :443\n    http:\n      tls:\n        certResolver: letsencrypt\n"
+	if err := os.WriteFile(filepath.Join(root, "etc", "dokploy", "traefik", "traefik.yml"), []byte(static), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	f.panelsRoot = root
 	later := &laterStopper{}
 	ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}

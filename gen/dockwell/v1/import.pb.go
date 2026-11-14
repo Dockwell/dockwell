@@ -896,7 +896,12 @@ type Panel struct {
 	Own []*PanelContainer `protobuf:"bytes,6,rep,name=own,proto3" json:"own,omitempty"`
 	// The domains the panel's proxy routes from its own files, such as the panel's
 	// own dashboard: what stops answering when the proxy hands over its ports.
-	Domains       []string `protobuf:"bytes,7,rep,name=domains,proto3" json:"domains,omitempty"`
+	Domains []string `protobuf:"bytes,7,rep,name=domains,proto3" json:"domains,omitempty"`
+	// Why no domain comes over as a route, where something that could guard every
+	// domain at once can't be read in full or guards one: the proxy's static
+	// configuration, such as a middleware on an entrypoint, or one of its own
+	// files. Empty where Dockwell read all of it and found nothing.
+	ProxyLeft     string `protobuf:"bytes,8,opt,name=proxy_left,json=proxyLeft,proto3" json:"proxy_left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -978,6 +983,13 @@ func (x *Panel) GetDomains() []string {
 		return x.Domains
 	}
 	return nil
+}
+
+func (x *Panel) GetProxyLeft() string {
+	if x != nil {
+		return x.ProxyLeft
+	}
+	return ""
 }
 
 // PanelApp is something a panel runs for people: an app, a service from its
@@ -2779,7 +2791,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x15ImportDokployResponse\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12-\n" +
 	"\x05steps\x18\x02 \x03(\v2\x17.dockwell.v1.ImportStepR\x05steps\x12+\n" +
-	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xfe\x01\n" +
+	"\x06change\x18\x03 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9d\x02\n" +
 	"\x05Panel\x12*\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x16.dockwell.v1.PanelKindR\x04kind\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12#\n" +
@@ -2787,7 +2799,9 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06folder\x18\x04 \x01(\tR\x06folder\x12)\n" +
 	"\x04apps\x18\x05 \x03(\v2\x15.dockwell.v1.PanelAppR\x04apps\x12-\n" +
 	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\x12\x18\n" +
-	"\adomains\x18\a \x03(\tR\adomains\"\xd7\x03\n" +
+	"\adomains\x18\a \x03(\tR\adomains\x12\x1d\n" +
+	"\n" +
+	"proxy_left\x18\b \x01(\tR\tproxyLeft\"\xd7\x03\n" +
 	"\bPanelApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x18\n" +

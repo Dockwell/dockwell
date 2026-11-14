@@ -513,6 +513,11 @@ message Hello {
   // True when the agent stops and starts the own containers and services of
   // Coolify or Dokploy as a step of a change (DesiredResource.panel).
   bool stops_panels = 332;
+  // True when the agent reads a panel's domains strictly: a domain comes over as
+  // a route only where the proxy's static configuration, its own files and every
+  // field of its labels were read and found to guard nothing (Panel.proxy_left).
+  // The control plane hands over no domain through an agent that doesn't.
+  bool reads_panels_strictly = 334;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.

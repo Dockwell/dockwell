@@ -1989,6 +1989,11 @@ type Hello struct {
 	// True when the agent stops and starts the own containers and services of
 	// Coolify or Dokploy as a step of a change (DesiredResource.panel).
 	StopsPanels bool `protobuf:"varint,332,opt,name=stops_panels,json=stopsPanels,proto3" json:"stops_panels,omitempty"`
+	// True when the agent reads a panel's domains strictly: a domain comes over as
+	// a route only where the proxy's static configuration, its own files and every
+	// field of its labels were read and found to guard nothing (Panel.proxy_left).
+	// The control plane hands over no domain through an agent that doesn't.
+	ReadsPanelsStrictly bool `protobuf:"varint,334,opt,name=reads_panels_strictly,json=readsPanelsStrictly,proto3" json:"reads_panels_strictly,omitempty"`
 	// What the agent keeps of what its server should run (ADR 0054), so the
 	// control plane sends what it lacks. An agent that sends none keeps nothing,
 	// and is sent nothing to keep.
@@ -2238,6 +2243,13 @@ func (x *Hello) GetReadsPanels() bool {
 func (x *Hello) GetStopsPanels() bool {
 	if x != nil {
 		return x.StopsPanels
+	}
+	return false
+}
+
+func (x *Hello) GetReadsPanelsStrictly() bool {
+	if x != nil {
+		return x.ReadsPanelsStrictly
 	}
 	return false
 }
@@ -14284,7 +14296,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\x8e\n" +
+	"\bDraining\"\xc3\n" +
 	"\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
@@ -14313,7 +14325,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x0fregistry_logins\x18\xba\x02 \x01(\bR\x0eregistryLogins\x12\"\n" +
 	"\fbuild_logins\x18\xbc\x02 \x01(\bR\vbuildLogins\x12\"\n" +
 	"\freads_panels\x18\xca\x02 \x01(\bR\vreadsPanels\x12\"\n" +
-	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x129\n" +
+	"\fstops_panels\x18\xcc\x02 \x01(\bR\vstopsPanels\x123\n" +
+	"\x15reads_panels_strictly\x18\xce\x02 \x01(\bR\x13readsPanelsStrictly\x129\n" +
 	"\adesired\x18\xa0\x01 \x01(\v2\x1e.dockwell.agent.v1.DesiredHeldR\adesired\x12\"\n" +
 	"\fown_settings\x18\xac\x02 \x01(\bR\vownSettings\x12\x15\n" +
 	"\x05links\x18\xa2\x02 \x01(\bR\x05links\x12\"\n" +

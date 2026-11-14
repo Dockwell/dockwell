@@ -276,6 +276,11 @@ message Panel {
   // The domains the panel's proxy routes from its own files, such as the panel's
   // own dashboard: what stops answering when the proxy hands over its ports.
   repeated string domains = 7;
+  // Why no domain comes over as a route, where something that could guard every
+  // domain at once can't be read in full or guards one: the proxy's static
+  // configuration, such as a middleware on an entrypoint, or one of its own
+  // files. Empty where Dockwell read all of it and found nothing.
+  string proxy_left = 8;
 }
 
 // PanelApp is something a panel runs for people: an app, a service from its

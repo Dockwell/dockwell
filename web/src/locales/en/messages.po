@@ -9053,6 +9053,9 @@ msgstr "No backup was taken, and the data stays as it is now"
 msgid "No branch or tag is at this commit now"
 msgstr "No branch or tag is at this commit now"
 
+msgid "No login or address limit found on the old proxy"
+msgstr "No login or address limit found on the old proxy"
+
 #. placeholder {0}: server.serverName
 msgid "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
