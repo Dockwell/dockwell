@@ -583,6 +583,9 @@ func remakesOf(a *dockwellv1.PanelApp) []composeapi.Remake {
 			break
 		}
 		m := composeapi.Remake{Container: a.GetTasks()[i], Service: name}
+		if i < len(a.GetRestarts()) {
+			m.Restart = a.GetRestarts()[i]
+		}
 		for _, p := range a.GetPublished() {
 			want := p.GetService()
 			if a.GetKind() != "stack" {

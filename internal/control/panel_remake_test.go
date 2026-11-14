@@ -79,6 +79,11 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	if copied == nil || !copied.State.Running {
 		t.Fatalf("Dockwell's copy is %v", copied)
 	}
+	// A Swarm task's container has no restart policy, as Swarm restarts it; the
+	// copy restarts as its service did.
+	if got := copied.HostConfig.RestartPolicy.Name; got != "unless-stopped" {
+		t.Errorf("Dockwell's copy restarts %q", got)
+	}
 	if b := copied.HostConfig.PortBindings["80/tcp"]; len(b) != 1 || b[0].HostPort != "8085" {
 		t.Errorf("Dockwell's copy publishes %v, not Dokploy's external port", copied.HostConfig.PortBindings)
 	}
@@ -135,7 +140,8 @@ func dokployShop(t *testing.T) shopOnDokploy {
 		{ID: "s2", Spec: shopSpec},
 	}
 	task := runByHand(t, e, "shop-k2m4.1.x7k2", func(r *docker.CreateRequest) {
-		r.HostConfig.PortBindings = nil
+		// A Swarm task's container has no restart policy: Swarm restarts it.
+		r.HostConfig.PortBindings, r.HostConfig.RestartPolicy = nil, docker.RestartPolicy{}
 		r.Labels = map[string]string{
 			"com.docker.swarm.service.name": "shop-k2m4", "com.docker.swarm.task.id": "x7k2",
 			"traefik.enable": "true",
@@ -205,9 +211,10 @@ func TestMakingADokployStackAgain(t *testing.T) {
 		{ID: "s2", Spec: swarmService("forum-q1_web", "nginx:1.26", labels)},
 		{ID: "s3", Spec: swarmService("forum-q1_db", "nginx:1.26", labels)},
 	}
+	e.Services[2].Spec.TaskTemplate.RestartPolicy.Condition = "on-failure"
 	for _, svc := range []string{"web", "db"} {
 		runByHand(t, e, "forum-q1_"+svc+".1.a"+svc, func(r *docker.CreateRequest) {
-			r.HostConfig.PortBindings = nil
+			r.HostConfig.PortBindings, r.HostConfig.RestartPolicy = nil, docker.RestartPolicy{}
 			r.Labels = map[string]string{"com.docker.swarm.service.name": "forum-q1_" + svc, "com.docker.stack.namespace": "forum-q1"}
 		})
 	}
@@ -243,6 +250,18 @@ func TestMakingADokployStackAgain(t *testing.T) {
 		}
 		if n, _ := svc.Spec.Mode.Replicas(); n != 0 {
 			t.Errorf("%s still runs %d", name, n)
+		}
+	}
+	// Each copy restarts as its service did: web as Swarm's default, db on failure.
+	for service, want := range map[string]string{"web": "unless-stopped", "db": "on-failure"} {
+		var policy string
+		for _, name := range e.Containers() {
+			if c := e.Container(name); c != nil && c.Config.Labels[docker.LabelService] == service && c.Config.Labels["com.docker.swarm.service.name"] == "" {
+				policy = c.HostConfig.RestartPolicy.Name
+			}
+		}
+		if policy != want {
+			t.Errorf("the copy of %s restarts %q, not %q", service, policy, want)
 		}
 	}
 }

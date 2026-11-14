@@ -17243,6 +17243,13 @@ components:
                     description: |-
                         The ports its Swarm services publish, which the copies made again in Dockwell
                          publish on the server.
+                restarts:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        When Swarm starts each of its services' tasks again, in the order of
+                         containers: "any", "on-failure" or "none". Its copy restarts the same way.
             description: |-
                 PanelApp is something a panel runs for people: an app, a service from its
                  templates, or a database.

@@ -636,6 +636,10 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 // whatever happens to the container, so it can't be taken on in place (ADR 0089).
 type Remake struct {
 	Container, Service string
+	// Restart is when its old manager started it again: Swarm's "any",
+	// "on-failure" or "none". A Swarm task's container has no restart policy of
+	// its own, as Swarm restarts it, so its copy takes this one.
+	Restart string
 	// Ports are what its old manager published for it, such as through Swarm's
 	// routing mesh, which the copy publishes on the server.
 	Ports []*resourcev1.PortMapping
@@ -683,6 +687,7 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		}
 		app := svc.GetApp()
 		remade(app)
+		app.Restart = restartFor(m.Restart)
 		for _, p := range m.Ports {
 			if !slices.ContainsFunc(app.GetPorts(), func(have *resourcev1.PortMapping) bool { return have.GetHostPort() == p.GetHostPort() }) {
 				app.Ports = append(app.Ports, p)
@@ -695,6 +700,19 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		})
 	}
 	return t, refused, nil
+}
+
+// restartFor is the restart policy a copy takes for its Swarm task's restart
+// condition: any restarts it whatever its exit, as unless-stopped does but where
+// a person stopped it; on-failure as it says; none never.
+func restartFor(condition string) resourcev1.RestartPolicy {
+	switch condition {
+	case "none":
+		return resourcev1.RestartPolicy_RESTART_POLICY_NO
+	case "on-failure":
+		return resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE
+	}
+	return resourcev1.RestartPolicy_RESTART_POLICY_UNLESS_STOPPED
 }
 
 // remade leaves out of a container's spec what only its old manager reads: Swarm's

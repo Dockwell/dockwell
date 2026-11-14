@@ -37,6 +37,11 @@ type ServiceSpec struct {
 			Image  string            `json:"Image"`
 			Labels map[string]string `json:"Labels"`
 		} `json:"ContainerSpec"`
+		// RestartPolicy is when Swarm starts a task again: Condition "any", the
+		// default, "on-failure" or "none".
+		RestartPolicy struct {
+			Condition string `json:"Condition,omitempty"`
+		} `json:"RestartPolicy"`
 	} `json:"TaskTemplate"`
 	Mode         ServiceMode `json:"Mode"`
 	EndpointSpec struct {

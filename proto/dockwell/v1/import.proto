@@ -273,6 +273,9 @@ message PanelApp {
   // The ports its Swarm services publish, which the copies made again in Dockwell
   // publish on the server.
   repeated PanelPort published = 16;
+  // When Swarm starts each of its services' tasks again, in the order of
+  // containers: "any", "on-failure" or "none". Its copy restarts the same way.
+  repeated string restarts = 17;
 }
 
 // PanelPort is a port a Swarm service publishes.

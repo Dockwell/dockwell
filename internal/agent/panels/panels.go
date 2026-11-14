@@ -166,6 +166,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 			}
 			a.Containers = append(a.Containers, s.Name)
 			a.Tasks = append(a.Tasks, tasks[s.Name])
+			a.Restarts = append(a.Restarts, restartOf(s))
 			a.Domains = append(a.Domains, domainsOf(l)...)
 			a.Published = append(a.Published, publishedOf(strings.TrimPrefix(s.Name, stack+"_"), s)...)
 			continue
@@ -175,7 +176,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		}
 		a := r.dokployApp(s.Name, engineOf(image), l)
 		a.Swarm, a.Image = true, image
-		a.Containers, a.Tasks = []string{s.Name}, []string{tasks[s.Name]}
+		a.Containers, a.Tasks, a.Restarts = []string{s.Name}, []string{tasks[s.Name]}, []string{restartOf(s)}
 		a.Published = publishedOf(s.Name, s)
 		a.Domains = append(domainsOf(l), r.dynamicDomains(s.Name)...)
 		apps[s.Name] = a
@@ -418,10 +419,20 @@ func sortWithTasks(a *dockwellv1.PanelApp) {
 	}
 	slices.SortStableFunc(order, func(i, j int) int { return strings.Compare(a.Containers[i], a.Containers[j]) })
 	names, tasks := make([]string, len(order)), make([]string, len(order))
+	restarts := make([]string, len(a.Restarts))
 	for to, from := range order {
 		names[to], tasks[to] = a.Containers[from], a.Tasks[from]
+		if len(restarts) == len(order) {
+			restarts[to] = a.Restarts[from]
+		}
 	}
-	a.Containers, a.Tasks = names, tasks
+	a.Containers, a.Tasks, a.Restarts = names, tasks, restarts
+}
+
+// restartOf is when Swarm starts a service's task again: "any" where its spec
+// doesn't say, as Swarm's default.
+func restartOf(s *docker.ServiceSpec) string {
+	return cmp.Or(s.TaskTemplate.RestartPolicy.Condition, "any")
 }
 
 // sorted are the apps by name, then ID, each with its containers and domains
