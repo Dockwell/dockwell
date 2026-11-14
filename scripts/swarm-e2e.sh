@@ -122,6 +122,11 @@ wait_until() {
   return 1
 }
 serves() { [[ "$(curl -fsS --max-time 5 "${@:2}")" == *"$1"* ]]; }
+# runs says a Swarm service has a task container running, and left_created that it
+# has one made and never started, each read again on each call, as wait_until
+# asks.
+runs() { [[ -n "$(running_tasks "$1")" ]]; }
+left_created() { [[ -n "$(docker ps --all --quiet --filter "label=com.docker.swarm.service.name=$1" --filter status=created)" ]]; }
 
 step "Dokploy as its installer and its deploys leave it, on a real Swarm"
 for image in "$nginx" "$postgres" "$traefik"; do
@@ -214,10 +219,10 @@ docker service create --quiet --detach=false --name anon-a1 --mount type=volume,
 # and never started, then deployed again as it should be.
 mapfile -t labels < <(dokploy_labels store retry)
 docker service create --quiet --detach --name retry-r1 --entrypoint /no-such-binary "${labels[@]}" "$nginx" >/dev/null || fail "can't create retry-r1"
-wait_until 60 test -n "$(docker ps --all --quiet --filter label=com.docker.swarm.service.name=retry-r1 --filter status=created)" ||
+wait_until 60 left_created retry-r1 ||
   fail "retry-r1's broken deploy left no container: $(docker service ps --no-trunc retry-r1 2>&1)"
 docker service update --quiet --detach=false --entrypoint /docker-entrypoint.sh retry-r1 >/dev/null || fail "can't deploy retry-r1 again"
-[[ -n "$(docker ps --all --quiet --filter label=com.docker.swarm.service.name=retry-r1 --filter status=created)" ]] ||
+left_created retry-r1 ||
   fail "retry-r1's broken deploy left no container once it was deployed again"
 # The volume Docker made for anon-a1's task, which goes with it.
 anon_volume=$(docker inspect --format '{{range .Mounts}}{{.Name}}{{end}}' "$(running_tasks anon-a1)")
@@ -339,7 +344,7 @@ for s in forum-q1_db forum-q1_web shop-k2m4; do
   [[ "$joins" == *"$(docker network inspect --format '{{.Id}}' dokploy-network)"* || "$joins" == *dokploy-network* ]] ||
     fail "$s isn't back on dokploy-network after the undo: $joins"
 done
-wait_until 60 test -n "$(running_tasks forum-q1_db)" || fail "the stack's PostgreSQL doesn't run again after the undo"
+wait_until 60 runs forum-q1_db || fail "the stack's PostgreSQL doesn't run again after the undo"
 db_back=$(running_tasks forum-q1_db)
 wait_until 60 docker exec "$db_back" pg_isready -U postgres || fail "the stack's PostgreSQL isn't ready after the undo"
 [[ "$(docker exec "$db_back" psql -U postgres -tAc 'select v from kept')" == row-from-dokploy ]] || fail "the row didn't survive the undo"
