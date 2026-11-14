@@ -359,6 +359,30 @@ check_mariadb() {
   fi
 }
 
+check_mongo() {
+  local db bound said
+  db=$(container db)
+  generated db MONGO_INITDB_ROOT_PASSWORD >/dev/null
+  bound=$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$db") || fail "docker inspect $db failed"
+  [[ "$bound" == "{}" || "$bound" == null ]] || fail "MongoDB is published: $bound"
+  # mongosh as the root user, with the password the container was given, which only
+  # its own shell reads.
+  # shellcheck disable=SC2016 # the container's shell reads the password.
+  mongo() { docker exec "$db" sh -c 'exec mongosh --quiet --norc -u "$MONGO_INITDB_ROOT_USERNAME" -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "$1"' sh "$1"; }
+  said=$(mongo 'print(db.adminCommand({ ping: 1 }).ok)') || fail "MongoDB doesn't take the root password it was given: $said"
+  [[ "$said" == *1 ]] || fail "MongoDB answered '$said'"
+  said=$(docker exec "$db" mongosh --quiet --norc -u root -p not-the-password --authenticationDatabase admin --eval 'print(1)' 2>&1) && fail "MongoDB took a wrong password: $said"
+  # Someone who never signs in is answered nothing, as access control is on.
+  said=$(docker exec "$db" mongosh --quiet --norc --eval 'print(JSON.stringify(db.adminCommand({ listDatabases: 1 })))' 2>&1) || true
+  [[ "$said" != *'"databases"'* ]] || fail "MongoDB lists its databases to someone who never signed in: ${said:0:200}"
+  if [[ "$1" == first ]]; then
+    said=$(mongo 'print(db.getSiblingDB("e2e").kept.insertOne({ kept: true }).acknowledged)') || fail "MongoDB can't keep a document: $said"
+  else
+    said=$(mongo 'print(db.getSiblingDB("e2e").kept.countDocuments({ kept: true }))') || fail "MongoDB can't count what it kept: $said"
+    [[ "$said" == *1 ]] || fail "what MongoDB kept didn't stay through the upgrade: $said"
+  fi
+}
+
 check_coder() {
   local coder port built said token
   coder=$(container coder)

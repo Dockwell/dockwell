@@ -519,6 +519,20 @@
     "retrieved": "2026-11-09"
   },
   {
+    "name": "mongo-icon",
+    "kind": "icon",
+    "caption": "",
+    "url": "https://github.com/mongodb.png?size=256",
+    "project": "https://github.com/mongodb",
+    "file": "mongo-icon.webp",
+    "source_sha256": "fb8a2300ca2884269209c3227ec97b46860d0ef78d239eed5984bbea7a29b658",
+    "sha256": "5dc02880990a484727c71d904186e1553f1aaad17a94eef21331fd5b111fcb8a",
+    "bytes": 1268,
+    "dimensions": "128x128",
+    "transform": "Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.",
+    "retrieved": "2026-11-14"
+  },
+  {
     "name": "mysql-icon",
     "kind": "icon",
     "caption": "",

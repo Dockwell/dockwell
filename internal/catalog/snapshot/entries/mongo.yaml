@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+id: mongo
+name: MongoDB
+summary: Document database for apps that store JSON-like records
+description: |-
+  MongoDB is a document database: an app keeps records as flexible, JSON-like documents grouped in collections, and queries them by any field. It suits apps whose data changes shape over time, and many self-hosted apps are built on it.
+
+  Dockwell generates the root password, keeps the data on a persistent volume, and gives each app that uses it a user of its own, in its own database.
+icon: media/mongo-icon.webp
+documentation: https://www.mongodb.com/docs/manual/
+appSource: https://github.com/mongodb/mongo
+features:
+  - "Flexible JSON-like documents"
+  - "Queries and indexes on any field"
+  - "A user for each app, in its own database"
+  - "Persistent database storage"
+category: databases
+version: "8.0.38"
+release: 2
+homepage: https://www.mongodb.com
+license: AGPL-3.0-only
+appLicense: SSPL-1.0
+source:
+  repository: https://github.com/Dockwell/catalog
+  path: entries/mongo.yaml
+notes:
+  - "Apps reach it by its name in their project. It publishes no port."
+inputs:
+  - name: MONGO_ROOT_PASSWORD
+    label: Root password
+    type: INPUT_TYPE_SECRET
+    generate: 32
+databases: [db]
+compose: |
+  services:
+    db:
+      image: mongo:8.0.38@sha256:d97fea17ccb8d004cd137be8dab54d70d0df11be69c9f422aefe4484c8414ab7
+      restart: unless-stopped
+      environment:
+        MONGO_INITDB_ROOT_USERNAME: root
+        MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      volumes:
+        - data:/data/db
+        - config:/data/configdb
+      healthcheck:
+        test: ["CMD-SHELL", "HOME=/tmp exec mongosh --quiet --norc --eval \"quit(db.adminCommand('ping').ok ? 0 : 1)\""]
+        interval: 5s
+        timeout: 5s
+        retries: 30
+        start_period: 30s
+  volumes:
+    data: {}
+    config: {}

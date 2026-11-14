@@ -175,6 +175,11 @@ memos-timeline.webp
   Source: https://raw.githubusercontent.com/usememos/.github/13198225b2ef8e961c615f86b2a04278ffd706cf/assets/previews/timeline-light.png
   Changes: Scaled proportionally to fit within 1120 × 760 and encoded as a still WebP.
 
+mongo-icon.webp
+  Publisher: https://github.com/mongodb
+  Source: https://github.com/mongodb.png?size=256
+  Changes: Scaled proportionally and encoded as WebP; icon fitted on a white 128 × 128 canvas.
+
 mysql-icon.webp
   Publisher: https://github.com/mysql
   Source: https://github.com/mysql.png?size=256

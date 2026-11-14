@@ -350,7 +350,7 @@ jobs:
           - adminer jellyfin home-assistant
           - openclaw
           - hermes-agent
-          - new-api lobechat
+          - new-api lobechat mongo
           - sftpgo openlist gotify linkding
     env:
       E2E_ROOT: "1"

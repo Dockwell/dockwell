@@ -204,12 +204,21 @@ func TestWays(t *testing.T) {
 	if !slices.Equal(got, []string{"new:mysql", "new:mariadb"}) {
 		t.Fatalf("ways %v", got)
 	}
-	// MongoDB makes its first user its administrator, so none comes from the catalog
-	// until Dockwell makes the app's user on it.
+	// MongoDB makes its first user its administrator, and Dockwell makes the app's
+	// user on a new one from the catalog's mongo entry, as on PostgreSQL.
 	e := fromAnotherStore(t)
 	e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_MONGODB}}
+	got = nil
+	for _, w := range catalog.Ways(e, lookupBuiltIn(t))["db"] {
+		got = append(got, w.Choice())
+	}
+	if !slices.Equal(got, []string{"new:mongodb"}) {
+		t.Fatalf("a MongoDB from the catalog: %v", got)
+	}
+	// ClickHouse has no entry, so a need for it alone has nothing to meet it.
+	e.Needs[0].Accepts = []*catalogv1.NeedAccept{{Engine: catalogv1.Engine_ENGINE_CLICKHOUSE}}
 	if ways := catalog.Ways(e, lookupBuiltIn(t))["db"]; len(ways) != 0 {
-		t.Fatalf("a MongoDB from the catalog: %+v", ways)
+		t.Fatalf("a ClickHouse from the catalog: %+v", ways)
 	}
 	if _, err := catalog.Meet(e, catalog.Ways(e, lookupBuiltIn(t)), nil, nil); err == nil || !strings.Contains(err.Error(), "nothing here can make a new one yet") {
 		t.Fatalf("an unmet need: %v", err)
