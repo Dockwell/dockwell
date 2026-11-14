@@ -82,11 +82,62 @@ service ImportService {
     };
   }
 
-  // PlanStartPanel plans starting the panel an import came from again: each of
-  // its own containers or services that's stopped starts, a container with the
-  // restart policy its installer gives it where a stop left it at no. It's the
-  // way back where no undo is: a change that failed partway, or an undo after
-  // its window. A person applies it.
+  // CheckPanelDomains checks each domain a panel's proxy serves, before a
+  // handover (ADR 0089): a scan of every label on the server and every file in
+  // the proxy's mounts for another rule that mentions it, the proxy's static
+  // configuration, and a request through the proxy over HTTPS for / and each
+  // path a rule names for it. Each says what was checked, and why it stays
+  // behind where it does; one that doesn't is what a person can choose to hand
+  // over with PlanPanelDomains. It changes nothing.
+  rpc CheckPanelDomains(CheckPanelDomainsRequest) returns (CheckPanelDomainsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "check-domains"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:checkDomains"
+      body: "*"
+    };
+  }
+
+  // PlanPanelDomains plans handing over the domains of what was taken on from a
+  // panel: one change that stops the panel's proxy, which holds ports 80 and 443,
+  // and makes a route to each taken-on app's service for each domain a person
+  // chose, as the proxy's labels send it, so Dockwell's ingress takes the ports
+  // and gets a certificate for each. Each chosen domain must be one
+  // CheckPanelDomains found nothing for; the plan keeps a digest of what was
+  // checked, and the agent checks again just before it stops the proxy, and
+  // refuses where anything changed. Every other domain the proxy serves stops
+  // answering, which the plan says. Undoing it deletes those routes and starts
+  // the proxy again. A person applies it.
+  rpc PlanPanelDomains(PlanPanelDomainsRequest) returns (PlanPanelDomainsResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "import"
+      verb: "domains"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/imports:domains"
+      body: "*"
+    };
+  }
+
+  // PlanStartPanel plans starting the panel an import came from again, or its
+  // proxy alone: each of its own containers or services that's stopped starts, a
+  // container with the restart policy it had, or always where a stop left it at
+  // no. It's the way back where no undo is: a change that failed partway, or an
+  // undo after its window. A proxy's start is refused while Dockwell's ingress
+  // serves routes on the server, as they hold ports 80 and 443. A person applies
+  // it.
   rpc PlanStartPanel(PlanStartPanelRequest) returns (PlanStartPanelResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -128,14 +179,81 @@ service ImportService {
   }
 }
 
+// PlanPanelDomainsRequest names the server and the panel whose domains come over.
+message PlanPanelDomainsRequest {
+  // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The panel whose proxy hands over ports 80 and 443.
+  PanelKind panel = 2;
+  // What the change is for, for the timeline. Empty says what it hands over.
+  string summary = 3;
+  // The domains to hand over, such as "blog.example.com", each one
+  // CheckPanelDomains found nothing for. At least one.
+  repeated string domains = 4;
+}
+
+// CheckPanelDomainsRequest names the server and the panel whose domains to check.
+message CheckPanelDomainsRequest {
+  // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The panel whose proxy serves them.
+  PanelKind panel = 2;
+}
+
+// CheckPanelDomainsResponse is what was checked of each domain.
+message CheckPanelDomainsResponse {
+  // Each domain the panel's proxy serves that doesn't come as a route already,
+  // by name.
+  repeated PanelDomainCheck domains = 1;
+}
+
+// PanelDomainCheck is what Dockwell checked of a domain a panel's proxy serves,
+// before a handover.
+message PanelDomainCheck {
+  // The domain, such as "blog.example.com".
+  string domain = 1;
+  // Where else a rule mentions it, beyond the imported app's own route, such as
+  // "the label traefik.http.routers.admin.rule on sso" or "the file
+  // /data/coolify/proxy/dynamic/extra.yaml".
+  repeated string mentions = 2;
+  // What answered each request through the proxy.
+  repeated PanelProbe probes = 3;
+  // Why it stays behind, or empty where nothing was found: one a person can
+  // choose to hand over.
+  string held = 4;
+  // What the scan read, such as "labels on 12 containers and 3 services, and 9
+  // files in the proxy's mounts".
+  string scanned = 5;
+}
+
+// PanelProbe is a request through the panel's proxy, over HTTPS with the
+// domain's name, from the server.
+message PanelProbe {
+  // The path asked for, such as "/" or "/admin".
+  string path = 1;
+  // What answered, such as "200", "302 to https://sso.example.com/" or "no TLS
+  // handshake".
+  string answer = 2;
+  // True where the answer says no login or address limit.
+  bool open = 3;
+}
+
+// PlanPanelDomainsResponse carries the planned handover.
+message PlanPanelDomainsResponse {
+  // The change, planned for a person to apply.
+  Change change = 1;
+}
+
 // PlanStartPanelRequest names the server and the panel to start there again.
 message PlanStartPanelRequest {
   // The server the panel runs on, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
   string server_id = 1;
   // The panel to start.
   PanelKind panel = 2;
+  // Start its proxy alone, which holds ports 80 and 443.
+  bool proxy = 3;
   // What the change is for, for the timeline. Empty says what it starts.
-  string summary = 3;
+  string summary = 4;
 }
 
 // PlanStartPanelResponse carries the planned start.
@@ -230,6 +348,17 @@ message Panel {
   repeated PanelApp apps = 5;
   // Its own containers and services, such as coolify-db or dokploy-traefik.
   repeated PanelContainer own = 6;
+  // The domains the panel's proxy routes from its own files, such as the panel's
+  // own dashboard: what stops answering when the proxy hands over its ports.
+  repeated string domains = 7;
+  // Why no domain comes over as a route, where something that could guard every
+  // domain at once can't be read in full or guards one: the proxy's static
+  // configuration, such as a middleware on an entrypoint, or one of its own
+  // files. Empty where Dockwell read all of it and found nothing.
+  string proxy_left = 8;
+  // What was checked of each domain, where the read was asked to check them
+  // for a handover (CheckPanelDomains).
+  repeated PanelDomainCheck checks = 9;
 }
 
 // PanelApp is something a panel runs for people: an app, a service from its
@@ -266,6 +395,9 @@ message PanelApp {
   // it again: Coolify's application built from a commit, or Dokploy's app whose
   // code folder is a Git checkout. Both panels deploy on a push by default.
   bool from_git = 13;
+  // Where each of its domains goes, as the panel's proxy has it: what comes over
+  // as a route once the proxy hands ports 80 and 443 to Dockwell.
+  repeated PanelRoute routes = 14;
   // The running task container of each of its Swarm services, in the order of
   // containers, or empty for one with none running: what reads as the service it
   // would be made again as.
@@ -294,6 +426,26 @@ message PanelPort {
   uint32 published = 3;
   // "tcp" or "udp".
   string protocol = 4;
+}
+
+// PanelRoute is a domain the panel's proxy sends to one of an app's containers,
+// read from the proxy's labels on it.
+message PanelRoute {
+  // The domain, such as "blog.example.com".
+  string domain = 1;
+  // The path it's for, such as "/api", or empty for the whole domain.
+  string path = 2;
+  // The container it goes to.
+  string container = 3;
+  // The Compose service that container runs as, which a route names once it's
+  // taken on.
+  string service = 4;
+  // The port in the container it goes to, or 0 where the labels don't say.
+  uint32 port = 5;
+  // Why it can't come as a plain route, or empty where it can: a middleware or a
+  // directive a route would drop, such as a login or an allowlist, so what it
+  // guards would answer anyone, a stripped path, or a rule a route can't say.
+  string left = 6;
 }
 
 // PanelContainer is one of a panel's own containers or Swarm services.
@@ -361,6 +513,9 @@ enum ImportWaitsFor {
   IMPORT_WAITS_FOR_SCHEDULED_TASKS = 3;
   // Firewall rules.
   IMPORT_WAITS_FOR_FIREWALL = 4;
+  // The panel's proxy handing ports 80 and 443 to Dockwell, a step of its own
+  // (PlanPanelDomains).
+  IMPORT_WAITS_FOR_PORTS = 5;
 }
 
 // ImportKind is a kind of thing another panel keeps.
@@ -386,6 +541,8 @@ enum ImportKind {
   IMPORT_KIND_COMPOSE_PROJECT = 9;
   // Containers the panel started on their own, which it keeps no record of.
   IMPORT_KIND_CONTAINERS = 10;
+  // A domain the panel's proxy serves, which comes as a route.
+  IMPORT_KIND_DOMAIN = 11;
 }
 
 // ImportAction is what an import does with a thing it found.

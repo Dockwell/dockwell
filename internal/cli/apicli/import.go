@@ -7,6 +7,7 @@ import (
 	"io"
 	"slices"
 	"strings"
+	"text/tabwriter"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
@@ -59,7 +60,9 @@ func stepsView(w io.Writer, panel string, all []*dockwellv1.ImportStep, change *
 			return s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE && s.GetWaitsFor() == wf
 		}})
 	}
-	groups = append(groups, group{"In Dockwell already", func(s *dockwellv1.ImportStep) bool {
+	groups = append(groups, group{"Later, once " + panel + "'s proxy hands over ports 80 and 443 (dockwell import check-domains)", func(s *dockwellv1.ImportStep) bool {
+		return s.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE && s.GetWaitsFor() == dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_PORTS
+	}}, group{"In Dockwell already", func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_DONE
 	}}, group{"Stays with " + panel, func(s *dockwellv1.ImportStep) bool {
 		return s.GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_LEAVE
@@ -105,6 +108,8 @@ func waitsForWords(wf dockwellv1.ImportWaitsFor) string {
 		return "scheduled tasks"
 	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_FIREWALL:
 		return "firewall rules"
+	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_PORTS:
+		return "ports 80 and 443"
 	case dockwellv1.ImportWaitsFor_IMPORT_WAITS_FOR_UNSPECIFIED:
 	}
 	return "what it needs"
@@ -131,7 +136,46 @@ func kindWord(k dockwellv1.ImportKind) string {
 		return "Compose project"
 	case dockwellv1.ImportKind_IMPORT_KIND_CONTAINERS:
 		return "Containers"
+	case dockwellv1.ImportKind_IMPORT_KIND_DOMAIN:
+		return "Domain"
 	case dockwellv1.ImportKind_IMPORT_KIND_PANEL, dockwellv1.ImportKind_IMPORT_KIND_UNSPECIFIED:
 	}
 	return ""
+}
+
+// domainChecksView writes what was checked of each domain a panel's proxy serves:
+// those nothing was found for, which can be handed over, with what the proxy
+// answered, then those that stay behind, each with why (ADR 0089).
+func domainChecksView(w io.Writer, checks []*dockwellv1.PanelDomainCheck) {
+	if len(checks) == 0 {
+		fmt.Fprintln(w, "No domain is left to hand over: Dockwell routes each already.")
+		return
+	}
+	var clean, held []*dockwellv1.PanelDomainCheck
+	for _, c := range checks {
+		if c.GetHeld() == "" {
+			clean = append(clean, c)
+		} else {
+			held = append(held, c)
+		}
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	if len(clean) > 0 {
+		fmt.Fprintln(tw, "No login or address limit found, so each can be handed over (dockwell import domains --domains):")
+		for _, c := range clean {
+			var answers []string
+			for _, p := range c.GetProbes() {
+				answers = append(answers, p.GetPath()+" "+p.GetAnswer())
+			}
+			fmt.Fprintf(tw, "  %s\t%s\n", c.GetDomain(), strings.Join(answers, ", "))
+		}
+	}
+	if len(held) > 0 {
+		fmt.Fprintln(tw, "Stays behind:")
+		for _, c := range held {
+			fmt.Fprintf(tw, "  %s\t%s\n", c.GetDomain(), c.GetHeld())
+		}
+	}
+	_ = tw.Flush()
+	fmt.Fprintf(w, "Checked %s, and asked the proxy for each.\n", checks[0].GetScanned())
 }

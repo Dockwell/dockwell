@@ -4,9 +4,12 @@ package panels
 
 import (
 	"encoding/json"
+	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -22,12 +25,12 @@ func TestDomainsAreReadFromTheProxysLabels(t *testing.T) {
 		labels map[string]string
 		want   []string
 	}{
-		"Traefik, one host":          {map[string]string{"traefik.http.routers.a.rule": "Host(`blog.example.com`) && PathPrefix(`/`)"}, []string{"blog.example.com"}},
-		"Traefik, two rules":         {map[string]string{"traefik.http.routers.a.rule": "Host(`a.example.com`) || Host(`b.example.com`)"}, []string{"a.example.com", "b.example.com"}},
-		"Traefik, one Host with two": {map[string]string{"traefik.http.routers.a.rule": "Host(`a.example.com`,`www.a.example.com`)"}, []string{"a.example.com", "www.a.example.com"}},
+		"Traefik, one host":          {map[string]string{"traefik.enable": "true", "traefik.http.routers.a.rule": "Host(`blog.example.com`) && PathPrefix(`/`)"}, []string{"blog.example.com"}},
+		"Traefik, two rules":         {map[string]string{"traefik.enable": "true", "traefik.http.routers.a.rule": "Host(`a.example.com`) || Host(`b.example.com`)"}, []string{"a.example.com", "b.example.com"}},
+		"Traefik, one Host with two": {map[string]string{"traefik.enable": "true", "traefik.http.routers.a.rule": "Host(`a.example.com`,`www.a.example.com`)"}, []string{"a.example.com", "www.a.example.com"}},
 		"Caddy":                      {map[string]string{"caddy_0": "https://shop.example.com", "caddy_1": "http://www.shop.example.com:8080/x"}, []string{"shop.example.com", "www.shop.example.com"}},
-		"no domain, a secret":        {map[string]string{"traefik.http.middlewares.a.basicauth.users": "admin:$apr1$x", "traefik.http.routers.a.rule": "PathPrefix(`/api`)"}, nil},
-		"not a host at all":          {map[string]string{"traefik.http.routers.a.rule": "Host(`localhost`)"}, nil},
+		"no domain, a secret":        {map[string]string{"traefik.enable": "true", "traefik.http.middlewares.a.basicauth.users": "admin:$apr1$x", "traefik.http.routers.a.rule": "PathPrefix(`/api`)"}, nil},
+		"not a host at all":          {map[string]string{"traefik.enable": "true", "traefik.http.routers.a.rule": "Host(`localhost`)"}, nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got := domainsOf(c.labels); !slices.Equal(got, c.want) {
@@ -61,7 +64,7 @@ func TestNoPanelSaysWhy(t *testing.T) {
 		dockwellv1.PanelKind_PANEL_KIND_COOLIFY: "Coolify doesn't run here",
 		dockwellv1.PanelKind_PANEL_KIND_DOKPLOY: "Dokploy doesn't run here",
 	} {
-		got, err := r.Read(t.Context(), kind)
+		got, err := r.Read(t.Context(), kind, false)
 		if err != nil || got.GetFound() != nil || !strings.HasPrefix(got.GetNotHere(), want) {
 			t.Errorf("%v = %v, %v, want %q", kind, got, err, want)
 		}
@@ -87,7 +90,7 @@ func TestCoolifysResourcesComeByTheirLabels(t *testing.T) {
 	}
 	add("ghost-k4s9", "ghost")
 	add("mysql-k4s9", "mysql")
-	got, err := Reader{Docker: e.Client(), Root: root}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_COOLIFY)
+	got, err := Reader{Docker: e.Client(), Root: root}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_COOLIFY, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +120,7 @@ func TestDokploysStackIsOneApp(t *testing.T) {
 		spec("forum-q1_db", map[string]string{"com.docker.stack.namespace": "forum-q1"}),
 		spec("someone-elses", nil),
 	}
-	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +170,9 @@ func TestOnlyAFileOfDokploysIsRead(t *testing.T) {
 	if err := os.MkdirAll(dynamic, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	rule := []byte("    rule: Host(`shop.example.com`)\n")
+	rule := []byte("http:\n  routers:\n    shop-k2m4-router-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n" +
+		"    shop-k2m4-router-websecure-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n" +
+		"  services:\n    shop-k2m4-service-1:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:3000\n        passHostHeader: true\n")
 	if err := os.WriteFile(filepath.Join(root, "elsewhere.yml"), rule, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -181,11 +186,14 @@ func TestOnlyAFileOfDokploysIsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := Reader{Root: root}
-	if got := r.dynamicDomains("shop-k2m4"); !slices.Equal(got, []string{"shop.example.com"}) {
-		t.Errorf("a file's domains = %q", got)
+	got := r.dynamicRoutes("shop-k2m4", "shop-k2m4.1.x7k2", nil)
+	if len(got) != 1 || got[0].GetDomain() != "shop.example.com" || got[0].GetPort() != 3000 || got[0].GetService() != "shop-k2m4" || got[0].GetContainer() != "shop-k2m4.1.x7k2" {
+		t.Errorf("a file's routes = %v", got)
 	}
-	done := make(chan []string, 1)
-	go func() { done <- append(r.dynamicDomains("linked-k2m4"), r.dynamicDomains("piped-k2m4")...) }()
+	done := make(chan []*dockwellv1.PanelRoute, 1)
+	go func() {
+		done <- append(r.dynamicRoutes("linked-k2m4", "", nil), r.dynamicRoutes("piped-k2m4", "", nil)...)
+	}()
 	select {
 	case got := <-done:
 		if len(got) > 0 {
@@ -222,13 +230,495 @@ func TestWhatComesFromGit(t *testing.T) {
 			"com.docker.compose.project": app, "com.docker.compose.project.working_dir": "/etc/dokploy/compose/" + app + "/code",
 		}}})
 	}
-	got, err := Reader{Docker: e.Client(), Root: root}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	got, err := Reader{Docker: e.Client(), Root: root}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, a := range got.GetFound().GetApps() {
 		if a.GetFromGit() != (a.GetId() == "wiki-ab12") {
 			t.Errorf("%s reads as from Git: %v", a.GetId(), a.GetFromGit())
+		}
+	}
+}
+
+// Where a domain goes is read from the proxy's labels on the container: a Traefik
+// router's hosts and path, and the port of the service it names, or the one service
+// the labels have; a Caddy address and the port its reverse_proxy names. A domain
+// with no port says 0, and a router for the same domain twice, as for HTTP and
+// HTTPS, comes once.
+func TestWhereEachDomainGoes(t *testing.T) {
+	got := routesOf(map[string]string{
+		"traefik.enable":                                                    "true",
+		"com.docker.compose.service":                                        "ghost",
+		"traefik.http.routers.http-0-k4s9-ghost.rule":                       "Host(`blog.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.https-0-k4s9-ghost.rule":                      "Host(`blog.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.https-0-k4s9-ghost.service":                   "https-0-k4s9-ghost",
+		"traefik.http.services.https-0-k4s9-ghost.loadbalancer.server.port": "2368",
+		"traefik.http.routers.api.rule":                                     "Host(`blog.example.com`) && PathPrefix(`/ghost/api`)",
+		"traefik.http.routers.api.service":                                  "nowhere",
+	}, "ghost-k4s9", nil)
+	want := []string{"blog.example.com/ghost/api|ghost|0", "blog.example.com|ghost|2368"}
+	var have []string
+	for _, r := range got {
+		have = append(have, r.GetDomain()+r.GetPath()+"|"+r.GetService()+"|"+strconv.Itoa(int(r.GetPort())))
+		if r.GetContainer() != "ghost-k4s9" {
+			t.Errorf("%s goes to %s", r.GetDomain(), r.GetContainer())
+		}
+	}
+	slices.Sort(have)
+	if !slices.Equal(have, want) {
+		t.Errorf("Traefik's routes are %v, want %v", have, want)
+	}
+
+	got = routesOf(map[string]string{
+		"com.docker.compose.service": "web",
+		"caddy_0":                    "https://shop.example.com, www.shop.example.com",
+		"caddy_0.reverse_proxy":      "{{upstreams 8080}}",
+	}, "web-p2q7", nil)
+	if len(got) != 2 || got[0].GetPort() != 8080 || got[1].GetDomain() != "www.shop.example.com" || got[1].GetService() != "web" {
+		t.Errorf("Caddy's routes are %v", got)
+	}
+}
+
+// A domain behind a middleware a plain route would drop doesn't come over as one,
+// so what was behind a login or an allowlist never answers anyone: only a redirect
+// to HTTPS, compression, headers and a redirect of www pass. A stripped path, a
+// rule a route can't say, an entrypoint other than the web's and a container
+// Traefik leaves alone don't come either. Coolify's Caddy labels, handle_path and
+// all, read as it writes them.
+func TestWhatADomainCantBringStaysWithIt(t *testing.T) {
+	base := map[string]string{
+		"traefik.enable":             "true",
+		"com.docker.compose.service": "web",
+		"traefik.http.middlewares.redirect-to-https.redirectscheme.scheme": "https",
+		"traefik.http.middlewares.gzip.compress":                           "true",
+		"traefik.http.services.http-0-k4s9.loadbalancer.server.port":       "3000",
+		"traefik.http.routers.http-0-k4s9.rule":                            "Host(`app.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.http-0-k4s9.entrypoints":                     "http",
+		"traefik.http.routers.http-0-k4s9.middlewares":                     "redirect-to-https",
+		"traefik.http.routers.https-0-k4s9.rule":                           "Host(`app.example.com`) && PathPrefix(`/`)",
+		"traefik.http.routers.https-0-k4s9.entrypoints":                    "https",
+		"traefik.http.routers.https-0-k4s9.middlewares":                    "gzip",
+		"traefik.http.routers.https-0-k4s9.service":                        "http-0-k4s9",
+	}
+	if got := routesOf(base, "web-k4s9", nil); len(got) != 1 || got[0].GetLeft() != "" || got[0].GetPort() != 3000 {
+		t.Fatalf("Coolify's plain app reads %v", got)
+	}
+	for name, more := range map[string]map[string]string{
+		"forwardauth": {"traefik.http.routers.https-0-k4s9.middlewares": "gzip,authelia@docker", "traefik.http.middlewares.authelia.forwardauth.address": "http://authelia:9091"},
+		"unread":      {"traefik.http.routers.https-0-k4s9.middlewares": "sso@file"},
+		"allowlist":   {"traefik.http.routers.https-0-k4s9.middlewares": "office", "traefik.http.middlewares.office.ipallowlist.sourcerange": "192.0.2.0/24"},
+		"stripprefix": {"traefik.http.routers.https-0-k4s9.middlewares": "gzip,s", "traefik.http.middlewares.s.stripprefix.prefixes": "/app"},
+		"rule":        {"traefik.http.routers.https-0-k4s9.rule": "Host(`app.example.com`) && !PathPrefix(`/admin`)"},
+		"entrypoint":  {"traefik.http.routers.https-0-k4s9.entrypoints": "metrics"},
+	} {
+		l := maps.Clone(base)
+		maps.Copy(l, more)
+		got := routesOf(l, "web-k4s9", nil)
+		if len(got) == 0 || got[0].GetLeft() == "" {
+			t.Errorf("%s: the domain comes as a plain route: %v", name, got)
+		}
+	}
+	off := maps.Clone(base)
+	off["traefik.enable"] = "false"
+	if got := routesOf(off, "web-k4s9", nil); len(got) != 0 {
+		t.Errorf("a container Traefik leaves alone gives %v", got)
+	}
+
+	// As Coolify writes Caddy's labels: the root path comes, a stripped one doesn't.
+	caddy := func(path string) map[string]string {
+		return map[string]string{
+			"com.docker.compose.service":          "web",
+			"caddy_0":                             "https://shop.example.com",
+			"caddy_0.header":                      "-Server",
+			"caddy_0.try_files":                   "{path} /index.html /index.php",
+			"caddy_0.handle_path.0_reverse_proxy": "{{upstreams 8080}}",
+			"caddy_0.handle_path.0_reverse_proxy.stream_close_delay": "5m",
+			"caddy_0.handle_path": path + "*",
+			"caddy_0.encode":      "zstd gzip",
+		}
+	}
+	if got := routesOf(caddy("/"), "web-p2q7", nil); len(got) != 1 || got[0].GetPort() != 8080 || got[0].GetLeft() != "" || got[0].GetPath() != "" {
+		t.Errorf("Coolify's Caddy app reads %v", got)
+	}
+	if got := routesOf(caddy("/shop"), "web-p2q7", nil); len(got) != 1 || got[0].GetLeft() == "" {
+		t.Errorf("a stripped Caddy path reads %v", got)
+	}
+	auth := caddy("/")
+	auth["caddy_0.forward_auth"] = "authelia:9091"
+	if got := routesOf(auth, "web-p2q7", nil); len(got) != 1 || got[0].GetLeft() == "" {
+		t.Errorf("Caddy's forward_auth reads %v", got)
+	}
+}
+
+// The panel's proxy routes its own dashboard, and anything a person added, from
+// its own files: those domains stop answering when it hands over its ports.
+func TestThePanelsOwnDomains(t *testing.T) {
+	root := t.TempDir()
+	dynamic := filepath.Join(root, "data", "coolify", "proxy", "dynamic")
+	if err := os.MkdirAll(dynamic, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	coolify := "http:\n  routers:\n    coolify-http:\n      rule: Host(`coolify.example.com`)\n"
+	if err := os.WriteFile(filepath.Join(dynamic, "coolify.yaml"), []byte(coolify), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dynamic, "notes.txt"), []byte("rule: Host(`not.example.com`)"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := (Reader{Root: root}).ownDomains(dockwellv1.PanelKind_PANEL_KIND_COOLIFY, nil); !slices.Equal(got, []string{"coolify.example.com"}) {
+		t.Errorf("Coolify's own domains are %v", got)
+	}
+}
+
+// Each way a guarded app could come over public, probed one at a time: a domain
+// comes only where everything about it is a form Dockwell reads in full, and each
+// other stays behind with a reason.
+func TestAGuardedAppNeverComesOverPublic(t *testing.T) {
+	app := func(more map[string]string) map[string]string {
+		l := map[string]string{
+			"traefik.enable":                                     "true",
+			"com.docker.compose.service":                         "web",
+			"traefik.http.routers.app.rule":                      "Host(`app.example.com`)",
+			"traefik.http.services.app.loadbalancer.server.port": "3000",
+		}
+		maps.Copy(l, more)
+		return l
+	}
+	for name, l := range map[string]map[string]string{
+		// N1: one router guards /admin, so the root's plain route would serve it.
+		"a sibling path behind forwardauth": app(map[string]string{
+			"traefik.http.routers.admin.rule":                  "Host(`app.example.com`) && PathPrefix(`/admin`)",
+			"traefik.http.routers.admin.middlewares":           "sso",
+			"traefik.http.middlewares.sso.forwardauth.address": "http://authelia:9091",
+			"traefik.http.routers.admin.service":               "app",
+		}),
+		// N2: access matchers say who may reach it.
+		"a ClientIP matcher": app(map[string]string{"traefik.http.routers.app.rule": "Host(`app.example.com`) && ClientIP(`10.0.0.0/8`)"}),
+		"a Method matcher":   app(map[string]string{"traefik.http.routers.app.rule": "Host(`app.example.com`) && Method(`GET`)"}),
+		"a matcher to come":  app(map[string]string{"traefik.http.routers.app.rule": "Host(`app.example.com`) && Future(`x`)"}),
+		"two PathPrefixes":   app(map[string]string{"traefik.http.routers.app.rule": "Host(`app.example.com`) && PathPrefix(`/a`) && PathPrefix(`/b`)"}),
+		"an or of hosts":     app(map[string]string{"traefik.http.routers.app.rule": "Host(`app.example.com`) || Host(`b.example.com`)"}),
+		// N3: a label-defined middleware never shadows the file one a router names.
+		"a label shadowing @file": app(map[string]string{
+			"traefik.http.routers.app.middlewares":   "gzip@file",
+			"traefik.http.middlewares.gzip.compress": "true",
+		}),
+		"headers the app reads": app(map[string]string{
+			"traefik.http.routers.app.middlewares":                                "h",
+			"traefik.http.middlewares.h.headers.customrequestheaders.Remote-User": "admin",
+		}),
+	} {
+		got := routesOf(l, "web-1", map[string]string{"gzip": "basicauth"})
+		if len(got) == 0 {
+			t.Errorf("%s: no domain named", name)
+		}
+		for _, r := range got {
+			if r.GetLeft() == "" {
+				t.Errorf("%s: %s%s comes as a plain route", name, r.GetDomain(), r.GetPath())
+			}
+		}
+	}
+	// N3: Traefik leaves alone what traefik.enable doesn't turn on.
+	for _, off := range []string{"False", "0", "no", ""} {
+		if got := routesOf(app(map[string]string{"traefik.enable": off}), "web-1", nil); len(got) != 0 {
+			t.Errorf("traefik.enable=%q gives %v", off, got)
+		}
+	}
+	// N3: Caddy's directives are read at every depth, without their N_ order.
+	caddy := func(more map[string]string) map[string]string {
+		l := map[string]string{"caddy_0": "https://shop.example.com", "caddy_0.handle_path": "/*", "caddy_0.handle_path.0_reverse_proxy": "{{upstreams 8080}}"}
+		maps.Copy(l, more)
+		return l
+	}
+	if got := routesOf(caddy(nil), "web-1", nil); len(got) != 1 || got[0].GetLeft() != "" {
+		t.Fatalf("Coolify's plain Caddy app reads %v", got)
+	}
+	for name, more := range map[string]map[string]string{
+		"nested basicauth":    {"caddy_0.handle_path.1_basicauth.bob": "$2a$14$x"},
+		"nested forward_auth": {"caddy_0.handle.0_forward_auth": "authelia:9091"},
+		"a matcher":           {"caddy_0.@office.remote_ip": "192.0.2.0/24"},
+		"a proxy's transport": {"caddy_0.handle_path.0_reverse_proxy.transport": "http"},
+	} {
+		if got := routesOf(caddy(more), "web-1", nil); len(got) != 1 || got[0].GetLeft() == "" {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+}
+
+// N4: what Dokploy writes for a compose app's HTTPS domain, from its source at
+// v0.31.2 (packages/server/src/utils/docker/domain.ts): a web router that
+// redirects with redirect-to-https@file, which its middlewares.yml defines as a
+// redirectScheme, and a websecure router. It comes over; a stripped path doesn't.
+func TestDokploysHTTPSDomainComesOver(t *testing.T) {
+	root := t.TempDir()
+	dynamic := filepath.Join(root, "etc", "dokploy", "traefik", "dynamic")
+	if err := os.MkdirAll(dynamic, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	middlewares := "http:\n  middlewares:\n    redirect-to-https:\n      redirectScheme:\n        scheme: https\n        permanent: true\n"
+	if err := os.WriteFile(filepath.Join(dynamic, "middlewares.yml"), []byte(middlewares), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files := Reader{Root: root}.fileMiddlewares(dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if files["redirect-to-https"] != "redirectscheme" {
+		t.Fatalf("Dokploy's middlewares read as %v", files)
+	}
+	labels := map[string]string{
+		"traefik.enable":                                                        "true",
+		"com.docker.compose.service":                                            "wiki",
+		"traefik.http.routers.wiki-ab12-x1-web.rule":                            "Host(`wiki.example.com`)",
+		"traefik.http.routers.wiki-ab12-x1-web.entrypoints":                     "web",
+		"traefik.http.services.wiki-ab12-x1-web.loadbalancer.server.port":       "3000",
+		"traefik.http.routers.wiki-ab12-x1-web.service":                         "wiki-ab12-x1-web",
+		"traefik.http.routers.wiki-ab12-x1-web.middlewares":                     "redirect-to-https@file",
+		"traefik.http.routers.wiki-ab12-x1-websecure.rule":                      "Host(`wiki.example.com`)",
+		"traefik.http.routers.wiki-ab12-x1-websecure.entrypoints":               "websecure",
+		"traefik.http.services.wiki-ab12-x1-websecure.loadbalancer.server.port": "3000",
+		"traefik.http.routers.wiki-ab12-x1-websecure.service":                   "wiki-ab12-x1-websecure",
+		"traefik.http.routers.wiki-ab12-x1-websecure.tls.certresolver":          "letsencrypt",
+	}
+	if got := routesOf(labels, "wiki-ab12-wiki-1", files); len(got) != 1 || got[0].GetLeft() != "" || got[0].GetPort() != 3000 {
+		t.Errorf("Dokploy's HTTPS domain reads %v", got)
+	}
+	// Its file's redirect, unread, would leave it behind: what isn't read isn't
+	// told harmless.
+	if got := routesOf(labels, "wiki-ab12-wiki-1", nil); len(got) != 1 || got[0].GetLeft() == "" {
+		t.Errorf("with no file read, Dokploy's domain reads %v", got)
+	}
+	stripped := maps.Clone(labels)
+	stripped["traefik.http.routers.wiki-ab12-x1-websecure.rule"] = "Host(`wiki.example.com`) && PathPrefix(`/docs`)"
+	stripped["traefik.http.routers.wiki-ab12-x1-websecure.middlewares"] = "stripprefix-wiki-ab12-x1"
+	stripped["traefik.http.middlewares.stripprefix-wiki-ab12-x1.stripprefix.prefixes"] = "/docs"
+	for _, r := range routesOf(stripped, "wiki-ab12-wiki-1", files) {
+		if r.GetLeft() == "" {
+			t.Errorf("a stripped path's domain comes as %s%s", r.GetDomain(), r.GetPath())
+		}
+	}
+}
+
+// A rule YAML folds onto the next line, as >- writes a long one, is still read.
+func TestAFoldedRuleIsRead(t *testing.T) {
+	f := readTraefikFile([]byte("http:\n  routers:\n    shop-router:\n      rule: >-\n        Host(`shop.example.com`)\n      service: shop\n  services:\n    shop:\n      loadBalancer:\n        servers:\n          - url: http://shop:80\n"))
+	if r := f.routers["shop-router"]; r == nil || !strings.Contains(r.rule, "Host(`shop.example.com`)") || f.ports["shop"] != 80 {
+		t.Errorf("the folded file reads %+v %v", r, f.ports)
+	}
+}
+
+// Fail closed on anything not read: each guard outside a router's rule and
+// middlewares, probed one at a time, keeps the domain behind.
+func TestWhatTheReaderDoesntReadKeepsADomainBehind(t *testing.T) {
+	app := func(more map[string]string) map[string]string {
+		l := map[string]string{
+			"traefik.enable":                                     "true",
+			"traefik.http.routers.app.rule":                      "Host(`app.example.com`)",
+			"traefik.http.services.app.loadbalancer.server.port": "3000",
+			"traefik.http.routers.app.tls.certresolver":          "letsencrypt",
+			"traefik.http.routers.app.tls.domains[0].main":       "app.example.com",
+		}
+		maps.Copy(l, more)
+		return l
+	}
+	if got := routesOf(app(nil), "web-1", nil); len(got) != 1 || got[0].GetLeft() != "" {
+		t.Fatalf("a plain router with its certificate reads %v", got)
+	}
+	for name, more := range map[string]map[string]string{
+		"client certificates":    {"traefik.http.routers.app.tls.options": "mtls@file"},
+		"a field to come":        {"traefik.http.routers.app.observability.accesslogs": "false"},
+		"a folded Middlewares":   {"traefik.http.routers.app.Middlewares": "sso"},
+		"a folded router name":   {"traefik.http.routers.App.middlewares": "sso"},
+		"a folded prefix":        {"Traefik.Http.Routers.app.middlewares": "sso"},
+		"a request header":       {"traefik.http.routers.app.middlewares": "h", "traefik.http.middlewares.h.headers.customrequestheaders.X-Auth": "1"},
+		"a redirect elsewhere":   {"traefik.http.routers.app.middlewares": "r", "traefik.http.middlewares.r.redirectregex.regex": "^/admin(.*)"},
+		"a file's redirectregex": {"traefik.http.routers.app.middlewares": "www@file"},
+	} {
+		got := routesOf(app(more), "web-1", map[string]string{"www": "redirectregex"})
+		if len(got) == 0 || got[0].GetLeft() == "" {
+			t.Errorf("%s: comes as a plain route: %v", name, got)
+		}
+	}
+	// Coolify's www redirect, read in full from labels, stays harmless.
+	www := app(map[string]string{"traefik.http.routers.app.middlewares": "w", "traefik.http.middlewares.w.redirectregex.regex": `^(http|https)://www\.(.+)`})
+	if got := routesOf(www, "web-1", nil); len(got) != 1 || got[0].GetLeft() != "" {
+		t.Errorf("Coolify's www redirect reads %v", got)
+	}
+
+	caddy := func(more map[string]string) map[string]string {
+		l := map[string]string{"caddy_0": "https://shop.example.com", "caddy_0.handle_path": "/*", "caddy_0.handle_path.0_reverse_proxy": "{{upstreams 8080}}"}
+		maps.Copy(l, more)
+		return l
+	}
+	for name, more := range map[string]map[string]string{
+		"a proxy elsewhere":      {"caddy_0.handle_path.0_reverse_proxy": "http://203.0.113.5:8080"},
+		"a proxy with more":      {"caddy_0.handle_path.0_reverse_proxy": "{{upstreams 8080}} {lb_policy first}"},
+		"a site with a path":     {"caddy_0": "https://shop.example.com/admin"},
+		"two handles":            {"caddy_0.1_handle": "/admin*", "caddy_0.1_handle.0_reverse_proxy": "{{upstreams 9000}}"},
+		"a numbered handle_path": {"caddy_0.0_handle_path": "/shop*"},
+		"header_up":              {"caddy_0.handle_path.0_reverse_proxy.header_up": "X-Remote-User admin"},
+		"a redirect elsewhere":   {"caddy_0.redir": "https://evil.example.com/login"},
+	} {
+		if got := routesOf(caddy(more), "web-1", nil); len(got) != 1 || got[0].GetLeft() == "" {
+			t.Errorf("%s: %v", name, got)
+		}
+	}
+	if got := routesOf(caddy(map[string]string{"caddy_0.redir": "https://www.shop.example.com{uri} permanent"}), "web-1", nil); len(got) != 1 || got[0].GetLeft() != "" {
+		t.Errorf("Coolify's www redirect for Caddy reads %v", got)
+	}
+}
+
+// The proxy's own files keep every domain behind where one can't be read in full
+// as Dockwell reads them, or asks clients for a certificate; what Traefik doesn't
+// load, such as the acme.json Dokploy keeps there, doesn't count.
+func TestTheProxysFilesAreReadInFullOrHoldEveryDomain(t *testing.T) {
+	setup := func(t *testing.T) (Reader, string) {
+		root := t.TempDir()
+		dir := filepath.Join(root, "etc", "dokploy", "traefik", "dynamic")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for name, body := range map[string]string{"middlewares.yml": "http:\n  middlewares:\n    redirect-to-https:\n      redirectScheme:\n        scheme: https\n", "acme.json": "{}"} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return Reader{Root: root}, dir
+	}
+	kind := dockwellv1.PanelKind_PANEL_KIND_DOKPLOY
+	if r, _ := setup(t); r.filesLeft(kind) != "" {
+		t.Fatalf("Dokploy's own files read %q", r.filesLeft(kind))
+	}
+	for name, spoil := range map[string]func(t *testing.T, dir string){
+		"a link": func(t *testing.T, dir string) {
+			if err := os.Symlink(filepath.Join(dir, "middlewares.yml"), filepath.Join(dir, "linked.yml")); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"TOML": func(t *testing.T, dir string) {
+			_ = os.WriteFile(filepath.Join(dir, "auth.toml"), []byte("[http]"), 0o600)
+		},
+		"past the size cap": func(t *testing.T, dir string) {
+			_ = os.WriteFile(filepath.Join(dir, "big.yml"), []byte(strings.Repeat("#", maxDynamic+1)), 0o600)
+		},
+		"past the count": func(t *testing.T, dir string) {
+			for i := range maxOwnFiles + 1 {
+				_ = os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%d.yml", i)), nil, 0o600)
+			}
+		},
+		"a client certificate": func(t *testing.T, dir string) {
+			_ = os.WriteFile(filepath.Join(dir, "tls.yml"), []byte("tls:\n  options:\n    mtls:\n      clientAuth:\n        clientAuthType: RequireAndVerifyClientCert\n"), 0o600)
+		},
+		"a folder": func(t *testing.T, dir string) {
+			_ = os.Mkdir(filepath.Join(dir, "more"), 0o755)
+		},
+	} {
+		r, dir := setup(t)
+		spoil(t, dir)
+		if r.filesLeft(kind) == "" {
+			t.Errorf("%s: the files read as complete", name)
+		}
+	}
+
+	// A file a person wrote routes its domain too, and so it's the proxy's own;
+	// an app's file and middlewares.yml aren't.
+	r, dir := setup(t)
+	_ = os.WriteFile(filepath.Join(dir, "admin.yml"), []byte("http:\n  routers:\n    admin:\n      rule: Host(`wiki.example.com`) && PathPrefix(`/admin`)\n      middlewares:\n        - sso\n"), 0o600)
+	_ = os.WriteFile(filepath.Join(dir, "shop-k2m4.yml"), []byte("http:\n  routers:\n    shop:\n      rule: Host(`shop.example.com`)\n"), 0o600)
+	got := r.ownDomains(kind, []*dockwellv1.PanelApp{{Id: "shop-k2m4", Swarm: true}})
+	if !slices.Equal(got, []string{"wiki.example.com"}) {
+		t.Errorf("Dokploy's own domains are %v", got)
+	}
+}
+
+// The proxy's static configuration is read: a middleware an entrypoint puts on
+// every request, set in its command, its environment or Dokploy's traefik.yml,
+// holds every domain, and so does configuration Dockwell can't read; Dokploy's
+// traefik.yml as its installer writes it, at v0.31.2, holds none.
+func TestTheProxysStaticConfigurationIsRead(t *testing.T) {
+	files := map[string]string{"redirect-to-https": "redirectscheme"}
+	// Coolify's proxy mounts its folder as /traefik, and Docker's socket.
+	coolifyMounts := []docker.MountPoint{{Type: "bind", Source: "/data/coolify/proxy", Destination: "/traefik"}, {Type: "bind", Source: "/var/run/docker.sock", Destination: "/var/run/docker.sock"}}
+	coolifyAs := func(image string, cmd, env []string, mounts ...docker.MountPoint) string {
+		e := dockertest.New(t)
+		e.AddContainer(docker.Container{Name: "/coolify-proxy", Config: docker.Config{Image: image, Cmd: cmd, Env: env}, Mounts: append(slices.Clone(coolifyMounts), mounts...)})
+		return Reader{Docker: e.Client()}.staticLeft(t.Context(), dockwellv1.PanelKind_PANEL_KIND_COOLIFY, files)
+	}
+	coolify := func(cmd, env []string, mounts ...docker.MountPoint) string {
+		return coolifyAs("traefik:v3.1", cmd, env, mounts...)
+	}
+	plain := []string{
+		"--entrypoints.http.address=:80", "--entrypoints.https.address=:443", "--entrypoints.http.http.middlewares=redirect-to-https@file",
+		"--providers.docker.exposedbydefault=false", "--providers.file.directory=/traefik/dynamic/", "--providers.file.watch=true",
+	}
+	if why := coolify(plain, nil); why != "" {
+		t.Errorf("Coolify's proxy as it runs reads %q", why)
+	}
+	if why := coolifyAs("docker.io/library/traefik:v3.1@sha256:0123", plain, nil); why != "" {
+		t.Errorf("Traefik's image by its full name reads %q", why)
+	}
+	for name, why := range map[string]string{
+		"an entrypoint's login":         coolify(append(slices.Clone(plain), "--entrypoints.https.http.middlewares=sso@file"), nil),
+		"in the environment":            coolify(plain, []string{"TRAEFIK_ENTRYPOINTS_HTTPS_HTTP_MIDDLEWARES=sso@file"}),
+		"a folded flag":                 coolify(append(slices.Clone(plain), "--entryPoints.https.http.middlewares=sso@docker"), nil),
+		"entrypoint TLS options":        coolify(append(slices.Clone(plain), "--entrypoints.https.http.tls.options=mtls@file"), nil),
+		"a static file":                 coolify(append(slices.Clone(plain), "--configFile=/etc/traefik/extra.yml"), nil),
+		"a static file apart":           coolify(append(slices.Clone(plain), "--configfile", "/etc/traefik/extra.yml"), nil),
+		"another image":                 coolifyAs("lucaslorentz/caddy-docker-proxy:2.9", plain, nil),
+		"a Traefik of its own":          coolifyAs("ghcr.io/example/traefik:v3.1", plain, nil),
+		"a mount over /etc/traefik":     coolify(plain, nil, docker.MountPoint{Type: "bind", Source: "/srv/traefik", Destination: "/etc/traefik"}),
+		"a mount over its file":         coolify(plain, nil, docker.MountPoint{Type: "bind", Source: "/srv/t.yml", Destination: "/traefik.yml"}),
+		"another provider":              coolify(append(slices.Clone(plain), "--providers.kubernetescrd=true"), nil),
+		"a provider in the environment": coolify(plain, []string{"TRAEFIK_PROVIDERS_REDIS_ENDPOINTS=redis:6379"}),
+		"a default rule":                coolify(append(slices.Clone(plain), "--providers.docker.defaultRule=Host(`{{ .Name }}.example.com`)"), nil),
+		"a file folder elsewhere":       coolify(append(slices.Clone(plain), "--providers.file.directory", "/srv/routes"), nil),
+		"a file of routes":              coolify(append(slices.Clone(plain), "--providers.file.filename=/traefik/extra.yml"), nil),
+	} {
+		if why == "" {
+			t.Errorf("%s: every domain comes", name)
+		}
+	}
+	e := dockertest.New(t)
+	svc := docker.Service{ID: "t"}
+	svc.Spec.Name = "dokploy-traefik"
+	e.Services = []docker.Service{svc}
+	if why := (Reader{Docker: e.Client()}).staticLeft(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, files); why == "" {
+		t.Error("a Traefik run as a Swarm service reads as read")
+	}
+
+	dokploy := func(yml string, write bool) string {
+		root := t.TempDir()
+		if write {
+			_ = os.MkdirAll(filepath.Join(root, "etc", "dokploy", "traefik"), 0o755)
+			_ = os.WriteFile(filepath.Join(root, "etc", "dokploy", "traefik", "traefik.yml"), []byte(yml), 0o600)
+		}
+		e := dockertest.New(t)
+		// As Dokploy's installer runs it: its traefik.yml bound where Traefik reads
+		// one, its dynamic folder at the same path, and Docker's socket.
+		e.AddContainer(docker.Container{Name: "/dokploy-traefik", Config: docker.Config{Image: "traefik:v3.6.1"}, Mounts: []docker.MountPoint{
+			{Type: "bind", Source: "/etc/dokploy/traefik/traefik.yml", Destination: "/etc/traefik/traefik.yml"},
+			{Type: "bind", Source: "/etc/dokploy/traefik/dynamic", Destination: "/etc/dokploy/traefik/dynamic"},
+			{Type: "bind", Source: "/var/run/docker.sock", Destination: "/var/run/docker.sock"},
+		}})
+		return Reader{Docker: e.Client(), Root: root}.staticLeft(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, files)
+	}
+	// As getDefaultTraefikConfig writes it in production.
+	installed := "global:\n  sendAnonymousUsage: false\nproviders:\n  swarm:\n    exposedByDefault: false\n    watch: true\n  docker:\n    exposedByDefault: false\n    watch: true\n    network: dokploy-network\n  file:\n    directory: /etc/dokploy/traefik/dynamic\n    watch: true\nentryPoints:\n  web:\n    address: :80\n  websecure:\n    address: :443\n    http3:\n      advertisedPort: 443\n    http:\n      tls:\n        certResolver: letsencrypt\napi:\n  insecure: true\ncertificatesResolvers:\n  letsencrypt:\n    acme:\n      email: test@localhost.com\n      storage: /etc/dokploy/traefik/dynamic/acme.json\n      httpChallenge:\n        entryPoint: web\n"
+	if why := dokploy(installed, true); why != "" {
+		t.Errorf("Dokploy's traefik.yml as installed reads %q", why)
+	}
+	guarded := strings.Replace(installed, "      tls:\n        certResolver: letsencrypt\n", "      middlewares:\n        - sso@file\n      tls:\n        certResolver: letsencrypt\n", 1)
+	if why := dokploy(guarded, true); why == "" {
+		t.Error("an entrypoint's middleware in traefik.yml lets every domain come")
+	}
+	if why := dokploy("", false); why == "" {
+		t.Error("a traefik.yml that can't be read lets every domain come")
+	}
+	for name, yml := range map[string]string{
+		"another provider": strings.Replace(installed, "  file:\n", "  http:\n    endpoint: https://routes.example.com\n  file:\n", 1),
+		"a file of routes": strings.Replace(installed, "    directory: /etc/dokploy/traefik/dynamic\n", "    filename: /etc/dokploy/traefik/extra.yml\n", 1),
+		"a default rule":   strings.Replace(installed, "    network: dokploy-network\n", "    network: dokploy-network\n    defaultRule: Host(`{{ .Name }}.example.com`)\n", 1),
+	} {
+		if why := dokploy(yml, true); why == "" {
+			t.Errorf("%s in traefik.yml lets every domain come", name)
 		}
 	}
 }
@@ -250,7 +740,7 @@ func TestDokploysSwarmServicesComeWithTheirTasksAndPorts(t *testing.T) {
 		spec("forum-q1_web", map[string]string{"com.docker.stack.namespace": "forum-q1"}, docker.ServicePort{TargetPort: 80, PublishedPort: 8081}),
 	}
 	e.AddContainer(docker.Container{Name: "/db-x7k2.1.abcd", Config: docker.Config{Image: "postgres:16", Labels: map[string]string{"com.docker.swarm.service.name": "db-x7k2"}}})
-	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +772,7 @@ func TestAStacksTasksStayWithTheirServices(t *testing.T) {
 			State: docker.State{Status: "running", Running: true},
 		})
 	}
-	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +798,7 @@ func TestWhatASwarmAppCantCarry(t *testing.T) {
 		}{Replicas: &one}
 		edit(&s)
 		e.Services = []docker.Service{{ID: "s1", Spec: s}}
-		got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+		got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, false)
 		if err != nil {
 			t.Fatal(err)
 		}

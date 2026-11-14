@@ -250,6 +250,12 @@ export function useGroups(steps: ImportStep[], panel: string): Group[] {
       folded: true,
     },
     {
+      key: "ports",
+      title: t`Later, once ${panel}'s proxy hands over ports 80 and 443`,
+      steps: steps.filter(later(ImportWaitsFor.PORTS)),
+      folded: false,
+    },
+    {
       key: "done",
       title: t`In Dockwell already`,
       steps: steps.filter((s) => s.action === ImportAction.DONE),
@@ -341,6 +347,7 @@ const kindIcons: Record<ImportKind, IconName> = {
   [ImportKind.PANEL]: "settings",
   [ImportKind.COMPOSE_PROJECT]: "layers",
   [ImportKind.CONTAINERS]: "layers",
+  [ImportKind.DOMAIN]: "globe",
 };
 
 function useKindWord(panel: string): (k: ImportKind) => string {
@@ -365,6 +372,8 @@ function useKindWord(panel: string): (k: ImportKind) => string {
         return t`Compose project`;
       case ImportKind.CONTAINERS:
         return t`Containers`;
+      case ImportKind.DOMAIN:
+        return t`Domain`;
       default:
         return panel;
     }

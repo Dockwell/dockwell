@@ -190,6 +190,61 @@ func TestAStopActsOnThePanelsOwnAlone(t *testing.T) {
 	}
 }
 
+// Handing over the domains stops the panel's proxy alone, so Dockwell's ingress
+// takes ports 80 and 443, and its undo starts it again as it stood.
+func TestStoppingThePanelsProxyAlone(t *testing.T) {
+	e := coolifyServer(t)
+	s := Stopper{Docker: e.Client(), Check: checksAs("e1", nil)}
+	ask := resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true, Domains: []string{"blog.example.com"}, Evidence: "e1"}
+	plan, left, err := s.PlanPanel(t.Context(), ask)
+	if err != nil || !left || !plan.Proxy || plan.Stays != "" || !slices.Equal(names(plan.Parts), []string{"coolify-proxy"}) ||
+		!slices.Equal(plan.Domains, ask.Domains) || plan.Evidence != "e1" {
+		t.Fatalf("the proxy's stop = %+v, %v, %v", plan, left, err)
+	}
+	// What the person chose from must read as it did, just before the stop.
+	for name, try := range map[string]Stopper{
+		"a digest that differs": {Docker: e.Client(), Check: checksAs("e2", nil)},
+		"a domain held now":     {Docker: e.Client(), Check: checksAs("", errors.New("blog.example.com stays behind now: another rule mentions it"))},
+		"no check":              {Docker: e.Client()},
+	} {
+		if err := try.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil || !e.Container("coolify-proxy").State.Running {
+			t.Errorf("%s: the stop = %v", name, err)
+		}
+	}
+	unchosen := *plan
+	unchosen.Domains, unchosen.Evidence = nil, ""
+	if err := s.ApplyPanel(t.Context(), unchosen, func(string) {}); err == nil || !strings.Contains(err.Error(), "names no domains") {
+		t.Errorf("a stop with no domains chosen = %v", err)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.Container("coolify-proxy"); c.State.Running || c.HostConfig.RestartPolicy.Name != "no" {
+		t.Errorf("the proxy is left %v, restart %q", c.State.Running, c.HostConfig.RestartPolicy.Name)
+	}
+	if c := e.Container("coolify"); !c.State.Running {
+		t.Error("the panel itself was stopped")
+	}
+	back, _ := plan.Undone()
+	if !back.Proxy {
+		t.Fatalf("the undo asks %+v", back)
+	}
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if c := e.Container("coolify-proxy"); !c.State.Running || c.HostConfig.RestartPolicy.Name != "always" {
+		t.Errorf("started again, the proxy is %v, restart %q", c.State.Running, c.HostConfig.RestartPolicy.Name)
+	}
+	// A proxy's stop acts on nothing else of the panel's.
+	if _, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true, Start: true, Parts: []resource.PanelPart{{Name: "coolify", WasRunning: true}}}); err == nil {
+		t.Error("a proxy's start acted on coolify")
+	}
+}
+
 // An app's Swarm service scales to none as Dockwell's copy starts, and back to what
 // it ran; the agent acts on none but a service Dokploy labelled as an app's.
 func TestScalingADokployAppsService(t *testing.T) {
@@ -250,26 +305,29 @@ func TestScalingADokployAppsService(t *testing.T) {
 // restarts unless stopped, and the rest always.
 func TestAStartGivesEachItsOwnPolicy(t *testing.T) {
 	e := coolifyServer(t)
-	s := Stopper{Docker: e.Client()}
-	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify})
+	s := Stopper{Docker: e.Client(), Check: checksAs("e1", nil)}
+	plan, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true, Domains: []string{"blog.example.com"}, Evidence: "e1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
-	start, left, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Start: true})
+	start, left, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Proxy: true, Start: true})
 	if err != nil || !left {
 		t.Fatalf("the start = %v, %v", left, err)
 	}
 	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
-	for name, want := range map[string]string{"coolify": "always", "coolify-db": "always", "coolify-sentinel": "unless-stopped"} {
-		if c := e.Container(name); !c.State.Running || c.HostConfig.RestartPolicy.Name != want {
-			t.Errorf("%s is %v, restart %q, want %q", name, c.State.Running, c.HostConfig.RestartPolicy.Name, want)
-		}
+	if c := e.Container("coolify-proxy"); !c.State.Running || c.HostConfig.RestartPolicy.Name != "unless-stopped" {
+		t.Errorf("the proxy is %v, restart %q", c.State.Running, c.HostConfig.RestartPolicy.Name)
 	}
+}
+
+// checksAs is a check of a handover's domains that finds evidence, or fails.
+func checksAs(evidence string, err error) func(context.Context, string, []string) (string, error) {
+	return func(context.Context, string, []string) (string, error) { return evidence, err }
 }
 
 // A scale to none waits for the service's task to stop, as Swarm stops it a while

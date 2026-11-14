@@ -867,6 +867,9 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
               detail: t`Run it again once they're back.`,
             };
       }
+      case "panel_domains_unguarded":
+        // A state a person confirms with in view: what Dockwell read, it can't promise is all (ADR 0089).
+        return { key, title: t`No login or address limit found on the old proxy`, detail: note.names.join(", ") };
       case "backup_first":
         return {
           key,
