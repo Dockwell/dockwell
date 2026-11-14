@@ -3,6 +3,7 @@
 package revision
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/id"
@@ -95,7 +97,16 @@ func (e *Engine) sharedIn(ctx context.Context, ed Edit) ([]resource.Ref, string,
 // sharedWith is sharedIn with the links outside that meet what's shared, and the
 // deletion's environments.
 func (e *Engine) sharedWith(ctx context.Context, ed Edit) (shared []resource.Ref, meeting []sharedLink, to string, err error) {
-	err = e.db.View(ctx, func(tx *store.Tx) error {
+	err = e.db.View(ctx, func(tx *store.Tx) (err error) {
+		shared, meeting, to, err = e.sharedWithIn(ctx, tx, ed)
+		return err
+	})
+	return shared, meeting, to, err
+}
+
+// sharedWithIn is sharedWith, read with tx.
+func (e *Engine) sharedWithIn(ctx context.Context, tx *store.Tx, ed Edit) (shared []resource.Ref, meeting []sharedLink, to string, err error) {
+	err = func() error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
 			return err
@@ -114,7 +125,9 @@ func (e *Engine) sharedWith(ctx context.Context, ed Edit) (shared []resource.Ref
 			if strings.HasPrefix(project, id.Environment+"_") {
 				project, environment = "", project
 			}
-			p, env, err := tree.Resolve(project, environment)
+			// Among the caller's own places, so a name elsewhere reads as one that
+			// isn't there, and no answer names another's project.
+			p, env, err := place.Reachable(ctx, tree).Resolve(project, environment)
 			if err != nil {
 				return err
 			}
@@ -153,9 +166,92 @@ func (e *Engine) sharedWith(ctx context.Context, ed Edit) (shared []resource.Ref
 			meeting = append(meeting, sharedLink{ref: resource.Ref{Kind: linkKind, Scope: r.Scope, Name: r.Name}, link: l, server: ref, project: project})
 		}
 		return nil
-	})
+	}()
 	sortRefs(shared)
 	return shared, meeting, to, err
+}
+
+// maxWritten bounds how far writtenNow follows values written from others, as the
+// keeper does where a change runs.
+const maxWritten = 4
+
+// writtenNow is what the variable or secret ref holds now, written out: what it
+// holds, or what what it comes from holds, read the same way.
+func (e *Engine) writtenNow(ctx context.Context, tx *store.Tx, ref resource.Ref, depth int) (string, error) {
+	it, err := e.load(ctx, tx, ref)
+	if err != nil {
+		return "", err
+	}
+	t, err := e.kinds.Type(ref.Kind)
+	if err != nil {
+		return "", err
+	}
+	valuer, ok := t.(resource.Valuer)
+	if !ok || it.current == nil {
+		return "", fault.New(ErrInvalid, "%s has no value to hold", ref)
+	}
+	from := variable.FromOf(it.current)
+	if from == nil {
+		return valuer.Value(it.current), nil
+	}
+	if depth >= maxWritten {
+		return "", fault.New(ErrInvalid, "%s is written from others more than %d deep, as one names itself through another. Write one of them out as a value of its own", ref, maxWritten)
+	}
+	uses := resource.Uses(t, it.current)
+	read := func(u resource.Use) (string, error) {
+		return e.writtenNow(ctx, tx, resource.Ref{Kind: u.Kind, Scope: cmp.Or(u.Scope, ref.Scope), Name: u.Name}, depth+1)
+	}
+	switch src := from.GetSource().(type) {
+	case *resourcev1.ValueFrom_Template:
+		values := make(map[string]string, len(uses))
+		for _, u := range uses {
+			v, err := read(u)
+			if err != nil {
+				return "", err
+			}
+			values[u.Name] = v
+		}
+		return variable.Write(src.Template, values)
+	case *resourcev1.ValueFrom_Value:
+		if len(uses) != 1 {
+			return "", fault.New(ErrInvalid, "%s's value from another environment names none", ref)
+		}
+		return read(uses[0])
+	}
+	return "", fault.New(ErrInvalid, "%s says it comes from somewhere, and not where", ref)
+}
+
+// breakingRoles refuses deleting what other projects' apps use too (Edit.DeleteShared)
+// to someone without a developer's role, or more, where each link it breaks is: it
+// stops those apps, which is theirs to do, and in a protected environment an
+// admin's to apply (the review of #572, its M3). Where the caller holds nothing,
+// the refusal names no app nor project.
+func (e *Engine) breakingRoles(ctx context.Context, tx *store.Tx, grants []store.Grant, it *item, a act) error {
+	if !it.deleteShared {
+		return nil
+	}
+	_, meeting, _, err := e.sharedWithIn(ctx, tx, Edit{Ref: it.ref, WithContents: true, DeleteShared: true})
+	if err != nil {
+		return err
+	}
+	for _, m := range meeting {
+		at, err := place.Of(ctx, tx, m.ref.Scope)
+		if err != nil || len(at) != 1 {
+			return cmp.Or(err, fault.New(ErrInvalid, "can't tell where link %s is", m.ref.Name))
+		}
+		held := place.Holds(grants, at[0])
+		needs, why := store.RoleDeveloper, "it deletes what "+m.ref.Name+" in "+m.project+" uses, which stops that app"
+		if a != planning && at[0].Protected {
+			needs, why = store.RoleAdmin, why+", in a protected environment"
+		}
+		if held == "" {
+			why = "it deletes what apps in projects you don't hold use, which stops them"
+		}
+		if store.RoleRank(held) < store.RoleRank(needs) {
+			return &Refusal{act: a, Held: held, Needs: needs, Why: why}
+		}
+	}
+	return nil
 }
 
 // sharedLink is a link of another project that meets a server a deletion takes.
@@ -234,16 +330,11 @@ func (e *Engine) breaksShared(ctx context.Context, edits []Edit) ([]Edit, []Note
 					if v.GetSecret() {
 						fromKind = "secret"
 					}
-					from, err := e.load(ctx, tx, resource.Ref{Kind: fromKind, Scope: v.GetEnvironment(), Name: v.GetName()})
+					// What it reads now, written out, so a value that's written from others is
+					// held at what it comes to (the review of #572, its L7).
+					value, err := e.writtenNow(ctx, tx, resource.Ref{Kind: fromKind, Scope: v.GetEnvironment(), Name: v.GetName()}, 0)
 					if err != nil {
 						return err
-					}
-					value := ""
-					switch s := from.current.(type) {
-					case *resourcev1.Secret:
-						value = s.GetValue()
-					case *resourcev1.Variable:
-						value = s.GetValue()
 					}
 					var spec proto.Message = &resourcev1.Variable{Value: value}
 					if kind == "secret" {

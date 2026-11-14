@@ -146,6 +146,9 @@ func (e *Engine) checkRoles(ctx context.Context, tx *store.Tx, actor string, c *
 		if err := e.linkedRestoreRoles(ctx, tx, caller.Grants, it, byID, a); err != nil {
 			return err
 		}
+		if err := e.breakingRoles(ctx, tx, caller.Grants, it, a); err != nil {
+			return err
+		}
 		needs, why := store.RoleDeveloper, ""
 		switch {
 		case at.admins != "":

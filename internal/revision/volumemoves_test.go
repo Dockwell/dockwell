@@ -297,3 +297,45 @@ func TestMovingAnAppIntoANewProject(t *testing.T) {
 		t.Errorf("the new project's volume holds %q", x.holds(env))
 	}
 }
+
+// A secret another app reads too isn't copied to where the app goes, as the copy
+// would give it to whoever holds that place: it holds the move back, with the app
+// to move too (the review of #572, its L3).
+func TestMovingAnAppCopiesNoSharedSecret(t *testing.T) {
+	x := newMoveBench(t, store.SQLite)
+	web, worker := appIn(x.prod, "web", []string{"data"}), appIn(x.prod, "worker", nil)
+	for _, ed := range []Edit{web, worker} {
+		ed.Spec.(*resourcev1.Service).Secrets = map[string]string{"API_KEY": ""} //nolint:forcetypeassert // appIn's
+	}
+	key := Edit{Ref: resource.Ref{Kind: "secret", Scope: x.prod, Name: "API_KEY"}, Spec: &resourcev1.Secret{Value: "a-key"}}
+	apply(t, x.e, propose(t, x.e, "A key", key, web, worker))
+	_, report, err := x.e.PlanAppMove(t.Context(), AppMove{From: x.prod, To: x.staging, Services: []string{"web"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Copies) != 0 || len(report.Blocks) != 1 || report.Blocks[0].MoveToo != "worker" || !strings.Contains(report.Blocks[0].Why, "the secret API_KEY") {
+		t.Errorf("copies %v, blocks %+v", report.Copies, report.Blocks)
+	}
+}
+
+// A value held at what it reads now is written out first, through what it's written
+// from, so a secret from a template holds what the template comes to, not nothing
+// (the review of #572, its L7).
+func TestAValueHeldIsWrittenOut(t *testing.T) {
+	x := newMoveBench(t, store.SQLite)
+	host := Edit{Ref: resource.Ref{Kind: variable.VariableKind, Scope: x.prod, Name: "HOST"}, Spec: &resourcev1.Variable{Value: "db.example.com"}}
+	url := Edit{Ref: resource.Ref{Kind: variable.SecretKind, Scope: x.prod, Name: "URL"}, Spec: &resourcev1.Secret{From: &resourcev1.ValueFrom{Source: &resourcev1.ValueFrom_Template{Template: &resourcev1.ValueTemplate{
+		Text: "postgres://${HOST}/shop", Names: []*resourcev1.TemplateName{{Name: "HOST"}},
+	}}}}}
+	apply(t, x.e, propose(t, x.e, "A URL", host, url))
+	var got string
+	if err := x.e.db.View(t.Context(), func(tx *store.Tx) (err error) {
+		got, err = x.e.writtenNow(t.Context(), tx, url.Ref, 0)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if got != "postgres://db.example.com/shop" {
+		t.Errorf("the URL is written out as %q", got)
+	}
+}

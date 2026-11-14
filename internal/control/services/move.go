@@ -13,6 +13,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
@@ -31,11 +32,21 @@ func (h *Handler) MoveService(ctx context.Context, req *connect.Request[dockwell
 	}
 	ask := revision.AppMove{From: r.Scope, Services: append([]string{r.Name}, m.GetAlso()...), NewProject: m.GetNewProject()}
 	where := m.GetNewProject()
+	// A new project is an admin's to make, which is said before anything about its
+	// name, as that would say whether a project of the name is there.
+	if where != "" {
+		if caller, ok := place.CallerFrom(ctx); ok && store.RoleRank(place.Holds(caller.Grants, place.Install)) < store.RoleRank(store.RoleAdmin) {
+			return nil, authapi.ReasonError(connect.CodePermissionDenied,
+				errors.New("moving an app to a new project makes one, which only an admin or the owner can do, so nothing moved. Move it to an environment you hold instead, or ask an admin"), authapi.ReasonNeedsRole)
+		}
+	}
 	if where == "" {
 		if m.GetToProject() == "" && m.GetToEnvironment() == "" {
 			return nil, authapi.Invalid(errors.New("the move says nowhere to go. Pass to_project, and to_environment where it has more than one, or new_project"))
 		}
-		p, env, err := h.changes.Environment(ctx, m.GetToProject(), m.GetToEnvironment())
+		// Where it goes is found among the caller's own places, so a name elsewhere
+		// reads as one that isn't there.
+		p, env, err := h.changes.ReachedEnvironment(ctx, m.GetToProject(), m.GetToEnvironment())
 		if err != nil {
 			return nil, err
 		}

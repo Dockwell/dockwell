@@ -96,8 +96,9 @@ type DataMover interface {
 	// JudgeMoveData says how the data of the Docker volume from moves into t, made
 	// as spec, and reports false when from has nothing left to move.
 	JudgeMoveData(ctx context.Context, from string, t Target, spec *resourcev1.Volume) (resource.VolumeMove, bool, error)
-	// MoveData moves it into t, which is made by then.
-	MoveData(ctx context.Context, move resource.VolumeMove, t Target) error
+	// MoveData moves it into t, the volume ref, which is made by then, and the
+	// backups kept of it on the server with it.
+	MoveData(ctx context.Context, move resource.VolumeMove, ref resource.Ref, t Target) error
 }
 
 var _ resource.Driver = (*Driver)(nil)
@@ -600,7 +601,7 @@ func (d *Driver) ApplyVolumeMove(ctx context.Context, step resource.Step, desire
 			return err
 		}
 	}
-	return d.Moves.MoveData(ctx, *step.VolumeMove, t)
+	return d.Moves.MoveData(ctx, *step.VolumeMove, step.Ref, t)
 }
 
 var errNoRestores = errors.New("this agent can't back up or restore volumes, as it has no Docker driver")

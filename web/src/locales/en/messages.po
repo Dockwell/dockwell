@@ -4163,6 +4163,9 @@ msgstr "latest"
 msgid "A new project"
 msgstr "A new project"
 
+msgid "Ask an admin for a role in the project it goes to."
+msgstr "Ask an admin for a role in the project it goes to."
+
 msgid "Choose again"
 msgstr "Choose again"
 
@@ -4177,6 +4180,9 @@ msgstr "Moves {others} with it"
 
 msgid "Nothing moves until you apply the plan"
 msgstr "Nothing moves until you apply the plan"
+
+msgid "Nowhere else you hold"
+msgstr "Nowhere else you hold"
 
 msgid "Project name"
 msgstr "Project name"

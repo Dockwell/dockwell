@@ -29,9 +29,16 @@ func movesWhole(items []item) error {
 			continue
 		}
 		from := slices.IndexFunc(items, func(o item) bool { return o.ref == it.moveFrom })
+		// A link moved is the one it was, for the backups taken for it.
+		if it.ref.Kind == linkKind && it.moveFrom.Kind == linkKind {
+			if it.spec == nil || it.moveFrom.Scope == it.ref.Scope || from < 0 || items[from].spec != nil {
+				return fault.New(ErrInvalid, "%s is %s moved only as the change makes it in another environment and deletes %s", it.ref, it.moveFrom, it.moveFrom.Name)
+			}
+			continue
+		}
 		switch {
-		case it.ref.Kind != "volume" || it.moveFrom.Kind != "volume":
-			return fault.New(ErrInvalid, "only a volume's data moves into another: %s can't take %s's", it.ref, it.moveFrom)
+		case it.ref.Kind != volumeKind || it.moveFrom.Kind != volumeKind:
+			return fault.New(ErrInvalid, "only a volume's data moves into another, and a link into another environment: %s can't take %s's", it.ref, it.moveFrom)
 		case it.spec == nil:
 			return fault.New(ErrInvalid, "%s is deleted in this change, so it can't take the data of %s", it.ref, it.moveFrom)
 		case it.moveFrom.Scope == it.ref.Scope:
@@ -99,7 +106,7 @@ func (e *Engine) deletesBeforeMoves(steps []resource.Step, its []*item) []resour
 	sources := map[resource.Ref]bool{}
 	for _, it := range its {
 		current[it.ref] = it.current
-		if it.moveFrom != (resource.Ref{}) {
+		if it.moveFrom.Kind == volumeKind {
 			sources[it.moveFrom] = true
 		}
 	}

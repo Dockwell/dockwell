@@ -100,6 +100,40 @@ func (t *Tx) MoveBackup(ctx context.Context, id, serverID string) error {
 	return nil
 }
 
+// Refile says the backups of one thing are another's now, as moving an app to
+// another project moves its volumes and its links (ADR 0084, #572): on Server, those
+// of the volume FromVolume are ToVolume's, in ToEnvironment, and their drills with
+// them; and those taken for the link FromLink are ToLink's.
+type Refile struct {
+	Server, FromVolume, ToVolume, ToEnvironment string
+	FromLink, ToLink                            string
+}
+
+// RefileBackups files backups as r says, and returns how many it moved.
+func (t *Tx) RefileBackups(ctx context.Context, r Refile) (int64, error) {
+	var moved int64
+	if r.FromVolume != "" && r.ToVolume != "" {
+		res, err := t.exec(ctx, `UPDATE backups SET volume_id = ?, environment_id = ? WHERE volume_id = ? AND server_id = ?`, r.ToVolume, r.ToEnvironment, r.FromVolume, r.Server)
+		if err != nil {
+			return 0, fmt.Errorf("can't file volume %s's backups under %s: %w", r.FromVolume, r.ToVolume, err)
+		}
+		n, _ := res.RowsAffected()
+		moved += n
+		if _, err := t.exec(ctx, `UPDATE backup_drills SET volume_id = ?, environment_id = ? WHERE volume_id = ? AND server_id = ?`, r.ToVolume, r.ToEnvironment, r.FromVolume, r.Server); err != nil {
+			return 0, fmt.Errorf("can't file volume %s's drills under %s: %w", r.FromVolume, r.ToVolume, err)
+		}
+	}
+	if r.FromLink != "" && r.ToLink != "" {
+		res, err := t.exec(ctx, `UPDATE backups SET for_link = ? WHERE for_link = ?`, r.ToLink, r.FromLink)
+		if err != nil {
+			return 0, fmt.Errorf("can't file link %s's backups under %s: %w", r.FromLink, r.ToLink, err)
+		}
+		n, _ := res.RowsAffected()
+		moved += n
+	}
+	return moved, nil
+}
+
 // SetBackupCopy records what became of a backup's copy on its destination.
 func (t *Tx) SetBackupCopy(ctx context.Context, b Backup) error {
 	if _, err := t.exec(ctx, `UPDATE backups SET copy_key = ?, copy_bytes = ?, copy_error = ?, sealed_with = ? WHERE id = ?`,

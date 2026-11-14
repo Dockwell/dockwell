@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import {
   MoveBlockSchema,
   type MoveServiceRequest,
+  Role,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -13,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aRevision, places } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -84,5 +86,29 @@ describe("Moving an app", () => {
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toHaveLength(1));
     expect(asked[0]).toMatchObject({ toProject: "prj_1", toEnvironment: "env_staging" });
+  });
+
+  it("goes where a developer may move it by default, as only an admin makes a project", async () => {
+    const user = userEvent.setup();
+    const asked: MoveServiceRequest[] = [];
+    renderAt("/apps/svc_web/settings", {
+      ...api(asked),
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+    });
+    const row = await screen.findByRole("region", { name: "Project" }, { timeout: 5000 });
+    await user.click(within(row).getByRole("button", { name: "Move web" }));
+    const sheet = await screen.findByRole("dialog", { name: "Move web" });
+    const where = within(sheet).getByRole("combobox", { name: "Where it goes" });
+    await waitFor(() => expect(where).toHaveValue("env_staging"));
+    expect(within(where).queryByRole("option", { name: "A new project" })).toBeNull();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]).toMatchObject({ toEnvironment: "env_staging", newProject: "" });
   });
 });

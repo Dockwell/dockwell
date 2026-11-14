@@ -260,7 +260,10 @@ type Edit struct {
 	// MoveFrom is the volume, of another environment on the same servers, whose
 	// data this one, a volume, takes as the change makes it, as moving an app to
 	// another project does (ADR 0084, #572). The change deletes MoveFrom too, and
-	// what mounts it first; undoing it moves the data back.
+	// what mounts it first; undoing it moves the data back. The volume's backups on
+	// each server are this one's once its data has moved there. For a link, MoveFrom
+	// is the link of another environment this one is, moved, whose backups are this
+	// one's once the change is applied.
 	MoveFrom resource.Ref
 	// Servers places a resource of an environment-level kind, such as a
 	// service, by server ID. Nil keeps it where it runs now, on the
@@ -497,7 +500,8 @@ type ResourcePlan struct {
 	// server's host, which makes no revision (ADR 0089). Undoing a stop plans
 	// starting each part again as it stood.
 	Panel *resource.Panel `json:",omitempty"`
-	// MovesFrom is the volume whose data the change moves into it (Edit.MoveFrom).
+	// MovesFrom is the volume whose data the change moves into it, or the link it
+	// is, moved (Edit.MoveFrom).
 	MovesFrom *resource.Ref `json:",omitempty"`
 	// DeleteShared says this deletion of a scope takes what other projects' apps use
 	// too (Edit.DeleteShared), so applying it holds to that.
@@ -780,7 +784,8 @@ type item struct {
 	// panel is stopping or starting the panel an import came from, on a server's
 	// host.
 	panel *resource.PanelAsked
-	// moveFrom is the volume whose data this one takes (Edit.MoveFrom).
+	// moveFrom is the volume whose data this one takes, or the link this one is,
+	// moved (Edit.MoveFrom).
 	moveFrom resource.Ref
 	// follows says the change took it in because it uses a value the change
 	// changes, as an app restarts with its database user's new password: Dockwell's
@@ -813,7 +818,7 @@ func (it item) moveOn(server string) *resource.MoveAsked {
 
 // moveFromOn is the Docker volume whose data the item takes on a server, if any.
 func (it item) moveFromOn(server string) string {
-	if it.moveFrom == (resource.Ref{}) || it.spec == nil || !slices.Contains(it.servers, server) {
+	if it.moveFrom.Kind != volumeKind || it.spec == nil || !slices.Contains(it.servers, server) {
 		return ""
 	}
 	return docker.ScopedName(docker.Project(it.moveFrom.Scope), it.moveFrom.Name)
@@ -893,6 +898,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	if edits, err = e.withMovedValues(ctx, edits); err != nil {
+		return nil, err
+	}
+	// The caller reaches what they asked for before anything is worked out from it,
+	// as what's worked out may name what's elsewhere; and again below, with what it
+	// adds.
+	if err := e.db.View(ctx, func(tx *store.Tx) error { return e.reachFirst(ctx, tx, p.Actor, edits) }); err != nil {
 		return nil, err
 	}
 	// A project going keeps what apps of other projects use, unless it says not to.
@@ -4251,6 +4262,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				}
 			}
 		}
+		// A volume's backups on the server are the one's its data moved into, in its
+		// environment, as soon as it has: undoing the move moves them back the same way
+		// (ADR 0084, #572).
+		if q.step.VolumeMove != nil && it.moveFrom.Kind == volumeKind {
+			if from := byRef[it.moveFrom]; from != nil {
+				e.refile(ctx, c.ID, store.Refile{Server: q.server, FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope})
+			}
+		}
 		if q.backupOnly {
 			// The deletion it comes before finishes the step.
 			continue
@@ -4314,9 +4333,20 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	}
 	// A removal's last act is the server leaving the fleet, as the change is
 	// applied (ADR 0090).
-	var then func(*store.RevisionTx) error
-	if rm := r.plan.Removes; rm != nil && !rm.Compromised {
-		then = func(tx *store.RevisionTx) error { return e.revoke(ctx, tx.Tx, c, rm.Server, false) }
+	// The backups taken for a link a change moved are the moved one's (ADR 0084).
+	then := func(tx *store.RevisionTx) error {
+		for i := range items {
+			it := &items[i]
+			if from := byRef[it.moveFrom]; it.ref.Kind == linkKind && it.moveFrom.Kind == linkKind && from != nil {
+				if _, err := tx.RefileBackups(ctx, store.Refile{FromLink: from.id, ToLink: it.id}); err != nil {
+					return err
+				}
+			}
+		}
+		if rm := r.plan.Removes; rm != nil && !rm.Compromised {
+			return e.revoke(ctx, tx.Tx, c, rm.Server, false)
+		}
+		return nil
 	}
 	if err := e.finishWith(ctx, c, store.ChangeApplied, "", "change.applied", e.progress(c.ID), then); err != nil {
 		return err
@@ -4326,6 +4356,18 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	}
 	e.published(c.ID, store.ChangeApplied)
 	return nil
+}
+
+// refile files backups as r says, once a step has moved what they're of. What can't
+// be written is logged, not fatal: the data has moved either way.
+func (e *Engine) refile(ctx context.Context, changeID string, r store.Refile) {
+	err := e.db.Update(ctx, func(tx *store.Tx) error {
+		_, err := tx.RefileBackups(ctx, r)
+		return err
+	})
+	if err != nil {
+		e.logger.ErrorContext(ctx, "can't file a moved volume's backups under the volume it moved into, so they stay listed under the old one", slog.String("change", changeID), slog.String("from", r.FromVolume), slog.String("to", r.ToVolume), slog.Any("error", err))
+	}
 }
 
 // pulledNewer puts a newer image a pull found on record, before anything is

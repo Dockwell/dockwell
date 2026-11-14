@@ -406,8 +406,18 @@ func (e *Engine) whatMoves(from *moveFrom, moving map[resource.Ref]bool, report 
 			}
 		}
 		switch {
+		case ref.Kind == "secret" && e.valuer(ref.Kind) && !slices.ContainsFunc(stays, func(r resource.Ref) bool { return r.Kind == linkKind }):
+			// A secret others read too isn't copied: the copy would give it, such as a
+			// database's admin password, to whoever holds where the app goes (the
+			// review of #572, its L3).
+			for _, other := range stays {
+				report.Blocks = append(report.Blocks, MoveBlock{
+					Ref: other, MoveToo: serviceName(other),
+					Why: fmt.Sprintf("%s %s reads the secret %s with the app, which isn't copied to where the app goes. Move it too", other.Kind, other.Name, ref.Name),
+				})
+			}
 		case e.valuer(ref.Kind) && !slices.ContainsFunc(stays, func(r resource.Ref) bool { return r.Kind == linkKind }):
-			// A value others read too stays, and the app gets a copy of its own.
+			// A variable others read too stays, and the app gets a copy of its own.
 			copies[ref] = true
 		case ref.Kind == "volume":
 			for _, other := range stays {
@@ -641,10 +651,11 @@ func (e *Engine) moveEdits(from, to *moveFrom, ask AppMove, moving, copies map[r
 			there.Servers = slices.Compact(slices.Sorted(slices.Values(slices.Concat(shared.placed, it.placed))))
 		}
 		if moving[ref] {
-			if ref.Kind == "volume" {
+			// A volume takes its data with it, and a link the backups taken for it.
+			if ref.Kind == volumeKind || ref.Kind == linkKind {
 				there.MoveFrom = ref
 			}
-			edits = append(edits, Edit{Ref: ref})
+			edits = append(edits, Edit{Ref: ref, Base: it.base})
 		}
 		edits = append(edits, there)
 	}

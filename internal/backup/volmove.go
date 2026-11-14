@@ -12,6 +12,8 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -95,11 +97,13 @@ func (r *Runner) JudgeMoveData(ctx context.Context, from string, t volume.Target
 		return rec.Move, true, nil
 	}
 	// Moving back what a copy into from didn't finish: from has part of it, and
-	// t all, as the copy empties t only once it's done.
+	// t all, as the copy empties t only once it's done. That copy is given up, so
+	// its record goes: a move into from again starts afresh, and refuses to copy over
+	// what part it left (the review of #572, its L2).
 	if back, err := r.readMove(from); err != nil {
 		return resource.VolumeMove{}, false, err
 	} else if back != nil && back.Move.From == t.Name && !back.Copied {
-		return resource.VolumeMove{}, false, nil
+		return resource.VolumeMove{}, false, r.saveMove(from, nil)
 	}
 	src, err := r.source4Move(ctx, from)
 	if err != nil || src == nil {
@@ -107,6 +111,13 @@ func (r *Runner) JudgeMoveData(ctx context.Context, from string, t volume.Target
 	}
 	move := resource.VolumeMove{From: from}
 	if len(src.Options) > 0 {
+		// Only a volume whose options reach data kept elsewhere is made again the same,
+		// as another made so reaches the same data. Another driver's, such as one
+		// that makes a disk, would make the new one a new disk, empty, and the old
+		// one's would go once the change's week is up (the review of #572, its M2).
+		if !reachesElsewhere(src) {
+			return move, false, fmt.Errorf("%s is made by the %s driver with options that may not reach the same data from another volume, so moving it could leave the app an empty one, and nothing stopped. Copy its data into a volume of the new project by hand, or leave the app where it is", from, src.Driver)
+		}
 		if !sameVolume(src, spec) {
 			return move, false, fmt.Errorf("%s reaches its data through its options, so %s takes it by reaching the same, and needs the same driver and options", from, t.Name)
 		}
@@ -161,6 +172,22 @@ func (r *Runner) source4Move(ctx context.Context, from string) (*docker.Volume, 
 }
 
 // sameVolume reports whether spec makes a volume as src was made.
+// reachesElsewhere says a volume reaches data kept elsewhere through its options,
+// which a volume made the same reaches too: the local driver's bind of a folder, or
+// its mount of an NFS or CIFS share.
+func reachesElsewhere(v *docker.Volume) bool {
+	if v.Driver != "local" {
+		return false
+	}
+	switch v.Options["type"] {
+	case "nfs", "nfs4", "cifs":
+		return true
+	case "", "none":
+		return slices.Contains(strings.Split(v.Options["o"], ","), "bind")
+	}
+	return false
+}
+
 func sameVolume(src *docker.Volume, spec *resourcev1.Volume) bool {
 	driver := spec.GetDriver()
 	if driver == "" {
@@ -246,9 +273,10 @@ func roomToCopy(free, total, size int64, from string) error {
 		from, human.Size(free), human.Size(needs), human.Size(reserve))
 }
 
-// MoveData moves the data into t, which is made by then, as move says. A step run
-// again carries on from where the last stopped.
-func (r *Runner) MoveData(ctx context.Context, move resource.VolumeMove, t volume.Target) error {
+// MoveData moves the data into t, the volume ref, which is made by then, as move
+// says, and then the backups kept of the old volume, as they're the new one's now. A
+// step run again carries on from where the last stopped.
+func (r *Runner) MoveData(ctx context.Context, move resource.VolumeMove, ref resource.Ref, t volume.Target) error {
 	for _, name := range []string{move.From, t.Name} {
 		users, err := r.Client.ListContainers(ctx, map[string][]string{"volume": {name}})
 		if err != nil {
@@ -265,13 +293,60 @@ func (r *Runner) MoveData(ctx context.Context, move resource.VolumeMove, t volum
 	defer release()
 	switch move.How {
 	case resource.MoveSameOptions:
-		return nil
 	case resource.MoveInPlace:
-		return r.moveInPlace(ctx, move.From, t)
+		err = r.moveInPlace(ctx, move.From, t)
 	case resource.MoveCopy:
-		return r.moveByCopy(ctx, move, t)
+		err = r.moveByCopy(ctx, move, t)
+	default:
+		return fmt.Errorf("this agent doesn't know how to move a volume's data %s. Upgrade it, then plan the move again", move.How)
 	}
-	return fmt.Errorf("this agent doesn't know how to move a volume's data %s. Upgrade it, then plan the move again", move.How)
+	if err != nil {
+		return err
+	}
+	return r.moveBackups(move.From, ref)
+}
+
+// moveBackups moves the backups kept of the Docker volume from into the folder of
+// to's, each by a rename, so a run again moves what's left (ADR 0084, #572). from's
+// folder is found by its name, as Docker's is its environment's ID in lower case.
+func (r *Runner) moveBackups(from string, to resource.Ref) error {
+	dst := r.dir(to)
+	scopes, err := os.ReadDir(r.Root)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("can't read where backups are kept: %w", err)
+	}
+	for _, s := range scopes {
+		if !s.IsDir() || s.Name() == movesDir {
+			continue
+		}
+		name, ok := strings.CutPrefix(from, docker.Project(s.Name())+"_")
+		src := filepath.Join(r.Root, s.Name(), name)
+		if !ok || name == "" || src == dst {
+			continue
+		}
+		files, err := os.ReadDir(src)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("can't read the backups of %s: %w", from, err)
+		}
+		if err := os.MkdirAll(dst, 0o700); err != nil {
+			return fmt.Errorf("can't make a place for the backups of %s: %w", to.Name, err)
+		}
+		for _, f := range files {
+			// A file of the name there already is that one's; it stays where it was.
+			if _, err := os.Lstat(filepath.Join(dst, f.Name())); err == nil {
+				continue
+			}
+			if err := os.Rename(filepath.Join(src, f.Name()), filepath.Join(dst, f.Name())); err != nil {
+				return fmt.Errorf("can't move backup file %s of %s: %w", f.Name(), from, err)
+			}
+		}
+		syncDir(dst)
+		_ = os.Remove(src) // gone once it's empty
+	}
+	return nil
 }
 
 // moveInPlace renames the folder of the volume from into the place of t's, which

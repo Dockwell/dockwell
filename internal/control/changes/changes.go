@@ -248,12 +248,27 @@ func (h *Handler) Protos(ctx context.Context, records ...*revision.Record) ([]*d
 // choice it leaves out names the request's fields project and
 // environment.
 func (h *Handler) Environment(ctx context.Context, project, environment string) (scope.Project, scope.Environment, error) {
+	return h.environment(ctx, project, environment, false)
+}
+
+// ReachedEnvironment finds an environment as Environment does, among the projects
+// the caller holds a role in only, for a request that names a second place the
+// API's first check doesn't read, such as where an app moves: a project elsewhere
+// reads as one that isn't there, and no choice names one.
+func (h *Handler) ReachedEnvironment(ctx context.Context, project, environment string) (scope.Project, scope.Environment, error) {
+	return h.environment(ctx, project, environment, true)
+}
+
+func (h *Handler) environment(ctx context.Context, project, environment string, reached bool) (scope.Project, scope.Environment, error) {
 	var p scope.Project
 	var e scope.Environment
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
 			return err
+		}
+		if reached {
+			tree = place.Reachable(ctx, tree)
 		}
 		p, e, err = tree.Resolve(project, environment)
 		return err
