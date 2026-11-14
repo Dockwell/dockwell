@@ -7029,6 +7029,9 @@ msgstr "数据库"
 msgid "Each app has a user of its own"
 msgstr "每个应用都有自己的用户"
 
+msgid "Each app has a user of its own, and keeps to its own keys"
+msgstr "每个应用都有自己的用户，只使用自己的键"
+
 msgid "Each image pinned by digest"
 msgstr "每个镜像都按摘要固定"
 
@@ -7060,6 +7063,9 @@ msgstr "请填写{missingLabel}，然后审阅计划"
 
 msgid "Hide {label}"
 msgstr "隐藏 {label}"
+
+msgid "Its apps can read and change each other's data"
+msgstr "其上的应用可以读取和修改彼此的数据"
 
 msgid "Its site"
 msgstr "官网"
@@ -7107,6 +7113,12 @@ msgstr "自己设置 {0}"
 
 msgid "Shared with {apps} · each app has a user of its own"
 msgstr "已与 {apps} 共享 · 每个应用都有自己的用户"
+
+msgid "Shared with {apps} · each app has a user of its own, and keeps to its own keys"
+msgstr "与 {apps} 共用 · 每个应用都有自己的用户，只使用自己的键"
+
+msgid "Shared with {apps} · its apps can read and change each other's data"
+msgstr "与 {apps} 共用 · 其上的应用可以读取和修改彼此的数据"
 
 msgid "Shares {service} in {project}"
 msgstr "共享 {project} 中的 {service}"
@@ -8316,6 +8328,12 @@ msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除
 
 msgid "Keeps its data for 7 days, then deletes it"
 msgstr "保留其数据 7 天，然后删除"
+
+msgid "Leaves the keys it wrote on the server"
+msgstr "它写入的键会留在服务器上"
+
+msgid "Leaves the keys under {keysUnder} on the server"
+msgstr "{keysUnder} 下的键会留在服务器上"
 
 msgid "May cut off access to {server}"
 msgstr "可能切断对 {server} 的访问"

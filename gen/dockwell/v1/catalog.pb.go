@@ -633,7 +633,12 @@ type CatalogNeedOption struct {
 	// The apps that use it already, through links of theirs, by project name.
 	SharedWith []string `protobuf:"bytes,12,rep,name=shared_with,json=sharedWith,proto3" json:"shared_with,omitempty"`
 	// The servers it runs on, by name, where the app would go with it.
-	Servers       []string `protobuf:"bytes,13,rep,name=servers,proto3" json:"servers,omitempty"`
+	Servers []string `protobuf:"bytes,13,rep,name=servers,proto3" json:"servers,omitempty"`
+	// For a Redis or Valkey: each app on it keeps to its own keys, as every user
+	// there has a key prefix, and so would this app's. False where any reaches every
+	// key, so its apps can read and change each other's data. Numbered in the block
+	// connectable apps hold, 40 to 49.
+	KeepsApart    bool `protobuf:"varint,40,opt,name=keeps_apart,json=keepsApart,proto3" json:"keeps_apart,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -757,6 +762,13 @@ func (x *CatalogNeedOption) GetServers() []string {
 		return x.Servers
 	}
 	return nil
+}
+
+func (x *CatalogNeedOption) GetKeepsApart() bool {
+	if x != nil {
+		return x.KeepsApart
+	}
+	return false
 }
 
 // CatalogPart is one service an entry installs.
@@ -3362,7 +3374,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05needs\x18P \x03(\v2\x1e.dockwell.v1.CatalogNeedOptionR\x05needs\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8b\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xac\x03\n" +
 	"\x11CatalogNeedOption\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x12\x16\n" +
 	"\x06choice\x18\x02 \x01(\tR\x06choice\x129\n" +
@@ -3380,7 +3392,9 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x03why\x18\v \x01(\tR\x03why\x12\x1f\n" +
 	"\vshared_with\x18\f \x03(\tR\n" +
 	"sharedWith\x12\x18\n" +
-	"\aservers\x18\r \x03(\tR\aservers\"\xf9\x03\n" +
+	"\aservers\x18\r \x03(\tR\aservers\x12\x1f\n" +
+	"\vkeeps_apart\x18( \x01(\bR\n" +
+	"keepsApart\"\xf9\x03\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +

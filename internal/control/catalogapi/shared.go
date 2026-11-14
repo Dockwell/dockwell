@@ -100,6 +100,42 @@ func asksToShare(asked map[string]string) bool {
 // outside the pools Docker gives its own networks (ADR 0084).
 var linkRange = netip.MustParsePrefix("10.233.0.0/16")
 
+// sharedUsers are edits that mark each user a Redis or Valkey has already as one of a
+// server others share, so none of them reaches past its keys (ADR 0084).
+func (h *Handler) sharedUsers(ctx context.Context, tx *store.Tx, c *catalog.Candidate) ([]*dockwellv1.Edit, error) {
+	all, err := tx.ListKind(ctx, string(database.UserKind))
+	if err != nil {
+		return nil, err
+	}
+	var stored []store.StoredSpec
+	var names []string
+	for _, r := range all {
+		if r.Spec != nil && r.Scope == c.EnvironmentID {
+			stored = append(stored, store.StoredSpec{At: store.InRevision(r.ID, r.Kind, r.Revision), Spec: r.Spec})
+			names = append(names, r.Name)
+		}
+	}
+	decoded, _, err := h.keeper.DecodeEach(ctx, tx, stored)
+	if err != nil {
+		return nil, err
+	}
+	var out []*dockwellv1.Edit
+	for i, spec := range decoded {
+		u, ok := spec.(*resourcev1.DatabaseUser)
+		if !ok || u.GetService() != c.Service || u.GetShared() {
+			continue
+		}
+		u = proto.CloneOf(u)
+		u.Shared, u.Revisions = true, nil
+		out = append(out, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(database.UserKind), Scope: c.EnvironmentID, Name: names[i]},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: u}},
+			Servers:  slices.Clone(c.Servers),
+		})
+	}
+	return out, nil
+}
+
 // freeSubnet is a /29 in linkRange no network on record has, or an error saying
 // there's none left.
 func (h *Handler) freeSubnet(ctx context.Context, tx *store.Tx) (string, error) {
@@ -178,6 +214,10 @@ func (h *Handler) share(ctx context.Context, project string, met map[string]cata
 				}
 			}
 			w.Database, w.User = catalog.SharedNames(w.Need, project, c)
+			if catalog.KeyValue(c.Engine) {
+				// An ACL user, in the server's first numbered database, as its other apps.
+				w.Database = "0"
+			}
 			secret := strings.ToUpper(w.User) + "_DATABASE_PASSWORD"
 			for i := 2; ; i++ {
 				_, errS := tx.GetResource(ctx, string(variable.SecretKind), w.Existing.EnvironmentID, secret)
@@ -229,16 +269,46 @@ func pinJoins(e *catalogv1.Entry, pin *resourcev1.CatalogPin) map[string][]strin
 }
 
 // userEdits are the database users an install's plan makes on a new server beside
-// the app, whose image makes only its administrator, in the app's environment.
-func userEdits(needed *catalog.Needed) []*dockwellv1.Edit {
+// the app, whose image makes only its administrator, in the app's environment env,
+// where it has one. A user there already keeps whether its server is shared, which
+// only sharing it changes (ADR 0084).
+func (h *Handler) userEdits(ctx context.Context, env string, needed *catalog.Needed) ([]*dockwellv1.Edit, error) {
+	shared := map[string]bool{}
+	if env != "" && len(needed.Users) > 0 {
+		err := h.db.View(ctx, func(tx *store.Tx) error {
+			for name := range needed.Users {
+				r, err := tx.GetResource(ctx, string(database.UserKind), env, name)
+				switch {
+				case errors.Is(err, store.ErrNotFound):
+					continue
+				case err != nil:
+					return err
+				case r.Spec == nil:
+					continue
+				}
+				// A user's spec holds nothing secret, so it's stored as it is.
+				u := &resourcev1.DatabaseUser{}
+				if err := proto.Unmarshal(r.Spec, u); err != nil {
+					return fmt.Errorf("can't read the database user %s: %w", name, err)
+				}
+				shared[name] = u.GetShared()
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
 	var out []*dockwellv1.Edit
 	for _, name := range slices.Sorted(maps.Keys(needed.Users)) {
+		u := proto.CloneOf(needed.Users[name])
+		u.Shared = u.GetShared() || shared[name]
 		out = append(out, &dockwellv1.Edit{
 			Resource: &dockwellv1.ResourceRef{Kind: string(database.UserKind), Name: name},
-			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: needed.Users[name]}},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: u}},
 		})
 	}
-	return out
+	return out, nil
 }
 
 // writtenEdits are the URLs an install's needs set, each a secret of the app's
@@ -291,7 +361,19 @@ func (h *Handler) sharedEdits(ctx context.Context, needed *catalog.Needed, fille
 				return err
 			}
 			user := &resourcev1.DatabaseUser{Service: c.Service, Password: w.Password, CopyFrom: w.CopyFrom}
-			if w.Database != w.User {
+			if catalog.KeyValue(c.Engine) {
+				// A shared Redis's users reach no further than their keys, and the
+				// users it had already, its own app's among them, go the same way.
+				user.Shared = true
+				if catalog.KeepsApart(n) {
+					user.KeyPrefix = w.User + ":"
+				}
+				more, err := h.sharedUsers(ctx, tx, c)
+				if err != nil {
+					return err
+				}
+				out.Extra = append(out.Extra, more...)
+			} else if w.Database != w.User {
 				user.DatabaseName = w.Database
 			}
 			linkNet := n.GetName() + "-link"
@@ -387,10 +469,14 @@ func pinApart(ctx context.Context, tx *store.Tx, c *catalog.Candidate, owners ma
 	if err != nil {
 		return err
 	}
-	apart, err := catalog.PinApart(ran, c.Service, pin.GetNeeds()[c.Service], c.Version)
+	need, ok := catalog.NeedOf(pin, c.Service, c.Engine)
+	if !ok {
+		return fmt.Errorf("can't tell which of %s's needs %s meets, so it can't be pinned apart from it", o.name, c.Service)
+	}
+	apart, err := catalog.PinApart(ran, c.Service, pin.GetNeeds()[need], c.Version)
 	if err != nil {
 		return err
 	}
-	pin.Needs[c.Service] = apart
+	pin.Needs[need] = apart
 	return nil
 }

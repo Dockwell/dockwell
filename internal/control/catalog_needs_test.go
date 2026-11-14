@@ -3,6 +3,8 @@
 package control
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"net/url"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -873,8 +876,9 @@ compose: |
         - "127.0.0.1:${PORT}:80"
 `
 
-// An app that needs a Redis gets a new one from the catalog, its alone: the server's
-// one password is the app's, and the Redis publishes nothing.
+// An app that sends a Redis a password alone gets a new one from the catalog whose
+// one password is the app's, as it signs in as the server's default user, and no
+// user that would leave it refused; the Redis publishes nothing (ADR 0084).
 func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(catalog.DirEnv, dir)
@@ -884,7 +888,32 @@ func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
-	pullsAnything(e)
+	// Every image pulls; a Redis's keeps the ACL users it's told to set.
+	var mu sync.Mutex
+	acl := map[string]string{}
+	e.Find = func(ref string) (dockertest.Image, bool) {
+		if !strings.Contains(ref, "redis") {
+			return dockertest.Image{}, true
+		}
+		return dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}, Exec: func(x dockertest.Exec) int {
+			in, _ := io.ReadAll(x.Stdin)
+			mu.Lock()
+			defer mu.Unlock()
+			for _, line := range strings.Split(strings.TrimSpace(string(in)), "\n") {
+				fields := strings.Fields(line)
+				switch {
+				case len(fields) >= 3 && fields[0] == "ACL" && fields[1] == "SETUSER":
+					acl[fields[2]] = strings.Join(fields[3:], " ")
+					_, _ = io.WriteString(x.Stdout, "OK\n")
+				case len(fields) == 3 && fields[0] == "ACL" && fields[1] == "GETUSER":
+					_, _ = io.WriteString(x.Stdout, acl[fields[2]]+"\n")
+				case line == "CONFIG GET aclfile":
+					_, _ = io.WriteString(x.Stdout, "aclfile\n\n")
+				}
+			}
+			return 0
+		}}, true
+	}
 	ch := changeClient(b, b.origin)
 	cat := catalogClient(b)
 	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board"})
@@ -910,6 +939,12 @@ func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
 	if read["REDIS_HOST"] != "cache" || read["REDIS_PASSWORD"] == "" || !strings.Contains(cmd, "--requirepass "+read["REDIS_PASSWORD"]) {
 		t.Errorf("the board reads %v; its Redis runs %q", read, cmd)
 	}
+	mu.Lock()
+	users := len(acl)
+	mu.Unlock()
+	if users != 0 {
+		t.Errorf("the board got ACL users %v, which it never signs in as", acl)
+	}
 	if len(redis.HostConfig.PortBindings) != 0 {
 		t.Errorf("the Redis publishes %v", redis.HostConfig.PortBindings)
 	}
@@ -920,18 +955,40 @@ func TestAnInstallMakesANewRedisOfItsOwn(t *testing.T) {
 // plan that shares it changes WordPress's project, whose pin then keeps the database
 // as it runs (ADR 0084).
 func TestSharingAnInstallsOwnServerPinsItApart(t *testing.T) {
+	// The need named as its server is, or apart from it, as "database" met by "db".
+	for _, need := range []string{"db", "database"} {
+		t.Run(need, func(t *testing.T) { sharesAnInstallsOwnServer(t, need) })
+	}
+}
+
+func sharesAnInstallsOwnServer(t *testing.T, need string) {
 	dir := t.TempDir()
 	t.Setenv(catalog.DirEnv, dir)
-	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(wordpressWithNeeds(t, 5, "")), 0o600); err != nil {
+	entry := strings.Replace(wordpressWithNeeds(t, 5, ""), "needs:\n  - name: db\n", "needs:\n  - name: "+need+"\n", 1)
+	if err := os.WriteFile(filepath.Join(dir, "wordpress.yaml"), []byte(entry), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
 	pullsAnything(e)
-	// A MariaDB whose client finds no such user or database, as a new one does.
+	// A MariaDB whose client finds no such user or database until it's told to make
+	// them, as a new one does.
 	image := regexp.MustCompile(`image: (mariadb:\S+)`).FindStringSubmatch(wordpressWithNeeds(t, 5, ""))[1]
+	var mu sync.Mutex
+	made := map[string]bool{}
 	e.Registry[image] = dockertest.Image{Config: docker.Config{Cmd: []string{"mariadbd"}}, Exec: func(x dockertest.Exec) int {
+		sql, _ := io.ReadAll(x.Stdin)
+		mu.Lock()
+		defer mu.Unlock()
+		for _, m := range regexp.MustCompile("CREATE USER IF NOT EXISTS '([a-z0-9_]+)'").FindAllSubmatch(sql, -1) {
+			made[string(m[1])] = true
+		}
+		// Whether it has the user, and its database, as the user driver asks.
+		if m := regexp.MustCompile("User = '([a-z0-9_]+)'").FindSubmatch(sql); len(m) == 2 && made[string(m[1])] {
+			_, _ = io.WriteString(x.Stdout, "u\t1\nd\t1\n")
+			return 0
+		}
 		_, _ = io.WriteString(x.Stdout, `{"user":false,"owner":""}`+"\n")
 		return 0
 	}}
@@ -956,7 +1013,7 @@ func TestSharingAnInstallsOwnServerPinsItApart(t *testing.T) {
 	if choice == "" {
 		t.Fatalf("blog's own MariaDB isn't offered: %v", got.Msg.GetNeeds())
 	}
-	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "shop", Needs: map[string]string{"db": choice}})
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "wordpress", Project: "shop", Needs: map[string]string{need: choice}})
 	pins, user := false, ""
 	for _, r := range planned.GetPlan().GetResources() {
 		pins = pins || r.GetResource().GetKind() == "project" && r.GetResource().GetName() == "blog" && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_UPDATE
@@ -970,6 +1027,30 @@ func TestSharingAnInstallsOwnServerPinsItApart(t *testing.T) {
 	}
 	if !pins {
 		t.Errorf("sharing blog's own MariaDB leaves blog's pin as it is: %v", planned.GetPlan().GetResources())
+	}
+	if got := apply(t, c, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the share ended %v: %s", got.GetState(), got.GetError())
+	}
+	// Blog's pin keeps its MariaDB as it runs, under its own name, for the need.
+	var pin *resourcev1.CatalogPin
+	_ = f.store.View(t.Context(), func(tx *store.Tx) error {
+		org, err := tx.Organization(t.Context())
+		if err != nil {
+			return err
+		}
+		r, err := tx.GetResource(t.Context(), "project", org.ID, "blog")
+		if err != nil {
+			return err
+		}
+		spec := &resourcev1.Project{}
+		if err := proto.Unmarshal(r.Spec, spec); err != nil {
+			return err
+		}
+		pin = spec.GetCatalog()
+		return nil
+	})
+	if p := pin.GetNeeds()[need]; p.GetService() != "db" || p.GetEntry() != "mariadb" || !strings.Contains(string(p.GetFile()), "\n  db:\n") {
+		t.Errorf("blog's pin keeps its need %s as %v", need, p)
 	}
 }
 
@@ -1307,5 +1388,233 @@ func TestDeletingAnAppTakesItsLinkNetwork(t *testing.T) {
 	pg.mu.Unlock()
 	if !kept {
 		t.Error("deleting the blog dropped its user on the shared server")
+	}
+}
+
+// boardWithUser is the board, sending its Redis a user name, and keeping its keys
+// under a prefix it reads.
+var boardWithUser = strings.NewReplacer(
+	"id: board\nname: Board", "id: board-user\nname: Board user",
+	"      - name: REDIS_PASSWORD\n        part: PART_PASSWORD\n", "      - name: REDIS_USER\n        part: PART_USER\n      - name: REDIS_PASSWORD\n        part: PART_PASSWORD\n      - name: REDIS_PREFIX\n        part: PART_KEY_PREFIX\n",
+	"        REDIS_PASSWORD: ${REDIS_PASSWORD}\n", "        REDIS_USER: ${REDIS_USER}\n        REDIS_PASSWORD: ${REDIS_PASSWORD}\n        REDIS_PREFIX: ${REDIS_PREFIX}\n",
+).Replace(boardEntry)
+
+// sharedRedisStack is a Redis another project runs, whose password its command line
+// requires.
+const sharedRedisStack = `
+services:
+  cache:
+    image: redis:7.4
+    command: ["redis-server", "--requirepass", "${CACHE_PASSWORD}"]
+`
+
+// fakeRedisImage is a Redis that requires a password, and keeps the ACL users it's
+// told to set, by name.
+func fakeRedisImage(mu *sync.Mutex, acl map[string]string) dockertest.Image {
+	return dockertest.Image{Config: docker.Config{Cmd: []string{"redis-server"}}, Exec: func(x dockertest.Exec) int {
+		in, _ := io.ReadAll(x.Stdin)
+		mu.Lock()
+		defer mu.Unlock()
+		for _, line := range strings.Split(strings.TrimSpace(string(in)), "\n") {
+			fields := strings.Fields(line)
+			switch {
+			case len(fields) > 0 && fields[0] == "AUTH":
+				_, _ = io.WriteString(x.Stdout, "OK\n")
+			case line == "INFO server":
+				_, _ = io.WriteString(x.Stdout, "# Server\nredis_version:7.4.1\n")
+			case line == "ACL LIST":
+				_, _ = io.WriteString(x.Stdout, "user default on sanitize-payload #0123 ~* &* +@all\n")
+			case len(fields) >= 3 && fields[0] == "ACL" && fields[1] == "SETUSER":
+				acl[fields[2]] = strings.Join(fields[3:], " ")
+				_, _ = io.WriteString(x.Stdout, "OK\n")
+			case len(fields) == 3 && fields[0] == "ACL" && fields[1] == "GETUSER":
+				_, _ = io.WriteString(x.Stdout, acl[fields[2]]+"\n")
+			case line == "CONFIG GET aclfile":
+				_, _ = io.WriteString(x.Stdout, "aclfile\n\n")
+			}
+		}
+		return 0
+	}}
+}
+
+// An app that sends a user name and keeps its keys under a prefix shares a Redis
+// another project runs, end to end through the engine: the plan makes its ACL user
+// there, in the server's environment, with a password whose value its link reads
+// from there, and the user reaches only the keys and channels under its prefix, and
+// only what an app does with its data. Sharing needs a role in both projects: a
+// developer of the app's project alone isn't offered the server, nor can make a user
+// there (ADR 0084).
+func TestAnInstallSharesARedisYouRun(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(boardWithUser), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	var mu sync.Mutex
+	acl := map[string]string{}
+	e.Find = func(ref string) (dockertest.Image, bool) {
+		if strings.Contains(ref, "redis") {
+			return fakeRedisImage(&mu, acl), true
+		}
+		return dockertest.Image{}, true
+	}
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	apply(t, ch, importCompose(t, compose, sharedRedisStack, map[string]string{"CACHE_PASSWORD": "the-administrators"}, false))
+	cat := catalogClient(b)
+	got, err := cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "board-user"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var choice string
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetService() == "cache" {
+			if o.GetWhy() != "" || !o.GetKeepsApart() {
+				t.Errorf("the shared Redis reads %v", o)
+			}
+			choice = o.GetChoice()
+		}
+	}
+	if choice == "" {
+		t.Fatalf("the Redis isn't offered: %v", got.Msg.GetNeeds())
+	}
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board-user", Needs: map[string]string{"cache": choice}})
+	made := map[string]string{}
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE {
+			made[r.GetResource().GetKind()+" "+r.GetResource().GetName()] = r.GetResource().GetScope()
+		}
+	}
+	for _, want := range []string{"database.user cache", "link cache", "network cache-link", "service app"} {
+		if _, ok := made[want]; !ok {
+			t.Errorf("sharing, the plan makes no %s: %v", want, made)
+		}
+	}
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	app := e.Newest(docker.Project(made["link cache"]), "app")
+	if app == nil {
+		t.Fatalf("the board doesn't run: %v", e.Containers())
+	}
+	read := map[string]string{}
+	for _, kv := range app.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		read[k] = v
+	}
+	if read["REDIS_USER"] != "cache" || read["REDIS_PREFIX"] != "cache:" || read["REDIS_PASSWORD"] == "" || read["REDIS_PASSWORD"] == "the-administrators" {
+		t.Errorf("the board reads %v", read)
+	}
+	sum := sha256.Sum256([]byte(read["REDIS_PASSWORD"]))
+	mu.Lock()
+	rules := acl["cache"]
+	mu.Unlock()
+	if !strings.Contains(rules, "on #"+hex.EncodeToString(sum[:])+" ~cache:* &cache:* -@all ") || !strings.Contains(rules, " -@admin -@dangerous -scan -randomkey -function ") {
+		t.Errorf("the board's ACL user is %q", rules)
+	}
+
+	// An app that keeps to no prefix shares it too: from then on, its apps can read
+	// and change each other's data, which the choice says, prefix or not.
+	plain := strings.NewReplacer("id: board-user\nname: Board user", "id: board-plain\nname: Board plain",
+		"      - name: REDIS_PREFIX\n        part: PART_KEY_PREFIX\n", "", "        REDIS_PREFIX: ${REDIS_PREFIX}\n", "").Replace(boardWithUser)
+	if err := os.WriteFile(filepath.Join(dir, "board-plain.yaml"), []byte(plain), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	second := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board-plain", Needs: map[string]string{"cache": choice}})
+	if got := apply(t, ch, second); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the second install ended %v: %s", got.GetState(), got.GetError())
+	}
+	got, err = cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "board-user"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range got.Msg.GetNeeds() {
+		if o.GetService() == "cache" && o.GetKeepsApart() {
+			t.Errorf("with an app on it that keeps to no prefix, the Redis reads as keeping apps apart: %v", o)
+		}
+	}
+
+	// A developer of the board's project alone isn't offered the server, nor can name it.
+	hold := aMember(t, f)
+	hold(store.Grant{ProjectID: envProject(t, f, made["link cache"]), Role: store.RoleDeveloper})
+	got, err = cat.GetCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.GetCatalogEntryRequest{Id: "board-user"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.ContainsFunc(got.Msg.GetNeeds(), func(o *dockwellv1.CatalogNeedOption) bool { return o.GetService() == "cache" }) {
+		t.Errorf("a developer of the board alone is offered the Redis: %v", got.Msg.GetNeeds())
+	}
+	// The user a share makes lives where the server is, which takes a role there.
+	_, err = ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Share the cache", Edits: []*dockwellv1.Edit{{
+		Resource: &dockwellv1.ResourceRef{Kind: "database.user", Scope: made["database.user cache"], Name: "board_two"},
+		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: &resourcev1.DatabaseUser{Service: "cache", Password: "BOARD_TWO_PASSWORD", Shared: true}}},
+	}}}))
+	if err == nil {
+		t.Error("a developer of the board alone made a user on a Redis in another project")
+	}
+}
+
+// An upgrade plans an install's users again, and a user on a server that's shared
+// since keeps being shared, so it stays held from what reaches past its keys (ADR
+// 0084).
+func TestAnUpgradeKeepsAUserShared(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(catalog.DirEnv, dir)
+	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(boardWithUser), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	var mu sync.Mutex
+	acl := map[string]string{}
+	e.Find = func(ref string) (dockertest.Image, bool) {
+		if strings.Contains(ref, "redis") {
+			return fakeRedisImage(&mu, acl), true
+		}
+		return dockertest.Image{}, true
+	}
+	ch := changeClient(b, b.origin)
+	cat := catalogClient(b)
+	planned := installApp(t, cat, &dockwellv1.InstallCatalogEntryRequest{Id: "board-user"})
+	if got := apply(t, ch, planned); got.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("the install ended %v: %s", got.GetState(), got.GetError())
+	}
+	var env string
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "database.user" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	if env == "" {
+		t.Fatalf("the install made no user: %v", planned.GetPlan().GetResources())
+	}
+	// As a share marks it.
+	apply(t, ch, propose(t, ch, "Share the cache", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Kind: "database.user", Scope: env, Name: "cache"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: &resourcev1.DatabaseUser{
+			Service: "cache", Password: "REDIS_PASSWORD", KeyPrefix: "cache:", Shared: true,
+		}}},
+	}))
+	next := strings.NewReplacer(`version: "1.0"`, `version: "1.1"`, `release: 1`, `release: 2`, "board:1@sha256:"+digest1, "board:1@sha256:"+digest2).Replace(boardWithUser)
+	if err := os.WriteFile(filepath.Join(dir, "board-user.yaml"), []byte(next), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	upgrading, err := cat.UpgradeCatalogInstall(t.Context(), connect.NewRequest(&dockwellv1.UpgradeCatalogInstallRequest{Id: envProject(t, f, env)}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range upgrading.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() != "database.user" {
+			continue
+		}
+		for _, c := range r.GetChanges() {
+			if c.GetPath() == "shared" {
+				t.Errorf("the upgrade changes whether the user is shared: %v", c)
+			}
+		}
 	}
 }

@@ -20,6 +20,7 @@ import { describe, expect, it, vi } from "vitest";
 import { expectAccessible } from "../../test/a11y";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { keepsApart } from "./needs";
 
 // WordPress as ADR 0084 has it: its database a need its own MariaDB meets, or a
 // new MySQL from the catalog in its place.
@@ -247,6 +248,22 @@ describe("A server you run, shared because you pick it", () => {
     expect(asked?.needs).toEqual({ db: "service:data/production/db" });
   });
 
+  it("says a shared Redis's apps can read and change each other's data, where the need sets no prefix", async () => {
+    const sharedRedis = create(CatalogNeedOptionSchema, {
+      ...sharedDB,
+      choice: "service:data/production/cache",
+      engine: Engine.REDIS,
+      version: "8.2.1",
+      service: "cache",
+      serviceId: "svc_cache",
+      sharedWith: ["shop"],
+    });
+    renderAt("/catalog/wordpress/install", api([sharedRedis]));
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const picker = await within(sheet).findByRole("group", { name: "Database" });
+    expect(picker).toHaveTextContent("Shared with shop · its apps can read and change each other's data");
+  });
+
   it("asks you to choose one where nothing new can be made", async () => {
     renderAt("/catalog/wordpress/install", api([sharedDB]));
     const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
@@ -254,5 +271,20 @@ describe("A server you run, shared because you pick it", () => {
     expect(within(picker).getByRole("radio", { name: /db in data/ })).not.toBeChecked();
     expect(within(sheet).getByText("Choose its database to review the plan")).toBeVisible();
     expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+  });
+});
+
+describe("How apps sharing a server keep apart", () => {
+  it("is a database each on SQL engines, and on Redis a key prefix only where every user there keeps to one", () => {
+    const option = (engine: Engine, apart: boolean) =>
+      create(CatalogNeedOptionSchema, {
+        engine,
+        keepsApart: apart,
+        service: "cache",
+        choice: "service:data/production/cache",
+      });
+    expect(keepsApart(option(Engine.POSTGRESQL, false))).toBe("databases");
+    expect(keepsApart(option(Engine.REDIS, false))).toBe("no");
+    expect(keepsApart(option(Engine.VALKEY, true))).toBe("prefixes");
   });
 });

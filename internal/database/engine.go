@@ -9,6 +9,7 @@
 package database
 
 import (
+	"cmp"
 	"fmt"
 	"path"
 	"slices"
@@ -17,6 +18,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Engine is a database Dockwell knows, as its official image runs it.
@@ -45,6 +47,9 @@ type Engine struct {
 	// Password is the variable its image sets its first user's password from, in
 	// the order it reads them.
 	Password []string
+	// PasswordFlag names an option of its server's command that sets that password,
+	// as Redis's --requirepass does, where there is one.
+	PasswordFlag string
 	// User is the variable its image sets its first user's name from, where that
 	// isn't always the same user, as MongoDB's root can be anyone.
 	User string
@@ -74,12 +79,12 @@ var Engines = []*Engine{
 	{
 		Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS, Name: "Redis", Images: []string{"redis"},
 		Servers: []string{"redis-server"}, Data: always("/data"), Volume: always("/data"),
-		Port: 6379, Password: []string{"REDIS_PASSWORD"},
+		Port: 6379, Password: []string{"REDIS_PASSWORD", "REDISCLI_AUTH"}, PasswordFlag: "--requirepass",
 	},
 	{
 		Kind: dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY, Name: "Valkey", Images: []string{"valkey/valkey"},
 		Servers: []string{"valkey-server", "redis-server"}, Data: always("/data"), Volume: always("/data"),
-		Port: 6379, Password: []string{"VALKEY_PASSWORD", "REDIS_PASSWORD"},
+		Port: 6379, Password: []string{"VALKEY_PASSWORD", "REDIS_PASSWORD", "REDISCLI_AUTH"}, PasswordFlag: "--requirepass",
 	},
 	{
 		// Its image declares /data/configdb too, which only a config server of a
@@ -235,8 +240,13 @@ type Found struct {
 	// Port is what it listens on in its container.
 	Port uint32
 	// PasswordSecret is the environment's secret its first user's password is in,
-	// when it uses one.
+	// when it uses one: in a variable its image reads, or in its command, as
+	// Redis's --requirepass ${REDIS_PASSWORD}.
 	PasswordSecret string
+	// Unguarded says it asks no one for a password: a Redis or Valkey that requires
+	// none, or a MongoDB with no root user, which runs without access control. Such a
+	// server is never shared (ADR 0084).
+	Unguarded bool
 }
 
 // FromSpec reads what a service runs as a database, or says it isn't one.
@@ -275,16 +285,40 @@ func FromSpec(svc *resourcev1.Service) (Found, bool) {
 	if p := PortOf(e, app.GetCommand()); p != 0 {
 		f.Port = p
 	}
+	secretOf := func(name string) (string, bool) {
+		secret, ok := svc.GetSecrets()[name]
+		return cmp.Or(secret, name), ok
+	}
 	for _, name := range e.Password {
-		if secret, ok := svc.GetSecrets()[name]; ok {
+		if secret, ok := secretOf(name); ok {
 			f.PasswordSecret = secret
-			if secret == "" {
-				f.PasswordSecret = name
-			}
 			break
 		}
 	}
+	// A password its command sets, from a secret, signs in as the administrator too.
+	flag := FlagValue(app.GetCommand(), e.PasswordFlag)
+	if names, _ := binding.NamesIn([]string{flag}); f.PasswordSecret == "" && len(names) == 1 {
+		if secret, ok := secretOf(names[0]); ok {
+			f.PasswordSecret = secret
+		}
+	}
+	switch {
+	case e.KeyValue():
+		// Its image requires no password unless its command, or a file of rules,
+		// says so; the agent checks again what the server itself says.
+		f.Unguarded = flag == "" && FlagValue(app.GetCommand(), "--aclfile") == "" && !mentionsConfig(app.GetCommand())
+	case e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		_, secretUser := svc.GetSecrets()[e.User]
+		_, variableUser := svc.GetVariables()[e.User]
+		f.Unguarded = app.GetEnv()[e.User] == "" && !secretUser && !variableUser && !slices.Contains(app.GetCommand(), "--auth")
+	}
 	return f, true
+}
+
+// mentionsConfig reports a Redis or Valkey command that starts from a config file,
+// which may require a password the command doesn't show.
+func mentionsConfig(cmd []string) bool {
+	return slices.ContainsFunc(cmd, func(arg string) bool { return strings.HasSuffix(arg, ".conf") })
 }
 
 // dataMount is the volume a data directory is on: the deepest mount that holds it,

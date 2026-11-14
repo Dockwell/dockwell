@@ -190,6 +190,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 			p.BackupFirst.Also = append(p.BackupFirst.Also, &dockwellv1.DatabaseDump{BackupId: d.ID, DatabaseName: d.Database})
 		}
 	}
+	p.KeysLeft = s.KeysLeft
 	if m := s.Move; m != nil {
 		p.DatabaseMove = &dockwellv1.DatabaseMove{
 			BackupId: m.Backup, Database: m.Database, FromSeries: m.FromSeries, ToSeries: m.ToSeries, FromVolume: m.From, ToVolume: m.To,
@@ -548,6 +549,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 			s.BackupFirst.Also = append(s.BackupFirst.Also, resource.DatabaseDump{ID: d.GetBackupId(), Database: d.GetDatabaseName()})
 		}
 	}
+	s.KeysLeft = p.GetKeysLeft()
 	if m := p.GetDatabaseMove(); m != nil {
 		s.Move = &resource.MovePlan{
 			Backup: m.GetBackupId(), Database: m.GetDatabase(), FromSeries: m.GetFromSeries(), ToSeries: m.GetToSeries(), From: m.GetFromVolume(), To: m.GetToVolume(),

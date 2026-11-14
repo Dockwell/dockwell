@@ -53,9 +53,9 @@ type engine struct {
 	// database, is a database user the install's plan makes once the server is up,
 	// and the administrator's password stays the server's own (ADR 0084).
 	planned bool
-	// alone names the entry's input that holds the server's one password, where the
-	// app signs in with it: a new Redis beside an app is the app's alone, and most
-	// apps send a Redis no user. That password is then the need's.
+	// alone names the entry's input that holds the server's one password, which an
+	// install from before an app had a user of its own on its new Redis gave the app,
+	// as the need's: its pin keeps the server so, and plans it no user (ADR 0084).
 	alone string
 }
 
@@ -69,9 +69,9 @@ var engines = map[catalogv1.Engine]engine{
 		word: "mariadb", name: "MariaDB", entry: "mariadb",
 		database: "MARIADB_DATABASE", user: "MARIADB_USER", password: "MARIADB_PASSWORD",
 	},
-	catalogv1.Engine_ENGINE_REDIS:      {word: "redis", name: "Redis", entry: "redis", alone: "REDIS_PASSWORD"},
+	catalogv1.Engine_ENGINE_REDIS:      {word: "redis", name: "Redis", entry: "redis", planned: true, alone: "REDIS_PASSWORD"},
 	catalogv1.Engine_ENGINE_VALKEY:     {word: "valkey", name: "Valkey"},
-	catalogv1.Engine_ENGINE_MONGODB:    {word: "mongodb", name: "MongoDB"},
+	catalogv1.Engine_ENGINE_MONGODB:    {word: "mongodb", name: "MongoDB", entry: "mongo", planned: true},
 	catalogv1.Engine_ENGINE_CLICKHOUSE: {word: "clickhouse", name: "ClickHouse"},
 }
 
@@ -287,6 +287,8 @@ func checkSet(e *catalogv1.Entry, n *catalogv1.Need, s *catalogv1.NeedSet, input
 		return fmt.Errorf("the need %s sets %s, and needs to say what it holds, such as PART_HOST", need, name)
 	case s.GetTemplate() != "" && part != catalogv1.Part_PART_URL:
 		return fmt.Errorf("the need %s writes %s from a template, which only a URL takes", need, name)
+	case part == catalogv1.Part_PART_KEY_PREFIX && !slices.ContainsFunc(n.GetAccepts(), func(a *catalogv1.NeedAccept) bool { return keyValue(a.GetEngine()) }):
+		return fmt.Errorf("the need %s sets %s as a key prefix, which only Redis and Valkey keep. Take it out, or accept one of them", need, name)
 	case !regexp.MustCompile(`\$\{` + regexp.QuoteMeta(name) + `(\}|:?[-?+])`).MatchString(e.GetCompose()):
 		return fmt.Errorf("its Compose file doesn't use %s, which the need %s sets. Use it as ${%s}, or take it out of sets", name, need, name)
 	}
@@ -478,12 +480,84 @@ func (w Way) Service() string {
 	if own := w.Need.GetService(); own != "" && w.From == nil && len(w.pin.GetFile()) == 0 && w.Existing == nil {
 		return own
 	}
+	// The entry's own server, pinned apart as a person first shared it, keeps its name.
+	if apart := w.pin.GetService(); apart != "" && w.From == nil && hasService(string(w.pin.GetFile()), apart) {
+		return apart
+	}
 	// A server shared with the app answers on its link network to the need's name, or
 	// its alias where that's taken.
 	if w.Existing != nil && w.Alias != "" {
 		return w.Alias
 	}
 	return w.Need.GetName()
+}
+
+// KeyValue reports Redis or Valkey, whose app's user is an ACL user, with no database
+// of its own.
+func KeyValue(e catalogv1.Engine) bool { return keyValue(e) }
+
+// keyValue is KeyValue.
+func keyValue(e catalogv1.Engine) bool {
+	return e == catalogv1.Engine_ENGINE_REDIS || e == catalogv1.Engine_ENGINE_VALKEY
+}
+
+// signsInAlone reports a pinned server whose one password is the app's, as a new
+// Redis beside an app was before the app had a user of its own on it, or is where its
+// app sends no user name: it stays so, and the plan makes it no user.
+func (w Way) signsInAlone(password string) bool {
+	return w.From == nil && engines[w.Engine].alone != "" && strings.Contains(string(w.pin.GetFile()), "${"+password+"}")
+}
+
+// sendsUser reports a need that gives its app a user name to sign in with: a user
+// part, or a URL whose form has one.
+func sendsUser(n *catalogv1.Need) bool {
+	return slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool {
+		return s.GetPart() == catalogv1.Part_PART_USER ||
+			s.GetPart() == catalogv1.Part_PART_URL && (s.GetTemplate() == "" || strings.Contains(s.GetTemplate(), "{user}"))
+	})
+}
+
+// keepsPrefix reports a need that sets a key prefix its app keeps to.
+func keepsPrefix(n *catalogv1.Need) bool {
+	return slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return s.GetPart() == catalogv1.Part_PART_KEY_PREFIX })
+}
+
+// KeepsApart reports a need whose app keeps to its own keys on a Redis or Valkey it
+// shares, as it sets a key prefix (ADR 0084).
+func KeepsApart(n *catalogv1.Need) bool { return keepsPrefix(n) }
+
+// plansUser reports a new server beside the app whose image makes only its
+// administrator, on which the plan makes the app a user of its own. A Redis or Valkey
+// gets one only where the app sends a user name: an app that sends a password alone
+// signs in as the server's default user, so the server's one password is the app's,
+// and the server is the app's alone (ADR 0084).
+func (w Way) plansUser(password string) bool {
+	if !engines[w.Engine].planned || w.signsInAlone(password) {
+		return false
+	}
+	return !keyValue(w.Engine) || sendsUser(w.Need)
+}
+
+// makesUser reports a way on which the install's plan makes the app's user: a new
+// server from the catalog, or one its pin keeps, that plansUser. The entry's own
+// service makes its users itself, as its image does, or has the app sign in with its
+// one password.
+func (w Way) makesUser(password string) bool {
+	return w.plansUser(password) && w.Existing == nil && (w.From != nil || len(w.pin.GetFile()) > 0) && !w.imageMakesUser()
+}
+
+// imageMakesUser reports a pinned server whose file has its image make the app's user
+// from the need's names, as an entry's own server pinned apart does: the app signs in
+// as that user, which Dockwell didn't make, so the plan makes it none, which its
+// server would refuse as one it has already.
+func (w Way) imageMakesUser() bool {
+	if w.From != nil {
+		return false
+	}
+	file := string(w.pin.GetFile())
+	return slices.ContainsFunc(w.Need.GetSets(), func(s *catalogv1.NeedSet) bool {
+		return s.GetPart() == catalogv1.Part_PART_USER && strings.Contains(file, "${"+s.GetName()+"}")
+	})
 }
 
 // Lookup finds a catalog entry by its ID, with the source it's in.
@@ -740,7 +814,7 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 					return nil, err
 				}
 			}
-			if file, err = replaceService(file, n.GetService(), n.GetName(), added); err != nil {
+			if file, err = replaceService(file, n.GetService(), w.Service(), added); err != nil {
 				return nil, err
 			}
 			// An input of the app's own of a name the server keeps its secret in would
@@ -759,7 +833,7 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 					}
 				}
 			}
-			if file, err = waitFor(file, n); err != nil {
+			if file, err = waitFor(file, n, w.Service()); err != nil {
 				return nil, err
 			}
 			adds = append(adds, more...)
@@ -780,14 +854,22 @@ func Need(e *catalogv1.Entry, met map[string]Way) (*Needed, error) {
 		values := needValues(n, w)
 		if w.Existing != nil {
 			values[catalogv1.Part_PART_DATABASE], values[catalogv1.Part_PART_USER] = w.Database, w.User
+			if keyValue(w.Engine) {
+				values[catalogv1.Part_PART_KEY_PREFIX] = w.User + ":"
+			}
 		}
-		if engines[w.Engine].planned && w.Existing == nil && (w.From != nil || len(w.pin.GetFile()) > 0) {
+		if w.makesUser(password) {
 			user, db := values[catalogv1.Part_PART_USER], values[catalogv1.Part_PART_DATABASE]
 			if _, taken := out.Users[user]; taken {
 				return nil, fmt.Errorf("two of %s's needs name the user %s, which one environment has once. Give each need a user of its own", e.GetName(), user)
 			}
-			u := &resourcev1.DatabaseUser{Service: n.GetName(), Password: password}
-			if db != user {
+			// It lives in the server it's made in, under the name the need's server
+			// answers to, which a server pinned apart keeps.
+			u := &resourcev1.DatabaseUser{Service: w.Service(), Password: password}
+			if keyValue(w.Engine) && keepsPrefix(n) {
+				u.KeyPrefix = values[catalogv1.Part_PART_KEY_PREFIX]
+			}
+			if db != user && !keyValue(w.Engine) {
 				u.DatabaseName = db
 			}
 			out.Users[user] = u
@@ -891,12 +973,24 @@ func MetFile(file string, pinned map[string]*resourcev1.PinnedNeed) (string, err
 		if len(p.GetFile()) == 0 {
 			continue
 		}
+		// A server pinned apart keeps its own name; one the catalog added has the need's.
+		as := name
+		if p.GetService() != "" && p.GetService() != name && hasService(string(p.GetFile()), p.GetService()) {
+			as = p.GetService()
+		}
 		var err error
-		if file, err = replaceService(file, p.GetService(), name, string(p.GetFile())); err != nil {
+		if file, err = replaceService(file, p.GetService(), as, string(p.GetFile())); err != nil {
 			return "", err
 		}
 	}
 	return file, nil
+}
+
+// hasService reports a Compose file with a service of that name.
+func hasService(file, name string) bool {
+	services, err := composeServices(file)
+	_, ok := services[name]
+	return err == nil && ok
 }
 
 // PasswordName is the name a need's password is kept as in the app's environment:
@@ -924,8 +1018,20 @@ func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 	p := strconv.FormatUint(uint64(port(w.Engine)), 10)
 	db := databaseOf(n)
 	user := cmp.Or(n.GetUser(), db)
-	if w.Engine == catalogv1.Engine_ENGINE_REDIS || w.Engine == catalogv1.Engine_ENGINE_VALKEY {
-		db, user = "0", ""
+	if keyValue(w.Engine) {
+		// Its first numbered database, and the app's ACL user, named for the need,
+		// but on a server whose one password is the app's, as an install's from
+		// before had it.
+		db, user = "0", cmp.Or(n.GetUser(), strings.ReplaceAll(n.GetName(), "-", "_"))
+		if w.Existing == nil && !w.makesUser(passwordName(n)) {
+			user = ""
+		}
+	}
+	// The keys an app keeps to on a Redis or Valkey: its user's, or on a server that's
+	// its alone, its need's name.
+	prefix := ""
+	if keyValue(w.Engine) {
+		prefix = cmp.Or(user, strings.ReplaceAll(n.GetName(), "-", "_")) + ":"
 	}
 	tls := ""
 	for _, s := range n.GetSets() {
@@ -935,12 +1041,13 @@ func needValues(n *catalogv1.Need, w Way) map[catalogv1.Part]string {
 		}
 	}
 	return map[catalogv1.Part]string{
-		catalogv1.Part_PART_HOST:     host,
-		catalogv1.Part_PART_PORT:     p,
-		catalogv1.Part_PART_ADDRESS:  host + ":" + p,
-		catalogv1.Part_PART_DATABASE: db,
-		catalogv1.Part_PART_USER:     user,
-		catalogv1.Part_PART_TLS:      tls,
+		catalogv1.Part_PART_HOST:       host,
+		catalogv1.Part_PART_PORT:       p,
+		catalogv1.Part_PART_ADDRESS:    host + ":" + p,
+		catalogv1.Part_PART_DATABASE:   db,
+		catalogv1.Part_PART_USER:       user,
+		catalogv1.Part_PART_TLS:        tls,
+		catalogv1.Part_PART_KEY_PREFIX: prefix,
 	}
 }
 
@@ -1066,8 +1173,10 @@ func linkOf(n *catalogv1.Need, w Way, values map[catalogv1.Part]string) *resourc
 		Label: n.GetLabel(), Service: w.Service(), Engine: resourcev1.LinkEngine(w.Engine), Version: w.Version,
 		DatabaseName: values[catalogv1.Part_PART_DATABASE], User: values[catalogv1.Part_PART_USER], SetOnce: n.GetSetOnce(),
 	}
-	if w.Engine == catalogv1.Engine_ENGINE_REDIS || w.Engine == catalogv1.Engine_ENGINE_VALKEY {
-		l.DatabaseName, l.User = "", ""
+	// A Redis or Valkey has numbered databases, not named ones; its app's user is the
+	// link's, whose password a value from another environment reads.
+	if keyValue(w.Engine) {
+		l.DatabaseName = ""
 	}
 	for _, a := range n.GetAccepts() {
 		l.Accepts = append(l.Accepts, &resourcev1.LinkAccept{Engine: resourcev1.LinkEngine(a.GetEngine()), Versions: a.GetVersions()})
@@ -1129,7 +1238,7 @@ func (w Way) service(password string) (string, []*catalogv1.Input, error) {
 	walkStrings(svc, func(s *yaml.Node) {
 		s.Value = usedNames.ReplaceAllStringFunc(s.Value, func(m string) string {
 			in := m[2:]
-			if in == info.alone {
+			if in == info.alone && !w.plansUser(password) {
 				// The server's one password is the app's, as the need's.
 				return "${" + password
 			}
@@ -1244,13 +1353,13 @@ func replaceService(file, own, name, added string) (string, error) {
 // another store that brought none waits for nothing, and its app would start first,
 // before the user the plan makes for it. Only the order a change makes them in reads
 // it, so a file without it, as MetFile's, runs the same.
-func waitFor(file string, n *catalogv1.Need) (string, error) {
+func waitFor(file string, n *catalogv1.Need, as string) (string, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(file), &doc); err != nil || len(doc.Content) != 1 {
 		return "", errors.New("its Compose file isn't YAML")
 	}
 	services := nodeGet(doc.Content[0], "services")
-	added := nodeGet(services, n.GetName())
+	added := nodeGet(services, as)
 	if added == nil {
 		return file, nil
 	}
@@ -1264,7 +1373,7 @@ func waitFor(file string, n *catalogv1.Need) (string, error) {
 	}
 	for i := 0; i+1 < len(services.Content); i += 2 {
 		name, svc := services.Content[i].Value, services.Content[i+1]
-		if name == n.GetName() || svc.Kind != yaml.MappingNode ||
+		if name == as || svc.Kind != yaml.MappingNode ||
 			!slices.ContainsFunc(n.GetSets(), func(s *catalogv1.NeedSet) bool { return uses(parsed[name], s.GetName()) }) {
 			continue
 		}
@@ -1274,17 +1383,17 @@ func waitFor(file string, n *catalogv1.Need) (string, error) {
 			deps = &yaml.Node{Kind: yaml.MappingNode}
 			svc.Content = append(svc.Content, scalar("depends_on"), deps)
 		case deps.Kind == yaml.SequenceNode:
-			if slices.ContainsFunc(deps.Content, func(d *yaml.Node) bool { return d.Value == n.GetName() }) {
+			if slices.ContainsFunc(deps.Content, func(d *yaml.Node) bool { return d.Value == as }) {
 				continue
 			}
-			deps.Content = append(deps.Content, scalar(n.GetName()))
+			deps.Content = append(deps.Content, scalar(as))
 			continue
-		case nodeGet(deps, n.GetName()) != nil:
+		case nodeGet(deps, as) != nil:
 			continue
 		}
 		wait := &yaml.Node{Kind: yaml.MappingNode}
 		wait.Content = append(wait.Content, scalar("condition"), scalar(condition))
-		deps.Content = append(deps.Content, scalar(n.GetName()), wait)
+		deps.Content = append(deps.Content, scalar(as), wait)
 	}
 	return encode(&doc)
 }

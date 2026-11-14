@@ -123,20 +123,26 @@ const (
 	Part_PART_URL Part = 7
 	// Whether to use TLS, in the app's own words, as the set's tls gives them.
 	Part_PART_TLS Part = 8
+	// A prefix the app puts before each key it keeps, on Redis or Valkey, such as
+	// "shop:". Where a need sets one, an app sharing a server keeps to its own keys,
+	// and reaches no other app's. Numbered in the block connectable apps hold, 40 to
+	// 49. See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+	Part_PART_KEY_PREFIX Part = 40
 )
 
 // Enum value maps for Part.
 var (
 	Part_name = map[int32]string{
-		0: "PART_UNSPECIFIED",
-		1: "PART_HOST",
-		2: "PART_PORT",
-		3: "PART_ADDRESS",
-		4: "PART_DATABASE",
-		5: "PART_USER",
-		6: "PART_PASSWORD",
-		7: "PART_URL",
-		8: "PART_TLS",
+		0:  "PART_UNSPECIFIED",
+		1:  "PART_HOST",
+		2:  "PART_PORT",
+		3:  "PART_ADDRESS",
+		4:  "PART_DATABASE",
+		5:  "PART_USER",
+		6:  "PART_PASSWORD",
+		7:  "PART_URL",
+		8:  "PART_TLS",
+		40: "PART_KEY_PREFIX",
 	}
 	Part_value = map[string]int32{
 		"PART_UNSPECIFIED": 0,
@@ -148,6 +154,7 @@ var (
 		"PART_PASSWORD":    6,
 		"PART_URL":         7,
 		"PART_TLS":         8,
+		"PART_KEY_PREFIX":  40,
 	}
 )
 
@@ -1872,7 +1879,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\fENGINE_REDIS\x10\x04\x12\x11\n" +
 	"\rENGINE_VALKEY\x10\x05\x12\x12\n" +
 	"\x0eENGINE_MONGODB\x10\x06\x12\x15\n" +
-	"\x11ENGINE_CLICKHOUSE\x10\a*\x9d\x01\n" +
+	"\x11ENGINE_CLICKHOUSE\x10\a*\xb2\x01\n" +
 	"\x04Part\x12\x14\n" +
 	"\x10PART_UNSPECIFIED\x10\x00\x12\r\n" +
 	"\tPART_HOST\x10\x01\x12\r\n" +
@@ -1882,7 +1889,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\tPART_USER\x10\x05\x12\x11\n" +
 	"\rPART_PASSWORD\x10\x06\x12\f\n" +
 	"\bPART_URL\x10\a\x12\f\n" +
-	"\bPART_TLS\x10\b*A\n" +
+	"\bPART_TLS\x10\b\x12\x13\n" +
+	"\x0fPART_KEY_PREFIX\x10(*A\n" +
 	"\n" +
 	"Characters\x12\x1a\n" +
 	"\x16CHARACTERS_UNSPECIFIED\x10\x00\x12\x17\n" +

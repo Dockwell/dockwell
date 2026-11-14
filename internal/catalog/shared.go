@@ -37,7 +37,14 @@ type Candidate struct {
 	Sizes                    map[string]int64 // how much each of its databases takes, in bytes, as its reading says
 	SharedWith               []string         // the projects whose apps link to it already
 	AdministeredBy           string           // a service outside it that signs in as its administrator, if any
-	JoinsInPlace             bool             // every server it runs on has an agent that joins link networks in place
+	// Unguarded says it asks no one for a password: a Redis or Valkey that requires
+	// none, or a MongoDB without access control. A user of an app's own there would
+	// keep no one out, so it isn't shared.
+	Unguarded bool
+	// Unprefixed says a user Dockwell made on a Redis or Valkey reaches every key, as
+	// it keeps to no prefix, so its apps read and change each other's data.
+	Unprefixed   bool
+	JoinsInPlace bool // every server it runs on has an agent that joins link networks in place
 	// PartOf names the app whose catalog install it's part of, as WordPress's own
 	// MariaDB is, where that app's upgrades would change it, and Pinnable says the
 	// plan that first shares it can pin it apart from the app, as the entry's own
@@ -47,16 +54,23 @@ type Candidate struct {
 	Pinnable bool
 }
 
+// KeepsApart reports a Redis or Valkey shared way on which each app keeps to its own
+// keys: the need sets a key prefix, and every user there has one.
+func (w Way) KeepsApart() bool {
+	return w.Existing != nil && keyValue(w.Engine) && keepsPrefix(w.Need) && !w.Existing.Unprefixed
+}
+
 // Choice is how InstallCatalogEntryRequest.needs names a candidate.
 func (c Candidate) Choice() string {
 	return "service:" + c.Project + "/" + c.Environment + "/" + c.Service
 }
 
-// usersOwn reports an engine Dockwell makes an app's own database and user on (ADR
-// 0038). Redis's and Valkey's ACL users, and MongoDB's users, come later.
+// usersOwn reports an engine Dockwell makes an app's own database and user on, or on
+// Redis and Valkey an ACL user (ADR 0038, 0084).
 func usersOwn(e catalogv1.Engine) bool {
 	switch e {
-	case catalogv1.Engine_ENGINE_POSTGRESQL, catalogv1.Engine_ENGINE_MYSQL, catalogv1.Engine_ENGINE_MARIADB:
+	case catalogv1.Engine_ENGINE_POSTGRESQL, catalogv1.Engine_ENGINE_MYSQL, catalogv1.Engine_ENGINE_MARIADB, catalogv1.Engine_ENGINE_MONGODB,
+		catalogv1.Engine_ENGINE_REDIS, catalogv1.Engine_ENGINE_VALKEY:
 		return true
 	default:
 		return false
@@ -78,6 +92,17 @@ func existing(n *catalogv1.Need, app string, candidates []Candidate, on string) 
 		switch {
 		case !usersOwn(c.Engine):
 			w.Why = fmt.Sprintf("Dockwell can't make an app its own user on %s yet", EngineName(c.Engine))
+		case c.Engine == catalogv1.Engine_ENGINE_REDIS && len(link.Numbers(c.Version)) > 0 && link.Numbers(c.Version)[0] < 6:
+			w.Why = fmt.Sprintf("Redis %s keeps one password, so an app can't have a user of its own on it", c.Version)
+		case c.Engine == catalogv1.Engine_ENGINE_REDIS && len(link.Numbers(c.Version)) > 1 && link.Numbers(c.Version)[0] == 6 && link.Numbers(c.Version)[1] < 2:
+			w.Why = fmt.Sprintf("Redis %s has no rules for channels, so its apps would read each other's messages. It takes 6.2 or later", c.Version)
+		case c.Unguarded && keyValue(c.Engine):
+			w.Why = "Asks no one for a password, so every app on it is its administrator"
+		case c.Unguarded:
+			w.Why = "Runs without access control, so every app on it reaches every other's data"
+		case keyValue(c.Engine) && !sendsUser(n):
+			// One that sends no user name would sign in as the server's administrator.
+			w.Why = app + " sends a password alone, so it would sign in as the server's administrator"
 		case len(link.Numbers(c.Version)) > 0 && !link.Takes(a.GetVersions(), c.Version):
 			w.Why = fmt.Sprintf("Runs %s %s; %s takes %s", EngineName(c.Engine), c.Version, app, versionWords(a.GetVersions()))
 		case c.AdministeredBy != "":
@@ -165,14 +190,50 @@ func SharedNames(n *catalogv1.Need, project string, c Candidate) (database, user
 	if len(c.SharedWith) > 0 || project != "" && (slices.Contains(c.Databases, database) || slices.Contains(c.Users, user)) {
 		database, user = sqlName(project), sqlName(project)
 	}
-	return freeName(database, c.Databases), freeName(user, c.Users)
+	// A database or a user its server keeps for itself is never an app's.
+	databases := slices.Concat(c.Databases, keptDatabases)
+	users := slices.Concat(c.Users, keptUsers)
+	return freeName(database, databases), freeName(user, users)
 }
+
+// keptDatabases and keptUsers are what a server keeps for itself, on any engine:
+// never an app's on a server it shares (ADR 0084).
+var (
+	keptDatabases = []string{"postgres", "template0", "template1", "mysql", "information_schema", "performance_schema", "sys", "admin", "config", "local"}
+	keptUsers     = []string{"default", "postgres", "root"}
+)
 
 func cmpOr(a, b string) string {
 	if a != "" {
 		return a
 	}
 	return b
+}
+
+// NeedOf is the need of an install's pin that its entry's own service, of engine,
+// meets: the need of the service's own name; one an earlier share pinned apart as
+// that service; or else the one need of that engine its entry's own service meets.
+// Two such needs can't be told apart, so neither is found (ADR 0084).
+func NeedOf(pin *resourcev1.CatalogPin, service string, engine catalogv1.Engine) (string, bool) {
+	needs := pin.GetNeeds()
+	if n, ok := needs[service]; ok {
+		return service, n.GetEnvironment() == ""
+	}
+	var own []string
+	for _, key := range slices.Sorted(maps.Keys(needs)) {
+		n := needs[key]
+		switch {
+		case n.GetEnvironment() != "":
+		case n.GetService() == service && len(n.GetFile()) > 0 && n.GetEntry() == engines[engine].entry:
+			return key, true
+		case n.GetEntry() == "" && len(n.GetFile()) == 0 && catalogv1.Engine(n.GetEngine()) == engine:
+			own = append(own, key)
+		}
+	}
+	if len(own) != 1 {
+		return "", false
+	}
+	return own[0], true
 }
 
 // PinApart is how an install's pin keeps its entry's own service for need once a

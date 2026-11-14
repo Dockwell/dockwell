@@ -6220,7 +6220,12 @@ type PlanStep struct {
 	// What a step that moves a database to a newer release does beside replacing
 	// its container, by a dump into a new volume (ADR 0080). Numbered in the
 	// updates area's block, 260 to 269.
-	DatabaseMove  *DatabaseMove `protobuf:"bytes,260,opt,name=database_move,json=databaseMove,proto3" json:"database_move,omitempty"`
+	DatabaseMove *DatabaseMove `protobuf:"bytes,260,opt,name=database_move,json=databaseMove,proto3" json:"database_move,omitempty"`
+	// What a step that deletes an app's user on a Redis or Valkey leaves there: the
+	// keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
+	// nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
+	// the block connectable apps hold in other messages, 80 to 89.
+	KeysLeft      string `protobuf:"bytes,81,opt,name=keys_left,json=keysLeft,proto3" json:"keys_left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6561,6 +6566,13 @@ func (x *PlanStep) GetDatabaseMove() *DatabaseMove {
 		return x.DatabaseMove
 	}
 	return nil
+}
+
+func (x *PlanStep) GetKeysLeft() string {
+	if x != nil {
+		return x.KeysLeft
+	}
+	return ""
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
@@ -9188,7 +9200,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xe9\x0f\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x86\x10\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -9240,7 +9252,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0eregistry_login\x18d \x01(\tR\rregistryLogin\x12!\n" +
 	"\fbuild_logins\x18e \x03(\tR\vbuildLogins\x120\n" +
 	"\x14build_login_versions\x18f \x03(\tR\x12buildLoginVersions\x12?\n" +
-	"\rdatabase_move\x18\x84\x02 \x01(\v2\x19.dockwell.v1.DatabaseMoveR\fdatabaseMove\"\x9c\x02\n" +
+	"\rdatabase_move\x18\x84\x02 \x01(\v2\x19.dockwell.v1.DatabaseMoveR\fdatabaseMove\x12\x1b\n" +
+	"\tkeys_left\x18Q \x01(\tR\bkeysLeft\"\x9c\x02\n" +
 	"\tBuildPlan\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x10\n" +
 	"\x03ref\x18\x02 \x01(\tR\x03ref\x12\x16\n" +

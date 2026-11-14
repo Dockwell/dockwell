@@ -333,6 +333,10 @@ type Decision struct {
 	// if its server could say. It never stops a plan, and a fingerprint leaves it
 	// out: the spec says the port.
 	ServerPort *ServerPortCheck `json:",omitempty"`
+	// KeysLeft is what a step that takes an app's user away from a Redis or Valkey
+	// leaves there: the keys under its prefix, such as "shop:*", or "*" for every key
+	// it wrote, which nothing tells apart (ADR 0084). It never stops a plan.
+	KeysLeft string `json:",omitempty"`
 	// Closes is what a step that turns deny everything else on closes: each port
 	// that listens or that Docker publishes, that no rule lets in from anywhere,
 	// such as "8080/tcp (shop-web-1)" (ADR 0052). It never stops a plan.

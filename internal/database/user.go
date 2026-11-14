@@ -56,6 +56,9 @@ type UserDriver struct {
 	// CopyWait bounds copying a database into a new user's: two hours unless set.
 	CopyWait time.Duration
 	mu       sync.Mutex
+	// redisMu keeps a Redis user's step and putting users back after a restart from
+	// crossing, so a user a step drops isn't put back.
+	redisMu sync.Mutex
 }
 
 var (
@@ -85,8 +88,32 @@ var sqlName = lazyre.Regexp(`^[a-z][a-z0-9_]*$`)
 
 const maxSQLName = 32
 
-// CheckName takes a name PostgreSQL, MySQL and MariaDB all take as it is.
-func (*UserDriver) CheckName(name string) error { return CheckSQLName("user", name) }
+// CheckName takes a name PostgreSQL, MySQL and MariaDB all take as it is, and that
+// no engine keeps for itself.
+func (*UserDriver) CheckName(name string) error {
+	if err := CheckSQLName("user", name); err != nil {
+		return err
+	}
+	return checkKept(name, name)
+}
+
+// ReservedUser reports a user an engine keeps for itself, or its image makes first:
+// Redis's default, PostgreSQL's postgres, MySQL's and MariaDB's root.
+func ReservedUser(name string) bool {
+	return name == "default" || name == "postgres" || name == "root"
+}
+
+// checkKept refuses a user, or a database, that its server keeps for itself, which an
+// app's user never is (ADR 0084).
+func checkKept(user, db string) error {
+	switch {
+	case ReservedUser(user):
+		return fmt.Errorf("%s is a user its server keeps for itself, which an app's user never is. Choose another name", user)
+	case SystemDatabase(db):
+		return fmt.Errorf("%s is a database its server keeps for itself, which an app's user never owns. Choose another name", db)
+	}
+	return nil
+}
 
 // CheckSQLName says whether name is one a user or a database can take.
 func CheckSQLName(what, name string) error {
@@ -106,6 +133,12 @@ func (*UserDriver) Validate(spec proto.Message) error {
 		if err := CheckSQLName("database", u.GetDatabaseName()); err != nil {
 			return err
 		}
+		if SystemDatabase(u.GetDatabaseName()) {
+			return fmt.Errorf("%s is a database its server keeps for itself, which an app's user never owns. Choose another name", u.GetDatabaseName())
+		}
+	}
+	if p := u.GetKeyPrefix(); p != "" && !KeyPrefix(p) {
+		return fmt.Errorf("%q isn't a key prefix Dockwell keeps a user to: use up to 64 letters, digits, _, -, . and :, such as %q", p, "shop:")
 	}
 	if err := variable.CheckName("secret", u.GetPassword()); err != nil {
 		return fmt.Errorf("a database user needs the secret its password is in: %w", err)
@@ -183,6 +216,14 @@ func (*UserDriver) Plan(actual, desired proto.Message, changes []resource.Change
 // didn't make.
 func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	dec, err := d.Plan(actual, desired, changes)
+	if err == nil && dec.Action == resource.ActionDelete {
+		// Taking a Redis user away deletes no key: what it wrote stays on the server.
+		if g, ok, err := d.recorded(ref); err != nil {
+			return resource.Decision{}, err
+		} else if ok && g.Redis != "" {
+			dec.Destroys, dec.KeysLeft = false, g.KeyPrefix+"*"
+		}
+	}
 	if err != nil || dec.Action != resource.ActionCreate {
 		return dec, err
 	}
@@ -202,6 +243,9 @@ func (d *UserDriver) Judge(ctx context.Context, ref resource.Ref, actual, desire
 		// made once the server is up (ADR 0084).
 		return dec, nil
 	case err != nil:
+		return resource.Decision{}, err
+	}
+	if err := d.guard(ctx, c, e); err != nil {
 		return resource.Decision{}, err
 	}
 	there, err := d.there(ctx, c, e, ref.Name, Owned(ref.Name, u))
@@ -234,10 +278,39 @@ func (d *UserDriver) server(ctx context.Context, ref resource.Ref, service strin
 		return nil, nil, fmt.Errorf("%s isn't running, and a database user is made in it. Start it, then try again", service)
 	}
 	e := Recognise(c.Config.Image)
-	if e == nil || !e.SQL() {
-		return nil, nil, fmt.Errorf("%s doesn't run PostgreSQL, MySQL or MariaDB from its official image, so Dockwell can't make users in it", service)
+	if e == nil || !e.SQL() && !e.KeyValue() && e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
+		return nil, nil, fmt.Errorf("%s doesn't run PostgreSQL, MySQL, MariaDB, MongoDB, Redis or Valkey from its official image, so Dockwell can't make users in it", service)
 	}
 	return c, e, nil
+}
+
+// guard refuses a server a user of an app's own would keep no one out of: a Redis or
+// Valkey that asks no one for a password, or one too old for channel rules, and a
+// MongoDB that runs without access control (ADR 0084).
+func (d *UserDriver) guard(ctx context.Context, c *docker.Container, e *Engine) error {
+	switch {
+	case e.KeyValue():
+		_, err := d.redisInfo(ctx, c, e, true)
+		return err
+	case e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
+		said, err := Reader{Client: d.Client}.ask(ctx, c.ID, e, cmd, mongoOpen)
+		if err != nil {
+			return err
+		}
+		lines := strings.Split(strings.TrimSpace(string(said)), "\n")
+		var out struct {
+			Root bool `json:"root"`
+			Open bool `json:"open"`
+		}
+		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &out); err != nil {
+			return fmt.Errorf("can't read what %s said: %w", e.Name, err)
+		}
+		if !out.Root || out.Open {
+			return fmt.Errorf("%s runs without access control, so every app on it reaches every other's data, and a user of its own keeps no one out. Give it a root user (MONGO_INITDB_ROOT_USERNAME and its password), then try again", e.Name)
+		}
+	}
+	return nil
 }
 
 // errRestarting is a database server's container that Docker is starting again.
@@ -281,7 +354,31 @@ func checkNames(user, db string) error {
 	if err := CheckSQLName("user", user); err != nil {
 		return err
 	}
-	return CheckSQLName("database", db)
+	if err := CheckSQLName("database", db); err != nil {
+		return err
+	}
+	return checkKept(user, db)
+}
+
+// KeyPrefix reports a prefix of keys a Redis user may keep to: 1 to 64 letters,
+// digits, _, -, . and :, so no space, nor anything a pattern reads as more than
+// itself. A loop, not a pattern: a counted repetition compiles to that many copies,
+// which every agent pays for as it starts (ADR 0060).
+func KeyPrefix(p string) bool {
+	if p == "" || len(p) > 64 {
+		return false
+	}
+	for i := range len(p) {
+		if c := p[i]; !keyPrefixByte(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// keyPrefixByte reports a byte a key prefix may hold.
+func keyPrefixByte(c byte) bool {
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.' || c == ':' || c == '-'
 }
 
 // found is what a database server has of a user and its database.
@@ -295,10 +392,20 @@ func (d *UserDriver) there(ctx context.Context, c *docker.Container, e *Engine, 
 	if err := checkNames(user, db); err != nil {
 		return found{}, err
 	}
+	if e.KeyValue() {
+		has, err := d.redisHas(ctx, c, e, user)
+		if err != nil || !has {
+			return found{}, err
+		}
+		return found{user: true, owner: user}, nil
+	}
 	var sql string
-	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+	switch e.Kind {
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
+		sql = mongoThere(user, db)
+	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL:
 		sql = fmt.Sprintf(`SELECT json_build_object('user', EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '%s'), 'owner', coalesce((SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '%s'), ''));`, user, db)
-	} else {
+	default:
 		sql = fmt.Sprintf("SELECT 'u', COUNT(*) FROM mysql.user WHERE User = '%s';\nSELECT 'd', COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '%s';\n", user, db)
 	}
 	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
@@ -307,12 +414,14 @@ func (d *UserDriver) there(ctx context.Context, c *docker.Container, e *Engine, 
 		return found{}, err
 	}
 	var f found
-	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL || e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
 		var out struct {
 			User  bool   `json:"user"`
 			Owner string `json:"owner"`
 		}
-		if err := json.Unmarshal([]byte(strings.TrimSpace(string(said))), &out); err != nil {
+		// mongosh can print a warning first: what it found is its last line.
+		lines := strings.Split(strings.TrimSpace(string(said)), "\n")
+		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &out); err != nil {
 			return found{}, fmt.Errorf("can't read what %s said: %w", e.Name, err)
 		}
 		return found{user: out.User, owner: out.Owner}, nil
@@ -341,6 +450,16 @@ type given struct {
 	// CopiedFrom is the database it was made as a copy of, as its spec says, by
 	// environment, service and database, kept once the copy is whole.
 	CopiedFrom []string `json:"copied_from,omitempty"`
+	// Shared says it's a user of a Redis or Valkey other apps share (DatabaseUser.shared),
+	// and Env, User and Redis, for one of those, its environment, its name, and the
+	// rules it was given, with its password's hash, which the agent gives it again
+	// on a server that started again without it.
+	Shared bool `json:"shared,omitempty"`
+	// KeyPrefix is the prefix of the keys a Redis or Valkey user keeps to.
+	KeyPrefix string `json:"key_prefix,omitempty"`
+	Env       string `json:"env,omitempty"`
+	User      string `json:"user,omitempty"`
+	Redis     string `json:"redis,omitempty"`
 	// Copying says a step began copying a database into it and didn't finish: what
 	// the database holds is part of a copy, which reads as no user, so applying again
 	// empties it and copies it whole.
@@ -409,7 +528,7 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 	if err != nil || !ok || g.Copying {
 		return nil, err
 	}
-	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses}
+	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix}
 	if c := g.CopiedFrom; len(c) == 3 {
 		out.CopyFrom = &resourcev1.DatabaseCopy{Environment: c[0], Service: c[1], Database: c[2]}
 	}
@@ -482,6 +601,33 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		return err
 	}
 	create := step.Action == resource.ActionCreate
+	if create {
+		// A server that keeps no one out gets no user that would say it does.
+		if err := d.whileStarting(ctx, func() error { return d.guard(ctx, c, e) }); err != nil {
+			return err
+		}
+	}
+	if e.KeyValue() {
+		// An ACL user, kept with its rules, so the agent puts it back after a restart.
+		var srv redisServer
+		if err := d.whileStarting(ctx, func() error {
+			var err error
+			srv, err = d.redisInfo(ctx, c, e, false)
+			return err
+		}); err != nil {
+			return err
+		}
+		g := &given{
+			Service: u.GetService(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse], Shared: u.GetShared(), KeyPrefix: u.GetKeyPrefix(),
+			Env: ref.Scope, User: ref.Name, Redis: redisRules(redisHash(password), u.GetShared(), u.GetKeyPrefix(), srv),
+		}
+		d.redisMu.Lock()
+		defer d.redisMu.Unlock()
+		if err := d.whileStarting(ctx, func() error { return d.redisSet(ctx, c, e, ref.Name, g.Redis) }); err != nil {
+			return err
+		}
+		return d.record(ref, g)
+	}
 	sql, err := e.make(ref.Name, db, password, create)
 	if err != nil {
 		return fmt.Errorf("can't give %s the password in %s: %w", ref.Name, u.GetPassword(), err)
@@ -560,6 +706,14 @@ func (d *UserDriver) drop(ctx context.Context, ref resource.Ref) error {
 		return d.record(ref, nil)
 	case err != nil:
 		return err
+	}
+	if e.KeyValue() {
+		d.redisMu.Lock()
+		defer d.redisMu.Unlock()
+		if err := d.redisDrop(ctx, c, e, ref.Name); err != nil {
+			return err
+		}
+		return d.record(ref, nil)
 	}
 	if err := d.run(ctx, c, e, e.drop(ref.Name, db)); err != nil {
 		return err
@@ -653,8 +807,8 @@ func (e *Engine) make(user, db, password string, create bool) (string, error) {
 		}
 		return "SET SESSION sql_mode = '';\n" + myCreate(user, db, identified), nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB:
-		// Its users are read, and making them comes after (ADR 0038).
-		return "", fmt.Errorf("%s's users can't be made by Dockwell yet", e.Name)
+		// Made or given its password anew alike, by the image's root user.
+		return mongoMake(user, db, password), nil
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS,
 		dockwellv1.DatabaseEngine_DATABASE_ENGINE_VALKEY:
 	}
@@ -705,6 +859,9 @@ func myGranted(db string) string { return strings.ReplaceAll(db, "_", `\_`) }
 // user. Whoever is connected to the database is cut off, as it can't go while they
 // are.
 func (e *Engine) drop(user, db string) string {
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MONGODB {
+		return mongoDrop(user, db)
+	}
 	if e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
 		return "DROP DATABASE IF EXISTS " + myName(db) + ";\nDROP USER IF EXISTS " + myUser(user) + ";\n"
 	}

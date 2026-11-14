@@ -8984,6 +8984,13 @@ components:
                     items:
                         type: string
                     description: The servers it runs on, by name, where the app would go with it.
+                keepsApart:
+                    type: boolean
+                    description: |-
+                        For a Redis or Valkey: each app on it keeps to its own keys, as every user
+                         there has a key prefix, and so would this app's. False where any reaches every
+                         key, so its apps can read and change each other's data. Numbered in the block
+                         connectable apps hold, 40 to 49.
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -11183,6 +11190,21 @@ components:
                          server, of the same engine, as Use another database copies an app's across (ADR
                          0084). Copied once, into the empty database made in the same step; unset copies
                          nothing.
+                shared:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey other apps share, its user is refused what reaches past
+                         the keys it works with, such as KEYS or FLUSHALL, as a shared server's
+                         @dangerous commands are. A user of an app's own server isn't. On other engines
+                         it changes nothing. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                keyPrefix:
+                    type: string
+                    description: |-
+                        On a Redis or Valkey, the prefix of the keys its user keeps to, such as "shop:":
+                         it reaches only keys, and channels, that start with it. Empty reaches every key,
+                         as an app that sets no prefix needs. On other engines it changes nothing (ADR
+                         0084).
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the
@@ -15233,6 +15255,7 @@ components:
                         - LINK_PART_PASSWORD
                         - LINK_PART_URL
                         - LINK_PART_TLS
+                        - LINK_PART_KEY_PREFIX
                     type: string
                     description: What it holds.
                     format: enum
@@ -16447,6 +16470,7 @@ components:
                         - PART_PASSWORD
                         - PART_URL
                         - PART_TLS
+                        - PART_KEY_PREFIX
                     type: string
                     description: What it holds.
                     format: enum
@@ -17947,6 +17971,13 @@ components:
                         What a step that moves a database to a newer release does beside replacing
                          its container, by a dump into a new volume (ADR 0080). Numbered in the
                          updates area's block, 260 to 269.
+                keysLeft:
+                    type: string
+                    description: |-
+                        What a step that deletes an app's user on a Redis or Valkey leaves there: the
+                         keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
+                         nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
+                         the block connectable apps hold in other messages, 80 to 89.
             description: PlanStep is what applying does to one resource on one server.
         PlanStopPanelRequest:
             type: object

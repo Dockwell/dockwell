@@ -306,6 +306,10 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
+	users, err := h.userEdits(ctx, "", needed)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
 	servers := m.GetServers()
 	if len(servers) == 0 {
 		// An app that shares a server goes where it is.
@@ -328,7 +332,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Pin:        pin,
 		Limits:     limitsOf(m),
 		Notes:      pinNotes,
-		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links, Extra: slices.Concat(shared.Extra, userEdits(needed), written), Joins: shared.Joins},
+		Needs:      composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, Links: needed.Links, Extra: slices.Concat(shared.Extra, users, written), Joins: shared.Joins},
 	})
 	if err != nil {
 		return nil, err
@@ -592,6 +596,10 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		return nil, h.internal(ctx, err)
 	}
 	written := writtenEdits(needed, filled)
+	users, err := h.userEdits(ctx, install.GetEnvironmentId(), needed)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
 	newPin := pinTo(entry, s.origins[entry.GetId()], filled, choice)
 	newPin.Needs = needed.Pinned
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
@@ -612,7 +620,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		OldVariables: oldVariables,
 		OldStands:    oldStands,
 		Notes:        pinNotes,
-		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(userEdits(needed), written), Joins: linkJoins(needed)},
+		Needs:        composeapi.Needs{Variables: filled.Linked, Stands: filled.LinkStands, OldStands: oldLinked, Links: needed.Links, Extra: slices.Concat(users, written), Joins: linkJoins(needed)},
 	})
 }
 

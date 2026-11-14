@@ -113,6 +113,9 @@ type placed struct {
 	// firstUser is who its image makes first, whose password its secret holds:
 	// POSTGRES_USER, or postgres, root for MySQL and MariaDB, none for Redis.
 	firstUser string
+	// unguarded says it asks no one for a password (database.Found), and unprefixed
+	// that a user Dockwell made on it keeps to no key prefix.
+	unguarded, unprefixed bool
 }
 
 // ListDatabases returns every database.
@@ -475,6 +478,7 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 			return err
 		}
 		users := map[string][]string{}
+		unprefixed := map[string]bool{}
 		for i := range made {
 			u := &made[i]
 			spec := &resourcev1.DatabaseUser{}
@@ -483,6 +487,7 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 			}
 			key := u.Scope + "/" + spec.GetService()
 			users[key] = append(users[key], u.ID+"@"+strconv.Itoa(u.Revision))
+			unprefixed[key] = unprefixed[key] || spec.GetKeyPrefix() == ""
 		}
 		inScope := map[string][]string{}
 		for i := range services {
@@ -539,7 +544,7 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 			db.CatalogEntry = entry
 			p := &placed{
 				db: db, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, made: strconv.Itoa(r.Revision),
-				firstUser: firstUserOf(f.Engine, svc.GetApp().GetEnv()),
+				firstUser: firstUserOf(f.Engine, svc.GetApp().GetEnv()), unguarded: f.Unguarded, unprefixed: unprefixed[r.Scope+"/"+r.Name],
 			}
 			for _, u := range users[r.Scope+"/"+r.Name] {
 				p.made += " " + u

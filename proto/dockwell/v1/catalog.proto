@@ -449,6 +449,11 @@ message CatalogNeedOption {
   repeated string shared_with = 12;
   // The servers it runs on, by name, where the app would go with it.
   repeated string servers = 13;
+  // For a Redis or Valkey: each app on it keeps to its own keys, as every user
+  // there has a key prefix, and so would this app's. False where any reaches every
+  // key, so its apps can read and change each other's data. Numbered in the block
+  // connectable apps hold, 40 to 49.
+  bool keeps_apart = 40;
 }
 
 // CatalogPart is one service an entry installs.

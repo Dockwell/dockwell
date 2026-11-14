@@ -464,6 +464,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go tasks.Keep(ctx)
 	users := &database.UserDriver{Client: client, Dir: filepath.Join(dir.Agent(), "databases")}
 	go users.Clean(ctx)
+	go users.KeepRedisUsers(ctx)
 	var reserved string
 	if panel != nil {
 		reserved = panel.Domain
