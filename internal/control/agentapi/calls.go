@@ -1510,7 +1510,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 			return fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't upgrade itself. "+
 				"Upgrade it by running the install script on the server again", s.name)
 		}
-		dr.UpgradeAgent = &agentv1.UpgradeAgent{Change: u.Change, Version: u.Version, Script: u.Script, ScriptSha256: u.ScriptSHA256, Mirror: u.Mirror}
+		dr.UpgradeAgent = &agentv1.UpgradeAgent{Change: u.Change, Version: u.Version, Script: u.Script, ScriptSha256: u.ScriptSHA256, Mirror: u.Mirror, CosignMirror: u.CosignMirror}
 	}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {

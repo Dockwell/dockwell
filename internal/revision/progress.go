@@ -541,7 +541,7 @@ func newProgress(plan *Plan, items []item) Progress {
 // resumed carries a change's recorded progress over to a fresh plan of
 // what remains: each step still to do is queued again, a step that is no
 // longer needed is done, and a step the first plan didn't have is added.
-func resumed(before Progress, plan *Plan, items []item) Progress {
+func resumed(before Progress, plan *Plan, items []item, now time.Time) Progress {
 	p := before.clone()
 	fresh := newProgress(plan, items)
 	todo := map[int]bool{}
@@ -567,6 +567,11 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 		s := &p.Steps[i]
 		if !todo[i] && !s.State.Final() {
 			s.State, s.Message = StepDone, alreadyHasIt
+			// It ended as the run that found it done began: a wave's end, which the
+			// pause after it counts from, is its steps' (ADR 0094).
+			if s.Finished.IsZero() {
+				s.Finished = now
+			}
 			// An agent's upgrade is done once its agent runs the version asked.
 			if j := slices.IndexFunc(items, func(it item) bool { return it.id == s.ResourceID && it.upgrade != nil }); j >= 0 {
 				s.Message = fmt.Sprintf("The agent runs %s now", items[j].upgrade.Version)

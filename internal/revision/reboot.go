@@ -277,12 +277,25 @@ func (e *Engine) FailLostReboots(ctx context.Context) error {
 		e.track(id, progress)
 		cause := fault.New(ErrRebootLost, "%s hasn't come back after its reboot, in %s. Check its console, or reach it over SSH", name, RebootLimit)
 		if upgradeIn(c, ref) != nil {
-			cause = fault.New(ErrUpgradeLost, "the agent on %s hasn't come back at its new version, in %s. Read its log with journalctl -u dockwell over SSH, and the script's in /var/lib/dockwell/upgrade", name, RebootLimit)
+			cause = fault.New(ErrUpgradeLost, "the agent on %s hasn't come back at its new version, in %s. Over SSH, read what the install script said in "+
+				"/var/lib/dockwell/agent/upgrade/output.log, and the agent's log with journalctl -u dockwell, or in /var/log/dockwell.log under OpenRC", name, RebootLimit)
 		}
 		plain, _ := resource.Explain(cause)
 		_, u := e.failed(id, i, cause)
+		// The steps that never began don't now: the change fails here, as a run that
+		// stops at a failed step skips the rest.
+		var skipped []*Update
+		for j := range progress.Steps {
+			if s := &progress.Steps[j]; j != i && (s.State == StepQueued || s.State == StepWaiting && s.Started.IsZero()) {
+				_, su := e.step(id, j, StepSkipped, "Not run, because a step before it failed")
+				skipped = append(skipped, su)
+			}
+		}
 		if e.recordProgress(ctx, id) {
 			e.announce(id, u)
+			for _, su := range skipped {
+				e.announce(id, su)
+			}
 		}
 		e.logger.WarnContext(ctx, "a server hasn't come back after its reboot or its agent's upgrade; its change failed", slog.String("change", id), slog.String("server", name))
 		if err := e.fail(ctx, c, ref, cause, plain); err != nil {

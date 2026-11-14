@@ -982,11 +982,15 @@ func withListenHint(err error, flag string) error {
 // test refuses to run the script (ADR 0094).
 const envTestAgentRelease = "DOCKWELL_TEST_AGENT_RELEASE"
 
+// envCosignMirror names where the install script downloads cosign from, as the
+// service keeps it, for an agent's upgrade to pass on.
+const envCosignMirror = "DOCKWELL_COSIGN_MIRROR"
+
 // agentRelease is what the control plane upgrades agents to: its own release, with
 // the install script it embeds and the mirror it was installed from. A build that
 // isn't a release upgrades none, unless a test names a release to stand in.
 func agentRelease(stdio IO, build buildinfo.Info) (revision.AgentRelease, bool) {
-	r := revision.AgentRelease{Version: build.Version, Script: scripts.Install, Mirror: stdio.Getenv(envMirror)}
+	r := revision.AgentRelease{Version: build.Version, Script: scripts.Install, Mirror: stdio.Getenv(envMirror), CosignMirror: stdio.Getenv(envCosignMirror)}
 	if isSet(stdio.Getenv(envTest)) {
 		r.Version = stdio.Getenv(envTestAgentRelease)
 		return r, r.Version != ""

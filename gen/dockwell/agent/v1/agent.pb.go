@@ -11272,7 +11272,10 @@ type UpgradeAgent struct {
 	ScriptSha256 string `protobuf:"bytes,4,opt,name=script_sha256,json=scriptSha256,proto3" json:"script_sha256,omitempty"`
 	// Where to download the release from, when it's a mirror and not GitHub: the
 	// script's --mirror.
-	Mirror        string `protobuf:"bytes,5,opt,name=mirror,proto3" json:"mirror,omitempty"`
+	Mirror string `protobuf:"bytes,5,opt,name=mirror,proto3" json:"mirror,omitempty"`
+	// Where to download cosign from, when it's a mirror: the script's
+	// --cosign-mirror.
+	CosignMirror  string `protobuf:"bytes,6,opt,name=cosign_mirror,json=cosignMirror,proto3" json:"cosign_mirror,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11338,6 +11341,13 @@ func (x *UpgradeAgent) GetScriptSha256() string {
 func (x *UpgradeAgent) GetMirror() string {
 	if x != nil {
 		return x.Mirror
+	}
+	return ""
+}
+
+func (x *UpgradeAgent) GetCosignMirror() string {
+	if x != nil {
+		return x.CosignMirror
 	}
 	return ""
 }
@@ -15132,13 +15142,14 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"E\n" +
 	"\vObserveCall\x126\n" +
-	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\x95\x01\n" +
+	"\tresources\x18\x01 \x03(\v2\x18.dockwell.v1.ResourceRefR\tresources\"\xba\x01\n" +
 	"\fUpgradeAgent\x12\x16\n" +
 	"\x06change\x18\x01 \x01(\tR\x06change\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x16\n" +
 	"\x06script\x18\x03 \x01(\fR\x06script\x12#\n" +
 	"\rscript_sha256\x18\x04 \x01(\tR\fscriptSha256\x12\x16\n" +
-	"\x06mirror\x18\x05 \x01(\tR\x06mirror\"\xf8\x06\n" +
+	"\x06mirror\x18\x05 \x01(\tR\x06mirror\x12#\n" +
+	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xf8\x06\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +

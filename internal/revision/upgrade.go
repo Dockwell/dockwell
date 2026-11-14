@@ -33,8 +33,10 @@ type AgentRelease struct {
 	Version string
 	// Script is the install script, scripts/install.sh as the release ships it.
 	Script []byte
-	// Mirror is where the script downloads the release from, when it isn't GitHub.
-	Mirror string
+	// Mirror is where the script downloads the release from, when it isn't GitHub,
+	// and CosignMirror where it downloads cosign from, when it isn't GitHub either.
+	Mirror       string
+	CosignMirror string
 }
 
 // SetAgentRelease says what the control plane upgrades agents to. Until it's said,
@@ -70,7 +72,7 @@ func (e *Engine) upgradeAsk(ask resource.AgentUpgradeAsked) (resource.AgentUpgra
 		return ask, fault.New(ErrPlanChanged, "the control plane runs %s now, with another install script than the plan named, so no agent was upgraded to %s. Plan the upgrade again", version, ask.Version)
 	}
 	e.pmu.Lock()
-	ask.Script, ask.Mirror = e.release.Script, e.release.Mirror
+	ask.Script, ask.Mirror, ask.CosignMirror = e.release.Script, e.release.Mirror, e.release.CosignMirror
 	e.pmu.Unlock()
 	return ask, nil
 }

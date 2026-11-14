@@ -622,7 +622,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		// apply does (ADR 0094).
 		if u := call.GetApply().GetDesired().GetUpgradeAgent(); u != nil {
 			ctx = resource.WithAgentUpgrade(ctx, resource.AgentUpgradeAsked{
-				Change: u.GetChange(), Version: u.GetVersion(), ScriptSHA256: u.GetScriptSha256(), Script: u.GetScript(), Mirror: u.GetMirror(),
+				Change: u.GetChange(), Version: u.GetVersion(), ScriptSHA256: u.GetScriptSha256(), Script: u.GetScript(), Mirror: u.GetMirror(), CosignMirror: u.GetCosignMirror(),
 			})
 		}
 		if n := call.GetApply().GetDesired().GetScopeName(); n != "" {

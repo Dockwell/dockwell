@@ -63,6 +63,7 @@ exit 3
 `
 	ask := askFor(script)
 	ask.Mirror = "https://mirror.example.com/dockwell/releases"
+	ask.CosignMirror = "https://mirror.example.com/cosign/releases"
 	if err := u.Upgrade(t.Context(), ask); err != nil {
 		t.Fatal(err)
 	}
@@ -72,16 +73,22 @@ exit 3
 	}
 	runs := filepath.Join(filepath.Dir(release), "runs")
 	waitFor(t, runs)
-	// Asked again while it runs, nothing more starts.
+	// Asked again while it runs, nothing more starts; asked by another change, it's
+	// refused, as one upgrade runs at a time.
 	if err := u.Upgrade(t.Context(), ask); err != nil {
 		t.Fatalf("asking again while it runs = %v", err)
+	}
+	other := askFor("#!/bin/sh\n")
+	other.Change = "chg_2"
+	if err := u.Upgrade(t.Context(), other); err == nil || !strings.Contains(err.Error(), "still runs here") {
+		t.Errorf("another change's upgrade while one runs = %v", err)
 	}
 	if err := os.WriteFile(release, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, u.file("status"))
 	b, _ := os.ReadFile(runs)
-	if got := strings.TrimSpace(string(b)); got != "started --version 0.9.4 --mirror https://mirror.example.com/dockwell/releases" {
+	if got := strings.TrimSpace(string(b)); got != "started --version 0.9.4 --mirror https://mirror.example.com/dockwell/releases --cosign-mirror https://mirror.example.com/cosign/releases" {
 		t.Errorf("the script ran as %q", got)
 	}
 	if _, err := os.Stat(u.file("install.sh")); !errors.Is(err, os.ErrNotExist) {

@@ -4104,11 +4104,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	// steps that failed in a change that goes on past them (ADR 0094).
 	wave := 0
 	deferred := map[string]bool{}
-	type failure struct {
-		q   queued
-		err error
-	}
-	var failures []failure
+	var failures []wentOn
 	for qi, q := range queue {
 		if e.isStopping() {
 			return interrupt(qi)
@@ -4123,9 +4119,10 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				}
 				break
 			}
-			// And once the pause after the last has passed, as the steps' record says
-			// when it ended, so a control plane that starts again keeps the time.
-			if ended := waves.waveEnded(wave, e.progress(c.ID)); wave > 0 && waves.Pause > 0 && !ended.IsZero() {
+			// And once the pause after the wave before has passed, as the steps' record
+			// says when it ended, so a run that resumes, as after the control plane
+			// starts again, keeps the time: the plan numbers the waves, not the run.
+			if ended := waves.waveEnded(w-1, e.progress(c.ID)); w > 1 && waves.Pause > 0 && !ended.IsZero() {
 				if until := ended.Add(waves.Pause); until.After(e.now()) {
 					_, u := e.step(c.ID, q.index, StepWaiting, fmt.Sprintf("Wave %d starts at %s, after the pause", w, until.Local().Format("15:04")))
 					if e.recordProgress(ctx, c.ID) {
@@ -4161,7 +4158,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			if e.isStopping() {
 				return interrupt(qi)
 			}
-			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name), false)
+			gone := fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name)
+			if waves != nil && waves.KeepGoing {
+				// A change that goes on past a failure goes on past a server that's
+				// away too, and fails once each has had its turn (ADR 0094).
+				_, _, _ = failed(qi, gone, true)
+				failures = append(failures, wentOn{index: q.index, err: gone})
+				continue
+			}
+			return stop(qi, gone, false)
 		}
 		// A step that backs up or restores one database alone needs an agent that does:
 		// one from before, as one downgraded since the plan, takes the whole volume, and
@@ -4244,7 +4249,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			// It goes on to the next server, and fails once each has had its turn.
 			// The step's failure is on its record; the change's is said once each server had its turn.
 			_, _, _ = failed(qi, err, told.Untouched)
-			failures = append(failures, failure{q: q, err: err})
+			failures = append(failures, wentOn{index: q.index, err: err})
 			continue
 		default:
 			return stop(qi, err, told.Untouched)
@@ -4344,18 +4349,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		return reconnects(names)
 	}
-	if len(failures) > 0 {
-		// Each server had its turn: the change fails, naming each that did.
-		names := make([]string, 0, len(failures))
-		for _, f := range failures {
-			names = append(names, f.q.name)
+	// Each server had its turn: a change that went on past a failure fails, naming
+	// each server that did, in this run or one before it, as a resume runs only what's
+	// left (ADR 0094).
+	if waves != nil {
+		if err := e.failGoneOn(ctx, c, failures); err != nil {
+			return err
 		}
-		first := failures[0]
-		plain, _ := resource.Explain(stepFailure(first.q.name, first.err))
-		if len(failures) > 1 {
-			plain = fmt.Sprintf("%d servers failed: %s. The first: %s", len(failures), human.List(names), plain)
-		}
-		return e.fail(ctx, c, first.q.step.Ref, first.err, plain)
 	}
 	// A removal's last act is the server leaving the fleet, as the change is
 	// applied (ADR 0090).
@@ -4627,9 +4627,20 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
+	// A change that rolls out waits for no server whose steps have all ended, as one
+	// gone before its turn that failed: it has nothing left to run there (ADR 0094).
+	var ended func(server, id string) bool
+	if wavesIn(c) != nil {
+		if p, err := decodeProgress(c.Progress); err == nil {
+			ended = p.ended
+		}
+	}
 	var offline []string
 	for i := range items {
 		for _, s := range items[i].targets() {
+			if ended != nil && ended(s, items[i].id) {
+				continue
+			}
 			if _, online := e.agents.Agent(s); !online && !slices.Contains(offline, s) {
 				offline = append(offline, s)
 			}
@@ -4708,7 +4719,11 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		}
 		for si := range plan.Servers {
 			sp := &plan.Servers[si]
-			sp.Steps = slices.DeleteFunc(sp.Steps, func(st resource.Step) bool { return before.ended(sp.Server, ids[st.Ref]) })
+			// Nor does a server that took no step when it was reviewed, as it needed
+			// nothing then: it's in no wave, and runs nothing it wasn't planned to.
+			sp.Steps = slices.DeleteFunc(sp.Steps, func(st resource.Step) bool {
+				return before.ended(sp.Server, ids[st.Ref]) || plan.Waves.waveOf(sp.Server) == 0
+			})
 		}
 		plan.Servers = slices.DeleteFunc(plan.Servers, func(sp ServerPlan) bool { return len(sp.Steps) == 0 && !sp.Removed })
 	}
@@ -4742,7 +4757,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	e.track(changeID, resumed(before, plan, items))
+	e.track(changeID, resumed(before, plan, items, e.now()))
 	// A wait on record is what says a step never began, and from here it may.
 	e.recordProgress(ctx, changeID)
 	e.published(changeID, store.ChangeApplying)
