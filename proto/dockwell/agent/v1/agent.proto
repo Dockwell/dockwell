@@ -2477,6 +2477,21 @@ message AdoptionResult {
   // Why the spec isn't one a service can hold, in words for people. With any, it
   // can't be taken on.
   string invalid = 7;
+  // The names it reaches other containers by through a link that those don't
+  // answer to already. A Compose project taken on whole gives each as an alias
+  // of that container's service; taken on alone, it can't be (ADR 0089).
+  repeated LinkAlias link_aliases = 8;
+}
+
+// LinkAlias is a name a container reaches another by through a link.
+message LinkAlias {
+  // The container it links to, such as "plane-web-1".
+  string container = 1;
+  // That container's Compose service, such as "plane-web", or empty for one
+  // Compose didn't make.
+  string service = 2;
+  // The name, such as "web".
+  string alias = 3;
 }
 
 // BackupPreviewResult says what backing up a volume would do.

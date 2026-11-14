@@ -1695,6 +1695,12 @@ func restoreBudget(size int64) time.Duration {
 	return time.Hour + 3*time.Duration(size/(1<<20))*time.Second
 }
 
+// LinkAlias is a name a container reaches another by through a link: the other
+// container, its Compose service, and the name.
+type LinkAlias struct {
+	Container, Service, Alias string
+}
+
 // Restorer is a driver that can bring a resource's data back from a backup. A
 // restore changes no spec, so it makes no revision, as a restart doesn't, and it
 // runs once for a change (ADR 0033).
@@ -1811,6 +1817,10 @@ type Adoption struct {
 	// LeanedOn is what depends on it in a way a replace would cut off, each with how,
 	// such as "app shares its network".
 	LeanedOn []string
+	// LinkAliases are the names it reaches other containers by through a link that
+	// those don't answer to already, which a service says as an alias of theirs
+	// (ADR 0089).
+	LinkAliases []LinkAlias
 	// Manager is the tool that runs its Compose project, where its labels show one.
 	Manager string
 	// Folder is where its Compose project runs from.

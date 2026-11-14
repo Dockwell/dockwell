@@ -99,7 +99,11 @@ func (c *calls) adoption(ctx context.Context, call *agentv1.AdoptionCall) (*agen
 	if err != nil {
 		return nil, err
 	}
-	return &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder, LeanedOn: read.LeanedOn, Invalid: read.Invalid}, nil
+	out := &agentv1.AdoptionResult{Spec: b, Refused: read.Refused, Shows: read.Shows, Manager: read.Manager, Folder: read.Folder, LeanedOn: read.LeanedOn, Invalid: read.Invalid}
+	for _, l := range read.LinkAliases {
+		out.LinkAliases = append(out.LinkAliases, &agentv1.LinkAlias{Container: l.Container, Service: l.Service, Alias: l.Alias})
+	}
+	return out, nil
 }
 
 // ContainerAsGoodAsRoot says whether a container, by its full ID, reaches as far as

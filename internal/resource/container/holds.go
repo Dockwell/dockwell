@@ -103,7 +103,7 @@ var hostConfigRules = map[string]rule{
 	"DnsOptions": only("dns_opt"), "DnsSearch": only("dns_search"),
 	"IOMaximumBandwidth": only("an I/O limit"), "IOMaximumIOps": only("an I/O limit"),
 	"IpcMode": only("ipc", `"private"`, `"shareable"`), "Isolation": only("isolation", `"default"`),
-	"Links": only("links"), "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
+	"Links": kept, "MemorySwappiness": only("mem_swappiness"), "OomKillDisable": only("oom_kill_disable"),
 	"OomScoreAdj": only("oom_score_adj"), "PidMode": only("pid"), "PublishAllPorts": only("publish_all_ports (-P)"),
 	"SecurityOpt": readSecurityOpt,
 	"StorageOpt":  only("storage_opt"), "Sysctls": only("sysctls"), "UTSMode": only("uts"),
@@ -193,8 +193,13 @@ func leans(o *docker.Options, c *docker.Container) []string {
 			return is(strings.TrimPrefix(source, "/"))
 		})
 	}
-	if sources("Links") {
-		out = append(out, name+" links to it")
+	// A link on a network both are on goes on reaching it once it's replaced: by a
+	// name it answers to already, or by one it takes on as an alias of its own
+	// (linkedNames). One on Docker's default bridge doesn't.
+	for _, l := range linksOf(o) {
+		if is(l.target) && sharedOf(o, c) == "" {
+			out = append(out, name+" links to it")
+		}
 	}
 	if sources("VolumesFrom") {
 		out = append(out, name+" mounts its volumes")
@@ -219,7 +224,7 @@ func readKeys(section string, keys map[string]json.RawMessage, rules map[string]
 func readEndpoint(network string, ep map[string]json.RawMessage) []string {
 	var out []string
 	for _, s := range []struct{ key, name string }{
-		{"IPAMConfig", "ipv4_address"}, {"DriverOpts", "driver_opts"}, {"Links", "links"}, {"GwPriority", "gw_priority"},
+		{"IPAMConfig", "ipv4_address"}, {"DriverOpts", "driver_opts"}, {"GwPriority", "gw_priority"},
 	} {
 		if !isZero(ep[s.key]) {
 			out = append(out, s.name+" on "+network)

@@ -143,6 +143,9 @@ func Refusal(name string, a resource.Adoption) string {
 	if len(a.LeanedOn) > 0 {
 		why = append(why, fmt.Sprintf("the container %s can't be replaced while others depend on it: %s, so a new container would cut that off", name, human.List(a.LeanedOn)))
 	}
+	for _, l := range a.LinkAliases {
+		why = append(why, fmt.Sprintf("the container %s reaches %s as %s through a link, which only a Compose project taken on whole, with %s, can keep", name, l.Container, l.Alias, l.Container))
+	}
 	return strings.Join(why, ". ")
 }
 
@@ -155,7 +158,7 @@ func itOrThem(n int) string {
 
 // Fix says what to do about what Refusal said of a.
 func Fix(a resource.Adoption) string {
-	n := len(a.Refused) + len(a.Shows) + len(a.LeanedOn)
+	n := len(a.Refused) + len(a.Shows) + len(a.LeanedOn) + len(a.LinkAliases)
 	if a.Invalid != "" {
 		n++
 	}

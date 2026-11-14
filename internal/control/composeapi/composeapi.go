@@ -566,6 +566,17 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 	}
 	t := &Taking{Project: place.project, Made: place.made, Adopts: make(map[resource.Ref]changes.Adoption, len(byName))}
 	var manager, folder string
+	svcs := make(map[string]*resourcev1.Service, len(byName))
+	founds := make(map[string]*resource.Adoption, len(byName))
+	for _, svcName := range slices.Sorted(maps.Keys(byName)) {
+		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: svcName}
+		svc, found, err := h.containers.ReadAs(ctx, s, byName[svcName][0], ref)
+		if err != nil {
+			return nil, err
+		}
+		svcs[svcName], founds[svcName] = svc, &found
+	}
+	carryLinks(byName, svcs, founds)
 	for _, svcName := range slices.Sorted(maps.Keys(byName)) {
 		c := byName[svcName][0]
 		if len(byName[svcName]) > 1 {
@@ -575,10 +586,7 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 			t.Refusals = append(t.Refusals, fmt.Sprintf("the project %s runs a service %s already, so it can't take on %s as well. Pass another project", place.project, svcName, c.GetName()))
 		}
 		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: svcName}
-		svc, found, err := h.containers.ReadAs(ctx, s, c, ref)
-		if err != nil {
-			return nil, err
-		}
+		svc, found := svcs[svcName], *founds[svcName]
 		if why := containers.Refusal(c.GetName(), found); why != "" {
 			t.Refusals = append(t.Refusals, why)
 		}
@@ -600,6 +608,19 @@ func (h *Handler) ReadTakingIn(ctx context.Context, r *containers.Running, name,
 		revision.ManagedElsewhere(resource.Elsewhere{Manager: manager, Container: human.List(names), Project: name, Folder: folder}),
 	}
 	return t, nil
+}
+
+// carryLinks lets a container keep a name it reaches another of the project by,
+// through a link, where that one takes the name on as an alias of its own, as a
+// container taken on does for what links to it (ADR 0089). A link to a container
+// of no service here stays, and refuses.
+func carryLinks(byName map[string][]*dockwellv1.ServerContainer, svcs map[string]*resourcev1.Service, founds map[string]*resource.Adoption) {
+	for _, found := range founds {
+		found.LinkAliases = slices.DeleteFunc(found.LinkAliases, func(l resource.LinkAlias) bool {
+			to, ok := byName[l.Service]
+			return ok && to[0].GetName() == l.Container && slices.Contains(svcs[l.Service].GetApp().GetAliases(), l.Alias)
+		})
+	}
 }
 
 // TakenOn is the project of Dockwell's that runs the container called name, as r

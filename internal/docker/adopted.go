@@ -25,6 +25,10 @@ const LabelAdopted = OwnPrefix + "adopted"
 // them, with ${NAME} in them and never a value (ADR 0022).
 const LabelReferences = OwnPrefix + "references"
 
+// LabelLinkedAs holds the names, comma-separated, other containers linked to one
+// taken on by, which it answers to as aliases of its own (ADR 0089).
+const LabelLinkedAs = OwnPrefix + "linked-as"
+
 // LabelAdoptedFrom says the Compose project such a container came from, in what the
 // client reads alone.
 const LabelAdoptedFrom = OwnPrefix + "adopted-from"
@@ -52,6 +56,9 @@ type Taken struct {
 	// for one whose values were kept by name as it was taken on (ADR 0096), so it
 	// reads back as its spec, names and never values.
 	References string `json:"references,omitempty"`
+	// LinkedAs are the names others linked to it by when it was taken on, beside
+	// its own, as LabelLinkedAs has them, which it answers to from then on (ADR 0089).
+	LinkedAs string `json:"linked_as,omitempty"`
 }
 
 // Adopted is the record of the containers a server took on as services. Docker
@@ -173,6 +180,9 @@ func asTaken(labels map[string]string, t Taken, name string) map[string]string {
 	}
 	if t.References != "" {
 		out[LabelReferences] = t.References
+	}
+	if t.LinkedAs != "" {
+		out[LabelLinkedAs] = t.LinkedAs
 	}
 	return out
 }

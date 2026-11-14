@@ -1338,3 +1338,80 @@ func TestAComposeThatCantComeInSaysWhy(t *testing.T) {
 		t.Errorf("a project that isn't there: %v", err)
 	}
 }
+
+// Links come in (ADR 0089). A link by a name the linked container answers to
+// already needs nothing; one by another name the linked container takes on as an
+// alias of its own, alone or with its project, and reads back as. A container that
+// links by such a name can't be taken on before what it links to is, and a link on
+// Docker's default bridge still refuses.
+func TestAComposeProjectsLinksComeAlong(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	c := changeClient(b, b.origin)
+	cc := containerClient(b, b.origin)
+	imports := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	links := func(name string, links ...string) { e.Reports(name, "HostConfig", map[string]any{"Links": links}) }
+
+	// As Compose links "links: [database]", and "plane-web:web".
+	e.AddNetwork(docker.Network{ID: "pteronet", Name: "ptero_default", Driver: "bridge"})
+	composeContainer(t, e, "ptero", "database", "ptero-database-1", nil)
+	composeContainer(t, e, "ptero", "panel", "ptero-panel-1", nil)
+	links("ptero-panel-1", "/ptero-database-1:/ptero-panel-1/database", "/ptero-database-1:/ptero-panel-1/database-1", "/ptero-database-1:/ptero-panel-1/ptero-database-1")
+	e.AddNetwork(docker.Network{ID: "planenet", Name: "plane_default", Driver: "bridge"})
+	composeContainer(t, e, "plane", "plane-web", "plane-plane-web-1", nil)
+	composeContainer(t, e, "plane", "proxy", "plane-proxy-1", nil)
+	links("plane-proxy-1", "/plane-plane-web-1:/plane-proxy-1/web", "/plane-plane-web-1:/plane-proxy-1/plane-web-1")
+
+	// Alone, the proxy can't keep its name for plane-web while plane-web isn't
+	// Dockwell's.
+	_, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "plane-proxy-1"}))
+	if err == nil || !strings.Contains(err.Error(), "reaches plane-plane-web-1 as web through a link, which only a Compose project taken on whole") {
+		t.Errorf("taking the proxy on alone = %v", err)
+	}
+
+	for project, want := range map[string]bool{"ptero": false, "plane": true} {
+		res, err := imports.AdoptCompose(t.Context(), connect.NewRequest(&dockwellv1.AdoptComposeRequest{Name: project}))
+		if err != nil {
+			t.Fatalf("taking %s on = %v", project, err)
+		}
+		if want && !strings.Contains(res.Msg.GetChange().String(), `to:"plane-plane-web-1, web"`) {
+			t.Errorf("%s's plan has no alias web: %v", project, res.Msg.GetChange().GetPlan().GetResources())
+		}
+		applyConfirmed(t, c, res.Msg.GetChange())
+	}
+	drift, err := c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking them on = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	// Alone, the linked container takes the name on, and then what links to it
+	// comes too.
+	e.AddNetwork(docker.Network{ID: "solonet", Name: "solo_default", Driver: "bridge"})
+	composeContainer(t, e, "solo", "db", "solo-db-1", nil)
+	composeContainer(t, e, "solo", "app", "solo-app-1", nil)
+	links("solo-app-1", "/solo-db-1:/solo-app-1/storage")
+	alone := func(id, as string) {
+		t.Helper()
+		res, err := cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: id, Service: as, Project: "plane"}))
+		if err != nil {
+			t.Fatalf("taking %s on alone = %v", id, err)
+		}
+		applyConfirmed(t, c, res.Msg.GetChange())
+	}
+	alone("solo-db-1", "store")
+	alone("solo-app-1", "app")
+	drift, err = c.ListDrift(t.Context(), connect.NewRequest(&dockwellv1.ListDriftRequest{}))
+	if err != nil || len(drift.Msg.GetDrift()) != 0 {
+		t.Errorf("drift after taking each on alone = %v, %v", drift.Msg.GetDrift(), err)
+	}
+
+	// On Docker's default bridge, a name reaches nothing without the link.
+	runByHand(t, e, "old-db", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	runByHand(t, e, "old-app", func(r *docker.CreateRequest) { r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil })
+	links("old-app", "/old-db:/old-app/db")
+	_, err = cc.AdoptContainer(t.Context(), connect.NewRequest(&dockwellv1.AdoptContainerRequest{Id: "old-app", Project: "plane"}))
+	if err == nil || !strings.Contains(err.Error(), "a link to old-db on no network of a project's own") {
+		t.Errorf("taking on a link on the default bridge = %v", err)
+	}
+}

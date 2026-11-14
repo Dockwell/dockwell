@@ -238,6 +238,12 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 	if came := c.Config.Labels[docker.LabelAdopted]; t.Scoped && came != "" && came != t.Service {
 		names[came] = true
 	}
+	// So do the names others linked to it by (ADR 0089).
+	if linked := c.Config.Labels[docker.LabelLinkedAs]; t.Scoped && linked != "" {
+		for _, a := range strings.Split(linked, ",") {
+			names[a] = true
+		}
+	}
 	out.Aliases = slices.Sorted(maps.Keys(names))
 }
 
