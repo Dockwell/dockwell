@@ -35,11 +35,16 @@ func (s Systemd) Has() bool { return s.Reader.exists("run/systemd/system") }
 // Start runs argv as the transient service name. It isn't collected as it ends,
 // so a failure's status can be read; Ended lets it go.
 func (s Systemd) Start(ctx context.Context, name string, argv, env []string, log string) error {
+	return s.StartAs(ctx, name, "Dockwell installs updates", argv, env, log)
+}
+
+// StartAs is Start, with what systemd says the unit is.
+func (s Systemd) StartAs(ctx context.Context, name, description string, argv, env []string, log string) error {
 	if !s.Has() {
 		return ErrNoUnits
 	}
 	args := []string{
-		"--unit=" + name, "--description=Dockwell installs updates", "--service-type=exec", "--quiet",
+		"--unit=" + name, "--description=" + description, "--service-type=exec", "--quiet",
 		"--property=StandardOutput=append:" + log, "--property=StandardError=append:" + log,
 		// What it starts goes when it's stopped by hand, all of it, and nothing
 		// else stops it: no timeout, no stop with the agent.

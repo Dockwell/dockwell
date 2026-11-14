@@ -798,6 +798,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   const { t, i18n } = useLingui();
   const managed = useManagedElsewhere();
   const words = useChangeWords();
+  const list = (names: readonly string[]) =>
+    new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(names);
   const { rest } = useReaches(plan);
   const rollouts = useRolloutLines(plan);
   // Going back is when this is news. Any other plan says it among what it means.
@@ -835,6 +837,36 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       }
       case "first_steps":
         return { key, title: t`What to do first`, detail: note.message };
+      // An agent from before fleet upgrades is upgraded once by the install script on its server (ADR 0094).
+      case "older_agent": {
+        const names = list(note.names);
+        return note.names.length === 1
+          ? {
+              key,
+              title: t`${names}'s agent is older than fleet upgrades, so it isn't in this change`,
+              detail: t`Upgrade it by running the install script on it once.`,
+            }
+          : {
+              key,
+              title: t`${names} have agents older than fleet upgrades, so they aren't in this change`,
+              detail: t`Upgrade each by running the install script on it once.`,
+            };
+      }
+      // A fleet action leaves out what isn't connected (ADR 0094).
+      case "servers_offline": {
+        const names = list(note.names);
+        return note.names.length === 1
+          ? {
+              key,
+              title: t`${names} isn't connected, so it isn't in this change`,
+              detail: t`Run it again once it's back.`,
+            }
+          : {
+              key,
+              title: t`${names} aren't connected, so they aren't in this change`,
+              detail: t`Run it again once they're back.`,
+            };
+      }
       case "backup_first":
         return {
           key,
@@ -1143,6 +1175,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     "catalog_source_pinned",
     "catalog_source_followed",
     "labels_only",
+    "servers_unchanged",
+    "control_server",
   ]);
   const fromRollouts = rollouts
     .filter((line) => line.warn)
@@ -1195,6 +1229,25 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     if (note.reason === "labels_only") {
       const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(note.names);
       out.push({ key: `labels-${i}`, title: t`Labels alone: no step runs on ${on}, online or offline.` });
+    }
+    // A fleet action's servers that take no step, and the control server an agent upgrade
+    // leaves out, are in no wave (ADR 0094).
+    if (note.reason === "servers_unchanged") {
+      const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(note.names);
+      out.push({
+        key: `unchanged-${i}`,
+        title:
+          note.names.length === 1
+            ? t`${on} needs nothing, so it takes no step.`
+            : t`${on} need nothing, so they take no step.`,
+      });
+    }
+    if (note.reason === "control_server") {
+      const on = note.names[0] ?? "";
+      out.push({
+        key: `control-${i}`,
+        title: t`${on} is the control server, whose agent is the control plane, so it isn't in this change. Upgrade it by running the install script on it.`,
+      });
     }
     // What an edit kept unread of an app's own values, as the server says it, once for each app:
     // the server notes it for each server the app's step is on.

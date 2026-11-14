@@ -1,0 +1,307 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* New fleet action, as Fleet-Action lays it out: the steps, with the summary beside them while there's room. */
+.fleet-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 390px);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.fleet-action-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .fleet-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A step's heading: its number in a ring, its title, then what it's for, quieter. */
+.fleet-step-head {
+  justify-content: flex-start;
+  gap: var(--space-3);
+}
+
+.fleet-step-number {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fleet-step-sub {
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.fleet-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The servers picked on Servers, with the way to a selector instead. */
+.fleet-target-picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.fleet-target-count {
+  font-weight: 550;
+}
+
+.fleet-target-tiles {
+  min-width: 0;
+}
+
+.fleet-target-none {
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+/* What the plan leaves out, in a line each, as the mock's note under the tiles. */
+.fleet-target-leaving {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.fleet-target-leaving li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.fleet-target-leaving svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* The actions as cards two by two, one picked, as the mock draws them. */
+.fleet-actions-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .fleet-actions-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fleet-action-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.fleet-action-card.is-picked {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+
+.fleet-action-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fleet-action-card input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--ink);
+}
+
+.fleet-action-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fleet-action-card-title {
+  font-weight: 550;
+}
+
+.fleet-action-card-sub {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* A system service's name beside what to do to it. */
+.fleet-action-unit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.fleet-action-unit > .dw-field {
+  flex: 1 1 240px;
+}
+
+/* The rollout's rows: what each sets, at the left, as the mock lines them up. */
+.fleet-rollout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fleet-rollout-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .fleet-rollout-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+}
+
+.fleet-rollout-label {
+  font-weight: 550;
+}
+
+.fleet-rollout-one {
+  color: var(--ink-muted);
+}
+
+.fleet-rollout-number {
+  max-width: 240px;
+}
+
+/* The waves as segments, each as wide as its share of the servers, as the mock draws them. */
+.fleet-waves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fleet-wave {
+  display: flex;
+  flex: 1 1 76px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.fleet-wave-rule {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.fleet-wave-sub {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-wave-sub.is-mono {
+  font-family: var(--font-mono);
+}
+
+/* The summary, beside the form while there's room, staying in view as it scrolls. */
+.fleet-summary {
+  position: sticky;
+  top: var(--space-6);
+}
+
+@media (max-width: 1100px) {
+  .fleet-summary {
+    position: static;
+  }
+}
+
+.fleet-summary-draft {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.fleet-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fleet-summary-headline {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.fleet-summary-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+}
+
+.fleet-summary-facts dt {
+  color: var(--ink-muted);
+}
+
+.fleet-summary-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fleet-summary-facts dd.is-mono {
+  font-family: var(--font-mono);
+}
+
+.fleet-summary-review {
+  width: 100%;
+  justify-content: center;
+}
+
+.fleet-summary-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  text-align: center;
+}

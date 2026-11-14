@@ -182,6 +182,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	p.Reboot = Reboot(s.Reboot)
 	p.Unit = Unit(s.Unit)
 	p.Panel = Panel(s.Panel)
+	p.AgentUpgrade = AgentUpgrade(s.AgentUpgrade)
 	p.RegistryLogin = s.RegistryLogin
 	p.BuildLogins, p.BuildLoginVersions = s.BuildLogins, s.BuildLoginVersions
 	if b := s.BackupFirst; b != nil {
@@ -541,6 +542,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.Reboot = RebootFrom(p.GetReboot())
 	s.Unit = UnitFrom(p.GetUnit())
 	s.Panel = PanelFrom(p.GetPanel())
+	s.AgentUpgrade = AgentUpgradeFrom(p.GetAgentUpgrade())
 	s.RegistryLogin = p.GetRegistryLogin()
 	s.BuildLogins, s.BuildLoginVersions = p.GetBuildLogins(), p.GetBuildLoginVersions()
 	if b := p.GetBackupFirst(); b != nil {
@@ -595,6 +597,22 @@ func Reboot(r *resource.Reboot) *dockwellv1.HostReboot {
 		return nil
 	}
 	return &dockwellv1.HostReboot{ControlServer: r.ControlServer, LastTook: Duration(r.LastTook)}
+}
+
+// AgentUpgrade is an agent upgrade's plan as the API says it; nil for none.
+func AgentUpgrade(u *resource.AgentUpgrade) *dockwellv1.HostAgentUpgrade {
+	if u == nil {
+		return nil
+	}
+	return &dockwellv1.HostAgentUpgrade{From: u.From, To: u.To, ScriptSha256: u.ScriptSHA256}
+}
+
+// AgentUpgradeFrom reads an agent upgrade's plan as the API says it; nil for none.
+func AgentUpgradeFrom(p *dockwellv1.HostAgentUpgrade) *resource.AgentUpgrade {
+	if p == nil {
+		return nil
+	}
+	return &resource.AgentUpgrade{From: p.GetFrom(), To: p.GetTo(), ScriptSHA256: p.GetScriptSha256()}
 }
 
 // RebootFrom reads a reboot's plan as the API says it; nil for none.

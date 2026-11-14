@@ -56,6 +56,9 @@ type Desired struct {
 	// Panel stops or starts the own containers of the panel an import came from, as
 	// a step of this change. Its kind is a PanelActor.
 	Panel *PanelAsked
+	// Upgrade upgrades the server's agent as a step of this change. Its kind is an
+	// AgentUpgrader.
+	Upgrade *AgentUpgradeAsked
 	// Prepare gives what plans this resource, alone, what only it may use, such as
 	// the registry login its image is pulled with (ADR 0086). It's never kept.
 	Prepare func(context.Context) context.Context `json:"-"`
@@ -328,7 +331,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Prepare: want.Prepare}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Upgrade: want.Upgrade, Prepare: want.Prepare}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -430,6 +433,21 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				return nil, fmt.Errorf("can't plan %s: this agent can't reboot its server for a %s", want.Ref, want.Ref.Kind)
 			}
 			dec, left, err := r.JudgeReboot(ctx, want.Ref, *want.Reboot)
+			if err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+			if left {
+				step.Decision = dec
+			}
+			steps = append(steps, step)
+			continue
+		}
+		if want.Upgrade != nil {
+			u, ok := d.(AgentUpgrader)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't upgrade itself for a %s", want.Ref, want.Ref.Kind)
+			}
+			dec, left, err := u.JudgeAgentUpgrade(ctx, want.Ref, *want.Upgrade)
 			if err != nil {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 			}
@@ -722,6 +740,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		if err := r.ApplyReboot(ctx, step); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't reboot the server: %s. Reboot it over SSH, or plan the reboot again.", clause(err)), fmt.Errorf("can't reboot the server: %w", err))
+		}
+		return nil
+	}
+	if step.AgentUpgrade != nil {
+		u, ok := d.(AgentUpgrader)
+		if !ok {
+			return cantApply(ctx, step, fmt.Errorf("this agent can't upgrade itself for a %s", step.Ref.Kind))
+		}
+		if err := u.ApplyAgentUpgrade(ctx, step); err != nil {
+			return Plainly(fmt.Sprintf("Dockwell can't upgrade the agent: %s.", clause(err)), fmt.Errorf("can't upgrade the agent: %w", err))
 		}
 		return nil
 	}

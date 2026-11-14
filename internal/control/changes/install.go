@@ -14,12 +14,10 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
-	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/revision"
-	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -33,9 +31,6 @@ func (h *Handler) PlanInstallUpdates(ctx context.Context, req *connect.Request[d
 		return nil, err
 	}
 	m := req.Msg
-	if len(m.GetServerIds()) == 0 {
-		return nil, authapi.Invalid(errors.New("name the servers to install updates on, by ID"))
-	}
 	picked, err := packageNames(m.GetPackages())
 	if err != nil {
 		return nil, authapi.Invalid(err)
@@ -44,30 +39,29 @@ func (h *Handler) PlanInstallUpdates(ctx context.Context, req *connect.Request[d
 		return nil, authapi.Invalid(errors.New("name the packages to install, or ask for every update, not both"))
 	}
 	var edits []revision.Edit
-	var names []string
-	err = h.db.View(ctx, func(tx *store.Tx) error {
-		for _, id := range m.GetServerIds() {
-			s, err := tx.GetServer(ctx, id)
-			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
-				return fault.New(scope.ErrNotFound, "there's no server %s in the fleet. List them with ListServers", id)
-			}
-			if err != nil {
-				return err
-			}
-			names = append(names, s.Name)
+	var set targets
+	err = h.db.View(ctx, func(tx *store.Tx) (err error) {
+		if set, err = h.targetsOf(ctx, tx, m.GetServerIds(), m.GetSelector(), m.GetRollout(), "install updates on"); err != nil {
+			return err
+		}
+		for i := range set.servers {
 			edits = append(edits, revision.Edit{
-				Ref:     resource.Ref{Kind: host.Kind, Scope: id, Name: host.Name},
+				Ref:     resource.Ref{Kind: host.Kind, Scope: set.servers[i].ID, Name: host.Name},
 				Install: &resource.InstallAsked{All: m.GetAll(), Names: picked},
 			})
 		}
 		return nil
 	})
+	if cerr := (*connect.Error)(nil); errors.As(err, &cerr) {
+		return nil, cerr
+	}
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
+	names := set.names()
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {
-		on := strings.Join(names, ", ")
+		on := set.on(m.GetSelector())
 		switch {
 		case len(picked) > 0:
 			summary = "Update " + namedOrCounted(picked) + " on " + on
@@ -77,13 +71,16 @@ func (h *Handler) PlanInstallUpdates(ctx context.Context, req *connect.Request[d
 			summary = "Install security updates on " + on
 		}
 	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, Notes: set.notes, Rollout: set.rollout})
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	if !slices.ContainsFunc(plan.Resources, func(r revision.ResourcePlan) bool { return r.Install != nil }) {
 		_ = h.engine.Discard(ctx, plan.Change, who)
-		on := strings.Join(names, ", ")
+		on := human.List(names)
+		if len(names) > 3 {
+			on = "any of " + set.on(m.GetSelector())
+		}
 		said := "no security updates wait on " + on + ", so there's nothing to install. Check again on the Updates tab"
 		switch {
 		case len(picked) > 0:

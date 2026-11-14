@@ -473,18 +473,21 @@ func TestTheInstallScriptKeepsDowngradeForSudo(t *testing.T) {
 
 // An install from a mirror keeps it in the service's environment, so the control
 // plane reads Dockwell's newest release where the install came from, and none
-// without one. systemd reads % as a specifier, so it's doubled there.
+// without one; so does a mirror of cosign's, which an agent's upgrade passes on
+// (ADR 0094). systemd reads % as a specifier, so it's doubled there.
 func TestTheServiceKeepsTheMirror(t *testing.T) {
 	steps := installSteps(t)
-	for _, c := range []struct{ init, mirror, want, not string }{
-		{"systemd", "https://mirror.example/dockwell%2Freleases", `Environment="DOCKWELL_MIRROR=https://mirror.example/dockwell%%2Freleases"`, ""},
-		{"systemd", "", "", "DOCKWELL_MIRROR"},
-		{"openrc", "https://mirror.example/dockwell", ": \"${DOCKWELL_MIRROR:=https://mirror.example/dockwell}\"\nexport DOCKWELL_MIRROR\n", ""},
-		{"openrc", "", "", "DOCKWELL_MIRROR"},
+	for _, c := range []struct{ init, mirror, cosign, want, not string }{
+		{"systemd", "https://mirror.example/dockwell%2Freleases", "", `Environment="DOCKWELL_MIRROR=https://mirror.example/dockwell%%2Freleases"`, "DOCKWELL_COSIGN_MIRROR"},
+		{"systemd", "", "", "", "DOCKWELL_MIRROR"},
+		{"systemd", "", "https://mirror.example/cosign", `Environment="DOCKWELL_COSIGN_MIRROR=https://mirror.example/cosign"`, "DOCKWELL_MIRROR="},
+		{"openrc", "https://mirror.example/dockwell", "", ": \"${DOCKWELL_MIRROR:=https://mirror.example/dockwell}\"\nexport DOCKWELL_MIRROR\n", "COSIGN"},
+		{"openrc", "", "", "", "DOCKWELL_MIRROR"},
+		{"openrc", "", "https://mirror.example/cosign", ": \"${DOCKWELL_COSIGN_MIRROR:=https://mirror.example/cosign}\"\nexport DOCKWELL_COSIGN_MIRROR\n", "DOCKWELL_MIRROR:="},
 	} {
 		dir := t.TempDir()
-		cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; tmp=$2; UNIT=$2/service; INITD=$2/service; BIN=/usr/local/bin/dockwell; MEMORY_LIMIT=200MiB; REPO_URL=https://github.com/Dockwell/dockwell; OPENRC_LOG=/var/log/dockwell.log; init=$3; mirror=$4; write_service`,
-			"sh", steps, dir, c.init, c.mirror)
+		cmd := exec.CommandContext(t.Context(), "sh", "-c", `. "$1"; tmp=$2; UNIT=$2/service; INITD=$2/service; BIN=/usr/local/bin/dockwell; MEMORY_LIMIT=200MiB; REPO_URL=https://github.com/Dockwell/dockwell; OPENRC_LOG=/var/log/dockwell.log; init=$3; mirror=$4; cosign_mirror=$5; write_service`,
+			"sh", steps, dir, c.init, c.mirror, c.cosign)
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("write_service: %v\n%s", err, out)
 		}

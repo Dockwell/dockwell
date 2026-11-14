@@ -10,12 +10,9 @@ import (
 	"connectrpc.com/connect"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
-	"github.com/dockwell/dockwell/internal/control/authapi"
-	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/revision"
-	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -28,36 +25,31 @@ func (h *Handler) PlanReboot(ctx context.Context, req *connect.Request[dockwellv
 		return nil, err
 	}
 	m := req.Msg
-	if len(m.GetServerIds()) == 0 {
-		return nil, authapi.Invalid(errors.New("name the servers to reboot, by ID"))
-	}
 	var edits []revision.Edit
-	var names []string
-	err = h.db.View(ctx, func(tx *store.Tx) error {
-		for _, id := range m.GetServerIds() {
-			s, err := tx.GetServer(ctx, id)
-			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
-				return fault.New(scope.ErrNotFound, "there's no server %s in the fleet. List them with ListServers", id)
-			}
-			if err != nil {
-				return err
-			}
-			names = append(names, s.Name)
+	var set targets
+	err = h.db.View(ctx, func(tx *store.Tx) (err error) {
+		if set, err = h.targetsOf(ctx, tx, m.GetServerIds(), m.GetSelector(), m.GetRollout(), "reboot"); err != nil {
+			return err
+		}
+		for i := range set.servers {
 			edits = append(edits, revision.Edit{
-				Ref:    resource.Ref{Kind: host.Kind, Scope: id, Name: host.Name},
+				Ref:    resource.Ref{Kind: host.Kind, Scope: set.servers[i].ID, Name: host.Name},
 				Reboot: true,
 			})
 		}
 		return nil
 	})
+	if cerr := (*connect.Error)(nil); errors.As(err, &cerr) {
+		return nil, cerr
+	}
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {
-		summary = "Reboot " + strings.Join(names, ", ")
+		summary = "Reboot " + set.on(m.GetSelector())
 	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, Notes: set.notes, Rollout: set.rollout})
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

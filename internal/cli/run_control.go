@@ -75,6 +75,7 @@ import (
 	"github.com/dockwell/dockwell/internal/serve"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/task"
+	"github.com/dockwell/dockwell/scripts"
 )
 
 type runFlags struct {
@@ -349,6 +350,10 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 	// so; one whose server hasn't come back fails at RebootLimit, as nothing else
 	// would end it (ADR 0064).
 	engine.SetControlServer(own.ServerID)
+	// A release upgrades agents to itself, by its own install script (ADR 0094).
+	if r, ok := agentRelease(stdio, build); ok {
+		engine.SetAgentRelease(r)
+	}
 	// Taken now: ctx is rebound below, for the control plane's own stop.
 	stopped := ctx.Done()
 	go func() {
@@ -970,6 +975,27 @@ func withListenHint(err error, flag string) error {
 	default:
 		return err
 	}
+}
+
+// envTestAgentRelease, with DOCKWELL_TEST, names the release a control plane that
+// isn't one upgrades agents to, for a test to plan an upgrade. Each agent under a
+// test refuses to run the script (ADR 0094).
+const envTestAgentRelease = "DOCKWELL_TEST_AGENT_RELEASE"
+
+// envCosignMirror names where the install script downloads cosign from, as the
+// service keeps it, for an agent's upgrade to pass on.
+const envCosignMirror = "DOCKWELL_COSIGN_MIRROR"
+
+// agentRelease is what the control plane upgrades agents to: its own release, with
+// the install script it embeds and the mirror it was installed from. A build that
+// isn't a release upgrades none, unless a test names a release to stand in.
+func agentRelease(stdio IO, build buildinfo.Info) (revision.AgentRelease, bool) {
+	r := revision.AgentRelease{Version: build.Version, Script: scripts.Install, Mirror: stdio.Getenv(envMirror), CosignMirror: stdio.Getenv(envCosignMirror)}
+	if isSet(stdio.Getenv(envTest)) {
+		r.Version = stdio.Getenv(envTestAgentRelease)
+		return r, r.Version != ""
+	}
+	return r, build.Release()
 }
 
 // envMirror and envReleasesURL name where Dockwell's releases are, as the install
