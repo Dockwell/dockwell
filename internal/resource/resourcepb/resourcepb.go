@@ -181,6 +181,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	p.Install = Install(s.Install)
 	p.Reboot = Reboot(s.Reboot)
 	p.Unit = Unit(s.Unit)
+	p.Panel = Panel(s.Panel)
 	p.RegistryLogin = s.RegistryLogin
 	p.BuildLogins, p.BuildLoginVersions = s.BuildLogins, s.BuildLoginVersions
 	if b := s.BackupFirst; b != nil {
@@ -538,6 +539,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s.Install = InstallFrom(p.GetInstall())
 	s.Reboot = RebootFrom(p.GetReboot())
 	s.Unit = UnitFrom(p.GetUnit())
+	s.Panel = PanelFrom(p.GetPanel())
 	s.RegistryLogin = p.GetRegistryLogin()
 	s.BuildLogins, s.BuildLoginVersions = p.GetBuildLogins(), p.GetBuildLoginVersions()
 	if b := p.GetBackupFirst(); b != nil {
@@ -649,6 +651,67 @@ func UnitFrom(p *dockwellv1.HostUnit) *resource.Unit {
 		Name: p.GetName(), Action: UnitActionFrom(p.GetAction()), WasRunning: p.GetWasRunning(), WasState: p.GetWasState(), WasAtBoot: p.GetWasAtBoot(),
 		With: p.GetWith(), Triggers: p.GetTriggers(), Guard: resource.UnitGuard(p.GetGuard()), DockerRestarts: p.GetDockerRestarts(), OpenRC: p.GetOpenrc(),
 	}
+}
+
+// Panel is what stopping or starting a panel does, as the API says it; nil for
+// none (ADR 0089).
+func Panel(p *resource.Panel) *dockwellv1.HostPanel {
+	if p == nil {
+		return nil
+	}
+	return &dockwellv1.HostPanel{Kind: p.Kind, Start: p.Start, Parts: PanelParts(p.Parts), Stays: p.Stays}
+}
+
+// PanelFrom reads what stopping or starting a panel does, as the API says it; nil
+// for none.
+func PanelFrom(p *dockwellv1.HostPanel) *resource.Panel {
+	if p == nil {
+		return nil
+	}
+	return &resource.Panel{Kind: p.GetKind(), Start: p.GetStart(), Parts: PanelPartsFrom(p.GetParts()), Stays: p.GetStays()}
+}
+
+// PanelParts are a panel's own containers and services as the API says them.
+func PanelParts(parts []resource.PanelPart) []*dockwellv1.HostPanelPart {
+	out := make([]*dockwellv1.HostPanelPart, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, &dockwellv1.HostPanelPart{Name: p.Name, Swarm: p.Swarm, WasRunning: p.WasRunning, WasRestart: p.WasRestart, WasReplicas: p.WasReplicas})
+	}
+	return out
+}
+
+// PanelPartsFrom reads a panel's own containers and services as the API says them.
+func PanelPartsFrom(parts []*dockwellv1.HostPanelPart) []resource.PanelPart {
+	out := make([]resource.PanelPart, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, resource.PanelPart{Name: p.GetName(), Swarm: p.GetSwarm(), WasRunning: p.GetWasRunning(), WasRestart: p.GetWasRestart(), WasReplicas: p.GetWasReplicas()})
+	}
+	return out
+}
+
+// PanelKind is a panel's word in the API: PanelKind's value for "coolify" or
+// "dokploy", and unspecified for any other.
+func PanelKind(kind string) dockwellv1.PanelKind {
+	switch kind {
+	case resource.PanelCoolify:
+		return dockwellv1.PanelKind_PANEL_KIND_COOLIFY
+	case resource.PanelDokploy:
+		return dockwellv1.PanelKind_PANEL_KIND_DOKPLOY
+	}
+	return dockwellv1.PanelKind_PANEL_KIND_UNSPECIFIED
+}
+
+// PanelKindFrom is a panel's word, "coolify" or "dokploy", from the API's, or ""
+// for none.
+func PanelKindFrom(k dockwellv1.PanelKind) string {
+	switch k {
+	case dockwellv1.PanelKind_PANEL_KIND_COOLIFY:
+		return resource.PanelCoolify
+	case dockwellv1.PanelKind_PANEL_KIND_DOKPLOY:
+		return resource.PanelDokploy
+	case dockwellv1.PanelKind_PANEL_KIND_UNSPECIFIED:
+	}
+	return ""
 }
 
 // Packages are an install's packages as the API says them.

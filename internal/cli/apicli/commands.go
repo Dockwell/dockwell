@@ -214,7 +214,7 @@ func methodCommand(env *Env, m *Method, o *options) (*cobra.Command, error) {
 
 // proposers says, of each plan method that returns a change, whether it
 // proposes a new one, with a plan to show and apply, as ProposeChange,
-// UndoChange, RestartService, PlanInstallUpdates, PlanReboot, PlanRemoveServer, PlanSystemServiceAction, RevertDrift, AdoptDrift, RestoreBackup and ImportCompose do. DiscardChange returns the
+// UndoChange, RestartService, PlanInstallUpdates, PlanReboot, PlanRemoveServer, PlanSystemServiceAction, PlanStopPanel, PlanStartPanel, RevertDrift, AdoptDrift, RestoreBackup and ImportCompose do. DiscardChange returns the
 // change it ended, which is only printed. A plan method that returns a
 // change and isn't here fails the commands' building, and so their tests.
 var proposers = map[string]bool{
@@ -251,6 +251,8 @@ var proposers = map[string]bool{
 	"dockwell.v1.ImportService.ImportOnePanel":           true,
 	"dockwell.v1.ImportService.ImportCoolify":            true,
 	"dockwell.v1.ImportService.ImportDokploy":            true,
+	"dockwell.v1.ImportService.PlanStopPanel":            true,
+	"dockwell.v1.ImportService.PlanStartPanel":           true,
 	"dockwell.v1.DatabaseService.CreateDatabaseUser":     true,
 	"dockwell.v1.DatabaseService.ChangeDatabasePassword": true,
 }

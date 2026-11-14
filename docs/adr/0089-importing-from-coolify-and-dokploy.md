@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-13
 - Amended: 2026-11-13, after the security review of #608: a label that holds a credential is refused for every take-on; auto deploy, root access and Coolify's backups said in each step and note; folder words and Traefik's file checked as they're read; stopping the panel comes next
+- Amended: 2026-11-14, after three reviews of the domain handover: stopping the panel ships on its own; the handover becomes evidence and a person's choice, domain by domain (below). After the review of #629, making Swarm-run apps again waits for a branch of its own, proved on a real Swarm (below)
 
 ## Context
 
@@ -65,13 +66,28 @@ As in ADR 0056: every import is a plan a person reviews and applies; one thing t
 
 - **A pull request's preview,** which Coolify makes and removes with its pull request.
 - **What Dokploy runs as a Swarm service,** its applications, databases and stacks. Swarm keeps running a service whatever happens to its container, so Dockwell can't take one on in place. Each is made again in Dockwell, on the same volumes, by a later step that stops the service as Dockwell's copy starts, with a moment down, which its plan says.
-- **Domains and certificates.** Each app's domains are listed with it, and come as routes to its service once the panel's proxy hands ports 80 and 443 to Dockwell's ingress, which gets a certificate for each. That's a step of its own, after the apps, as ADR 0056 hands over OpenResty's: the plan stops the panel's proxy, and its undo starts it again.
+- **Domains and certificates.** Each app's domains are listed with it, and come as routes to its service once the panel's proxy hands ports 80 and 443 to Dockwell's ingress, which gets a certificate for each. That's a step of its own, after the apps, which a person chooses domain by domain (see "The domain handover: evidence and a choice").
 - **What only the panel's database knows:** a service's template, an application's Git source, scheduled tasks and backups. Each import says so. Where an app came from one of the panel's templates, a move to the catalog's entry converted from that template (ADR 0085) waits for the same reason as ADR 0056's store apps: an entry runs on named volumes and loopback ports, and an upgrade from it would plan new, empty volumes.
 - **The panel itself.** Its own containers are listed by name, and left running.
 
 ### Stopping the panel after
 
-Once its apps are taken on, the panel goes on running beside Dockwell until a person stops it. The next step, brought ahead of the screen and the domains after the security review, gives that one step, as stopping the panel also ends its auto deploys and its scheduled tasks: a change that stops the panel's own containers, Coolify's six or Dokploy's three services and its proxy, planned as an action on the server's host is ([ADR 0082](0082-acting-on-a-servers-system-services.md)), with no revision, whose undo starts them again. Nothing of the panel is deleted: its database and folders stay, so starting it again brings it back as it was.
+Once its apps are taken on, the panel goes on running beside Dockwell until a person stops it. The next step, brought ahead of the screen and the domains after the security review, gives that one step, as stopping the panel also ends its auto deploys and its scheduled tasks: a change that stops the panel's own containers and services, planned as an action on the server's host is ([ADR 0082](0082-acting-on-a-servers-system-services.md)), with no revision, whose undo starts them again. Nothing of the panel is deleted: its database and folders stay, so starting it again brings it back as it was.
+
+#### Stopping the panel, as built
+
+- **`ImportService.PlanStopPanel`** names a server and a panel, and plans one edit of the server's host, flagged as stopping that panel. It's a plan method for an admin, with the install reach, and a person's: a token can't plan one, as with every action on the server's host. Where nothing of the panel runs, nothing is planned and it says so; an agent from before says to update it (`Hello.stops_panels`).
+- **What stops.** Coolify's `coolify`, `coolify-realtime`, `coolify-sentinel`, `coolify-redis` and `coolify-db`, in that order: the panel first, so it doesn't see its database go. Dokploy's Swarm services `dokploy`, `dokploy-redis` and `dokploy-postgres`, scaled to none. One already stopped, and staying so, isn't planned.
+- **What stays.** The panel's proxy, `coolify-proxy` or `dokploy-traefik`: it serves the domains of what was taken on until those come as routes, a step of its own, which the plan says. What the panel ran isn't touched.
+- **It stays stopped.** A container's restart policy becomes `no` before it stops, as Coolify starts its own with `always`, which Docker and a reboot would start again. A Swarm service's update carries its whole spec, as Swarm takes it: the agent reads it as Docker has it, keeps every field and number as it was, changes the replicas alone, and names the version it read, so a change made meanwhile is refused, not written over.
+- **The plan keeps how each stood:** running or not, its restart policy, or its replicas. Its fingerprint covers them, so a part that moved since makes the plan stale. A stop that resumes keeps what its plan read, not what it has stopped since.
+- **Undoing it starts each again as it stood,** its state first, the panel last, as a change with its own plan. That start has no undo of its own; stopping again does it.
+- **The agent acts on the panel's own alone.** What a start puts back comes from a plan, so the agent takes only the panel's own names, never its proxy, a restart policy Docker has, and at most 16 replicas.
+- **The panel offers it** on a server's Overview where Coolify's or Dokploy's own app runs, as a callout a person can put away, until the import's screen gives it its row. The CLI's is `dockwell import stop-panel`.
+
+#### Swarm-run apps, later
+
+A first build made Dokploy's applications, databases and stacks again from their running tasks, and scaled each Swarm service to none in the same change. Its review found four ways a real Swarm breaks it that the fake Docker in tests didn't show: Swarm pins each task's address on its networks and labels a stack's volumes, which the take-on refuses; scaling to none changes a service's spec while its task is still stopping, so two databases could run on one data directory; the copy leaves `dokploy-network`, where Dokploy's Traefik and other services reach it by name; and a task's restart policy is none. So it waits for a branch of its own, tested on a real single-node Swarm in CI's real-Docker job, which proves that the old task is gone before the copy starts, that Traefik's target still resolves, that the restart policy carries over and that published ports are freed. What it can't carry stays behind with its reason: a global service, more than one replica, a multi-node swarm, Swarm secrets and configs, and anonymous volumes. Until then, the import leaves each Swarm-run app where it is, saying so.
 
 ### A token, where one is needed
 
@@ -81,13 +97,30 @@ Nothing here needs one. If a later step reads what only the panel's API knows, t
 
 A server's Move in tab offers each panel it finds running, beside 1Panel, and an import's page is a dry-run report first, as ADR 0056's is: what comes over, what's left behind and why, and Review the plan. The CLI says the same with `dockwell import coolify --server-id <server> --plan-only` and `dockwell import dokploy`.
 
+#### The screen, as built
+
+- **The Move in tab** shows where Coolify's or Dokploy's own app runs, running or stopped. Its page reads what the panel runs, plans nothing until Review the plan, groups each step by when it moves, and offers Stop, or Start again for a stopped panel, on the panel's own row.
+- **`ImportService.PlanStartPanel`** (`dockwell import start-panel`) is the way back where no undo is: it starts each of the panel's own that's stopped, a container with the restart policy its installer gives it where a stop left it at `no` (`unless-stopped` for Coolify's sentinel, `always` otherwise), a Swarm service at one replica.
+- **A failure never leaves a panel down.** A change that stopped a panel's own and then failed rolls back with a step that starts it again, last, as the stop makes no revision to roll back; and a failed change can be undone too. A start runs the container first and puts its policy back after, so one that doesn't start stays at `no`.
+
+### The domain handover: evidence and a choice
+
+Three reviews of a handover that read Traefik's and Caddy's configuration to prove a domain unguarded each found a guard the reader didn't see: a router field, an entrypoint's middleware in the static configuration, a file in another form, another provider, a container the panel doesn't manage. A reader can't prove a domain unguarded by re-implementing either proxy's configuration. So the handover doesn't ship with the rest, and when it does, it's evidence and an explicit choice, domain by domain, as the owner's rule for sharing has it: the platform makes sure the person means it, then makes it work robustly.
+
+- **A broad scan, cheap and failing closed.** Every `Host(`, `HostRegexp(` and Caddy site address is taken from the raw text of every label on every container and Swarm service on the server, and of every file in the proxy's mounts. A domain that anything other than the imported app's plain route mentions stays behind.
+- **Static configuration.** Only the official `traefik` image counts. A mount over a default static-configuration path holds every domain back, but Dokploy's exact bind of its `traefik.yml`; so does a provider other than docker and swarm, or a file folder other than the one Dockwell reads. A flag with no `=` takes the next argument as its value.
+- **A live probe through the old proxy, before anything stops.** For each domain, Dockwell requests `/`, and each path any rule anywhere mentions for it, over HTTPS with its name as SNI, from the server. A 401, 403 or 407, a redirect to another host or to a login path, or a TLS handshake that fails, as a client certificate would, holds the domain back, with what answered.
+- **The choice.** The handover's sheet lists each domain with what was checked. One the scan found nothing for, and the probe found open, is chosen already; each other says why it stays and can't be chosen. The plan names the chosen ones under "No login or address limit found on the old proxy".
+- **At apply,** the agent runs the scan and the probe again just before it stops the proxy, and refuses where a chosen domain now reads otherwise. A digest of both is in the plan's fingerprint.
+- **What was built is the first layer.** The reader written for the earlier handover (routes from labels and Traefik's files, an allowlist of rules, middlewares and Caddy's directives, the proxy's static configuration and own files read in full, a domain held back whole) stays as the first check, on its branch, and the handover is a pull request of its own, with a review of its own.
+
 ### Numbers
 
-The agent protocol takes 330 to 339: `Hello.reads_panels` (330), and `read_panel` in `Call` and `CallResult` (331).
+The agent protocol takes 330 to 339: `Hello.reads_panels` (330), `read_panel` in `Call` and `CallResult` (331), `Hello.stops_panels` (332) and `DesiredResource.panel` (333). The API's plan takes 131 for `panel` in `PlannedResource` and in `PlanStep`, where it sits beside `build`'s 130 and inside the 130 to 139 the import holds in existing messages. The Swarm remake's branch holds `PanelApp.tasks` (15) and `PanelApp.published` (16), and `HostPanel.apps` and `PanelAction.apps` (6). The handover's branch holds `Hello.reads_panels_strictly` (334), `HostPanel.proxy` and `PanelAction.proxy` (5), `Panel.domains` (7) and `Panel.proxy_left` (8), `PanelApp.routes` (14), `IMPORT_KIND_DOMAIN` (11) and `IMPORT_WAITS_FOR_PORTS` (5).
 
 ## Consequences
 
 - **No credential changes hands.** The import reads what the server shows Docker and the panel's own folders, so nothing of the panel's database or API is touched.
-- **Coolify moves whole,** as it runs everything through Compose. Dokploy moves in two parts: its Compose apps now, its Swarm-run apps and databases in a step that stops each.
-- **Domains move with a minute down,** when a person hands over ports 80 and 443, which they choose when.
+- **Coolify moves whole,** as it runs everything through Compose. Dokploy moves in two parts: its Compose apps now, its Swarm-run apps and databases once making them again is proved on a real Swarm.
+- **Domains move later, each by a person's choice,** with what Dockwell checked in view, and a minute down while each gets its certificate.
 - **What only the panel's database knows stays with it** until a step reads it, and each import says what that is.

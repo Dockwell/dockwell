@@ -105,3 +105,11 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+
+/* What a step offers beside its words, such as stopping the panel. */
+.onepanel-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

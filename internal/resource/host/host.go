@@ -71,18 +71,32 @@ type Units interface {
 	ApplyUnit(ctx context.Context, unit resource.Unit, say func(string)) error
 }
 
+// Panels stops and starts the own containers of a panel an import came from (ADR
+// 0089): the agent's reader of it, with Docker. Nil on the control plane.
+type Panels interface {
+	// PlanPanel reads how the panel's own containers and services stand, and plans
+	// stopping or starting them. It reports false when they stand as asked already.
+	PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resource.Panel, bool, error)
+	// ApplyPanel takes the step, saying each line, then reads them again and fails
+	// where one doesn't stand as asked.
+	ApplyPanel(ctx context.Context, p resource.Panel, say func(string)) error
+}
+
 // Driver is a server's host.
 type Driver struct {
 	Backend Backend
 	// Units acts on the server's system services; nil acts on none.
 	Units Units
+	// Panels stops and starts a panel's own containers; nil acts on none.
+	Panels Panels
 }
 
 var (
-	_ resource.Driver    = (*Driver)(nil)
-	_ resource.Installer = (*Driver)(nil)
-	_ resource.Rebooter  = (*Driver)(nil)
-	_ resource.UnitActor = (*Driver)(nil)
+	_ resource.Driver     = (*Driver)(nil)
+	_ resource.Installer  = (*Driver)(nil)
+	_ resource.Rebooter   = (*Driver)(nil)
+	_ resource.UnitActor  = (*Driver)(nil)
+	_ resource.PanelActor = (*Driver)(nil)
 )
 
 // Kind returns "server.host".
@@ -234,4 +248,29 @@ func (d *Driver) ApplyUnit(ctx context.Context, step resource.Step) error {
 		return errNoUnits
 	}
 	return d.Units.ApplyUnit(ctx, *step.Unit, func(line string) { resource.Progress(ctx, line) })
+}
+
+var errNoPanels = errors.New("this agent can't stop or start a panel, as it reads no Docker")
+
+// JudgePanel plans stopping or starting a panel's own containers, and nothing when
+// they stand as asked already, so a resume of one that finished has nothing left to
+// do. What stops is the panel, and none of what it ran: those were taken on, or go
+// on as they are.
+func (d *Driver) JudgePanel(ctx context.Context, _ resource.Ref, ask resource.PanelAsked) (resource.Decision, bool, error) {
+	if d.Panels == nil {
+		return resource.Decision{}, false, errNoPanels
+	}
+	p, left, err := d.Panels.PlanPanel(ctx, ask)
+	if err != nil || !left {
+		return resource.Decision{}, false, err
+	}
+	return resource.Decision{Action: resource.ActionUpdate, Panel: p}, true, nil
+}
+
+// ApplyPanel stops or starts what the step planned.
+func (d *Driver) ApplyPanel(ctx context.Context, step resource.Step) error {
+	if d.Panels == nil {
+		return errNoPanels
+	}
+	return d.Panels.ApplyPanel(ctx, *step.Panel, func(line string) { resource.Progress(ctx, line) })
 }

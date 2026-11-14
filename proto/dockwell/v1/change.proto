@@ -792,6 +792,39 @@ message HostUnit {
   bool replaces_rules = 13;
 }
 
+// HostPanel is what stopping or starting the panel an import came from does, for a
+// server's host (docs/adr/0089-importing-from-coolify-and-dokploy.md): its own
+// containers and Swarm services, never what it ran. Nothing of it is deleted, so
+// its undo starts each again as it stood.
+message HostPanel {
+  // The panel: "coolify" or "dokploy".
+  string kind = 1;
+  // True when it starts them again; otherwise it stops them.
+  bool start = 2;
+  // Each of the panel's own containers or services it acts on, in the order it
+  // acts.
+  repeated HostPanelPart parts = 3;
+  // The panel's proxy, which goes on running: it serves the domains of what was
+  // taken on until those come as routes, a step of its own.
+  string stays = 4;
+}
+
+// HostPanelPart is one of a panel's own containers or Swarm services.
+message HostPanelPart {
+  // Its name, such as "coolify-db".
+  string name = 1;
+  // True for a Swarm service, which a stop scales to none.
+  bool swarm = 2;
+  // True when it ran as the stop was planned.
+  bool was_running = 3;
+  // A container's restart policy as the stop was planned, such as "always". A
+  // stop sets it to "no", so the panel doesn't start again with Docker or the
+  // server, and a start puts it back.
+  string was_restart = 4;
+  // How many replicas a Swarm service ran as the stop was planned.
+  uint64 was_replicas = 5;
+}
+
 // HostReboot is what rebooting a server does (ADR 0064): everything on it goes
 // offline until it's back, and Docker starts again what its restart policies say.
 message HostReboot {
@@ -1317,6 +1350,10 @@ message PlannedResource {
   // what it left there stays as it is, and Dockwell lets go of it (ADR 0090).
   // Numbered in the block removal holds, 140 to 149.
   bool lets_go = 141;
+
+  // What stopping or starting the panel an import came from does, for a server's
+  // host the change does that on (ADR 0089).
+  HostPanel panel = 131;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what
@@ -1612,6 +1649,9 @@ message PlanStep {
   // What an action on one of its server's system services does, for a step that
   // takes one (ADR 0082). Track S takes 70 to 79 here.
   HostUnit unit = 70;
+  // What stopping or starting the panel an import came from does, for a step
+  // that does that (ADR 0089).
+  HostPanel panel = 131;
   // The registry login the step's pull signs in with, by name, where it pulls with
   // one (ADR 0086). Numbered in the block registry logins hold, 100 to 109.
   string registry_login = 100;

@@ -23,6 +23,7 @@ import { splitVersion } from "../../lib/versions";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
+import { PanelLine, PanelPlan } from "./PanelPlan";
 import { intentOf, isFleet, keepsData, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
 import { RebootPlan } from "./RebootPlan";
 import { UnitLine, UnitPlan } from "./UnitPlan";
@@ -207,6 +208,8 @@ function StepRow({
             <InstallLine install={step.install} server={server} />
           ) : step.unit ? (
             <UnitLine unit={step.unit} server={server} />
+          ) : step.panel ? (
+            <PanelLine panel={step.panel} server={server} />
           ) : (
             <>
               {step.adopts
@@ -284,6 +287,7 @@ function StepRow({
       {planning && step.install ? <InstallList install={step.install} server={server} serverId={serverId} /> : null}
       {planning && step.reboot ? <RebootPlan reboot={step.reboot} server={server} serverId={serverId} /> : null}
       {planning && step.unit ? <UnitPlan unit={step.unit} server={server} serverId={serverId} /> : null}
+      {planning && step.panel ? <PanelPlan panel={step.panel} server={server} /> : null}
     </li>
   );
 }

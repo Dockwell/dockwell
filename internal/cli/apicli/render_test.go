@@ -1234,3 +1234,41 @@ func TestCatalogPage(t *testing.T) {
 		t.Errorf("an empty page reads %q", buf.String())
 	}
 }
+
+// Stopping the panel an import came from says what stops, that each stays stopped,
+// what goes on running, and that undoing it starts it again; a start says what it
+// puts back (ADR 0089).
+func TestAPanelsStopSaysWhatStopsAndWhatStays(t *testing.T) {
+	plan := func(p *dockwellv1.HostPanel) string {
+		var buf bytes.Buffer
+		PlanView(&buf, &dockwellv1.Plan{Servers: []*dockwellv1.ServerPlan{{
+			ServerName: "web-1",
+			Steps: []*dockwellv1.PlanStep{{
+				Resource: &dockwellv1.ResourceRef{Kind: "server.host", Name: "host"},
+				Action:   dockwellv1.PlanAction_PLAN_ACTION_UPDATE,
+				Panel:    p,
+			}},
+		}}})
+		return buf.String()
+	}
+	out := plan(&dockwellv1.HostPanel{Kind: "coolify", Stays: "coolify-proxy", Parts: []*dockwellv1.HostPanelPart{
+		{Name: "coolify", WasRunning: true, WasRestart: "always"}, {Name: "coolify-db", WasRunning: true, WasRestart: "always"},
+	}})
+	for _, says := range []string{
+		"Stops coolify and coolify-db, and sets each one's restart policy to no, so it stays stopped when Docker or web-1 restarts.",
+		"coolify-proxy goes on running: it serves the domains of what was taken on",
+		"What Coolify ran goes on running, and nothing of Coolify is deleted. Undoing this starts it again as it was.",
+	} {
+		if !strings.Contains(out, says) {
+			t.Errorf("the stop reads %q, not %q", out, says)
+		}
+	}
+	out = plan(&dockwellv1.HostPanel{Kind: "dokploy", Parts: []*dockwellv1.HostPanelPart{{Name: "dokploy", Swarm: true, WasRunning: true, WasReplicas: 1}}})
+	if !strings.Contains(out, "Scales the Swarm services dokploy to none.") {
+		t.Errorf("Dokploy's stop reads %q", out)
+	}
+	out = plan(&dockwellv1.HostPanel{Kind: "dokploy", Start: true, Parts: []*dockwellv1.HostPanelPart{{Name: "dokploy", Swarm: true, WasRunning: true, WasReplicas: 1}}})
+	if !strings.Contains(out, "Starts Dokploy's own containers again on web-1, each as it stood before the stop: dokploy.") {
+		t.Errorf("the start reads %q", out)
+	}
+}

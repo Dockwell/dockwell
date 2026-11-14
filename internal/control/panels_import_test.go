@@ -78,7 +78,7 @@ func TestImportingFromCoolifyTakesOnWhatRuns(t *testing.T) {
 		return composeContainer(t, e, uuid, service, container, func(r *docker.CreateRequest) {
 			r.Image = cmp.Or(image[uuid], r.Image)
 			maps.Copy(r.Labels, map[string]string{
-				"coolify.managed": "true", "coolify.type": kind, "coolify." + kind + "Uuid": uuid, "coolify.resourceName": name,
+				"coolify.managed": "true", "coolify.type": kind, "coolify." + kind + "Uuid": uuid, "coolify.resourceName": name, "traefik.enable": "true",
 				"coolify.projectName": "personal", "coolify.environmentName": "production", "coolify.pullRequestId": "0",
 				docker.LabelWorkingDir: "/data/coolify/" + kind + "s/" + uuid,
 			})
@@ -215,6 +215,7 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 	wiki := composeContainer(t, e, "wiki-ab12", "wiki", "wiki-ab12-wiki-1", func(r *docker.CreateRequest) {
 		maps.Copy(r.Labels, labels("wiki"))
 		r.Labels[docker.LabelWorkingDir] = "/etc/dokploy/compose/wiki-ab12/code"
+		r.Labels["traefik.enable"] = "true"
 		r.Labels["traefik.http.routers.wiki-ab12-1-web.rule"] = "Host(`wiki.example.com`)"
 	})
 	// What reaches Docker's socket is as good as root, which its step says first.
@@ -272,10 +273,14 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 	}
 }
 
-// swarmService is a Swarm service's spec, as Dokploy makes one.
+// swarmService is a Swarm service's spec, as Dokploy makes one: one replica.
 func swarmService(name, image string, labels map[string]string) docker.ServiceSpec {
 	var s docker.ServiceSpec
 	s.Name, s.Labels, s.TaskTemplate.ContainerSpec.Image = name, labels, image
+	one := uint64(1)
+	s.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &one}
 	return s
 }
 
