@@ -117,12 +117,17 @@ describe("the containers Dockwell didn't make", () => {
     expect(router.state.location.pathname).toBe("/servers/srv_1");
   });
 
-  it("says so when there are none, and keeps its place", async () => {
-    await renderList(() => answer({ ownContainers: 1 }));
-    const panel = await screen.findByRole("region", { name: "Containers Dockwell didn't make" });
-    expect(await within(panel).findByRole("heading", { name: "Nothing here that Dockwell didn't make" })).toBeVisible();
-    expect(within(panel).getByText(/Dockwell runs 1 more container here, which isn't listed/)).toBeVisible();
-    expect(within(panel).queryByRole("table")).toBeNull();
+  it("stays out of the page when there are none", async () => {
+    let read = false;
+    await renderList(() => {
+      read = true;
+      return answer({ ownContainers: 1 });
+    });
+    await vi.waitFor(() => expect(read).toBe(true));
+    await screen.findByRole("heading", { name: "What runs here" });
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Containers Dockwell didn't make" })).toBeNull(),
+    );
   });
 
   it("gives a project a column only once there is more than one", async () => {

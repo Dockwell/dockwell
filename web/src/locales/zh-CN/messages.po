@@ -8044,8 +8044,8 @@ msgid "{0, plural, one {# database stops.} other {# databases stop.}}"
 msgstr "{0, plural, other {# 个数据库将停止。}}"
 
 #. placeholder {0}: count.databases
+#. placeholder {0}: here.length
 #. placeholder {0}: n.databases
-#. placeholder {0}: view.databases.length
 msgid "{0, plural, one {# database} other {# databases}}"
 msgstr "{0, plural, other {# 个数据库}}"
 
@@ -12558,6 +12558,7 @@ msgstr "{count, plural, other {# 个项目}}"
 msgid "a website"
 msgstr "一个网站"
 
+#. placeholder {0}: here.length
 #. placeholder {0}: sites.length
 #. placeholder {0}: sites.size
 msgid "{0, plural, one {# website} other {# websites}}"
@@ -12856,9 +12857,6 @@ msgstr "筛选容器"
 
 msgid "No container matches this filter."
 msgstr "没有符合此筛选条件的容器。"
-
-msgid "Nothing here that Dockwell didn't make"
-msgstr "这里没有非 Dockwell 创建的容器"
 
 msgid "Reading what Docker runs here"
 msgstr "正在读取 Docker 在这里运行的内容"
@@ -13892,8 +13890,20 @@ msgstr "从镜像或应用目录部署一个"
 msgid "No apps"
 msgstr "没有应用"
 
+msgid "No databases"
+msgstr "没有数据库"
+
 msgid "No domains"
 msgstr "没有域名"
+
+msgid "No websites"
+msgstr "没有网站"
+
+msgid "Run PostgreSQL, MySQL, Redis and more"
+msgstr "运行 PostgreSQL、MySQL、Redis 等"
+
+msgid "Serve a folder, PHP or an app at a domain"
+msgstr "在域名上提供文件夹、PHP 或应用"
 
 msgid "What runs here"
 msgstr "在此运行"
@@ -13907,6 +13917,21 @@ msgstr "{healthy, plural, other {# 个健康}}"
 
 msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
 msgstr "{more, plural, other {{shown} 等另外 # 个}}"
+
+msgid "{n, plural, one {# PHP {version}} other {# PHP {version}}}"
+msgstr "{n, plural, other {# 个 PHP {version}}}"
+
+msgid "{n, plural, one {# PHP} other {# PHP}}"
+msgstr "{n, plural, other {# 个 PHP}}"
+
+msgid "{n, plural, one {# proxy} other {# proxies}}"
+msgstr "{n, plural, other {# 个反向代理}}"
+
+msgid "{n, plural, one {# static} other {# static}}"
+msgstr "{n, plural, other {# 个静态}}"
+
+msgid "{n, plural, one {# unknown} other {# unknown}}"
+msgstr "{n, plural, other {# 个未知}}"
 
 msgid "{name} deploying"
 msgstr "{name} 正在部署"

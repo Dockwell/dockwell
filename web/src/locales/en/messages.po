@@ -8044,8 +8044,8 @@ msgid "{0, plural, one {# database stops.} other {# databases stop.}}"
 msgstr "{0, plural, one {# database stops.} other {# databases stop.}}"
 
 #. placeholder {0}: count.databases
+#. placeholder {0}: here.length
 #. placeholder {0}: n.databases
-#. placeholder {0}: view.databases.length
 msgid "{0, plural, one {# database} other {# databases}}"
 msgstr "{0, plural, one {# database} other {# databases}}"
 
@@ -12558,6 +12558,7 @@ msgstr "{count, plural, one {# project} other {# projects}}"
 msgid "a website"
 msgstr "a website"
 
+#. placeholder {0}: here.length
 #. placeholder {0}: sites.length
 #. placeholder {0}: sites.size
 msgid "{0, plural, one {# website} other {# websites}}"
@@ -12856,9 +12857,6 @@ msgstr "Filter containers"
 
 msgid "No container matches this filter."
 msgstr "No container matches this filter."
-
-msgid "Nothing here that Dockwell didn't make"
-msgstr "Nothing here that Dockwell didn't make"
 
 msgid "Reading what Docker runs here"
 msgstr "Reading what Docker runs here"
@@ -13892,8 +13890,20 @@ msgstr "Deploy one from an image or the catalog"
 msgid "No apps"
 msgstr "No apps"
 
+msgid "No databases"
+msgstr "No databases"
+
 msgid "No domains"
 msgstr "No domains"
+
+msgid "No websites"
+msgstr "No websites"
+
+msgid "Run PostgreSQL, MySQL, Redis and more"
+msgstr "Run PostgreSQL, MySQL, Redis and more"
+
+msgid "Serve a folder, PHP or an app at a domain"
+msgstr "Serve a folder, PHP or an app at a domain"
 
 msgid "What runs here"
 msgstr "What runs here"
@@ -13907,6 +13917,21 @@ msgstr "{healthy, plural, one {# healthy} other {# healthy}}"
 
 msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
 msgstr "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+
+msgid "{n, plural, one {# PHP {version}} other {# PHP {version}}}"
+msgstr "{n, plural, one {# PHP {version}} other {# PHP {version}}}"
+
+msgid "{n, plural, one {# PHP} other {# PHP}}"
+msgstr "{n, plural, one {# PHP} other {# PHP}}"
+
+msgid "{n, plural, one {# proxy} other {# proxies}}"
+msgstr "{n, plural, one {# proxy} other {# proxies}}"
+
+msgid "{n, plural, one {# static} other {# static}}"
+msgstr "{n, plural, one {# static} other {# static}}"
+
+msgid "{n, plural, one {# unknown} other {# unknown}}"
+msgstr "{n, plural, one {# unknown} other {# unknown}}"
 
 msgid "{name} deploying"
 msgstr "{name} deploying"

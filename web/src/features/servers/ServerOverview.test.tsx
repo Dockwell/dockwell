@@ -7,6 +7,7 @@ import {
   BuildInfoSchema,
   CloudProvider,
   Connection,
+  DatabaseEngine,
   DeploymentState,
   DiskSchema,
   DiskUsageSchema,
@@ -353,6 +354,80 @@ describe("ServerOverview", () => {
     expect(domains).toHaveTextContent("3 domainsapi.example.com, shop.example.com and 1 more");
   });
 
+  it("counts the websites and databases on the server, by how each serves and by engine", async () => {
+    const site = (id: string, serves: object, serverId = "srv_1") => ({
+      id,
+      name: id,
+      domain: `${id}.example.com`,
+      serverId,
+      spec: { serves },
+    });
+    const folder = { case: "folder", value: { root: "/srv/www" } };
+    const php = { case: "php", value: { root: "/srv/www", version: "8.3" } };
+    const db = (id: string, engine: DatabaseEngine, version: string, serverId = "srv_1") => ({
+      id,
+      engine,
+      version: "latest",
+      readings: [{ serverId, serverName: serverId, version }],
+    });
+    const api: Api = {
+      websites: {
+        listWebsites: () => ({
+          websites: [
+            site("docs", folder),
+            site("blog", php),
+            site("home", folder),
+            site("away", php, "srv_2"),
+          ] as never,
+        }),
+      },
+      databases: {
+        listDatabases: () => ({
+          databases: [
+            db("svc_pg", DatabaseEngine.POSTGRESQL, "17.2"),
+            db("svc_vk", DatabaseEngine.VALKEY, "8.1"),
+            db("svc_my", DatabaseEngine.MYSQL, "8.4", "srv_2"),
+          ],
+        }),
+      },
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const websites = await within(runs).findByRole("link", { name: /^3 websites/ });
+    expect(websites).toHaveTextContent("3 websites2 static · 1 PHP 8.3");
+    expect(websites).toHaveAttribute("href", "/websites");
+    const databases = await within(runs).findByRole("link", { name: /^2 databases/ });
+    expect(databases).toHaveTextContent("2 databasesPostgreSQL 17.2 · Valkey 8.1");
+    expect(databases).toHaveAttribute("href", "/databases");
+  });
+
+  it("opens the one website and the one database a server has", async () => {
+    const api: Api = {
+      websites: aWebsite("blog.example.com").websites,
+      databases: {
+        listDatabases: () => ({
+          databases: [
+            {
+              id: "svc_pg",
+              engine: DatabaseEngine.POSTGRESQL,
+              version: "17",
+              readings: [{ serverId: "srv_1", serverName: "hz-1", unread: "PostgreSQL isn't running" }],
+            },
+          ],
+        }),
+      },
+    };
+    await renderServerWith(api, "/servers/srv_1", hz1);
+    const runs = await screen.findByRole("region", { name: "What runs here" });
+    const website = await within(runs).findByRole("link", { name: /^1 website/ });
+    expect(website).toHaveTextContent("1 websiteblog.example.com");
+    expect(website).toHaveAttribute("href", "/websites/prj_site");
+    // A database that can't say its version is named by the one its image's tag names.
+    const database = await within(runs).findByRole("link", { name: /^1 database/ });
+    expect(database).toHaveTextContent("1 databasePostgreSQL 17");
+    expect(database).toHaveAttribute("href", "/databases/svc_pg");
+  });
+
   it("says how each app's deployment went on this server, not on another", async () => {
     const at = timestampFromDate(new Date(2026, 10, 4, 11, 0));
     const on = (state: DeploymentState, serverId = "srv_1") => ({
@@ -420,6 +495,8 @@ describe("ServerOverview", () => {
     const runs = await screen.findByRole("region", { name: "What runs here" });
     expect(await within(runs).findByRole("link", { name: /^No apps/ })).toHaveAttribute("href", "/apps/new");
     expect(await within(runs).findByRole("link", { name: /^No domains/ })).toHaveAttribute("href", "/domains");
+    expect(await within(runs).findByRole("link", { name: /^No websites/ })).toHaveAttribute("href", "/websites/new");
+    expect(await within(runs).findByRole("link", { name: /^No databases/ })).toHaveAttribute("href", "/databases");
   });
 
   it("opens the one app a server has, by name", async () => {
