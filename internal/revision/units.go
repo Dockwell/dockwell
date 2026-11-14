@@ -75,7 +75,7 @@ func panelIn(c store.Change, ref resource.Ref) *resource.PanelAsked {
 	}
 	for i := range p.Resources {
 		if q := p.Resources[i].Panel; p.Resources[i].Ref == ref && q != nil {
-			return &resource.PanelAsked{Change: c.ID, Kind: q.Kind, Start: q.Start, Proxy: q.Proxy, Parts: q.Parts}
+			return &resource.PanelAsked{Change: c.ID, Kind: q.Kind, Start: q.Start, Proxy: q.Proxy, Apps: q.Apps, Parts: q.Parts}
 		}
 	}
 	return nil

@@ -909,6 +909,10 @@ func panelWords(p *dockwellv1.HostPanel, server string) []string {
 	}
 	var out []string
 	switch {
+	case p.GetApps() && p.GetStart():
+		return []string{fmt.Sprintf("Scales the Swarm services %s back up in %s, once Dockwell's copies are gone.", human.List(services), name)}
+	case p.GetApps():
+		return []string{fmt.Sprintf("Scales the Swarm services %s to none in %s first, so each is down for a moment until Dockwell's copy starts on the same volumes. Undoing this scales each back.", human.List(services), name)}
 	case p.GetProxy() && p.GetStart():
 		return []string{fmt.Sprintf("Starts %s's proxy, %s, again on %s, once the routes it hands back ports 80 and 443 from are gone.", name, human.List(append(containers, services...)), server)}
 	case p.GetProxy() && len(services) > 0:

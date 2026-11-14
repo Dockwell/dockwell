@@ -315,6 +315,10 @@ message PanelApp {
   // Where each of its domains goes, as the panel's proxy has it: what comes over
   // as a route once the proxy hands ports 80 and 443 to Dockwell.
   repeated PanelRoute routes = 14;
+  // The running task container of each of its Swarm services, in the order of
+  // containers, or empty for one with none running: what reads as the service it
+  // would be made again as.
+  repeated string tasks = 15;
 }
 
 // PanelRoute is a domain the panel's proxy sends to one of an app's containers,

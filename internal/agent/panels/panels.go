@@ -85,6 +85,8 @@ const (
 	labelProject    = "com.docker.compose.project"
 	labelWorkingDir = "com.docker.compose.project.working_dir"
 	labelStack      = "com.docker.stack.namespace"
+	// labelSwarmService names the Swarm service a task's container runs for.
+	labelSwarmService = "com.docker.swarm.service.name"
 )
 
 func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult {
@@ -138,6 +140,13 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Service) *agentv1.ReadPanelResult {
 	p := &dockwellv1.Panel{Kind: dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, Folder: dokployFolder}
 	apps := map[string]*dockwellv1.PanelApp{}
+	// Each Swarm service's running task, which Swarm names <service>.<slot>.<task>.
+	tasks := map[string]string{}
+	for i := range list {
+		if svc := list[i].Labels[labelSwarmService]; svc != "" && list[i].State == "running" {
+			tasks[svc] = containerName(&list[i])
+		}
+	}
 	for i := range services {
 		s := &services[i].Spec
 		image := s.TaskTemplate.ContainerSpec.Image
@@ -158,6 +167,7 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 				apps[stack] = a
 			}
 			a.Containers = append(a.Containers, s.Name)
+			a.Tasks = append(a.Tasks, tasks[s.Name])
 			a.Domains = append(a.Domains, domainsOf(l)...)
 			continue
 		}
@@ -166,8 +176,13 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		}
 		a := r.dokployApp(s.Name, engineOf(image), l)
 		a.Swarm, a.Image = true, image
-		a.Containers = []string{s.Name}
-		a.Domains = append(domainsOf(l), r.dynamicDomains(s.Name)...)
+		a.Containers, a.Tasks = []string{s.Name}, []string{tasks[s.Name]}
+		routes := r.dynamicRoutes(s.Name, tasks[s.Name])
+		a.Routes = routes
+		a.Domains = domainsOf(l)
+		for _, rt := range routes {
+			a.Domains = append(a.Domains, rt.GetDomain())
+		}
 		apps[s.Name] = a
 	}
 	for i := range list {
@@ -364,8 +379,7 @@ func traefikRoutes(l map[string]string) []labelRoute {
 				}
 			}
 		}
-		if left == "" && (strings.Contains(rule, "||") || strings.Contains(rule, "!") || strings.Contains(rule, "Path(") ||
-			strings.Contains(rule, "Regexp(") || strings.Contains(rule, "Header") || strings.Contains(rule, "Query(")) {
+		if left == "" && complexRule(rule) {
 			// What it matches can't be told, so the whole domain stays with it.
 			left, prefix = "its rule says more than a host and a path prefix", ""
 		}
@@ -510,13 +524,94 @@ func hostOf(a string) string {
 // maxDynamic is how much of a Traefik file of Dokploy's is read: a few routers.
 const maxDynamic = 256 << 10
 
-// dynamicDomains are the domains Dokploy routes to an application, from Traefik's
-// file for it, traefik/dynamic/<appName>.yml.
-func (r Reader) dynamicDomains(app string) []string {
+// dynamicRoutes are where Dokploy routes an application's domains, from Traefik's
+// file for it, traefik/dynamic/<appName>.yml: each router's hosts and path, and the
+// port of the server URL its service names, http://<appName>:<port>, as the task
+// container runs it. A router behind a middleware other than Dokploy's redirect
+// to HTTPS, such as the basic auth its Security tab adds, or with a rule a route
+// can't say, keeps its domain behind, saying why.
+func (r Reader) dynamicRoutes(app, task string) []*dockwellv1.PanelRoute {
 	if r.Root == "" || strings.ContainsAny(app, `/\`) || app == "." || app == ".." {
 		return nil
 	}
-	return rulesHosts(r.panelFile(filepath.Join(dokployFolder, "traefik", "dynamic", app+".yml")))
+	b := r.panelFile(filepath.Join(dokployFolder, "traefik", "dynamic", app+".yml"))
+	type router struct {
+		rule, service string
+		middlewares   []string
+	}
+	routers, ports := map[string]*router{}, map[string]uint32{}
+	var order []string
+	section, current, list := "", "", ""
+	for _, line := range strings.Split(string(b), "\n") {
+		trimmed := strings.TrimSpace(line)
+		indent := len(line) - len(strings.TrimLeft(line, " "))
+		key, value, _ := strings.Cut(trimmed, ":")
+		value = strings.Trim(strings.TrimSpace(value), `"'`)
+		switch {
+		case indent == 2 && (key == "routers" || key == "services"):
+			section, current, list = key, "", ""
+		case indent < 2:
+			section, current, list = "", "", ""
+		case indent == 4 && value == "" && !strings.HasPrefix(trimmed, "-"):
+			current, list = key, ""
+			if section == "routers" && routers[key] == nil {
+				routers[key] = &router{}
+				order = append(order, key)
+			}
+		case section == "routers" && current != "" && list == "middlewares" && strings.HasPrefix(trimmed, "- "):
+			routers[current].middlewares = append(routers[current].middlewares, strings.Trim(strings.TrimSpace(trimmed[2:]), `"'`))
+		case section == "routers" && current != "" && key == "middlewares":
+			list = key
+			for _, m := range strings.Split(strings.Trim(value, "[]"), ",") {
+				if m = strings.Trim(strings.TrimSpace(m), `"'`); m != "" {
+					routers[current].middlewares = append(routers[current].middlewares, m)
+				}
+			}
+		case section == "routers" && current != "" && key == "rule":
+			routers[current].rule, list = trimmed[len("rule:"):], ""
+		case section == "routers" && current != "" && key == "service":
+			routers[current].service, list = value, ""
+		case section == "services" && current != "" && (strings.HasPrefix(trimmed, "- url:") || key == "url"):
+			if m := serverURL().FindStringSubmatch(trimmed); m != nil {
+				ports[current] = portOf(m[1])
+			}
+		}
+	}
+	var out []*dockwellv1.PanelRoute
+	for _, name := range order {
+		rt := routers[name]
+		prefix, left := "", ""
+		if m := pathRule().FindStringSubmatch(rt.rule); len(m) > 1 && m[1] != "/" {
+			prefix = m[1]
+		}
+		if complexRule(rt.rule) {
+			prefix, left = "", "its rule says more than a host and a path prefix"
+		}
+		for _, m := range rt.middlewares {
+			if n, _, _ := strings.Cut(m, "@"); n != "redirect-to-https" && left == "" {
+				left = fmt.Sprintf("it passes through the middleware %s, which a plain route would drop, so what it guards would answer anyone", n)
+			}
+		}
+		for _, h := range hostsIn(rt.rule) {
+			if i := slices.IndexFunc(out, func(o *dockwellv1.PanelRoute) bool { return o.GetDomain() == h && o.GetPath() == prefix }); i >= 0 {
+				out[i].Left = cmp.Or(out[i].GetLeft(), left)
+				continue
+			}
+			out = append(out, &dockwellv1.PanelRoute{Domain: h, Path: prefix, Container: task, Service: app, Port: ports[rt.service], Left: left})
+		}
+	}
+	return out
+}
+
+// complexRule reports a Traefik rule that says more than a host and a path prefix,
+// which a route can't say.
+func complexRule(rule string) bool {
+	for _, s := range []string{"||", "!", "Path(", "Regexp(", "Header", "Query("} {
+		if strings.Contains(rule, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // panelFile is a file under a panel's folder, read only where it's a regular
@@ -587,6 +682,9 @@ func rulesHosts(b []byte) []string {
 	}
 	return out
 }
+
+// serverURL is the port of a load balancer's server URL, http://<name>:<port>.
+var serverURL = sync.OnceValue(func() *regexp.Regexp { return regexp.MustCompile(`https?://[^\s:/"']+:(\d+)`) })
 
 // part is a word of a label that names a folder, such as Coolify's UUID or
 // Dokploy's appName: nothing that could lead out of the panel's folder.

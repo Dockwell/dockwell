@@ -1017,7 +1017,11 @@ type PanelApp struct {
 	FromGit bool `protobuf:"varint,13,opt,name=from_git,json=fromGit,proto3" json:"from_git,omitempty"`
 	// Where each of its domains goes, as the panel's proxy has it: what comes over
 	// as a route once the proxy hands ports 80 and 443 to Dockwell.
-	Routes        []*PanelRoute `protobuf:"bytes,14,rep,name=routes,proto3" json:"routes,omitempty"`
+	Routes []*PanelRoute `protobuf:"bytes,14,rep,name=routes,proto3" json:"routes,omitempty"`
+	// The running task container of each of its Swarm services, in the order of
+	// containers, or empty for one with none running: what reads as the service it
+	// would be made again as.
+	Tasks         []string `protobuf:"bytes,15,rep,name=tasks,proto3" json:"tasks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1146,6 +1150,13 @@ func (x *PanelApp) GetFromGit() bool {
 func (x *PanelApp) GetRoutes() []*PanelRoute {
 	if x != nil {
 		return x.Routes
+	}
+	return nil
+}
+
+func (x *PanelApp) GetTasks() []string {
+	if x != nil {
+		return x.Tasks
 	}
 	return nil
 }
@@ -2692,7 +2703,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\x06folder\x18\x04 \x01(\tR\x06folder\x12)\n" +
 	"\x04apps\x18\x05 \x03(\v2\x15.dockwell.v1.PanelAppR\x04apps\x12-\n" +
 	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\x12\x18\n" +
-	"\adomains\x18\a \x03(\tR\adomains\"\x8b\x03\n" +
+	"\adomains\x18\a \x03(\tR\adomains\"\xa1\x03\n" +
 	"\bPanelApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x18\n" +
@@ -2710,7 +2721,8 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\apreview\x18\v \x01(\bR\apreview\x12\x14\n" +
 	"\x05image\x18\f \x01(\tR\x05image\x12\x19\n" +
 	"\bfrom_git\x18\r \x01(\bR\afromGit\x12/\n" +
-	"\x06routes\x18\x0e \x03(\v2\x17.dockwell.v1.PanelRouteR\x06routes\"\x98\x01\n" +
+	"\x06routes\x18\x0e \x03(\v2\x17.dockwell.v1.PanelRouteR\x06routes\x12\x14\n" +
+	"\x05tasks\x18\x0f \x03(\tR\x05tasks\"\x98\x01\n" +
 	"\n" +
 	"PanelRoute\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +

@@ -8188,6 +8188,18 @@ msgstr "详细信息"
 msgid "Dockwell made this change because of what failed"
 msgstr "Dockwell 因为失败的内容做了这次变更"
 
+msgid "First, so each is down for a moment until Dockwell's copy starts on the same volumes"
+msgstr "先执行，因此每个应用会短暂停止，直到 Dockwell 的副本在相同的卷上启动"
+
+msgid "Runs once Dockwell's copies are gone, as many replicas as each had"
+msgstr "在 Dockwell 的副本删除后运行，各自恢复原来的副本数"
+
+msgid "Scale {services} back up in {name} on <0>{server}</0>"
+msgstr "在 <0>{server}</0> 上把 {name} 中的 {services} 扩容回去"
+
+msgid "Scale {services} to none in {name} on <0>{server}</0>"
+msgstr "在 <0>{server}</0> 上把 {name} 中的 {services} 缩减到零"
+
 msgid "Scales the Swarm services {services} to none"
 msgstr "将 Swarm 服务 {services} 缩减到零个副本"
 

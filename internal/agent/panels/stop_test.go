@@ -223,3 +223,58 @@ func TestStoppingThePanelsProxyAlone(t *testing.T) {
 		t.Error("a proxy's start acted on coolify")
 	}
 }
+
+// An app's Swarm service scales to none as Dockwell's copy starts, and back to what
+// it ran; the agent acts on none but a service Dokploy labelled as an app's.
+func TestScalingADokployAppsService(t *testing.T) {
+	e := dockertest.New(t)
+	service := func(name string, labels map[string]string, n uint64) docker.Service {
+		svc := docker.Service{ID: name}
+		svc.Spec.Name, svc.Spec.Labels = name, labels
+		svc.Spec.Mode.Replicated = &struct {
+			Replicas *uint64 `json:"Replicas,omitempty"`
+		}{Replicas: &n}
+		return svc
+	}
+	e.Services = []docker.Service{
+		service("dokploy", nil, 1),
+		service("shop-k2m4", map[string]string{"dokploy.application": "shop", "dokploy.project": "store"}, 2),
+		service("someone-elses", nil, 1),
+	}
+	s := Stopper{Docker: e.Client()}
+	ask := resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: "shop-k2m4"}}}
+	plan, left, err := s.PlanPanel(t.Context(), ask)
+	if err != nil || !left || !plan.Apps || plan.Parts[0].WasReplicas != 2 {
+		t.Fatalf("the scale = %+v, %v, %v", plan, left, err)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	replicas := func() uint64 {
+		svc, _ := e.Client().InspectService(t.Context(), "shop-k2m4")
+		n, _ := svc.Spec.Mode.Replicas()
+		return n
+	}
+	if replicas() != 0 {
+		t.Error("the app's service still runs")
+	}
+	back, _ := plan.Undone()
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if replicas() != 2 {
+		t.Errorf("scaled back, it runs %d", replicas())
+	}
+	for _, name := range []string{"dokploy", "someone-elses", "dokploy-traefik"} {
+		if _, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: name}}}); err == nil {
+			t.Errorf("%s was scaled", name)
+		}
+	}
+	if _, _, err := s.PlanPanel(t.Context(), resource.PanelAsked{Kind: resource.PanelCoolify, Apps: true, Parts: []resource.PanelPart{{Name: "shop-k2m4"}}}); err == nil {
+		t.Error("Coolify's apps were scaled as Swarm services")
+	}
+}

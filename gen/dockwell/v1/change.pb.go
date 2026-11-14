@@ -3349,7 +3349,10 @@ type HostPanel struct {
 	Stays string `protobuf:"bytes,4,opt,name=stays,proto3" json:"stays,omitempty"`
 	// True when it acts on the panel's proxy alone, which holds ports 80 and 443,
 	// as its domains come over to Dockwell's ingress as routes in the same change.
-	Proxy         bool `protobuf:"varint,5,opt,name=proxy,proto3" json:"proxy,omitempty"`
+	Proxy bool `protobuf:"varint,5,opt,name=proxy,proto3" json:"proxy,omitempty"`
+	// True when it acts on Swarm services of what the panel runs, as each is made
+	// again in Dockwell: a stop scales each to none as Dockwell's copy starts.
+	Apps          bool `protobuf:"varint,6,opt,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3415,6 +3418,13 @@ func (x *HostPanel) GetStays() string {
 func (x *HostPanel) GetProxy() bool {
 	if x != nil {
 		return x.Proxy
+	}
+	return false
+}
+
+func (x *HostPanel) GetApps() bool {
+	if x != nil {
+		return x.Apps
 	}
 	return false
 }
@@ -8499,13 +8509,14 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	" \x01(\bR\x0edockerRestarts\x12\x16\n" +
 	"\x06openrc\x18\v \x01(\bR\x06openrc\x12\x18\n" +
 	"\apasskey\x18\f \x01(\bR\apasskey\x12%\n" +
-	"\x0ereplaces_rules\x18\r \x01(\bR\rreplacesRules\"\x93\x01\n" +
+	"\x0ereplaces_rules\x18\r \x01(\bR\rreplacesRules\"\xa7\x01\n" +
 	"\tHostPanel\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05start\x18\x02 \x01(\bR\x05start\x120\n" +
 	"\x05parts\x18\x03 \x03(\v2\x1a.dockwell.v1.HostPanelPartR\x05parts\x12\x14\n" +
 	"\x05stays\x18\x04 \x01(\tR\x05stays\x12\x14\n" +
-	"\x05proxy\x18\x05 \x01(\bR\x05proxy\"\x9e\x01\n" +
+	"\x05proxy\x18\x05 \x01(\bR\x05proxy\x12\x12\n" +
+	"\x04apps\x18\x06 \x01(\bR\x04apps\"\x9e\x01\n" +
 	"\rHostPanelPart\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05swarm\x18\x02 \x01(\bR\x05swarm\x12\x1f\n" +

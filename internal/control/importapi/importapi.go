@@ -51,6 +51,7 @@ type Taker interface {
 	FreeProject(ctx context.Context, want, from string, claimed map[string]bool) (string, error)
 	TakenOnAs(ctx context.Context, r *containers.Running, name string) (project, environment, service string, err error)
 	RoutesIn(ctx context.Context, environment string) (map[string]*resourcev1.Route, error)
+	ReadMakingAgain(ctx context.Context, r *containers.Running, list []composeapi.Remake, project string) (*composeapi.Taking, map[string][]string, error)
 }
 
 var _ dockwellv1connect.ImportServiceHandler = (*Handler)(nil)

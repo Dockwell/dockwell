@@ -28,6 +28,10 @@ type PanelAsked struct {
 	// domains come over to Dockwell's ingress; otherwise on the panel's own
 	// containers, never its proxy.
 	Proxy bool `json:",omitempty"`
+	// Apps acts on Swarm services of what the panel runs, which Parts name, as each
+	// is made again in Dockwell: a stop scales each to none as Dockwell's copy
+	// starts, and its undo back.
+	Apps bool `json:",omitempty"`
 	// Parts are what to start, and how each stood, for a start: what an undo puts
 	// back. A stop finds them itself.
 	Parts []PanelPart `json:",omitempty"`
@@ -41,6 +45,8 @@ type Panel struct {
 	Start bool
 	// Proxy says it acts on the panel's proxy alone, as its domains come over.
 	Proxy bool `json:",omitempty"`
+	// Apps says it acts on Swarm services of what the panel runs.
+	Apps bool `json:",omitempty"`
 	// Parts are each of the panel's own containers or services the step acts on,
 	// in the order it acts, with how each stood.
 	Parts []PanelPart
@@ -87,7 +93,7 @@ func (p Panel) Undone() (PanelAsked, bool) {
 	if p.Start || len(p.Parts) == 0 {
 		return PanelAsked{}, false
 	}
-	return PanelAsked{Kind: p.Kind, Start: true, Proxy: p.Proxy, Parts: p.Parts}, true
+	return PanelAsked{Kind: p.Kind, Start: true, Proxy: p.Proxy, Apps: p.Apps, Parts: p.Parts}, true
 }
 
 // PanelProxy is the container a panel's proxy runs as, which holds ports 80 and

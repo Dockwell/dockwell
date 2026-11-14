@@ -1269,7 +1269,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 				return nil, fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't stop or start %s. "+
 					"Update its agent by running the install script on the server again", s.name, resource.PanelName(p.Kind))
 			}
-			dr.Panel = &agentv1.PanelAction{ChangeId: p.Change, Panel: resourcepb.PanelKind(p.Kind), Start: p.Start, Proxy: p.Proxy, Parts: resourcepb.PanelParts(p.Parts)}
+			dr.Panel = &agentv1.PanelAction{ChangeId: p.Change, Panel: resourcepb.PanelKind(p.Kind), Start: p.Start, Proxy: p.Proxy, Apps: p.Apps, Parts: resourcepb.PanelParts(p.Parts)}
 		}
 		call.Desired = append(call.Desired, dr)
 	}

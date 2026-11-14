@@ -168,7 +168,9 @@ func TestOnlyAFileOfDokploysIsRead(t *testing.T) {
 	if err := os.MkdirAll(dynamic, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	rule := []byte("    rule: Host(`shop.example.com`)\n")
+	rule := []byte("http:\n  routers:\n    shop-k2m4-router-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n" +
+		"    shop-k2m4-router-websecure-1:\n      rule: Host(`shop.example.com`)\n      service: shop-k2m4-service-1\n" +
+		"  services:\n    shop-k2m4-service-1:\n      loadBalancer:\n        servers:\n          - url: http://shop-k2m4:3000\n        passHostHeader: true\n")
 	if err := os.WriteFile(filepath.Join(root, "elsewhere.yml"), rule, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -182,11 +184,12 @@ func TestOnlyAFileOfDokploysIsRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := Reader{Root: root}
-	if got := r.dynamicDomains("shop-k2m4"); !slices.Equal(got, []string{"shop.example.com"}) {
-		t.Errorf("a file's domains = %q", got)
+	got := r.dynamicRoutes("shop-k2m4", "shop-k2m4.1.x7k2")
+	if len(got) != 1 || got[0].GetDomain() != "shop.example.com" || got[0].GetPort() != 3000 || got[0].GetService() != "shop-k2m4" || got[0].GetContainer() != "shop-k2m4.1.x7k2" {
+		t.Errorf("a file's routes = %v", got)
 	}
-	done := make(chan []string, 1)
-	go func() { done <- append(r.dynamicDomains("linked-k2m4"), r.dynamicDomains("piped-k2m4")...) }()
+	done := make(chan []*dockwellv1.PanelRoute, 1)
+	go func() { done <- append(r.dynamicRoutes("linked-k2m4", ""), r.dynamicRoutes("piped-k2m4", "")...) }()
 	select {
 	case got := <-done:
 		if len(got) > 0 {

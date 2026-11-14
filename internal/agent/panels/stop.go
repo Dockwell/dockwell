@@ -52,6 +52,9 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 	if s.Docker == nil {
 		return nil, false, errors.New("this agent reads no Docker, so it can't stop or start a panel")
 	}
+	if ask.Apps {
+		return s.planApps(ctx, ask)
+	}
 	order, ok := stops[ask.Kind]
 	if !ok {
 		return nil, false, fmt.Errorf("there's no panel %q to stop: name coolify or dokploy", ask.Kind)
@@ -115,6 +118,48 @@ func (s Stopper) PlanPanel(ctx context.Context, ask resource.PanelAsked) (*resou
 			return nil, false, err
 		}
 		left = left || !as.like(p, ask.Start)
+	}
+	return plan, left, nil
+}
+
+// planApps plans scaling Swarm services of what Dokploy runs to none, as each is
+// made again in Dockwell, or back to what each ran (ADR 0089). The control plane
+// names them, so each must be a service Dokploy labelled as an app's, never one of
+// its own or another's; a stop reads how each stands, and a stop that resumes or a
+// start takes what its plan kept.
+func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resource.Panel, bool, error) {
+	if ask.Kind != resource.PanelDokploy || len(ask.Parts) == 0 {
+		return nil, false, errors.New("only Dokploy runs apps as Swarm services, so name its services to scale")
+	}
+	plan := &resource.Panel{Kind: ask.Kind, Start: ask.Start, Apps: true}
+	left := false
+	for _, p := range ask.Parts {
+		svc, err := s.Docker.InspectService(ctx, p.Name)
+		if err != nil {
+			return nil, false, fmt.Errorf("can't read the Swarm service %s: %w", p.Name, err)
+		}
+		l := svc.Spec.Labels
+		if slices.Contains(stops[resource.PanelDokploy], p.Name) || p.Name == resource.PanelProxy(resource.PanelDokploy) ||
+			l["dokploy.application"] == "" && l["dokploy.project"] == "" {
+			return nil, false, fmt.Errorf("%s isn't a service Dokploy runs for an app, so Dockwell won't scale it", p.Name)
+		}
+		n, replicated := svc.Spec.Mode.Replicas()
+		if !replicated {
+			return nil, false, fmt.Errorf("the service %s runs one task on each node, so Dockwell can't scale it to none", p.Name)
+		}
+		part := resource.PanelPart{Name: p.Name, Swarm: true, WasRunning: n > 0, WasReplicas: n}
+		if p.WasReplicas > 0 || ask.Start {
+			if p.WasReplicas > mostReplicas {
+				return nil, false, fmt.Errorf("what the plan kept of how %s stood isn't what a stop reads, so Dockwell won't act on it", p.Name)
+			}
+			part.WasRunning, part.WasReplicas = p.WasRunning, p.WasReplicas
+		}
+		if ask.Start {
+			left = left || n != part.WasReplicas
+		} else {
+			left = left || n != 0
+		}
+		plan.Parts = append(plan.Parts, part)
 	}
 	return plan, left, nil
 }

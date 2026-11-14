@@ -272,10 +272,14 @@ func TestImportingFromDokployTakesOnItsComposeApps(t *testing.T) {
 	}
 }
 
-// swarmService is a Swarm service's spec, as Dokploy makes one.
+// swarmService is a Swarm service's spec, as Dokploy makes one: one replica.
 func swarmService(name, image string, labels map[string]string) docker.ServiceSpec {
 	var s docker.ServiceSpec
 	s.Name, s.Labels, s.TaskTemplate.ContainerSpec.Image = name, labels, image
+	one := uint64(1)
+	s.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &one}
 	return s
 }
 

@@ -84,6 +84,14 @@ Once its apps are taken on, the panel goes on running beside Dockwell until a pe
 - **The agent acts on the panel's own alone.** What a start puts back comes from a plan, so the agent takes only the panel's own names, never its proxy, a restart policy Docker has, and at most 16 replicas.
 - **The panel offers it** on a server's Overview where Coolify's or Dokploy's own app runs, as a callout a person can put away, until the import's screen gives it its row. The CLI's is `dockwell import stop-panel`.
 
+#### Swarm-run apps, as built
+
+- **Dokploy's applications and databases come again in Dockwell.** Each runs as one Swarm service, which Swarm keeps running whatever happens to its container, so it can't be taken on in place. The agent's read names each service's running task (`PanelApp.tasks`), and the plan reads that container as the take-on does, so its image, environment, volumes and server paths come as they run, with values kept out of the plan (ADR 0031). What only Swarm, Traefik and Dokploy read of it is left behind: their labels, and the networks it joined, as a service joins its environment's.
+- **Each of Dokploy's projects comes into one of Dockwell's,** named for it, and each app keeps its appName as its service's name, so apps that reached a database by that name still do.
+- **The switch is in the same change.** The server's host scales each Swarm service to none first, a panel stop with `apps` set, which the agent takes only for a service Dokploy labelled as an app's; then Dockwell's copy is made on the same volumes, so each is down for a moment, which the plan says. Its undo deletes Dockwell's copies first, then scales each service back to what it ran.
+- **Its domains come over** with the handover, from Dokploy's Traefik file for the app: each router's hosts and path, and the port of the server URL its service names, routed to Dockwell's copy.
+- **What stays:** a Compose app of the type `stack`, several services at once, and a service with no task running, each saying why. A port Dokploy published through Swarm's routing mesh isn't read yet, and the plan's copy publishes none.
+
 ### A token, where one is needed
 
 Nothing here needs one. If a later step reads what only the panel's API knows, the token a person gives it is a secret: sent to the agent sealed for that read, used once against the panel on the same server, never kept or logged, and never shown back. A panel's database is never written, and not read at all.
@@ -106,7 +114,7 @@ A server's Move in tab offers each panel it finds running, beside 1Panel, and an
 
 ### Numbers
 
-The agent protocol takes 330 to 339: `Hello.reads_panels` (330), `read_panel` in `Call` and `CallResult` (331), `Hello.stops_panels` (332) and `DesiredResource.panel` (333). The API's plan takes 131 for `panel` in `PlannedResource` and in `PlanStep`, where it sits beside `build`'s 130 and inside the 130 to 139 the import holds in existing messages. The import's enums gain `IMPORT_KIND_DOMAIN` (11) and `IMPORT_WAITS_FOR_PORTS` (5).
+The agent protocol takes 330 to 339: `Hello.reads_panels` (330), `read_panel` in `Call` and `CallResult` (331), `Hello.stops_panels` (332) and `DesiredResource.panel` (333). The API's plan takes 131 for `panel` in `PlannedResource` and in `PlanStep`, where it sits beside `build`'s 130 and inside the 130 to 139 the import holds in existing messages. The import's enums gain `IMPORT_KIND_DOMAIN` (11) and `IMPORT_WAITS_FOR_PORTS` (5). `PanelApp.tasks` is 15, and `HostPanel.apps` and `PanelAction.apps` are 6.
 
 ## Consequences
 

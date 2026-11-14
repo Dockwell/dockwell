@@ -18,6 +18,18 @@ export function panelName(kind: string): string {
 export function PanelLine({ panel, server }: { panel: HostPanel; server: string }) {
   const name = panelName(panel.kind);
   const proxy = panel.parts[0]?.name ?? "";
+  if (panel.apps) {
+    const services = panel.parts.map((p) => p.name).join(", ");
+    return panel.start ? (
+      <Trans>
+        Scale {services} back up in {name} on <code>{server}</code>
+      </Trans>
+    ) : (
+      <Trans>
+        Scale {services} to none in {name} on <code>{server}</code>
+      </Trans>
+    );
+  }
   if (panel.proxy) {
     return panel.start ? (
       <Trans>
@@ -53,7 +65,16 @@ export function PanelPlan({ panel, server }: { panel: HostPanel; server: string 
   const containers = list(panel.parts.filter((p) => !p.swarm).map((p) => p.name));
   const services = list(panel.parts.filter((p) => p.swarm).map((p) => p.name));
   const lines: { key: string; text: string }[] = [];
-  if (panel.proxy) {
+  if (panel.apps) {
+    lines.push(
+      panel.start
+        ? { key: "start", text: t`Runs once Dockwell's copies are gone, as many replicas as each had` }
+        : {
+            key: "stops",
+            text: t`First, so each is down for a moment until Dockwell's copy starts on the same volumes`,
+          },
+    );
+  } else if (panel.proxy) {
     lines.push(
       panel.start
         ? { key: "start", text: t`Starts once the routes that hold ports 80 and 443 are gone` }

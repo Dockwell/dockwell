@@ -8,6 +8,7 @@ import {
   ImportKind,
   ImportService,
   type ImportStep,
+  ImportWaitsFor,
   type Panel as PanelFound,
   PanelKind,
   type Server,
@@ -120,7 +121,11 @@ function PanelImport({ server, kind, running }: { server: Server; kind: PanelKin
 
   const steps = found?.steps ?? [];
   const groups = useGroups(steps, name);
-  const toTake = steps.some((s) => s.action === ImportAction.TAKE_ON);
+  const toTake = steps.some(
+    (s) =>
+      s.action === ImportAction.TAKE_ON ||
+      (s.action === ImportAction.MAKE && s.waitsFor === ImportWaitsFor.UNSPECIFIED),
+  );
   const panel = found?.found;
   // Domains come over for what was taken on, so the handover waits for one.
   const takenOn = steps.some((s) => s.kind === ImportKind.APP && s.action === ImportAction.DONE);

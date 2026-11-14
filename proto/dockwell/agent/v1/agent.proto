@@ -2142,6 +2142,9 @@ message PanelAction {
   // True to act on the panel's proxy alone, as its domains come over to
   // Dockwell's ingress; otherwise on its own containers, never its proxy.
   bool proxy = 5;
+  // True to act on Swarm services of what the panel runs, which parts name, as
+  // each is made again in Dockwell; never the panel's own.
+  bool apps = 6;
 }
 
 // UnitAction is an action a change asks of one of the server's system services.
