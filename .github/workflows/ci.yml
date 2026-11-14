@@ -78,12 +78,12 @@ jobs:
         if: steps.pick.outputs.run == 'true'
         run: |
           go vet ./...
-          go vet -tags agent $AGENT_PKGS
+          go vet -tags agent,fullapi $AGENT_PKGS
       - name: Lint
         if: steps.pick.outputs.run == 'true'
         run: |
           $GOTOOL golangci-lint run
-          $GOTOOL golangci-lint run --build-tags agent $AGENT_PKGS
+          $GOTOOL golangci-lint run --build-tags agent,fullapi $AGENT_PKGS
       - name: Formatting
         if: steps.pick.outputs.run == 'true'
         run: $GOTOOL golangci-lint fmt --diff
@@ -92,7 +92,7 @@ jobs:
         run: go test -timeout 30m -race -coverprofile=coverage.out ./...
       - name: Test the agent build
         if: steps.pick.outputs.run == 'true'
-        run: go test -race -tags agent $AGENT_PKGS
+        run: go test -race -tags agent,fullapi $AGENT_PKGS
       - name: Coverage summary
         if: steps.pick.outputs.run == 'true'
         run: go tool cover -func=coverage.out | tail -1 >> "$GITHUB_STEP_SUMMARY"
