@@ -52,7 +52,10 @@
   gap: var(--space-2);
   align-self: center;
 }
-/* Below 640px the actions sit under the text, level with it, so the text keeps the width. */
+/*
+ * Below 640px the actions sit under the text, level with it, so the text keeps the width, and wrap to a row each
+ * where two don't fit side by side, rather than run past the callout's edge.
+ */
 @media (max-width: 639.98px) {
   .dw-callout {
     flex-wrap: wrap;
@@ -62,6 +65,8 @@
   }
   .dw-callout-actions {
     flex: 1 0 100%;
+    flex-wrap: wrap;
+    min-width: 0;
     padding-left: calc(10px + var(--space-3));
   }
 }

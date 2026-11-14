@@ -196,9 +196,13 @@
   font-size: 12px;
 }
 
-/* A phone's callout action fills the row under its words. */
+/*
+ * A phone's callout action fills the row under its words: two share it where both fit, and each takes a row of its own
+ * where they don't, as "Copy the command that restarts Docker" beside "Inspect" doesn't at 390 px.
+ */
 .overview-callout-action {
-  flex: 1 1 0;
+  flex: 1 1 auto;
+  max-width: 100%;
 }
 
 /* The apps with an update, each with a box to pick it by (ADR 0080). */
