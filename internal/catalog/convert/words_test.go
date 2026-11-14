@@ -19,7 +19,7 @@ func TestOnServerKeepsAStoresWordsAndLogo(t *testing.T) {
 		return Source{Name: store.Name, Repository: "https://example.com/store", Commit: strings.Repeat("a", 40), License: store.License}
 	}
 	onePanel := storeOf(t, FormatOnePanel)
-	run, err := OnServer(t.Context(), onePanel, listingOf(t, onePanel, "testdata/onepanel", nil), src(onePanel), committed)
+	run, err := OnServer(t.Context(), onePanel, listingOf(t, onePanel, "testdata/onepanel", nil), src(onePanel), committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestOnServerKeepsAStoresWordsAndLogo(t *testing.T) {
 	}
 
 	dokploy := storeOf(t, FormatDokploy)
-	run, err = OnServer(t.Context(), dokploy, listingOf(t, dokploy, "testdata/dokploy", nil), src(dokploy), committed)
+	run, err = OnServer(t.Context(), dokploy, listingOf(t, dokploy, "testdata/dokploy", nil), src(dokploy), committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestOnServerKeepsAStoresWordsAndLogo(t *testing.T) {
 	}
 
 	coolify := storeOf(t, FormatCoolify)
-	run, err = OnServer(t.Context(), coolify, listingOf(t, coolify, "testdata/coolify", nil), src(coolify), committed)
+	run, err = OnServer(t.Context(), coolify, listingOf(t, coolify, "testdata/coolify", nil), src(coolify), committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

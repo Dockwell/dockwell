@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Repo is a repository a test commits to, and its URL.
@@ -26,8 +27,10 @@ type Repo struct {
 	t    testing.TB
 	root string
 	work string
-	// date is the date the next commit takes, or empty for now.
-	date string
+	// next is the date the next commit takes. Commits are dated from an hour before
+	// the repository was made, a second apart, so every one is before now, as a
+	// store's are: one dated after now counts from now (#640).
+	next time.Time
 }
 
 // New makes an empty repository and serves it. A machine without git's
@@ -42,7 +45,7 @@ func New(t testing.TB) *Repo {
 	if _, err := os.Stat(backend); err != nil {
 		t.Skip("git http-backend isn't here")
 	}
-	r := &Repo{t: t, root: t.TempDir()}
+	r := &Repo{t: t, root: t.TempDir(), next: time.Now().Add(-time.Hour).Truncate(time.Second)}
 	r.work = filepath.Join(r.root, "catalog")
 	if err := os.MkdirAll(r.work, 0o750); err != nil {
 		t.Fatal(err)
@@ -105,7 +108,8 @@ func (r *Repo) Commit(files map[string]string) string {
 		}
 	}
 	r.git("add", "-A")
-	r.git("commit", "-q", "--allow-empty", "-m", "a commit")
+	r.dated("commit", "-q", "--allow-empty", "-m", "a commit")
+	r.next = r.next.Add(time.Second)
 	return r.git("rev-parse", "HEAD")
 }
 
@@ -114,12 +118,25 @@ func (r *Repo) Commit(files map[string]string) string {
 // second share.
 func (r *Repo) CommitLater(files map[string]string) string {
 	r.t.Helper()
-	when, err := strconv.ParseInt(r.git("log", "-1", "--format=%ct"), 10, 64)
+	r.next = r.When("HEAD").Add(time.Minute)
+	return r.Commit(files)
+}
+
+// When is when commit was made, as its committer dated it.
+func (r *Repo) When(commit string) time.Time {
+	r.t.Helper()
+	secs, err := strconv.ParseInt(r.git("log", "-1", "--format=%ct", commit), 10, 64)
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	r.date = strconv.FormatInt(when+60, 10) + " +0000"
-	defer func() { r.date = "" }()
+	return time.Unix(secs, 0)
+}
+
+// CommitAt commits as Commit does, dated when, which may be after now, as a fork
+// can date a commit.
+func (r *Repo) CommitAt(when time.Time, files map[string]string) string {
+	r.t.Helper()
+	r.next = when.Truncate(time.Second)
 	return r.Commit(files)
 }
 
@@ -159,14 +176,25 @@ func (r *Repo) Link(name, target string) {
 
 func (r *Repo) git(args ...string) string {
 	r.t.Helper()
+	return r.run(nil, args...)
+}
+
+// run runs git in the repository's work tree with env added to its environment.
+func (r *Repo) run(env []string, args ...string) string {
+	r.t.Helper()
 	cmd := exec.CommandContext(r.t.Context(), "git", append([]string{"-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "init.defaultBranch=main", "-C", r.work}, args...)...) //nolint:gosec // a test's repository
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "HOME="+r.root)
-	if r.date != "" {
-		cmd.Env = append(cmd.Env, "GIT_AUTHOR_DATE="+r.date, "GIT_COMMITTER_DATE="+r.date)
-	}
+	cmd.Env = append(cmd.Env, env...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		r.t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// dated runs git as git does, with the date the next commit takes.
+func (r *Repo) dated(args ...string) string {
+	r.t.Helper()
+	date := strconv.FormatInt(r.next.Unix(), 10) + " +0000"
+	return r.run([]string{"GIT_AUTHOR_DATE=" + date, "GIT_COMMITTER_DATE=" + date}, args...)
 }

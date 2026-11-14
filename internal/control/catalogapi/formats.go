@@ -92,6 +92,9 @@ type leftOutRecord struct {
 	License string       `json:"license"`
 	Apps    int          `json:"apps"`
 	LeftOut []leftOutApp `json:"leftOut"`
+	// Release is the release the commit's entries have, which a later commit's that
+	// counts from now follows (#640).
+	Release uint32 `json:"release,omitempty"`
 }
 
 type leftOutApp struct {
@@ -130,7 +133,7 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 	src, snap, byPath := got.Source, got.Snapshot, got.ByPath
 	converting, done := context.WithTimeout(parent, convertWait)
 	defer done()
-	run, err := convert.OnServer(converting, store, got.Listing, src, got.Time)
+	run, err := convert.OnServer(converting, store, got.Listing, src, got.Time, s.releaseBefore(spec))
 	if err != nil {
 		return nil, nil, fmt.Errorf("reading it as %s: %w", store.Name, err)
 	}
@@ -138,7 +141,7 @@ func (s *Sources) convertOne(ctx context.Context, spec *resourcev1.CatalogSource
 		return cmp.Or(fileAt(spec.GetRepository(), spec.GetCommit(), file), repositoryPage(spec.GetRepository()))
 	})
 	out := map[string][]byte{}
-	rec := leftOutRecord{Format: store.Format, Version: convert.Version, License: src.License, Apps: len(run.Results)}
+	rec := leftOutRecord{Format: store.Format, Version: convert.Version, License: src.License, Apps: len(run.Results), Release: run.Release}
 	date := got.Time.UTC().Format(time.DateOnly)
 	size := 0
 	for i := range run.Results {
