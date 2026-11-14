@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, type HandlerContext } from "@connectrpc/connect";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   type AttachTerminalRequest,
   AttachTerminalResponseSchema,
@@ -257,6 +257,95 @@ describe("TerminalPage", () => {
       expect(closeTerminal).toHaveBeenCalledWith(expect.objectContaining({ terminalId: "trm_1" }), expect.anything()),
     );
     expect(await screen.findByText("No terminal open", { selector: "h2" })).toBeInTheDocument();
+  });
+
+  describe("coming back to the tab (#652)", () => {
+    /** Goes to the server's Overview with its own tab, then back to Terminal, as the owner did. */
+    const awayAndBack = async () => {
+      const tabs = () => within(screen.getByRole("navigation", { name: "Server hz-1" }));
+      await userEvent.click(tabs().getByRole("link", { name: "Overview" }));
+      expect(await screen.findByRole("heading", { name: "What runs here" })).toBeInTheDocument();
+      expect(screen.queryByRole("tablist", { name: "Sessions" })).toBeNull();
+      await userEvent.click(tabs().getByRole("link", { name: "Terminal" }));
+    };
+    const sessionTabs = async () =>
+      within(await screen.findByRole("tablist", { name: "Sessions" }))
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent);
+
+    it("leaves a terminal closed with its × closed, and the one still running comes back attached", async () => {
+      const sh = shell();
+      // The control plane lists both, then can't answer once the page comes back, so only
+      // what the page kept of the list can bring a tab back.
+      let reads = 0;
+      const closeTerminal = vi.fn(() => ({}));
+      renderTerminal({
+        listTerminals: () => {
+          reads++;
+          if (reads > 1) throw new ConnectError("the control plane is busy", Code.Unavailable);
+          return { terminals: [term("trm_1"), term("trm_2", "deploy@hz-1")] };
+        },
+        attachTerminal: sh.attachTerminal,
+        writeTerminal: sh.writeTerminal,
+        closeTerminal,
+      });
+      await waitFor(async () => expect(await sessionTabs()).toEqual(["root@hz-1", "deploy@hz-1"]));
+      await userEvent.click(screen.getByTitle("Close deploy@hz-1"));
+      await waitFor(() =>
+        expect(closeTerminal).toHaveBeenCalledWith(expect.objectContaining({ terminalId: "trm_2" }), expect.anything()),
+      );
+      await waitFor(async () => expect(await sessionTabs()).toEqual(["root@hz-1"]));
+      const attached = sh.attaches.length;
+      const before = reads;
+
+      await awayAndBack();
+      await waitFor(() => expect(reads).toBeGreaterThan(before));
+      await waitFor(async () => expect(await sessionTabs()).toEqual(["root@hz-1"]));
+      await waitFor(() => expect(sh.attaches.length).toBeGreaterThan(attached));
+      expect(sh.attaches.at(-1)?.terminalId).toBe("trm_1");
+      expect(await screen.findByText("Connected through the agent")).toBeInTheDocument();
+      expect(screen.queryByText("This terminal has ended")).toBeNull();
+    });
+
+    it("keeps a terminal that ended on its own as a tab until it's closed, and doesn't bring it back", async () => {
+      const sh = shell("logout\r\n", { reason: TerminalEndReason.EXITED, exitCode: 0 });
+      let reads = 0;
+      renderTerminal({
+        listTerminals: () => {
+          reads++;
+          if (reads > 1) throw new ConnectError("the control plane is busy", Code.Unavailable);
+          return { terminals: [term()] };
+        },
+        attachTerminal: sh.attachTerminal,
+      });
+      expect(await screen.findByText("The shell exited")).toBeInTheDocument();
+      // The ended tab stays while the page is up.
+      expect(await sessionTabs()).toEqual(["root@hz-1"]);
+      const before = reads;
+
+      await awayAndBack();
+      await waitFor(() => expect(reads).toBeGreaterThan(before));
+      expect(await screen.findByText("No terminal open", { selector: "h2" })).toBeInTheDocument();
+      expect(screen.queryByRole("tablist", { name: "Sessions" })).toBeNull();
+    });
+
+    it("brings back only what the control plane still lists, not what the page kept", async () => {
+      const sh = shell();
+      // deploy@hz-1 isn't on screen, so the page never sees it end; the control plane does.
+      let open = [term("trm_2", "deploy@hz-1"), term("trm_1")];
+      renderTerminal({
+        listTerminals: () => ({ terminals: open }),
+        attachTerminal: sh.attachTerminal,
+        writeTerminal: sh.writeTerminal,
+      });
+      await waitFor(async () => expect(await sessionTabs()).toEqual(["deploy@hz-1", "root@hz-1"]));
+      await waitFor(() => expect(sh.attaches.map((a) => a.terminalId)).toEqual(["trm_1"]));
+      open = [term("trm_1")];
+
+      await awayAndBack();
+      await waitFor(() => expect(sh.attaches.map((a) => a.terminalId)).toEqual(["trm_1", "trm_1"]));
+      expect(await sessionTabs()).toEqual(["root@hz-1"]);
+    });
   });
 
   it("offers a shell in the container the page was asked for, and opens one with no passkey where none is needed", async () => {

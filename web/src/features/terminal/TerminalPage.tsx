@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type Server, StepUpAction, type Terminal, TerminalService } from "@dockwell/api";
+import { type ListTerminalsResponse, type Server, StepUpAction, type Terminal, TerminalService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -142,11 +142,13 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const explain = useAuthError();
   const client = useMemo(() => createClient(TerminalService, transport), [transport]);
   const serverId = server.id;
-  // What's open is this page's to know once it has looked: it opens and closes them itself.
+  // What's open is this page's to know once it has looked: it opens and closes them itself, so
+  // nothing reads it again while the page is up. Each time the page comes back it asks again,
+  // as what it kept may have ended while it was away (#652).
   const listed = useQuery(
     TerminalService.method.listTerminals,
     { serverId },
-    { staleTime: Number.POSITIVE_INFINITY, refetchOnWindowFocus: false },
+    { staleTime: Number.POSITIVE_INFINITY, refetchOnWindowFocus: false, refetchOnMount: "always" },
   );
   const [tabs, setTabs] = useState<Terminal[]>([]);
   const [active, setActive] = useState<string>();
@@ -169,14 +171,36 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const visible = useVisibleHeight();
   const merged = useRef(false);
 
+  // The tabs come back from what the control plane lists once it has answered since the page
+  // came back, not from what was kept before: a terminal that ended since isn't listed (#652).
+  // Where it can't answer, what was kept stands, which closing and ending keep current.
   useEffect(() => {
-    if (merged.current || !listed.data) return;
+    if (merged.current || !listed.data || !listed.isFetchedAfterMount) return;
     merged.current = true;
     const open = listed.data.terminals;
     setTabs((now) => [...open.filter((o) => !now.some((n) => n.id === o.id)), ...now]);
     // A shell asked for in a container shows that container's, or the offer to open one.
     setActive((now) => now ?? (container ? open.findLast((o) => o.container === container)?.id : open.at(-1)?.id));
-  }, [listed.data, container]);
+  }, [listed.data, listed.isFetchedAfterMount, container]);
+
+  /**
+   * Takes a terminal out of the list kept for this server, so the page doesn't bring it back
+   * when it comes back, and asks again for what's open, as opening one does (#652).
+   */
+  const unlist = useCallback(
+    (id: string) => {
+      const key = createConnectQueryKey({
+        schema: TerminalService.method.listTerminals,
+        input: { serverId },
+        cardinality: "finite",
+      });
+      queryClient.setQueriesData<ListTerminalsResponse>({ queryKey: key }, (kept) =>
+        kept ? { ...kept, terminals: kept.terminals.filter((term) => term.id !== id) } : kept,
+      );
+      void queryClient.invalidateQueries({ queryKey: key });
+    },
+    [queryClient, serverId],
+  );
 
   const names = tabNames(tabs);
   // A container in the page's address with no shell open in it yet.
@@ -275,13 +299,19 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
         }
       }
     }
+    unlist(id);
     forget(id);
   };
 
-  const onStatus = useCallback((id: string, next: TerminalStatus) => {
-    setStatuses((now) => ({ ...now, [id]: next }));
-    if (next.kind === "attached") setLost(undefined);
-  }, []);
+  const onStatus = useCallback(
+    (id: string, next: TerminalStatus) => {
+      setStatuses((now) => ({ ...now, [id]: next }));
+      if (next.kind === "attached") setLost(undefined);
+      // One that ended on its own stays as a tab until it's closed, but isn't open to come back to.
+      if (next.kind === "ended") unlist(id);
+    },
+    [unlist],
+  );
 
   const fontSize = phone ? phoneFont : DESKTOP_FONT;
   const nextTextSize = () => {
