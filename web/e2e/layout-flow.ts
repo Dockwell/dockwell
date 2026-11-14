@@ -177,6 +177,45 @@ export async function layoutFlow(page: Page, { origin, step }: LayoutFlowOptions
     }
     step(`  at ${width} px every kind fills the ${Math.round((await measure(page)).main.width)} px column`);
   }
+
+  // On a phone, a callout with two long actions keeps to the screen, each action on a row of its own where both
+  // don't fit (#624). It is the UI kit's Callout as it renders, with no class of a screen's own to help it.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${origin}/`);
+  await page.locator("#main .page").first().waitFor();
+  const callout = await page.evaluate(() => {
+    const at = document.querySelector("#main .page") ?? document.body;
+    const make = (tag: string, className: string, text?: string) => {
+      const el = document.createElement(tag);
+      el.className = className;
+      if (text) el.textContent = text;
+      return el;
+    };
+    const button = (label: string) => {
+      const b = make("button", "dw-btn dw-btn-secondary dw-btn-md");
+      b.append(make("span", "dw-btn-label", label));
+      return b;
+    };
+    const box = make("div", "dw-callout dw-tone-warning");
+    const body = make("div", "dw-callout-body");
+    body.append(make("div", "dw-callout-title", "3 servers can't read Docker"));
+    const actions = make("div", "dw-callout-actions");
+    actions.append(button("Copy the command that restarts Docker"), button("Inspect"));
+    box.append(make("span", "dw-callout-glyph"), body, actions);
+    at.prepend(box);
+    const edge = box.getBoundingClientRect();
+    const out = [...actions.children]
+      .map((b) => b.getBoundingClientRect())
+      .filter((r) => r.right > edge.right + 0.5 || r.left < edge.left - 0.5).length;
+    const wide = document.documentElement.scrollWidth;
+    box.remove();
+    return { out, wide, screen: window.innerWidth };
+  });
+  if (callout.wide > callout.screen) {
+    fail(`a callout with two long actions makes the page ${px(callout.wide)} wide on a ${px(callout.screen)} screen`);
+  }
+  if (callout.out > 0) fail(`${callout.out} of a callout's actions run past its edge at 390 px`);
+  step("  at 390 px a callout with two long actions keeps to the screen");
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
