@@ -67,6 +67,9 @@ const (
 	// ChangeServicePlanRebootProcedure is the fully-qualified name of the ChangeService's PlanReboot
 	// RPC.
 	ChangeServicePlanRebootProcedure = "/dockwell.v1.ChangeService/PlanReboot"
+	// ChangeServicePlanAgentUpgradeProcedure is the fully-qualified name of the ChangeService's
+	// PlanAgentUpgrade RPC.
+	ChangeServicePlanAgentUpgradeProcedure = "/dockwell.v1.ChangeService/PlanAgentUpgrade"
 	// ChangeServicePlanRemoveServerProcedure is the fully-qualified name of the ChangeService's
 	// PlanRemoveServer RPC.
 	ChangeServicePlanRemoveServerProcedure = "/dockwell.v1.ChangeService/PlanRemoveServer"
@@ -171,6 +174,16 @@ type ChangeServiceClient interface {
 	// agent connects from another boot, and fails if none has after 15 minutes.
 	// See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error)
+	// PlanAgentUpgrade plans upgrading servers' agents to the control plane's own
+	// version, which must be a release (ADR 0094). Each server whose agent runs it
+	// already takes no step, and the control server is never in it, as its agent is
+	// the control plane. The plan carries the control plane's own install script,
+	// by its SHA-256, which the agent checks before it runs it outside its own
+	// service; the script checks the release with its pinned cosign, as an install
+	// does. A step passes once the server's agent connects at the version asked,
+	// and fails if it comes back at its old one or isn't back in 15 minutes.
+	// Applying it takes a person's passkey, and it can't be undone.
+	PlanAgentUpgrade(context.Context, *connect.Request[v1.PlanAgentUpgradeRequest]) (*connect.Response[v1.PlanAgentUpgradeResponse], error)
 	// PlanRemoveServer plans taking a server out of the fleet: a change whose edits
 	// move, stop or let go of what runs on it, as apps says, and which revokes the
 	// server as its last act. The plan lists what moves, what stops, what stays on
@@ -293,6 +306,12 @@ func NewChangeServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(changeServiceMethods.ByName("PlanReboot")),
 			connect.WithClientOptions(opts...),
 		),
+		planAgentUpgrade: connect.NewClient[v1.PlanAgentUpgradeRequest, v1.PlanAgentUpgradeResponse](
+			httpClient,
+			baseURL+ChangeServicePlanAgentUpgradeProcedure,
+			connect.WithSchema(changeServiceMethods.ByName("PlanAgentUpgrade")),
+			connect.WithClientOptions(opts...),
+		),
 		planRemoveServer: connect.NewClient[v1.PlanRemoveServerRequest, v1.PlanRemoveServerResponse](
 			httpClient,
 			baseURL+ChangeServicePlanRemoveServerProcedure,
@@ -346,6 +365,7 @@ type changeServiceClient struct {
 	restartService          *connect.Client[v1.RestartServiceRequest, v1.RestartServiceResponse]
 	planInstallUpdates      *connect.Client[v1.PlanInstallUpdatesRequest, v1.PlanInstallUpdatesResponse]
 	planReboot              *connect.Client[v1.PlanRebootRequest, v1.PlanRebootResponse]
+	planAgentUpgrade        *connect.Client[v1.PlanAgentUpgradeRequest, v1.PlanAgentUpgradeResponse]
 	planRemoveServer        *connect.Client[v1.PlanRemoveServerRequest, v1.PlanRemoveServerResponse]
 	planSystemServiceAction *connect.Client[v1.PlanSystemServiceActionRequest, v1.PlanSystemServiceActionResponse]
 	planServerLabels        *connect.Client[v1.PlanServerLabelsRequest, v1.PlanServerLabelsResponse]
@@ -407,6 +427,11 @@ func (c *changeServiceClient) PlanInstallUpdates(ctx context.Context, req *conne
 // PlanReboot calls dockwell.v1.ChangeService.PlanReboot.
 func (c *changeServiceClient) PlanReboot(ctx context.Context, req *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error) {
 	return c.planReboot.CallUnary(ctx, req)
+}
+
+// PlanAgentUpgrade calls dockwell.v1.ChangeService.PlanAgentUpgrade.
+func (c *changeServiceClient) PlanAgentUpgrade(ctx context.Context, req *connect.Request[v1.PlanAgentUpgradeRequest]) (*connect.Response[v1.PlanAgentUpgradeResponse], error) {
+	return c.planAgentUpgrade.CallUnary(ctx, req)
 }
 
 // PlanRemoveServer calls dockwell.v1.ChangeService.PlanRemoveServer.
@@ -524,6 +549,16 @@ type ChangeServiceHandler interface {
 	// agent connects from another boot, and fails if none has after 15 minutes.
 	// See docs/adr/0064-a-change-on-a-server-installing-updates-and-rebooting.md.
 	PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error)
+	// PlanAgentUpgrade plans upgrading servers' agents to the control plane's own
+	// version, which must be a release (ADR 0094). Each server whose agent runs it
+	// already takes no step, and the control server is never in it, as its agent is
+	// the control plane. The plan carries the control plane's own install script,
+	// by its SHA-256, which the agent checks before it runs it outside its own
+	// service; the script checks the release with its pinned cosign, as an install
+	// does. A step passes once the server's agent connects at the version asked,
+	// and fails if it comes back at its old one or isn't back in 15 minutes.
+	// Applying it takes a person's passkey, and it can't be undone.
+	PlanAgentUpgrade(context.Context, *connect.Request[v1.PlanAgentUpgradeRequest]) (*connect.Response[v1.PlanAgentUpgradeResponse], error)
 	// PlanRemoveServer plans taking a server out of the fleet: a change whose edits
 	// move, stop or let go of what runs on it, as apps says, and which revokes the
 	// server as its last act. The plan lists what moves, what stops, what stays on
@@ -642,6 +677,12 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(changeServiceMethods.ByName("PlanReboot")),
 		connect.WithHandlerOptions(opts...),
 	)
+	changeServicePlanAgentUpgradeHandler := connect.NewUnaryHandler(
+		ChangeServicePlanAgentUpgradeProcedure,
+		svc.PlanAgentUpgrade,
+		connect.WithSchema(changeServiceMethods.ByName("PlanAgentUpgrade")),
+		connect.WithHandlerOptions(opts...),
+	)
 	changeServicePlanRemoveServerHandler := connect.NewUnaryHandler(
 		ChangeServicePlanRemoveServerProcedure,
 		svc.PlanRemoveServer,
@@ -703,6 +744,8 @@ func NewChangeServiceHandler(svc ChangeServiceHandler, opts ...connect.HandlerOp
 			changeServicePlanInstallUpdatesHandler.ServeHTTP(w, r)
 		case ChangeServicePlanRebootProcedure:
 			changeServicePlanRebootHandler.ServeHTTP(w, r)
+		case ChangeServicePlanAgentUpgradeProcedure:
+			changeServicePlanAgentUpgradeHandler.ServeHTTP(w, r)
 		case ChangeServicePlanRemoveServerProcedure:
 			changeServicePlanRemoveServerHandler.ServeHTTP(w, r)
 		case ChangeServicePlanSystemServiceActionProcedure:
@@ -766,6 +809,10 @@ func (UnimplementedChangeServiceHandler) PlanInstallUpdates(context.Context, *co
 
 func (UnimplementedChangeServiceHandler) PlanReboot(context.Context, *connect.Request[v1.PlanRebootRequest]) (*connect.Response[v1.PlanRebootResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanReboot is not implemented"))
+}
+
+func (UnimplementedChangeServiceHandler) PlanAgentUpgrade(context.Context, *connect.Request[v1.PlanAgentUpgradeRequest]) (*connect.Response[v1.PlanAgentUpgradeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ChangeService.PlanAgentUpgrade is not implemented"))
 }
 
 func (UnimplementedChangeServiceHandler) PlanRemoveServer(context.Context, *connect.Request[v1.PlanRemoveServerRequest]) (*connect.Response[v1.PlanRemoveServerResponse], error) {

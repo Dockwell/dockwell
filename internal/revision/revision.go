@@ -127,6 +127,8 @@ type Agents interface {
 type Engine struct {
 	// controlServer is the server the control plane runs on, whose reboot stops it.
 	controlServer string
+	// release is what the control plane upgrades agents to, or nil for none.
+	release *AgentRelease
 	// onBackup hears of each backup a step takes.
 	onBackup func(context.Context, BackupStep)
 	// onUnit hears of each step that acted on a server's system service, by the
@@ -246,6 +248,10 @@ type Edit struct {
 	// Reboot reboots its server, for a server's host: a step that passes once the
 	// server's agent connects from another boot, which makes no revision (ADR 0064).
 	Reboot bool
+	// UpgradeAgent upgrades its server's agent, for a server's host: a step that
+	// passes once the agent connects at the version asked, which makes no revision
+	// (ADR 0094). Its Version and ScriptSHA256 are the control plane's release.
+	UpgradeAgent *resource.AgentUpgradeAsked
 	// Forget takes no step for it on the server a removal takes out of the fleet:
 	// what it left there stays as it is, and the control plane lets go of it
 	// (ADR 0090).
@@ -344,6 +350,9 @@ type Proposal struct {
 	// Removes is the server the change takes out of the fleet, if it does
 	// (ADR 0090).
 	Removes *Removal
+	// Rollout is how the change runs over its servers, wave by wave, when it
+	// rolls out over several (ADR 0094).
+	Rollout *Rollout
 	// RollsBackTo is the revision it puts back, for RollBackTo to record.
 	RollsBackTo int
 	// IfNothing refuses the proposal when its plan would do nothing, on the
@@ -448,6 +457,9 @@ type Plan struct {
 	// Removes is the server it takes out of the fleet, if it does (ADR 0090).
 	// Its fingerprint covers it.
 	Removes *Removal `json:",omitempty"`
+	// Waves is how it runs over its servers, wave by wave (ADR 0094). Its
+	// fingerprint covers them, so what's applied is the order reviewed.
+	Waves *Waves `json:",omitempty"`
 }
 
 // How a change's fingerprint is made, as its record says (ADR 0022).
@@ -474,6 +486,9 @@ type ResourcePlan struct {
 	// Reboot says the change reboots its server, for a server's host, which makes
 	// no revision and can't be undone (ADR 0064).
 	Reboot *resource.Reboot `json:",omitempty"`
+	// AgentUpgrade says the change upgrades its server's agent, for a server's
+	// host, which makes no revision and can't be undone (ADR 0094).
+	AgentUpgrade *resource.AgentUpgrade `json:",omitempty"`
 	// Forget says the change takes no step for it on the server it removes: what
 	// it left there stays (ADR 0090).
 	Forget bool `json:",omitempty"`
@@ -591,7 +606,7 @@ func (p *Plan) Counts() Counts {
 func (p *Plan) HostAccess() bool {
 	// An install of updates reaches the whole server, as root, which a person approves.
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
-		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil
+		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil || r.AgentUpgrade != nil
 	})
 }
 
@@ -601,10 +616,11 @@ func (p *Plan) HostAccess() bool {
 func (p *Plan) AsGoodAsRoot() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
 		// A package's maintainer scripts run as root, as an install of updates does,
-		// and a reboot is root's to ask.
+		// and a reboot is root's to ask. So is an agent's upgrade, which runs the
+		// install script as root (ADR 0094).
 		// An action on a system service is when its guard says so, as restarting SSH
 		// or Docker is (ADR 0082).
-		return r.Install != nil || r.Reboot != nil || r.Unit != nil && r.Unit.Passkey() || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
+		return r.Install != nil || r.Reboot != nil || r.AgentUpgrade != nil || r.Unit != nil && r.Unit.Passkey() || slices.ContainsFunc(r.HostAccess, resource.Access.AsGoodAsRoot)
 	})
 }
 
@@ -751,6 +767,8 @@ type item struct {
 	install *resource.InstallAsked
 	// reboot names the reboot the change asks of a server's host: the change's ID.
 	reboot string
+	// upgrade is the upgrade of its agent the change asks of a server's host.
+	upgrade *resource.AgentUpgradeAsked
 	// removal is the server the change takes out of the fleet, and forget says
 	// the item takes no step there (ADR 0090).
 	removal *Removal
@@ -770,7 +788,7 @@ type item struct {
 // noRevision reports an item that acts on a resource as it is, so it has nothing
 // to roll back, and what goes wrong leaves its revision as it was.
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.restart != "" || it.restore != nil || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -978,6 +996,10 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Reboot && ed.Ref == items[i].ref }) {
 			items[i].reboot = changeID
 		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.UpgradeAgent != nil && ed.Ref == items[i].ref }); j >= 0 {
+			u := p.Edits[j].UpgradeAgent
+			items[i].upgrade = &resource.AgentUpgradeAsked{Change: changeID, Version: u.Version, ScriptSHA256: u.ScriptSHA256}
+		}
 		items[i].removal = p.Removes
 		items[i].forget = slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Forget && ed.Ref == items[i].ref })
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Unit != nil && ed.Ref == items[i].ref }); j >= 0 {
@@ -995,7 +1017,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, changeID, items, false, p.Removes)
+	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout})
 	if err != nil {
 		return nil, err
 	}
@@ -2414,7 +2436,8 @@ func itOrThem(n int) string {
 // A rollback's plan never fails for an agent: one that can't plan now is
 // planned from its server's last known desired state, like an offline
 // one, and its steps wait for Resume to plan them against the server.
-func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollback bool, removal *Removal) (*Plan, error) {
+func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollback bool, with planWith) (*Plan, error) {
+	removal := with.removal
 	// Which certificate's key a route proven by DNS takes where, read once (ADR 0088).
 	var keys *keyContext
 	var keyNotes []Note
@@ -2492,13 +2515,14 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		_, _ = fmt.Fprintf(keyed, "%s|%t\n", item(e.digest(changeID, it)), it.rotates)
 		_, _ = io.WriteString(plain, item(sum[:])+"\n")
 	}
-	actions := map[string][]resource.Action{}  // each item's steps, on every server
-	access := map[string][]resource.Access{}   // what each item gains on its servers
-	installs := map[string]*resource.Install{} // what each server's host installs
-	reboots := map[string]*resource.Reboot{}   // which servers' hosts reboot
-	units := map[string]*resource.Unit{}       // what each server's host does to a unit
-	panels := map[string]*resource.Panel{}     // what each server's host does to a panel
-	keeps := map[string][]resource.Access{}    // what each keeps while it runs something else
+	actions := map[string][]resource.Action{}       // each item's steps, on every server
+	access := map[string][]resource.Access{}        // what each item gains on its servers
+	installs := map[string]*resource.Install{}      // what each server's host installs
+	reboots := map[string]*resource.Reboot{}        // which servers' hosts reboot
+	upgrades := map[string]*resource.AgentUpgrade{} // which servers' agents upgrade
+	units := map[string]*resource.Unit{}            // what each server's host does to a unit
+	panels := map[string]*resource.Panel{}          // what each server's host does to a panel
+	keeps := map[string][]resource.Access{}         // what each keeps while it runs something else
 	var before, after map[resource.Ref]proto.Message
 	var takes map[resource.Ref][]resource.Access
 	if len(servers) > 0 {
@@ -2671,6 +2695,15 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				reboots[ids[s.Ref]] = s.Reboot
 				fmt.Fprintf(fp, "reboot %s|%s|%t\n", server, ref(s.Ref), s.Reboot.ControlServer)
 			}
+			// What an agent's upgrade runs is the control plane's install script, by
+			// its SHA-256, which the plan says and the agent checks (ADR 0094).
+			if u := s.AgentUpgrade; u != nil {
+				if it := itemOf(its, s.Ref); it != nil && it.upgrade != nil {
+					u.To, u.ScriptSHA256 = it.upgrade.Version, it.upgrade.ScriptSHA256
+				}
+				upgrades[ids[s.Ref]] = u
+				fmt.Fprintf(fp, "agent-upgrade %s|%s|%s|%s|%s\n", server, ref(s.Ref), u.From, u.To, u.ScriptSHA256)
+			}
 			// What an action on a unit does is what the agent read of it: a unit that
 			// moved since makes the plan stale.
 			if u := s.Unit; u != nil {
@@ -2810,6 +2843,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	for i := range items {
 		rp := items[i].resourcePlan(actions[items[i].id])
 		rp.HostAccess, rp.Keeps, rp.Install, rp.Reboot, rp.Unit, rp.Panel = access[items[i].id], keeps[items[i].id], installs[items[i].id], reboots[items[i].id], units[items[i].id], panels[items[i].id]
+		rp.AgentUpgrade = upgrades[items[i].id]
 		rp.Forget = items[i].forget
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
@@ -2817,6 +2851,22 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 		}
 		plan.Resources = append(plan.Resources, rp)
+	}
+	// The waves, as the order applied is the order reviewed (ADR 0094). A server
+	// that takes no step is in none, and the plan says so, once some server does.
+	var idle []string
+	plan.Waves, idle = with.wavesOf(plan)
+	fmt.Fprint(fp, plan.Waves.fingerprint())
+	if len(idle) > 0 && len(plan.Servers) > 0 {
+		said := make([]string, 0, len(idle))
+		for _, s := range idle {
+			said = append(said, cmp.Or(names[s], s))
+		}
+		message := human.List(said) + " need nothing, so they take no step"
+		if len(said) == 1 {
+			message = said[0] + " needs nothing, so it takes no step"
+		}
+		plan.Notes = append(plan.Notes, Note{Reason: "servers_unchanged", Names: said, Named: true, Message: message})
 	}
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
 	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
@@ -3013,7 +3063,7 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel}
+		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade}
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
@@ -3709,7 +3759,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, items []item, 
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback, removalIn(c))
+	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(c), waves: wavesIn(c)})
 	if err != nil {
 		return nil, err
 	}
@@ -3939,6 +3989,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		return 1
 	}
 	slices.SortStableFunc(builds, func(a, b queued) int { return backupFirst(a) - backupFirst(b) })
+	// A change that rolls out runs wave by wave, each server's steps in their order
+	// (ADR 0094).
+	waves := plan.Waves
+	if waves != nil {
+		slices.SortStableFunc(builds, func(a, b queued) int { return waves.waveOf(a.server) - waves.waveOf(b.server) })
+	}
 	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	digests := map[at]string{}
 
@@ -3964,11 +4020,12 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	//
 	// A step that failed leaving the server untouched leaves the revision it runs
 	// reading as it did, unless this change made one it should be on by now.
-	stop := func(qi int, err error, untouched bool) error {
+	// failed records a step that failed, and what it means in plain words.
+	failed := func(qi int, err error, untouched bool) (plain, detail string, _ error) {
 		q := queue[qi]
 		it := byRef[q.step.Ref]
 		err = stepFailure(q.name, err)
-		plain, detail := resource.Explain(err)
+		plain, detail = resource.Explain(err)
 		p, u := e.failed(c.ID, q.index, err)
 		var recorded bool
 		if untouched && it.rev == it.base {
@@ -3979,6 +4036,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		if recorded {
 			e.announce(c.ID, u)
 		}
+		return plain, detail, err
+	}
+	stop := func(qi int, err error, untouched bool) error {
+		q := queue[qi]
+		plain, detail, err := failed(qi, err, untouched)
 		for _, rest := range queue[qi+1:] {
 			e.step(c.ID, rest.index, StepSkipped, stepMessage(StepSkipped, rest.step, rest.name))
 		}
@@ -4037,13 +4099,54 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 	}
 	done := map[at]bool{}
+	// wave is the wave the run is in; deferred are the servers of the waves it
+	// hasn't reached, as a wave before still waits on a server; failures are the
+	// steps that failed in a change that goes on past them (ADR 0094).
+	wave := 0
+	deferred := map[string]bool{}
+	var failures []wentOn
 	for qi, q := range queue {
 		if e.isStopping() {
 			return interrupt(qi)
 		}
+		if w := waves.waveOf(q.server); w > wave {
+			// The next wave starts once each server of the waves before is done:
+			// one that still waits, as a reboot does for its server, holds it, and
+			// the server's reconnect resumes the change from here.
+			if slices.ContainsFunc(slices.Collect(maps.Keys(pending)), func(s string) bool { return waves.waveOf(s) < w }) {
+				for _, rest := range queue[qi:] {
+					deferred[rest.server] = true
+				}
+				break
+			}
+			// And once the pause after the wave before has passed, as the steps' record
+			// says when it ended, so a run that resumes, as after the control plane
+			// starts again, keeps the time: the plan numbers the waves, not the run.
+			if ended := waves.endedBefore(w, e.progress(c.ID)); waves.Pause > 0 && !ended.IsZero() {
+				if until := ended.Add(waves.Pause); until.After(e.now()) {
+					_, u := e.step(c.ID, q.index, StepWaiting, fmt.Sprintf("Wave %d starts at %s, after the pause", w, until.Local().Format("15:04")))
+					if e.recordProgress(ctx, c.ID) {
+						e.announce(c.ID, u)
+					}
+					if !e.pauseUntil(ctx, until) {
+						return interrupt(qi)
+					}
+				}
+			}
+			wave = w
+		}
 		it := byRef[q.step.Ref]
+		// A reboot or an agent's upgrade asked already, which a resume plans again
+		// while the server is still up, takes the server away: going is what it was
+		// asked to do, so its step waits for the server to come back (ADR 0094).
+		asked := it.waitsForServer() && q.index >= 0 && q.index < len(progress.Steps) &&
+			progress.Steps[q.index].State == StepWaiting && !progress.Steps[q.index].Started.IsZero()
 		agent, online := e.agents.Agent(q.server)
 		if !online || agent == nil || !planned[q.server] {
+			if asked && !IsRollback(c) {
+				wait(q, "")
+				continue
+			}
 			if IsRollback(c) {
 				var couldntPlan string
 				if online {
@@ -4055,7 +4158,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			if e.isStopping() {
 				return interrupt(qi)
 			}
-			return stop(qi, fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name), false)
+			gone := fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name)
+			if waves != nil && waves.KeepGoing {
+				// A change that goes on past a failure goes on past a server that's
+				// away too, and fails once each has had its turn (ADR 0094).
+				_, _, _ = failed(qi, gone, true)
+				failures = append(failures, wentOn{index: q.index, err: gone})
+				continue
+			}
+			return stop(qi, gone, false)
 		}
 		// A step that backs up or restores one database alone needs an agent that does:
 		// one from before, as one downgraded since the plan, takes the whole volume, and
@@ -4067,9 +4178,8 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		// so its time is the reboot's, from the call until the server was back. So does
 		// one resumed on the boot it left, which asks the agent again and waits on, or
 		// fails with what the reboot command said.
-		finishingReboot := it.reboot != "" && q.step.Finishing
-		waitedReboot := it.reboot != "" && q.index >= 0 && q.index < len(progress.Steps) &&
-			progress.Steps[q.index].State == StepWaiting && !progress.Steps[q.index].Started.IsZero()
+		finishingReboot := it.waitsForServer() && q.step.Finishing
+		waitedReboot := asked
 		if !finishingReboot && !waitedReboot {
 			running := stepMessage(StepRunning, q.step, q.name)
 			_, u := e.step(c.ID, q.index, StepRunning, running)
@@ -4097,6 +4207,16 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				e.pulledNewer(ctx, c.ID, items, it, q.server, o)
 			}
 		})
+		// An agent's upgrade carries the control plane's install script with its call,
+		// as the one the plan named by its SHA-256, and nowhere else (ADR 0094).
+		if it.upgrade != nil && q.step.AgentUpgrade != nil {
+			ask, err := e.upgradeAsk(*it.upgrade)
+			if err != nil {
+				called()
+				return stop(qi, err, true)
+			}
+			callCtx = resource.WithAgentUpgrade(callCtx, ask)
+		}
 		last, guarded := lastAccess[q.server]
 		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
 		err := agent.Apply(callCtx, *q.step, it.desiredOn(q.server))
@@ -4125,12 +4245,19 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			// there, and it says when that ends.
 			wait(q, couldntPlan(err))
 			continue
+		case waves != nil && waves.KeepGoing:
+			// It goes on to the next server, and fails once each has had its turn.
+			// The step's failure is on its record; the change's is said once each server had its turn.
+			_, _, _ = failed(qi, err, told.Untouched)
+			failures = append(failures, wentOn{index: q.index, err: err})
+			continue
 		default:
 			return stop(qi, err, told.Untouched)
 		}
-		if it.reboot != "" && !finishingReboot {
+		if it.waitsForServer() && !finishingReboot {
 			// The server goes down once the agent's answer is on its way: the step
-			// waits for it to connect from its new boot, which Resume finds.
+			// waits for it to connect from its new boot, which Resume finds. An
+			// agent's upgrade waits for it to connect at its new version.
 			pending[q.server] = q.name
 			_, u := e.step(c.ID, q.index, StepWaiting, stepMessage(StepWaiting, q.step, q.name))
 			waits = append(waits, u)
@@ -4187,7 +4314,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		it := &items[i]
 		for _, s := range it.servers {
 			_, waits := pending[s]
-			if waits || slices.Contains(it.gone, s) {
+			if waits || deferred[s] || slices.Contains(it.gone, s) {
 				continue
 			}
 			if !done[at{s, it.ref}] || it.pull && it.rev != it.base {
@@ -4221,6 +4348,14 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			e.resumeAfter(c.ID)
 		}
 		return reconnects(names)
+	}
+	// Each server had its turn: a change that went on past a failure fails, naming
+	// each server that did, in this run or one before it, as a resume runs only what's
+	// left (ADR 0094).
+	if waves != nil {
+		if err := e.failGoneOn(ctx, c, failures); err != nil {
+			return err
+		}
 	}
 	// A removal's last act is the server leaving the fleet, as the change is
 	// applied (ADR 0090).
@@ -4477,6 +4612,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(c, ref)
 			it.install = installIn(c, ref)
 			it.reboot = rebootIn(c, ref)
+			it.upgrade = upgradeIn(c, ref)
 			it.unit = unitIn(c, ref)
 			it.removal, it.forget = removalIn(c), forgetIn(c, ref)
 			it.panel = panelIn(c, ref)
@@ -4491,9 +4627,20 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
+	// A change that rolls out waits for no server whose steps have all ended, as one
+	// gone before its turn that failed: it has nothing left to run there (ADR 0094).
+	var ended func(server, id string) bool
+	if wavesIn(c) != nil {
+		if p, err := decodeProgress(c.Progress); err == nil {
+			ended = p.ended
+		}
+	}
 	var offline []string
 	for i := range items {
 		for _, s := range items[i].targets() {
+			if ended != nil && ended(s, items[i].id) {
+				continue
+			}
 			if _, online := e.agents.Agent(s); !online && !slices.Contains(offline, s) {
 				offline = append(offline, s)
 			}
@@ -4557,10 +4704,28 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false, removalIn(c))
+	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(c), waves: wavesIn(c)})
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
+	}
+	// A change that rolls out takes each server's step once: one that ended, as a
+	// restart of a unit in a wave before, isn't planned again as the change goes on
+	// to the next (ADR 0094).
+	if plan.Waves != nil {
+		ids := map[resource.Ref]string{}
+		for i := range items {
+			ids[items[i].ref] = items[i].id
+		}
+		for si := range plan.Servers {
+			sp := &plan.Servers[si]
+			// Nor does a server that took no step when it was reviewed, as it needed
+			// nothing then: it's in no wave, and runs nothing it wasn't planned to.
+			sp.Steps = slices.DeleteFunc(sp.Steps, func(st resource.Step) bool {
+				return before.ended(sp.Server, ids[st.Ref]) || plan.Waves.waveOf(sp.Server) == 0
+			})
+		}
+		plan.Servers = slices.DeleteFunc(plan.Servers, func(sp ServerPlan) bool { return len(sp.Steps) == 0 && !sp.Removed })
 	}
 	// What the agent plans now of a restore, or of a backup of one database alone, is
 	// held to what the change was made for, as when it was proposed: one downgraded
@@ -4592,7 +4757,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	e.track(changeID, resumed(before, plan, items))
+	e.track(changeID, resumed(before, plan, items, e.now()))
 	// A wait on record is what says a step never began, and from here it may.
 	e.recordProgress(ctx, changeID)
 	e.published(changeID, store.ChangeApplying)
@@ -4673,6 +4838,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change) ([]i
 		it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(c, ref)
 		it.install = installIn(c, ref)
 		it.reboot = rebootIn(c, ref)
+		it.upgrade = upgradeIn(c, ref)
 		it.unit = unitIn(c, ref)
 		it.removal, it.forget = removalIn(c), forgetIn(c, ref)
 		it.panel = panelIn(c, ref)
@@ -5676,6 +5842,9 @@ func (e *Engine) Undo(ctx context.Context, changeID string, by By) (*Plan, error
 	}
 	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.Reboot != nil }) {
 		return nil, fault.New(ErrCantUndo, "a reboot can't be undone: %s rebooted its server, and nothing it changed is to put back", changeID)
+	}
+	if took, err := DecodePlan(c.Plan); err == nil && slices.ContainsFunc(took.Resources, func(r ResourcePlan) bool { return r.AgentUpgrade != nil }) {
+		return nil, fault.New(ErrCantUndo, "an agent's upgrade can't be undone: %s upgraded the agent, which stays at its new version. Run the install script with --version and --downgrade over SSH if an older one is needed", changeID)
 	}
 	if took, err := DecodePlan(c.Plan); err == nil && took.Removes != nil {
 		return nil, fault.New(ErrCantUndo, "a removal can't be undone: %s took %s out of the fleet. Join it again with a new ticket from Add server", changeID, cmp.Or(took.Removes.Name, took.Removes.Server))

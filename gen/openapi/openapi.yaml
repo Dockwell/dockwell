@@ -4671,6 +4671,40 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers:planAgentUpgrade:
+        post:
+            tags:
+                - ChangeService
+            description: |-
+                PlanAgentUpgrade plans upgrading servers' agents to the control plane's own
+                 version, which must be a release (ADR 0094). Each server whose agent runs it
+                 already takes no step, and the control server is never in it, as its agent is
+                 the control plane. The plan carries the control plane's own install script,
+                 by its SHA-256, which the agent checks before it runs it outside its own
+                 service; the script checks the release with its pinned cosign, as an install
+                 does. A step passes once the server's agent connects at the version asked,
+                 and fails if it comes back at its old one or isn't back in 15 minutes.
+                 Applying it takes a person's passkey, and it can't be undone.
+            operationId: ChangeService_PlanAgentUpgrade
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanAgentUpgradeRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanAgentUpgradeResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers:planLabels:
         post:
             tags:
@@ -13519,6 +13553,33 @@ components:
                          rule, it may close what listens on the server.
                     format: uint32
             description: FirewallTool is one firewall on a server, and what it does.
+        FleetRollout:
+            type: object
+            properties:
+                noCanary:
+                    type: boolean
+                    description: Leaves out the canary, the one server that goes first on its own.
+                batchSize:
+                    type: integer
+                    description: |-
+                        How many servers each wave after the canary takes. 0 takes a quarter of the
+                         servers, rounded up.
+                    format: uint32
+                pause:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: |-
+                        How long to wait between one wave's end and the next's start. Unset waits
+                         for none.
+                keepGoing:
+                    type: boolean
+                    description: |-
+                        Goes on to the next server after a step fails, in place of stopping the
+                         change there. The change still fails, naming each server that did.
+            description: |-
+                FleetRollout says how a change runs over several servers (ADR 0094). Left unset,
+                 one server goes first on its own, then the rest in waves of a quarter of the
+                 servers each, with no pause, and the first step that fails stops the change.
         GetAuthStateResponse:
             type: object
             properties:
@@ -14037,6 +14098,20 @@ components:
             description: |-
                 HostAccess is something on a server that a resource reaches beyond what
                  Docker keeps for it, such as a server path a container mounts.
+        HostAgentUpgrade:
+            type: object
+            properties:
+                from:
+                    type: string
+                    description: The version its agent runs, and the one it moves to, the control plane's.
+                to:
+                    type: string
+                scriptSha256:
+                    type: string
+                    description: |-
+                        The SHA-256 of the install script the agent runs, in hex: the control
+                         plane's own, which the agent checks before it runs it.
+            description: HostAgentUpgrade is what upgrading a server's agent does (ADR 0094).
         HostListener:
             type: object
             properties:
@@ -17640,9 +17715,42 @@ components:
                     description: |-
                         The server it takes out of the fleet, if it does (ADR 0090). Numbered in
                          the block removal holds, 140 to 149.
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/PlanRollout'
+                    description: |-
+                        How the change runs over its servers, wave by wave, when it was asked to
+                         roll out over several (ADR 0094). The fingerprint covers it.
             description: |-
                 Plan is what applying a change would do: what changes, where, and for
                  how long.
+        PlanAgentUpgradeRequest:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers, by ID. One server is a set of one.
+                selector:
+                    type: string
+                    description: The servers whose labels a selector matches, in place of server_ids.
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/FleetRollout'
+                    description: How the change runs over its servers, when they're more than one.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it upgrades.
+            description: PlanAgentUpgradeRequest names the servers whose agents to upgrade.
+        PlanAgentUpgradeResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: PlanAgentUpgradeResponse carries the planned upgrade.
         PlanInstallUpdatesRequest:
             type: object
             properties:
@@ -17665,6 +17773,17 @@ components:
                         Installs only these packages, by name as GetServerUpdates lists them, such
                          as "openssl", with what they need: the plan lists those too. A name the
                          server's updates don't list is refused. Leave all unset with it.
+                selector:
+                    type: string
+                    description: |-
+                        The servers whose labels a selector matches, such as "pool:web region:eu", in
+                         place of server_ids: resolved once, as it's planned (ADR 0091, ADR 0094).
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/FleetRollout'
+                    description: |-
+                        How the change runs over its servers, when they're more than one: a canary,
+                         waves, a pause between them and whether a failure stops it (ADR 0094).
             description: PlanInstallUpdatesRequest names the servers and which updates to install.
         PlanInstallUpdatesResponse:
             type: object
@@ -17783,6 +17902,17 @@ components:
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it reboots.
+                selector:
+                    type: string
+                    description: |-
+                        The servers whose labels a selector matches, such as "pool:web region:eu", in
+                         place of server_ids: resolved once, as it's planned (ADR 0091, ADR 0094).
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/FleetRollout'
+                    description: |-
+                        How the change runs over its servers, when they're more than one: a canary,
+                         waves, a pause between them and whether a failure stops it (ADR 0094).
             description: PlanRebootRequest names the servers to reboot.
         PlanRebootResponse:
             type: object
@@ -17829,6 +17959,22 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanRemoveServerResponse carries the planned removal.
+        PlanRollout:
+            type: object
+            properties:
+                waves:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/RolloutWave'
+                    description: The waves, in the order they run, each its servers in the order they go.
+                pause:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: How long it waits between one wave's end and the next's start.
+                keepGoing:
+                    type: boolean
+                    description: Whether it goes on past a step that fails.
+            description: PlanRollout is how a planned change runs over its servers (ADR 0094).
         PlanServerLabelsRequest:
             type: object
             properties:
@@ -18179,6 +18325,12 @@ components:
                          keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
                          nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
                          the block connectable apps hold in other messages, 80 to 89.
+                agentUpgrade:
+                    allOf:
+                        - $ref: '#/components/schemas/HostAgentUpgrade'
+                    description: |-
+                        What upgrading its server's agent does, for a step that upgrades it (ADR
+                         0094). Numbered in the block fleet actions hold, 150 to 159.
             description: PlanStep is what applying does to one resource on one server.
         PlanStopPanelRequest:
             type: object
@@ -18258,6 +18410,17 @@ components:
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it does.
+                selector:
+                    type: string
+                    description: |-
+                        The servers whose labels a selector matches, such as "pool:web region:eu", in
+                         place of server_ids: resolved once, as it's planned (ADR 0091, ADR 0094).
+                rollout:
+                    allOf:
+                        - $ref: '#/components/schemas/FleetRollout'
+                    description: |-
+                        How the change runs over its servers, when they're more than one: a canary,
+                         waves, a pause between them and whether a failure stops it (ADR 0094).
             description: |-
                 PlanSystemServiceActionRequest names a system service, what to do to it, and
                  the servers to do it on.
@@ -18349,6 +18512,13 @@ components:
                     description: |-
                         What stopping or starting the panel an import came from does, for a server's
                          host the change does that on (ADR 0089).
+                agentUpgrade:
+                    allOf:
+                        - $ref: '#/components/schemas/HostAgentUpgrade'
+                    description: |-
+                        What upgrading its server's agent does, for a server's host whose agent the
+                         change upgrades (ADR 0094). Numbered in the block fleet actions hold, 150 to
+                         159.
             description: PlannedResource is what a plan does to one resource as a whole.
         PortMapping:
             type: object
@@ -19436,6 +19606,19 @@ components:
                          name. A route's own step comes after its service's, so the new container is held
                          to these, and traffic moves to them with it, not to what the route dials now.
             description: RolloutPlan is how a step replaces a running service, and why.
+        RolloutWave:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                    description: The servers, by ID, and by name for people, in the order they go.
+                serverNames:
+                    type: array
+                    items:
+                        type: string
+            description: RolloutWave is one wave of a rollout.
         Route:
             type: object
             properties:
@@ -22031,6 +22214,12 @@ components:
                          phase is pulling and Docker has said. 0 otherwise.
                 totalBytes:
                     type: string
+                wave:
+                    type: integer
+                    description: |-
+                        The wave its server is in, from 1, for a change that rolls out; 0 otherwise
+                         (ADR 0094).
+                    format: int32
             description: StepProgress is one step of an applying change, and how it is going.
         StepUpChoice:
             type: object

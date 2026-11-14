@@ -984,7 +984,7 @@ func TestAStoppedRestartFinishesOnce(t *testing.T) {
 					t.Errorf("the revisions are %v", got)
 				}
 				// Once more, the same change has nothing left to do.
-				if p2, err := next.plan(t.Context(), p.Change, mustCurrent(t, next, p.Change), false, nil); err != nil || len(p2.Steps()) != 0 {
+				if p2, err := next.plan(t.Context(), p.Change, mustCurrent(t, next, p.Change), false, planWith{}); err != nil || len(p2.Steps()) != 0 {
 					t.Errorf("planned again it has %+v, %v, want no steps", p2, err)
 				}
 			})

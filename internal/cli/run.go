@@ -485,6 +485,12 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	packages := serverUpdates(stdio, logger, dir.Agent())
 	// A server's host installs its updates in a unit of systemd's own (ADR 0064).
 	installs := &updates.Installer{Reader: packages, Units: updates.Systemd{Reader: packages}, Dir: filepath.Join(dir.Agent(), "install")}
+	// It upgrades the agent by the install script a change carries, kept in a folder
+	// of its own that only root reads (ADR 0094).
+	upgrades := &updates.Upgrader{Reader: packages, Dir: filepath.Join(dir.Agent(), "upgrade"), Version: buildinfo.Read().Version}
+	if isSet(stdio.Getenv(envTest)) {
+		upgrades.Unavailable = "This is a test, so Dockwell upgrades no agent here."
+	}
 	// The same reader lists the server's system services and acts on them (ADR 0082).
 	units := serverSystem(stdio)
 	// A firewall unit that loads its own rules can take Dockwell's table with them,
@@ -495,9 +501,10 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			users, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
-			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client}}),
-		Updates:   packages,
-		Collector: collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
+			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client}, Upgrader: upgrades}),
+		Updates:        packages,
+		UpgradesItself: true,
+		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: units,

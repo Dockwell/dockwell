@@ -348,7 +348,7 @@ func plannedBefore(t *testing.T, e *Engine, db *store.DB, summary string, edits 
 		t.Fatal(err)
 	}
 	changeID := "chg_before_" + strings.ReplaceAll(strings.ToLower(summary), " ", "_")
-	plan, err := e.plan(t.Context(), changeID, items, false, nil)
+	plan, err := e.plan(t.Context(), changeID, items, false, planWith{})
 	if err != nil {
 		t.Fatal(err)
 	}

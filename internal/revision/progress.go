@@ -80,6 +80,9 @@ type StepProgress struct {
 	// found nothing newer.
 	Started  time.Time `json:"started,omitzero"`
 	Finished time.Time `json:"finished,omitzero"`
+	// Wave is the wave its server is in, from 1, for a change that rolls out over
+	// several servers; 0 otherwise (ADR 0094).
+	Wave int `json:"wave,omitempty"`
 	// Did is what the step did in the end, once it's done: Action says what was
 	// planned, and a pull finds out as it goes. Nil until then, for a step that
 	// failed, and for one a run that stopped partway had done already.
@@ -528,7 +531,7 @@ func newProgress(plan *Plan, items []item) Progress {
 			st := &sp.Steps[j]
 			p.Steps = append(p.Steps, StepProgress{
 				Server: sp.Server, ResourceID: ids[st.Ref], Ref: st.Ref, Action: st.Action, State: StepQueued,
-				Message: stepMessage(StepQueued, st, sp.Name),
+				Message: stepMessage(StepQueued, st, sp.Name), Wave: plan.Waves.waveOf(sp.Server),
 			})
 		}
 	}
@@ -538,7 +541,7 @@ func newProgress(plan *Plan, items []item) Progress {
 // resumed carries a change's recorded progress over to a fresh plan of
 // what remains: each step still to do is queued again, a step that is no
 // longer needed is done, and a step the first plan didn't have is added.
-func resumed(before Progress, plan *Plan, items []item) Progress {
+func resumed(before Progress, plan *Plan, items []item, now time.Time) Progress {
 	p := before.clone()
 	fresh := newProgress(plan, items)
 	todo := map[int]bool{}
@@ -552,7 +555,8 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 			was := p.Steps[i]
 			p.Steps[i] = *st
 			// A reboot's step waiting for its server keeps when it started and what it
-			// says, so its time is the reboot's once the server is back.
+			// says, so its time is the reboot's once the server is back. So does an
+			// agent's upgrade.
 			if was.State == StepWaiting && !was.Started.IsZero() && reboots(items, st.ResourceID) {
 				p.Steps[i].State, p.Steps[i].Message, p.Steps[i].Started = was.State, was.Message, was.Started
 			}
@@ -563,14 +567,24 @@ func resumed(before Progress, plan *Plan, items []item) Progress {
 		s := &p.Steps[i]
 		if !todo[i] && !s.State.Final() {
 			s.State, s.Message = StepDone, alreadyHasIt
+			// It ended as the run that found it done began: a wave's end, which the
+			// pause after it counts from, is its steps' (ADR 0094).
+			if s.Finished.IsZero() {
+				s.Finished = now
+			}
+			// An agent's upgrade is done once its agent runs the version asked.
+			if j := slices.IndexFunc(items, func(it item) bool { return it.id == s.ResourceID && it.upgrade != nil }); j >= 0 {
+				s.Message = fmt.Sprintf("The agent runs %s now", items[j].upgrade.Version)
+			}
 		}
 	}
 	return p
 }
 
-// reboots reports the item with this ID asks its server's host to reboot.
+// reboots reports the item with this ID asks its server's host to reboot, or to
+// upgrade its agent: a step that waits for the server to connect again.
 func reboots(items []item, id string) bool {
-	return slices.ContainsFunc(items, func(it item) bool { return it.id == id && it.reboot != "" })
+	return slices.ContainsFunc(items, func(it item) bool { return it.id == id && it.waitsForServer() })
 }
 
 // alreadyHasIt ends a step that found the server as it was to leave it.
@@ -645,6 +659,19 @@ func stepMessage(state StepState, st *resource.Step, server string) string {
 			return server + " is restarting; this passes once it's back"
 		case StepDone:
 			return server + " is back after its reboot"
+		case StepFailed, StepSkipped:
+		}
+	}
+	if u := st.AgentUpgrade; u != nil {
+		switch state {
+		case StepQueued:
+			return fmt.Sprintf("Waiting to upgrade the agent on %s to %s", server, u.To)
+		case StepRunning:
+			return fmt.Sprintf("Upgrading the agent on %s to %s", server, u.To)
+		case StepWaiting:
+			return fmt.Sprintf("The agent on %s is upgrading; this passes once it's back at %s", server, u.To)
+		case StepDone:
+			return fmt.Sprintf("The agent on %s runs %s now", server, u.To)
 		case StepFailed, StepSkipped:
 		}
 	}
