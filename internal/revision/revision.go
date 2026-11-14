@@ -4216,36 +4216,26 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	wave := 0
 	deferred := map[string]bool{}
 	var failures []wentOn
-	for qi, q := range queue {
-		if e.isStopping() {
-			return interrupt(qi)
-		}
-		if w := waves.waveOf(q.server); w > wave {
-			// The next wave starts once each server of the waves before is done:
-			// one that still waits, as a reboot does for its server, holds it, and
-			// the server's reconnect resumes the change from here.
-			if slices.ContainsFunc(slices.Collect(maps.Keys(pending)), func(s string) bool { return waves.waveOf(s) < w }) {
-				for _, rest := range queue[qi:] {
-					deferred[rest.server] = true
-				}
-				break
-			}
-			// And once the pause after the wave before has passed, as the steps' record
-			// says when it ended, so a run that resumes, as after the control plane
-			// starts again, keeps the time: the plan numbers the waves, not the run.
-			if ended := waves.endedBefore(w, e.progress(c.ID)); waves.Pause > 0 && !ended.IsZero() {
-				if until := ended.Add(waves.Pause); until.After(e.now()) {
-					_, u := e.step(c.ID, q.index, StepWaiting, fmt.Sprintf("Wave %d starts at %s, after the pause", w, until.Local().Format("15:04")))
-					if e.recordProgress(ctx, c.ID) {
-						e.announce(c.ID, u)
-					}
-					if !e.pauseUntil(ctx, until) {
-						return interrupt(qi)
-					}
-				}
-			}
-			wave = w
-		}
+	// mu is held through each step but its call to the agent: a wave's servers wait on
+	// their agents side by side (ADR 0094), and what the run keeps, its record
+	// included, changes one step at a time, in the order the steps end.
+	var mu sync.Mutex
+	type outcome int
+	const (
+		goOn        outcome = iota // the step ended, or waits, and the run goes on
+		stopHere                   // the step failed, and the change stops there
+		interrupted                // the engine is stopping
+	)
+	type result struct {
+		outcome   outcome
+		err       error
+		untouched bool
+	}
+	stopped := func(err error, untouched bool) result {
+		return result{outcome: stopHere, err: err, untouched: untouched}
+	}
+	// runOne carries out one step, with mu held.
+	runOne := func(qi int, q queued) result {
 		it := byRef[q.step.Ref]
 		// A reboot or an agent's upgrade asked already, which a resume plans again
 		// while the server is still up, takes the server away: going is what it was
@@ -4256,7 +4246,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		if !online || agent == nil || !planned[q.server] {
 			if asked && !IsRollback(c) {
 				wait(q, "")
-				continue
+				return result{}
 			}
 			if IsRollback(c) {
 				var couldntPlan string
@@ -4264,10 +4254,10 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 					couldntPlan = unplanned[q.server]
 				}
 				wait(q, couldntPlan)
-				continue
+				return result{}
 			}
 			if e.isStopping() {
-				return interrupt(qi)
+				return result{outcome: interrupted, err: interrupt(qi)}
 			}
 			gone := fault.New(ErrOffline, "%s lost its connection before this step, so the step didn't run. Try again once its agent reconnects", q.name)
 			if waves != nil && waves.KeepGoing {
@@ -4275,18 +4265,18 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				// away too, and fails once each has had its turn (ADR 0094).
 				_, _, _ = failed(qi, gone, true)
 				failures = append(failures, wentOn{index: q.index, err: gone})
-				continue
+				return result{}
 			}
-			return stop(qi, gone, false)
+			return stopped(gone, false)
 		}
 		// A step that backs up or restores one database alone needs an agent that does:
 		// one from before, as one downgraded since the plan, takes the whole volume, and
 		// a restore of that empties it for one app's database (ADR 0084).
 		if (q.step.BackupFirst != nil && q.step.BackupFirst.One != "" || q.step.Restore != nil && q.step.Restore.OneDatabase != "") && !takesOne(agent) {
-			return stop(qi, fault.New(ErrInvalid, "the agent on %s backs up and restores a whole volume, not one database alone, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
+			return stopped(fault.New(ErrInvalid, "the agent on %s backs up and restores a whole volume, not one database alone, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
 		}
 		if q.step.VolumeMove != nil && !movesVolumes(agent) {
-			return stop(qi, fault.New(ErrInvalid, "the agent on %s can't move a volume's data into another, and would make the new one empty, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
+			return stopped(fault.New(ErrInvalid, "the agent on %s can't move a volume's data into another, and would make the new one empty, so this step didn't run, nor anything after it. Update the agent to the control plane's version, then try again", q.name), true)
 		}
 		// A reboot's step finishing on the server's new boot keeps when it started,
 		// so its time is the reboot's, from the call until the server was back. So does
@@ -4327,7 +4317,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			ask, err := e.upgradeAsk(*it.upgrade)
 			if err != nil {
 				called()
-				return stop(qi, err, true)
+				return stopped(err, true)
 			}
 			callCtx = resource.WithAgentUpgrade(callCtx, ask)
 		}
@@ -4338,7 +4328,10 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			// A deletion's backup reads the volume as it is.
 			desired = it.current
 		}
+		// The call to its agent is what a wave's servers wait on side by side.
+		mu.Unlock()
 		err := agent.Apply(callCtx, *q.step, desired)
+		mu.Lock()
 		called()
 		if q.step.Unit != nil && e.onUnit != nil {
 			// However it went, the unit stands somewhere new: whoever watches its
@@ -4348,7 +4341,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		switch {
 		case err == nil:
 		case e.stoppedBy(err):
-			return interrupt(qi)
+			return result{outcome: interrupted, err: interrupt(qi)}
 		case (IsRollback(c) || it.noRevision()) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
 			// The agent went away: the call never reached it, or it may
 			// have run. Either way a rollback waits for the server, as for
@@ -4358,20 +4351,20 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			// agent was doing when it went, and its token means it can't
 			// happen twice.
 			wait(q, "")
-			continue
+			return result{}
 		case (IsRollback(c) || it.restart != "") && errors.Is(err, resource.ErrUnfinished):
 			// The agent didn't run it, as the step this follows is still going
 			// there, and it says when that ends.
 			wait(q, couldntPlan(err))
-			continue
+			return result{}
 		case waves != nil && waves.KeepGoing:
 			// It goes on to the next server, and fails once each has had its turn.
 			// The step's failure is on its record; the change's is said once each server had its turn.
 			_, _, _ = failed(qi, err, told.Untouched)
 			failures = append(failures, wentOn{index: q.index, err: err})
-			continue
+			return result{}
 		default:
-			return stop(qi, err, told.Untouched)
+			return stopped(err, told.Untouched)
 		}
 		if it.waitsForServer() && !finishingReboot {
 			// The server goes down once the agent's answer is on its way: the step
@@ -4380,7 +4373,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			pending[q.server] = q.name
 			_, u := e.step(c.ID, q.index, StepWaiting, stepMessage(StepWaiting, q.step, q.name))
 			waits = append(waits, u)
-			continue
+			return result{}
 		}
 		if len(taken) > 0 && e.onBackup != nil {
 			// A move's dump is a backup of the volume the data was on.
@@ -4406,7 +4399,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			}
 			for _, id := range slices.Sorted(maps.Keys(want)) {
 				if !slices.ContainsFunc(taken, func(b resource.BackupTaken) bool { return b.ID == id && b.One == want[id] }) {
-					return stop(qi, fault.New(ErrInvalid, "the agent on %s backed up %s without saying it dumped %s alone, so it isn't kept as the app's, and nothing else in this change ran. Update the agent to the control plane's version, then try again",
+					return stopped(fault.New(ErrInvalid, "the agent on %s backed up %s without saying it dumped %s alone, so it isn't kept as the app's, and nothing else in this change ran. Update the agent to the control plane's version, then try again",
 						q.name, it.ref.Name, want[id]), false)
 				}
 			}
@@ -4419,13 +4412,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		if q.step.VolumeMove != nil && it.moveFrom.Kind == volumeKind {
 			if from := byRef[it.moveFrom]; from != nil {
 				if err := e.refile(ctx, store.Refile{Server: q.server, FromVolume: from.id, ToVolume: it.id, ToEnvironment: it.ref.Scope}); err != nil {
-					return stop(qi, fault.New(ErrInvalid, "moved the data of %s into %s, but can't file its backups under it, so the change stopped: %v. Try again", it.moveFrom.Name, it.ref.Name, err), false)
+					return stopped(fault.New(ErrInvalid, "moved the data of %s into %s, but can't file its backups under it, so the change stopped: %v. Try again", it.moveFrom.Name, it.ref.Name, err), false)
 				}
 			}
 		}
 		if q.backupOnly {
 			// The deletion it comes before finishes the step.
-			continue
+			return result{}
 		}
 		did := q.step.Action
 		if told.Did != nil {
@@ -4441,6 +4434,146 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			e.announce(c.ID, u)
 		}
 		done[at{q.server, it.ref}] = true
+		return result{}
+	}
+	// sideBySide runs a wave's steps, from and up to to in the queue, each server's in
+	// its order and the servers side by side, with mu held as it starts and ends. A
+	// step that fails, with the change not going on past one, lets the steps under
+	// way end and starts no other: those are skipped, as every step after it is.
+	sideBySide := func(from, to int) error {
+		var servers []string
+		byServer := map[string][]int{}
+		for i := from; i < to; i++ {
+			s := queue[i].server
+			if _, ok := byServer[s]; !ok {
+				servers = append(servers, s)
+			}
+			byServer[s] = append(byServer[s], i)
+		}
+		started := map[int]bool{}
+		var first *struct {
+			qi            int
+			err           error
+			plain, detail string
+		}
+		var stopping error
+		var wg sync.WaitGroup
+		mu.Unlock()
+		for _, s := range servers {
+			wg.Go(func() {
+				for _, qi := range byServer[s] {
+					mu.Lock()
+					if first != nil || stopping != nil {
+						mu.Unlock()
+						return
+					}
+					if e.isStopping() {
+						stopping = interrupt(qi)
+						mu.Unlock()
+						return
+					}
+					started[qi] = true
+					r := runOne(qi, queue[qi])
+					switch r.outcome {
+					case stopHere:
+						plain, detail, err := failed(qi, r.err, r.untouched)
+						if first == nil {
+							first = &struct {
+								qi            int
+								err           error
+								plain, detail string
+							}{qi, err, plain, detail}
+						}
+					case interrupted:
+						if stopping == nil {
+							stopping = r.err
+						}
+					case goOn:
+					}
+					mu.Unlock()
+					if r.outcome != goOn {
+						return
+					}
+				}
+			})
+		}
+		wg.Wait()
+		mu.Lock()
+		if stopping != nil {
+			return stopping
+		}
+		if first == nil {
+			return nil
+		}
+		for i := from; i < len(queue); i++ {
+			if !started[i] {
+				e.step(c.ID, queue[i].index, StepSkipped, stepMessage(StepSkipped, queue[i].step, queue[i].name))
+			}
+		}
+		q := queue[first.qi]
+		plain := first.plain
+		if first.detail != "" && len(plan.Servers) > 1 {
+			plain = q.name + ": " + plain
+		}
+		return e.fail(ctx, c, q.step.Ref, first.err, plain)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for qi := 0; qi < len(queue); {
+		q := queue[qi]
+		if e.isStopping() {
+			return interrupt(qi)
+		}
+		if w := waves.waveOf(q.server); w > wave {
+			// The next wave starts once each server of the waves before is done:
+			// one that still waits, as a reboot does for its server, holds it, and
+			// the server's reconnect resumes the change from here.
+			if slices.ContainsFunc(slices.Collect(maps.Keys(pending)), func(s string) bool { return waves.waveOf(s) < w }) {
+				for _, rest := range queue[qi:] {
+					deferred[rest.server] = true
+				}
+				break
+			}
+			// And once the pause after the wave before has passed, as the steps' record
+			// says when it ended, so a run that resumes, as after the control plane
+			// starts again, keeps the time: the plan numbers the waves, not the run.
+			if ended := waves.endedBefore(w, e.progress(c.ID)); waves.Pause > 0 && !ended.IsZero() {
+				if until := ended.Add(waves.Pause); until.After(e.now()) {
+					_, u := e.step(c.ID, q.index, StepWaiting, fmt.Sprintf("Wave %d starts at %s, after the pause", w, until.Local().Format("15:04")))
+					if e.recordProgress(ctx, c.ID) {
+						e.announce(c.ID, u)
+					}
+					if !e.pauseUntil(ctx, until) {
+						return interrupt(qi)
+					}
+				}
+			}
+			wave = w
+		}
+		// A wave's servers go side by side; any other step goes on its own.
+		end := qi + 1
+		for wave > 0 && end < len(queue) && waves.waveOf(queue[end].server) == wave {
+			end++
+		}
+		if end-qi > 1 && slices.ContainsFunc(queue[qi+1:end], func(o queued) bool { return o.server != q.server }) {
+			if err := sideBySide(qi, end); err != nil {
+				return err
+			}
+			qi = end
+			continue
+		}
+		for ; qi < end; qi++ {
+			switch r := runOne(qi, queue[qi]); r.outcome {
+			case stopHere:
+				return stop(qi, r.err, r.untouched)
+			case interrupted:
+				return r.err
+			case goOn:
+			}
+			if qi+1 < end && e.isStopping() {
+				return interrupt(qi + 1)
+			}
+		}
 	}
 	// Where a revision needed no step, the server already has it. So does one a
 	// pull found nothing newer on, where another server's pull made a revision

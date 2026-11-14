@@ -2554,11 +2554,11 @@ function Effects({
     });
   }
   if (fleet && plan?.rollout) {
-    // A rollout's servers go one after another, wave by wave (ADR 0094).
+    // A rollout goes wave by wave, a wave's servers side by side (ADR 0094).
     rows.push({
       key: "how",
       icon: "layers",
-      title: <Trans>Servers go one at a time, wave by wave, each wave once the one before has passed.</Trans>,
+      title: <Trans>A wave's servers go side by side, and each wave once the one before has passed.</Trans>,
     });
   } else if (fleet) {
     rows.push({

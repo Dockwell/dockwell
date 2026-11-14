@@ -18,7 +18,7 @@ import (
 // Waves is how a change runs over its servers, wave by wave (ADR 0094): each wave
 // starts once every step of the one before has passed and the pause after it is
 // over, and a step that fails stops the change there unless KeepGoing. Within a
-// wave, servers go one after another, as every change's steps do.
+// wave, servers go side by side, each server's own steps in their order.
 type Waves struct {
 	// Order is each wave's servers, by ID, in the order they go.
 	Order [][]string `json:",omitempty"`

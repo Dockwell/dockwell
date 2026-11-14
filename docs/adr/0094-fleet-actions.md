@@ -39,7 +39,10 @@ What exists already:
   - While it pauses, the change is applying and says until when. A timer resumes it, and a control plane that restarts mid-pause resumes it at the time recorded.
   - The pause counts from the latest end of any wave before, by the plan's numbering of the waves and the steps' record, never the run's: a run that resumes partway, as after a restart or a server that came back, keeps it, and so does a wave a resume finds done after a later one. A step a resume finds done ends then.
   - A resume runs only the steps left in the reviewed waves: none that ended, and none on a server that took no step when the plan was reviewed, though it would now.
-  - Within a wave, servers go one after another in this decision's first slice, as every change's steps go today. The second slice runs a wave's servers side by side, up to its batch, each server's own steps still in order. That's the engine's one real change: the queue runs one step at a time now, and a host step that waits (a reboot, an upgrade) suspends the run.
+  - Within a wave, servers go side by side, each server's own steps still in order. The first slice ran them one after another, as every change's steps go; the second made that the engine's one real change.
+  - Only the call to each server's agent runs side by side. What the run keeps, its record included, still changes one step at a time, in the order the steps end, so a record never goes back to an older one.
+  - A step that fails, with `keep_going` off, lets the steps under way beside it end, and starts no other: every step not yet started is skipped, the next waves' with them. With `keep_going` on, each server of the wave has its turn.
+  - A host step that waits (a reboot, an upgrade) holds the next wave until its server is back, as before.
 - **On a failure with `keep_going` off,** the change fails with the step that failed, and every step after it is skipped. What passed stays: an install or an upgrade can't be undone, and a unit action can (ADR 0082). The change's page says which servers passed, which failed and which weren't touched.
 - **With `keep_going` on,** a failed step is recorded and the next server goes on. The change still ends failed, listing every server that failed.
   - It counts every failure on the change's record, from every run of it, as a resume runs only what's left.
@@ -96,5 +99,5 @@ What exists already:
 ## Consequences
 
 - Every host action already planned for one server (an install, a reboot, a unit action) takes a set and a rollout, and the CLI's `--selector` comes with each.
-- The engine learns waves, which the second slice extends to a wave's servers running side by side. That step makes the queue concurrent, and gets its own review.
+- The engine learns waves, and runs a wave's servers side by side. A change without a rollout runs as before, one step at a time.
 - Stopping on unhealthy apps or an error rate, draining before a reboot, upgrading Docker, rotating SSH keys and running a command are left for later. Each is an action or a stop condition on this rollout.

@@ -451,7 +451,11 @@ function Actions({
       sub: t`Restart, reload, start or stop one service on each server`,
     },
     { kind: "upgrade", title: t`Upgrade the agent`, sub: upgradeSub, disabled: !release },
-    { kind: "reboot", title: t`Reboot servers`, sub: t`Each passes once its server is back, before the next goes` },
+    {
+      kind: "reboot",
+      title: t`Reboot servers`,
+      sub: t`Each wave's servers reboot together, and the next wave goes once they're back`,
+    },
   ];
   return (
     <fieldset className="fleet-actions-cards">
