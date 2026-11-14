@@ -58,7 +58,7 @@ func (h *Handler) MoveService(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.changes.Error(ctx, err)
 	}
 	res := &dockwellv1.MoveServiceResponse{
-		Moves: refs(report.Moves), Copies: refs(report.Copies), Follows: refs(report.Follows),
+		Moves: refs(report.Moves), Copies: refs(report.Copies), Follows: refs(report.Follows), Crosses: refs(report.Crosses),
 	}
 	for _, b := range report.Blocks {
 		res.Blocks = append(res.Blocks, &dockwellv1.MoveBlock{Resource: resourcepb.Ref(b.Ref), Why: b.Why, MoveToo: b.MoveToo})
@@ -77,6 +77,13 @@ func (h *Handler) MoveService(ctx context.Context, req *connect.Request[dockwell
 		notes = append(notes, revision.Note{
 			Reason: "move_copies", Ref: resource.Ref{Kind: "service", Scope: r.Scope, Name: r.Name}, Names: names, Named: true,
 			Message: copiesWords(names, r.Name),
+		})
+	}
+	// A database it reads that stays, it reaches where it is, which the plan says.
+	for _, l := range report.Crosses {
+		notes = append(notes, revision.Note{
+			Reason: "move_crosses", Ref: l, Names: []string{l.Name}, Named: true,
+			Message: fmt.Sprintf("%s reaches its database where it stays, through its link %s, as the user it has there", r.Name, l.Name),
 		})
 	}
 	res.Change, err = h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {

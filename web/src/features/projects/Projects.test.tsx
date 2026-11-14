@@ -242,11 +242,25 @@ describe("a project's page", () => {
     await user.click(within(danger).getByRole("button", { name: "Delete the project" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.edits[0]?.deleteShared).toBe(false);
+    expect(proposals[0]?.edits[0]?.keepSharedIn).toBe("");
+    // Where it goes is a pick among the other projects' environments, which plans again.
+    const where = await within(sheet).findByRole("combobox", { name: "Where it goes" });
+    expect(
+      within(where)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Projects of their own", "default", "old-shop"]);
+    await user.selectOptions(where, "old-shop");
+    await waitFor(() => expect(proposals).toHaveLength(2));
+    expect(proposals[1]?.edits[0]?.keepSharedIn).toBe("env_old");
+    expect(await within(sheet).findByText("It moves to old-shop")).toBeInTheDocument();
     const anyway = await within(sheet).findByRole("switch", { name: /Also delete what other apps use/ });
     expect(anyway).not.toBeChecked();
     await user.click(anyway);
-    await waitFor(() => expect(proposals).toHaveLength(2));
-    expect(proposals[1]?.edits[0]?.deleteShared).toBe(true);
+    await waitFor(() => expect(proposals).toHaveLength(3));
+    expect(proposals[2]?.edits[0]?.deleteShared).toBe(true);
+    expect(proposals[2]?.edits[0]?.keepSharedIn).toBe("");
+    expect(within(sheet).queryByRole("combobox", { name: "Where it goes" })).toBeNull();
     expect(await within(sheet).findByText(/to apply it/)).toHaveTextContent("Type blog to apply it");
   });
 

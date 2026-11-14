@@ -51,6 +51,8 @@ export async function planDeletingProject(
   summary: string,
   /** Deletes what other projects' apps use too, which the server otherwise moves out to keep them working (ADR 0084). */
   deleteShared = false,
+  /** Where what other projects' apps use goes, an environment's ID, or "" for projects of their own. */
+  keepSharedIn = "",
 ) {
   return createClient(ChangeService, transport).proposeChange({
     summary,
@@ -60,6 +62,7 @@ export async function planDeletingProject(
         delete: true,
         withContents: true,
         deleteShared,
+        keepSharedIn,
       },
     ],
   });

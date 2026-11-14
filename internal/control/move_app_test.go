@@ -175,9 +175,9 @@ func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
 			appEnv = r.GetResource().GetScope()
 		}
 	}
-	deleteData := func(anyway bool) (*dockwellv1.Change, error) {
+	deleteData := func(anyway bool, keepIn string) (*dockwellv1.Change, error) {
 		res, err := ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete data", Edits: []*dockwellv1.Edit{{
-			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "data"}, Delete: true, WithContents: true, DeleteShared: anyway,
+			Resource: &dockwellv1.ResourceRef{Kind: "project", Name: "data"}, Delete: true, WithContents: true, DeleteShared: anyway, KeepSharedIn: keepIn,
 		}}}))
 		if err != nil {
 			return nil, err
@@ -186,7 +186,7 @@ func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
 	}
 
 	// Deleting it anyway plans the server's deletion, which the blog then lacks.
-	anyway, err := deleteData(true)
+	anyway, err := deleteData(true, "")
 	if err != nil {
 		t.Fatalf("deleting it anyway = %v", err)
 	}
@@ -201,7 +201,28 @@ func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	kept, err := deleteData(false)
+	// Where the server goes may be picked, as the panel's picker does, by an
+	// environment's ID; never the project being deleted.
+	if _, err := deleteData(false, "data"); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Errorf("keeping the server in the project deleted = %v, want it refused", err)
+	}
+	picked, err := deleteData(false, appEnv)
+	if err != nil {
+		t.Fatalf("keeping the server with the blog = %v", err)
+	}
+	with := false
+	for _, r := range picked.GetPlan().GetResources() {
+		ref := r.GetResource()
+		with = with || ref.GetKind() == "service" && ref.GetName() == "db" && ref.GetScope() == appEnv && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE
+	}
+	if !with {
+		t.Errorf("the server doesn't go with the blog: %v", picked.GetPlan().GetResources())
+	}
+	if _, err := ch.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: picked.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+
+	kept, err := deleteData(false, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,5 +290,124 @@ func TestDeletingAProjectThatSharesKeepsWhatOthersUse(t *testing.T) {
 	}
 	if c := e.Newest(docker.Project(to), "db"); c != nil {
 		t.Error("the server still runs")
+	}
+}
+
+const crossingStack = `
+services:
+  web:
+    image: ghcr.io/acme/shop:1.4
+    networks: [front]
+  reporter:
+    image: ghcr.io/acme/worker:1.0
+    networks: [side]
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes: [db-data:/var/lib/postgresql/data]
+    networks: [back]
+volumes:
+  db-data: {}
+networks:
+  front: {}
+  side: {}
+  back: {}
+`
+
+// An app that reads a database beside it, through a link of its environment, as the
+// user it has there, moves on its own where another app reads that database too: the
+// database stays, and the moved app reaches it where it is, on a link network of its
+// own where it answers to its own name, reading its user's password from there, as a
+// share across projects has it (ADR 0084, #572).
+func TestMovingAnAppLeavesItsSharedDatabaseLinked(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	e := f.addDockerServer(t)
+	pg := &pgState{roles: map[string]string{"postgres": ""}, databases: map[string]string{"postgres": "postgres"}}
+	e.Registry["postgres:17"] = pg.image()
+	ch := changeClient(b, b.origin)
+	compose := dockwellv1connect.NewComposeServiceClient(b, b.origin, connect.WithProtoJSON())
+	imported, err := compose.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Project: "shop", Compose: crossingStack, Variables: map[string]string{"DB_PASSWORD": "the-administrators"}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, ch, imported.Msg.GetChange())
+	var env string
+	for _, r := range imported.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" {
+			env = r.GetResource().GetScope()
+		}
+	}
+	ref := func(kind, name string) *dockwellv1.ResourceRef {
+		return &dockwellv1.ResourceRef{Kind: kind, Scope: env, Name: name}
+	}
+	link := func(name, host string, sets ...*resourcev1.LinkSet) *dockwellv1.Edit {
+		return &dockwellv1.Edit{Resource: ref("link", name), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: &resourcev1.Link{
+			Label: "Database", Service: "db", Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL, User: host,
+			Accepts: []*resourcev1.LinkAccept{{Engine: resourcev1.LinkEngine_LINK_ENGINE_POSTGRESQL}}, Sets: sets,
+		}}}}
+	}
+	service := func(name, image string, networks []string, variables, secrets map[string]string) *dockwellv1.Edit {
+		return &dockwellv1.Edit{Resource: ref("service", name), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+			Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: image, Networks: networks}}, Variables: variables, Secrets: secrets,
+		}}}}
+	}
+	apply(t, ch, propose(t, ch, "Link web and the reporter to db",
+		&dockwellv1.Edit{Resource: ref("secret", "WEB_PASSWORD"), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Secret{Secret: &resourcev1.Secret{Value: "a-password-for-web"}}}},
+		&dockwellv1.Edit{Resource: ref("database.user", "web"), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_DatabaseUser{DatabaseUser: &resourcev1.DatabaseUser{Service: "db", Password: "WEB_PASSWORD"}}}},
+		&dockwellv1.Edit{Resource: ref("variable", "DB_HOST"), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "db"}}}},
+		&dockwellv1.Edit{Resource: ref("variable", "REPORT_HOST"), Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Variable{Variable: &resourcev1.Variable{Value: "db"}}}},
+		link("db", "web", &resourcev1.LinkSet{Name: "DB_HOST", Part: resourcev1.LinkPart_LINK_PART_HOST}, &resourcev1.LinkSet{Name: "WEB_PASSWORD", Part: resourcev1.LinkPart_LINK_PART_PASSWORD}),
+		link("reports", "", &resourcev1.LinkSet{Name: "REPORT_HOST", Part: resourcev1.LinkPart_LINK_PART_HOST}),
+		service("web", "ghcr.io/acme/shop:1.4", []string{"front"}, map[string]string{"DB_HOST": ""}, map[string]string{"WEB_PASSWORD": ""}),
+		service("reporter", "ghcr.io/acme/worker:1.0", []string{"side"}, map[string]string{"REPORT_HOST": ""}, nil),
+	))
+
+	svc := dockwellv1connect.NewServiceServiceClient(b, b.origin, connect.WithProtoJSON())
+	res, err := svc.MoveService(t.Context(), connect.NewRequest(&dockwellv1.MoveServiceRequest{Id: "web", Project: "shop", NewProject: "web"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := res.Msg
+	if len(m.GetBlocks()) != 0 || len(m.GetCrosses()) != 1 || m.GetCrosses()[0].GetName() != "db" || m.GetChange() == nil {
+		t.Fatalf("the move reads blocks %v, crosses %v", m.GetBlocks(), m.GetCrosses())
+	}
+	for _, r := range m.GetMoves() {
+		if r.GetName() == "db" && r.GetKind() == "service" || r.GetKind() == "database.user" {
+			t.Errorf("the move takes %v, which stays", r)
+		}
+	}
+	if crosses := notesOf(m.GetChange(), "move_crosses"); len(crosses) != 1 {
+		t.Errorf("the plan says %v", m.GetChange().GetPlan().GetNotes())
+	}
+	applyReviewed(t, ch, m.GetChange())
+	var to string
+	for _, r := range m.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "service" && r.GetAction() == dockwellv1.PlanAction_PLAN_ACTION_CREATE {
+			to = r.GetResource().GetScope()
+		}
+	}
+	web := e.Newest(docker.Project(to), "web")
+	if web == nil {
+		t.Fatalf("web doesn't run where it went: %v", e.Containers())
+	}
+	read := map[string]string{}
+	for _, kv := range web.Config.Env {
+		k, v, _ := strings.Cut(kv, "=")
+		read[k] = v
+	}
+	if read["DB_HOST"] != "db" || read["WEB_PASSWORD"] != "a-password-for-web" {
+		t.Errorf("web reads %v", read)
+	}
+	linkNet := docker.ScopedName(docker.Project(to), "db-link")
+	if _, ok := web.NetworkSettings.Networks[linkNet]; !ok {
+		t.Errorf("web isn't on its link network: %v", web.NetworkSettings.Networks)
+	}
+	if db := e.Newest(docker.Project(env), "db"); db == nil || db.NetworkSettings.Networks[linkNet] == nil || !slices.Contains(db.NetworkSettings.Networks[linkNet].Aliases, "db") {
+		t.Errorf("db isn't on web's link network as db: %v", db)
+	}
+	if reporter := e.Newest(docker.Project(env), "reporter"); reporter == nil {
+		t.Error("the reporter left")
 	}
 }
