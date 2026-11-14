@@ -23,10 +23,10 @@ jobs:
   go:
     name: Go
     runs-on: ubuntu-24.04
-    # It takes about 27 minutes under the race detector on 2026-11-11 (internal/control alone up to 17), and grows
-    # with each feature, so this leaves room for a slow runner rather than failing at random. A hang still ends it.
-    # #197 is to bring it down, and #507 to lower these limits again after.
-    timeout-minutes: 45
+    # It took 37 to 45 minutes on main on 2026-11-13 (27 on 2026-11-11), and grows with each feature, so this
+    # leaves room for a slow runner rather than failing at random after every test has passed. A hang still ends it.
+    # #197 is to bring it down, and the limit goes back down after.
+    timeout-minutes: 60
     # The store's tests run on SQLite and on this Postgres (ADR 0014).
     services:
       postgres:
