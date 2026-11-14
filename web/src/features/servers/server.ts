@@ -104,7 +104,8 @@ export interface FleetView {
   /**
    * How many servers are in each state. Unknown counts what is in none of the others.
    * Docker counts the connected ones whose agent can't read Docker, and strained
-   * the connected ones short of memory or CPU, as the control plane says.
+   * the other connected ones short of memory or CPU, as the control plane says,
+   * so a server is counted once, for the reason its row gives.
    */
   counts: { connected: number; down: number; waiting: number; unknown: number; docker: number; strained: number };
 }
@@ -116,8 +117,9 @@ export function fleetView(state: FleetState, prev?: FleetView): FleetView {
   for (const server of servers ?? []) {
     if (server.connection === Connection.CONNECTED) {
       counts.connected++;
+      // One reason each, as the server rows give it: Docker first, then strain.
       if (server.dockerUnreadableSince !== undefined) counts.docker++;
-      if (server.strained) counts.strained++;
+      else if (server.strained) counts.strained++;
     } else if (server.connection === Connection.UNREACHABLE) counts.down++;
     else if (server.connection === Connection.PENDING) counts.waiting++;
     else counts.unknown++;
