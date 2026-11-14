@@ -33,8 +33,6 @@ func goodClaims() map[string]any { return oidctest.GoodClaims() }
 
 func newSigner(t *testing.T, alg, kid string) oidctest.Signer { return oidctest.NewSigner(t, alg, kid) }
 
-func token(s oidctest.Signer, claims map[string]any) string { return s.Token(claims) }
-
 // stand is a Server for one route at the fake provider, letting in example.com.
 func stand(t *testing.T, p *fakeProvider) (*Server, *Route) {
 	t.Helper()

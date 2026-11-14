@@ -15,6 +15,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
+import { authState } from "../../test/auth";
 import { feed, renderAt } from "../../test/render";
 import { freeProviderName, issuerHost, mailboxDomain, publicIssuer, scopesOf } from "./providers";
 
@@ -196,6 +197,50 @@ describe("Sign-in providers", () => {
       displayName: "Our Authentik",
       scopes: ["groups", "offline_access"],
     });
+  });
+});
+
+describe("Signing in to Dockwell with a provider (ADR 0095)", () => {
+  it("turns it on with the address to register, only once the panel has a domain", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    const api = (domain: string) => ({
+      ...base,
+      auth: { getAuthState: () => authState({ domain, rpId: domain || "localhost" }) },
+      domains: {
+        listSigninProviders: () => ({ providers: [authentik] }),
+        checkSigninProvider: () => ({
+          state: SigninProviderState.FOUND,
+          issuer: authentik.issuer,
+          host: "auth.example.com",
+          algorithms: ["ES256"],
+        }),
+      },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const manage = async () => {
+      const card = await screen.findByRole("article", { name: "Our Authentik" });
+      await user.click(within(card).getByRole("button", { name: "Manage" }));
+      return screen.findByRole("dialog", { name: "Sign-in provider Our Authentik" });
+    };
+    const { unmount } = renderAt("/settings/integrations", api(""));
+    let sheet = await manage();
+    expect(within(sheet).getByRole("switch", { name: /People sign in to Dockwell with it/ })).toBeDisabled();
+    expect(within(sheet).getByRole("link", { name: "Give the panel a domain" })).toHaveAttribute(
+      "href",
+      "/settings/general",
+    );
+    unmount();
+    renderAt("/settings/integrations", api("panel.example.com"));
+    sheet = await manage();
+    await user.click(within(sheet).getByRole("switch", { name: /People sign in to Dockwell with it/ }));
+    expect(sheet).toHaveTextContent("https://panel.example.com/auth/provider/callback");
+    expect(within(sheet).getByRole("button", { name: "Copy Dockwell's redirect address" })).toBeEnabled();
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    await waitFor(() => expect(review).toBeEnabled(), { timeout: 3000 });
+    await user.click(review);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({ panel: true });
   });
 });
 

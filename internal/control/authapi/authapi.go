@@ -108,8 +108,8 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
-	for _, p := range providers {
-		msg.Providers = append(msg.Providers, &dockwellv1.SignInProvider{Id: p.ID, DisplayName: p.Label()})
+	for i := range providers {
+		msg.Providers = append(msg.Providers, &dockwellv1.SignInProvider{Id: providers[i].ID, DisplayName: providers[i].Label()})
 	}
 	res := connect.NewResponse(msg)
 	if p, ok := PrincipalFrom(ctx); ok {
@@ -552,7 +552,8 @@ func (h *Handler) ListProviderLinks(ctx context.Context, _ *connect.Request[dock
 		return nil, h.rpcError(ctx, err)
 	}
 	out := &dockwellv1.ListProviderLinksResponse{}
-	for _, l := range links {
+	for i := range links {
+		l := &links[i]
 		link := &dockwellv1.ProviderLink{
 			Id: l.ID, ProviderId: l.ProviderID, ProviderName: l.Provider, Account: l.Account,
 			CreateTime: timestamppb.New(l.CreatedAt), State: linkStateProto(l.State),

@@ -14,13 +14,16 @@ AuditService.ListAuditEvents                   read         admin      admin    
 AuthService.BeginAcceptInvite                  read         nothing    nothing    anyone
 AuthService.BeginAddPasskey                    read         viewer     viewer     self
 AuthService.BeginClaim                         read         nothing    nothing    anyone
+AuthService.BeginLinkProvider                  apply        viewer     viewer     self
 AuthService.BeginPasskeySignIn                 read         nothing    nothing    anyone
+AuthService.BeginProviderSignIn                read         nothing    nothing    anyone
 AuthService.BeginStepUp                        read         viewer     viewer     self
 AuthService.BeginTotpSetup                     apply        viewer     viewer     self
 AuthService.CancelTotpSetup                    apply        viewer     viewer     self
 AuthService.CheckClaim                         read         nothing    nothing    anyone
 AuthService.CheckInvite                        read         nothing    nothing    anyone
 AuthService.ConfirmTotpSetup                   apply        viewer     viewer     self
+AuthService.DeleteProviderLink                 destructive  viewer     viewer     self
 AuthService.DisableTotp                        destructive  viewer     viewer     self
 AuthService.FinishAcceptInvite                 apply        nothing    nothing    anyone
 AuthService.FinishAddPasskey                   apply        viewer     viewer     self
@@ -31,6 +34,7 @@ AuthService.GetAuthState                       read         nothing    nothing  
 AuthService.GetStepUpPolicy                    read         viewer     viewer     self
 AuthService.GetTotp                            read         viewer     viewer     self
 AuthService.ListPasskeys                       read         viewer     viewer     self
+AuthService.ListProviderLinks                  read         viewer     viewer     self
 AuthService.ListSessions                       read         viewer     viewer     self
 AuthService.RegenerateRecoveryCodes            destructive  viewer     viewer     self
 AuthService.RemovePasskey                      destructive  viewer     viewer     self

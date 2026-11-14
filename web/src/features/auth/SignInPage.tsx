@@ -2,7 +2,7 @@
 
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { AuthService, SystemService } from "@dockwell/api";
+import { AuthService, type SignInProvider, SystemService } from "@dockwell/api";
 import { Button, Callout, Logo, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
@@ -52,6 +52,7 @@ export function SignInPage({ next }: { next?: string }) {
               name={name}
               finish={finish}
               onDomain={Boolean(auth.data?.domain) && auth.data?.rpId === auth.data?.domain}
+              providers={auth.data?.providers ?? []}
               onUseCode={() => setMode("code")}
             />
           ) : (
@@ -141,16 +142,32 @@ interface PasskeySignInProps {
   finish: FinishSignIn;
   /** True on the panel's domain, where passkeys made through the tunnel don't work. */
   onDomain: boolean;
+  /** The sign-in providers that sign people in here, on the panel's domain (ADR 0095). */
+  providers: readonly SignInProvider[];
   onUseCode: () => void;
 }
 
-function PasskeySignIn({ name, finish, onDomain, onUseCode }: PasskeySignInProps) {
+function PasskeySignIn({ name, finish, onDomain, providers, onUseCode }: PasskeySignInProps) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
-  const [busy, setBusy] = useState<PasskeyHint | undefined>();
+  const [busy, setBusy] = useState<PasskeyHint | `provider:${string}` | undefined>();
   const [problem, setProblem] = useState<unknown>();
   const canUsePasskeys = passkeysAvailable();
+
+  // A provider's sign-in goes there and comes back to the panel signed in, through the
+  // cookie the call sets.
+  const withProvider = async (provider: string) => {
+    setBusy(`provider:${provider}`);
+    setProblem(undefined);
+    try {
+      const begun = await createClient(AuthService, transport).beginProviderSignIn({ provider });
+      window.location.assign(begun.url);
+    } catch (err) {
+      setProblem(err);
+      setBusy(undefined);
+    }
+  };
 
   const signIn = async (hint: PasskeyHint) => {
     setBusy(hint);
@@ -217,6 +234,21 @@ function PasskeySignIn({ name, finish, onDomain, onUseCode }: PasskeySignInProps
         >
           <Trans>Use a security key or another device</Trans>
         </Button>
+        {providers.map((p) => {
+          const label = p.displayName;
+          return (
+            <Button
+              key={p.id}
+              size="lg"
+              icon="link"
+              loading={busy === `provider:${p.id}`}
+              disabled={busy !== undefined}
+              onClick={() => void withProvider(p.id)}
+            >
+              <Trans>Sign in with {label}</Trans>
+            </Button>
+          );
+        })}
         <Button variant="ghost" size="sm" className="signin-switch" onClick={onUseCode}>
           <Trans>Use a code from your authenticator app</Trans>
         </Button>

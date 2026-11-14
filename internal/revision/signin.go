@@ -250,8 +250,8 @@ func (e *Engine) providerLinkNotes(ctx context.Context, items []item, notes []No
 		err := e.db.View(ctx, func(tx *store.Tx) error {
 			links, err := tx.ListProviderLinks(ctx, "")
 			people = map[string]bool{}
-			for _, l := range links {
-				if l.ProviderID == it.id && l.Issuer == was.GetIssuer() {
+			for j := range links {
+				if l := &links[j]; l.ProviderID == it.id && l.Issuer == was.GetIssuer() {
 					people[l.UserID] = true
 				}
 			}

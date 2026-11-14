@@ -121,9 +121,9 @@ func (s *Service) SignInProviders(ctx context.Context, client Client) ([]Provide
 		return nil, err
 	}
 	var out []Provider
-	for _, p := range all {
-		if p.Panel {
-			out = append(out, p)
+	for i := range all {
+		if all[i].Panel {
+			out = append(out, all[i])
 		}
 	}
 	return out, nil
@@ -404,15 +404,16 @@ func (s *Service) ListProviderLinks(ctx context.Context, p Principal) ([]LinkVie
 		if err != nil {
 			return err
 		}
-		for _, l := range links {
-			provider, state, gone := stateOf(l, providers)
+		for i := range links {
+			l := &links[i]
+			provider, state, gone := stateOf(*l, providers)
 			if gone {
-				if err := s.dropLink(ctx, tx, l, "its provider was deleted"); err != nil {
+				if err := s.dropLink(ctx, tx, *l, "its provider was deleted"); err != nil {
 					return err
 				}
 				continue
 			}
-			out = append(out, LinkView{ProviderLink: l, Provider: provider.Label(), State: state})
+			out = append(out, LinkView{ProviderLink: *l, Provider: provider.Label(), State: state})
 		}
 		return nil
 	})

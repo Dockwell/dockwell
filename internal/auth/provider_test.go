@@ -81,14 +81,14 @@ func (s *providerStand) through(t *testing.T, target, subject string) url.Values
 	return url.Values{"code": {"abc"}, "state": {q.Get("state")}}
 }
 
-// signIn signs in with the provider as subject.
-func (s *providerStand) signIn(t *testing.T, subject string) (ProviderDone, error) {
+// signIn signs in with the provider as the account Mira linked, or tries to.
+func (s *providerStand) signIn(t *testing.T) (ProviderDone, error) {
 	t.Helper()
 	target, flow, err := s.svc.BeginProviderSignIn(t.Context(), onDomain, "sip_ours")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s.svc.FinishProvider(t.Context(), onDomain, flow, s.through(t, target, subject))
+	return s.svc.FinishProvider(t.Context(), onDomain, flow, s.through(t, target, "248289761001"))
 }
 
 // link links the owner's account with subject, confirmed with their passkey.
@@ -124,7 +124,7 @@ func testAProviderSignsInOnlyALinkedMember(t *testing.T, backend store.Backend) 
 	}
 
 	// Nobody joins by signing in: the account is linked to no one.
-	if _, err := s.signIn(t, "248289761001"); !errors.Is(err, ErrProviderNotLinked) {
+	if _, err := s.signIn(t); !errors.Is(err, ErrProviderNotLinked) {
 		t.Fatalf("an account linked to no one signs in: %v", err)
 	}
 	if got := s.auditDetails(t, "auth.sign_in_failed"); len(got) != 1 {
@@ -143,7 +143,7 @@ func testAProviderSignsInOnlyALinkedMember(t *testing.T, backend store.Backend) 
 		t.Errorf("a second account at the same provider links: %v", err)
 	}
 
-	done, err := s.signIn(t, "248289761001")
+	done, err := s.signIn(t)
 	if err != nil || done.SignedIn == nil {
 		t.Fatalf("the linked account signs in: %+v, %v", done, err)
 	}
@@ -191,7 +191,7 @@ func testAProviderSignsInOnlyALinkedMember(t *testing.T, backend store.Backend) 
 	if _, err := s.svc.Authenticate(ctx, onDomain, done.SignedIn.Token); !errors.Is(err, ErrUnauthenticated) {
 		t.Errorf("after unlinking, the provider's session works: %v", err)
 	}
-	if _, err := s.signIn(t, "248289761001"); !errors.Is(err, ErrProviderNotLinked) {
+	if _, err := s.signIn(t); !errors.Is(err, ErrProviderNotLinked) {
 		t.Errorf("an unlinked account signs in: %v", err)
 	}
 }
@@ -211,7 +211,7 @@ func testAProvidersEditStopsItsLinks(t *testing.T, backend store.Backend) {
 	}
 	signedIn := func() string {
 		t.Helper()
-		done, err := s.signIn(t, "248289761001")
+		done, err := s.signIn(t)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -67,7 +67,7 @@ The sign-in page shows "Sign in with <display name>" for each provider with `pan
 - A session begun with a provider has no passkey hour ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)): what asks for a passkey asks for it, at every level.
 - Nor is it the sign-in just now that lets someone with no passkey here add one without a step-up, as a recovery code is. Otherwise taking over someone's account at the provider would make its own passkey, a way in that outlives the provider.
 - Linking an account asks for a passkey each time, whatever someone chose, as adding a passkey does: it joins ADR 0075's list of what asks each time.
-- Every member has a passkey, as claiming and accepting an invite make one. Unlinking never takes one away.
+- Every member has a passkey, as claiming and accepting an invite make one. Unlinking never takes one away, and a link isn't a way in that lets someone remove their last passkey: that's refused unless an authenticator app is set up, as before.
 - So signing in with a provider is a way in for everyday work, and a provider that's down or gone leaves each member their passkey.
 
 ### Unlinking

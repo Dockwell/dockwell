@@ -5780,6 +5780,7 @@ msgstr "在 {where} 上可用"
 msgid "never used"
 msgstr "从未使用"
 
+#. placeholder {0}: words.ago(timestampDate(link.lastUsedTime), now)
 #. placeholder {0}: words.ago(timestampDate(passkey.lastUsedTime), now)
 msgid "used {0}"
 msgstr "{0}使用过"
@@ -5866,11 +5867,41 @@ msgstr "通过通行密钥登录"
 msgid "signed in with a recovery code"
 msgstr "通过恢复码登录"
 
+msgid "signed in with a sign-in provider"
+msgstr "通过登录提供方登录"
+
 msgid "signed in with an authenticator code"
 msgstr "通过身份验证器验证码登录"
 
 msgid "{left} of 10 are left, and each works once. If you lost your authenticator app, set it up again below, which also makes new recovery codes."
 msgstr "还剩 {left} 个（共 10 个），每个只能用一次。如果你丢了身份验证器应用，请在下方重新设置，这也会生成新的恢复码。"
+
+msgid "Link an account to sign in with it here. Your passkey still confirms what's risky."
+msgstr "关联一个账户，即可在这里用它登录。有风险的操作仍需你的通行密钥确认。"
+
+msgid "Link {name}"
+msgstr "关联 {name}"
+
+msgid "Linked {linked}"
+msgstr "关联于 {linked}"
+
+msgid "Loading sign-in providers"
+msgstr "正在加载登录提供方"
+
+msgid "Sign-in providers"
+msgstr "登录提供方"
+
+msgid "Stopped working: {provider} moved to another issuer"
+msgstr "已失效：{provider} 换了另一个签发方"
+
+msgid "Stopped working: {provider} no longer signs people in to Dockwell"
+msgstr "已失效：{provider} 不再用于登录 Dockwell"
+
+msgid "Unlink"
+msgstr "取消关联"
+
+msgid "Unlink {account}"
+msgstr "取消关联 {account}"
 
 msgid "Run this on the server over SSH for a new link. It works once, for 15 min."
 msgstr "请通过 SSH 在服务器上运行这条命令获取新链接。它只能用一次，15 分钟内有效。"
@@ -5959,6 +5990,9 @@ msgstr "登录 Dockwell"
 
 msgid "Sign in with a passkey"
 msgstr "使用通行密钥登录"
+
+msgid "Sign in with {label}"
+msgstr "使用 {label} 登录"
 
 msgid "Use a code"
 msgstr "使用验证码"
@@ -9504,6 +9538,9 @@ msgstr "它们是 {list}。"
 msgid "They run in what {name} runs, so they reach what it reaches on its server too."
 msgstr "它们在 {name} 运行的内容中运行，因此也能访问它在服务器上能访问的一切。"
 
+msgid "They'd sign in with their passkeys instead, and the sessions it began end."
+msgstr "他们将改用通行密钥登录，经它登录的会话会结束。"
+
 msgid "This backup was taken when the volume reached <0>{path}</0>, so whatever mounts it can read what comes back."
 msgstr "这份备份创建时，该卷可访问 <0>{path}</0>，所以任何挂载它的内容都能读取恢复后的数据。"
 
@@ -9678,6 +9715,9 @@ msgstr "{by} 以 root 在那里写入，所以无论文件属于谁都能修改�
 
 msgid "{by} writes there. Code from another image asks again, as a program in any image can run as root."
 msgstr "{by} 在那里写入。换成其他镜像的代码时需要重新确认，因为任何镜像中的程序都可能以 root 运行。"
+
+msgid "{count, plural, one {# person signs in to Dockwell with {name}} other {# people sign in to Dockwell with {name}}}"
+msgstr "{count, plural, other {# 人用 {name} 登录 Dockwell}}"
 
 msgid "{count, plural, one {The catalog shows # app from this commit: {names}.} other {The catalog shows # apps from this commit: {names}.}}"
 msgstr "{count, plural, other {应用目录将显示这个提交中的 # 个应用：{names}。}}"
@@ -15419,9 +15459,6 @@ msgstr "集成"
 msgid "Loading registry logins"
 msgstr "正在加载镜像仓库登录"
 
-msgid "Loading sign-in providers"
-msgstr "正在加载登录提供方"
-
 msgid "Loading where backups go"
 msgstr "正在加载备份去向"
 
@@ -16307,8 +16344,17 @@ msgstr "客户端 ID"
 msgid "Client secret"
 msgstr "客户端密钥"
 
+msgid "Copy Dockwell's redirect address"
+msgstr "复制 Dockwell 的重定向地址"
+
+msgid "Each links their account in Profile and security. Their passkey still confirms what's risky."
+msgstr "每人在“个人资料和安全”中关联自己的账户。有风险的操作仍需其通行密钥确认。"
+
 msgid "Found {answerHost} · signs with {strongest}"
 msgstr "已找到 {answerHost} · 使用 {strongest} 签名"
+
+msgid "Give the panel a domain"
+msgstr "为面板设置域名"
 
 msgid "Groups claim"
 msgstr "用户组声明"
@@ -16316,11 +16362,20 @@ msgstr "用户组声明"
 msgid "Issuer"
 msgstr "签发方"
 
+msgid "It needs the panel on a domain of its own."
+msgstr "这需要面板有自己的域名。"
+
 msgid "More scopes"
 msgstr "更多范围"
 
 msgid "None, for a public client"
 msgstr "无，适用于公开客户端"
+
+msgid "People sign in to Dockwell with it"
+msgstr "用它登录 Dockwell"
+
+msgid "Redirect address for Dockwell at the provider"
+msgstr "在提供方登记的 Dockwell 重定向地址"
 
 msgid "Remove the sign-in provider {name}"
 msgstr "移除登录提供方 {name}"
