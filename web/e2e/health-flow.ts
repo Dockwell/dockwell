@@ -15,6 +15,7 @@ import type { Browser, BrowserContext, Page } from "playwright-core";
 
 import { type DockerProbe, dockerAct, dockerExec, dockerHealth } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 export interface HealthFlowOptions {
   origin: string;
@@ -57,7 +58,7 @@ services:
 
 /** Reads the plan sheet, applies it, and leaves the sheet open on how it ended. */
 async function apply(page: Page) {
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan/ }).click();
 }
@@ -170,7 +171,7 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
   step("health: Restart is a plan that says what it does and that it can't be undone, and it comes back");
   await goToApp("checked");
   await page.getByRole("button", { name: "Restart", exact: true }).first().click();
-  const restart = page.getByRole("dialog", { name: "Review plan" });
+  const restart = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await restart.waitFor({ timeout: 30_000 });
   await restart.getByText("A restart has no undo, as it changes nothing to go back to.").waitFor();
   // What it restarts counts as that, not as a replace.
@@ -228,7 +229,7 @@ services:
   if (stored.includes(secret)) fail("an .env's value is in this browser's storage");
   if (page.url().includes(secret)) fail("an .env's value is in the address");
   await plainForm.getByRole("button", { name: /Review plan/ }).click();
-  const plainPlan = page.getByRole("dialog", { name: "Review plan" });
+  const plainPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plainPlan.waitFor({ timeout: 30_000 });
   // A value that lands in plain sight says so, in plain words, as what the plan is about.
   await plainPlan.getByText(/plain's labels hold the value of GREETING from your \.env/).waitFor();

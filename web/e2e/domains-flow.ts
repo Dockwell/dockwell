@@ -11,6 +11,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 export interface DomainsFlowOptions {
@@ -107,7 +108,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await app.selectOption({ label: named });
   await shoot(page, "domains-add");
   await form.getByRole("button", { name: /Review plan/ }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByText("first.example.net").first().waitFor();
   await plan.getByRole("button", { name: /Cancel/ }).click();

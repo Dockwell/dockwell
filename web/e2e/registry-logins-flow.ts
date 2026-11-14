@@ -7,6 +7,7 @@
 // login it pulls with, and the app runs.
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -74,7 +75,7 @@ export const flow: Flow = {
     await shoot(page, "registry-logins-found");
     await form.getByRole("textbox", { name: /^Name/ }).first().fill("private-app");
     await form.getByRole("button", { name: /Review plan/ }).click();
-    const reviewing = page.getByRole("dialog", { name: "Review plan" });
+    const reviewing = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await reviewing.waitFor({ timeout: 30_000 });
     await reviewing.getByText(/pulls with/).waitFor({ timeout: 15_000 });
     if (!(await reviewing.innerText()).includes("ghcr")) fail("the app's plan doesn't say which login it pulls with");

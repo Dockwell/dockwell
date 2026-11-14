@@ -13,6 +13,7 @@ import { join } from "node:path";
 import type { Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 export interface DatabasesFlowOptions {
   origin: string;
@@ -98,7 +99,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
 
   step("databases: changing the password is a plan, with a new one generated in the database and its secret at once");
   await connect.getByRole("button", { name: "Change password" }).click();
-  const changing = page.getByRole("dialog", { name: "Review plan" });
+  const changing = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await changing.getByRole("button", { name: /Apply plan/ }).waitFor({ timeout: 30_000 });
   await shoot(page, "database-change-password-plan");
   await changing.getByRole("button", { name: /Apply plan/ }).click();
@@ -129,7 +130,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await adding.getByLabel("User", { exact: true }).fill("orders");
   await shoot(page, "database-add-user");
   await adding.getByRole("button", { name: /Review plan/ }).click();
-  const planned = page.getByRole("dialog", { name: "Review plan" });
+  const planned = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await planned.getByRole("button", { name: /Apply plan/ }).waitFor({ timeout: 30_000 });
   await shoot(page, "database-add-user-plan");
   const shownPlan = await planned.innerText();

@@ -13,6 +13,7 @@ import { join, resolve } from "node:path";
 import type { Locator, Page } from "playwright-core";
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 interface BuildFlowOptions {
   origin: string;
@@ -34,7 +35,7 @@ async function move(git: string, to: string) {
 
 /** The sheet that has a plan to apply, whatever it's called. */
 function planSheet(page: Page): Locator {
-  return page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /Apply plan/ }) });
+  return onTop(page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /Apply plan/ }) }));
 }
 
 export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildFlowOptions) {

@@ -11,6 +11,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -92,7 +93,7 @@ export const flow: Flow = {
     // Update plans through the update flow (ADR 0080), and its progress, then its end, takes the card's place.
     step("app updates: Update plans it through the update flow, and once applied the card's place says it's updated");
     await card.getByRole("button", { name: "Update to 7.4" }).click();
-    const plan = page.getByRole("dialog", { name: "Review plan" });
+    const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await plan.waitFor({ timeout: 30_000 });
     await plan.locator(".upgrade-line", { hasText: "7.4" }).waitFor();
     await shoot(page, "app-updates-plan");

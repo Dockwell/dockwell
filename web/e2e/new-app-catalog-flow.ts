@@ -8,6 +8,7 @@
 import type { Locator, Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -59,7 +60,7 @@ export async function newAppCatalogFlow(page: Page, { origin, step, shoot }: Flo
   await install.waitFor();
   await chooseServer(install);
   await install.getByRole("button", { name: /Review plan/ }).click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   const open = page.getByRole("button", { name: "Open Memos", exact: true });

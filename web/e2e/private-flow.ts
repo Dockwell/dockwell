@@ -10,6 +10,7 @@
 import type { Page } from "playwright-core";
 
 import type { Flow, FlowRun } from "./flows.ts";
+import { coveredHidden, onTop } from "./sheets.ts";
 import { bytes, number } from "./wire.ts";
 
 function fail(message: string): never {
@@ -133,10 +134,15 @@ async function privateFlow(page: Page, { origin, step, shoot }: FlowRun) {
   await sheet.getByRole("list", { name: "Addresses let in" }).getByText("203.0.113.0/24").waitFor();
   await sheet.getByRole("checkbox", { name: "I've kept a copy of the password" }).check();
   await review.click();
-  const plan = page.getByRole("dialog", { name: "Review plan" });
+  const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   await plan.waitFor({ timeout: 30_000 });
-  // In the plan itself: the form under it, hidden now, names the domain too.
-  await plan.locator(".plan-view").getByText("open.example.com").first().waitFor({ timeout: 15_000 });
+  // In the plan itself, on top: the form under it names the domain too.
+  await plan.getByText("open.example.com").first().waitFor({ timeout: 15_000 });
+  // The form under the plan says the password until it has faded, so the page is read
+  // once it's hidden.
+  if ((await page.locator(".dw-sheet-view.is-away .private-password-value").count()) !== 1)
+    fail("the plan doesn't cover the form that made the password, so this checks nothing");
+  await coveredHidden(page);
   const said = await page.locator("body").innerText();
   if (said.includes(password)) fail("the plan shows the password");
   if (/\$2[aby]\$/.test(said)) fail("the plan shows the password's hash");

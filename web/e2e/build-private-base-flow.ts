@@ -14,6 +14,7 @@ import type { Page } from "playwright-core";
 
 import { startGitServer } from "./build-flow.ts";
 import type { Flow } from "./flows.ts";
+import { onTop } from "./sheets.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -84,7 +85,7 @@ export async function buildPrivateBaseFlow(page: Page, { origin, step, shoot, gi
   if (!picked) fail("New app didn't pick the only login for the private base image");
   await sheet.getByLabel(/^Name/).fill("private-base");
   await sheet.getByRole("button", { name: "Review plan" }).click();
-  const plan = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /Apply plan/ }) });
+  const plan = onTop(page.getByRole("dialog").filter({ has: page.getByRole("button", { name: /Apply plan/ }) }));
   await plan.getByText(/^Builds .*web at [0-9a-f]{7} \(private-base\)/).waitFor({ timeout: 30_000 });
   await plan
     .getByText(/its Dockerfile can read any image/i)
