@@ -4,11 +4,13 @@ package control
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -141,6 +143,58 @@ func TestASigninProviderIsItsProjectsAlone(t *testing.T) {
 		}
 		if len(listed.Msg.GetProviders()) != want {
 			t.Errorf("%s may use %v", name, listed.Msg.GetProviders())
+		}
+	}
+}
+
+// A provider's edit that stops it signing people in to Dockwell says, in its plan,
+// how many people sign in with it: deleting it, turning it off for the panel, or
+// moving it to another issuer. Another edit says nothing (ADR 0095).
+func TestAProvidersEditSaysWhoSignsInWithIt(t *testing.T) {
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	c := changeClient(b, b.origin)
+	ours := &resourcev1.SigninProvider{DisplayName: "Ours", Issuer: "https://auth.example.com/", ClientId: "dockwell", Panel: true}
+	made := apply(t, c, propose(t, c, "Ours", providerEdit("ours", ours)))
+	id := made.GetPlan().GetResources()[0].GetId()
+	err := f.store.Update(t.Context(), func(tx *store.Tx) error {
+		users, err := tx.ListUsers(t.Context())
+		if err != nil || len(users) == 0 {
+			return fmt.Errorf("no owner: %w", err)
+		}
+		return tx.CreateProviderLink(t.Context(), store.ProviderLink{
+			ID: "plk_mira", UserID: users[0].ID, ProviderID: id, Issuer: "https://auth.example.com/", Subject: "248289761001",
+			Account: "mira@example.com", CreatedAt: time.Now(),
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	says := func(edit *dockwellv1.Edit) string {
+		t.Helper()
+		plan := propose(t, c, "Edit ours", edit).GetPlan()
+		for _, n := range plan.GetNotes() {
+			if n.GetReason() == "provider_links_stop" {
+				return strings.Join(n.GetNames(), ",") + ": " + n.GetMessage()
+			}
+		}
+		return ""
+	}
+	edited := func(edit func(p *resourcev1.SigninProvider)) *dockwellv1.Edit {
+		p := proto.Clone(ours).(*resourcev1.SigninProvider)
+		edit(p)
+		return providerEdit("ours", p)
+	}
+	deleted := &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(signinprovider.Kind), Name: "ours"}, Delete: true}
+	for name, edit := range map[string]*dockwellv1.Edit{
+		"deleting it":         deleted,
+		"turning it off":      edited(func(p *resourcev1.SigninProvider) { p.Panel = false }),
+		"moving its issuer":   edited(func(p *resourcev1.SigninProvider) { p.Issuer = "https://moved.example.com/" }),
+		"another client name": edited(func(p *resourcev1.SigninProvider) { p.DisplayName = "Ours, renamed" }),
+	} {
+		got := says(edit)
+		if want := name != "another client name"; want != strings.HasPrefix(got, "1: 1 person signs in to Dockwell with ours") {
+			t.Errorf("%s says %q", name, got)
 		}
 	}
 }

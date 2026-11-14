@@ -1103,6 +1103,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
+	if p.Notes, err = e.providerLinkNotes(ctx, items, p.Notes); err != nil {
+		return nil, err
+	}
 	if p.Notes, err = e.keptLogsNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 
 	"google.golang.org/protobuf/proto"
 
@@ -227,4 +228,51 @@ func (e *Engine) withRoutesSigningIn(ctx context.Context, tx *store.Tx, items []
 		items = append(items, it)
 	}
 	return items, nil
+}
+
+// providerLinkNotes says, for each sign-in provider the change deletes, turns off
+// for the panel or moves to another issuer, how many people sign in to Dockwell
+// with it, who would sign in with their passkeys instead, and whose sessions it
+// began end (ADR 0095). A note never stops anyone applying it.
+func (e *Engine) providerLinkNotes(ctx context.Context, items []item, notes []Note) ([]Note, error) {
+	out := notes
+	for i := range items {
+		it := &items[i]
+		was, _ := it.current.(*resourcev1.SigninProvider)
+		if it.ref.Kind != signinprovider.Kind || it.id == "" || !was.GetPanel() {
+			continue
+		}
+		is, _ := it.spec.(*resourcev1.SigninProvider)
+		if is != nil && is.GetPanel() && is.GetIssuer() == was.GetIssuer() {
+			continue
+		}
+		var people map[string]bool
+		err := e.db.View(ctx, func(tx *store.Tx) error {
+			links, err := tx.ListProviderLinks(ctx, "")
+			people = map[string]bool{}
+			for _, l := range links {
+				if l.ProviderID == it.id && l.Issuer == was.GetIssuer() {
+					people[l.UserID] = true
+				}
+			}
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		if len(people) == 0 {
+			continue
+		}
+		who := "1 person signs"
+		if len(people) > 1 {
+			who = fmt.Sprintf("%d people sign", len(people))
+		}
+		out = append(out, Note{
+			Reason:  "provider_links_stop",
+			Message: fmt.Sprintf("%s in to Dockwell with %s. They'd sign in with their passkeys instead, and the sessions it began end", who, it.ref.Name),
+			Ref:     it.ref,
+			Names:   []string{strconv.Itoa(len(people))},
+		})
+	}
+	return out, nil
 }

@@ -937,6 +937,18 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           more: t`MongoDB moves only from data at the release it leaves, so its feature compatibility version goes up to ${from} first, and its data may then use ${from}'s features.`,
         };
       }
+      case "provider_links_stop": {
+        // How many people sign in to Dockwell with the provider (ADR 0095).
+        const count = Number(note.names[0] ?? "0");
+        return {
+          key,
+          title: plural(count, {
+            one: `# person signs in to Dockwell with ${name}`,
+            other: `# people sign in to Dockwell with ${name}`,
+          }),
+          detail: t`They'd sign in with their passkeys instead, and the sessions it began end.`,
+        };
+      }
       case "tasks_as_root": {
         const tasks: string[] = [];
         for (let i = 0; i + 1 < note.names.length; i += 2) tasks.push(`${note.names[i]}: ${note.names[i + 1]}`);
