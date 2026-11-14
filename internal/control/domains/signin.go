@@ -39,7 +39,7 @@ func (h *Handler) ListSigninProviders(ctx context.Context, req *connect.Request[
 		out.Providers = append(out.Providers, &dockwellv1.SigninProviderInfo{
 			Id: p.ID, Name: p.Name, DisplayName: p.Spec.GetDisplayName(), Issuer: p.Spec.GetIssuer(), ClientId: p.Spec.GetClientId(),
 			HasSecret: p.Spec.GetClientSecret() != "", Scopes: p.Spec.GetScopes(), GroupsClaim: p.Spec.GetGroupsClaim(),
-			AnyAccount: p.Spec.GetAnyAccount(), Projects: p.Spec.GetProjects(),
+			AnyAccount: p.Spec.GetAnyAccount(), Projects: p.Spec.GetProjects(), Panel: p.Spec.GetPanel(),
 		})
 	}
 	return connect.NewResponse(out), nil

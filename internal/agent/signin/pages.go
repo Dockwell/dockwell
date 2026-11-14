@@ -58,6 +58,21 @@ type end struct {
 	Title, Said  string
 	Action, Href string
 	Tone         string
+	// Goes says the page goes on to Href at once, as a page of this site's own,
+	// so a SameSite=Strict cookie it set is sent there (ADR 0095).
+	Goes bool
+}
+
+// Page writes a page that ends a sign-in, as the agent's are: a state, a line at
+// most, and the action that resolves it, a link on this site. A page that goes
+// goes on to it at once. The panel's way back from a provider writes its pages
+// with it (ADR 0095).
+func Page(w http.ResponseWriter, status int, title, said, action, href string, goes bool) {
+	tone := "down"
+	if goes || status < 400 {
+		tone = "out"
+	}
+	end{Status: status, Title: title, Said: said, Action: action, Href: href, Tone: tone, Goes: goes}.write(w)
 }
 
 // write sends the page, which no cache keeps. It's written with html.EscapeString,
@@ -82,11 +97,19 @@ func (e end) write(w http.ResponseWriter) {
 	var b strings.Builder
 	b.WriteString("<!doctype html>\n" +
 		`<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` + "\n" +
-		`<meta name="robots" content="noindex"><title>` + title + "</title><style>" + style() + "</style></head>\n" +
+		`<meta name="robots" content="noindex">` + refresh(e) + `<title>` + title + "</title><style>" + style() + "</style></head>\n" +
 		`<body><main class="` + htmlesc.EscapeString(e.Tone) + `"><h1>` + title + "</h1>")
 	if e.Said != "" {
 		b.WriteString("<p>" + htmlesc.EscapeString(e.Said) + "</p>")
 	}
 	b.WriteString(`<a class="act" href="` + htmlesc.EscapeString(e.Href) + `">` + htmlesc.EscapeString(e.Action) + "</a></main></body></html>\n")
 	_, _ = w.Write([]byte(b.String()))
+}
+
+// refresh is the meta refresh of a page that goes on, or nothing.
+func refresh(e end) string {
+	if !e.Goes {
+		return ""
+	}
+	return `<meta http-equiv="refresh" content="0;url=` + htmlesc.EscapeString(e.Href) + `">`
 }

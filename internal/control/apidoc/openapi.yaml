@@ -3223,6 +3223,90 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/provider-links:
+        get:
+            tags:
+                - AuthService
+            description: |-
+                ListProviderLinks lists the accounts at sign-in providers you sign in to
+                 Dockwell with, and whether each still works (ADR 0095).
+            operationId: AuthService_ListProviderLinks
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListProviderLinksResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/provider-links/{id}:delete:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                DeleteProviderLink unlinks an account at a sign-in provider from you, and
+                 ends every session it began.
+            operationId: AuthService_DeleteProviderLink
+            parameters:
+                - name: id
+                  in: path
+                  description: The link's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteProviderLinkRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteProviderLinkResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/provider-links:begin:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginLinkProvider starts linking an account at a sign-in provider to you,
+                 on the panel's own domain. It needs a proof from FinishStepUp for linking
+                 that provider, as a way to sign in outlives the session that made it. It
+                 answers the address to go to; the provider's way back links the account.
+            operationId: AuthService_BeginLinkProvider
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginLinkProviderRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginLinkProviderResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/registryLogins:
         get:
             tags:
@@ -5826,6 +5910,36 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/BeginPasskeySignInResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/sessions:beginProviderSignIn:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                BeginProviderSignIn starts signing in with a sign-in provider that signs
+                 people in to Dockwell, on the panel's own domain, for someone who linked an
+                 account there (ADR 0095). It answers the address to go to, and sets a cookie
+                 the provider's way back is checked against. Starting one spends from the same
+                 allowance for your address as starting a passkey sign-in.
+            operationId: AuthService_BeginProviderSignIn
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginProviderSignInRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BeginProviderSignInResponse'
                 default:
                     description: Default error response
                     content:
@@ -8675,6 +8789,23 @@ components:
                     type: string
                     description: PublicKeyCredentialCreationOptionsJSON.
             description: BeginClaimResponse carries the options for creating the passkey.
+        BeginLinkProviderRequest:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: The provider's ID, from GetAuthState's providers.
+                proof:
+                    type: string
+                    description: From FinishStepUp, for STEP_UP_ACTION_LINK_PROVIDER on this provider.
+            description: BeginLinkProviderRequest names the provider to link an account at.
+        BeginLinkProviderResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The provider's address to go to, which comes back to the panel.
+            description: BeginLinkProviderResponse says where to go to link the account.
         BeginPasskeySignInRequest:
             type: object
             properties: {}
@@ -8691,6 +8822,20 @@ components:
                     type: string
                     description: PublicKeyCredentialRequestOptionsJSON.
             description: BeginPasskeySignInResponse carries the options for the passkey assertion.
+        BeginProviderSignInRequest:
+            type: object
+            properties:
+                provider:
+                    type: string
+                    description: The provider's ID, from GetAuthState's providers.
+            description: BeginProviderSignInRequest names the provider to sign in with.
+        BeginProviderSignInResponse:
+            type: object
+            properties:
+                url:
+                    type: string
+                    description: The provider's address to go to, which comes back to the panel.
+            description: BeginProviderSignInResponse says where to go to sign in.
         BeginStepUpRequest:
             type: object
             properties:
@@ -8720,6 +8865,7 @@ components:
                         - STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN
                         - STEP_UP_ACTION_SET_STEP_UP_POLICY
                         - STEP_UP_ACTION_SET_STEP_UP_FLOOR
+                        - STEP_UP_ACTION_LINK_PROVIDER
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
                     description: The action.
@@ -11636,6 +11782,17 @@ components:
                     type: boolean
                     description: True when it was a way back onto the server, which took a passkey.
             description: DeleteFileResponse says what was deleted.
+        DeleteProviderLinkRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The link's ID.
+            description: DeleteProviderLinkRequest names the link to delete.
+        DeleteProviderLinkResponse:
+            type: object
+            properties: {}
+            description: DeleteProviderLinkResponse is empty.
         DeleteWebsiteRequest:
             type: object
             properties:
@@ -13898,6 +14055,7 @@ components:
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
                         - SIGN_IN_METHOD_INVITE
+                        - SIGN_IN_METHOD_PROVIDER
                     type: string
                     description: How this session began. Unset when not signed in.
                     format: enum
@@ -13923,6 +14081,14 @@ components:
                          (dockwell.v1.min_role) and (dockwell.v1.reach), what to offer
                          (docs/adr/0059-what-the-panel-knows-of-what-you-may-do.md). Empty when
                          not signed in, and for someone with no role left.
+                providers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SignInProvider'
+                    description: |-
+                        The sign-in providers that sign people in at this address: on the panel's
+                         own domain, those an admin turned that on for (ADR 0095). Numbered in its
+                         block, 250 to 259.
             description: GetAuthStateResponse describes the install and this request's session.
         GetBackupResponse:
             type: object
@@ -16235,6 +16401,14 @@ components:
                         $ref: '#/components/schemas/Passkey'
                     description: Passkeys, oldest first.
             description: ListPasskeysResponse lists passkeys.
+        ListProviderLinksResponse:
+            type: object
+            properties:
+                links:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ProviderLink'
+            description: ListProviderLinksResponse lists your linked accounts, oldest first.
         ListRegistryLoginsResponse:
             type: object
             properties:
@@ -19236,6 +19410,42 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: ProposeChangeResponse carries the planned change.
+        ProviderLink:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The link's ID, such as "plk_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                providerId:
+                    type: string
+                    description: The provider's ID, and what it's called.
+                providerName:
+                    type: string
+                account:
+                    type: string
+                    description: |-
+                        What the provider calls the account, such as its email address, for you to
+                         tell accounts apart. Nothing else reads it.
+                createTime:
+                    type: string
+                    description: When it was linked, and last signed you in.
+                    format: date-time
+                lastUsedTime:
+                    type: string
+                    format: date-time
+                state:
+                    enum:
+                        - PROVIDER_LINK_STATE_UNSPECIFIED
+                        - PROVIDER_LINK_STATE_WORKS
+                        - PROVIDER_LINK_STATE_PROVIDER_OFF
+                        - PROVIDER_LINK_STATE_ISSUER_MOVED
+                    type: string
+                    description: Whether it signs you in now.
+                    format: enum
+            description: |-
+                ProviderLink is an account at a sign-in provider that signs its person in to
+                 Dockwell, kept by the provider's issuer and the account's subject, never by an
+                 email address (ADR 0095).
         PublicAddress:
             type: object
             properties:
@@ -22047,6 +22257,7 @@ components:
                         - SIGN_IN_METHOD_RECOVERY_CODE
                         - SIGN_IN_METHOD_LINK
                         - SIGN_IN_METHOD_INVITE
+                        - SIGN_IN_METHOD_PROVIDER
                     type: string
                     description: How it signed in.
                     format: enum
@@ -22381,6 +22592,16 @@ components:
                         Where in the app a person changes the password, for an app that reads it
                          on its first start alone (the input's set_once), such as "Profile".
             description: SignIn is how a person signs in to an app once it's installed.
+        SignInProvider:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "sip_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                displayName:
+                    type: string
+                    description: What it's called, such as "Our Authentik".
+            description: SignInProvider is a sign-in provider someone can sign in to Dockwell with.
         SignInWithCodeRequest:
             type: object
             properties:
@@ -22474,6 +22695,11 @@ components:
                     items:
                         type: string
                     description: The projects whose routes may use it, by ID. Empty for every project.
+                panel:
+                    type: boolean
+                    description: |-
+                        Whether people sign in to Dockwell with it too, each with an account they
+                         linked while signed in, on the panel's own domain (ADR 0095). Off by default.
             description: |-
                 SigninProvider is an OpenID Connect provider that people sign in to private
                  routes with, kind "signin.provider" (ADR 0087): a self-hosted Authentik,
@@ -22517,6 +22743,9 @@ components:
                     items:
                         type: string
                     description: The projects whose routes may use it, by ID. Empty for every project.
+                panel:
+                    type: boolean
+                    description: Whether people sign in to Dockwell with it too (ADR 0095).
             description: SigninProviderInfo is a sign-in provider, without its secret.
         Signups:
             type: object

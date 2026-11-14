@@ -9,8 +9,10 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -100,6 +102,14 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 	}
 	if !claimed {
 		msg.ClaimCommand = h.claimCommand
+	}
+	// The providers that sign people in here, on the panel's own domain (ADR 0095).
+	providers, err := h.auth.SignInProviders(ctx, client)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	for _, p := range providers {
+		msg.Providers = append(msg.Providers, &dockwellv1.SignInProvider{Id: p.ID, DisplayName: p.Label()})
 	}
 	res := connect.NewResponse(msg)
 	if p, ok := PrincipalFrom(ctx); ok {
@@ -191,6 +201,31 @@ func (h *Handler) FinishPasskeySignIn(ctx context.Context, req *connect.Request[
 		return nil, h.rpcError(ctx, err)
 	}
 	return withCookie(connect.NewResponse(&dockwellv1.FinishPasskeySignInResponse{User: userProto(signedIn.User)}), client.Site, signedIn)
+}
+
+// BeginProviderSignIn starts signing in with a provider, and sets the cookie the
+// provider's way back is checked against (ADR 0095).
+func (h *Handler) BeginProviderSignIn(ctx context.Context, req *connect.Request[dockwellv1.BeginProviderSignInRequest]) (*connect.Response[dockwellv1.BeginProviderSignInResponse], error) {
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	target, flow, err := h.auth.BeginProviderSignIn(ctx, client, req.Msg.GetProvider())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	res := connect.NewResponse(&dockwellv1.BeginProviderSignInResponse{Url: target})
+	res.Header().Add("Set-Cookie", flowCookie(flow, int(auth.ProviderFlowTTL/time.Second)).String())
+	return res, nil
+}
+
+// flowCookie carries a sign-in's flow to the provider and back: HttpOnly, Secure,
+// and SameSite=Lax, as the provider's top-level redirect brings it back.
+func flowCookie(flow string, maxAge int) *http.Cookie {
+	return &http.Cookie{
+		Name: auth.ProviderFlowCookie, Value: flow, Path: "/", MaxAge: maxAge,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
+	}
 }
 
 // SignInWithCode signs in with an authenticator or recovery code.
@@ -382,6 +417,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN:   auth.StepUpSignInOnPanelDomain,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_POLICY:        auth.StepUpSetPolicy,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_FLOOR:         auth.StepUpSetFloor,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_LINK_PROVIDER:             auth.StepUpLinkProvider,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE:      auth.StepUpRevealServiceValue,
 }
 
@@ -503,6 +539,74 @@ func (h *Handler) RemovePasskey(ctx context.Context, req *connect.Request[dockwe
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.RemovePasskeyResponse{}), nil
+}
+
+// ListProviderLinks lists your accounts at sign-in providers.
+func (h *Handler) ListProviderLinks(ctx context.Context, _ *connect.Request[dockwellv1.ListProviderLinksRequest]) (*connect.Response[dockwellv1.ListProviderLinksResponse], error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	links, err := h.auth.ListProviderLinks(ctx, p)
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	out := &dockwellv1.ListProviderLinksResponse{}
+	for _, l := range links {
+		link := &dockwellv1.ProviderLink{
+			Id: l.ID, ProviderId: l.ProviderID, ProviderName: l.Provider, Account: l.Account,
+			CreateTime: timestamppb.New(l.CreatedAt), State: linkStateProto(l.State),
+		}
+		if l.LastUsedAt != nil {
+			link.LastUsedTime = timestamppb.New(*l.LastUsedAt)
+		}
+		out.Links = append(out.Links, link)
+	}
+	return connect.NewResponse(out), nil
+}
+
+func linkStateProto(s auth.LinkState) dockwellv1.ProviderLinkState {
+	switch s {
+	case auth.LinkWorks:
+		return dockwellv1.ProviderLinkState_PROVIDER_LINK_STATE_WORKS
+	case auth.LinkProviderOff:
+		return dockwellv1.ProviderLinkState_PROVIDER_LINK_STATE_PROVIDER_OFF
+	case auth.LinkIssuerMoved:
+		return dockwellv1.ProviderLinkState_PROVIDER_LINK_STATE_ISSUER_MOVED
+	}
+	return dockwellv1.ProviderLinkState_PROVIDER_LINK_STATE_UNSPECIFIED
+}
+
+// BeginLinkProvider starts linking an account at a provider, with a passkey's
+// proof, and sets the cookie the provider's way back is checked against.
+func (h *Handler) BeginLinkProvider(ctx context.Context, req *connect.Request[dockwellv1.BeginLinkProviderRequest]) (*connect.Response[dockwellv1.BeginLinkProviderResponse], error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	target, flow, err := h.auth.BeginLinkProvider(ctx, client, p, req.Msg.GetProvider(), req.Msg.GetProof())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	res := connect.NewResponse(&dockwellv1.BeginLinkProviderResponse{Url: target})
+	res.Header().Add("Set-Cookie", flowCookie(flow, int(auth.ProviderFlowTTL/time.Second)).String())
+	return res, nil
+}
+
+// DeleteProviderLink unlinks one of your accounts at a provider.
+func (h *Handler) DeleteProviderLink(ctx context.Context, req *connect.Request[dockwellv1.DeleteProviderLinkRequest]) (*connect.Response[dockwellv1.DeleteProviderLinkResponse], error) {
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.auth.DeleteProviderLink(ctx, p, req.Msg.GetId()); err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.DeleteProviderLinkResponse{}), nil
 }
 
 // GetTotp describes code sign-in.
@@ -726,6 +830,12 @@ var codes = []struct {
 	{auth.ErrTOTPMismatch, connect.CodeInvalidArgument, "totp_mismatch"},
 	{auth.ErrPasskeyExists, connect.CodeAlreadyExists, "passkey_exists"},
 	{auth.ErrTooManyRequests, connect.CodeResourceExhausted, "too_many_requests"},
+	{auth.ErrNoProviderHere, connect.CodeFailedPrecondition, "no_provider_here"},
+	{auth.ErrProviderNotOffered, connect.CodeFailedPrecondition, "provider_not_offered"},
+	{auth.ErrProviderNotLinked, connect.CodeUnauthenticated, "provider_not_linked"},
+	{auth.ErrProviderLinkedElse, connect.CodeAlreadyExists, "provider_linked_else"},
+	{auth.ErrProviderLinkedTwice, connect.CodeAlreadyExists, "provider_linked_twice"},
+	{auth.ErrProviderBusy, connect.CodeResourceExhausted, "provider_busy"},
 	{auth.ErrNeedsSession, connect.CodePermissionDenied, ReasonNeedsSession},
 	{auth.ErrNeedsStepUp, connect.CodePermissionDenied, ReasonNeedsStepUp},
 	{auth.ErrNoPasskeyHere, connect.CodeFailedPrecondition, "no_passkey_here"},
@@ -814,6 +924,8 @@ func methodProto(m string) dockwellv1.SignInMethod {
 		return dockwellv1.SignInMethod_SIGN_IN_METHOD_LINK
 	case auth.MethodInvite:
 		return dockwellv1.SignInMethod_SIGN_IN_METHOD_INVITE
+	case auth.MethodProvider:
+		return dockwellv1.SignInMethod_SIGN_IN_METHOD_PROVIDER
 	default:
 		return dockwellv1.SignInMethod_SIGN_IN_METHOD_UNSPECIFIED
 	}

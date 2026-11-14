@@ -92,6 +92,7 @@ var alwaysAsks = map[StepUpAction]bool{
 	StepUpSetPolicy:     true,
 	StepUpSetFloor:      true,
 	StepUpApproveChange: true,
+	StepUpLinkProvider:  true,
 }
 
 // AlwaysAsks reports an action a passkey confirms each time, whatever anyone chose.

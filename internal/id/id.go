@@ -30,6 +30,8 @@ const (
 	Passkey   = "pky"
 	Link      = "lnk"
 	Token     = "tok"
+	// ProviderLink is an account at a sign-in provider linked to a person (ADR 0095).
+	ProviderLink = "plk"
 
 	Organization = "org"
 	Project      = "prj"

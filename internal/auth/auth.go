@@ -46,6 +46,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/oidc"
 	"github.com/dockwell/dockwell/internal/seal"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -163,10 +164,11 @@ type Service struct {
 	sources        *failures // wrong codes by source address
 	begins         *buckets  // unauthenticated ceremonies and links, by source
 	streams        *streams
-	unflagged      unflagged // passkeys seen to be copied, until the flag is stored
-	refusals       *refusals // refused calls with each API token, since the last audit event
-	roleRefusals   *refusals // calls refused for want of a role, by person or token and method
-	stepUps        *stepUps  // proofs of a passkey confirming one action
+	unflagged      unflagged      // passkeys seen to be copied, until the flag is stored
+	refusals       *refusals      // refused calls with each API token, since the last audit event
+	roleRefusals   *refusals      // calls refused for want of a role, by person or token and method
+	stepUps        *stepUps       // proofs of a passkey confirming one action
+	providers      providerSource // sign-in providers for the panel (ADR 0095)
 	// recheck is how often an open stream checks its session again.
 	recheck time.Duration
 }
@@ -430,6 +432,11 @@ type ceremony struct {
 	// fresh says a sign-in just now confirmed adding a passkey, with no
 	// step-up, which finishing checks again (freshSignIn).
 	fresh bool
+	// A sign-in with a provider, or linking an account there (ADR 0095): the
+	// provider, its issuer as it began, and what the provider's way back is
+	// checked against. Linking has user and sessionID set.
+	provider, issuer string
+	begun            oidc.Begun
 }
 
 type ceremonyKind int
@@ -440,6 +447,7 @@ const (
 	ceremonyAddPasskey
 	ceremonyStepUp
 	ceremonyInvite
+	ceremonyProvider
 )
 
 // ceremonies holds ceremonies in memory, at most max of them. They are

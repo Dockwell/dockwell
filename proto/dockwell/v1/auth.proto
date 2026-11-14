@@ -53,8 +53,12 @@ service AuthService {
     help: "Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security."
   };
   option (dockwell.v1.nouns) = {
+    name: "provider-links"
+    help: "A provider link is an account at a sign-in provider that signs you in to Dockwell, on the panel's own domain, once an admin turns that on for the provider. Linking one needs a signed-in session, which no API token gives, and your passkey to confirm it, so you do it in the panel, under Profile and security. Unlinking ends the sessions it began."
+  };
+  option (dockwell.v1.nouns) = {
     name: "sessions"
-    help: "A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, or a one-time link from dockwell recover, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel."
+    help: "A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, a one-time link from dockwell recover, or an account you linked at a sign-in provider, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel."
   };
   option (dockwell.v1.nouns) = {
     name: "step-up-policy"
@@ -213,6 +217,22 @@ service AuthService {
     option (dockwell.v1.reach) = REACH_ANYONE;
     option (google.api.http) = {
       post: "/v1/sessions:signInWithLink"
+      body: "*"
+    };
+  }
+
+  // BeginProviderSignIn starts signing in with a sign-in provider that signs
+  // people in to Dockwell, on the panel's own domain, for someone who linked an
+  // account there (ADR 0095). It answers the address to go to, and sets a cookie
+  // the provider's way back is checked against. Starting one spends from the same
+  // allowance for your address as starting a passkey sign-in.
+  rpc BeginProviderSignIn(BeginProviderSignInRequest) returns (BeginProviderSignInResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_NOTHING;
+    option (dockwell.v1.min_role_protected) = NEEDS_NOTHING;
+    option (dockwell.v1.reach) = REACH_ANYONE;
+    option (google.api.http) = {
+      post: "/v1/sessions:beginProviderSignIn"
       body: "*"
     };
   }
@@ -383,6 +403,45 @@ service AuthService {
     };
   }
 
+  // ListProviderLinks lists the accounts at sign-in providers you sign in to
+  // Dockwell with, and whether each still works (ADR 0095).
+  rpc ListProviderLinks(ListProviderLinksRequest) returns (ListProviderLinksResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {get: "/v1/provider-links"};
+  }
+
+  // BeginLinkProvider starts linking an account at a sign-in provider to you,
+  // on the panel's own domain. It needs a proof from FinishStepUp for linking
+  // that provider, as a way to sign in outlives the session that made it. It
+  // answers the address to go to; the provider's way back links the account.
+  rpc BeginLinkProvider(BeginLinkProviderRequest) returns (BeginLinkProviderResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {
+      post: "/v1/provider-links:begin"
+      body: "*"
+    };
+  }
+
+  // DeleteProviderLink unlinks an account at a sign-in provider from you, and
+  // ends every session it began.
+  rpc DeleteProviderLink(DeleteProviderLinkRequest) returns (DeleteProviderLinkResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {
+      post: "/v1/provider-links/{id}:delete"
+      body: "*"
+    };
+  }
+
   // GetTotp says whether you sign in with an authenticator app, and how many
   // recovery codes are left.
   rpc GetTotp(GetTotpRequest) returns (GetTotpResponse) {
@@ -510,6 +569,8 @@ enum SignInMethod {
   SIGN_IN_METHOD_LINK = 5;
   // Accepting an invite, with the passkey it made.
   SIGN_IN_METHOD_INVITE = 6;
+  // An account at a sign-in provider linked to the person (ADR 0095).
+  SIGN_IN_METHOD_PROVIDER = 7;
 }
 
 // User is a person who signs in to the panel.
@@ -562,7 +623,92 @@ message GetAuthStateResponse {
   // (docs/adr/0059-what-the-panel-knows-of-what-you-may-do.md). Empty when
   // not signed in, and for someone with no role left.
   repeated RoleGrant grants = 10;
+  // The sign-in providers that sign people in at this address: on the panel's
+  // own domain, those an admin turned that on for (ADR 0095). Numbered in its
+  // block, 250 to 259.
+  repeated SignInProvider providers = 250;
 }
+
+// SignInProvider is a sign-in provider someone can sign in to Dockwell with.
+message SignInProvider {
+  // Its ID, such as "sip_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // What it's called, such as "Our Authentik".
+  string display_name = 2;
+}
+
+// BeginProviderSignInRequest names the provider to sign in with.
+message BeginProviderSignInRequest {
+  // The provider's ID, from GetAuthState's providers.
+  string provider = 1;
+}
+
+// BeginProviderSignInResponse says where to go to sign in.
+message BeginProviderSignInResponse {
+  // The provider's address to go to, which comes back to the panel.
+  string url = 1;
+}
+
+// ListProviderLinksRequest is empty: it lists your own.
+message ListProviderLinksRequest {}
+
+// ListProviderLinksResponse lists your linked accounts, oldest first.
+message ListProviderLinksResponse {
+  repeated ProviderLink links = 1;
+}
+
+// ProviderLink is an account at a sign-in provider that signs its person in to
+// Dockwell, kept by the provider's issuer and the account's subject, never by an
+// email address (ADR 0095).
+message ProviderLink {
+  // The link's ID, such as "plk_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // The provider's ID, and what it's called.
+  string provider_id = 2;
+  string provider_name = 3;
+  // What the provider calls the account, such as its email address, for you to
+  // tell accounts apart. Nothing else reads it.
+  string account = 4;
+  // When it was linked, and last signed you in.
+  google.protobuf.Timestamp create_time = 5;
+  google.protobuf.Timestamp last_used_time = 6;
+  // Whether it signs you in now.
+  ProviderLinkState state = 7;
+}
+
+// ProviderLinkState is whether a linked account signs its person in.
+enum ProviderLinkState {
+  PROVIDER_LINK_STATE_UNSPECIFIED = 0;
+  // It signs you in.
+  PROVIDER_LINK_STATE_WORKS = 1;
+  // Its provider no longer signs people in to Dockwell.
+  PROVIDER_LINK_STATE_PROVIDER_OFF = 2;
+  // Its provider moved to another issuer, where this account isn't.
+  PROVIDER_LINK_STATE_ISSUER_MOVED = 3;
+}
+
+// BeginLinkProviderRequest names the provider to link an account at.
+message BeginLinkProviderRequest {
+  // The provider's ID, from GetAuthState's providers.
+  string provider = 1;
+  // From FinishStepUp, for STEP_UP_ACTION_LINK_PROVIDER on this provider.
+  string proof = 2;
+}
+
+// BeginLinkProviderResponse says where to go to link the account.
+message BeginLinkProviderResponse {
+  // The provider's address to go to, which comes back to the panel.
+  string url = 1;
+}
+
+// DeleteProviderLinkRequest names the link to delete.
+message DeleteProviderLinkRequest {
+  // The link's ID.
+  string id = 1;
+}
+
+// DeleteProviderLinkResponse is empty.
+message DeleteProviderLinkResponse {}
 
 // RoleGrant is a role someone holds, and where.
 message RoleGrant {
@@ -906,6 +1052,10 @@ enum StepUpAction {
   // Setting the least anyone may choose, with SettingsService.SetStepUpFloor.
   // It has no target. It asks each time, whatever the choice.
   STEP_UP_ACTION_SET_STEP_UP_FLOOR = 241;
+  // Linking an account at a sign-in provider to you, with BeginLinkProvider
+  // (ADR 0095). The target is the provider's ID. Numbered in its block, 250 to
+  // 259.
+  STEP_UP_ACTION_LINK_PROVIDER = 250;
   // Reveals one of a service's own environment variables that reads hidden.
   // Its target is the service's ID and the name, as "svc_…:NAME". Numbered
   // apart, as open work adds to this enum.

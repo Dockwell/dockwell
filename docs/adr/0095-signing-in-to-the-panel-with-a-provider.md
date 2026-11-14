@@ -1,6 +1,6 @@
 # 0095. Signing in to the panel with a provider
 
-- Status: Accepted. Builds on [ADR 0087](0087-private-routes.md), whose sign-in providers it uses for the panel too.
+- Status: Accepted. Builds on [ADR 0087](0087-private-routes.md), whose sign-in providers it uses for the panel too. Adds linking an account to what asks each time in [ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md).
 - Date: 2026-11-14
 
 ## Context
@@ -65,7 +65,9 @@ The sign-in page shows "Sign in with <display name>" for each provider with `pan
 ### Passkeys stay for risky actions
 
 - A session begun with a provider has no passkey hour ([ADR 0075](0075-how-often-a-passkey-is-asked-for-again.md)): what asks for a passkey asks for it, at every level.
-- Every member keeps a passkey, as claiming and accepting an invite make one. Unlinking never takes one away, and removing a member's last passkey is refused as before.
+- Nor is it the sign-in just now that lets someone with no passkey here add one without a step-up, as a recovery code is. Otherwise taking over someone's account at the provider would make its own passkey, a way in that outlives the provider.
+- Linking an account asks for a passkey each time, whatever someone chose, as adding a passkey does: it joins ADR 0075's list of what asks each time.
+- Every member has a passkey, as claiming and accepting an invite make one. Unlinking never takes one away.
 - So signing in with a provider is a way in for everyday work, and a provider that's down or gone leaves each member their passkey.
 
 ### Unlinking

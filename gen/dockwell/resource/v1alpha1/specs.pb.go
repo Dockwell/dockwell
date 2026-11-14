@@ -6622,7 +6622,10 @@ type SigninProvider struct {
 	// an account at, such as Google's or Entra's common one.
 	AnyAccount bool `protobuf:"varint,7,opt,name=any_account,json=anyAccount,proto3" json:"any_account,omitempty"`
 	// The projects whose routes may use it, by ID. Empty for every project.
-	Projects      []string `protobuf:"bytes,8,rep,name=projects,proto3" json:"projects,omitempty"`
+	Projects []string `protobuf:"bytes,8,rep,name=projects,proto3" json:"projects,omitempty"`
+	// Whether people sign in to Dockwell with it too, each with an account they
+	// linked while signed in, on the panel's own domain (ADR 0095). Off by default.
+	Panel         bool `protobuf:"varint,9,opt,name=panel,proto3" json:"panel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6711,6 +6714,13 @@ func (x *SigninProvider) GetProjects() []string {
 		return x.Projects
 	}
 	return nil
+}
+
+func (x *SigninProvider) GetPanel() bool {
+	if x != nil {
+		return x.Panel
+	}
+	return false
 }
 
 // Task is work that runs on a schedule, on each server it's placed on, kind "task"
@@ -8705,7 +8715,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"access_key\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\taccessKey\x12#\n" +
 	"\n" +
 	"secret_key\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\tsecretKey\x12\x16\n" +
-	"\x06region\x18\x03 \x01(\tR\x06region\"\x8b\x02\n" +
+	"\x06region\x18\x03 \x01(\tR\x06region\"\xa1\x02\n" +
 	"\x0eSigninProvider\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x12\x16\n" +
 	"\x06issuer\x18\x02 \x01(\tR\x06issuer\x12\x1b\n" +
@@ -8715,7 +8725,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\fgroups_claim\x18\x06 \x01(\tR\vgroupsClaim\x12\x1f\n" +
 	"\vany_account\x18\a \x01(\bR\n" +
 	"anyAccount\x12\x1a\n" +
-	"\bprojects\x18\b \x03(\tR\bprojects\"\xa3\x03\n" +
+	"\bprojects\x18\b \x03(\tR\bprojects\x12\x14\n" +
+	"\x05panel\x18\t \x01(\bR\x05panel\"\xa3\x03\n" +
 	"\x04Task\x12=\n" +
 	"\x05shell\x18\x01 \x01(\v2%.dockwell.resource.v1alpha1.TaskShellH\x00R\x05shell\x127\n" +
 	"\x03app\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.TaskAppH\x00R\x03app\x12C\n" +

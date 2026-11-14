@@ -62,6 +62,7 @@ func Commands() []string {
 		"passkeys",
 		"processes",
 		"projects",
+		"provider-links",
 		"registry-logins",
 		"resources",
 		"routes",

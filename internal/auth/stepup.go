@@ -121,6 +121,10 @@ const (
 	// variables that reads hidden (ADR 0081). Its target is the service's ID and
 	// the name, as "svc_…:NAME".
 	StepUpRevealServiceValue StepUpAction = "service.value_reveal"
+	// StepUpLinkProvider links an account at a sign-in provider to the person,
+	// a way to sign in that outlives the session (ADR 0095). Its target is the
+	// provider's ID.
+	StepUpLinkProvider StepUpAction = "provider_link.create"
 )
 
 // ServiceValueTarget is what a step-up for revealing a service's own value
@@ -159,6 +163,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},
 	StepUpSetFloor:            {"setting how often everyone is asked for a passkey at least", false},
 	StepUpRevealServiceValue:  {"revealing", true},
+	StepUpLinkProvider:        {"linking an account at", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
