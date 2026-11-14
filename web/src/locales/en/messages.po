@@ -8263,6 +8263,18 @@ msgstr "Details"
 msgid "Dockwell made this change because of what failed"
 msgstr "Dockwell made this change because of what failed"
 
+msgid "First, so each is down for a moment until Dockwell's copy starts on the same volumes"
+msgstr "First, so each is down for a moment until Dockwell's copy starts on the same volumes"
+
+msgid "Runs once Dockwell's copies are gone, as many replicas as each had"
+msgstr "Runs once Dockwell's copies are gone, as many replicas as each had"
+
+msgid "Scale {services} back up in {name} on <0>{server}</0>"
+msgstr "Scale {services} back up in {name} on <0>{server}</0>"
+
+msgid "Scale {services} to none in {name} on <0>{server}</0>"
+msgstr "Scale {services} to none in {name} on <0>{server}</0>"
+
 msgid "Scales the Swarm services {services} to none"
 msgstr "Scales the Swarm services {services} to none"
 

@@ -17,6 +17,18 @@ export function panelName(kind: string): string {
 /** What stopping or starting the panel an import came from does, in its step's line (ADR 0089). */
 export function PanelLine({ panel, server }: { panel: HostPanel; server: string }) {
   const name = panelName(panel.kind);
+  if (panel.apps) {
+    const services = panel.parts.map((p) => p.name).join(", ");
+    return panel.start ? (
+      <Trans>
+        Scale {services} back up in {name} on <code>{server}</code>
+      </Trans>
+    ) : (
+      <Trans>
+        Scale {services} to none in {name} on <code>{server}</code>
+      </Trans>
+    );
+  }
   return panel.start ? (
     <Trans>
       Start {name} again on <code>{server}</code>
@@ -41,7 +53,16 @@ export function PanelPlan({ panel, server }: { panel: HostPanel; server: string 
   const containers = list(panel.parts.filter((p) => !p.swarm).map((p) => p.name));
   const services = list(panel.parts.filter((p) => p.swarm).map((p) => p.name));
   const lines: { key: string; text: string }[] = [];
-  if (panel.start) {
+  if (panel.apps) {
+    lines.push(
+      panel.start
+        ? { key: "start", text: t`Runs once Dockwell's copies are gone, as many replicas as each had` }
+        : {
+            key: "stops",
+            text: t`First, so each is down for a moment until Dockwell's copy starts on the same volumes`,
+          },
+    );
+  } else if (panel.start) {
     lines.push({ key: "start", text: t`Starts ${list(panel.parts.map((p) => p.name))} as each stood before the stop` });
   } else {
     if (containers !== "") {

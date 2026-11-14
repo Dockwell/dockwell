@@ -631,6 +631,86 @@ func (h *Handler) TakenOn(ctx context.Context, r *containers.Running, name strin
 	return project, nil
 }
 
+// Remake is a container Dockwell makes again as a service of its own, by its
+// name and the service's: a Swarm task, whose service Swarm keeps running
+// whatever happens to the container, so it can't be taken on in place (ADR 0089).
+type Remake struct {
+	Container, Service string
+	// Ports are what its old manager published for it, such as through Swarm's
+	// routing mesh, which the copy publishes on the server.
+	Ports []*resourcev1.PortMapping
+}
+
+// ReadMakingAgain reads what making each container again as a service of its own
+// would plan, into project's default environment, made where it's new: as it runs,
+// on the same volumes and server paths, with what only its old manager reads of it
+// left behind, Swarm's, Traefik's and Dokploy's labels and its networks. Nothing is
+// taken on: the plan makes a new container, and its manager's copy stops as a step
+// of its own. What's in the way is said for each, by its service.
+func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, list []Remake, project string) (*Taking, map[string][]string, error) {
+	place, err := h.destination(ctx, project, "", "")
+	if err != nil {
+		return nil, nil, err
+	}
+	running, err := h.servicesIn(ctx, place.environment)
+	if err != nil {
+		return nil, nil, h.internal(ctx, err)
+	}
+	t := &Taking{Project: place.project, Made: place.made}
+	refused := map[string][]string{}
+	for _, m := range list {
+		i := slices.IndexFunc(r.Others, func(c *dockwellv1.ServerContainer) bool { return c.GetName() == m.Container })
+		switch {
+		case i < 0:
+			refused[m.Service] = append(refused[m.Service], fmt.Sprintf("no container of it runs on %s now, so there's nothing to read it from", r.Server.Name))
+			continue
+		case slices.Contains(running, m.Service):
+			refused[m.Service] = append(refused[m.Service], fmt.Sprintf("the project %s runs a service %s already", place.project, m.Service))
+			continue
+		}
+		c := r.Others[i]
+		ref := resource.Ref{Kind: service.Kind, Scope: place.environment, Name: m.Service}
+		svc, found, err := h.containers.ReadAs(ctx, r.Server, c, ref)
+		if err != nil {
+			return nil, nil, err
+		}
+		// Its old copy stops before this one starts, so what leans on it now is
+		// what reaches the new one by its name.
+		found.LeanedOn = nil
+		if why := containers.Refusal(c.GetName(), found); why != "" {
+			refused[m.Service] = append(refused[m.Service], why)
+			continue
+		}
+		app := svc.GetApp()
+		remade(app)
+		for _, p := range m.Ports {
+			if !slices.ContainsFunc(app.GetPorts(), func(have *resourcev1.PortMapping) bool { return have.GetHostPort() == p.GetHostPort() }) {
+				app.Ports = append(app.Ports, p)
+			}
+		}
+		t.Edits = append(t.Edits, &dockwellv1.Edit{
+			Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: place.environment, Name: m.Service},
+			Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: svc}},
+			Servers:  []string{r.Server.ID},
+		})
+	}
+	return t, refused, nil
+}
+
+// remade leaves out of a container's spec what only its old manager reads: Swarm's
+// and Traefik's labels, Dokploy's, which would name it Dokploy's, and the networks it
+// joined, as a service joins its environment's.
+func remade(app *resourcev1.Container) {
+	for k := range app.GetLabels() {
+		for _, prefix := range []string{"com.docker.swarm.", "com.docker.stack.", "traefik.", "dokploy."} {
+			if strings.HasPrefix(k, prefix) {
+				delete(app.Labels, k)
+			}
+		}
+	}
+	app.Networks = nil
+}
+
 // FreeProject is want, or, where a project has that name or claimed has it, the
 // first of want-<from>, want-<from>-2 and on that none has, such as blog-1panel: a
 // project to take something on into that's no one else's, nor another's of the

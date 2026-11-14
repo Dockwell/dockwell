@@ -231,3 +231,38 @@ func TestWhatComesFromGit(t *testing.T) {
 		}
 	}
 }
+
+// Each of Dokploy's Swarm services is read with its running task, which it's made
+// again from, and the ports it publishes, each by the name its copy takes: an
+// application's appName, or a stack's service as the stack named it.
+func TestDokploysSwarmServicesComeWithTheirTasksAndPorts(t *testing.T) {
+	e := dockertest.New(t)
+	spec := func(name string, labels map[string]string, ports ...docker.ServicePort) docker.Service {
+		var s docker.ServiceSpec
+		s.Name, s.Labels, s.TaskTemplate.ContainerSpec.Image = name, labels, "postgres:16"
+		s.EndpointSpec.Ports = ports
+		return docker.Service{ID: name, Spec: s}
+	}
+	e.Services = []docker.Service{
+		spec("dokploy", nil),
+		spec("db-x7k2", map[string]string{"dokploy.project": "store", "dokploy.application": "db"}, docker.ServicePort{Protocol: "tcp", TargetPort: 5432, PublishedPort: 5433, PublishMode: "ingress"}),
+		spec("forum-q1_web", map[string]string{"com.docker.stack.namespace": "forum-q1"}, docker.ServicePort{TargetPort: 80, PublishedPort: 8081}),
+	}
+	e.AddContainer(docker.Container{Name: "/db-x7k2.1.abcd", Config: docker.Config{Image: "postgres:16", Labels: map[string]string{"com.docker.swarm.service.name": "db-x7k2"}}})
+	got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range got.GetFound().GetApps() {
+		switch a.GetId() {
+		case "db-x7k2":
+			if !slices.Equal(a.GetTasks(), []string{"db-x7k2.1.abcd"}) || len(a.GetPublished()) != 1 || a.GetPublished()[0].GetPublished() != 5433 || a.GetPublished()[0].GetService() != "db-x7k2" {
+				t.Errorf("the database reads %v", a)
+			}
+		case "forum-q1":
+			if !slices.Equal(a.GetTasks(), []string{""}) || len(a.GetPublished()) != 1 || a.GetPublished()[0].GetService() != "web" || a.GetPublished()[0].GetProtocol() != "tcp" {
+				t.Errorf("the stack reads %v", a)
+			}
+		}
+	}
+}

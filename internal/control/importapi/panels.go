@@ -3,6 +3,7 @@
 package importapi
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
@@ -24,6 +26,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/revision"
 )
 
@@ -145,12 +148,20 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 		switch {
 		case a.GetPreview():
 			leave(step, fmt.Sprintf("It's a pull request's preview, which %s makes and removes with its pull request.", w.name))
+		case a.GetSwarm() && a.GetKind() == "stack" && allTasks(a):
+			// A stack's services, read from their running tasks, come again in a
+			// project of the stack's own, named as the stack named them.
+			step.Action = dockwellv1.ImportAction_IMPORT_ACTION_MAKE
+			step.Becomes = fmt.Sprintf("its services, %s, made again as they run, on their volumes", human.List(stackServices(a)))
+			step.Reason = fmt.Sprintf("%s runs it as a Swarm stack, which Swarm keeps running whatever happens to its containers, so it's made again: %s scales each service to none as Dockwell's copy starts, with a moment down.", w.name, w.name)
+		case a.GetSwarm() && a.GetKind() != "stack" && allTasks(a):
+			// One Swarm service, read from its running task, comes again in Dockwell
+			// as it runs; the project it comes into is the plan's to name.
+			step.Action = dockwellv1.ImportAction_IMPORT_ACTION_MAKE
+			step.Becomes = fmt.Sprintf("the service %s, made again as it runs, on its volumes", containers.Label(a.GetId()))
+			step.Reason = fmt.Sprintf("%s runs it as a Swarm service, which Swarm keeps running whatever happens to its container, so it's made again: %s scales it to none as Dockwell's copy starts, with a moment down.", w.name, w.name)
 		case a.GetSwarm():
-			runs := "a Swarm service"
-			if a.GetKind() == "stack" {
-				runs = "a Swarm stack"
-			}
-			leave(step, fmt.Sprintf("%s runs it as %s, which Swarm keeps running whatever happens to its containers, so Dockwell can't take it on in place. A later step makes it again in Dockwell, on the same volumes, stopping it in %s as Dockwell's starts, with a moment down.", w.name, runs, w.name))
+			leave(step, fmt.Sprintf("%s runs it as a Swarm service, and no task of it runs now, so there's nothing to read it from. Start it in %s, then import again.", w.name, w.name))
 		case a.GetComposeProject() == "":
 			leave(step, fmt.Sprintf("Docker runs none of its containers through docker compose, so there's nothing to take on as it runs. It stays as it is, in %s.", w.name))
 		default:
@@ -368,6 +379,13 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 		takings = append(takings, t)
 		taken = append(taken, step.GetName())
 	}
+	// What runs as a Swarm service is made again, the apps of each of the panel's
+	// projects in one of Dockwell's, so they find each other by the names they had.
+	remakes, parts, made, err := h.planRemakes(ctx, r, w, steps, apps, claimed)
+	if err != nil {
+		return nil, err
+	}
+	takings = append(takings, remakes...)
 	if len(takings) == 0 || !propose {
 		return nil, nil
 	}
@@ -379,9 +397,21 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 		also.Notes = append(also.Notes, t.Notes...)
 		maps.Copy(also.Adopts, t.Adopts)
 	}
-	also.Notes = append(also.Notes, revision.Note{Reason: "imports_" + w.from, Message: fmt.Sprintf(
-		"Takes on what %s runs on %s as it runs: %s. Their volumes stay where they are. Their domains come as routes once %s hands over ports 80 and 443, and %s itself goes on running until you stop it.",
-		w.name, srv.GetName(), human.List(taken), w.proxy, w.name)})
+	if len(taken) > 0 {
+		also.Notes = append(also.Notes, revision.Note{Reason: "imports_" + w.from, Message: fmt.Sprintf(
+			"Takes on what %s runs on %s as it runs: %s. Their volumes stay where they are. Their domains come as routes once %s hands over ports 80 and 443, and %s itself goes on running until you stop it.",
+			w.name, srv.GetName(), human.List(taken), w.proxy, w.name)})
+	}
+	if len(parts) > 0 {
+		also.Edits = append(also.Edits, revision.Edit{
+			Ref:   resource.Ref{Kind: host.Kind, Scope: srv.GetId(), Name: host.Name},
+			Spec:  &resourcev1.ServerHost{},
+			Panel: &resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: parts},
+		})
+		also.Notes = append(also.Notes, revision.Note{Reason: "remakes_" + w.from, Message: fmt.Sprintf(
+			"Makes again in Dockwell what %s runs as Swarm services: %s, as each runs, on the same volumes. %s scales each to none first, so each is down for a moment until Dockwell's copy starts. Undoing this deletes Dockwell's copies and scales each back",
+			w.name, human.List(made), w.name)})
+	}
 	return h.changes.Propose(ctx, "Take on what "+w.name+" runs on "+srv.GetName(), edits, nil, also)
 }
 
@@ -447,4 +477,126 @@ func (h *Handler) PlanStartPanel(ctx context.Context, req *connect.Request[dockw
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.PlanStartPanelResponse{Change: c}), nil
+}
+
+// planRemakes reads what making each Swarm-run app again would plan, the apps of
+// each of the panel's projects into one of Dockwell's named for it, and leaves
+// what's in the way, saying why. It returns the takings, the Swarm services the
+// panel scales to none as their copies start, and the steps' names.
+func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w panel, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, claimed map[string]bool) ([]*composeapi.Taking, []resource.PanelPart, []string, error) {
+	groups := map[string][]int{}
+	var order []string
+	for i, step := range steps {
+		a := apps[i]
+		if a == nil || !a.GetSwarm() || step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_MAKE {
+			continue
+		}
+		key := cmp.Or(a.GetProject(), a.GetId())
+		if a.GetKind() == "stack" {
+			// A stack's services reach each other by the names it gave them, which
+			// another stack may give too: each comes into a project of its own.
+			key = "stack:" + a.GetId()
+		}
+		if groups[key] == nil {
+			order = append(order, key)
+		}
+		groups[key] = append(groups[key], i)
+	}
+	var takings []*composeapi.Taking
+	var parts []resource.PanelPart
+	var made []string
+	for _, key := range order {
+		want := strings.TrimPrefix(key, "stack:")
+		if strings.HasPrefix(key, "stack:") {
+			want = apps[groups[key][0]].GetName()
+		}
+		project, err := h.taker.FreeProject(ctx, containers.Label(strings.ToLower(want)), w.from, claimed)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		claimed[project] = true
+		var list []composeapi.Remake
+		for _, i := range groups[key] {
+			list = append(list, remakesOf(apps[i])...)
+		}
+		t, refused, err := h.taker.ReadMakingAgain(ctx, r, list, project)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		took := false
+		for _, i := range groups[key] {
+			var why []string
+			for _, m := range remakesOf(apps[i]) {
+				why = append(why, refused[m.Service]...)
+			}
+			if len(why) > 0 {
+				leave(steps[i], sentences(actionable(why))+fmt.Sprintf(" It stays as it is, in %s, until that's dealt with.", w.name))
+				t.Edits = slices.DeleteFunc(t.Edits, func(e *dockwellv1.Edit) bool {
+					return slices.ContainsFunc(remakesOf(apps[i]), func(m composeapi.Remake) bool { return e.GetResource().GetName() == m.Service })
+				})
+				continue
+			}
+			if apps[i].GetKind() == "stack" {
+				steps[i].Becomes = fmt.Sprintf("its services, %s, in the project %s, made again as they run, on their volumes", human.List(stackServices(apps[i])), t.Project)
+			} else {
+				steps[i].Becomes = fmt.Sprintf("the service %s in the project %s, made again as it runs, on its volumes", containers.Label(apps[i].GetId()), t.Project)
+			}
+			for _, svc := range apps[i].GetContainers() {
+				parts = append(parts, resource.PanelPart{Name: svc})
+			}
+			made = append(made, steps[i].GetName())
+			took = true
+		}
+		if took && len(t.Edits) > 0 {
+			takings = append(takings, t)
+		}
+	}
+	return takings, parts, made, nil
+}
+
+// allTasks reports a Swarm-run app each of whose services has a task running, to
+// read it from.
+func allTasks(a *dockwellv1.PanelApp) bool {
+	return len(a.GetTasks()) > 0 && len(a.GetTasks()) == len(a.GetContainers()) && !slices.Contains(a.GetTasks(), "")
+}
+
+// stackServices are a stack's services, as the stack named them.
+func stackServices(a *dockwellv1.PanelApp) []string {
+	out := make([]string, 0, len(a.GetContainers()))
+	for _, c := range a.GetContainers() {
+		out = append(out, containers.Label(strings.TrimPrefix(c, a.GetId()+"_")))
+	}
+	return out
+}
+
+// remakesOf are the containers a Swarm-run app is made again from, each with the
+// name its copy takes and the ports its service published: an application's
+// appName, or each of a stack's services by the name the stack gave it.
+func remakesOf(a *dockwellv1.PanelApp) []composeapi.Remake {
+	names := []string{containers.Label(a.GetId())}
+	if a.GetKind() == "stack" {
+		names = stackServices(a)
+	}
+	out := make([]composeapi.Remake, 0, len(names))
+	for i, name := range names {
+		if i >= len(a.GetTasks()) {
+			break
+		}
+		m := composeapi.Remake{Container: a.GetTasks()[i], Service: name}
+		for _, p := range a.GetPublished() {
+			want := p.GetService()
+			if a.GetKind() != "stack" {
+				want = a.GetId()
+			}
+			if containers.Label(want) == name {
+				protocol := resourcev1.Protocol_PROTOCOL_TCP
+				if p.GetProtocol() == "udp" {
+					protocol = resourcev1.Protocol_PROTOCOL_UDP
+				}
+				m.Ports = append(m.Ports, &resourcev1.PortMapping{HostPort: p.GetPublished(), ContainerPort: p.GetPort(), Protocol: protocol})
+			}
+		}
+		out = append(out, m)
+	}
+	return out
 }

@@ -2682,7 +2682,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			// moved since makes the plan stale (ADR 0089).
 			if p := s.Panel; p != nil {
 				panels[ids[s.Ref]] = p
-				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Stays)
+				fmt.Fprintf(fp, "panel %s|%s|%s|%t|%t|%s", server, ref(s.Ref), p.Kind, p.Start, p.Apps, p.Stays)
 				for _, part := range p.Parts {
 					fmt.Fprintf(fp, "|%s,%t,%t,%s,%d", part.Name, part.Swarm, part.WasRunning, part.WasRestart, part.WasReplicas)
 				}

@@ -2161,6 +2161,9 @@ message PanelAction {
   // How each stood before a stop, as its plan kept it: what a start puts back,
   // and what a stop that resumes keeps.
   repeated dockwell.v1.HostPanelPart parts = 4;
+  // True to act on Swarm services of what the panel runs, which parts name, as
+  // each is made again in Dockwell; never the panel's own.
+  bool apps = 6;
 }
 
 // DatabaseDump is one database a backup step dumps alone, under the ID the control

@@ -84,6 +84,8 @@ const (
 	labelProject    = "com.docker.compose.project"
 	labelWorkingDir = "com.docker.compose.project.working_dir"
 	labelStack      = "com.docker.stack.namespace"
+	// labelSwarmService names the Swarm service a task's container runs for.
+	labelSwarmService = "com.docker.swarm.service.name"
 )
 
 func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult {
@@ -135,6 +137,14 @@ func (r Reader) coolify(list []docker.ContainerSummary) *agentv1.ReadPanelResult
 func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Service) *agentv1.ReadPanelResult {
 	p := &dockwellv1.Panel{Kind: dockwellv1.PanelKind_PANEL_KIND_DOKPLOY, Folder: dokployFolder}
 	apps := map[string]*dockwellv1.PanelApp{}
+	// Each Swarm service's running task, which Swarm names <service>.<slot>.<task>:
+	// what it's made again from.
+	tasks := map[string]string{}
+	for i := range list {
+		if svc := list[i].Labels[labelSwarmService]; svc != "" && list[i].State == "running" {
+			tasks[svc] = containerName(&list[i])
+		}
+	}
 	for i := range services {
 		s := &services[i].Spec
 		image := s.TaskTemplate.ContainerSpec.Image
@@ -155,7 +165,9 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 				apps[stack] = a
 			}
 			a.Containers = append(a.Containers, s.Name)
+			a.Tasks = append(a.Tasks, tasks[s.Name])
 			a.Domains = append(a.Domains, domainsOf(l)...)
+			a.Published = append(a.Published, publishedOf(strings.TrimPrefix(s.Name, stack+"_"), s)...)
 			continue
 		}
 		if l["dokploy.application"] == "" && l["dokploy.project"] == "" {
@@ -163,7 +175,8 @@ func (r Reader) dokploy(list []docker.ContainerSummary, services []docker.Servic
 		}
 		a := r.dokployApp(s.Name, engineOf(image), l)
 		a.Swarm, a.Image = true, image
-		a.Containers = []string{s.Name}
+		a.Containers, a.Tasks = []string{s.Name}, []string{tasks[s.Name]}
+		a.Published = publishedOf(s.Name, s)
 		a.Domains = append(domainsOf(l), r.dynamicDomains(s.Name)...)
 		apps[s.Name] = a
 	}
@@ -404,5 +417,16 @@ func sorted[K comparable](apps map[K]*dockwellv1.PanelApp) []*dockwellv1.PanelAp
 	slices.SortFunc(out, func(a, b *dockwellv1.PanelApp) int {
 		return cmp.Or(strings.Compare(a.GetName(), b.GetName()), strings.Compare(a.GetId(), b.GetId()))
 	})
+	return out
+}
+
+// publishedOf are the ports a Swarm service publishes, for its copy named service.
+func publishedOf(service string, s *docker.ServiceSpec) []*dockwellv1.PanelPort {
+	var out []*dockwellv1.PanelPort
+	for _, p := range s.EndpointSpec.Ports {
+		if p.PublishedPort != 0 && p.TargetPort != 0 {
+			out = append(out, &dockwellv1.PanelPort{Service: service, Port: p.TargetPort, Published: p.PublishedPort, Protocol: cmp.Or(p.Protocol, "tcp")})
+		}
+	}
 	return out
 }
