@@ -89,7 +89,10 @@ jobs:
         run: $GOTOOL golangci-lint fmt --diff
       - name: Test
         if: steps.pick.outputs.run == 'true'
-        run: go test -timeout 30m -race -coverprofile=coverage.out ./...
+        # Packages run side by side, so this takes as long as internal/control, the slowest: 27 to 30 minutes
+        # under the race detector on 2026-11-14, when main's run on 46ffb7e44 hit the 30-minute limit with no
+        # test failing. #197 is to bring it down; until then this leaves it room inside the job's 60 minutes.
+        run: go test -timeout 45m -race -coverprofile=coverage.out ./...
       - name: Test the agent build
         if: steps.pick.outputs.run == 'true'
         run: go test -race -tags agent,fullapi $AGENT_PKGS

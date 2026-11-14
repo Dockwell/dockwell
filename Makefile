@@ -97,7 +97,7 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 
 .PHONY: test
 test: deps ## Run the Go and TypeScript tests, the agent build's with its tag too
-	go test -timeout 30m -race -coverprofile=coverage.out ./...
+	go test -timeout 45m -race -coverprofile=coverage.out ./...
 	go test -race -tags agent,fullapi $(AGENT_PKGS)
 	pnpm -r --if-present test
 
