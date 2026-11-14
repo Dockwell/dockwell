@@ -685,6 +685,9 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		// Its old copy stops before this one starts, so what leans on it now is
 		// what reaches the new one by its name.
 		found.LeanedOn = nil
+		// What Swarm gives a task's container that its copy doesn't carry isn't
+		// dropped without a word: it's Swarm's, not the app's.
+		found.Refused = slices.DeleteFunc(found.Refused, swarmOnly)
 		if why := containers.Refusal(c.GetName(), found); why != "" {
 			refused[m.Service] = append(refused[m.Service], why)
 			continue
@@ -704,6 +707,15 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		})
 	}
 	return t, refused, nil
+}
+
+// swarmOnly says a take-on's refusal names what Swarm gives a task's container,
+// which its copy doesn't carry as it isn't the app's: an address Swarm pinned on
+// each network the task joined, as the copy joins anew, and the options Swarm
+// gave a volume of a stack's, such as its labels, as the volume is there already
+// and the copy mounts it by its name.
+func swarmOnly(refusal string) bool {
+	return strings.HasPrefix(refusal, "ipv4_address on ") || strings.HasPrefix(refusal, "VolumeOptions on ")
 }
 
 // restartFor is the restart policy a copy takes for its Swarm task's restart

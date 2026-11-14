@@ -158,8 +158,8 @@ func dokployShop(t *testing.T) shopOnDokploy {
 	shopSpec.EndpointSpec.Ports = []docker.ServicePort{{Protocol: "tcp", TargetPort: 80, PublishedPort: 8085, PublishMode: "ingress"}}
 	// Dokploy's network, where its Traefik reaches the app by its appName, and
 	// Swarm's routing mesh.
-	e.AddNetwork(docker.Network{ID: "d0kn", Name: "dokploy-network", Driver: "overlay"})
-	e.AddNetwork(docker.Network{ID: "1ngr", Name: "ingress", Driver: "overlay"})
+	e.AddNetwork(docker.Network{ID: "d0kn", Name: "dokploy-network", Driver: "overlay", IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "10.0.1.0/24"}}}})
+	e.AddNetwork(docker.Network{ID: "1ngr", Name: "ingress", Driver: "overlay", IPAM: docker.IPAM{Config: []docker.IPAMConfig{{Subnet: "10.0.0.0/24"}}}})
 	shopSpec.TaskTemplate.Networks = json.RawMessage(`[{"Target":"dokploy-network"}]`)
 	e.Services = []docker.Service{
 		{ID: "s1", Spec: swarmService("dokploy", "dokploy/dokploy:v0.31.2", nil)},
@@ -168,7 +168,11 @@ func dokployShop(t *testing.T) shopOnDokploy {
 	task := runByHand(t, e, "shop-k2m4.1.x7k2", func(r *docker.CreateRequest) {
 		// A Swarm task's container has no restart policy: Swarm restarts it.
 		r.HostConfig.PortBindings, r.HostConfig.RestartPolicy = nil, docker.RestartPolicy{}
-		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{"dokploy-network": {Aliases: []string{"x7k2abcdef12"}}, "ingress": {}}
+		// Swarm pins each task's address on each network it joins.
+		r.NetworkingConfig.EndpointsConfig = map[string]*docker.EndpointSettings{
+			"dokploy-network": {Aliases: []string{"x7k2abcdef12"}, IPAMConfig: &docker.EndpointIPAM{IPv4Address: "10.0.1.7"}},
+			"ingress":         {IPAMConfig: &docker.EndpointIPAM{IPv4Address: "10.0.0.7"}},
+		}
 		r.HostConfig.NetworkMode = "dokploy-network"
 		r.Labels = map[string]string{
 			"com.docker.swarm.service.name": "shop-k2m4", "com.docker.swarm.task.id": "x7k2",
