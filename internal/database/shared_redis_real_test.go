@@ -32,7 +32,7 @@ var redisImages = []string{
 // one's keys, which is why its server's apps read as reaching each other's data. A
 // restart loses them, and the agent puts them back. The agent signs in with the
 // password the server's command line requires, as no variable holds it (ADR 0084).
-func TestAppsHaveACLUsersOnARealRedis(t *testing.T) {
+func TestAppsHaveRedisACLUsersOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	for _, image := range redisImages {
 		t.Run(image, func(t *testing.T) { appsHaveACLUsers(t, client, image) })
@@ -181,7 +181,7 @@ func appsHaveACLUsers(t *testing.T, client *docker.Client, image string) {
 
 // A real Redis that requires no password gets no user of an app's own: the agent
 // refuses it as the plan is made (ADR 0084).
-func TestARealRedisWithoutAPasswordGetsNoUser(t *testing.T) {
+func TestARedisWithoutAPasswordGetsNoUserOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	const image = "redis:8.2-alpine"
 	env := dockertest.Scope(t)

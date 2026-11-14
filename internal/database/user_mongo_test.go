@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -144,7 +145,7 @@ func TestAMongoDBWithoutAccessControlGetsNoUser(t *testing.T) {
 			if err := client.StartContainer(t.Context(), id); err != nil {
 				t.Fatal(err)
 			}
-			d := &UserDriver{Client: client, Dir: t.TempDir()}
+			d := &UserDriver{Client: client, Dir: t.TempDir(), Wait: 50 * time.Millisecond, Every: 10 * time.Millisecond}
 			ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
 			desired := &resourcev1.DatabaseUser{Service: "db", Password: "SHOP_DATABASE_PASSWORD"}
 			if _, err := d.Judge(t.Context(), ref, nil, desired, nil); err == nil || !strings.Contains(err.Error(), "runs without access control") {
@@ -158,5 +159,39 @@ func TestAMongoDBWithoutAccessControlGetsNoUser(t *testing.T) {
 				t.Errorf("made %v", mg.users)
 			}
 		})
+	}
+}
+
+// A MongoDB whose image makes its root user on a server it runs open at first, then
+// starts again with access control, is waited for, not refused (ADR 0084).
+func TestAMongoDBOpenWhileItStartsIsWaitedFor(t *testing.T) {
+	mg := &fakeMongo{users: map[string]string{}, passwords: map[string]string{}, open: true}
+	e := dockertest.New(t)
+	e.AddLocalImage("mongo:8.0", dockertest.Image{Config: docker.Config{Cmd: []string{"mongod"}}, Exec: mg.exec})
+	client := e.Client()
+	id, err := client.CreateContainer(t.Context(), "env_1-db-1", &docker.CreateRequest{Config: docker.Config{
+		Image: "mongo:8.0", Labels: map[string]string{docker.LabelProject: "env_1", docker.LabelService: "db", docker.LabelNumber: "1"},
+		Env: []string{"MONGO_INITDB_ROOT_USERNAME=root", "MONGO_INITDB_ROOT_PASSWORD=x"},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(30 * time.Millisecond)
+		mg.mu.Lock()
+		mg.open = false
+		mg.mu.Unlock()
+	}()
+	d := &UserDriver{Client: client, Dir: t.TempDir(), Wait: 5 * time.Second, Every: 10 * time.Millisecond}
+	ref := resource.Ref{Kind: UserKind, Scope: "env_1", Name: "shop"}
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password"})
+	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionCreate}, &resourcev1.DatabaseUser{Service: "db", Password: "P"}); err != nil {
+		t.Fatalf("making a user on a MongoDB that was starting = %v", err)
+	}
+	if mg.users["shop"] != "shop" {
+		t.Errorf("made %v", mg.users)
 	}
 }

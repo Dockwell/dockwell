@@ -306,8 +306,15 @@ func (d *UserDriver) guard(ctx context.Context, c *docker.Container, e *Engine) 
 		if err := json.Unmarshal([]byte(lines[len(lines)-1]), &out); err != nil {
 			return fmt.Errorf("can't read what %s said: %w", e.Name, err)
 		}
-		if !out.Root || out.Open {
-			return fmt.Errorf("%s runs without access control, so every app on it reaches every other's data, and a user of its own keeps no one out. Give it a root user (MONGO_INITDB_ROOT_USERNAME and its password), then try again", e.Name)
+		refused := fmt.Errorf("%s runs without access control, so every app on it reaches every other's data, and a user of its own keeps no one out. Give it a root user (MONGO_INITDB_ROOT_USERNAME and its password), then try again", e.Name)
+		switch {
+		case !out.Root:
+			return refused
+		case out.Open:
+			// The image makes its root user on a server it runs without access control
+			// first, on its own address alone, then starts it again with it: one that
+			// stays open is refused once making a user stops waiting.
+			return fmt.Errorf("%w (%w)", refused, ErrStarting)
 		}
 	}
 	return nil
