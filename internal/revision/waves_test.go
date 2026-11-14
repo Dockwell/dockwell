@@ -57,19 +57,24 @@ func TestAPlansWavesAreOfTheServersThatAct(t *testing.T) {
 	}
 }
 
-// The next wave's pause counts from when the last step of the one before ended.
-func TestAWaveEndsWithItsLastStep(t *testing.T) {
+// The next wave's pause counts from when the last step of any wave before it ended:
+// one found done after a later one, as a resume finds it, counts too.
+func TestTheWavesBeforeEndWithTheirLastStep(t *testing.T) {
 	at := time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC)
-	w := &Waves{Order: [][]string{{"a"}, {"b", "c"}}}
+	w := &Waves{Order: [][]string{{"a"}, {"b", "c"}, {"d"}}}
 	p := &Progress{Steps: []StepProgress{
-		{Server: "a", Finished: at},
+		{Server: "a", Finished: at.Add(5 * time.Minute)},
 		{Server: "b", Finished: at.Add(2 * time.Minute)},
 		{Server: "c", Finished: at.Add(time.Minute)},
+		{Server: "d", Finished: at.Add(9 * time.Minute)},
 	}}
-	if got := w.waveEnded(2, p); !got.Equal(at.Add(2 * time.Minute)) {
-		t.Errorf("wave 2 ended at %s", got)
+	if got := w.endedBefore(3, p); !got.Equal(at.Add(5 * time.Minute)) {
+		t.Errorf("the waves before wave 3 ended at %s, want wave 1's later end", got)
 	}
-	if !w.waveEnded(3, p).IsZero() || !w.waveEnded(1, nil).IsZero() {
-		t.Error("a wave that isn't there ended")
+	if got := w.endedBefore(2, p); !got.Equal(at.Add(5 * time.Minute)) {
+		t.Errorf("the wave before wave 2 ended at %s", got)
+	}
+	if !w.endedBefore(1, p).IsZero() || !w.endedBefore(2, nil).IsZero() {
+		t.Error("there's a wave before wave 1")
 	}
 }

@@ -4122,7 +4122,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			// And once the pause after the wave before has passed, as the steps' record
 			// says when it ended, so a run that resumes, as after the control plane
 			// starts again, keeps the time: the plan numbers the waves, not the run.
-			if ended := waves.waveEnded(w-1, e.progress(c.ID)); w > 1 && waves.Pause > 0 && !ended.IsZero() {
+			if ended := waves.endedBefore(w, e.progress(c.ID)); waves.Pause > 0 && !ended.IsZero() {
 				if until := ended.Add(waves.Pause); until.After(e.now()) {
 					_, u := e.step(c.ID, q.index, StepWaiting, fmt.Sprintf("Wave %d starts at %s, after the pause", w, until.Local().Format("15:04")))
 					if e.recordProgress(ctx, c.ID) {

@@ -77,6 +77,8 @@ type upgradeMark struct {
 	From    string    `json:"from"`
 	To      string    `json:"to"`
 	Started time.Time `json:"started"`
+	// Boot is the boot it started on: no script outlives one.
+	Boot string `json:"boot,omitempty"`
 }
 
 func (u *Upgrader) file(name string) string { return filepath.Join(u.Dir, name) }
@@ -114,6 +116,13 @@ func (u *Upgrader) ended() (int, bool) {
 		return -1, true
 	}
 	return code, true
+}
+
+// gone reports an upgrade's mark whose script can't be running: it started on a boot
+// before this one, at a time to come, as a clock set back says, or long ago.
+func (u *Upgrader) gone(m upgradeMark) bool {
+	now := u.now()
+	return m.Boot != "" && m.Boot != u.Reader.BootID() || m.Started.After(now) || now.Sub(m.Started) >= upgradeStale
 }
 
 // Forget lets go of what the change's upgrade left, once the agent runs the
@@ -165,14 +174,14 @@ func (u *Upgrader) Upgrade(ctx context.Context, ask resource.AgentUpgradeAsked) 
 	// still runs, as nothing else keeps two from running at once without systemd's
 	// unit. One that started long ago and never left one is taken as gone.
 	if m, ok := u.readMark(); ok && m.Change != ask.Change {
-		if _, ended := u.ended(); !ended && u.now().Sub(m.Started) < upgradeStale {
+		if _, ended := u.ended(); !ended && !u.gone(m) {
 			return fmt.Errorf("the upgrade to %s that %s asked for still runs here, so this one didn't start. Try again once it ends", m.To, m.Change)
 		}
 	}
 	if err := u.prepare(ask.Script); err != nil {
 		return fmt.Errorf("can't keep the install script where only root reads it, so it didn't run: %w", err)
 	}
-	b, err := json.Marshal(upgradeMark{Change: ask.Change, From: u.Own(), To: ask.Version, Started: u.now()})
+	b, err := json.Marshal(upgradeMark{Change: ask.Change, From: u.Own(), To: ask.Version, Started: u.now(), Boot: r.BootID()})
 	if err != nil {
 		return err
 	}

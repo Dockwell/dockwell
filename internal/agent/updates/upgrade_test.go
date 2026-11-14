@@ -5,6 +5,7 @@ package updates
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -162,4 +163,38 @@ func TestAnUpgradeRunsAsASystemdUnit(t *testing.T) {
 func plainOf(err error) string {
 	plain, _ := resource.Explain(err)
 	return plain
+}
+
+// An earlier change's mark whose script can't be running doesn't hold the next
+// upgrade: one from a boot before this one, or dated to come, as after a clock set
+// back. One from this boot, just started, does.
+func TestAStaleUpgradeMarkDoesntHoldTheNext(t *testing.T) {
+	now := time.Now()
+	for _, c := range []struct {
+		name  string
+		mark  upgradeMark
+		holds bool
+	}{
+		{"an earlier boot", upgradeMark{Change: "chg_old", To: "0.9.4", Started: now, Boot: "boot-0"}, false},
+		{"a time to come", upgradeMark{Change: "chg_old", To: "0.9.4", Started: now.Add(time.Hour), Boot: "boot-1"}, false},
+		{"long ago", upgradeMark{Change: "chg_old", To: "0.9.4", Started: now.Add(-time.Hour), Boot: "boot-1"}, false},
+		{"this boot, just now", upgradeMark{Change: "chg_old", To: "0.9.4", Started: now, Boot: "boot-1"}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			u, s := newUpgrader(t)
+			write(t, s.root, "proc/sys/kernel/random/boot_id", "boot-1\n", 0o644)
+			b, err := json.Marshal(c.mark)
+			if err != nil {
+				t.Fatal(err)
+			}
+			write(t, filepath.Dir(u.Dir), filepath.Base(u.Dir)+"/mark.json", string(b), 0o600)
+			err = u.Upgrade(t.Context(), askFor("#!/bin/sh\n"))
+			if held := err != nil && strings.Contains(err.Error(), "still runs here"); held != c.holds {
+				t.Errorf("a mark from %s: %v", c.name, err)
+			}
+			if !c.holds {
+				waitFor(t, u.file("status"))
+			}
+		})
+	}
 }

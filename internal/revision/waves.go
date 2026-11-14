@@ -124,16 +124,17 @@ func wavesIn(c store.Change) *Waves {
 	return p.Waves
 }
 
-// waveEnded is when the last step of wave ended, as progress has it: the latest of
-// its servers' steps' ends, or zero where none has.
-func (w *Waves) waveEnded(wave int, progress *Progress) time.Time {
+// endedBefore is when the last step of the waves before wave ended, as progress has
+// it: the latest end of any of their servers' steps, or zero where none has. A wave
+// found done after a later one, as a resume finds it, still counts.
+func (w *Waves) endedBefore(wave int, progress *Progress) time.Time {
 	var at time.Time
-	if w == nil || wave < 1 || wave > len(w.Order) || progress == nil {
+	if w == nil || wave < 2 || progress == nil {
 		return at
 	}
 	for i := range progress.Steps {
 		s := &progress.Steps[i]
-		if slices.Contains(w.Order[wave-1], s.Server) && s.Finished.After(at) {
+		if before := w.waveOf(s.Server); before > 0 && before < wave && s.Finished.After(at) {
 			at = s.Finished
 		}
 	}
