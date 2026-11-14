@@ -191,7 +191,11 @@
   margin-top: auto;
 }
 
-/* A few servers, a line each under the tiles, in the readout's words and type. */
+/* A few servers, a line each right under the tiles, in the readout's words and type; the room left stays below. */
+.overview-fleet-map:has(.overview-fleet-few) .dw-fleet {
+  flex: none;
+}
+
 .overview-fleet-few {
   display: flex;
   flex-direction: column;
