@@ -87,6 +87,18 @@ export function BackupsPage() {
     destinations.length > 0
       ? t`On each server's own disk, unencrypted, and sealed on a destination where you ask for it`
       : t`On each server's own disk, unencrypted, so they go if the server does`;
+  const recent = (
+    <section className="backups-runs" aria-labelledby="backups-runs">
+      <div className="backups-runs-head">
+        <h2 className="dw-text-heading" id="backups-runs">
+          <Trans>Recent runs</Trans>
+        </h2>
+        <span className="backups-runs-lead">{runs}</span>
+        {phone ? action : null}
+      </div>
+      <BackupRows backups={backups} />
+    </section>
+  );
   return (
     <Page title={t`Backups`} lead={where} phoneSub={where} back="/more" actions={backups.length > 0 ? action : null}>
       {query.error ? (
@@ -122,23 +134,16 @@ export function BackupsPage() {
                 <Trans>A backup is of a volume, and no app keeps one yet.</Trans>
               </EmptyState>
             )
-          ) : (
-            <section className="backups-runs" aria-labelledby="backups-runs">
-              <div className="backups-runs-head">
-                <h2 className="dw-text-heading" id="backups-runs">
-                  <Trans>Recent runs</Trans>
-                </h2>
-                <span className="backups-runs-lead">{runs}</span>
-                {phone ? action : null}
-              </div>
-              <BackupRows backups={backups} />
-            </section>
-          )}
+          ) : phone ? (
+            recent
+          ) : null}
         </div>
         <div className="backups-side">
           <DestinationsPanel destinations={destinations} />
         </div>
       </div>
+      {/* Under both columns on a wide screen, so each run's volume, state and reason have the page's width. */}
+      {!phone && !query.isPending && backups.length > 0 ? recent : null}
       {taking ? <BackUpSheet volumes={volumes} destinations={destinations} onClose={() => setTaking(false)} /> : null}
       {scheduling ? (
         <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
