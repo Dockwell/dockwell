@@ -300,7 +300,12 @@ function BackupsList({
   const state = (b: Backup) => (
     <div className="backup-state">
       <StatusBadge status={backupStatus(b)} label={stateWord(b)} labelIsState />
-      {b.state === BackupState.FAILED ? <span className="backup-why">{b.error}</span> : null}
+      {b.state === BackupState.FAILED ? (
+        // Two lines at most in the list; the whole of it on hover and on the backup's own page.
+        <span className="backup-why is-reason" title={b.error}>
+          {b.error}
+        </span>
+      ) : null}
       {b.progress ? <span className="backup-why">{b.progress}</span> : null}
       {b.copy === BackupCopy.STORED ? (
         <span className="backup-why">{b.onServer ? t`Also on ${b.destination}` : t`On ${b.destination}`}</span>
@@ -374,33 +379,36 @@ function BackupsList({
       </span>
     );
   const columns: TableColumn<Backup>[] = [
-    { key: "started", header: t`Started`, width: 160, render: when },
+    { key: "started", header: t`Started`, width: 136, render: when },
     {
+      // How it was taken under its volume, with where, as a phone's line has them, so the status has the room.
       key: "volume",
       header: t`Volume`,
-      render: (b) => (
-        <div className="backup-state">
-          <code>
-            <VolumeName backup={b} />
-          </code>
-          {where(b) ? <span className="backup-why">{where(b)}</span> : null}
-        </div>
-      ),
+      render: (b) => {
+        const under = [method(b.method, b.database), where(b)].filter(Boolean).join(" · ");
+        return (
+          <div className="backup-state">
+            <code>
+              <VolumeName backup={b} />
+            </code>
+            {under ? <span className="backup-why">{under}</span> : null}
+          </div>
+        );
+      },
     },
     { key: "state", header: t`Status`, render: state },
-    { key: "how", header: t`How`, render: (b) => method(b.method, b.database) },
     {
       key: "size",
       header: t`Size`,
       align: "right",
-      width: 88,
+      width: 80,
       render: (b) => (b.sizeBytes > 0n ? formatBytes(b.sizeBytes, i18n.locale) : ""),
     },
-    { key: "took", header: t`Took`, align: "right", width: 88, muted: true, render: took },
+    { key: "took", header: t`Took`, align: "right", width: 72, muted: true, render: took },
     {
       key: "actions",
       header: <span className="dw-sr">{t`Actions`}</span>,
-      width: 140,
+      width: 128,
       align: "right",
       render: actions,
     },

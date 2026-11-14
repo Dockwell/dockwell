@@ -138,6 +138,12 @@ describe("the backups page", () => {
     expect(rows[2]).toHaveTextContent("2 files changed while it copied");
     expect(rows[3]).toHaveTextContent("The disk is full.");
     expect(within(rows[3] as HTMLElement).queryByRole("button", { name: "Restore" })).toBeNull();
+    // How it was taken sits under its volume, so the status has the room, and a failure's reason keeps its whole
+    // text on hover, as the list holds it to two lines.
+    expect(within(table).queryByRole("columnheader", { name: "How" })).toBeNull();
+    const volume = within(rows[1] as HTMLElement).getAllByRole("cell")[1];
+    expect(volume).toHaveTextContent("PostgreSQL dump");
+    expect(within(rows[3] as HTMLElement).getByText("The disk is full.")).toHaveAttribute("title", "The disk is full.");
     // Under a heading of their own, with how many and how many failed, as Backups has its runs.
     const runs = screen.getByRole("region", { name: "Recent runs" });
     expect(within(runs).getByText("4 backups · 1 failed")).toBeVisible();
