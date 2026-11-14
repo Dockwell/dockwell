@@ -4,7 +4,6 @@ package signin
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/oidc"
 )
 
 // An address the provider hasn't verified is neither kept nor told to the app,
@@ -47,26 +47,17 @@ func TestAnAddressOutsideASCIINamesNoOne(t *testing.T) {
 	if w := signIn(t, s, route, p, map[string]any{"email": "Eve@KIWI.example", "groups": nil}); w.Code != http.StatusFound {
 		t.Errorf("an ASCII address in capitals gets %d, want let in", w.Code)
 	}
-	raw := map[string]json.RawMessage{}
-	for k, v := range goodClaims() {
-		raw[k], _ = json.Marshal(v)
-	}
-	raw["email"], _ = json.Marshal("\u0130nfo@example.com")
-	c, err := checkClaims(raw, want, now)
-	if err != nil || c.Email != "" || c.EmailVerified {
-		t.Errorf("an address with a dotted capital I reads as %+v, %v", c, err)
-	}
 }
 
 // At Google, a domain counts by hd alone, as a Google account can carry an address at
 // a domain that doesn't manage it (#598's review, L2).
 func TestAtGoogleADomainIsHostedDomainAlone(t *testing.T) {
 	r := Route{Issuer: googleIssuer, EmailDomains: []string{"example.com"}}
-	unmanaged := Claims{Email: "mira@example.com", EmailVerified: true}
+	unmanaged := oidc.Claims{Email: "mira@example.com", EmailVerified: true}
 	if d := r.vouched(unmanaged); r.letsIn(unmanaged.Email, d, nil) {
 		t.Error("a Google account with an example.com address and no hd is let in by domain")
 	}
-	managed := Claims{Email: "mira@example.com", EmailVerified: true, HostedDomain: "example.com"}
+	managed := oidc.Claims{Email: "mira@example.com", EmailVerified: true, HostedDomain: "example.com"}
 	if d := r.vouched(managed); !r.letsIn(managed.Email, d, nil) {
 		t.Error("a Google Workspace account at example.com isn't let in by domain")
 	}
@@ -92,13 +83,13 @@ func TestAProviderThatCantBeReadIsAskedOnce(t *testing.T) {
 	s := &Server{Client: srv.Client(), Now: func() time.Time { return clock }}
 	issuer := srv.URL + "/"
 	first := make(chan error, 1)
-	go func() { _, err := s.discover(t.Context(), issuer); first <- err }()
+	go func() { _, err := s.oidc().Discover(t.Context(), issuer); first <- err }()
 	for reads.Load() == 0 {
 		time.Sleep(time.Millisecond)
 	}
 	gone, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := s.discover(gone, issuer); !errors.Is(err, context.Canceled) {
+	if _, err := s.oidc().Discover(gone, issuer); !errors.Is(err, context.Canceled) {
 		t.Errorf("a visitor who left while a read was under way gets %v", err)
 	}
 	close(hold)
@@ -106,7 +97,7 @@ func TestAProviderThatCantBeReadIsAskedOnce(t *testing.T) {
 		t.Fatal("a provider answering 503 reads as found")
 	}
 	for range 5 {
-		if _, err := s.discover(t.Context(), issuer); err == nil {
+		if _, err := s.oidc().Discover(t.Context(), issuer); err == nil {
 			t.Fatal("a provider that couldn't be read reads as found")
 		}
 	}
@@ -114,7 +105,7 @@ func TestAProviderThatCantBeReadIsAskedOnce(t *testing.T) {
 		t.Errorf("a provider that couldn't be read is asked %d times in 30 seconds, want once", n)
 	}
 	clock = clock.Add(31 * time.Second)
-	_, _ = s.discover(t.Context(), issuer)
+	_, _ = s.oidc().Discover(t.Context(), issuer)
 	if n := reads.Load(); n != 2 {
 		t.Errorf("after 30 seconds it's asked %d times in all, want twice", n)
 	}

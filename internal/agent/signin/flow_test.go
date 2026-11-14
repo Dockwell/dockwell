@@ -10,62 +10,41 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/oidc/oidctest"
 )
 
 // fakeProvider is an OpenID Connect provider over TLS: its discovery document, its
-// keys, and a token endpoint that answers each code with what id says.
-type fakeProvider struct {
-	srv      *httptest.Server
-	signer   signer
-	keyReads atomic.Int32
-	id       func(form url.Values) map[string]any
-}
+// keys, and a token endpoint that answers each code with what ID says.
+type fakeProvider = oidctest.Provider
 
-func newProvider(t *testing.T) *fakeProvider {
-	t.Helper()
-	p := &fakeProvider{signer: newSigner(t, "ES256", "k1")}
-	p.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		base := p.srv.URL + "/"
-		switch r.URL.Path {
-		case "/.well-known/openid-configuration":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"issuer": base, "authorization_endpoint": base + "authorize", "token_endpoint": base + "token", "jwks_uri": base + "keys",
-				"token_endpoint_auth_methods_supported": []string{"client_secret_basic"},
-			})
-		case "/keys":
-			p.keyReads.Add(1)
-			_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{p.signer.jwk}})
-		case "/token":
-			_ = r.ParseForm()
-			if user, secret, ok := r.BasicAuth(); !ok || user != client || secret != "s3cret" || r.Form.Get("code_verifier") == "" {
-				w.WriteHeader(http.StatusUnauthorized)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_client"})
-				return
-			}
-			claims := p.id(r.Form)
-			claims["iss"] = base
-			_ = json.NewEncoder(w).Encode(map[string]string{"id_token": token(p.signer, claims), "token_type": "Bearer"})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(p.srv.Close)
-	return p
-}
+func newProvider(t *testing.T) *fakeProvider { return oidctest.NewProvider(t) }
+
+const (
+	issuer = oidctest.Issuer
+	client = oidctest.Client
+)
+
+var now = oidctest.Now
+
+func goodClaims() map[string]any { return oidctest.GoodClaims() }
+
+func newSigner(t *testing.T, alg, kid string) oidctest.Signer { return oidctest.NewSigner(t, alg, kid) }
+
+func token(s oidctest.Signer, claims map[string]any) string { return s.Token(claims) }
 
 // stand is a Server for one route at the fake provider, letting in example.com.
 func stand(t *testing.T, p *fakeProvider) (*Server, *Route) {
 	t.Helper()
 	route := &Route{
-		ID: "rte_admin", Domain: "app.example.net", Path: "/admin", Issuer: p.srv.URL + "/", ClientID: client, ClientSecret: "s3cret",
+		ID: "rte_admin", Domain: "app.example.net", Path: "/admin", Issuer: p.Srv.URL + "/", ClientID: client, ClientSecret: "s3cret",
 		EmailDomains: []string{"example.com"}, Groups: []string{"ops"}, Key: aKey(7),
 	}
 	return &Server{
 		Routes: func(id string) (Route, bool) { return *route, id == route.ID },
-		Client: p.srv.Client(),
+		Client: p.Srv.Client(),
 		Now:    func() time.Time { return now },
 	}, route
 }
@@ -109,7 +88,7 @@ func signIn(t *testing.T, s *Server, route *Route, p *fakeProvider, claims map[s
 	to, _ := url.Parse(w.Header().Get("Location"))
 	_, flowName := Names(route.ID)
 	flow := cookie(t, w, flowName)
-	p.id = func(url.Values) map[string]any {
+	p.ID = func(url.Values) map[string]any {
 		c := goodClaims()
 		c["nonce"] = to.Query().Get("nonce")
 		for k, v := range claims {
@@ -127,7 +106,7 @@ func TestANavigationGoesToTheProvider(t *testing.T) {
 	s, route := stand(t, p)
 	w := ask(s, http.MethodGet, "/admin/settings", html)
 	to, err := url.Parse(w.Header().Get("Location"))
-	if w.Code != http.StatusFound || err != nil || !strings.HasPrefix(to.String(), p.srv.URL+"/authorize?") {
+	if w.Code != http.StatusFound || err != nil || !strings.HasPrefix(to.String(), p.Srv.URL+"/authorize?") {
 		t.Fatalf("a navigation answers %d, %s", w.Code, w.Header().Get("Location"))
 	}
 	q := to.Query()
@@ -208,7 +187,7 @@ func TestASignInTheRouteRefusesSaysSo(t *testing.T) {
 	begun := ask(s, http.MethodGet, "/admin", html)
 	_, flowName := Names(route.ID)
 	to, _ := url.Parse(begun.Header().Get("Location"))
-	p.id = func(url.Values) map[string]any {
+	p.ID = func(url.Values) map[string]any {
 		c := goodClaims()
 		c["nonce"] = to.Query().Get("nonce")
 		return c
@@ -233,12 +212,12 @@ func TestRotatedKeysAreReadAgainOnce(t *testing.T) {
 	if w := signIn(t, s, route, p, nil); w.Code != http.StatusFound {
 		t.Fatalf("the first sign-in answers %d: %s", w.Code, w.Body)
 	}
-	p.signer = newSigner(t, "ES256", "k2")
+	p.Signer = newSigner(t, "ES256", "k2")
 	s.Now = func() time.Time { return now.Add(2 * time.Minute) }
 	if w := signIn(t, s, route, p, nil); w.Code != http.StatusFound {
 		t.Errorf("after the provider rotated its keys it answers %d: %s", w.Code, w.Body)
 	}
-	if got := p.keyReads.Load(); got != 2 {
+	if got := p.KeyReads.Load(); got != 2 {
 		t.Errorf("the keys were read %d times, want twice", got)
 	}
 }

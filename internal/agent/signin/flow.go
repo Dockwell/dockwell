@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+// Package signin is a private route's sign-in with an OpenID Connect provider, on
+// the route's agent (ADR 0087): it answers Caddy's forward_auth before each request,
+// from a cookie it signed, and talks to the provider only as someone signs in,
+// through internal/oidc.
 package signin
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"net/netip"
 	"net/url"
@@ -18,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/dockwell/dockwell/internal/oidc"
 )
 
 // Route is a private route that signs people in, as the agent keeps it.
@@ -37,9 +37,7 @@ type Route struct {
 }
 
 // Doer sends a request, as netguard's client does.
-type Doer interface {
-	Do(req *http.Request) (*http.Response, error)
-}
+type Doer = oidc.Doer
 
 // Server answers Caddy's forward_auth for the routes that sign people in: 200 with
 // who it is from a cookie it signed, a redirect to the provider for a navigation,
@@ -52,9 +50,20 @@ type Server struct {
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 
-	mu      sync.Mutex
-	issuers map[string]*issuerState
-	limits  map[string]*limit
+	mu       sync.Mutex
+	provider *oidc.Client
+	limits   map[string]*limit
+}
+
+// oidc is what reads the providers, kept between sign-ins.
+func (s *Server) oidc() *oidc.Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.provider == nil {
+		// The server's clock as it is at each read, as a test moves it.
+		s.provider = &oidc.Client{HTTP: s.Client, Now: s.now}
+	}
+	return s.provider
 }
 
 const (
@@ -74,13 +83,8 @@ const (
 	exchangesAVisitor = 5
 	maxVisitors       = 4096
 	maxStates         = 8192
-	// discoveryFailFor is how long a provider that couldn't be read stays so, so a
-	// crowd of visitors waits on one read, not one each (#598's review, L4).
-	discoveryFailFor = 30 * time.Second
-	discoveryFor     = time.Hour
-	keysAgainAfter   = time.Minute
 	// MaxAnswer caps what a provider's answer reads.
-	MaxAnswer = 256 << 10
+	MaxAnswer = oidc.MaxAnswer
 )
 
 func (s *Server) now() time.Time {
@@ -191,7 +195,7 @@ func (r Route) back(uri string) string {
 // vouched is the domain a provider vouches an account is at: an address's own, where
 // the provider verified it, or at Google its hosted domain alone, as a Google account
 // can carry an address at a domain that doesn't manage it (#598's review, L2).
-func (r Route) vouched(c Claims) string {
+func (r Route) vouched(c oidc.Claims) string {
 	if r.Issuer == googleIssuer {
 		return c.HostedDomain
 	}
@@ -206,38 +210,21 @@ const googleIssuer = "https://accounts.google.com"
 
 // begin sends a navigation to the provider, with a flow cookie for the callback.
 func (s *Server) begin(ctx context.Context, w http.ResponseWriter, route Route, uri string) {
-	doc, err := s.discover(ctx, route.Issuer)
+	doc, err := s.oidc().Discover(ctx, route.Issuer)
 	if err != nil {
 		unreachable(route, uri, err).write(w)
 		return
 	}
-	state, nonce, verifier := random(), random(), random()
+	b := oidc.Begin()
 	_, flowName := Names(route.ID)
-	value, err := SealFlow(route.Key, route.Generation, Flow{Route: route.ID, State: state, Nonce: nonce, Verifier: verifier, Back: route.back(uri), Ends: s.now().Add(flowFor)})
+	value, err := SealFlow(route.Key, route.Generation, Flow{Route: route.ID, State: b.State, Nonce: b.Nonce, Verifier: b.Verifier, Back: route.back(uri), Ends: s.now().Add(flowFor)})
 	if err != nil {
 		failed(route, uri, "Dockwell can't keep this sign-in in a cookie.").write(w)
 		return
 	}
 	setCookie(w, flowName, value, int(flowFor/time.Second))
-	challenge := sha256.Sum256([]byte(verifier))
-	q := url.Values{
-		"response_type":         {"code"},
-		"client_id":             {route.ClientID},
-		"redirect_uri":          {route.redirectURI()},
-		"scope":                 {strings.Join(append(append([]string{}, "openid", "email", "profile"), route.Scopes...), " ")},
-		"state":                 {state},
-		"nonce":                 {nonce},
-		"code_challenge":        {base64.RawURLEncoding.EncodeToString(challenge[:])},
-		"code_challenge_method": {"S256"},
-	}
-	target := doc.AuthorizationEndpoint
-	if strings.Contains(target, "?") {
-		target += "&" + q.Encode()
-	} else {
-		target += "?" + q.Encode()
-	}
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Location", target)
+	w.Header().Set("Location", b.Authorize(doc, route.ClientID, route.redirectURI(), route.Scopes))
 	w.WriteHeader(http.StatusFound)
 }
 
@@ -265,10 +252,13 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request, route Route, r
 		failed(route, flow.Back, "Too many people are signing in to this route at once.").write(w)
 		return
 	}
-	claims, err := s.redeem(r.Context(), route, q.Get("code"), flow)
+	claims, err := s.oidc().Redeem(r.Context(), oidc.Exchange{
+		Issuer: route.Issuer, ClientID: route.ClientID, ClientSecret: route.ClientSecret,
+		Code: q.Get("code"), RedirectURI: route.redirectURI(), Verifier: flow.Verifier, Nonce: flow.Nonce, GroupsClaim: route.GroupsClaim,
+	})
 	release()
 	if err != nil {
-		var down *unreachableError
+		var down *oidc.UnreachableError
 		if errors.As(err, &down) {
 			unreachable(route, flow.Back, err).write(w)
 			return
@@ -331,267 +321,6 @@ func (s *Server) signOut(w http.ResponseWriter, route Route) {
 func setCookie(w http.ResponseWriter, name, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{Name: name, Value: value, Path: "/", MaxAge: maxAge, Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode})
 }
-
-// redeem exchanges a code for tokens, and checks the ID token.
-func (s *Server) redeem(ctx context.Context, route Route, code string, flow Flow) (Claims, error) {
-	if code == "" {
-		return Claims{}, errors.New("the provider sent no code")
-	}
-	doc, err := s.discover(ctx, route.Issuer)
-	if err != nil {
-		return Claims{}, err
-	}
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {route.redirectURI()}, "code_verifier": {flow.Verifier}}
-	basic := false
-	switch {
-	case route.ClientSecret == "":
-		form.Set("client_id", route.ClientID)
-	case slices.Contains(doc.AuthMethods, "client_secret_post") && !slices.Contains(doc.AuthMethods, "client_secret_basic"):
-		form.Set("client_id", route.ClientID)
-		form.Set("client_secret", route.ClientSecret)
-	default:
-		basic = true
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, doc.TokenEndpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return Claims{}, err
-	}
-	if basic {
-		req.SetBasicAuth(url.QueryEscape(route.ClientID), url.QueryEscape(route.ClientSecret))
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-	res, err := s.Client.Do(req)
-	if err != nil {
-		return Claims{}, &unreachableError{host: hostOf(doc.TokenEndpoint), err: err}
-	}
-	defer res.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(res.Body, MaxAnswer))
-	if err != nil {
-		return Claims{}, &unreachableError{host: hostOf(doc.TokenEndpoint), err: err}
-	}
-	var tokens struct {
-		IDToken string `json:"id_token"`
-		Error   string `json:"error"`
-	}
-	_ = json.Unmarshal(body, &tokens)
-	switch {
-	case res.StatusCode != http.StatusOK && tokens.Error == "invalid_client":
-		return Claims{}, errors.New("the provider refused Dockwell's client. Check its client ID and secret in Settings")
-	case res.StatusCode != http.StatusOK:
-		return Claims{}, fmt.Errorf("the provider answered %d for the code", res.StatusCode)
-	case tokens.IDToken == "":
-		return Claims{}, errors.New("the provider sent no ID token. Check that its client asks for openid")
-	}
-	want := Want{Issuer: route.Issuer, ClientID: route.ClientID, Nonce: flow.Nonce, GroupsClaim: route.GroupsClaim}
-	keys, err := s.keys(ctx, route.Issuer, doc, false)
-	if err != nil {
-		return Claims{}, err
-	}
-	claims, err := Verify(tokens.IDToken, keys, want, s.now())
-	if errors.Is(err, ErrUnknownKey) {
-		// The provider may have rotated its keys: read them again, at most once a minute.
-		if keys, err = s.keys(ctx, route.Issuer, doc, true); err != nil {
-			return Claims{}, err
-		}
-		claims, err = Verify(tokens.IDToken, keys, want, s.now())
-	}
-	return claims, err
-}
-
-// discovery is what sign-in needs of an issuer's discovery document.
-type discovery struct {
-	Issuer                string   `json:"issuer"`
-	AuthorizationEndpoint string   `json:"authorization_endpoint"`
-	TokenEndpoint         string   `json:"token_endpoint"`
-	JWKSURI               string   `json:"jwks_uri"`
-	AuthMethods           []string `json:"token_endpoint_auth_methods_supported"`
-}
-
-// issuerState is what's kept of an issuer: its document, or why it couldn't be read,
-// and its keys, each with the read under way, if one is.
-type issuerState struct {
-	mu        sync.Mutex
-	doc       *discovery
-	docAt     time.Time
-	docFailed error
-	failedAt  time.Time
-	keys      []Key
-	keysAt    time.Time
-	reading   map[string]chan struct{}
-}
-
-func (s *Server) issuer(issuer string) *issuerState {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.issuers == nil {
-		s.issuers = map[string]*issuerState{}
-	}
-	st, ok := s.issuers[issuer]
-	if !ok {
-		st = &issuerState{reading: map[string]chan struct{}{}}
-		s.issuers[issuer] = st
-	}
-	return st
-}
-
-// once has one read of what's named under way at a time. kept says, with st.mu held,
-// whether what's kept will do; otherwise the caller reads, or waits for the read under
-// way as long as its own request lasts and then looks again. The read goes on for
-// those still waiting, bounded by the client's own timeout, whoever leaves. A caller
-// that read takes what its read left, and doesn't read again.
-func (s *Server) once(ctx context.Context, st *issuerState, what string, kept func() bool, read func(context.Context)) error {
-	for {
-		st.mu.Lock()
-		if kept() {
-			st.mu.Unlock()
-			return nil
-		}
-		if wait, ok := st.reading[what]; ok {
-			st.mu.Unlock()
-			select {
-			case <-wait:
-				continue
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
-		done := make(chan struct{})
-		st.reading[what] = done
-		st.mu.Unlock()
-		read(context.WithoutCancel(ctx))
-		st.mu.Lock()
-		delete(st.reading, what)
-		kept()
-		st.mu.Unlock()
-		close(done)
-		return nil
-	}
-}
-
-// discover reads an issuer's discovery document, kept for an hour, or what kept it
-// from being read, kept for 30 seconds.
-func (s *Server) discover(ctx context.Context, issuer string) (*discovery, error) {
-	st := s.issuer(issuer)
-	var doc *discovery
-	var failed error
-	kept := func() bool {
-		switch {
-		case st.doc != nil && s.now().Sub(st.docAt) < discoveryFor:
-			doc = st.doc
-			return true
-		case st.docFailed != nil && s.now().Sub(st.failedAt) < discoveryFailFor:
-			failed = st.docFailed
-			return true
-		}
-		return false
-	}
-	err := s.once(ctx, st, "discovery", kept, func(ctx context.Context) {
-		read, err := s.readDiscovery(ctx, issuer)
-		st.mu.Lock()
-		defer st.mu.Unlock()
-		if err != nil {
-			st.docFailed, st.failedAt = err, s.now()
-			return
-		}
-		st.doc, st.docAt, st.docFailed = read, s.now(), nil
-	})
-	switch {
-	case err != nil:
-		return nil, err
-	case doc == nil && failed == nil:
-		return nil, &unreachableError{host: hostOf(issuer), err: errors.New("its discovery document couldn't be read")}
-	}
-	return doc, failed
-}
-
-// readDiscovery reads an issuer's discovery document, and checks it.
-func (s *Server) readDiscovery(ctx context.Context, issuer string) (*discovery, error) {
-	var doc discovery
-	if err := s.getJSON(ctx, strings.TrimSuffix(issuer, "/")+"/.well-known/openid-configuration", &doc); err != nil {
-		return nil, err
-	}
-	for _, endpoint := range []string{doc.AuthorizationEndpoint, doc.TokenEndpoint, doc.JWKSURI} {
-		if u, err := url.Parse(endpoint); err != nil || u.Scheme != "https" || u.Host == "" {
-			return nil, errors.New("the provider's discovery document has an endpoint that isn't HTTPS")
-		}
-	}
-	if doc.Issuer != issuer {
-		return nil, errors.New("the provider's discovery document names another issuer than the one saved")
-	}
-	return &doc, nil
-}
-
-// keys reads an issuer's key set, kept until a token names a key it doesn't hold,
-// and then read again at most once a minute.
-func (s *Server) keys(ctx context.Context, issuer string, doc *discovery, again bool) ([]Key, error) {
-	st := s.issuer(issuer)
-	var keys []Key
-	var failed error
-	kept := func() bool {
-		if st.keys != nil && (!again || s.now().Sub(st.keysAt) < keysAgainAfter) {
-			keys = st.keys
-			return true
-		}
-		return false
-	}
-	err := s.once(ctx, st, "keys", kept, func(ctx context.Context) {
-		var raw json.RawMessage
-		if failed = s.getJSON(ctx, doc.JWKSURI, &raw); failed != nil {
-			return
-		}
-		read, err := ParseKeys(raw)
-		if failed = err; err != nil {
-			return
-		}
-		keys = read
-		st.mu.Lock()
-		st.keys, st.keysAt = read, s.now()
-		st.mu.Unlock()
-	})
-	switch {
-	case err != nil:
-		return nil, err
-	case keys == nil:
-		return nil, failed
-	}
-	return keys, nil
-}
-
-// getJSON reads a provider's document.
-func (s *Server) getJSON(ctx context.Context, target string, into any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-	res, err := s.Client.Do(req)
-	if err != nil {
-		return &unreachableError{host: hostOf(target), err: err}
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return &unreachableError{host: hostOf(target), err: fmt.Errorf("it answered %d", res.StatusCode)}
-	}
-	body, err := io.ReadAll(io.LimitReader(res.Body, MaxAnswer))
-	if err != nil {
-		return &unreachableError{host: hostOf(target), err: err}
-	}
-	if err := json.Unmarshal(body, into); err != nil {
-		return fmt.Errorf("what %s sent isn't JSON", hostOf(target))
-	}
-	return nil
-}
-
-// unreachableError is a provider this server couldn't reach.
-type unreachableError struct {
-	host string
-	err  error
-}
-
-func (e *unreachableError) Error() string { return "can't reach " + e.host + ": " + e.err.Error() }
-
-func (e *unreachableError) Unwrap() error { return e.err }
 
 // limit bounds the codes a route exchanges: at once, in a minute, in a minute from
 // one visitor, and once for each sign-in begun, so a visitor's made-up callbacks
@@ -673,26 +402,12 @@ func failed(route Route, back, said string) end {
 
 // unreachable is the page for a provider this server couldn't reach.
 func unreachable(route Route, back string, err error) end {
-	host := hostOf(route.Issuer)
-	var down *unreachableError
+	host := oidc.HostOf(route.Issuer)
+	var down *oidc.UnreachableError
 	if errors.As(err, &down) {
-		host = down.host
+		host = down.Host
 	}
 	return end{Status: http.StatusBadGateway, Title: "Sign-in can't reach " + host + " right now", Action: "Try again", Href: route.back(back)}
-}
-
-// random is 32 random bytes in base64url, for state, nonce and the PKCE verifier.
-func random() string {
-	b := make([]byte, 32)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-func hostOf(target string) string {
-	if u, err := url.Parse(target); err == nil && u.Host != "" {
-		return u.Host
-	}
-	return "the provider"
 }
 
 // sentence is an error as a page's line: capitalized, with a full stop.
