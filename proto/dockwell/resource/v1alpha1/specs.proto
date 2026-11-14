@@ -999,6 +999,11 @@ message DatabaseUser {
   // giving it its password anew, refuses a server where any other user, but its
   // default, can sign in by then (ADR 0084).
   bool keeps_apart = 83;
+  // On a Redis or Valkey, the plan said this user, which keeps to no key prefix,
+  // ends what keeps the apps on its server apart, naming whose: making it refuses a
+  // server whose apps keep apart where its plan didn't say so, as one planned before
+  // another app joined with a prefix (ADR 0084).
+  bool ends_apart = 84;
 }
 
 // DatabaseCopy names a database to copy from: the service that runs its server, in

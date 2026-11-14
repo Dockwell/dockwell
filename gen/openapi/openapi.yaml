@@ -11232,6 +11232,13 @@ components:
                          every user there was one Dockwell made with a key prefix: making the user, or
                          giving it its password anew, refuses a server where any other user, but its
                          default, can sign in by then (ADR 0084).
+                endsApart:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey, the plan said this user, which keeps to no key prefix,
+                         ends what keeps the apps on its server apart, naming whose: making it refuses a
+                         server whose apps keep apart where its plan didn't say so, as one planned before
+                         another app joined with a prefix (ADR 0084).
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the

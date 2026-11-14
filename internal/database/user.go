@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -470,11 +471,16 @@ type given struct {
 	KeyPrefix string      `json:"key_prefix,omitempty"`
 	Hash      string      `json:"hash,omitempty"`
 	MadeFor   redisServer `json:"made_for,omitzero"`
-	// KeepsApart is what its plan said of the server (DatabaseUser.keeps_apart).
+	// KeepsApart is what its plan said of the server (DatabaseUser.keeps_apart), and
+	// Line its line of ACL LIST as the server had it once the agent set it, which
+	// tells a change made by hand since.
 	KeepsApart bool   `json:"keeps_apart,omitempty"`
-	Env        string `json:"env,omitempty"`
-	User       string `json:"user,omitempty"`
-	Redis      string `json:"redis,omitempty"`
+	Line       string `json:"line,omitempty"`
+	// EndsApart is what its plan said of it (DatabaseUser.ends_apart).
+	EndsApart bool   `json:"ends_apart,omitempty"`
+	Env       string `json:"env,omitempty"`
+	User      string `json:"user,omitempty"`
+	Redis     string `json:"redis,omitempty"`
 	// Copying says a step began copying a database into it and didn't finish: what
 	// the database holds is part of a copy, which reads as no user, so applying again
 	// empties it and copies it whole.
@@ -513,26 +519,55 @@ func isOrAre(names []string) string {
 // notOurs are the users a server has that can sign in, but the one being made, that
 // this agent didn't make there with a key prefix: by its record, users of service in
 // the environment of ref.
-func (d *UserDriver) notOurs(users []string, ref resource.Ref, service string) ([]string, error) {
+func (d *UserDriver) notOurs(users map[string]string, ref resource.Ref, service string) ([]string, error) {
 	d.mu.Lock()
 	all, err := d.records()
 	d.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
+	// One of the agent's own that the server has otherwise than the agent left it,
+	// changed or made anew by hand, is no longer its own.
 	ours := map[string]bool{}
 	for key := range all {
-		if g := all[key]; g.Env == ref.Scope && g.Service == service && g.KeyPrefix != "" && g.Redis != "" {
+		if g := all[key]; g.Env == ref.Scope && g.Service == service && g.KeyPrefix != "" && g.Redis != "" && (g.Line == "" || users[g.User] == g.Line) {
 			ours[g.User] = true
 		}
 	}
 	var out []string
-	for _, name := range users {
+	for _, name := range slices.Sorted(maps.Keys(users)) {
 		if name != ref.Name && !ours[name] {
 			out = append(out, name)
 		}
 	}
 	return out, nil
+}
+
+// keptApart are the users this agent made with a key prefix on service, in the
+// environment of ref, whose plans said the apps on it keep to their own keys.
+func (d *UserDriver) keptApart(ref resource.Ref, service string) ([]string, error) {
+	d.mu.Lock()
+	all, err := d.records()
+	d.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for key := range all {
+		if g := all[key]; g.Env == ref.Scope && g.Service == service && g.KeyPrefix != "" && g.KeepsApart && g.User != ref.Name {
+			out = append(out, g.User)
+		}
+	}
+	slices.Sort(out)
+	return out, nil
+}
+
+// doOrDoes agrees with how many names there are.
+func doOrDoes(names []string) string {
+	if len(names) == 1 {
+		return "does"
+	}
+	return "do"
 }
 
 func itsOrTheir(names []string) string {
@@ -588,7 +623,7 @@ func (d *UserDriver) Observe(ctx context.Context, ref resource.Ref) (proto.Messa
 	if err != nil || !ok || g.Copying {
 		return nil, err
 	}
-	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix, KeepsApart: g.KeepsApart}
+	out := &resourcev1.DatabaseUser{Service: g.Service, DatabaseName: g.Database, Password: g.Uses, Shared: g.Shared, KeyPrefix: g.KeyPrefix, KeepsApart: g.KeepsApart, EndsApart: g.EndsApart}
 	if c := g.CopiedFrom; len(c) == 3 {
 		out.CopyFrom = &resourcev1.DatabaseCopy{Environment: c[0], Service: c[1], Database: c[2]}
 	}
@@ -673,7 +708,7 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 		// or given its password anew; and where the plan said apps on it keep to their
 		// own keys, none but the default may reach past a prefix of its own by now.
 		var srv redisServer
-		var users []string
+		var users map[string]string
 		if err := d.whileStarting(ctx, func() error {
 			var err error
 			srv, users, err = d.redisInfo(ctx, c, e, true)
@@ -689,16 +724,32 @@ func (d *UserDriver) Apply(ctx context.Context, step resource.Step, desired prot
 					u.GetService(), human.List(strangers), isOrAre(strangers), itsOrTheir(strangers))
 			}
 		}
+		// One that keeps to no prefix ends what keeps the apps on a server apart: only
+		// where its plan said so, as it named whose (ADR 0084).
+		if create && u.GetShared() && u.GetKeyPrefix() == "" && !u.GetEndsApart() {
+			if apart, err := d.keptApart(ref, u.GetService()); err != nil {
+				return err
+			} else if len(apart) > 0 {
+				return fmt.Errorf("apps on %s keep to their own keys since this was planned, as %s %s, and %s keeps no prefix, so nothing changed. Plan it again, which says whose data it would reach",
+					u.GetService(), human.List(apart), doOrDoes(apart), ref.Name)
+			}
+		}
 		hash := redisHash(password)
 		g := &given{
 			Service: u.GetService(), Uses: u.GetPassword(), Revision: u.GetRevisions()[passwordUse], Shared: u.GetShared(), KeyPrefix: u.GetKeyPrefix(),
-			Env: ref.Scope, User: ref.Name, Hash: hash, MadeFor: srv, Redis: redisRules(hash, u.GetShared(), u.GetKeyPrefix(), srv), KeepsApart: u.GetKeepsApart(),
+			Env: ref.Scope, User: ref.Name, Hash: hash, MadeFor: srv, Redis: redisRules(hash, u.GetShared(), u.GetKeyPrefix(), srv), KeepsApart: u.GetKeepsApart(), EndsApart: u.GetEndsApart(),
 		}
 		d.redisMu.Lock()
 		defer d.redisMu.Unlock()
 		if err := d.whileStarting(ctx, func() error { return d.redisSet(ctx, c, e, ref.Name, g.Redis) }); err != nil {
 			return err
 		}
+		// As the server has it, so a change made by hand since tells.
+		line, err := d.redisLine(ctx, c, e, ref.Name)
+		if err != nil {
+			return err
+		}
+		g.Line = line
 		return d.record(ref, g)
 	}
 	sql, err := e.make(ref.Name, db, password, create)

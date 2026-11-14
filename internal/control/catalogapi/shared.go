@@ -375,6 +375,10 @@ func (h *Handler) sharedEdits(ctx context.Context, needed *catalog.Needed, fille
 				}
 			}
 			user := &resourcev1.DatabaseUser{Service: c.Service, Password: w.Password, CopyFrom: w.CopyFrom}
+			// What the plan names of whose separation it ends, which the agent holds it to.
+			if names, _ := w.EndsApart(); len(names) > 0 {
+				user.EndsApart = true
+			}
 			if catalog.KeyValue(c.Engine) {
 				// A shared Redis's users reach no further than their keys, and the
 				// users it had already, its own app's among them, go the same way.

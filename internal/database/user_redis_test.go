@@ -190,10 +190,12 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 	if len(started) != 1 {
 		t.Errorf("it keeps %d servers' starts", len(started))
 	}
+	// One taken away by hand is what the agent left no longer, so its next look puts
+	// it back, though the server didn't start again.
 	delete(r.users, "shop")
 	d.putRedisUsersBack(t.Context(), started)
-	if _, back := r.users["shop"]; back {
-		t.Error("it looked again at a server that hadn't started again")
+	if _, back := r.users["shop"]; !back {
+		t.Error("a user taken away by hand wasn't put back")
 	}
 
 	// Taking it away deletes no key, which the plan says.
@@ -208,7 +210,7 @@ func TestARedisUserIsAnACLUserOfItsOwn(t *testing.T) {
 		t.Error("deleting it left the user")
 	}
 	// What a step dropped isn't put back, whatever the loop read before.
-	if err := d.putRedisUserBack(t.Context(), mustContainer(t, client, id), Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS), ref.String(), redisServer{Subcommands: true}); err != nil {
+	if err := d.putRedisUserBack(t.Context(), mustContainer(t, client, id), Of(dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS), ref.String(), redisServer{Subcommands: true}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, has := r.users["shop"]; has {
@@ -384,5 +386,44 @@ func TestARedisUsersRulesFollowItsServer(t *testing.T) {
 	r.wide, r.nopass = false, true
 	if err := d.Apply(ctx, resource.Step{Ref: ref, Action: resource.ActionUpdate}, plain); err == nil || !strings.Contains(err.Error(), "asks no one for a password") {
 		t.Errorf("giving shop its password anew on a server that asks none = %v", err)
+	}
+}
+
+// A user the agent made, and someone changed by hand since, isn't the agent's own
+// any more: making another where the plan said its apps keep apart is refused, naming
+// it, until the agent's next look sets its rules again, as it left them. One that
+// keeps to no prefix, whose plan didn't say it ends what keeps them apart, as one
+// planned before the others joined, is refused; one whose plan said so is made
+// (ADR 0084).
+func TestARedisUserChangedByHandIsntTheAgentsOwn(t *testing.T) {
+	d, r, _, _ := redisStand(t)
+	ctx := resource.WithValues(t.Context(), map[string]string{passwordUse: "a-password-no-one-typed"})
+	makeUser := func(name string, u *resourcev1.DatabaseUser) error {
+		return d.Apply(ctx, resource.Step{Ref: resource.Ref{Kind: UserKind, Scope: "env_1", Name: name}, Action: resource.ActionCreate}, u)
+	}
+	if err := makeUser("blog", &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true, KeyPrefix: "blog:", KeepsApart: true}); err != nil {
+		t.Fatal(err)
+	}
+	made := r.users["blog"]
+	r.users["blog"] = strings.Replace(made, " -@all ", " +@all ", 1)
+	news := &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true, KeyPrefix: "news:", KeepsApart: true}
+	if err := makeUser("news", news); err == nil || !strings.Contains(err.Error(), "blog is there now, which Dockwell didn't make") {
+		t.Errorf("making news beside blog, changed by hand = %v", err)
+	}
+	d.putRedisUsersBack(t.Context(), map[string]time.Time{})
+	if r.users["blog"] != made {
+		t.Errorf("the agent's look left blog as %q", r.users["blog"])
+	}
+	if err := makeUser("news", news); err != nil {
+		t.Errorf("making news once blog was set again = %v", err)
+	}
+
+	plain := &resourcev1.DatabaseUser{Service: "cache", Password: "P", Shared: true}
+	if err := makeUser("shop", plain); err == nil || !strings.Contains(err.Error(), "keep to their own keys since this was planned, as blog and news do") {
+		t.Errorf("making shop with no prefix, unplanned = %v", err)
+	}
+	plain.EndsApart = true
+	if err := makeUser("shop", plain); err != nil {
+		t.Errorf("making shop with no prefix, as its plan said = %v", err)
 	}
 }
