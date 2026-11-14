@@ -150,6 +150,10 @@ func TestEveryAppsLicenceHasHadALook(t *testing.T) {
 		// The unmodified browser-storage image may be self-hosted. Distributing a
 		// commercial derivative needs the producer's permission; it isn't Apache-2.0.
 		"lobechat": "LobeHub Community License",
+		// Source-available: running it for one's own apps, as an install does, is
+		// within it; offering MongoDB itself as a service to others has the SSPL's
+		// terms, which are the person's to meet.
+		"mongo": "SSPL-1.0",
 	}
 	for _, e := range c.All() {
 		l := e.GetAppLicense()
@@ -663,6 +667,15 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 	for _, m := range regexp.MustCompile(`(?m)^\s*\[([a-z0-9-]+)\]="\S+ \S+@sha256:[0-9a-f]{64}`).FindAllSubmatch(block[1], -1) {
 		before[string(m[1])] = true
 	}
+	// An entry with no version before it that runs where CI does, at the version it
+	// pins, which installs and goes without an upgrade: once it pins another, that
+	// one has a version before it, and the exception goes.
+	noneBefore := map[string]struct{ version, why string }{
+		// No MongoDB 8.0 before 8.0.38 starts on Linux 6.19 or newer, as CI's runners
+		// run (SERVER-121912). Take it out, and put 8.0.38 in the table, once the
+		// entry pins 8.0.39 or later.
+		"mongo": {"8.0.38", "no MongoDB 8.0 before 8.0.38 starts on Linux 6.19 or newer"},
+	}
 	for _, e := range c.All() {
 		at, ok := tried[e.GetId()]
 		switch {
@@ -671,7 +684,12 @@ func TestEveryEntryHasACatalogJob(t *testing.T) {
 		case at == "scripts/docker-e2e.sh":
 		case !strings.Contains(string(checks), "\ncheck_"+e.GetId()+"() {"):
 			t.Errorf("scripts/catalog-e2e.sh has no check_%s, which says what answering means for it", e.GetId())
-		case !before[e.GetId()]:
+		case before[e.GetId()]:
+		case noneBefore[e.GetId()].version == e.GetVersion():
+		case noneBefore[e.GetId()].version != "":
+			t.Errorf("%s pins %s now, and %s, which had no version before it to upgrade from (%s), starts where CI does: put it in scripts/catalog-e2e.sh's table of the version before each app, and take %s out of noneBefore",
+				e.GetId(), e.GetVersion(), noneBefore[e.GetId()].version, noneBefore[e.GetId()].why, e.GetId())
+		default:
 			t.Errorf("scripts/catalog-e2e.sh has no version before %s to upgrade from, pinned by digest", e.GetId())
 		}
 		delete(tried, e.GetId())
