@@ -69,10 +69,13 @@ func (d *Driver) checkAccess(r *resourcev1.Route) error {
 	if err := d.checkUsers(r.GetDomain(), a.GetUsers()); err != nil {
 		return err
 	}
+	if err := checkSignIn(r); err != nil {
+		return err
+	}
 	if len(a.GetUsers()) > 0 && PlainAtTheBrowser(r) {
 		return fmt.Errorf("%s is reached over plain HTTP, so its users' passwords would cross the network in the clear. Turn on HTTPS for this domain, or name the tunnel or proxy in front of it, whose edge serves HTTPS", Where(r))
 	}
-	if len(a.GetAllow())+len(a.GetUsers()) == 0 {
+	if len(a.GetAllow())+len(a.GetUsers()) == 0 && a.GetSignIn() == nil {
 		r.Access = nil
 	}
 	return nil
@@ -239,13 +242,13 @@ func (*Driver) Opens(was, desired proto.Message) []string {
 			}
 		}
 	}
-	return out
+	return append(out, signInOpens(from, to)...)
 }
 
-// KeepsOut reports a route with a list or users.
+// KeepsOut reports a route with a list, users or sign-in.
 func (*Driver) KeepsOut(spec proto.Message) bool {
 	a := spec.(*resourcev1.Route).GetAccess()
-	return len(a.GetAllow())+len(a.GetUsers()) > 0
+	return len(a.GetAllow())+len(a.GetUsers()) > 0 || a.GetSignIn() != nil
 }
 
 // joinNames lists names as people read them: "a", "a and b", "a, b and c".

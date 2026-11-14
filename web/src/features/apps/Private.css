@@ -116,6 +116,23 @@
   min-width: 0;
 }
 
+/* The address an admin registers at the provider, whole on a phone, with Copy beside it. */
+.private-redirect {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+}
+
+.private-redirect > .dw-field-label {
+  grid-column: 1 / -1;
+}
+
+.private-redirect > code {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
 .private-user {
   display: flex;
   flex-direction: column;
@@ -225,4 +242,15 @@
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
   font-size: 13px;
+}
+
+/* On a phone the address takes the width, a line of its own, and Copy goes under it,
+   so neither squeezes the other however wide a browser's font sets Copy's words. */
+.private-sheet.is-phone .private-redirect {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+}
+
+.private-sheet.is-phone .private-redirect > code {
+  justify-self: stretch;
 }

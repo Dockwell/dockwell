@@ -16,23 +16,24 @@ import (
 // asked is a proxy that answers each route as answers says, and keeps what it was
 // asked.
 type asked struct {
-	answers map[string]int
-	headers map[string]http.Header
-	down    bool
-	calls   int
+	answers   map[string]int
+	locations map[string]string
+	headers   map[string]http.Header
+	down      bool
+	calls     int
 }
 
-func (a *asked) Ask(_ context.Context, domain, path string, _ bool, header http.Header) (int, string, error) {
+func (a *asked) Ask(_ context.Context, domain, path string, _ bool, header http.Header) (Answer, error) {
 	a.calls++
 	if a.down {
-		return 0, "", errors.New("nothing listens on port 443")
+		return Answer{}, errors.New("nothing listens on port 443")
 	}
 	if a.headers == nil {
 		a.headers = map[string]http.Header{}
 	}
 	a.headers[domain+path] = header
 	status := a.answers[domain+path]
-	return status, http.StatusText(status), nil
+	return Answer{Status: status, Said: http.StatusText(status), Location: a.locations[domain+path]}, nil
 }
 
 // A stranger is asked for as someone no list names: from this server, or, through a
@@ -155,5 +156,36 @@ func TestAPrivateRootIsAskedFromBelowAPublicPath(t *testing.T) {
 	}
 	if !slices.Contains(Spellings("", []string{"/api"}), "/api/..;/") {
 		t.Errorf("a root's spellings are %v", Spellings("", []string{"/api"}))
+	}
+}
+
+// A route that signs people in is asked as a browser navigates, and a stranger sent
+// to another origin is sent to sign in there; sent elsewhere on its own host, or let
+// through, isn't (ADR 0087).
+func TestAStrangerIsSentToSignIn(t *testing.T) {
+	routes := []Route{
+		{Domain: "s.example.com", SignIn: "unix//run/dockwell/signin.sock"},
+		{Domain: "t.example.com", SignIn: "unix//run/dockwell/signin.sock"},
+		{Domain: "u.example.com", SignIn: "unix//run/dockwell/signin.sock"},
+	}
+	a := &asked{
+		answers: map[string]int{"s.example.com/": 302, "t.example.com/": 302, "u.example.com/": 200},
+		locations: map[string]string{
+			"s.example.com/": "https://auth.example.com/authorize?client_id=dockwell",
+			"t.example.com/": "https://t.example.com/elsewhere",
+		},
+	}
+	got := AskStrangers(t.Context(), a, routes)
+	if c := got["s.example.com"]; len(c) != 1 || c[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_SENT_TO_SIGN_IN || c[0].GetSaid() != "auth.example.com" {
+		t.Errorf("a stranger sent to the provider reads %v", c)
+	}
+	if c := got["t.example.com"]; len(c) != 1 || c[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
+		t.Errorf("a stranger sent on along its own host reads %v", c)
+	}
+	if c := got["u.example.com"]; len(c) != 1 || c[0].GetOutcome() != dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
+		t.Errorf("a stranger let through reads %v", c)
+	}
+	if accept := a.headers["s.example.com/"].Get("Accept"); accept != "text/html" {
+		t.Errorf("it asks a route that signs in with Accept %q, not as a navigation", accept)
 	}
 }

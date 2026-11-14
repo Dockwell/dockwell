@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/registrylogin"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/signinprovider"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/scope"
@@ -39,6 +40,7 @@ func TestEveryKindOfResourceCanBePlaced(t *testing.T) {
 		backuppolicy.Type{},
 		backuppolicy.Destination{},
 		registrylogin.Type{},
+		signinprovider.Type{},
 		scope.ProjectType{},
 		scope.EnvironmentType{},
 		&task.Driver{},

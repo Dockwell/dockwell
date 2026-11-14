@@ -179,9 +179,20 @@ func (c *Caddy) bootDir() string   { return filepath.Join(c.Dir, bootDirName) }
 // server's side, under dir.
 func PanelSocket(dir string) string { return filepath.Join(dir, "run", panelSocketName) }
 
+// SignInSocket is where the agent answers whether a visitor has signed in, for a
+// Caddy in dir, as the panel's socket is (ADR 0087).
+func SignInSocket(dir string) string { return filepath.Join(dir, "run", signInSocketName) }
+
+// SignInDial is where Caddy asks it, as Caddy sees the run directory.
+func (c *Caddy) SignInDial() string {
+	return "unix/" + filepath.Join(c.Runtime.Paths().Run, signInSocketName)
+}
+
 const (
 	adminSocketName = "admin.sock"
 	panelSocketName = "panel.sock"
+	// signInSocketName is the agent's sign-in socket's, beside it.
+	signInSocketName = "signin.sock"
 	// bootDirName is what Caddy reads as it starts, which is root's: its
 	// container mounts it read-only (ADR 0024).
 	bootDirName = "boot"
@@ -404,6 +415,30 @@ type handler struct {
 	Routes []beliefRoute `json:"routes,omitempty"`
 	// Providers are the authentication handler's: who signs in to a private route.
 	Providers *providers `json:"providers,omitempty"`
+	// Rewrite and HandleResponse are the step that asks a route's agent whether a
+	// visitor has signed in (signInAsk): what it asks, and what a 2xx answer does.
+	Rewrite        *rewrite          `json:"rewrite,omitempty"`
+	HandleResponse []responseHandler `json:"handle_response,omitempty"`
+	// Request is a headers handler's: what it changes of the request (unclaimed).
+	Request *headerOps `json:"request,omitempty"`
+}
+
+// rewrite is what a reverse_proxy asks its upstream in place of the request.
+type rewrite struct {
+	Method string `json:"method"`
+	URI    string `json:"uri"`
+}
+
+// responseHandler is what a reverse_proxy does with an answer that matches, in
+// place of sending it back.
+type responseHandler struct {
+	Match  *responseMatch `json:"match,omitempty"`
+	Routes []beliefRoute  `json:"routes"`
+}
+
+// responseMatch matches an answer by its status: 2 is any 2xx.
+type responseMatch struct {
+	StatusCode []int `json:"status_code"`
 }
 
 // providers, httpBasic, account and hashAlgo are Caddy's authentication handler,
@@ -444,9 +479,16 @@ type headers struct {
 }
 
 type headerOps struct {
-	Set    map[string][]string `json:"set,omitempty"`
-	Add    map[string][]string `json:"add,omitempty"`
-	Delete []string            `json:"delete,omitempty"`
+	Set     map[string][]string      `json:"set,omitempty"`
+	Add     map[string][]string      `json:"add,omitempty"`
+	Delete  []string                 `json:"delete,omitempty"`
+	Replace map[string][]replacement `json:"replace,omitempty"`
+}
+
+// replacement changes what in a header matches SearchRegexp to Replace.
+type replacement struct {
+	SearchRegexp string `json:"search_regexp"`
+	Replace      string `json:"replace"`
 }
 
 // forgeableHeaders say where a request came from, and only Caddy knows, so none
@@ -686,7 +728,12 @@ func routeJSON(r ingress.Route) route {
 	if len(r.Allow) > 0 {
 		handle = append(handle, gateOf(r))
 	}
-	if len(r.Users) > 0 {
+	switch {
+	case r.SignIn != "" && len(r.Users) > 0:
+		handle = append(handle, unclaimed(), passwordOrSignIn(r))
+	case r.SignIn != "":
+		handle = append(handle, unclaimed(), signInAsk(r))
+	case len(r.Users) > 0:
 		handle = append(handle, nameCheckOf(r), signInOf(r))
 	}
 	h.Headers = guarded(h.Headers, r)
@@ -705,8 +752,8 @@ func routeJSON(r ingress.Route) route {
 	return route{ID: r.ID, Match: match, Terminal: true, Handle: handle}
 }
 
-// keepsOut reports a route with a list or users.
-func keepsOut(r ingress.Route) bool { return len(r.Allow)+len(r.Users) > 0 }
+// keepsOut reports a route with a list, users or sign-in.
+func keepsOut(r ingress.Route) bool { return len(r.Allow)+len(r.Users) > 0 || r.SignIn != "" }
 
 // privateVariants matches a private path's other spellings, decoded, in any case: the
 // path with a ";" or "\\" after it, or with nothing after it but spaces, control
@@ -840,16 +887,143 @@ func readUsers(h handler) []ingress.User {
 	return out
 }
 
-// guarded is what a private route sends on and back. With users, it sends on what
-// it would, less the password a visitor signed in with, so an app that logs its
-// headers can't log it. A private route's answers are its visitors' alone, so it
-// tells a shared cache not to keep them (#606's review, L2).
+// signInHeaders are what sign-in tells the app of who signed in (ADR 0087).
+var signInHeaders = []string{"X-Dockwell-User", "X-Dockwell-Subject"}
+
+// signInCookies matches Dockwell's own sign-in cookies in a Cookie header, a
+// session's and a flow's, by the names internal/agent/signin gives them, and the
+// separator before one.
+const signInCookies = `(?:^|;)\s*__Host-dw_(?:flow_)?[0-9a-f]{12}=[^;]*`
+
+// basicCredentials matches a request that carries Basic credentials, which a route
+// with users and sign-in checks against its users, where any other goes to sign in.
+var basicCredentials = matcher{HeaderRegexp: map[string]pattern{"Authorization": {Pattern: `^(?i:basic) `}}}
+
+// signInCookiesOut takes Dockwell's sign-in cookies out of Cookie, and the separator
+// left at its start.
+func signInCookiesOut() map[string][]replacement {
+	return map[string][]replacement{"Cookie": {
+		{SearchRegexp: signInCookies, Replace: ""},
+		{SearchRegexp: `^;\s*`, Replace: ""},
+	}}
+}
+
+// signInClientHeader tells the agent who the visitor is, as signin.ClientHeader.
+const signInClientHeader = "X-Dockwell-Client"
+
+// signInCookiesSet takes out what an app's answer sets of Dockwell's sign-in
+// cookies, by their prefix in any case, leaving an empty line a browser ignores.
+func signInCookiesSet() map[string][]replacement {
+	return map[string][]replacement{"Set-Cookie": {{SearchRegexp: `(?i)^\s*__host-dw_.*$`, Replace: ""}}}
+}
+
+// signInURI is what a route's step asks its agent, which names the route.
+func signInURI(id string) string { return "/route/" + id }
+
+// unclaimed takes out a visitor's own sign-in headers, ahead of everything else on a
+// route that signs people in, as only the agent's answer may set them.
+func unclaimed() handler {
+	return handler{Handler: "headers", Request: &headerOps{Delete: signInHeaders}}
+}
+
+// signInAsk asks the route's agent whether a visitor has signed in, as Caddy's
+// forward_auth does: the visitor's method and URI go with it, and a 2xx answer goes
+// on, with who signed in in the headers the app gets. Any other answer goes back to
+// the visitor as it is: a redirect to the provider, or 401. An agent that doesn't
+// answer is 502, never the app (ADR 0087).
+func signInAsk(r ingress.Route) handler {
+	set := map[string][]string{}
+	for _, name := range signInHeaders {
+		set[name] = []string{"{http.reverse_proxy.header." + name + "}"}
+	}
+	// Who the visitor is, as the route believes: the client a proxy it names says,
+	// or the peer, never what the visitor writes (#598's review, L3).
+	client := peerAddress
+	if believes(r) {
+		client = "{http.vars." + clientVar + "}"
+	}
+	return handler{
+		Handler:   "reverse_proxy",
+		Upstreams: []upstream{{Dial: r.SignIn}},
+		Rewrite:   &rewrite{Method: http.MethodGet, URI: signInURI(r.ID)},
+		Headers: &headers{Request: &headerOps{Set: map[string][]string{
+			"X-Forwarded-Method": {"{http.request.method}"},
+			"X-Forwarded-Uri":    {"{http.request.uri}"},
+			signInClientHeader:   {client},
+		}}},
+		HandleResponse: []responseHandler{{Match: &responseMatch{StatusCode: []int{2}}, Routes: []beliefRoute{
+			{Handle: []map[string]any{{"handler": "vars"}}},
+			{Handle: []map[string]any{{"handler": "headers", "request": map[string]any{"set": set}}}},
+		}}},
+	}
+}
+
+// passwordOrSignIn is a route with users and sign-in: a request that carries Basic
+// credentials is checked against its users, and any other goes to sign in, so a
+// script uses a password and people sign in.
+func passwordOrSignIn(r ingress.Route) handler {
+	return handler{Handler: "subroute", Routes: []beliefRoute{
+		{Match: []matcher{basicCredentials}, Handle: []map[string]any{asMap(nameCheckOf(r)), asMap(signInOf(r))}},
+		{Match: []matcher{{Not: []matcher{basicCredentials}}}, Handle: []map[string]any{asMap(signInAsk(r))}},
+	}}
+}
+
+// asMap is a step as a subroute's route holds it.
+func asMap(h handler) map[string]any {
+	var m map[string]any
+	if b, err := json.Marshal(h); err == nil {
+		_ = json.Unmarshal(b, &m)
+	}
+	return m
+}
+
+// asHandler is a subroute's step as a handler, the other way.
+func asHandler(m map[string]any) (handler, bool) {
+	var h handler
+	b, err := json.Marshal(m)
+	return h, err == nil && json.Unmarshal(b, &h) == nil
+}
+
+// readPasswordOrSignIn reads passwordOrSignIn's step: its users and where it asks,
+// and whether it is one.
+func readPasswordOrSignIn(h handler) (users []ingress.User, dial string, ok bool) {
+	if h.Handler != "subroute" || len(h.Routes) != 2 || len(h.Routes[0].Handle) != 2 || len(h.Routes[1].Handle) != 1 ||
+		len(h.Routes[0].Match) != 1 || len(h.Routes[0].Match[0].HeaderRegexp) != 1 {
+		return nil, "", false
+	}
+	auth, ok1 := asHandler(h.Routes[0].Handle[1])
+	ask, ok2 := asHandler(h.Routes[1].Handle[0])
+	if !ok1 || !ok2 {
+		return nil, "", false
+	}
+	return readUsers(auth), signInDial(ask), true
+}
+
+// signInDial is where signInAsk's step asks, or "" for another step.
+func signInDial(h handler) string {
+	if h.Handler != "reverse_proxy" || h.Rewrite == nil || len(h.Upstreams) != 1 {
+		return ""
+	}
+	return h.Upstreams[0].Dial
+}
+
+// guarded is what a route sends on and back. With users, it sends on what it would,
+// less the password a visitor signed in with, so an app that logs its headers can't
+// log it. Every route sends on less Dockwell's sign-in cookies: they go to every path
+// of their host, so an app on a public path beside a private one would get its
+// visitors' sessions (#598's review, M4). A private route's answers are its visitors'
+// alone, so it tells a shared cache not to keep them (#606's review, L2).
 func guarded(h *headers, r ingress.Route) *headers {
 	if len(r.Users) > 0 {
 		h.Request.Delete = append(slices.Clone(h.Request.Delete), "Authorization")
 	}
+	h.Request.Replace = signInCookiesOut()
+	// Nor may an app set them: one on the same host would otherwise sign its visitors
+	// in as someone it chose (#598's review, New 3). The agent's own answers go back
+	// from the step that asks it, which this doesn't touch.
+	h.Response = &headerOps{Replace: signInCookiesSet()}
 	if keepsOut(r) {
-		h.Response = &headerOps{Add: map[string][]string{"Cache-Control": {"private"}}}
+		h.Response.Add = map[string][]string{"Cache-Control": {"private"}}
 	}
 	return h
 }
@@ -1486,7 +1660,14 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	}
 	for i := range len(r.Handle) - 1 {
 		h := &r.Handle[i]
+		users, dial, choice := readPasswordOrSignIn(*h)
 		switch status := gateStatus(*h); {
+		case choice:
+			out.Users, out.SignIn = users, dial
+		case h.Handler == "headers":
+			// A visitor's own sign-in headers taken out (unclaimed), compared below.
+		case signInDial(*h) != "":
+			out.SignIn = signInDial(*h)
 		case h.Handler == "subroute" && status == "403":
 			out.Allow = readGate(*h)
 		case h.Handler == "subroute" && status == "401":
@@ -1581,10 +1762,45 @@ func headersAreOurs(raw json.RawMessage, read ingress.Route) bool {
 				strippingOnly(&headers{Request: &headerOps{Set: h.Request.Set}}, strippedThird))
 		}
 	}
-	return slices.ContainsFunc(shapes, func(h *headers) bool {
+	// Each takes Dockwell's sign-in cookies out, as every route does since #598's review
+	// (M4). A route that doesn't sign anyone in may come from before that, which reads
+	// as ours, and the next change on its host writes over it (Manager.Apply).
+	var all []*headers
+	for _, h := range shapes {
+		with := cloneHeaders(h)
+		with.Request.Replace = signInCookiesOut()
+		if with.Response == nil {
+			with.Response = &headerOps{}
+		}
+		with.Response.Replace = signInCookiesSet()
+		all = append(all, with)
+		if read.SignIn == "" {
+			without := cloneHeaders(h)
+			without.Request.Replace = nil
+			if without.Response != nil {
+				if without.Response.Replace = nil; len(without.Response.Add)+len(without.Response.Set)+len(without.Response.Delete) == 0 {
+					without.Response = nil
+				}
+			}
+			all = append(all, without)
+		}
+	}
+	return slices.ContainsFunc(all, func(h *headers) bool {
 		ours, err := json.Marshal(h)
 		return err == nil && sameJSON(have, ours)
 	})
+}
+
+// cloneHeaders is a copy of h that shares nothing with it.
+func cloneHeaders(h *headers) *headers {
+	out := &headers{}
+	if b, err := json.Marshal(h); err == nil {
+		_ = json.Unmarshal(b, out)
+	}
+	if out.Request == nil {
+		out.Request = &headerOps{}
+	}
+	return out
 }
 
 // transportIsOurs reports a route that reaches its upstream as Dockwell has it do,

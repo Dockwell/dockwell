@@ -457,6 +457,10 @@ message Hello {
   // plane plans no route with access on an agent that doesn't say so, which
   // would serve it to anyone. Private routes take 110 to 119 in agent messages.
   bool keeps_routes_private = 110;
+  // True when the agent signs people in to a private route with a provider, as
+  // Caddy's forward_auth asks it before each request (ADR 0087). The control plane
+  // plans no route with sign_in on an agent that doesn't say so.
+  bool signs_in = 111;
   // True when the agent reads what 1Panel keeps on the server (ReadOnePanelCall).
   // The importer takes 180 to 189 in agent messages.
   bool reads_onepanel = 180;

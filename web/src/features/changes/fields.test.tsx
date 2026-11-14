@@ -51,6 +51,26 @@ describe("a plan's fields, in words", () => {
     expect(reads(rows)).toEqual(["branch from main to v1.4.2"]);
   });
 
+  it("reads a route's sign-in in words, and what it has of its provider as one row (ADR 0087)", () => {
+    const rows = rowsOf({
+      kind: "route",
+      changes: [
+        added("domain", "sso.example.com"),
+        added("access.sign_in.provider", "ours"),
+        added("access.sign_in.emails", "mira@acme.dev"),
+        added("access.sign_in.filled.issuer", "https://auth.example.com/"),
+        added("access.sign_in.filled.client_id", "dockwell"),
+        added("access.sign_in.filled.client_secret", "", true),
+        added("access.sign_in.filled.revision", "1"),
+      ],
+    });
+    const said = reads(rows);
+    expect(said).toContain("signs in with to ours");
+    expect(said).toContain("lets sign in to mira@acme.dev");
+    expect(said.filter((r) => r.startsWith("its provider's settings"))).toHaveLength(1);
+    expect(said.join(" | ")).not.toMatch(/filled|client|revision|auth\.example\.com/);
+  });
+
   it("groups one port's fields into what they mean", () => {
     const rows = rowsOf({
       kind: "service",

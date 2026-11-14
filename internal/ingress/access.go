@@ -3,6 +3,7 @@
 package ingress
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -109,6 +110,13 @@ func checkAccess(ref resource.Ref, spec *resourcev1.Route) error {
 			return fmt.Errorf("the route %s names the user %q with no bcrypt hash of a password. Make the plan again, with the user's password", ref.Name, u.GetName())
 		}
 	}
+	// The control plane fills in the provider as it plans, so a route without it
+	// came from elsewhere, and its server couldn't sign anyone in with it.
+	if s := spec.GetAccess().GetSignIn(); s != nil {
+		if f := s.GetFilled(); !strings.HasPrefix(f.GetIssuer(), "https://") || f.GetClientId() == "" {
+			return fmt.Errorf("the route %s signs people in with %s, but its plan has nothing of that provider for this server. Make the plan again", ref.Name, s.GetProvider())
+		}
+	}
 	return nil
 }
 
@@ -142,6 +150,77 @@ func accessSpec(r Route) *resourcev1.RouteAccess {
 	out := &resourcev1.RouteAccess{Allow: slices.Clone(r.Allow)}
 	for _, u := range r.Users {
 		out.Users = append(out.Users, &resourcev1.RouteUser{Name: u.Name, PasswordHash: u.Hash})
+	}
+	return out
+}
+
+// SignIns keeps what the routes that sign people in need on this server, by their
+// proxy IDs, for the agent that answers the proxy when it asks (ADR 0087).
+type SignIns interface {
+	// Put keeps a route's sign-in: who may, and the provider the control plane
+	// filled in, at its domain and path.
+	Put(id, domain, path string, s *resourcev1.RouteSignIn) error
+	// Drop forgets a route's, if it has one.
+	Drop(id string)
+	// Get returns what it keeps of a route, as Put was given it, or nil.
+	Get(id string) *resourcev1.RouteSignIn
+}
+
+// SignInAsker is a proxy that can ask an agent whether a visitor has signed in.
+type SignInAsker interface {
+	// SignInDial is the address the proxy dials to ask.
+	SignInDial() string
+}
+
+// signInDial is where the proxy asks, or why a route that signs people in can't run.
+func (m *Manager) signInDial() (string, error) {
+	asker, ok := m.Proxy.(SignInAsker)
+	if !ok || m.SignIns == nil {
+		return "", fmt.Errorf("this server's %s can't ask the agent who signed in. Update the agent", m.Proxy.Name())
+	}
+	return asker.SignInDial(), nil
+}
+
+// rewriteBeside writes again the other routes of a host where a route signs people
+// in, so each takes Dockwell's sign-in cookies out on the way to its app, as one
+// written before every route did may not: the cookies go to every path of their host
+// (#598's review, M4). One edited by hand stays as it is.
+func (m *Manager) rewriteBeside(ctx context.Context, r Route) error {
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return err
+	}
+	var beside []Route
+	for i := range routes {
+		if o := &routes[i]; o.Domain == r.Domain && o.ID != r.ID && !o.Edited {
+			beside = append(beside, *o)
+		}
+	}
+	if len(beside) == 0 {
+		return nil
+	}
+	if err := m.Proxy.PutRoutes(ctx, beside); err != nil {
+		return fmt.Errorf("%s can't write the other routes of %s again, to keep its sign-in cookies from their apps: %w", m.Proxy.Name(), r.Domain, err)
+	}
+	return nil
+}
+
+// HandEditedBeside names, by domain and path, the routes on the host of a route that
+// signs people in that read as edited by hand, which applying it doesn't write
+// again, so a plan says they may pass its cookies on (#598's review, New 4).
+func (m *Manager) HandEditedBeside(ctx context.Context, ref resource.Ref, spec *resourcev1.Route) []string {
+	if spec.GetAccess().GetSignIn() == nil {
+		return nil
+	}
+	routes, err := m.Proxy.Routes(ctx)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for i := range routes {
+		if o := &routes[i]; o.Domain == spec.GetDomain() && o.ID != RouteID(ref) && o.Edited {
+			out = append(out, o.Domain+o.Path)
+		}
 	}
 	return out
 }

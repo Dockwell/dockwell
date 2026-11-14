@@ -299,7 +299,7 @@ func (e *Engine) stillPinned(ctx context.Context, tx *store.Tx, c store.Change, 
 		return fault.New(ErrStale, "%s %s started using a value %s changes after it was planned. Propose the change again, so it restarts with the new value",
 			late[0].Kind, late[0].Name, c.ID)
 	}
-	return nil
+	return e.signInsHold(ctx, tx, c, items)
 }
 
 // checkNames refuses a value whose name another kind of value in its

@@ -25,7 +25,7 @@ const askTimeout = 3 * time.Second
 // Ask asks one of Caddy's routes what a visitor gets, on this server's loopback,
 // over the port it serves that route on. It checks no certificate, as it only reads
 // the status Caddy itself answers with, from Caddy itself (ADR 0087).
-func (c *Caddy) Ask(ctx context.Context, domain, path string, plain bool, header http.Header) (status int, said string, err error) {
+func (c *Caddy) Ask(ctx context.Context, domain, path string, plain bool, header http.Header) (ingress.Answer, error) {
 	ctx, cancel := context.WithTimeout(ctx, askTimeout)
 	defer cancel()
 	httpPort, httpsPort := c.ports()
@@ -36,7 +36,7 @@ func (c *Caddy) Ask(ctx context.Context, domain, path string, plain bool, header
 	u := url.URL{Scheme: scheme, Host: domain, Path: "/"}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
-		return 0, "", err
+		return ingress.Answer{}, err
 	}
 	// As written, with nothing escaped or cleaned, as a stranger's odd spellings are
 	// asked too.
@@ -60,11 +60,11 @@ func (c *Caddy) Ask(ctx context.Context, domain, path string, plain bool, header
 	if err != nil {
 		var op *net.OpError
 		if errors.As(err, &op) && op.Op == "dial" {
-			return 0, "", fmt.Errorf("nothing listens on port %d", port)
+			return ingress.Answer{}, fmt.Errorf("nothing listens on port %d", port)
 		}
-		return 0, "", err
+		return ingress.Answer{}, err
 	}
 	_, _ = io.CopyN(io.Discard, res.Body, 4096)
 	_ = res.Body.Close()
-	return res.StatusCode, res.Status, nil
+	return ingress.Answer{Status: res.StatusCode, Said: res.Status, Location: res.Header.Get("Location")}, nil
 }

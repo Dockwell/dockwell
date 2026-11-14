@@ -15,7 +15,8 @@ import (
 // byNameAndState are what someone below an admin sees of what projects name on
 // the install (ADR 0049): a server's name, whether it's up, and its public
 // address; a backup destination's name and whether backups get there; a registry
-// login's name and registry (ADR 0086). Inventory,
+// login's name and registry (ADR 0086); a sign-in provider's name and what the
+// panel calls it (ADR 0087). Inventory,
 // stats, history, builds, endpoints, buckets and the rest stay an admin's.
 var byNameAndState = map[protoreflect.FullName]map[protoreflect.Name]bool{
 	"dockwell.v1.Server":                {"id": true, "name": true, "connection": true, "last_seen_time": true, "control_server": true, "network": true},
@@ -25,6 +26,7 @@ var byNameAndState = map[protoreflect.FullName]map[protoreflect.Name]bool{
 	"dockwell.v1.RegistryLoginInfo":     {"id": true, "name": true, "registry": true},
 	"dockwell.v1.DnsProviderInfo":       {"id": true, "name": true, "zones": true},
 	"dockwell.v1.CertificateInfo":       {"id": true, "name": true, "domains": true, "state": true, "expire_time": true},
+	"dockwell.v1.SigninProviderInfo":    {"id": true, "name": true, "display_name": true},
 }
 
 // trims reports a call whose response is trimmed to names and states: one that

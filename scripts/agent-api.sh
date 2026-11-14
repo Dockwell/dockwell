@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # Leaves the files of the public API that the agent's protocol doesn't reach out of
-# the agent build (ADR 0060, #622). Go links a generated package whole, and each
+# the agent build (ADR 0093, #622). Go links a generated package whole, and each
 # file registers its schema as the program starts, so an agent would otherwise hold
 # the descriptors of alerts, members, settings and the rest, which it never sends.
 #
-# Each file of gen/dockwell/v1 that no file proto/dockwell/agent/v1 imports, directly
-# or through another, gets "//go:build !agent || fullapi" below its SPDX line. The
+# Each file of gen/dockwell/v1 that no file of proto/dockwell/agent/v1 or
+# proto/dockwell/resource/v1alpha1, the schemas the agent build links, imports,
+# directly, publicly or through another, gets "//go:build !agent || fullapi" below its SPDX line. The
 # agent build, -tags agent, leaves it out; the full build keeps it; and the agent's
 # own packages' tests, vet and lint, -tags agent,fullapi, keep it too, as two of
 # them start a control plane to join. make generate runs this after buf generate.
@@ -16,9 +17,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 tag='//go:build !agent || fullapi'
 
-# The files of dockwell/v1 the agent's protocol imports, and what those import.
-imports() { sed -n 's|^import "dockwell/v1/\([a-z_]*\)\.proto";|\1|p' "$@"; }
-mapfile -t todo < <(imports proto/dockwell/agent/v1/*.proto | sort -u)
+# The files of dockwell/v1 the agent's schemas import, and what those import.
+imports() { sed -En 's|^import (public )?"dockwell/v1/([a-z0-9_]*)\.proto";|\2|p' "$@"; }
+mapfile -t todo < <(imports proto/dockwell/agent/v1/*.proto proto/dockwell/resource/v1alpha1/*.proto | sort -u)
 declare -A reached=()
 while ((${#todo[@]} > 0)); do
   f=${todo[-1]}

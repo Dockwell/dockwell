@@ -80,6 +80,8 @@ export interface ChangeWords {
   reload(server: string): string;
   /** What would take the proxy's ports back at the next reboot, and how to keep it from happening. It never stops a plan. */
   returning(names: string[], server: string): string;
+  /** Routes edited by hand beside one that signs people in, which may pass its cookies on. It never stops a plan. */
+  handEdited(paths: string[], server: string): string;
   /** What DNS said of a route's domain as this was planned, if that is worth saying. It never stops a plan. */
   domain(check: DomainCheck | undefined): string;
   /** What a route that takes no certificate means, as TLS ends before its server. It never stops a plan. */
@@ -454,6 +456,32 @@ export function useChangeWords(): ChangeWords {
                     return t`adds the user ${named}`;
                   case "password":
                     return t`changes the password of ${named}`;
+                  case "sign-in-off":
+                    return t`takes off signing in`;
+                  case "any-account":
+                    return t`lets in every account at its provider`;
+                  case "provider":
+                    return t`signs people in with ${named}`;
+                  case "email":
+                    return t`lets in ${named}`;
+                  case "email-domain":
+                    return t`lets in anyone at ${named}`;
+                  case "group": {
+                    let group = about;
+                    try {
+                      group = decodeURIComponent(about);
+                    } catch {
+                      // A group that isn't escaped as the control plane escapes one reads as it came.
+                    }
+                    const inGroup = plain(group);
+                    return t`lets in anyone in the group ${inGroup}`;
+                  }
+                  case "issuer":
+                    return t`signs people in at ${named}`;
+                  case "client":
+                    return t`signs people in as the client ${named}`;
+                  case "groups-claim":
+                    return t`reads groups from the claim ${named}`;
                 }
                 return plain(fact);
               });
@@ -507,6 +535,14 @@ export function useChangeWords(): ChangeWords {
             break;
         }
         return out;
+      },
+      handEdited(paths, server) {
+        if (paths.length === 0) return "";
+        const list = listWords(
+          i18n.locale,
+          paths.map((p) => plain(p)),
+        );
+        return t`${list} on ${server} were edited by hand, so this doesn't write them again, and they may pass its sign-in cookies on to their apps. Edit them in Dockwell, or remove them`;
       },
       returning(names, server) {
         if (names.length === 0) return "";

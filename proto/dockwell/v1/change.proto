@@ -1881,6 +1881,11 @@ message PlanStep {
   // moving an app to another project does (ADR 0084, #572). Numbered in the block
   // connectable apps hold in other messages, 80 to 89.
   VolumeMove volume_move = 80;
+  // The routes on the host of a route that signs people in that were edited by
+  // hand, by domain and path, which applying it doesn't write again, so they may
+  // pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
+  // and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
+  repeated string hand_edited_beside = 110;
 }
 
 // VolumeMove is how a step that makes a volume takes its data from another on its
