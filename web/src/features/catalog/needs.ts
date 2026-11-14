@@ -47,6 +47,17 @@ export function entriesFor(need: Need, has: (id: string) => boolean): { id: stri
   return out;
 }
 
+/**
+ * How apps sharing a server keep apart: on Redis or Valkey, by key prefixes, where
+ * the need sets one and every user on the server has one, as the control plane says,
+ * or not at all, so they read and change each other's data; on other engines, each in
+ * a database of its own (ADR 0084).
+ */
+export function keepsApart(option: CatalogNeedOption): "databases" | "prefixes" | "no" {
+  if (option.engine !== Engine.REDIS && option.engine !== Engine.VALKEY) return "databases";
+  return option.keepsApart ? "prefixes" : "no";
+}
+
 /** What people call an engine, such as "MariaDB". */
 export function engineName(engine: Engine): string {
   return ENGINE_NAMES[engine] ?? "";

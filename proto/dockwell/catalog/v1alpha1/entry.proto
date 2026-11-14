@@ -226,6 +226,11 @@ enum Part {
   PART_URL = 7;
   // Whether to use TLS, in the app's own words, as the set's tls gives them.
   PART_TLS = 8;
+  // A prefix the app puts before each key it keeps, on Redis or Valkey, such as
+  // "shop:". Where a need sets one, an app sharing a server keeps to its own keys,
+  // and reaches no other app's. Numbered in the block connectable apps hold, 40 to
+  // 49. See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  PART_KEY_PREFIX = 40;
 }
 
 // Translation is what an entry says in another language than its own, as its

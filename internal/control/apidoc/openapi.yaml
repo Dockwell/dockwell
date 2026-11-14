@@ -8984,6 +8984,27 @@ components:
                     items:
                         type: string
                     description: The servers it runs on, by name, where the app would go with it.
+                keepsApart:
+                    type: boolean
+                    description: |-
+                        For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
+                         key prefix, and every user there that can sign in, as the server's latest
+                         reading lists them, is one Dockwell made with a key prefix, but a default that
+                         asks a password. A user's rules can't show it keeps to its keys, so any other
+                         user, or a server whose users couldn't be read, makes it false: its apps can
+                         read and change each other's data. It's worked out as the entry is listed; the
+                         plan says it again as it's made, and the agent checks it once more as it makes
+                         the user (DatabaseUser.keeps_apart). Numbered in the block connectable apps
+                         hold, 40 to 49.
+                endsApart:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        For a Redis or Valkey whose apps keep to their own keys: the projects, by name,
+                         whose apps would read and change each other's data with this one's, as this app
+                         keeps to no prefix of its own. Choosing it takes a role in each; its plan names
+                         them too. Numbered in the block connectable apps hold, 40 to 49.
             description: CatalogNeedOption is one way to meet an entry's need.
         CatalogPart:
             type: object
@@ -10988,6 +11009,12 @@ components:
                     description: |-
                         The database they sign in to, for MongoDB, as an app names it in authSource,
                          such as "admin" for its root user.
+                noPassword:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey, it signs in with no password, so anyone who reaches the
+                         server signs in as it. Numbered in the block connectable apps hold in other
+                         messages, 80 to 89.
             description: |-
                 DatabaseAccount is someone who can sign in to a database server: a user, as
                  MySQL and MariaDB call one, or a role, as PostgreSQL does.
@@ -11183,6 +11210,28 @@ components:
                          server, of the same engine, as Use another database copies an app's across (ADR
                          0084). Copied once, into the empty database made in the same step; unset copies
                          nothing.
+                shared:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey other apps share, its user is refused what reaches past
+                         the keys it works with, such as KEYS or FLUSHALL, as a shared server's
+                         @dangerous commands are. A user of an app's own server isn't. On other engines
+                         it changes nothing. See
+                         docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+                keyPrefix:
+                    type: string
+                    description: |-
+                        On a Redis or Valkey, the prefix of the keys its user keeps to, such as "shop:":
+                         it reaches only keys, and channels, that start with it. Empty reaches every key,
+                         as an app that sets no prefix needs. On other engines it changes nothing (ADR
+                         0084).
+                keepsApart:
+                    type: boolean
+                    description: |-
+                        On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
+                         every user there was one Dockwell made with a key prefix: making the user, or
+                         giving it its password anew, refuses a server where any other user, but its
+                         default, can sign in by then (ADR 0084).
             description: |-
                 DatabaseUser is a database inside a database server that a service of its
                  environment runs, with the user who owns it, who signs in with a secret of the
@@ -15233,6 +15282,7 @@ components:
                         - LINK_PART_PASSWORD
                         - LINK_PART_URL
                         - LINK_PART_TLS
+                        - LINK_PART_KEY_PREFIX
                     type: string
                     description: What it holds.
                     format: enum
@@ -16447,6 +16497,7 @@ components:
                         - PART_PASSWORD
                         - PART_URL
                         - PART_TLS
+                        - PART_KEY_PREFIX
                     type: string
                     description: What it holds.
                     format: enum
@@ -17947,6 +17998,13 @@ components:
                         What a step that moves a database to a newer release does beside replacing
                          its container, by a dump into a new volume (ADR 0080). Numbered in the
                          updates area's block, 260 to 269.
+                keysLeft:
+                    type: string
+                    description: |-
+                        What a step that deletes an app's user on a Redis or Valkey leaves there: the
+                         keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
+                         nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
+                         the block connectable apps hold in other messages, 80 to 89.
             description: PlanStep is what applying does to one resource on one server.
         PlanStopPanelRequest:
             type: object

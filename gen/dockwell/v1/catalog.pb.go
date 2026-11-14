@@ -633,7 +633,22 @@ type CatalogNeedOption struct {
 	// The apps that use it already, through links of theirs, by project name.
 	SharedWith []string `protobuf:"bytes,12,rep,name=shared_with,json=sharedWith,proto3" json:"shared_with,omitempty"`
 	// The servers it runs on, by name, where the app would go with it.
-	Servers       []string `protobuf:"bytes,13,rep,name=servers,proto3" json:"servers,omitempty"`
+	Servers []string `protobuf:"bytes,13,rep,name=servers,proto3" json:"servers,omitempty"`
+	// For a Redis or Valkey: each app on it keeps to its own keys, as the need sets a
+	// key prefix, and every user there that can sign in, as the server's latest
+	// reading lists them, is one Dockwell made with a key prefix, but a default that
+	// asks a password. A user's rules can't show it keeps to its keys, so any other
+	// user, or a server whose users couldn't be read, makes it false: its apps can
+	// read and change each other's data. It's worked out as the entry is listed; the
+	// plan says it again as it's made, and the agent checks it once more as it makes
+	// the user (DatabaseUser.keeps_apart). Numbered in the block connectable apps
+	// hold, 40 to 49.
+	KeepsApart bool `protobuf:"varint,40,opt,name=keeps_apart,json=keepsApart,proto3" json:"keeps_apart,omitempty"`
+	// For a Redis or Valkey whose apps keep to their own keys: the projects, by name,
+	// whose apps would read and change each other's data with this one's, as this app
+	// keeps to no prefix of its own. Choosing it takes a role in each; its plan names
+	// them too. Numbered in the block connectable apps hold, 40 to 49.
+	EndsApart     []string `protobuf:"bytes,41,rep,name=ends_apart,json=endsApart,proto3" json:"ends_apart,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -755,6 +770,20 @@ func (x *CatalogNeedOption) GetSharedWith() []string {
 func (x *CatalogNeedOption) GetServers() []string {
 	if x != nil {
 		return x.Servers
+	}
+	return nil
+}
+
+func (x *CatalogNeedOption) GetKeepsApart() bool {
+	if x != nil {
+		return x.KeepsApart
+	}
+	return false
+}
+
+func (x *CatalogNeedOption) GetEndsApart() []string {
+	if x != nil {
+		return x.EndsApart
 	}
 	return nil
 }
@@ -3362,7 +3391,7 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x05needs\x18P \x03(\v2\x1e.dockwell.v1.CatalogNeedOptionR\x05needs\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8b\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcb\x03\n" +
 	"\x11CatalogNeedOption\x12\x12\n" +
 	"\x04need\x18\x01 \x01(\tR\x04need\x12\x16\n" +
 	"\x06choice\x18\x02 \x01(\tR\x06choice\x129\n" +
@@ -3380,7 +3409,11 @@ const file_dockwell_v1_catalog_proto_rawDesc = "" +
 	"\x03why\x18\v \x01(\tR\x03why\x12\x1f\n" +
 	"\vshared_with\x18\f \x03(\tR\n" +
 	"sharedWith\x12\x18\n" +
-	"\aservers\x18\r \x03(\tR\aservers\"\xf9\x03\n" +
+	"\aservers\x18\r \x03(\tR\aservers\x12\x1f\n" +
+	"\vkeeps_apart\x18( \x01(\bR\n" +
+	"keepsApart\x12\x1d\n" +
+	"\n" +
+	"ends_apart\x18) \x03(\tR\tendsApart\"\xf9\x03\n" +
 	"\vCatalogPart\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x14\n" +
 	"\x05image\x18\x02 \x01(\tR\x05image\x12\x1a\n" +

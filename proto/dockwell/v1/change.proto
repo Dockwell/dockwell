@@ -1711,6 +1711,11 @@ message PlanStep {
   // its container, by a dump into a new volume (ADR 0080). Numbered in the
   // updates area's block, 260 to 269.
   DatabaseMove database_move = 260;
+  // What a step that deletes an app's user on a Redis or Valkey leaves there: the
+  // keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
+  // nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
+  // the block connectable apps hold in other messages, 80 to 89.
+  string keys_left = 81;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or

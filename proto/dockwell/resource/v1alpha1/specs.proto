@@ -983,6 +983,22 @@ message DatabaseUser {
   // 0084). Copied once, into the empty database made in the same step; unset copies
   // nothing.
   DatabaseCopy copy_from = 80;
+  // On a Redis or Valkey other apps share, its user is refused what reaches past
+  // the keys it works with, such as KEYS or FLUSHALL, as a shared server's
+  // @dangerous commands are. A user of an app's own server isn't. On other engines
+  // it changes nothing. See
+  // docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+  bool shared = 81;
+  // On a Redis or Valkey, the prefix of the keys its user keeps to, such as "shop:":
+  // it reaches only keys, and channels, that start with it. Empty reaches every key,
+  // as an app that sets no prefix needs. On other engines it changes nothing (ADR
+  // 0084).
+  string key_prefix = 82;
+  // On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
+  // every user there was one Dockwell made with a key prefix: making the user, or
+  // giving it its password anew, refuses a server where any other user, but its
+  // default, can sign in by then (ADR 0084).
+  bool keeps_apart = 83;
 }
 
 // DatabaseCopy names a database to copy from: the service that runs its server, in
@@ -1793,4 +1809,5 @@ enum LinkPart {
   LINK_PART_PASSWORD = 6;
   LINK_PART_URL = 7;
   LINK_PART_TLS = 8;
+  LINK_PART_KEY_PREFIX = 40;
 }

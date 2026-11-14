@@ -239,6 +239,10 @@ message DatabaseAccount {
   // The database they sign in to, for MongoDB, as an app names it in authSource,
   // such as "admin" for its root user.
   string auth_database = 10;
+  // On a Redis or Valkey, it signs in with no password, so anyone who reaches the
+  // server signs in as it. Numbered in the block connectable apps hold in other
+  // messages, 80 to 89.
+  bool no_password = 80;
 }
 
 // ListDatabasesRequest asks for the databases.

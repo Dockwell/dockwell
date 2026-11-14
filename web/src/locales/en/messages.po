@@ -7029,6 +7029,9 @@ msgstr "Database"
 msgid "Each app has a user of its own"
 msgstr "Each app has a user of its own"
 
+msgid "Each app has a user of its own, and keeps to its own keys"
+msgstr "Each app has a user of its own, and keeps to its own keys"
+
 msgid "Each image pinned by digest"
 msgstr "Each image pinned by digest"
 
@@ -7060,6 +7063,12 @@ msgstr "Give {missingLabel} a value to review the plan"
 
 msgid "Hide {label}"
 msgstr "Hide {label}"
+
+msgid "Its apps can read and change each other's data"
+msgstr "Its apps can read and change each other's data"
+
+msgid "Its apps keep to their own keys, and this one keeps no prefix: {apps} and it could read and change each other's data"
+msgstr "Its apps keep to their own keys, and this one keeps no prefix: {apps} and it could read and change each other's data"
 
 msgid "Its site"
 msgstr "Its site"
@@ -7107,6 +7116,12 @@ msgstr "Set my own {0}"
 
 msgid "Shared with {apps} · each app has a user of its own"
 msgstr "Shared with {apps} · each app has a user of its own"
+
+msgid "Shared with {apps} · each app has a user of its own, and keeps to its own keys"
+msgstr "Shared with {apps} · each app has a user of its own, and keeps to its own keys"
+
+msgid "Shared with {apps} · its apps can read and change each other's data"
+msgstr "Shared with {apps} · its apps can read and change each other's data"
 
 msgid "Shares {service} in {project}"
 msgstr "Shares {service} in {project}"
@@ -8316,6 +8331,12 @@ msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this
 
 msgid "Keeps its data for 7 days, then deletes it"
 msgstr "Keeps its data for 7 days, then deletes it"
+
+msgid "Leaves the keys it wrote on the server"
+msgstr "Leaves the keys it wrote on the server"
+
+msgid "Leaves the keys under {keysUnder} on the server"
+msgstr "Leaves the keys under {keysUnder} on the server"
 
 msgid "May cut off access to {server}"
 msgstr "May cut off access to {server}"

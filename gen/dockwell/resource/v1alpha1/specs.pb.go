@@ -571,20 +571,22 @@ const (
 	LinkPart_LINK_PART_PASSWORD    LinkPart = 6
 	LinkPart_LINK_PART_URL         LinkPart = 7
 	LinkPart_LINK_PART_TLS         LinkPart = 8
+	LinkPart_LINK_PART_KEY_PREFIX  LinkPart = 40
 )
 
 // Enum value maps for LinkPart.
 var (
 	LinkPart_name = map[int32]string{
-		0: "LINK_PART_UNSPECIFIED",
-		1: "LINK_PART_HOST",
-		2: "LINK_PART_PORT",
-		3: "LINK_PART_ADDRESS",
-		4: "LINK_PART_DATABASE",
-		5: "LINK_PART_USER",
-		6: "LINK_PART_PASSWORD",
-		7: "LINK_PART_URL",
-		8: "LINK_PART_TLS",
+		0:  "LINK_PART_UNSPECIFIED",
+		1:  "LINK_PART_HOST",
+		2:  "LINK_PART_PORT",
+		3:  "LINK_PART_ADDRESS",
+		4:  "LINK_PART_DATABASE",
+		5:  "LINK_PART_USER",
+		6:  "LINK_PART_PASSWORD",
+		7:  "LINK_PART_URL",
+		8:  "LINK_PART_TLS",
+		40: "LINK_PART_KEY_PREFIX",
 	}
 	LinkPart_value = map[string]int32{
 		"LINK_PART_UNSPECIFIED": 0,
@@ -596,6 +598,7 @@ var (
 		"LINK_PART_PASSWORD":    6,
 		"LINK_PART_URL":         7,
 		"LINK_PART_TLS":         8,
+		"LINK_PART_KEY_PREFIX":  40,
 	}
 )
 
@@ -4536,7 +4539,23 @@ type DatabaseUser struct {
 	// server, of the same engine, as Use another database copies an app's across (ADR
 	// 0084). Copied once, into the empty database made in the same step; unset copies
 	// nothing.
-	CopyFrom      *DatabaseCopy `protobuf:"bytes,80,opt,name=copy_from,json=copyFrom,proto3" json:"copy_from,omitempty"`
+	CopyFrom *DatabaseCopy `protobuf:"bytes,80,opt,name=copy_from,json=copyFrom,proto3" json:"copy_from,omitempty"`
+	// On a Redis or Valkey other apps share, its user is refused what reaches past
+	// the keys it works with, such as KEYS or FLUSHALL, as a shared server's
+	// @dangerous commands are. A user of an app's own server isn't. On other engines
+	// it changes nothing. See
+	// docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md.
+	Shared bool `protobuf:"varint,81,opt,name=shared,proto3" json:"shared,omitempty"`
+	// On a Redis or Valkey, the prefix of the keys its user keeps to, such as "shop:":
+	// it reaches only keys, and channels, that start with it. Empty reaches every key,
+	// as an app that sets no prefix needs. On other engines it changes nothing (ADR
+	// 0084).
+	KeyPrefix string `protobuf:"bytes,82,opt,name=key_prefix,json=keyPrefix,proto3" json:"key_prefix,omitempty"`
+	// On a Redis or Valkey, the plan said each app on it keeps to its own keys, as
+	// every user there was one Dockwell made with a key prefix: making the user, or
+	// giving it its password anew, refuses a server where any other user, but its
+	// default, can sign in by then (ADR 0084).
+	KeepsApart    bool `protobuf:"varint,83,opt,name=keeps_apart,json=keepsApart,proto3" json:"keeps_apart,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4604,6 +4623,27 @@ func (x *DatabaseUser) GetCopyFrom() *DatabaseCopy {
 		return x.CopyFrom
 	}
 	return nil
+}
+
+func (x *DatabaseUser) GetShared() bool {
+	if x != nil {
+		return x.Shared
+	}
+	return false
+}
+
+func (x *DatabaseUser) GetKeyPrefix() string {
+	if x != nil {
+		return x.KeyPrefix
+	}
+	return ""
+}
+
+func (x *DatabaseUser) GetKeepsApart() bool {
+	if x != nil {
+		return x.KeepsApart
+	}
+	return false
 }
 
 // DatabaseCopy names a database to copy from: the service that runs its server, in
@@ -8126,13 +8166,18 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcb\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa3\x03\n" +
 	"\fDatabaseUser\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12#\n" +
 	"\rdatabase_name\x18\x02 \x01(\tR\fdatabaseName\x12\x1a\n" +
 	"\bpassword\x18\x03 \x01(\tR\bpassword\x12[\n" +
 	"\trevisions\x18\x04 \x03(\v27.dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntryB\x04\xe2A\x01\x03R\trevisions\x12E\n" +
-	"\tcopy_from\x18P \x01(\v2(.dockwell.resource.v1alpha1.DatabaseCopyR\bcopyFrom\x1a<\n" +
+	"\tcopy_from\x18P \x01(\v2(.dockwell.resource.v1alpha1.DatabaseCopyR\bcopyFrom\x12\x16\n" +
+	"\x06shared\x18Q \x01(\bR\x06shared\x12\x1d\n" +
+	"\n" +
+	"key_prefix\x18R \x01(\tR\tkeyPrefix\x12\x1f\n" +
+	"\vkeeps_apart\x18S \x01(\bR\n" +
+	"keepsApart\x1a<\n" +
 	"\x0eRevisionsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"f\n" +
@@ -8456,7 +8501,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x11LINK_ENGINE_REDIS\x10\x04\x12\x16\n" +
 	"\x12LINK_ENGINE_VALKEY\x10\x05\x12\x17\n" +
 	"\x13LINK_ENGINE_MONGODB\x10\x06\x12\x1a\n" +
-	"\x16LINK_ENGINE_CLICKHOUSE\x10\a*\xce\x01\n" +
+	"\x16LINK_ENGINE_CLICKHOUSE\x10\a*\xe8\x01\n" +
 	"\bLinkPart\x12\x19\n" +
 	"\x15LINK_PART_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eLINK_PART_HOST\x10\x01\x12\x12\n" +
@@ -8466,7 +8511,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x0eLINK_PART_USER\x10\x05\x12\x16\n" +
 	"\x12LINK_PART_PASSWORD\x10\x06\x12\x11\n" +
 	"\rLINK_PART_URL\x10\a\x12\x11\n" +
-	"\rLINK_PART_TLS\x10\b:=\n" +
+	"\rLINK_PART_TLS\x10\b\x12\x18\n" +
+	"\x14LINK_PART_KEY_PREFIX\x10(:=\n" +
 	"\tsensitive\x12\x1d.google.protobuf.FieldOptions\x18\xb9\x8e\x03 \x01(\bR\tsensitive:8\n" +
 	"\ano_flag\x12\x1d.google.protobuf.FieldOptions\x18\xba\x8e\x03 \x01(\bR\x06noFlagB\x84\x02\n" +
 	"\x1ecom.dockwell.resource.v1alpha1B\n" +

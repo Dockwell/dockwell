@@ -3570,6 +3570,9 @@ func Kinds() []*apicli.Kind {
 				{Path: "copy_from.environment"},
 				{Path: "copy_from.service"},
 				{Path: "copy_from.database"},
+				{Path: "shared", Help: "On a Redis or Valkey other apps share, its user is refused what reaches past the keys it works with, such as KEYS or FLUSHALL, as a shared server's @dangerous commands are. A user of an app's own server isn't. On other engines it changes nothing. See docs/adr/0084-what-an-app-needs-met-by-a-new-service-one-you-run-or-a-connection.md."},
+				{Path: "key_prefix", Help: "On a Redis or Valkey, the prefix of the keys its user keeps to, such as \"shop:\": it reaches only keys, and channels, that start with it. Empty reaches every key, as an app that sets no prefix needs. On other engines it changes nothing (ADR 0084)."},
+				{Path: "keeps_apart", Help: "On a Redis or Valkey, the plan said each app on it keeps to its own keys, as every user there was one Dockwell made with a key prefix: making the user, or giving it its password anew, refuses a server where any other user, but its default, can sign in by then (ADR 0084)."},
 			},
 		},
 		{

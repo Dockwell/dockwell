@@ -66,7 +66,7 @@ import { Facts, useEntryFacts } from "./access";
 import { type EngineGroup, groupOf } from "./engines";
 import { nextFree } from "./freeName";
 import { projectLink } from "./media";
-import { ENGINE_ENTRY_IDS, engineName, entriesFor, needsRequest, optionsByNeed, takesLine } from "./needs";
+import { ENGINE_ENTRY_IDS, engineName, entriesFor, keepsApart, needsRequest, optionsByNeed, takesLine } from "./needs";
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
 // The form is New app's, so its fields sit apart the same way, however the sheet is reached.
@@ -1063,6 +1063,25 @@ function NeedPicker({
   const id = useId();
   const fresh = options.filter((o) => o.service === "");
   const yours = options.filter((o) => o.service !== "");
+  // Sharing without a prefix a server whose apps keep apart ends that, for apps in
+  // the projects named, which choosing it takes a role in.
+  const endsApart = (apps: string) =>
+    t`Its apps keep to their own keys, and this one keeps no prefix: ${apps} and it could read and change each other's data`;
+  // A shared server's state: who shares it, and how its apps keep apart, or don't.
+  const sharedState = (how: ReturnType<typeof keepsApart>, apps: string) => {
+    switch (how) {
+      case "prefixes":
+        return apps
+          ? t`Shared with ${apps} · each app has a user of its own, and keeps to its own keys`
+          : t`Each app has a user of its own, and keeps to its own keys`;
+      case "no":
+        return apps
+          ? t`Shared with ${apps} · its apps can read and change each other's data`
+          : t`Its apps can read and change each other's data`;
+      default:
+        return apps ? t`Shared with ${apps} · each app has a user of its own` : t`Each app has a user of its own`;
+    }
+  };
   return (
     <fieldset className="catalog-engines catalog-need" aria-labelledby={id} disabled={disabled}>
       <span id={id} className="catalog-chosen-label">
@@ -1128,9 +1147,9 @@ function NeedPicker({
                   </code>
                   <span className="catalog-need-server-state">
                     {option.why ||
-                      (apps
-                        ? t`Shared with ${apps} · each app has a user of its own`
-                        : t`Each app has a user of its own`)}
+                      (option.endsApart.length > 0
+                        ? endsApart(option.endsApart.join(", "))
+                        : sharedState(keepsApart(option), apps))}
                   </span>
                 </label>
               );

@@ -53,6 +53,8 @@ func needOptions(e *catalogv1.Entry, ways map[string][]catalog.Way) []*dockwellv
 			if c := w.Existing; c != nil {
 				o.Project, o.Environment, o.Service, o.ServiceId = c.Project, c.Environment, c.Service, c.ServiceID
 				o.SharedWith, o.Servers = c.SharedWith, c.ServerNames
+				o.KeepsApart = w.KeepsApart()
+				o.EndsApart, _ = w.EndsApart()
 			}
 			out = append(out, o)
 		}

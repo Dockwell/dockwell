@@ -103,7 +103,7 @@ func Copies(e dockwellv1.DatabaseEngine) bool { _, ok := dumpOne[e]; return ok }
 // SystemDatabase reports a database a server keeps for itself, which is never copied:
 // it holds the server's users, or nothing of an app's.
 func SystemDatabase(name string) bool {
-	return name == "postgres" || name == "template0" || name == "template1" || slices.Contains(mysqlSystem, name)
+	return name == "postgres" || name == "template0" || name == "template1" || slices.Contains(mysqlSystem, name) || slices.Contains(mongoSystem, name)
 }
 
 // copyWait bounds a copy unless the driver says otherwise: a database larger than a

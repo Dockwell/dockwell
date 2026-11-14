@@ -177,6 +177,8 @@ function StepRow({
   const stepBound = time.bound(stepHealthy);
   const effect = planning ? words.effect(step.effect) : "";
   const kept = step.keptPaths.join(", ");
+  // The keys a Redis user's delete leaves, by their prefix, such as "shop:".
+  const keysUnder = step.keysLeft.replace(/\*$/, "");
   const reach = step.hostAccess
     .filter((a) => a.kind !== HostAccessKind.HTTPS_OFF && a.kind !== HostAccessKind.ACCESS_OPENED)
     .map((a) => words.access(a))
@@ -235,6 +237,13 @@ function StepRow({
             <span className="plan-step-warn">{t`Keeps its data for 7 days, then deletes it`}</span>
           ) : step.destroysData ? (
             <span className="plan-step-warn">{t`Destroys data`}</span>
+          ) : null}
+          {step.keysLeft ? (
+            <span>
+              {step.keysLeft === "*"
+                ? t`Leaves the keys it wrote on the server`
+                : t`Leaves the keys under ${keysUnder} on the server`}
+            </span>
           ) : null}
           {step.restores ? <span>{t`Brings back the data the server kept`}</span> : null}
           {step.registryLogin ? <span>{t`Pulls with the registry login ${step.registryLogin}`}</span> : null}

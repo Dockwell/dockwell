@@ -176,6 +176,18 @@ jobs:
               exit 1
             }
           done
+      # Apps share a real Redis and Valkey of each release Dockwell makes users' rules
+      # for, each rule loading, and each user kept to its keys (ADR 0084). It has to
+      # pass on every one, not skip.
+      - name: Apps share a Redis and Valkey of each release
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          for image in redis:6.2-alpine redis:7.2-alpine redis:7.4-alpine redis:8.2-alpine valkey/valkey:7.2-alpine valkey/valkey:8-alpine; do
+            grep -q -- "--- PASS: TestAppsHaveRedisACLUsersOnRealDocker/$image" "$RUNNER_TEMP/docker.out" || {
+              echo "TestAppsHaveRedisACLUsersOnRealDocker didn't pass on $image, so apps sharing it may not keep apart. Read its output in Tests against Docker above."
+              exit 1
+            }
+          done
       # Dockwell's nftables table against the runner's kernel, as root, in a
       # network namespace of its own, so the runner's own firewall is never
       # touched (ADR 0052). It has to pass, not skip.

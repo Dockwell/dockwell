@@ -282,6 +282,15 @@ func parseRedis(e *Engine, said []byte) (*dockwellv1.DatabaseReading, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		// ACL LIST: user shop on #<hash> ~shop:* &shop:* -@all +@read ... Its name, and
+		// whether it can sign in, and with no password; never its hash.
+		if fields := strings.Fields(line); len(fields) >= 3 && fields[0] == "user" {
+			r.Users = append(r.Users, &dockwellv1.DatabaseAccount{
+				Name: fields[1], CanSignIn: slices.Contains(fields, "on"), NoPassword: slices.Contains(fields, "nopass"),
+				Superuser: slices.Contains(fields, "+@all") && !slices.Contains(fields, "-@admin"),
+			})
+			continue
+		}
 		k, v, ok := strings.Cut(line, ":")
 		if !ok {
 			continue
