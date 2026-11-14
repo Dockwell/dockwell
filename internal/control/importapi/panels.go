@@ -281,6 +281,15 @@ func autoDeploy(w panel, a *dockwellv1.PanelApp) string {
 	return fmt.Sprintf("Turn off %s for %s in %s before you apply, or a push to its repository can replace it or start a second copy", w.autoDeploy, a.GetName(), w.name)
 }
 
+// remakeAutoDeploy says what to do before making again an app the panel deploys
+// from Git: its auto deploy would scale its Swarm service back up beside its copy.
+func remakeAutoDeploy(w panel, a *dockwellv1.PanelApp) string {
+	if !a.GetFromGit() {
+		return ""
+	}
+	return fmt.Sprintf("Turn off %s for %s in %s before you apply, or a push to its repository scales its service back up beside its copy", w.autoDeploy, a.GetName(), w.name)
+}
+
 // asRoot says what of an app's reach is as good as root on its server, in a few
 // words, such as "With Docker's socket, it's as good as root on web-1", or "".
 // The plan says it in full, and asks for a passkey; a step says it first.
@@ -383,7 +392,7 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 	}
 	// What runs as a Swarm service is made again, the apps of each of the panel's
 	// projects in one of Dockwell's, so they find each other by the names they had.
-	remakes, parts, made, err := h.planRemakes(ctx, r, w, steps, apps, claimed)
+	remakes, parts, made, err := h.planRemakes(ctx, r, w, srv.GetName(), steps, apps, claimed)
 	if err != nil {
 		return nil, err
 	}
@@ -409,6 +418,17 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 			Ref:   resource.Ref{Kind: host.Kind, Scope: srv.GetId(), Name: host.Name},
 			Panel: &resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: parts},
 		})
+		var deploys []string
+		for i, a := range apps {
+			if a != nil && a.GetFromGit() && a.GetSwarm() && steps[i].GetAction() == dockwellv1.ImportAction_IMPORT_ACTION_MAKE {
+				deploys = append(deploys, a.GetName())
+			}
+		}
+		if len(deploys) > 0 {
+			also.Notes = append(also.Notes, revision.Note{Reason: "remakes_autodeploy_" + w.from, Message: fmt.Sprintf(
+				"%s deploys %s on a push to its repository: turn off %s for each in %s before you apply, or a push scales its service back up beside its copy",
+				w.name, human.List(deploys), w.autoDeploy, w.name), Names: deploys})
+		}
 		also.Notes = append(also.Notes, revision.Note{Reason: "remakes_" + w.from, Message: fmt.Sprintf(
 			"Makes again in Dockwell what %s runs as Swarm services: %s, as each runs, on the same volumes. Dockwell scales each to none in %s first, and takes it off its ports and networks, so each is down for a moment until its copy starts. Undoing this deletes the copies and puts each back as it was",
 			w.name, human.List(made), w.name)})
@@ -484,7 +504,7 @@ func (h *Handler) PlanStartPanel(ctx context.Context, req *connect.Request[dockw
 // each of the panel's projects into one of Dockwell's named for it, and leaves
 // what's in the way, saying why. It returns the takings, the Swarm services the
 // panel scales to none as their copies start, and the steps' names.
-func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w panel, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, claimed map[string]bool) ([]*composeapi.Taking, []resource.PanelPart, []string, error) {
+func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w panel, server string, steps []*dockwellv1.ImportStep, apps []*dockwellv1.PanelApp, claimed map[string]bool) ([]*composeapi.Taking, []resource.PanelPart, []string, error) {
 	groups := map[string][]int{}
 	var order []string
 	for i, step := range steps {
@@ -542,6 +562,13 @@ func (h *Handler) planRemakes(ctx context.Context, r *containers.Running, w pane
 			} else {
 				steps[i].Becomes = fmt.Sprintf("the service %s in the project %s, made again as it runs, on its volumes", containers.Label(apps[i].GetId()), t.Project)
 			}
+			// As for a take-on: what makes a copy as good as root, and a push that
+			// would deploy it again in the panel, here scaling its service back up
+			// beside its copy.
+			own := slices.DeleteFunc(slices.Clone(t.Edits), func(e *dockwellv1.Edit) bool {
+				return !slices.ContainsFunc(remakesOf(apps[i]), func(m composeapi.Remake) bool { return e.GetResource().GetName() == m.Service })
+			})
+			steps[i].Reason = sentences([]string{asRoot(own, server), remakeAutoDeploy(w, apps[i]), steps[i].GetReason()})
 			for _, svc := range apps[i].GetContainers() {
 				parts = append(parts, resource.PanelPart{Name: svc})
 			}

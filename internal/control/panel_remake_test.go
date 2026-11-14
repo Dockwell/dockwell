@@ -5,6 +5,8 @@ package control
 import (
 	"encoding/json"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -39,7 +41,13 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 	if step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_MAKE || step.GetBecomes() != "the service shop-k2m4 in the project store, made again as it runs, on its volumes" {
 		t.Fatalf("shop reads %v", step)
 	}
+	if !strings.Contains(step.GetReason(), "Turn off Autodeploy for shop in Dokploy before you apply, or a push to its repository scales its service back up beside its copy") {
+		t.Errorf("shop's step says nothing of Autodeploy: %q", step.GetReason())
+	}
 	planned := res.Msg.GetChange()
+	if !noteSays(planned, "remakes_autodeploy_dokploy", "turn off Autodeploy for each in Dokploy before you apply") {
+		t.Errorf("the plan says nothing of Autodeploy: %v", planned.GetPlan().GetNotes())
+	}
 	if !noteSays(planned, "remakes_dokploy", "Dockwell scales each to none in Dokploy first, and takes it off its ports and networks") {
 		t.Errorf("the plan's notes are %v", planned.GetPlan().GetNotes())
 	}
@@ -146,6 +154,12 @@ type shopOnDokploy struct {
 func dokployShop(t *testing.T) shopOnDokploy {
 	t.Helper()
 	f := startFull(t, store.SQLite, nil)
+	// Dokploy deploys shop from Git: its code folder is a checkout.
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "etc", "dokploy", "applications", "shop-k2m4", "code", ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f.panelsRoot = root
 	b := signedIn(t, f)
 	later := &laterStopper{}
 	e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&host.Driver{Panels: later}} })
