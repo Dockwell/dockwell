@@ -283,11 +283,20 @@ func (e *Engine) FailLostReboots(ctx context.Context) error {
 		plain, _ := resource.Explain(cause)
 		_, u := e.failed(id, i, cause)
 		// The steps that never began don't now: the change fails here, as a run that
-		// stops at a failed step skips the rest.
+		// stops at a failed step skips the rest. One that was asked and still waits
+		// for its server, beside this one in its wave, ends failed too: nothing reads
+		// it after the change has ended.
 		var skipped []*Update
 		for j := range progress.Steps {
-			if s := &progress.Steps[j]; j != i && (s.State == StepQueued || s.State == StepWaiting && s.Started.IsZero()) {
+			s := &progress.Steps[j]
+			switch {
+			case j == i:
+			case s.State == StepQueued || s.State == StepWaiting && s.Started.IsZero():
 				_, su := e.step(id, j, StepSkipped, "Not run, because a step before it failed")
+				skipped = append(skipped, su)
+			case s.State == StepWaiting:
+				left := fault.New(ErrRebootLost, "the change failed, as %s didn't come back, before this server did. Check it's back, and plan again what it still needs", name)
+				_, su := e.failed(id, j, left)
 				skipped = append(skipped, su)
 			}
 		}
