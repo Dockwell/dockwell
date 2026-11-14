@@ -2462,7 +2462,7 @@ function Effects({
     key: string;
   }[] = [];
   if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
-  // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves and their checks are #28.
+  // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves are ADR 0094's.
   // A restart changes no spec, so it has nothing to roll back to.
   const restarting = restarts(plan);
   if (restarting) {
@@ -2494,7 +2494,14 @@ function Effects({
       title: <Trans>Each app rolls back to what it runs now if this fails</Trans>,
     });
   }
-  if (fleet) {
+  if (fleet && plan?.rollout) {
+    // A rollout's servers go one after another, wave by wave (ADR 0094).
+    rows.push({
+      key: "how",
+      icon: "layers",
+      title: <Trans>Servers go one at a time, wave by wave, each wave once the one before has passed.</Trans>,
+    });
+  } else if (fleet) {
     rows.push({
       key: "how",
       icon: "layers",

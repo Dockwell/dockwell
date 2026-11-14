@@ -549,6 +549,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if p := d.GetPanel(); p != nil {
 				want.Panel = &resource.PanelAsked{Change: p.GetChangeId(), Kind: resourcepb.PanelKindFrom(p.GetPanel()), Start: p.GetStart(), Apps: p.GetApps(), Parts: resourcepb.PanelPartsFrom(p.GetParts())}
 			}
+			if u := d.GetUpgradeAgent(); u != nil {
+				want.Upgrade = &resource.AgentUpgradeAsked{Change: u.GetChange(), Version: u.GetVersion(), ScriptSHA256: u.GetScriptSha256()}
+			}
 			if in := d.GetInstallUpdates(); in != nil {
 				want.Install = &resource.InstallAsked{Change: in.GetChangeId(), All: in.GetAll(), Names: in.GetNames(), Packages: resourcepb.PackagesFrom(in.GetPackages())}
 			}
@@ -615,6 +618,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			defer c.cfg.fail2ban.forget()
 		}
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
+		// An upgrade of the agent runs the script its call carries, which only an
+		// apply does (ADR 0094).
+		if u := call.GetApply().GetDesired().GetUpgradeAgent(); u != nil {
+			ctx = resource.WithAgentUpgrade(ctx, resource.AgentUpgradeAsked{
+				Change: u.GetChange(), Version: u.GetVersion(), ScriptSHA256: u.GetScriptSha256(), Script: u.GetScript(), Mirror: u.GetMirror(),
+			})
+		}
 		if n := call.GetApply().GetDesired().GetScopeName(); n != "" {
 			ctx = resource.WithScopeNames(ctx, map[string]string{ref.Scope: n})
 		}

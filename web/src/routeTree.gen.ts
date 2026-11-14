@@ -20,6 +20,7 @@ import { Route as ShellSectionRouteImport } from './routes/_shell/$section'
 import { Route as ShellSettingsRouteImport } from './routes/_shell/_settings'
 import { Route as ShellActivityRouteImport } from './routes/_shell/activity'
 import { Route as ShellDomainsRouteImport } from './routes/_shell/domains'
+import { Route as ShellFleetActionsRouteImport } from './routes/_shell/fleet-actions'
 import { Route as ShellMoreRouteImport } from './routes/_shell/more'
 import { Route as ShellScheduledTasksRouteImport } from './routes/_shell/scheduled-tasks'
 import { Route as ShellStartRouteImport } from './routes/_shell/start'
@@ -132,6 +133,11 @@ const ShellActivityRoute = ShellActivityRouteImport.update({
 const ShellDomainsRoute = ShellDomainsRouteImport.update({
   id: '/domains',
   path: '/domains',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellFleetActionsRoute = ShellFleetActionsRouteImport.update({
+  id: '/fleet-actions',
+  path: '/fleet-actions',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellMoreRoute = ShellMoreRouteImport.update({
@@ -474,6 +480,7 @@ export interface FileRoutesByFullPath {
   '/$section': typeof ShellSectionRoute
   '/activity': typeof ShellActivityRoute
   '/domains': typeof ShellDomainsRoute
+  '/fleet-actions': typeof ShellFleetActionsRoute
   '/more': typeof ShellMoreRoute
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/start': typeof ShellStartRoute
@@ -545,6 +552,7 @@ export interface FileRoutesByTo {
   '/': typeof ShellIndexRoute
   '/activity': typeof ShellActivityRoute
   '/domains': typeof ShellDomainsRoute
+  '/fleet-actions': typeof ShellFleetActionsRoute
   '/more': typeof ShellMoreRoute
   '/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/start': typeof ShellStartRoute
@@ -615,6 +623,7 @@ export interface FileRoutesById {
   '/_shell/_settings': typeof ShellSettingsRouteWithChildren
   '/_shell/activity': typeof ShellActivityRoute
   '/_shell/domains': typeof ShellDomainsRoute
+  '/_shell/fleet-actions': typeof ShellFleetActionsRoute
   '/_shell/more': typeof ShellMoreRoute
   '/_shell/scheduled-tasks': typeof ShellScheduledTasksRoute
   '/_shell/start': typeof ShellStartRoute
@@ -689,6 +698,7 @@ export interface FileRouteTypes {
     | '/$section'
     | '/activity'
     | '/domains'
+    | '/fleet-actions'
     | '/more'
     | '/scheduled-tasks'
     | '/start'
@@ -760,6 +770,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/domains'
+    | '/fleet-actions'
     | '/more'
     | '/scheduled-tasks'
     | '/start'
@@ -829,6 +840,7 @@ export interface FileRouteTypes {
     | '/_shell/_settings'
     | '/_shell/activity'
     | '/_shell/domains'
+    | '/_shell/fleet-actions'
     | '/_shell/more'
     | '/_shell/scheduled-tasks'
     | '/_shell/start'
@@ -978,6 +990,13 @@ declare module '@tanstack/react-router' {
       path: '/domains'
       fullPath: '/domains'
       preLoaderRoute: typeof ShellDomainsRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/fleet-actions': {
+      id: '/_shell/fleet-actions'
+      path: '/fleet-actions'
+      fullPath: '/fleet-actions'
+      preLoaderRoute: typeof ShellFleetActionsRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/more': {
@@ -1510,6 +1529,7 @@ interface ShellRouteChildren {
   ShellSettingsRoute: typeof ShellSettingsRouteWithChildren
   ShellActivityRoute: typeof ShellActivityRoute
   ShellDomainsRoute: typeof ShellDomainsRoute
+  ShellFleetActionsRoute: typeof ShellFleetActionsRoute
   ShellMoreRoute: typeof ShellMoreRoute
   ShellScheduledTasksRoute: typeof ShellScheduledTasksRoute
   ShellStartRoute: typeof ShellStartRoute
@@ -1555,6 +1575,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellSettingsRoute: ShellSettingsRouteWithChildren,
   ShellActivityRoute: ShellActivityRoute,
   ShellDomainsRoute: ShellDomainsRoute,
+  ShellFleetActionsRoute: ShellFleetActionsRoute,
   ShellMoreRoute: ShellMoreRoute,
   ShellScheduledTasksRoute: ShellScheduledTasksRoute,
   ShellStartRoute: ShellStartRoute,

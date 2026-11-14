@@ -534,6 +534,29 @@ describe("Servers", () => {
     ).toHaveAttribute("href", "/servers/srv_1");
   });
 
+  it("picks servers for a fleet action, and runs one on them", async () => {
+    const user = userEvent.setup();
+    renderServers([web1, web2()], "/servers?closed=true");
+
+    const table = await screen.findByRole("table", { name: "Servers, sorted by name" });
+    expect(screen.queryByRole("region", { name: "Picked servers" })).toBeNull();
+    await user.click(within(table).getByRole("checkbox", { name: "web-2" }));
+    const bar = screen.getByRole("region", { name: "Picked servers" });
+    expect(bar).toHaveTextContent("1 selectedweb-2");
+    const all = within(table).getByRole("checkbox", { name: "Pick every server shown" });
+    expect(all).toHaveProperty("indeterminate", true);
+    await user.click(all);
+    expect(bar).toHaveTextContent("2 selectedweb-1, web-2");
+    expect(within(bar).getByRole("link", { name: "Run fleet action" })).toHaveAttribute(
+      "href",
+      "/fleet-actions?servers=srv_1%2Csrv_2",
+    );
+    // Picking doesn't open a server, and Clear takes the picks away.
+    expect(screen.queryByRole("complementary", { name: "web-2" })).toBeNull();
+    await user.click(within(bar).getByRole("button", { name: "Clear" }));
+    expect(screen.queryByRole("region", { name: "Picked servers" })).toBeNull();
+  });
+
   describe("labels", () => {
     const eu = aServer({ ...web1, labels: { region: "eu", pool: "web" } });
     const us = web2({ labels: { region: "us", pool: "web" } });

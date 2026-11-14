@@ -484,7 +484,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
@@ -645,6 +645,9 @@ type Session struct {
 	// actsOnUnits says the agent acts on the server's system services and reads its
 	// system log (ADR 0082).
 	actsOnUnits bool
+	// upgradesItself says the agent runs the install script a change carries to
+	// upgrade itself (ADR 0094).
+	upgradesItself bool
 	// registryLogins says the agent signs in to registries with the logins it's
 	// sent (ADR 0086).
 	registryLogins bool
@@ -987,6 +990,10 @@ func (s *Session) SystemServices(ctx context.Context) (*dockwellv1.SystemService
 // ActsOnUnits reports an agent that acts on its server's system services and reads
 // its system log (ADR 0082).
 func (s *Session) ActsOnUnits() bool { return s.actsOnUnits }
+
+// UpgradesItself reports whether the agent runs the install script a change carries
+// to upgrade itself (ADR 0094).
+func (s *Session) UpgradesItself() bool { return s.upgradesItself }
 
 // SystemLogTimeout bounds reading a page of a server's system log: a search reads for
 // 20 s at most, and there is room for the answer.
@@ -1350,6 +1357,14 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			}
 			dr.Panel = &agentv1.PanelAction{ChangeId: p.Change, Panel: resourcepb.PanelKind(p.Kind), Start: p.Start, Apps: p.Apps, Parts: resourcepb.PanelParts(p.Parts)}
 		}
+		if u := d.Upgrade; u != nil {
+			if !s.upgradesItself {
+				return nil, fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't upgrade itself. "+
+					"Upgrade it by running the install script on the server again", s.name)
+			}
+			// A plan names the script by its SHA-256; only an apply carries it.
+			dr.UpgradeAgent = &agentv1.UpgradeAgent{Change: u.Change, Version: u.Version, ScriptSha256: u.ScriptSHA256}
+		}
 		call.Desired = append(call.Desired, dr)
 	}
 	var seal func(*Session) error
@@ -1483,6 +1498,19 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	builds, err := s.buildAuths(ctx, step, desired)
 	if err != nil {
 		return err
+	}
+	// An upgrade of the agent carries the control plane's install script, over this
+	// stream alone (ADR 0094).
+	if step.AgentUpgrade != nil {
+		u, ok := resource.AgentUpgradeOf(ctx)
+		if !ok || len(u.Script) == 0 {
+			return errors.New("an agent's upgrade needs the control plane's install script, which this step wasn't given")
+		}
+		if !s.upgradesItself {
+			return fault.New(ErrOlderAgent, "%s's agent is older than the control plane, and can't upgrade itself. "+
+				"Upgrade it by running the install script on the server again", s.name)
+		}
+		dr.UpgradeAgent = &agentv1.UpgradeAgent{Change: u.Change, Version: u.Version, Script: u.Script, ScriptSha256: u.ScriptSHA256, Mirror: u.Mirror}
 	}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {

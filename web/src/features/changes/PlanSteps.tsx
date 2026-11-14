@@ -5,9 +5,11 @@ import {
   type BackupFirst,
   BackupMethod,
   HostAccessKind,
+  type HostAgentUpgrade,
   type Intent,
   type PackageInstall,
   type Plan,
+  type PlanRollout,
   type PlanStep,
   PlanWarning,
   type ServerPlan,
@@ -24,7 +26,17 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
-import { intentOf, isFleet, keepsData, longestDowntime, longestUntilHealthy, progressOf, stepGroups } from "./plan";
+import {
+  intentOf,
+  isFleet,
+  keepsData,
+  longestDowntime,
+  longestUntilHealthy,
+  progressOf,
+  type StepGroup,
+  stepGroups,
+  waveProgress,
+} from "./plan";
 import { RebootPlan } from "./RebootPlan";
 import { UnitLine, UnitPlan } from "./UnitPlan";
 import { type ChangeWords, type Tense, useChangeWords } from "./words";
@@ -45,8 +57,8 @@ function tenseOf(state: StepState | undefined): Tense {
 /**
  * A plan's steps, with how each is going once the change applies. A fleet's
  * come server by server; one server's are a plain list, with nothing to tell
- * apart. A group has its own place, for the waves of a rollout (#28): each
- * wave a group of what is here today.
+ * apart. A change that rolls out has them wave by wave (ADR 0094), each wave
+ * with how it stands, after what the rollout does between them.
  */
 export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress: readonly StepProgress[] }) {
   const { t } = useLingui();
@@ -54,15 +66,18 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
   const fleet = isFleet(plan);
   const groups = stepGroups(plan);
   if (groups.length === 0) return null;
+  const rollout = plan?.rollout;
   return (
     <section className="plan-section" aria-label={fleet ? t`Steps by server` : t`Steps`}>
       {fleet ? (
         <h3 className="dw-text-label plan-heading">
-          <Trans>Steps by server</Trans>
+          {rollout ? <Trans>Steps by wave</Trans> : <Trans>Steps by server</Trans>}
         </h3>
       ) : null}
+      {rollout ? <RolloutLine rollout={rollout} /> : null}
       {groups.map((group) => (
         <div key={group.key} className="plan-group">
+          {group.wave !== undefined ? <WaveHead group={group} progress={progress} /> : null}
           {group.servers.map((server) => (
             <ServerSteps
               key={server.serverId}
@@ -77,6 +92,61 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
         </div>
       ))}
     </section>
+  );
+}
+
+/** What a rollout does between its waves, and when it stops, in a line. */
+function RolloutLine({ rollout }: { rollout: PlanRollout }) {
+  const { t } = useLingui();
+  const time = useTimeWords();
+  const count = rollout.waves.length;
+  const waves = plural(count, { one: "# wave", other: "# waves" });
+  const pauseMs = rollout.pause ? Number(rollout.pause.seconds) * 1000 + rollout.pause.nanos / 1e6 : 0;
+  const pause = time.span(pauseMs);
+  const parts = [
+    pauseMs > 0 ? t`${waves}, ${pause} apart` : t`${waves}, one after another`,
+    rollout.keepGoing
+      ? t`a step that fails doesn't stop the rest, and the change fails at the end`
+      : t`the first step that fails stops the change, and no server after it is touched`,
+  ];
+  return <p className="plan-rollout">{parts.join(" · ")}</p>;
+}
+
+/** A wave's heading: which wave, its servers, and, as the change applies, how it stands. */
+function WaveHead({ group, progress }: { group: StepGroup; progress: readonly StepProgress[] }) {
+  const { t } = useLingui();
+  const wave = group.wave ?? 0;
+  const live = progress.length > 0 ? waveProgress(group, progress) : undefined;
+  const servers =
+    group.servers.length === 1
+      ? (group.servers[0]?.serverName ?? "")
+      : plural(group.servers.length, { one: "# server", other: "# servers" });
+  const { done = 0, total = 0 } = live ?? {};
+  const said = live
+    ? {
+        waiting: t`Waiting`,
+        running: t`${done} of ${total} done`,
+        done: t`Done`,
+        failed: t`Failed`,
+        skipped: t`Not run`,
+      }[live.state]
+    : "";
+  const status = live
+    ? ({ waiting: "stopped", running: "deploying", done: "healthy", failed: "down", skipped: "unknown" } as const)[
+        live.state
+      ]
+    : undefined;
+  return (
+    <div className={`plan-wave-head${live ? ` is-${live.state}` : ""}`}>
+      <span className="plan-wave-name">{t`Wave ${wave}`}</span>
+      <span className="plan-wave-servers">{servers}</span>
+      {live && status ? <StatusBadge status={status} label={said} /> : null}
+      {live && total > 0 ? (
+        <span className="plan-wave-bar" aria-hidden="true">
+          <span style={{ width: `${Math.round((done / total) * 100)}%` }} />
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -212,6 +282,8 @@ function StepRow({
             <UnitLine unit={step.unit} server={server} />
           ) : step.panel ? (
             <PanelLine panel={step.panel} server={server} />
+          ) : step.agentUpgrade ? (
+            <AgentUpgradeLine upgrade={step.agentUpgrade} server={server} />
           ) : (
             <>
               {step.adopts
@@ -223,8 +295,8 @@ function StepRow({
             </>
           )}
         </span>
-        {/* A reboot's step counts while it waits for its server, as that's the reboot. */}
-        {live ? <StepTime live={live} waits={Boolean(step.reboot)} /> : null}
+        {/* A reboot's step counts while it waits for its server, as that's the reboot; so does an agent's upgrade. */}
+        {live ? <StepTime live={live} waits={Boolean(step.reboot ?? step.agentUpgrade)} /> : null}
       </span>
       {planning && fleet ? (
         <span className="plan-step-meta">
@@ -297,7 +369,36 @@ function StepRow({
       {planning && step.reboot ? <RebootPlan reboot={step.reboot} server={server} serverId={serverId} /> : null}
       {planning && step.unit ? <UnitPlan unit={step.unit} server={server} serverId={serverId} /> : null}
       {planning && step.panel ? <PanelPlan panel={step.panel} server={server} /> : null}
+      {planning && step.agentUpgrade ? <AgentUpgradePlan upgrade={step.agentUpgrade} /> : null}
     </li>
+  );
+}
+
+/** What upgrading a server's agent does, as its step's line: from the version it runs to the control plane's. */
+function AgentUpgradeLine({ upgrade, server }: { upgrade: HostAgentUpgrade; server: string }) {
+  const { from, to } = upgrade;
+  return (
+    <Trans>
+      Upgrade the agent on <code>{server}</code> from {from} to {to}
+    </Trans>
+  );
+}
+
+/**
+ * Under an agent upgrade's step: what runs, named by its SHA-256 as the plan holds it,
+ * and that it can't be undone (ADR 0094).
+ */
+function AgentUpgradePlan({ upgrade }: { upgrade: HostAgentUpgrade }) {
+  const { t } = useLingui();
+  const sha = upgrade.scriptSha256.slice(0, 12);
+  return (
+    <div className="plan-install">
+      <span className="plan-step-meta">
+        <span>{t`Runs the control plane's install script, SHA-256 ${sha}, which checks the release's signature before it installs it`}</span>
+        <span>{t`The step passes once the agent is back at the new version`}</span>
+        <span className="plan-step-warn">{t`An upgrade can't be undone`}</span>
+      </span>
+    </div>
   );
 }
 

@@ -15,12 +15,11 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
-	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
-	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -47,9 +46,6 @@ func (h *Handler) PlanSystemServiceAction(ctx context.Context, req *connect.Requ
 		return nil, err
 	}
 	m := req.Msg
-	if len(m.GetServerIds()) == 0 {
-		return nil, authapi.Invalid(errors.New("name the servers to act on, by ID"))
-	}
 	name := m.GetName()
 	if len(name) > 256 || !serviceName().MatchString(name) || strings.Contains(name, "@.") {
 		return nil, authapi.Invalid(fmt.Errorf("%q isn't a system service's name, such as nginx.service", name))
@@ -59,27 +55,24 @@ func (h *Handler) PlanSystemServiceAction(ctx context.Context, req *connect.Requ
 		return nil, authapi.Invalid(errors.New("say what to do to the system service: start, stop, restart, reload, enable, disable, mask or unmask"))
 	}
 	var edits []revision.Edit
-	var names []string
-	err = h.db.View(ctx, func(tx *store.Tx) error {
-		for _, id := range m.GetServerIds() {
-			s, err := tx.GetServer(ctx, id)
-			if errors.Is(err, store.ErrNotFound) || err == nil && s.RevokedAt != nil {
-				return fault.New(scope.ErrNotFound, "there's no server %s in the fleet. List them with ListServers", id)
-			}
-			if err != nil {
-				return err
-			}
+	var set targets
+	err = h.db.View(ctx, func(tx *store.Tx) (err error) {
+		if set, err = h.targetsOf(ctx, tx, m.GetServerIds(), m.GetSelector(), m.GetRollout(), "act on"); err != nil {
+			return err
+		}
+		for i := range set.servers {
+			s := &set.servers[i]
 			if why := resource.GuardOf(name).Refusal(name, s.Name, action); why != "" {
 				return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New(why), ReasonGuarded)
 			}
-			names = append(names, s.Name)
 			edits = append(edits, revision.Edit{
-				Ref:  resource.Ref{Kind: host.Kind, Scope: id, Name: host.Name},
+				Ref:  resource.Ref{Kind: host.Kind, Scope: s.ID, Name: host.Name},
 				Unit: &resource.UnitAsked{Name: name, Action: action},
 			})
 		}
 		return nil
 	})
+	names := set.names()
 	var cerr *connect.Error
 	if errors.As(err, &cerr) {
 		return nil, cerr
@@ -91,7 +84,7 @@ func (h *Handler) PlanSystemServiceAction(ctx context.Context, req *connect.Requ
 	if summary == "" {
 		summary = unitSummary(action, name, names)
 	}
-	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	plan, err := h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, Notes: set.notes, Rollout: set.rollout})
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -116,7 +109,7 @@ func (h *Handler) PlanSystemServiceAction(ctx context.Context, req *connect.Requ
 
 // unitSummary says what a change does to a unit, on which servers.
 func unitSummary(action resource.UnitAction, name string, servers []string) string {
-	where := strings.Join(servers, ", ")
+	where := human.List(servers)
 	if len(servers) > 3 {
 		where = fmt.Sprintf("%d servers", len(servers))
 	}

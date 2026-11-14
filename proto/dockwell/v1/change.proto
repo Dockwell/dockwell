@@ -239,6 +239,30 @@ service ChangeService {
       body: "*"
     };
   }
+  // PlanAgentUpgrade plans upgrading servers' agents to the control plane's own
+  // version, which must be a release (ADR 0094). Each server whose agent runs it
+  // already takes no step, and the control server is never in it, as its agent is
+  // the control plane. The plan carries the control plane's own install script,
+  // by its SHA-256, which the agent checks before it runs it outside its own
+  // service; the script checks the release with its pinned cosign, as an install
+  // does. A step passes once the server's agent connects at the version asked,
+  // and fails if it comes back at its old one or isn't back in 15 minutes.
+  // Applying it takes a person's passkey, and it can't be undone.
+  rpc PlanAgentUpgrade(PlanAgentUpgradeRequest) returns (PlanAgentUpgradeResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "upgrade-agent"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers:planAgentUpgrade"
+      body: "*"
+    };
+  }
 
   // PlanRemoveServer plans taking a server out of the fleet: a change whose edits
   // move, stop or let go of what runs on it, as apps says, and which revokes the
@@ -622,6 +646,40 @@ message RestartServiceResponse {
   Change change = 1;
 }
 
+// FleetRollout says how a change runs over several servers (ADR 0094). Left unset,
+// one server goes first on its own, then the rest in waves of a quarter of the
+// servers each, with no pause, and the first step that fails stops the change.
+message FleetRollout {
+  // Leaves out the canary, the one server that goes first on its own.
+  bool no_canary = 1;
+  // How many servers each wave after the canary takes. 0 takes a quarter of the
+  // servers, rounded up.
+  uint32 batch_size = 2;
+  // How long to wait between one wave's end and the next's start. Unset waits
+  // for none.
+  google.protobuf.Duration pause = 3;
+  // Goes on to the next server after a step fails, in place of stopping the
+  // change there. The change still fails, naming each server that did.
+  bool keep_going = 4;
+}
+
+// PlanRollout is how a planned change runs over its servers (ADR 0094).
+message PlanRollout {
+  // The waves, in the order they run, each its servers in the order they go.
+  repeated RolloutWave waves = 1;
+  // How long it waits between one wave's end and the next's start.
+  google.protobuf.Duration pause = 2;
+  // Whether it goes on past a step that fails.
+  bool keep_going = 3;
+}
+
+// RolloutWave is one wave of a rollout.
+message RolloutWave {
+  // The servers, by ID, and by name for people, in the order they go.
+  repeated string server_ids = 1;
+  repeated string server_names = 2;
+}
+
 // PlanInstallUpdatesRequest names the servers and which updates to install.
 message PlanInstallUpdatesRequest {
   // The servers, by ID. One server is a set of one.
@@ -634,6 +692,12 @@ message PlanInstallUpdatesRequest {
   // as "openssl", with what they need: the plan lists those too. A name the
   // server's updates don't list is refused. Leave all unset with it.
   repeated string packages = 4;
+  // The servers whose labels a selector matches, such as "pool:web region:eu", in
+  // place of server_ids: resolved once, as it's planned (ADR 0091, ADR 0094).
+  string selector = 150;
+  // How the change runs over its servers, when they're more than one: a canary,
+  // waves, a pause between them and whether a failure stops it (ADR 0094).
+  FleetRollout rollout = 151;
 }
 
 // PlanInstallUpdatesResponse carries the planned install.
@@ -648,6 +712,30 @@ message PlanRebootRequest {
   repeated string server_ids = 1;
   // What the change is for, for the timeline. Empty says what it reboots.
   string summary = 2;
+  // The servers whose labels a selector matches, such as "pool:web region:eu", in
+  // place of server_ids: resolved once, as it's planned (ADR 0091, ADR 0094).
+  string selector = 150;
+  // How the change runs over its servers, when they're more than one: a canary,
+  // waves, a pause between them and whether a failure stops it (ADR 0094).
+  FleetRollout rollout = 151;
+}
+
+// PlanAgentUpgradeRequest names the servers whose agents to upgrade.
+message PlanAgentUpgradeRequest {
+  // The servers, by ID. One server is a set of one.
+  repeated string server_ids = 1;
+  // The servers whose labels a selector matches, in place of server_ids.
+  string selector = 2;
+  // How the change runs over its servers, when they're more than one.
+  FleetRollout rollout = 3;
+  // What the change is for, for the timeline. Empty says what it upgrades.
+  string summary = 4;
+}
+
+// PlanAgentUpgradeResponse carries the planned upgrade.
+message PlanAgentUpgradeResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
 }
 
 // PlanRebootResponse carries the planned reboot.
@@ -732,6 +820,12 @@ message PlanSystemServiceActionRequest {
   SystemServiceAction action = 3;
   // What the change is for, for the timeline. Empty says what it does.
   string summary = 4;
+  // The servers whose labels a selector matches, such as "pool:web region:eu", in
+  // place of server_ids: resolved once, as it's planned (ADR 0091, ADR 0094).
+  string selector = 150;
+  // How the change runs over its servers, when they're more than one: a canary,
+  // waves, a pause between them and whether a failure stops it (ADR 0094).
+  FleetRollout rollout = 151;
 }
 
 // PlanSystemServiceActionResponse carries the planned action.
@@ -900,6 +994,16 @@ message HostReboot {
   // How long the server's last reboot took, from its step's start until its
   // agent connected from the new boot. Unset until Dockwell has seen one.
   google.protobuf.Duration last_took = 2;
+}
+
+// HostAgentUpgrade is what upgrading a server's agent does (ADR 0094).
+message HostAgentUpgrade {
+  // The version its agent runs, and the one it moves to, the control plane's.
+  string from = 1;
+  string to = 2;
+  // The SHA-256 of the install script the agent runs, in hex: the control
+  // plane's own, which the agent checks before it runs it.
+  string script_sha256 = 3;
 }
 
 // PackageInstall is what installing a server's updates will do, as its package
@@ -1238,6 +1342,9 @@ message Plan {
   // The server it takes out of the fleet, if it does (ADR 0090). Numbered in
   // the block removal holds, 140 to 149.
   ServerRemoval removes = 140;
+  // How the change runs over its servers, wave by wave, when it was asked to
+  // roll out over several (ADR 0094). The fingerprint covers it.
+  PlanRollout rollout = 150;
 }
 
 // PlanPlace is where a plan's resources land, naming only what offers a choice.
@@ -1422,6 +1529,10 @@ message PlannedResource {
   // What stopping or starting the panel an import came from does, for a server's
   // host the change does that on (ADR 0089).
   HostPanel panel = 131;
+  // What upgrading its server's agent does, for a server's host whose agent the
+  // change upgrades (ADR 0094). Numbered in the block fleet actions hold, 150 to
+  // 159.
+  HostAgentUpgrade agent_upgrade = 150;
 }
 
 // HostAccess is something on a server that a resource reaches beyond what
@@ -1740,6 +1851,9 @@ message PlanStep {
   // nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
   // the block connectable apps hold in other messages, 80 to 89.
   string keys_left = 81;
+  // What upgrading its server's agent does, for a step that upgrades it (ADR
+  // 0094). Numbered in the block fleet actions hold, 150 to 159.
+  HostAgentUpgrade agent_upgrade = 150;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
@@ -2366,6 +2480,9 @@ message StepProgress {
   // phase is pulling and Docker has said. 0 otherwise.
   int64 done_bytes = 261;
   int64 total_bytes = 262;
+  // The wave its server is in, from 1, for a change that rolls out; 0 otherwise
+  // (ADR 0094).
+  int32 wave = 150;
 }
 
 // StepPhase is what a step is doing, of what a person follows an update by.

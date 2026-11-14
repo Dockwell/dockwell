@@ -7899,6 +7899,9 @@ msgstr "Rolls back to <0>{back}</0> if it fails"
 msgid "See the guide"
 msgstr "See the guide"
 
+msgid "Servers go one at a time, wave by wave, each wave once the one before has passed."
+msgstr "Servers go one at a time, wave by wave, each wave once the one before has passed."
+
 msgid "Started {name} on {server}"
 msgstr "Started {name} on {server}"
 
@@ -8050,9 +8053,9 @@ msgstr "{0, plural, one {# database} other {# databases}}"
 msgid "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 msgstr "{0, plural, one {# resource is deleted} other {# resources are deleted}}"
 
+#. placeholder {0}: group.servers.length
 #. placeholder {0}: names.length
 #. placeholder {0}: servers.length
-#. placeholder {0}: view.servers?.length ?? 0
 msgid "{0, plural, one {# server} other {# servers}}"
 msgstr "{0, plural, one {# server} other {# servers}}"
 
@@ -8310,6 +8313,9 @@ msgstr "About {span} down, and up to {bound} until healthy"
 msgid "About {stepSpan} down"
 msgstr "About {stepSpan} down"
 
+msgid "An upgrade can't be undone"
+msgstr "An upgrade can't be undone"
+
 msgid "Back up <0>{name}</0>"
 msgstr "Back up <0>{name}</0>"
 
@@ -8366,6 +8372,9 @@ msgstr "No downtime"
 msgid "No steps: it left the fleet"
 msgstr "No steps: it left the fleet"
 
+msgid "Not run"
+msgstr "Not run"
+
 msgid "Opens {opening}"
 msgstr "Opens {opening}"
 
@@ -8385,6 +8394,9 @@ msgstr "Reaches {reach} on {server}"
 msgid "Reboot <0>{server}</0>"
 msgstr "Reboot <0>{server}</0>"
 
+msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
+msgstr "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
+
 msgctxt "a package update"
 msgid "Security fix"
 msgstr "Security fix"
@@ -8398,20 +8410,53 @@ msgstr "Steps"
 msgid "Steps by server"
 msgstr "Steps by server"
 
+msgid "Steps by wave"
+msgstr "Steps by wave"
+
 msgid "Takes away {stopping}"
 msgstr "Takes away {stopping}"
 
 msgid "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 msgstr "Takes out of use what its image keeps at {kept}, which the server keeps for 7 days"
 
+msgid "The step passes once the agent is back at the new version"
+msgstr "The step passes once the agent is back at the new version"
+
 msgid "Up to {stepBound} until healthy"
 msgstr "Up to {stepBound} until healthy"
+
+msgid "Upgrade the agent on <0>{server}</0> from {from} to {to}"
+msgstr "Upgrade the agent on <0>{server}</0> from {from} to {to}"
+
+msgid "Waiting"
+msgstr "Waiting"
+
+msgid "Wave {wave}"
+msgstr "Wave {wave}"
+
+msgid "a step that fails doesn't stop the rest, and the change fails at the end"
+msgstr "a step that fails doesn't stop the rest, and the change fails at the end"
+
+msgid "the first step that fails stops the change, and no server after it is touched"
+msgstr "the first step that fails stops the change, and no server after it is touched"
+
+msgid "{count, plural, one {# wave} other {# waves}}"
+msgstr "{count, plural, one {# wave} other {# waves}}"
+
+msgid "{done} of {total} done"
+msgstr "{done} of {total} done"
 
 msgid "{n, plural, one {Install # package on} other {Install # packages on}}"
 msgstr "{n, plural, one {Install # package on} other {Install # packages on}}"
 
 msgid "{server} needs a reboot for this to take effect, which is a change of its own"
 msgstr "{server} needs a reboot for this to take effect, which is a change of its own"
+
+msgid "{waves}, one after another"
+msgstr "{waves}, one after another"
+
+msgid "{waves}, {pause} apart"
+msgstr "{waves}, {pause} apart"
 
 msgid "Backed up only on {server}"
 msgstr "Backed up only on {server}"
@@ -9179,6 +9224,12 @@ msgstr "Restore {which}, from {when}, from Backups after this."
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 
+msgid "Run it again once it's back."
+msgstr "Run it again once it's back."
+
+msgid "Run it again once they're back."
+msgstr "Run it again once they're back."
+
 #. placeholder {0}: server.serverName
 msgid "SSH on {0} stays open from nowhere"
 msgstr "SSH on {0} stays open from nowhere"
@@ -9345,6 +9396,12 @@ msgstr "Undoing this puts back {from}. The release before it can't run the data.
 msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 msgstr "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 
+msgid "Upgrade each by running the install script on it once."
+msgstr "Upgrade each by running the install script on it once."
+
+msgid "Upgrade it by running the install script on it once."
+msgstr "Upgrade it by running the install script on it once."
+
 msgid "What asks for {shared} there can reach either."
 msgstr "What asks for {shared} there can reach either."
 
@@ -9451,6 +9508,18 @@ msgstr "{heldBy} can move what {path} leads to on {server}"
 
 msgid "{ids} will come from another catalog"
 msgstr "{ids} will come from another catalog"
+
+msgid "{names} aren't connected, so they aren't in this change"
+msgstr "{names} aren't connected, so they aren't in this change"
+
+msgid "{names} have agents older than fleet upgrades, so they aren't in this change"
+msgstr "{names} have agents older than fleet upgrades, so they aren't in this change"
+
+msgid "{names} isn't connected, so it isn't in this change"
+msgstr "{names} isn't connected, so it isn't in this change"
+
+msgid "{names}'s agent is older than fleet upgrades, so it isn't in this change"
+msgstr "{names}'s agent is older than fleet upgrades, so it isn't in this change"
 
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} answers plain HTTP on {path} on {server}"
@@ -9589,6 +9658,15 @@ msgstr "{name}'s {where} holds the value of {variable} from your .env"
 #. placeholder {0}: line.text
 msgid "{name}: {0}"
 msgstr "{name}: {0}"
+
+msgid "{on} is the control server, whose agent is the control plane, so it isn't in this change. Upgrade it by running the install script on it."
+msgstr "{on} is the control server, whose agent is the control plane, so it isn't in this change. Upgrade it by running the install script on it."
+
+msgid "{on} need nothing, so they take no step."
+msgstr "{on} need nothing, so they take no step."
+
+msgid "{on} needs nothing, so it takes no step."
+msgstr "{on} needs nothing, so it takes no step."
 
 msgid "{projects} can upgrade again, from the catalog each came from."
 msgstr "{projects} can upgrade again, from the catalog each came from."
@@ -9958,9 +10036,6 @@ msgstr "Update to {to}"
 
 msgid "Updating"
 msgstr "Updating"
-
-msgid "Waiting"
-msgstr "Waiting"
 
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
@@ -11298,6 +11373,216 @@ msgstr "{0}, more than the {limit} an upload can be. Copy it over SSH."
 msgid "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
 msgstr "{entries, plural, one {Uploaded, and unpacked # item into {into}} other {Uploaded, and unpacked # items into {into}}}"
 
+msgid "A step fails"
+msgstr "A step fails"
+
+msgid "Act on a system service"
+msgstr "Act on a system service"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Add a label to the selector"
+msgstr "Add a label to the selector"
+
+msgid "Apply OS updates"
+msgstr "Apply OS updates"
+
+msgid "Auto: {auto}"
+msgstr "Auto: {auto}"
+
+msgid "Batch"
+msgstr "Batch"
+
+msgid "Canary"
+msgstr "Canary"
+
+msgid "Draft"
+msgstr "Draft"
+
+msgid "Each passes once its server is back, before the next goes"
+msgstr "Each passes once its server is back, before the next goes"
+
+msgid "Each server has its turn, and the change fails at the end"
+msgstr "Each server has its turn, and the change fails at the end"
+
+msgid "Every server"
+msgstr "Every server"
+
+msgid "Every server, until you add a label"
+msgstr "Every server, until you add a label"
+
+msgid "Every update"
+msgstr "Every update"
+
+msgid "How fast, and when to stop"
+msgstr "How fast, and when to stop"
+
+msgid "Install every update"
+msgstr "Install every update"
+
+msgid "Install security fixes"
+msgstr "Install security fixes"
+
+msgid "Minutes between waves"
+msgstr "Minutes between waves"
+
+msgid "Never; fails at the end if any step did"
+msgstr "Never; fails at the end if any step did"
+
+msgid "New fleet action"
+msgstr "New fleet action"
+
+msgid "No region"
+msgstr "No region"
+
+msgid "No server after it is touched"
+msgstr "No server after it is touched"
+
+msgid "No server matches"
+msgstr "No server matches"
+
+msgid "No server matches while the selector has a term it can't read"
+msgstr "No server matches while the selector has a term it can't read"
+
+msgid "No server takes a step, so there are no waves"
+msgstr "No server takes a step, so there are no waves"
+
+msgid "On the first step that fails"
+msgstr "On the first step that fails"
+
+msgid "One server first, on its own"
+msgstr "One server first, on its own"
+
+msgid "One server is a set of one: no waves"
+msgstr "One server is a set of one: no waves"
+
+msgid "Pick by labels instead"
+msgstr "Pick by labels instead"
+
+msgid "Pick servers, an action and a rollout. Nothing runs until you apply the plan."
+msgstr "Pick servers, an action and a rollout. Nothing runs until you apply the plan."
+
+msgid "Reboot"
+msgstr "Reboot"
+
+msgid "Reboot servers"
+msgstr "Reboot servers"
+
+msgid "Reload"
+msgstr "Reload"
+
+msgid "Reload {service}"
+msgstr "Reload {service}"
+
+msgid "Restart {service}"
+msgstr "Restart {service}"
+
+msgid "Restart, reload, start or stop one service on each server"
+msgstr "Restart, reload, start or stop one service on each server"
+
+msgid "Security fixes"
+msgstr "Security fixes"
+
+msgid "Servers in each wave"
+msgstr "Servers in each wave"
+
+msgid "Servers targeted"
+msgstr "Servers targeted"
+
+msgid "Servers whose labels match"
+msgstr "Servers whose labels match"
+
+msgid "Start {service}"
+msgstr "Start {service}"
+
+msgid "Stop if"
+msgstr "Stop if"
+
+msgid "Stop {service}"
+msgstr "Stop {service}"
+
+msgid "Stops"
+msgstr "Stops"
+
+msgid "Summary"
+msgstr "Summary"
+
+msgid "System service"
+msgstr "System service"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "That isn't a system service's name, such as nginx.service"
+msgstr "That isn't a system service's name, such as nginx.service"
+
+msgid "The control plane is a development build, so it has no release to upgrade agents to"
+msgstr "The control plane is a development build, so it has no release to upgrade agents to"
+
+msgid "The plan says what each server would do, before anything runs."
+msgstr "The plan says what each server would do, before anything runs."
+
+msgid "The servers you picked"
+msgstr "The servers you picked"
+
+msgid "The updates waiting on each server, as its Updates tab lists them"
+msgstr "The updates waiting on each server, as its Updates tab lists them"
+
+msgid "To {release}, the control plane's version, by its own install script"
+msgstr "To {release}, the control plane's version, by its own install script"
+
+msgid "Upgrade the agent"
+msgstr "Upgrade the agent"
+
+msgid "Upgrade the agent to {release}"
+msgstr "Upgrade the agent to {release}"
+
+msgid "Waves"
+msgstr "Waves"
+
+msgid "What runs on each server"
+msgstr "What runs on each server"
+
+msgid "What to do to it"
+msgstr "What to do to it"
+
+msgid "label:value"
+msgstr "label:value"
+
+msgid "min between waves"
+msgstr "min between waves"
+
+msgid "servers a wave"
+msgstr "servers a wave"
+
+msgid "{agents, plural, one {It runs {release} already} other {All # run {release} already}}"
+msgstr "{agents, plural, one {It runs {release} already} other {All # run {release} already}}"
+
+msgid "{count, plural, one {# server matches} other {# servers match}}"
+msgstr "{count, plural, one {# server matches} other {# servers match}}"
+
+msgid "{count, plural, one {# server picked} other {# servers picked}}"
+msgstr "{count, plural, one {# server picked} other {# servers picked}}"
+
+msgid "{names} is the control server, which upgrades by the install script on it"
+msgstr "{names} is the control server, which upgrades by the install script on it"
+
+msgid "{names} run {release} already"
+msgstr "{names} run {release} already"
+
+msgid "{names} runs {release} already"
+msgstr "{names} runs {release} already"
+
+msgid "{pauseMinutes} min between waves"
+msgstr "{pauseMinutes} min between waves"
+
+msgid "{serverWords} in {waveWords}"
+msgstr "{serverWords} in {waveWords}"
+
+msgid "{sizes} servers"
+msgstr "{sizes} servers"
+
 msgid "1Panel isn't on this server"
 msgstr "1Panel isn't on this server"
 
@@ -11966,9 +12251,6 @@ msgstr "Every server is reporting"
 
 msgid "Fleet"
 msgstr "Fleet"
-
-msgid "No region"
-msgstr "No region"
 
 msgid "No server is reporting"
 msgstr "No server is reporting"
@@ -12971,9 +13253,6 @@ msgstr "{tries, plural, one {# failed sign-in} other {# failed sign-ins}}"
 msgid "{ways} also let people in, which Dockwell can't check."
 msgstr "{ways} also let people in, which Dockwell can't check."
 
-msgid "Action"
-msgstr "Action"
-
 msgid "Allow"
 msgstr "Allow"
 
@@ -13853,9 +14132,6 @@ msgstr "{size} · none in use"
 msgid "{size} · {inUse} in use"
 msgstr "{size} · {inUse} in use"
 
-msgid "Add a label to the selector"
-msgstr "Add a label to the selector"
-
 msgid "CPU {cpu}%"
 msgstr "CPU {cpu}%"
 
@@ -13864,9 +14140,6 @@ msgstr "Chosen server"
 
 msgid "Clear the selector"
 msgstr "Clear the selector"
-
-msgid "Every server"
-msgstr "Every server"
 
 msgid "Group by {k}"
 msgstr "Group by {k}"
@@ -13880,14 +14153,20 @@ msgstr "Needs attention"
 msgid "No groups"
 msgstr "No groups"
 
-msgid "No server matches"
-msgstr "No server matches"
-
 msgid "No {key}"
 msgstr "No {key}"
 
 msgid "Open"
 msgstr "Open"
+
+msgid "Pick every server shown"
+msgstr "Pick every server shown"
+
+msgid "Picked servers"
+msgstr "Picked servers"
+
+msgid "Run fleet action"
+msgstr "Run fleet action"
 
 msgid "Runs"
 msgstr "Runs"
@@ -13910,11 +14189,11 @@ msgstr "Show all {count}"
 msgid "Showing {shown} of {count} · sorted by name"
 msgstr "Showing {shown} of {count} · sorted by name"
 
-msgid "label:value"
-msgstr "label:value"
-
 msgid "sorted by name"
 msgstr "sorted by name"
+
+msgid "{count, plural, one {# selected} other {# selected}}"
+msgstr "{count, plural, one {# selected} other {# selected}}"
 
 msgid "{count} in {regionWords}"
 msgstr "{count} in {regionWords}"
@@ -14031,9 +14310,6 @@ msgstr "Searched back to {searchedWords}"
 
 msgid "System log filters"
 msgstr "System log filters"
-
-msgid "System service"
-msgstr "System service"
 
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected, so its system log can't be read now. This reads again when it reconnects."
@@ -14480,9 +14756,6 @@ msgstr "Show the last 30 days"
 
 msgid "Show the last 7 days"
 msgstr "Show the last 7 days"
-
-msgid "Target"
-msgstr "Target"
 
 msgid "The audit log, newest first"
 msgstr "The audit log, newest first"
@@ -16539,9 +16812,6 @@ msgstr "From {0} sources"
 msgid "In review"
 msgstr "In review"
 
-msgid "Install every update"
-msgstr "Install every update"
-
 msgid "Install security updates"
 msgstr "Install security updates"
 
@@ -16611,9 +16881,6 @@ msgstr "Package lists"
 
 msgid "Package manager"
 msgstr "Package manager"
-
-msgid "Reboot"
-msgstr "Reboot"
 
 msgid "Reboot command copied"
 msgstr "Reboot command copied"
