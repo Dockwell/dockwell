@@ -4,6 +4,7 @@ package container
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/binding"
 )
 
 // Where a taken-on container's values are kept by name (ADR 0096): a secret's
@@ -175,5 +177,86 @@ func TestATakenOnContainerReadsBackByName(t *testing.T) {
 	}
 	if strings.Contains(string(b), pw) || !strings.Contains(string(b), "${MARIADB_ROOT_PASSWORD}") {
 		t.Errorf("the record holds %s", b)
+	}
+}
+
+// What the review of slice 1 found (ADR 0096): a short secret, a value after a
+// backslash or a $ and a name, in a here-document or a comment, or where a program
+// is named past a keyword or a wrapper, isn't named, and refuses as before. What is
+// named runs under sh as it ran.
+func TestAScriptRunsAsItDid(t *testing.T) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh here")
+	}
+	run := func(script string, env map[string]string) string {
+		cmd := exec.Command(sh, "-c", script)
+		cmd.Env = []string{"PATH=/usr/bin:/bin"}
+		for k, v := range env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+		out, _ := cmd.CombinedOutput()
+		return string(out)
+	}
+	for name, c := range map[string]struct {
+		env              map[string]string
+		entry, cmd, test []string
+		named            bool
+	}{
+		"a short secret in a port":         {env: map[string]string{"PASSWORD_MIN_LENGTH": "8"}, test: []string{"CMD-SHELL", "echo http://localhost:8080/health"}},
+		"a short secret in a path":         {env: map[string]string{"KEYCLOAK_ADMIN": "admin"}, test: []string{"CMD", "curl", "-f", "http://localhost:8080/admin/health"}},
+		"a short secret as a program":      {env: map[string]string{"ENABLE_PASSWORD_LOGIN": "true"}, test: []string{"CMD-SHELL", "false || true; echo $?"}},
+		"a one-letter secret":              {env: map[string]string{"PASS_N": "n"}, test: []string{"CMD-SHELL", `printf "ok\n"; echo "a\nb"`}},
+		"a secret after a backslash":       {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", `echo "x\k8Jd2mQx"`}},
+		"a secret after a $ and a name":    {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx", "FOOk8Jd2mQx": "zz"}, test: []string{"CMD-SHELL", `echo $FOOk8Jd2mQx`}},
+		"a program after exec":             {env: map[string]string{"POSTGRES_USER": "postgres"}, cmd: []string{"sh", "-c", "exec postgres -c max_connections=200"}},
+		"a program after gosu":             {env: map[string]string{"APP_BIN": "shop-server"}, cmd: []string{"gosu", "app", "shop-server", "--x"}},
+		"a program after if":               {env: map[string]string{"APP_BIN": "shop-server"}, test: []string{"CMD-SHELL", "if shop-server --check; then echo y; fi"}},
+		"a program after env and NAME=":    {env: map[string]string{"APP_BIN": "shop-server"}, cmd: []string{"env", "-i", "A=1", "shop-server", "--x"}},
+		"a program after timeout":          {env: map[string]string{"APP_BIN": "shop-server"}, test: []string{"CMD", "timeout", "5", "shop-server", "--check"}},
+		"a program after tini --":          {env: map[string]string{"APP_BIN": "shop-server"}, entry: []string{"tini", "--", "shop-server"}},
+		"a secret in a here-document":      {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", "cat <<'EOF'\nk8Jd2mQx\nEOF"}},
+		"a secret in a comment":            {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", "echo ok # k8Jd2mQx"}},
+		"a short secret in a host":         {env: map[string]string{"API_KEY": "ab"}, cmd: []string{"serve", "--url=http://tab.example.com/abc"}},
+		"a secret beside a single quote":   {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", `echo "it's k8Jd2mQx"`}, named: true},
+		"a secret after an escaped quote":  {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", `echo it\'s k8Jd2mQx`}, named: true},
+		"a secret inside single quotes":    {env: map[string]string{"DB_PASSWORD": "k8Jd2mQx"}, test: []string{"CMD-SHELL", `echo 'pw=k8Jd2mQx;' ok`}, named: true},
+		"a short secret as a word after =": {env: map[string]string{"DB_PASS": "s3cr7"}, test: []string{"CMD-SHELL", "echo --db-pass=s3cr7"}, named: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			spec := &resourcev1.Container{Image: "x:1", Env: c.env, Entrypoint: slices.Clone(c.entry), Command: slices.Clone(c.cmd)}
+			if c.test != nil {
+				spec.Healthcheck = &resourcev1.Healthcheck{Test: slices.Clone(c.test)}
+			}
+			nameValues(spec)
+			if got := len(spec.GetReferences()) > 0; got != c.named {
+				t.Fatalf("named %v (%q %q %q), want %v", spec.GetReferences(), spec.GetEntrypoint(), spec.GetCommand(), spec.GetHealthcheck().GetTest(), c.named)
+			}
+			if !c.named {
+				if len(valuesShown(spec)) == 0 {
+					t.Error("it isn't named, and nothing refuses it")
+				}
+				return
+			}
+			test := spec.GetHealthcheck().GetTest()
+			rendered, err := binding.RenderField(test, c.env, binding.ScriptIn(spec, binding.FieldTest))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if was, now := run(c.test[1], c.env), run(rendered[1], c.env); was != now {
+				t.Errorf("sh ran %q as %q, and runs %q as %q", c.test[1], was, rendered[1], now)
+			}
+		})
+	}
+
+	// A secret that is the shell itself isn't named there, as the script would
+	// then be no script, and its values would go into the command line.
+	spec := &resourcev1.Container{
+		Image: "x:1", Env: map[string]string{"SHELL_PATH_KEY": "/bin/sh", "DB_PASSWORD": "k8Jd2mQx"},
+		Entrypoint: []string{"/bin/sh", "-c"}, Command: []string{"echo k8Jd2mQx"},
+	}
+	nameValues(spec)
+	if !slices.Equal(spec.GetEntrypoint(), []string{"/bin/sh", "-c"}) || !slices.Equal(spec.GetCommand(), []string{"echo ${DB_PASSWORD}"}) || binding.ScriptIn(spec, binding.FieldCommand) != 0 {
+		t.Errorf("a secret that is the shell named %q and %q", spec.GetEntrypoint(), spec.GetCommand())
 	}
 }

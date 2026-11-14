@@ -57,7 +57,7 @@ func (d *Docker) inspectToAdopt(ctx context.Context, t Target, id string) (*dock
 		return nil, nil, err
 	}
 	view := docker.TakenView(c, docker.Taken{Project: t.Project, Service: t.Service})
-	spec, err := d.projected(ctx, t, view)
+	spec, err := d.projectedAsIs(ctx, t, view)
 	if err != nil {
 		return nil, nil, err
 	}

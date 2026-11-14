@@ -448,6 +448,17 @@ func valuesInSpec(spec *resourcev1.Container) []string {
 func valuesInContainer(c *docker.Container) []string {
 	label, ok := c.Config.Labels[LabelReferences]
 	if !ok {
+		// One taken on whose record keeps no references may have a value written in
+		// anywhere (hideTakenValues), so each of its environment's counts.
+		if c.Config.Labels[docker.LabelAdopted] != "" {
+			var all []string
+			for _, v := range envOf(c.Config.Env) {
+				if v != "" {
+					all = append(all, v)
+				}
+			}
+			return all
+		}
 		return nil
 	}
 	var words referenceWords
@@ -1294,7 +1305,7 @@ func (d *Docker) RunStateAt(ctx context.Context, t Target) (resource.RunState, e
 	}
 	policy := c.HostConfig.RestartPolicy.Name
 	return resource.RunState{
-		Exists: true, Running: c.State.Running || c.State.Restarting, Failed: c.State.Error,
+		Exists: true, Running: c.State.Running || c.State.Restarting, Failed: binding.Hide(c.State.Error, valuesInContainer(c)),
 		Sole: sole, Revision: c.Stand(0).Revision, Adopted: c.Stand(0).Adopted, Image: c.Image,
 		ID: c.ID, Reconcile: c.Config.Labels[LabelReconcile], Created: c.State.Status == "created" && c.State.StartedAt.IsZero(),
 		Leaving: c.State.Status == "removing" || c.State.Status == "dead",
@@ -1312,7 +1323,8 @@ func (d *Docker) StartAt(ctx context.Context, t Target) error {
 	if c == nil {
 		return fmt.Errorf("there's no container for %s to start", t.Name)
 	}
-	return d.Client.StartContainer(ctx, c.ID)
+	// Docker quotes what it couldn't run, which can be a value's (ADR 0096).
+	return hideIn(d.Client.StartContainer(ctx, c.ID), valuesInContainer(c))
 }
 
 // stands is the container that says how t stands, for the agent's own look while
@@ -1420,6 +1432,55 @@ func (d *Docker) HoldAt(ctx context.Context, t Target, spec *resourcev1.Containe
 
 // projected reads a container back into a spec, with its image's defaults.
 func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (*resourcev1.Container, error) {
+	out, err := d.projectedAsIs(ctx, t, c)
+	if err != nil {
+		return nil, err
+	}
+	hideTakenValues(c, out)
+	return out, nil
+}
+
+// hideTakenValues reads each of a taken-on container's command, entrypoint and
+// health check that holds a value of its environment as binding.Unread, where its
+// record keeps no references (ADR 0096). One taken on with names in them has the
+// label; one taken on with none held no value there, or it would have been refused.
+// So a record that lost its references, as an older agent's write of it does, can't
+// carry a value into what the agent reports: the field reads as drift, without it.
+func hideTakenValues(c *docker.Container, out *resourcev1.Container) {
+	if c.Config.Labels[docker.LabelAdopted] == "" {
+		return
+	}
+	if _, ok := c.Config.Labels[LabelReferences]; ok {
+		return
+	}
+	env := envOf(c.Config.Env)
+	holds := func(words []string) bool {
+		for name, value := range env {
+			if value == "" || len(value) < shortest && !secretName().MatchString(name) {
+				continue
+			}
+			for _, w := range words {
+				if strings.Contains(w, value) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	if holds(out.GetCommand()) {
+		out.Command = []string{binding.Unread}
+	}
+	if holds(out.GetEntrypoint()) {
+		out.Entrypoint, out.NoEntrypoint = []string{binding.Unread}, false
+	}
+	if hc := out.GetHealthcheck(); hc != nil && holds(hc.GetTest()) {
+		hc.Test = []string{binding.Unread}
+	}
+}
+
+// projectedAsIs is projected without hideTakenValues, for reading a container to
+// take it on, whose values are what's named.
+func (d *Docker) projectedAsIs(ctx context.Context, t Target, c *docker.Container) (*resourcev1.Container, error) {
 	var defaults *docker.Config
 	img, err := d.Client.InspectImage(ctx, c.Image)
 	switch {
