@@ -113,6 +113,11 @@ func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engi
 	if err != nil {
 		return srv, nil, err
 	}
+	// One that said nothing at all hasn't answered yet; one that answered and left its
+	// version out is refused below.
+	if !slices.ContainsFunc(said, func(line string) bool { return strings.TrimSpace(line) != "" }) {
+		return srv, nil, fmt.Errorf("%s said nothing yet: %w", e.Name, ErrStarting)
+	}
 	version := ""
 	for _, line := range said {
 		line = strings.TrimSpace(line)

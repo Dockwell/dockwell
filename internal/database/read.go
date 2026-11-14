@@ -129,6 +129,10 @@ func (r Reader) ask(ctx context.Context, container string, e *Engine, cmd []stri
 		return nil, fmt.Errorf("its image has no %s, so Dockwell can't ask it", e.tool())
 	case code != 0 && e.SQL() && startingUp(said):
 		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
+	case e.KeyValue() && redisNotListening(said):
+		// redis-cli says so on its error stream, and may still exit 0, as it does
+		// while a Redis loads its modules after it starts.
+		return nil, fmt.Errorf("%s %w", e.Name, ErrStarting)
 	case refusedSignIn(said) || e.KeyValue() && redisRefused(out.String()):
 		return nil, fmt.Errorf("%s refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with %s", e.Name, e.SignsInWith())
 	case code != 0 && e.SQL() && sqlRefused().MatchString(said):
@@ -184,6 +188,13 @@ func (e *Engine) tool() string {
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED, dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS:
 	}
 	return "redis-cli"
+}
+
+// redisNotListening says what redis-cli or valkey-cli said is that nothing takes
+// its connection yet.
+func redisNotListening(said string) bool {
+	lower := strings.ToLower(said)
+	return strings.Contains(lower, "could not connect to") || strings.Contains(lower, "connection refused") || strings.Contains(lower, "connection reset by peer")
 }
 
 // ErrStarting is a database that doesn't take connections yet, as one does while it
