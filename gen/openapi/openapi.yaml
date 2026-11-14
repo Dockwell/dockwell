@@ -14551,6 +14551,11 @@ components:
                         - HOST_ACCESS_KIND_ACCESS_OPENED
                         - HOST_ACCESS_KIND_SERVER_SHELL
                         - HOST_ACCESS_KIND_CERTIFICATE_KEY
+                        - HOST_ACCESS_KIND_DEVICE
+                        - HOST_ACCESS_KIND_GPUS
+                        - HOST_ACCESS_KIND_SECURITY_OPTION
+                        - HOST_ACCESS_KIND_HOST_PROCESSES
+                        - HOST_ACCESS_KIND_ROOT_TOGETHER
                     type: string
                     description: What it is.
                     format: enum

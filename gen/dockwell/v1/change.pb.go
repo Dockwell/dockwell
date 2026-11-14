@@ -642,6 +642,21 @@ const (
 	// for the first time, for the domain in path (ADR 0088). An admin confirms it
 	// with a passkey. Numbered in the block DNS-01 holds, 120 to 129.
 	HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY HostAccessKind = 120
+	// A device of the server, by its path there, in path (ADR 0097). A block
+	// device, or memory's, a port's or one under /dev/mapper, is the same as root.
+	HostAccessKind_HOST_ACCESS_KIND_DEVICE HostAccessKind = 170
+	// The server's GPUs: path is "all", a count, or their IDs.
+	HostAccessKind_HOST_ACCESS_KIND_GPUS HostAccessKind = 171
+	// A security option that takes away some of Docker's confinement, such as
+	// "seccomp=unconfined", in path.
+	HostAccessKind_HOST_ACCESS_KIND_SECURITY_OPTION HostAccessKind = 172
+	// Every process on the server, which the container sees and signals: the
+	// same as root.
+	HostAccessKind_HOST_ACCESS_KIND_HOST_PROCESSES HostAccessKind = 173
+	// What a container reaches of the server together with the capability or
+	// privileged mode in path, which makes all of it the same as root. It comes
+	// first, once for the app.
+	HostAccessKind_HOST_ACCESS_KIND_ROOT_TOGETHER HostAccessKind = 174
 )
 
 // Enum value maps for HostAccessKind.
@@ -669,6 +684,11 @@ var (
 		110: "HOST_ACCESS_KIND_ACCESS_OPENED",
 		150: "HOST_ACCESS_KIND_SERVER_SHELL",
 		120: "HOST_ACCESS_KIND_CERTIFICATE_KEY",
+		170: "HOST_ACCESS_KIND_DEVICE",
+		171: "HOST_ACCESS_KIND_GPUS",
+		172: "HOST_ACCESS_KIND_SECURITY_OPTION",
+		173: "HOST_ACCESS_KIND_HOST_PROCESSES",
+		174: "HOST_ACCESS_KIND_ROOT_TOGETHER",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":      0,
@@ -693,6 +713,11 @@ var (
 		"HOST_ACCESS_KIND_ACCESS_OPENED":    110,
 		"HOST_ACCESS_KIND_SERVER_SHELL":     150,
 		"HOST_ACCESS_KIND_CERTIFICATE_KEY":  120,
+		"HOST_ACCESS_KIND_DEVICE":           170,
+		"HOST_ACCESS_KIND_GPUS":             171,
+		"HOST_ACCESS_KIND_SECURITY_OPTION":  172,
+		"HOST_ACCESS_KIND_HOST_PROCESSES":   173,
+		"HOST_ACCESS_KIND_ROOT_TOGETHER":    174,
 	}
 )
 
@@ -10389,7 +10414,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
 	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
 	"\x12INTENT_KIND_REPULL\x10\x04\x12\x17\n" +
-	"\x13INTENT_KIND_UPGRADE\x10\x05*\x88\x06\n" +
+	"\x13INTENT_KIND_UPGRADE\x10\x05*\xb4\a\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -10413,7 +10438,12 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12\x12\"\n" +
 	"\x1eHOST_ACCESS_KIND_ACCESS_OPENED\x10n\x12\"\n" +
 	"\x1dHOST_ACCESS_KIND_SERVER_SHELL\x10\x96\x01\x12$\n" +
-	" HOST_ACCESS_KIND_CERTIFICATE_KEY\x10x*\x99\x01\n" +
+	" HOST_ACCESS_KIND_CERTIFICATE_KEY\x10x\x12\x1c\n" +
+	"\x17HOST_ACCESS_KIND_DEVICE\x10\xaa\x01\x12\x1a\n" +
+	"\x15HOST_ACCESS_KIND_GPUS\x10\xab\x01\x12%\n" +
+	" HOST_ACCESS_KIND_SECURITY_OPTION\x10\xac\x01\x12$\n" +
+	"\x1fHOST_ACCESS_KIND_HOST_PROCESSES\x10\xad\x01\x12#\n" +
+	"\x1eHOST_ACCESS_KIND_ROOT_TOGETHER\x10\xae\x01*\x99\x01\n" +
 	"\x10VolumeMoveMethod\x12\"\n" +
 	"\x1eVOLUME_MOVE_METHOD_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVOLUME_MOVE_METHOD_IN_PLACE\x10\x01\x12#\n" +

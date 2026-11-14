@@ -152,6 +152,7 @@ func (h Host) refuse(p string) string {
 func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 	c := spec.(*resourcev1.Container)
 	out := append(mountAccess(c), privilegeAccess(c)...)
+	out = append(out, hostAccess(c)...)
 	for _, n := range c.GetNetworks() {
 		switch n {
 		case "host":
@@ -163,7 +164,7 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 			out = append(out, resource.Access{Kind: resource.AccessExternalNetwork, Path: n})
 		}
 	}
-	return out
+	return together(c, out)
 }
 
 // ServiceAccess lists what a service's app reaches on its server: each server
@@ -171,7 +172,7 @@ func (*Driver) HostAccess(spec proto.Message) []resource.Access {
 // server's own network, and what it runs with beyond what Docker gives a
 // container.
 func ServiceAccess(c *resourcev1.Container) []resource.Access {
-	return slices.Concat(mountAccess(c), networkAccess(c), privilegeAccess(c))
+	return together(c, slices.Concat(mountAccess(c), networkAccess(c), privilegeAccess(c), hostAccess(c)))
 }
 
 func mountAccess(c *resourcev1.Container) []resource.Access {

@@ -9358,6 +9358,12 @@ msgstr "It runs through the Compose project {project}. Until Dockwell changes it
 msgid "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
 msgstr "It runs through the Compose project {project}. Until Dockwell changes its image, what you do to it in {tool} acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to {where}, as it may delete what this service mounts."
 
+msgid "It runs with <0>{path}</0>, which is the same as root."
+msgstr "It runs with <0>{path}</0>, which is the same as root."
+
+msgid "It sees and signals every process on the server."
+msgstr "It sees and signals every process on the server."
+
 msgid "It takes that proxy's word for where a request came from."
 msgstr "It takes that proxy's word for where a request came from."
 
@@ -9366,6 +9372,9 @@ msgstr "It takes that proxy's word for where a request came from. Whatever else 
 
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
+
+msgid "It uses the device <0>{path}</0>, which is the same as root."
+msgstr "It uses the device <0>{path}</0>, which is the same as root."
 
 msgid "It's revoked as this applies, before any step, and its agent is refused from then on."
 msgstr "It's revoked as this applies, before any step, and its agent is refused from then on."
@@ -9512,6 +9521,9 @@ msgstr "That is the server itself, past its containers, at {at} over plain HTTP.
 msgid "That is the server itself, past its containers, at {at}."
 msgstr "That is the server itself, past its containers, at {at}."
 
+msgid "That takes away some of what Docker confines a container in."
+msgstr "That takes away some of what Docker confines a container in."
+
 msgid "That's what the server kept on {taken}, {size}."
 msgstr "That's what the server kept on {taken}, {size}."
 
@@ -9648,6 +9660,9 @@ msgstr "Upgrade it by running the install script on it once."
 
 msgid "What asks for {shared} there can reach either."
 msgstr "What asks for {shared} there can reach either."
+
+msgid "What it reaches of the server, with <0>{path}</0>, is the same as root."
+msgstr "What it reaches of the server, with <0>{path}</0>, is the same as root."
 
 msgid "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
 msgstr "What ran before this failed may have changed the data, such as with a migration, and the version that runs now may refuse it or misread it."
@@ -9841,11 +9856,17 @@ msgstr "{name} reaches {path} on {server}, which leads to {leadsTo}"
 msgid "{name} reaches {reach} on {server}"
 msgstr "{name} reaches {reach} on {server}"
 
+msgid "{name} reads the device {path} on {server}"
+msgstr "{name} reads the device {path} on {server}"
+
 msgid "{name} runs a shell command as root on {server}"
 msgstr "{name} runs a shell command as root on {server}"
 
 msgid "{name} runs with the latest value of {names}"
 msgstr "{name} runs with the latest value of {names}"
+
+msgid "{name} runs with {path} on {server}"
+msgstr "{name} runs with {path} on {server}"
 
 msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
 msgstr "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
@@ -9864,6 +9885,18 @@ msgstr "{name} stops HTTPS on {path} on {server}"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} takes on the container {path} on {server}"
+
+msgid "{name} uses all the GPUs on {server}"
+msgstr "{name} uses all the GPUs on {server}"
+
+msgid "{name} uses the GPUs {path} on {server}"
+msgstr "{name} uses the GPUs {path} on {server}"
+
+msgid "{name} uses the device {path} on {server}"
+msgstr "{name} uses the device {path} on {server}"
+
+msgid "{name} uses {path} GPUs on {server}"
+msgstr "{name} uses {path} GPUs on {server}"
 
 msgid "{name}'s data isn't backed up first"
 msgstr "{name}'s data isn't backed up first"

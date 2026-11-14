@@ -425,8 +425,10 @@ func installWide(a resource.Access) string {
 		return "mounts what a volume driver reaches"
 	case resource.AccessNetworkDriver, resource.AccessExternalNetwork:
 		return "joins a network past the server's own bridge"
-	case resource.AccessCapability, resource.AccessGroup, resource.AccessPrivileged:
+	case resource.AccessCapability, resource.AccessGroup, resource.AccessPrivileged, resource.AccessSecurityOption:
 		return "runs with more than Docker gives a container"
+	case resource.AccessDevice, resource.AccessGPUs:
+		return "reaches a device of the server"
 	case resource.AccessTrustedProxy:
 		return "trusts a proxy for where a request came from"
 	case resource.AccessPanelDomain:

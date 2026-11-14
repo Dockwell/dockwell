@@ -1705,6 +1705,21 @@ enum HostAccessKind {
   // for the first time, for the domain in path (ADR 0088). An admin confirms it
   // with a passkey. Numbered in the block DNS-01 holds, 120 to 129.
   HOST_ACCESS_KIND_CERTIFICATE_KEY = 120;
+  // A device of the server, by its path there, in path (ADR 0097). A block
+  // device, or memory's, a port's or one under /dev/mapper, is the same as root.
+  HOST_ACCESS_KIND_DEVICE = 170;
+  // The server's GPUs: path is "all", a count, or their IDs.
+  HOST_ACCESS_KIND_GPUS = 171;
+  // A security option that takes away some of Docker's confinement, such as
+  // "seccomp=unconfined", in path.
+  HOST_ACCESS_KIND_SECURITY_OPTION = 172;
+  // Every process on the server, which the container sees and signals: the
+  // same as root.
+  HOST_ACCESS_KIND_HOST_PROCESSES = 173;
+  // What a container reaches of the server together with the capability or
+  // privileged mode in path, which makes all of it the same as root. It comes
+  // first, once for the app.
+  HOST_ACCESS_KIND_ROOT_TOGETHER = 174;
 }
 
 // ServerPlan is the part of a plan on one server.

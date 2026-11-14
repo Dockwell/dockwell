@@ -213,6 +213,10 @@ type Decision struct {
 	// own health check isn't known, and UntilHealthy may be missing or
 	// too short.
 	HealthUnknown bool `json:",omitempty"`
+	// DeviceRoot are the devices of the server the resource reaches that the agent
+	// found are the same as root there: a block device, or a link to one RootDevice
+	// names (ADR 0097). Like Leads, it can only make a plan louder.
+	DeviceRoot []string `json:",omitempty"`
 	// Adopts is the full ID of a container this step takes on, which goes on running
 	// as it is, as what the resource runs. Its step makes nothing.
 	Adopts string `json:",omitempty"`
@@ -1284,6 +1288,21 @@ const (
 	// how, as the Opens facts an Opener gives, joined with spaces. A token could
 	// otherwise let itself in (ADR 0087).
 	AccessOpened
+	// AccessDevice is a device of the server, by its path there: Path. ReadOnly
+	// says the container may only read it. One the agent finds is a block device,
+	// or memory's, a port's or one under /dev/mapper, is the same as root (ADR 0097).
+	AccessDevice
+	// AccessGPUs is the server's GPUs: Path is "all", a count, or their IDs.
+	AccessGPUs
+	// AccessSecurityOption is a security option that takes away some of what
+	// Docker confines a container in, as seccomp=unconfined: Path.
+	AccessSecurityOption
+	// AccessHostProcesses is every process on the server, which the container sees
+	// and signals: the same as root.
+	AccessHostProcesses
+	// AccessRootTogether is what a container reaches of its server together with a
+	// capability or privileged mode, in Path, that makes all of it the same as root.
+	AccessRootTogether
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1511,8 +1530,52 @@ func AccessWords(a Access) string {
 		return "a certificate's key for " + plain(a.Path) + ", proven by DNS, going to this server for the first time"
 	case AccessOpened:
 		return plain(a.Path) + " to someone it kept out: " + openedWords(a.Detail)
+	case AccessDevice:
+		out := "the server's device " + plain(a.Path)
+		if a.ReadOnly {
+			out += ", read only"
+		}
+		if a.SameAsRoot {
+			out += ", which is the same as root"
+		}
+		return out
+	case AccessGPUs:
+		switch {
+		case a.Path == "all":
+			return "all of the server's GPUs"
+		case strings.Trim(a.Path, "0123456789") == "":
+			return plain(a.Path) + " of the server's GPUs"
+		}
+		return "the server's GPUs " + plain(a.Path)
+	case AccessSecurityOption:
+		out := securityOptionWords(a.Path)
+		if a.SameAsRoot {
+			out += ", which is the same as root"
+		}
+		return out
+	case AccessHostProcesses:
+		return "every process on the server, which it sees and signals, the same as root"
+	case AccessRootTogether:
+		return "what it reaches of the server, with " + plain(a.Path) + ", which together are the same as root"
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
+}
+
+// securityOptionWords says what a security option takes away, in words.
+func securityOptionWords(o string) string {
+	switch {
+	case o == "seccomp=unconfined":
+		return "a run without seccomp's filter on system calls"
+	case o == "apparmor=unconfined":
+		return "a run without AppArmor's profile"
+	case o == "label=disable":
+		return "a run without SELinux's labels"
+	case o == "systempaths=unconfined":
+		return "the kernel's system paths, writable"
+	case strings.HasPrefix(o, "label=type:"):
+		return "the SELinux type " + plain(strings.TrimPrefix(o, "label=type:"))
+	}
+	return "the security option " + plain(o)
 }
 
 // namesARange reports a proxy that covers more than one address, so what else is

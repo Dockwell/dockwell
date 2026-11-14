@@ -6,13 +6,17 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/lazyre"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 // What a container reaches of its server past what Docker gives it, a spec's own
@@ -193,4 +197,98 @@ func securityOptForm(o string) string {
 		}
 	}
 	return o
+}
+
+// rootDevices are devices of the server that are the same as root by what they
+// are wherever they are: its memory, its kernel's memory and its I/O ports. Any
+// under /dev/mapper is a disk. The agent finds a block device at any path, and a
+// link to one of these (HostDevices, Decision.DeviceRoot).
+var rootDevices = []string{"/dev/mem", "/dev/kmem", "/dev/port"}
+
+// RootDevice reports a device path that is the same as root by its name.
+func RootDevice(p string) bool {
+	return slices.Contains(rootDevices, p) || strings.HasPrefix(p, "/dev/mapper/")
+}
+
+// rootSecurityOption reports a security option that is the same as root: the
+// kernel's system paths writable, or an SELinux type that's unconfined, as
+// spc_t, the type of a super-privileged container, is.
+func rootSecurityOption(o string) bool {
+	t, ok := strings.CutPrefix(o, "label=type:")
+	return o == "systempaths=unconfined" || ok && (t == "spc_t" || strings.Contains(t, "unconfined"))
+}
+
+// hostAccess is what a container's devices, GPUs, security options and the
+// server's processes give it, which a person approves (ADR 0097). Its sysctls
+// are its own namespaces', which reach nothing of the server.
+func hostAccess(c *resourcev1.Container) []resource.Access {
+	var out []resource.Access
+	for _, d := range c.GetDevices() {
+		p := cmp.Or(d.GetPermissions(), allPermissions)
+		out = append(out, resource.Access{
+			Kind: resource.AccessDevice, Path: d.GetHostPath(), ReadOnly: !strings.ContainsAny(p, "wm"), SameAsRoot: RootDevice(d.GetHostPath()),
+		})
+	}
+	if g := c.GetGpus(); g != nil {
+		which := strings.Join(g.GetDeviceIds(), ",")
+		switch {
+		case g.GetCount() == -1:
+			which = "all"
+		case g.GetCount() > 0:
+			which = strconv.Itoa(int(g.GetCount()))
+		}
+		out = append(out, resource.Access{Kind: resource.AccessGPUs, Path: which})
+	}
+	for _, o := range c.GetSecurityOpt() {
+		out = append(out, resource.Access{Kind: resource.AccessSecurityOption, Path: o, SameAsRoot: rootSecurityOption(o)})
+	}
+	if c.GetHostPid() {
+		out = append(out, resource.Access{Kind: resource.AccessHostProcesses, SameAsRoot: true})
+	}
+	return out
+}
+
+// rootTogether are the capabilities that make whatever else a container reaches
+// of its server the same as root: with the server's processes, SYS_PTRACE reads
+// and writes any of them, and the rest reach the kernel or a disk directly.
+var rootTogether = []string{"ALL", "SYS_ADMIN", "SYS_MODULE", "SYS_PTRACE", "SYS_RAWIO"}
+
+// together puts first, once for the container, that what it reaches of its server
+// is the same as root with a capability of rootTogether, or privileged mode: the
+// two together are more than either is alone.
+func together(c *resourcev1.Container, access []resource.Access) []resource.Access {
+	var with []string
+	if c.GetPrivileged() {
+		with = append(with, "privileged mode")
+	}
+	for _, name := range c.GetCapAdd() {
+		if slices.Contains(rootTogether, name) {
+			with = append(with, name)
+		}
+	}
+	if len(with) == 0 || !slices.ContainsFunc(access, func(a resource.Access) bool {
+		return a.Kind != resource.AccessCapability && a.Kind != resource.AccessPrivileged && a.Kind != resource.AccessGroup
+	}) {
+		return access
+	}
+	first := resource.Access{Kind: resource.AccessRootTogether, Path: strings.Join(with, ", "), SameAsRoot: true}
+	return append([]resource.Access{first}, access...)
+}
+
+// HostDevices is Docker.Devices on the server the agent runs on: a device there,
+// followed through links, is the same as root where it's a block device, or one
+// RootDevice names.
+func HostDevices(p string) (bool, error) {
+	target, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return false, fmt.Errorf("the device %s isn't on this server, so the container couldn't start. Take it out, or plug the device in and plan again", p)
+	}
+	fi, err := os.Stat(target)
+	if err != nil {
+		return false, fmt.Errorf("can't read the device %s on this server: %w", p, err)
+	}
+	if fi.Mode()&os.ModeDevice == 0 {
+		return false, fmt.Errorf("%s isn't a device on this server. Give a device's path, or mount it as a path instead", p)
+	}
+	return fi.Mode()&os.ModeCharDevice == 0 || RootDevice(target), nil
 }

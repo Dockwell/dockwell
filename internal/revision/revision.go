@@ -2664,12 +2664,18 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		ids := map[resource.Ref]string{}
 		// Where the agent says each server path leads, which only it can read.
 		leads := map[string]string{}
+		// Which devices the agent says are the same as root, which only it can tell.
+		rootDevices := map[string]bool{}
 		moved := map[string]bool{}
 		var alongside []resource.Unmanaged
 		via := map[string][]string{}
 		for i := range steps {
 			maps.Copy(leads, steps[i].Leads)
 			maps.Copy(via, steps[i].Via)
+			for _, p := range steps[i].DeviceRoot {
+				rootDevices[p] = true
+			}
+			steps[i].DeviceRoot = nil
 			for _, p := range steps[i].LeadsMoved {
 				moved[p] = true
 			}
@@ -2740,6 +2746,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			for j := range gained {
 				gained[j] = gained[j].Leading(leads[gained[j].Path])
+				if gained[j].Kind == resource.AccessDevice && rootDevices[gained[j].Path] {
+					gained[j].SameAsRoot = true
+				}
 			}
 			if len(gained) > 0 {
 				gains[it.ref] = gained

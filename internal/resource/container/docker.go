@@ -83,6 +83,10 @@ type Docker struct {
 	// Paths finds what no container may mount on this server, and follows
 	// symlinks there. Nil checks only what Validate does.
 	Paths *Paths
+	// Devices says of a device a container reaches whether it's the same as root
+	// on this server, and fails for one that isn't there (ADR 0097). Nil checks
+	// nothing, as in tests.
+	Devices func(path string) (root bool, err error)
 	// Ingress is this server's ingress, which a service with routes joins,
 	// and which holds the server's public ports while it has routes. Nil
 	// means none.
@@ -1907,6 +1911,19 @@ func owned(t Target, c *docker.Container) error {
 // how it replaces what runs, and why; and a recreated container's health check,
 // its image's included, says how long it may take to be healthy.
 func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Container, dec *resource.Decision) error {
+	// A device a container reaches must be on this server, and one that's the same
+	// as root says so, which the plan reads louder by (ADR 0097).
+	if d.Devices != nil {
+		for _, dev := range desired.GetDevices() {
+			root, err := d.Devices(dev.GetHostPath())
+			if err != nil {
+				return err
+			}
+			if root {
+				dec.DeviceRoot = append(dec.DeviceRoot, dev.GetHostPath())
+			}
+		}
+	}
 	// Docker before 25 takes a check's start_interval and keeps none of it, so the
 	// container would read back without it, as drift that never ends.
 	if desired.GetHealthcheck().GetStartInterval() != "" && !d.Client.AtLeast("1.44") {

@@ -3,6 +3,8 @@
 package container
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -78,5 +80,91 @@ func TestWhatHostAccessASpecTakes(t *testing.T) {
 		if err := Validate(c.spec); err == nil || !strings.Contains(err.Error(), c.says) {
 			t.Errorf("%s: %v, want it to say %q", name, err, c.says)
 		}
+	}
+}
+
+// What a container's devices, GPUs, security options and the server's processes
+// give it is host access, each as loud as it is: a device by its name, an SELinux
+// type that's unconfined, writable system paths and the server's processes as
+// root; and with SYS_ADMIN, SYS_MODULE, SYS_PTRACE, SYS_RAWIO, ALL or privileged
+// mode, all of it as root, said once and first. Sysctls give it nothing of the
+// server.
+func TestWhatHostAccessGives(t *testing.T) {
+	c := &resourcev1.Container{
+		Image: "x:1",
+		Devices: []*resourcev1.Device{
+			{HostPath: "/dev/dri/renderD128"}, {HostPath: "/dev/ttyUSB0", Permissions: "r"}, {HostPath: "/dev/mem"}, {HostPath: "/dev/mapper/vg-root"},
+		},
+		Gpus:        &resourcev1.Gpus{Count: 2},
+		SecurityOpt: []string{"apparmor=unconfined", "label=disable", "label=type:spc_t", "label=type:container_unconfined_t", "systempaths=unconfined"},
+		HostPid:     true,
+		Sysctls:     map[string]string{"net.ipv4.ip_forward": "1"},
+	}
+	got := ServiceAccess(c)
+	want := []resource.Access{
+		{Kind: resource.AccessDevice, Path: "/dev/dri/renderD128"},
+		{Kind: resource.AccessDevice, Path: "/dev/ttyUSB0", ReadOnly: true},
+		{Kind: resource.AccessDevice, Path: "/dev/mem", SameAsRoot: true},
+		{Kind: resource.AccessDevice, Path: "/dev/mapper/vg-root", SameAsRoot: true},
+		{Kind: resource.AccessGPUs, Path: "2"},
+		{Kind: resource.AccessSecurityOption, Path: "apparmor=unconfined"},
+		{Kind: resource.AccessSecurityOption, Path: "label=disable"},
+		{Kind: resource.AccessSecurityOption, Path: "label=type:spc_t", SameAsRoot: true},
+		{Kind: resource.AccessSecurityOption, Path: "label=type:container_unconfined_t", SameAsRoot: true},
+		{Kind: resource.AccessSecurityOption, Path: "systempaths=unconfined", SameAsRoot: true},
+		{Kind: resource.AccessHostProcesses, SameAsRoot: true},
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("ServiceAccess = %+v\nwant %+v", got, want)
+	}
+	for _, with := range []*resourcev1.Container{
+		{Image: "x:1", Devices: []*resourcev1.Device{{HostPath: "/dev/fuse"}}, CapAdd: []string{"SYS_ADMIN"}},
+		{Image: "x:1", HostPid: true, CapAdd: []string{"SYS_PTRACE"}},
+		{Image: "x:1", Gpus: &resourcev1.Gpus{Count: -1}, Privileged: true},
+	} {
+		got := ServiceAccess(with)
+		if len(got) == 0 || got[0].Kind != resource.AccessRootTogether || !got[0].SameAsRoot ||
+			slices.ContainsFunc(got[1:], func(a resource.Access) bool { return a.Kind == resource.AccessRootTogether }) {
+			t.Errorf("with %v, ServiceAccess = %+v", with, got)
+		}
+	}
+	// A capability alone is what it was.
+	if got := ServiceAccess(&resourcev1.Container{Image: "x:1", CapAdd: []string{"SYS_PTRACE"}}); len(got) != 1 || got[0].Kind != resource.AccessCapability {
+		t.Errorf("SYS_PTRACE alone = %+v", got)
+	}
+}
+
+// The agent checks each device on its server as a plan is made: one that isn't
+// there fails the plan, by name, and one that's the same as root there says so.
+func TestAPlanFindsEachDevice(t *testing.T) {
+	e := dockertest.New(t)
+	e.AddLocalImage("x:1", dockertest.Image{Config: docker.Config{Cmd: []string{"run"}}})
+	on := map[string]bool{"/dev/dri/renderD128": false, "/dev/disk/by-id/usb-stick": true}
+	d := &Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Devices: func(p string) (bool, error) {
+		root, ok := on[p]
+		if !ok {
+			return false, fmt.Errorf("the device %s isn't on this server", p)
+		}
+		return root, nil
+	}}
+	spec := &resourcev1.Container{Image: "x:1", Devices: []*resourcev1.Device{{HostPath: "/dev/dri/renderD128"}, {HostPath: "/dev/disk/by-id/usb-stick"}}}
+	dec := &resource.Decision{Action: resource.ActionCreate}
+	if err := d.Judge(t.Context(), taken, spec, dec); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(dec.DeviceRoot, []string{"/dev/disk/by-id/usb-stick"}) {
+		t.Errorf("the plan finds %v the same as root", dec.DeviceRoot)
+	}
+	spec.Devices = append(spec.Devices, &resourcev1.Device{HostPath: "/dev/ttyACM0"})
+	if err := d.Judge(t.Context(), taken, spec, &resource.Decision{Action: resource.ActionCreate}); err == nil || !strings.Contains(err.Error(), "/dev/ttyACM0 isn't on this server") {
+		t.Errorf("planning a device that isn't there = %v", err)
+	}
+	// On this machine, /dev/null is a device and not the same as root, and /etc/hostname
+	// is no device.
+	if root, err := HostDevices("/dev/null"); err != nil || root {
+		t.Errorf("/dev/null reads %v, %v", root, err)
+	}
+	if _, err := HostDevices("/etc/hostname"); err == nil || !strings.Contains(err.Error(), "isn't a device") {
+		t.Errorf("a file reads %v", err)
 	}
 }
