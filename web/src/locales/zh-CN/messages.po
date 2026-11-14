@@ -1327,11 +1327,18 @@ msgstr "撤回你的确认：{title}"
 msgid "Take over"
 msgstr "接手"
 
+msgid "Take over from {name}"
+msgstr "从 {name} 接手"
+
 msgid "Take over from {name}: {title}"
 msgstr "从 {name} 接手：{title}"
 
 msgid "That didn't take"
 msgstr "未能完成"
+
+#. placeholder {0}: sentence(failed)
+msgid "That didn't take: {0}"
+msgstr "未能完成：{0}"
 
 msgid "since {since}"
 msgstr "自 {since} 起"

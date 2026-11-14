@@ -1327,11 +1327,18 @@ msgstr "Take back your acknowledgement of: {title}"
 msgid "Take over"
 msgstr "Take over"
 
+msgid "Take over from {name}"
+msgstr "Take over from {name}"
+
 msgid "Take over from {name}: {title}"
 msgstr "Take over from {name}: {title}"
 
 msgid "That didn't take"
 msgstr "That didn't take"
+
+#. placeholder {0}: sentence(failed)
+msgid "That didn't take: {0}"
+msgstr "That didn't take: {0}"
 
 msgid "since {since}"
 msgstr "since {since}"

@@ -7,6 +7,7 @@ import {
   ActorKind,
   type Alert,
   AlertService,
+  AlertState,
   AlertRule_Condition as Condition,
   Connection,
   type Server,
@@ -413,6 +414,46 @@ function ResolvedAt({ time }: { time: Timestamp | undefined }) {
   return (
     <span className="alerts-resolved-at" title={formatDateTime(at, i18n.locale)}>
       {today ? formatClock(at, i18n.locale) : formatDay(at, i18n.locale)}
+    </span>
+  );
+}
+
+/**
+ * Taking an open alert, on its own page as on its card: Acknowledge, Take over from whoever has it, or Take back
+ * your own, with why where it didn't take. The page's head has it, as Incident's has its actions.
+ */
+export function AlertAcknowledge({ alert }: { alert: Alert }) {
+  const { t } = useLingui();
+  const acknowledge = useAcknowledge();
+  const me = useSignedInUser();
+  const actorWords = useActorWords();
+  if (alert.state !== AlertState.FIRING) return null;
+  const by = alert.acknowledgeTime ? alert.acknowledgedBy : undefined;
+  const mine = by !== undefined && me !== undefined && by.kind === ActorKind.USER && by.id === me.id;
+  const name = actorWords(by).name;
+  const busy = acknowledge.busy.has(alert.id);
+  const failed = acknowledge.failed.get(alert.id);
+  return (
+    <span className="alerts-page-acknowledge">
+      {failed ? (
+        <span role="alert" className="alerts-page-failed">
+          {t`That didn't take: ${sentence(failed)}`}
+        </span>
+      ) : null}
+      {mine ? (
+        <Button variant="ghost" loading={busy} onClick={() => void acknowledge.run(alert.id, false)}>
+          <Trans>Take back</Trans>
+        </Button>
+      ) : (
+        <Button
+          icon="check"
+          loading={busy}
+          title={by === undefined ? undefined : t`Take over from ${name}`}
+          onClick={() => void acknowledge.run(alert.id, true)}
+        >
+          {by === undefined ? <Trans>Acknowledge</Trans> : <Trans>Take over</Trans>}
+        </Button>
+      )}
     </span>
   );
 }

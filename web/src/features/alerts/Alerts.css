@@ -622,3 +622,19 @@ a.alerts-resolved-title:hover {
 .alerts-run.is-skipped {
   background: var(--line-strong);
 }
+
+/* Taking an alert from its page's head, with why where it didn't take, before the button. */
+.alerts-page-acknowledge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.alerts-page-failed {
+  max-width: 360px;
+  color: var(--critical);
+  font-size: 13px;
+  line-height: 18px;
+}

@@ -30,6 +30,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
+import { AlertAcknowledge } from "./AlertCards";
 import { useAlerts, useDeliveries, useRules } from "./useAlerts";
 import "./Alerts.css";
 
@@ -110,6 +111,8 @@ export function AlertPage({ alertId }: { alertId: string }) {
         </Link>
       }
       badge={alert ? <State alert={alert} /> : undefined}
+      // Taking it, from its page as from its card, so "Nobody yet" comes with the way to change it.
+      actions={alert ? <AlertAcknowledge alert={alert} /> : undefined}
       lead={alert ? <Lead alert={alert} /> : undefined}
       className="alerts alert-page"
     >
