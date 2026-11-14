@@ -11806,6 +11806,9 @@ msgstr "{name} 没有上报数据"
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
 
+msgid "Each server"
+msgstr "每台服务器"
+
 msgid "Every server is reporting"
 msgstr "每台服务器都在上报数据"
 

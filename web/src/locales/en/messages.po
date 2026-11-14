@@ -11806,6 +11806,9 @@ msgstr "{name} isn't reporting"
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
 
+msgid "Each server"
+msgstr "Each server"
+
 msgid "Every server is reporting"
 msgstr "Every server is reporting"
 

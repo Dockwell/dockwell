@@ -344,6 +344,27 @@ describe("Overview with a fleet", () => {
     expect(within(map).getByText("Memory above 90%")).toBeVisible();
   });
 
+  it("names each of a few servers on a line of its own, worst first, each opening its page", async () => {
+    renderFleet([hz1, hz2({ connection: Connection.UNREACHABLE })]);
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    const lines = within(within(map).getByRole("list", { name: "Each server" })).getAllByRole("link");
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toHaveTextContent("hz-2");
+    expect(lines[0]).toHaveTextContent("198.51.100.20");
+    expect(lines[0]).toHaveAttribute("href", "/servers/srv_2");
+    expect(lines[1]).toHaveTextContent("hz-1");
+    expect(within(map).queryByText("Hover or focus a server to inspect it.")).toBeNull();
+  });
+
+  it("names one server at a time under the tiles of more than a few", async () => {
+    renderFleet(Array.from({ length: 7 }, (_, i) => hz2({ id: `srv_${i}`, name: `hz-${i}` })));
+
+    const map = await screen.findByRole("region", { name: "Servers" });
+    expect(await within(map).findByText("Hover or focus a server to inspect it.")).toBeVisible();
+    expect(within(map).queryByRole("list", { name: "Each server" })).toBeNull();
+  });
+
   it("lists the apps with where each runs, and what changed, apps' health included", async () => {
     const kinds: EventKind[][] = [];
     const web = anApp(

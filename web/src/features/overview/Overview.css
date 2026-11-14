@@ -191,6 +191,54 @@
   margin-top: auto;
 }
 
+/* A few servers, a line each under the tiles, in the readout's words and type. */
+.overview-fleet-few {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-fleet-few-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-4);
+  min-height: 40px;
+  margin: 0 calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.overview-fleet-few-row:hover {
+  background: var(--surface-sunken);
+}
+
+.overview-fleet-few-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.overview-fleet-few-row .dw-status {
+  min-width: 96px;
+  font-weight: 550;
+}
+
+.overview-fleet-few-row b {
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.overview-fleet-few-row code {
+  font-size: 12px;
+  color: var(--ink);
+}
+
 .overview-fleet-changes {
   flex: 2 1 340px;
   min-width: 0;
