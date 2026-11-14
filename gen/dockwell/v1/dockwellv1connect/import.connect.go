@@ -38,6 +38,12 @@ const (
 	// ImportServiceImportOnePanelProcedure is the fully-qualified name of the ImportService's
 	// ImportOnePanel RPC.
 	ImportServiceImportOnePanelProcedure = "/dockwell.v1.ImportService/ImportOnePanel"
+	// ImportServiceImportCoolifyProcedure is the fully-qualified name of the ImportService's
+	// ImportCoolify RPC.
+	ImportServiceImportCoolifyProcedure = "/dockwell.v1.ImportService/ImportCoolify"
+	// ImportServiceImportDokployProcedure is the fully-qualified name of the ImportService's
+	// ImportDokploy RPC.
+	ImportServiceImportDokployProcedure = "/dockwell.v1.ImportService/ImportDokploy"
 )
 
 // ImportServiceClient is a client for the dockwell.v1.ImportService service.
@@ -53,6 +59,21 @@ type ImportServiceClient interface {
 	// reads 1Panel's records read-only, and nothing secret comes back from them:
 	// no password, key, script, environment or URL path.
 	ImportOnePanel(context.Context, *connect.Request[v1.ImportOnePanelRequest]) (*connect.Response[v1.ImportOnePanelResponse], error)
+	// ImportCoolify reads what Coolify runs on a server, from Docker and its
+	// folders, never its database or its API: its applications, services and
+	// databases, their domains, and its own containers. It says what Dockwell would
+	// do with each and why. For a person, it also plans the change that takes on
+	// each that runs as a Compose project, as AdoptCompose does, with its volumes
+	// where they are. A token gets what was found and no change. Nothing secret
+	// comes back from the read: no environment, and no label beyond a domain. See
+	// docs/adr/0089-importing-from-coolify-and-dokploy.md.
+	ImportCoolify(context.Context, *connect.Request[v1.ImportCoolifyRequest]) (*connect.Response[v1.ImportCoolifyResponse], error)
+	// ImportDokploy reads what Dokploy runs on a server, from Docker and its
+	// folders, never its database or its API, as ImportCoolify does: its Compose
+	// apps, applications and databases, their domains, and its own services. It
+	// plans taking on each Compose app it runs with docker compose; what it runs as
+	// a Swarm service stays, with why.
+	ImportDokploy(context.Context, *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error)
 }
 
 // NewImportServiceClient constructs a client for the dockwell.v1.ImportService service. By default,
@@ -72,17 +93,41 @@ func NewImportServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(importServiceMethods.ByName("ImportOnePanel")),
 			connect.WithClientOptions(opts...),
 		),
+		importCoolify: connect.NewClient[v1.ImportCoolifyRequest, v1.ImportCoolifyResponse](
+			httpClient,
+			baseURL+ImportServiceImportCoolifyProcedure,
+			connect.WithSchema(importServiceMethods.ByName("ImportCoolify")),
+			connect.WithClientOptions(opts...),
+		),
+		importDokploy: connect.NewClient[v1.ImportDokployRequest, v1.ImportDokployResponse](
+			httpClient,
+			baseURL+ImportServiceImportDokployProcedure,
+			connect.WithSchema(importServiceMethods.ByName("ImportDokploy")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // importServiceClient implements ImportServiceClient.
 type importServiceClient struct {
 	importOnePanel *connect.Client[v1.ImportOnePanelRequest, v1.ImportOnePanelResponse]
+	importCoolify  *connect.Client[v1.ImportCoolifyRequest, v1.ImportCoolifyResponse]
+	importDokploy  *connect.Client[v1.ImportDokployRequest, v1.ImportDokployResponse]
 }
 
 // ImportOnePanel calls dockwell.v1.ImportService.ImportOnePanel.
 func (c *importServiceClient) ImportOnePanel(ctx context.Context, req *connect.Request[v1.ImportOnePanelRequest]) (*connect.Response[v1.ImportOnePanelResponse], error) {
 	return c.importOnePanel.CallUnary(ctx, req)
+}
+
+// ImportCoolify calls dockwell.v1.ImportService.ImportCoolify.
+func (c *importServiceClient) ImportCoolify(ctx context.Context, req *connect.Request[v1.ImportCoolifyRequest]) (*connect.Response[v1.ImportCoolifyResponse], error) {
+	return c.importCoolify.CallUnary(ctx, req)
+}
+
+// ImportDokploy calls dockwell.v1.ImportService.ImportDokploy.
+func (c *importServiceClient) ImportDokploy(ctx context.Context, req *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error) {
+	return c.importDokploy.CallUnary(ctx, req)
 }
 
 // ImportServiceHandler is an implementation of the dockwell.v1.ImportService service.
@@ -98,6 +143,21 @@ type ImportServiceHandler interface {
 	// reads 1Panel's records read-only, and nothing secret comes back from them:
 	// no password, key, script, environment or URL path.
 	ImportOnePanel(context.Context, *connect.Request[v1.ImportOnePanelRequest]) (*connect.Response[v1.ImportOnePanelResponse], error)
+	// ImportCoolify reads what Coolify runs on a server, from Docker and its
+	// folders, never its database or its API: its applications, services and
+	// databases, their domains, and its own containers. It says what Dockwell would
+	// do with each and why. For a person, it also plans the change that takes on
+	// each that runs as a Compose project, as AdoptCompose does, with its volumes
+	// where they are. A token gets what was found and no change. Nothing secret
+	// comes back from the read: no environment, and no label beyond a domain. See
+	// docs/adr/0089-importing-from-coolify-and-dokploy.md.
+	ImportCoolify(context.Context, *connect.Request[v1.ImportCoolifyRequest]) (*connect.Response[v1.ImportCoolifyResponse], error)
+	// ImportDokploy reads what Dokploy runs on a server, from Docker and its
+	// folders, never its database or its API, as ImportCoolify does: its Compose
+	// apps, applications and databases, their domains, and its own services. It
+	// plans taking on each Compose app it runs with docker compose; what it runs as
+	// a Swarm service stays, with why.
+	ImportDokploy(context.Context, *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error)
 }
 
 // NewImportServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -113,10 +173,26 @@ func NewImportServiceHandler(svc ImportServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(importServiceMethods.ByName("ImportOnePanel")),
 		connect.WithHandlerOptions(opts...),
 	)
+	importServiceImportCoolifyHandler := connect.NewUnaryHandler(
+		ImportServiceImportCoolifyProcedure,
+		svc.ImportCoolify,
+		connect.WithSchema(importServiceMethods.ByName("ImportCoolify")),
+		connect.WithHandlerOptions(opts...),
+	)
+	importServiceImportDokployHandler := connect.NewUnaryHandler(
+		ImportServiceImportDokployProcedure,
+		svc.ImportDokploy,
+		connect.WithSchema(importServiceMethods.ByName("ImportDokploy")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ImportService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ImportServiceImportOnePanelProcedure:
 			importServiceImportOnePanelHandler.ServeHTTP(w, r)
+		case ImportServiceImportCoolifyProcedure:
+			importServiceImportCoolifyHandler.ServeHTTP(w, r)
+		case ImportServiceImportDokployProcedure:
+			importServiceImportDokployHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -128,4 +204,12 @@ type UnimplementedImportServiceHandler struct{}
 
 func (UnimplementedImportServiceHandler) ImportOnePanel(context.Context, *connect.Request[v1.ImportOnePanelRequest]) (*connect.Response[v1.ImportOnePanelResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImportService.ImportOnePanel is not implemented"))
+}
+
+func (UnimplementedImportServiceHandler) ImportCoolify(context.Context, *connect.Request[v1.ImportCoolifyRequest]) (*connect.Response[v1.ImportCoolifyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImportService.ImportCoolify is not implemented"))
+}
+
+func (UnimplementedImportServiceHandler) ImportDokploy(context.Context, *connect.Request[v1.ImportDokployRequest]) (*connect.Response[v1.ImportDokployResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImportService.ImportDokploy is not implemented"))
 }

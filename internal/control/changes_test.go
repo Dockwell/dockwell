@@ -111,6 +111,8 @@ type testServer struct {
 	builds *build.Builder
 	// onePanel reads what 1Panel keeps on it, when set.
 	onePanel func(context.Context) (*agentv1.ReadOnePanelResult, error)
+	// panels reads what Coolify or Dokploy runs on it, when set.
+	panels func(context.Context, dockwellv1.PanelKind) (*agentv1.ReadPanelResult, error)
 	// images is where its agent reads images from. Unset, it reads none, as a test
 	// reaches no registry.
 	images agent.ImageReads
@@ -209,7 +211,7 @@ func (s *testServer) run(t *testing.T) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Terminals: s.terms, Access: s.access,
+		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
 		System: s.system,
 	}
 	if cfg.Probe == nil {

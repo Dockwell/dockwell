@@ -3800,6 +3800,83 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:coolify:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                ImportCoolify reads what Coolify runs on a server, from Docker and its
+                 folders, never its database or its API: its applications, services and
+                 databases, their domains, and its own containers. It says what Dockwell would
+                 do with each and why. For a person, it also plans the change that takes on
+                 each that runs as a Compose project, as AdoptCompose does, with its volumes
+                 where they are. A token gets what was found and no change. Nothing secret
+                 comes back from the read: no environment, and no label beyond a domain. See
+                 docs/adr/0089-importing-from-coolify-and-dokploy.md.
+            operationId: ImportService_ImportCoolify
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server running Coolify, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ImportCoolifyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ImportCoolifyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/imports:dokploy:
+        post:
+            tags:
+                - ImportService
+            description: |-
+                ImportDokploy reads what Dokploy runs on a server, from Docker and its
+                 folders, never its database or its API, as ImportCoolify does: its Compose
+                 apps, applications and databases, their domains, and its own services. It
+                 plans taking on each Compose app it runs with docker compose; what it runs as
+                 a Swarm service stays, with why.
+            operationId: ImportService_ImportDokploy
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server running Dokploy, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ImportDokployRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ImportDokployResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/imports:onepanel:
         post:
             tags:
@@ -13838,6 +13915,71 @@ components:
                     type: boolean
                     description: True when the file writes more than exposed_variables lists.
             description: ImportComposeResponse carries the planned change.
+        ImportCoolifyRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server running Coolify, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                skipPlan:
+                    type: boolean
+                    description: |-
+                        Read and say what an import would do, and plan nothing, for a client that
+                         plans only when a person asks to review it.
+            description: ImportCoolifyRequest names the server to import from.
+        ImportCoolifyResponse:
+            type: object
+            properties:
+                found:
+                    allOf:
+                        - $ref: '#/components/schemas/Panel'
+                    description: What was found, as Docker and Coolify's folders say.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImportStep'
+                    description: |-
+                        What an import would do, a step for each thing found, in the order the plan
+                         would take them.
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: |-
+                        The change that takes on what can come now, planned for a person to apply.
+                         Empty for a token, where nothing can come, and where Dockwell can't read what
+                         runs on the server now.
+            description: |-
+                ImportCoolifyResponse is what Coolify runs on the server, and what an import
+                 would do with each thing.
+        ImportDokployRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server running Dokploy, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                skipPlan:
+                    type: boolean
+                    description: Read and say what an import would do, and plan nothing.
+            description: ImportDokployRequest names the server to import from.
+        ImportDokployResponse:
+            type: object
+            properties:
+                found:
+                    allOf:
+                        - $ref: '#/components/schemas/Panel'
+                    description: What was found, as Docker and Dokploy's folders say.
+                steps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ImportStep'
+                    description: What an import would do with each thing found.
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change that takes on what can come now, as ImportCoolifyResponse's.
+            description: |-
+                ImportDokployResponse is what Dokploy runs on the server, and what an import
+                 would do with each thing, as ImportCoolifyResponse is.
         ImportOnePanelRequest:
             type: object
             properties:
@@ -16387,6 +16529,119 @@ components:
                     description: What installing it does beyond replacing its files.
                     format: enum
             description: PackageUpdate is one package with a newer version waiting.
+        Panel:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - PANEL_KIND_UNSPECIFIED
+                        - PANEL_KIND_COOLIFY
+                        - PANEL_KIND_DOKPLOY
+                    type: string
+                    description: Which panel it is.
+                    format: enum
+                version:
+                    type: string
+                    description: |-
+                        Its version, from its own image's tag, such as "4.7.5" or "v0.31.2". Empty
+                         where its own containers aren't there to say.
+                knownVersion:
+                    type: boolean
+                    description: |-
+                        True when its version is one this importer was written from: Coolify 4.7 and
+                         Dokploy 0.31. Another is read the same way, by its labels and folders.
+                folder:
+                    type: string
+                    description: |-
+                        The folder it keeps what it runs in, such as "/data/coolify" or
+                         "/etc/dokploy".
+                apps:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelApp'
+                    description: 'What it runs for people: apps, services and databases.'
+                own:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/PanelContainer'
+                    description: Its own containers and services, such as coolify-db or dokploy-traefik.
+            description: |-
+                Panel is what a panel runs on a server, as Docker and its folders say, with
+                 nothing secret in it.
+        PanelApp:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: |-
+                        Its name, as the panel shows it, slugged as its labels have it, such as
+                         "blog".
+                kind:
+                    type: string
+                    description: |-
+                        What it is: "application", "service" or "database" for Coolify; "compose",
+                         "stack", "application", or a database engine such as "postgres" for Dokploy.
+                project:
+                    type: string
+                    description: |-
+                        The panel's project and environment it's in, such as "personal" and
+                         "production".
+                environment:
+                    type: string
+                id:
+                    type: string
+                    description: 'The panel''s own ID for it: Coolify''s UUID, or Dokploy''s appName.'
+                composeProject:
+                    type: string
+                    description: The Compose project its containers run as, where docker compose runs it.
+                containers:
+                    type: array
+                    items:
+                        type: string
+                    description: Its containers, by name.
+                domains:
+                    type: array
+                    items:
+                        type: string
+                    description: The domains it answers on, as the panel's proxy has them.
+                folder:
+                    type: string
+                    description: Its folder, such as "/data/coolify/services/<uuid>".
+                swarm:
+                    type: boolean
+                    description: |-
+                        True when it runs as a Swarm service or stack, which Dockwell can't take on in
+                         place.
+                preview:
+                    type: boolean
+                    description: True for a pull request's preview, which the panel makes and removes itself.
+                image:
+                    type: string
+                    description: 'The image it runs, where it''s one: a Swarm service''s, or a database''s.'
+                fromGit:
+                    type: boolean
+                    description: |-
+                        True when the panel deploys it from a Git repository, where a push can deploy
+                         it again: Coolify's application built from a commit, or Dokploy's app whose
+                         code folder is a Git checkout. Both panels deploy on a push by default.
+            description: |-
+                PanelApp is something a panel runs for people: an app, a service from its
+                 templates, or a database.
+        PanelContainer:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Its name, such as "coolify-proxy".
+                image:
+                    type: string
+                    description: Its image.
+                state:
+                    type: string
+                    description: |-
+                        What it's doing, such as "running" or "exited", or "service" for a Swarm
+                         service.
+            description: PanelContainer is one of a panel's own containers or Swarm services.
         PanelPortHolder:
             type: object
             properties:

@@ -85,6 +85,10 @@ func Render(w io.Writer, msg proto.Message, now time.Time) {
 		buildDetection(w, m)
 	case *dockwellv1.ImportOnePanelResponse:
 		importView(w, m)
+	case *dockwellv1.ImportCoolifyResponse:
+		panelView(w, m.GetFound(), m.GetSteps(), m.GetChange())
+	case *dockwellv1.ImportDokployResponse:
+		panelView(w, m.GetFound(), m.GetSteps(), m.GetChange())
 	case *dockwellv1.ListServiceUpdatesResponse:
 		updatesTable(w, m.GetServices(), now)
 	case *dockwellv1.CheckServiceUpdatesResponse:

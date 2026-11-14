@@ -69,6 +69,10 @@ const (
 	// which the agent reads 1Panel's records from under DOCKWELL_TEST, and only then
 	// (ADR 0056).
 	envTestOnePanel = "DOCKWELL_TEST_ONEPANEL"
+	// envTestPanels names, in a test, a folder laid out as a server's root, for the
+	// agent to read Coolify's and Dokploy's folders in, under DOCKWELL_TEST, and
+	// only then; without it, a test reads what Docker says of them alone (ADR 0089).
+	envTestPanels = "DOCKWELL_TEST_PANELS"
 	// envTestRegistry names, in a test, the registry every read of an image goes
 	// to, such as the fake engine's, under DOCKWELL_TEST, and only then: without
 	// it, a test reads no image from a registry (ADR 0062). testRegistryPublic in

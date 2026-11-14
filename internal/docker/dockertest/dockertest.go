@@ -80,6 +80,9 @@ type Image struct {
 
 // Engine is a fake Docker Engine.
 type Engine struct {
+	// Services are the Swarm services it runs, as a swarm's manager lists them. Nil
+	// is an engine that isn't in a swarm.
+	Services    []docker.Service
 	memoryKills []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
@@ -464,6 +467,13 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 			index[r] = map[string]any{"Secure": false}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}})
+	case path == "/services" && r.Method == http.MethodGet:
+		// An engine that isn't a swarm's manager says so, as Docker does.
+		if e.Services == nil {
+			fail(w, http.StatusServiceUnavailable, "This node is not a swarm manager. Use \"docker swarm init\" or \"docker swarm join\" to connect this node to swarm and try again.")
+			return
+		}
+		writeJSON(w, http.StatusOK, e.Services)
 	case parts[0] == "containers":
 		e.serveContainers(w, r, parts[1:])
 	case parts[0] == "exec" && len(parts) == 3 && parts[2] == "json":

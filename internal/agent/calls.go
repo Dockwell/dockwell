@@ -983,6 +983,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckRegistryLogin{CheckRegistryLogin: c.cfg.images.checkLogin(ctx, a, check.GetFirst())}}
 	}
+	if read := call.GetReadPanel(); read != nil {
+		if c.cfg.Panels == nil {
+			return fail(errors.New("this agent doesn't read what Coolify or Dokploy runs"))
+		}
+		found, err := c.cfg.Panels(ctx, read.GetPanel())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ReadPanel{ReadPanel: found}}
+	}
 	if call.GetReadOnepanel() != nil {
 		if c.cfg.OnePanel == nil {
 			return fail(errors.New("this agent doesn't read 1Panel's records"))

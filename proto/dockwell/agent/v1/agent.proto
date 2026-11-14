@@ -506,6 +506,10 @@ message Hello {
   // (ADR 0086). The control plane sends a build none through one that doesn't.
   // Numbered in the block registry logins hold, 310 to 319.
   bool build_logins = 316;
+  // True when the agent reads what Coolify or Dokploy runs on the server, from
+  // Docker and the panel's folders (ReadPanelCall). Importing from them takes 330
+  // to 339 in agent messages (ADR 0089).
+  bool reads_panels = 330;
   // What the agent keeps of what its server should run (ADR 0054), so the
   // control plane sends what it lacks. An agent that sends none keeps nothing,
   // and is sent nothing to keep.
@@ -829,6 +833,8 @@ message Call {
     // server's routes, and no others it gave before (ADR 0088). Numbered in the
     // block DNS-01 holds, 320 to 329.
     PutCertificatesCall put_certificates = 320;
+    // Read what Coolify or Dokploy runs on the server (ADR 0089).
+    ReadPanelCall read_panel = 331;
     // Say what's newer than an image the server runs (ADR 0079). Knowing an
     // app's updates takes 250 to 259.
     ImageUpdatesCall image_updates = 250;
@@ -1399,6 +1405,21 @@ message ReadOnePanelResult {
   dockwell.v1.OnePanel found = 1;
   // Why there's nothing, such as that 1Panel isn't installed here, when it isn't
   // there. A record that can't be read is the call's error.
+  string not_here = 2;
+}
+
+// ReadPanelCall asks what a panel runs on the server, read from Docker and its
+// folders, never its database or its API (ADR 0089).
+message ReadPanelCall {
+  // Which panel to read.
+  dockwell.v1.PanelKind panel = 1;
+}
+
+// ReadPanelResult is what the panel runs, or why there's nothing to read.
+message ReadPanelResult {
+  // What it runs, when it's there.
+  dockwell.v1.Panel found = 1;
+  // Why there's nothing, such as that Coolify doesn't run here, when it isn't.
   string not_here = 2;
 }
 
@@ -2292,6 +2313,8 @@ message CallResult {
     CheckRegistryLoginResult check_registry_login = 313;
     // What put_certificates loaded.
     PutCertificatesResult put_certificates = 320;
+    // What read_panel found.
+    ReadPanelResult read_panel = 331;
     // What image_updates found.
     ImageUpdatesResult image_updates = 250;
   }

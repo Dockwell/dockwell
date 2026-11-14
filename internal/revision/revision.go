@@ -2007,8 +2007,9 @@ func (e *Engine) NewProject(ctx context.Context, tx *store.Tx, org, name, enviro
 // Each word of what's safe is read from what the tool does, as a plan is what someone
 // follows. 1Panel's are from its source, and ADR 0031 says which: its uninstall runs
 // docker compose down, then deletes the app's folder, with no way to keep it, and that
-// folder holds what its apps bind. No other tool's remove has been read, so a plan
-// says to find out, and tells no one to use it.
+// folder holds what its apps bind. Coolify's and Dokploy's deletes are from theirs, as
+// ADR 0089 says. No other tool's remove has been read, so a plan says to find out, and
+// tells no one to use it.
 func ManagedElsewhere(e resource.Elsewhere) Note {
 	folder := cmp.Or(e.Folder, "the folder it runs from")
 	var message string
@@ -2018,6 +2019,12 @@ func ManagedElsewhere(e resource.Elsewhere) Note {
 			e.Container, e.Project, folder)
 	case "1Panel":
 		message = fmt.Sprintf("1Panel still manages %s, through the Compose project %s. Until Dockwell changes its image, anything done to it in 1Panel acts on this container. After that, 1Panel shows it in error, as it can't find the container. Leave that as it is: Start, Rebuild, Upgrade or editing its settings there starts a second copy, on the same folders and under the same name. Don't uninstall it in 1Panel, at either point: that deletes %s, which holds what this service mounts",
+			e.Container, e.Project, folder)
+	case "Coolify":
+		message = fmt.Sprintf("Coolify still manages %s, through the Compose project %s. Until Dockwell changes its image, what you do to it in Coolify acts on this container. After that, redeploying or restarting it there starts a second copy, on the same volumes. Where it deploys from Git, turn off Auto deploy for it in Coolify first, or a push can replace it or start a second copy. Coolify's scheduled backups of a database stop at that first image change, as they run in its container by name: back it up with Dockwell's backups instead. Don't delete it in Coolify: its delete removes the resource's volumes unless you clear that box, and %s, which holds what this service binds",
+			e.Container, e.Project, folder)
+	case "Dokploy":
+		message = fmt.Sprintf("Dokploy still manages %s, through the Compose project %s. Until Dockwell changes its image, what you do to it in Dokploy acts on this container. After that, deploying it there starts a second copy, on the same volumes. Where it deploys from Git, turn off Autodeploy for it in Dokploy first, or a push can replace it or start a second copy. Don't delete it in Dokploy: its delete runs docker compose down, with --volumes when that box is ticked, and removes %s, which holds what this service binds",
 			e.Container, e.Project, folder)
 	default:
 		message = fmt.Sprintf("%[1]s still manages %[2]s, through the Compose project %[3]s. Until Dockwell changes its image, what you do to it in %[1]s acts on this container. After that, starting or redeploying it there can start a second copy, on the same folders and under the same name. Before you remove it there, find out what that does to %[4]s, as it may delete what this service mounts",

@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -119,7 +120,7 @@ const shortest = 6
 // spec is looked through too. It says which by name, and a value of any length counts
 // for a variable whose name says it's a secret: a short password is still one.
 func valuesShown(spec *resourcev1.Container) []string {
-	var out []string
+	out := CredentialLabels(spec)
 	eachWord(spec.ProtoReflect(), "", func(where, word string) {
 		for name, value := range spec.GetEnv() {
 			if value == "" || !strings.Contains(word, value) || len(value) < shortest && !secretName.MatchString(name) {
@@ -134,6 +135,41 @@ func valuesShown(spec *resourcev1.Container) []string {
 	})
 	slices.Sort(out)
 	return slices.Compact(out)
+}
+
+// CredentialIn starts what Shows says of a label that holds a credential, as a
+// caller that has a fix of its own for it, such as turning off a panel's basic auth,
+// looks for.
+const CredentialIn = "a credential in its label " //nolint:gosec // words that name a label, not a credential
+
+// credentialKey is a label whose value is a credential by its key: a proxy's users
+// with their password hashes, as Traefik's basicauth.users and digestauth.users and
+// Caddy's basic_auth are, an Authorization header, or a key named for a secret. It
+// compiles on first use, as the agent's start stays small.
+var credentialKey = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`(?i)(^|\.)(basic|digest)auth\.users$|^caddy(_\d+)?(\.[^.]+)*\.basic_?auth(\.|$)|authorization|token|secret|passw(or)?d|api[-_]?key|private[-_]?key|credential`)
+})
+
+// credentialValue is a value that's a credential whatever its label is called: a
+// password hash as htpasswd and crypt write one, an Authorization header's value, or
+// a token in a form its issuer gives every one of.
+var credentialValue = sync.OnceValue(func() *regexp.Regexp {
+	return regexp.MustCompile(`\$(2[abxy]|apr1|1|5|6|y)\$[./A-Za-z0-9$]{20,}|\$argon2(id|i|d)\$|(^|:)\{S?SHA\}|^(?i:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{16,}$|\b(gh[pousr]_[A-Za-z0-9]{36}|github_pat_\w{22,}|glpat-[\w-]{20,}|xox[abpr]-[\w-]{10,})`)
+})
+
+// CredentialLabels names the labels of spec that hold a credential. A plan shows a
+// container's labels as they are, so a password hash there, such as a panel's basic
+// auth on its proxy, would show to anyone who can read plans (ADR 0089). It says
+// which by the label's key and never its value.
+func CredentialLabels(spec *resourcev1.Container) []string {
+	var out []string
+	for k, v := range spec.GetLabels() {
+		if v != "" && (credentialKey().MatchString(k) || credentialValue().MatchString(v)) {
+			out = append(out, CredentialIn+k)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // eachWord calls visit with each string in m, and the field it's in, in words.

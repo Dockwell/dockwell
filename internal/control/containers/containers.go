@@ -186,6 +186,11 @@ func (h *Handler) ReadAs(ctx context.Context, s Server, c *dockwellv1.ServerCont
 	if !ok {
 		return nil, resource.Adoption{}, h.internal(ctx, fmt.Errorf("an agent read %s as %T", c.GetName(), found.Spec))
 	}
+	// An agent from before labels were looked through says nothing of one that holds
+	// a credential, so the control plane looks too: a plan never shows a password hash.
+	found.Shows = append(found.Shows, container.CredentialLabels(svc.GetApp())...)
+	slices.Sort(found.Shows)
+	found.Shows = slices.Compact(found.Shows)
 	return svc, found, nil
 }
 
