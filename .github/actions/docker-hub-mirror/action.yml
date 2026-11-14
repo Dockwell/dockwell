@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: Docker Hub through a mirror
+description: >-
+  Points the runner's Docker daemon at mirror.gcr.io for Docker Hub's images,
+  before a job pulls any, so Docker Hub's anonymous limit, which runners' shared
+  addresses reach, stops failing jobs (#651). An image the mirror doesn't have
+  comes from Docker Hub, as before.
+runs:
+  using: composite
+  steps:
+    - name: Docker Hub through mirror.gcr.io
+      shell: bash
+      run: '"$GITHUB_ACTION_PATH/mirror.sh" https://mirror.gcr.io'

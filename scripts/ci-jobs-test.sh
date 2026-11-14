@@ -114,6 +114,7 @@ picks "snapshot budgets" scripts/budgets.sh
 picks "snapshot budgets $install" .goreleaser.yaml
 picks "$all" .github/workflows/ci.yml
 picks "$all" .github/workflows/chaos.yml
+picks "$all" .github/actions/docker-hub-mirror/mirror.sh
 picks "$all" Makefile
 picks "$all" scripts/ci-jobs.sh
 picks "$all" .gitignore

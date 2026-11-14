@@ -131,6 +131,9 @@ jobs:
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs docker-go
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.pick.outputs.run == 'true'
         with:
@@ -265,6 +268,9 @@ jobs:
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs docker-e2e
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.pick.outputs.run == 'true'
         with:
@@ -303,6 +309,9 @@ jobs:
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs swarm-docker
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.pick.outputs.run == 'true'
         with:
@@ -347,6 +356,8 @@ jobs:
       E2E_ROOT: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
@@ -402,6 +413,9 @@ jobs:
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs store-docker
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.pick.outputs.run == 'true'
         with:
@@ -433,6 +447,9 @@ jobs:
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs docker-panel
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.pick.outputs.run == 'true'
         with:
