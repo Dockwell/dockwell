@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -133,26 +134,64 @@ func TestStartFailuresInPlainWords(t *testing.T) {
 }
 
 // What running a container fails with is always in plain words: Docker's own,
-// and Dockwell's about what the server has. Words already said stay.
+// and Dockwell's about what the server has. Words already said stay. A wait that
+// ended says which, from the step's context: the step's time, a wait inside it with
+// the step's time left, or the step called off (#612).
 func TestRunFailuresAreExplained(t *testing.T) {
 	at := Target{Name: "env_01m6mccc-web-1", Service: "web", Scoped: true}
+	expired, cancelExpired := context.WithTimeout(t.Context(), time.Nanosecond)
+	defer cancelExpired()
+	<-expired.Done()
+	calledOff, callOff := context.WithCancel(t.Context())
+	callOff()
+	alive := t.Context()
+	timedOut := fmt.Errorf("can't read it: %w", context.DeadlineExceeded)
 	for _, tt := range []struct {
+		name string
+		ctx  context.Context
 		err  error
 		want string
 	}{
-		{&docker.Error{Status: 500, Message: "Bind for 0.0.0.0:80 failed: port is already allocated"}, "Port 80 is already in use on this server. Choose another port, or stop what uses it, then try again."},
-		{errors.New("the network back isn't on this server, so web can't join it. Add it to the environment"), "The network back isn't on this server, so web can't join it. Add it to the environment."},
-		{resource.Plainly("Said already.", errors.New("raw")), "Said already."},
+		{"a port in use", alive, &docker.Error{Status: 500, Message: "Bind for 0.0.0.0:80 failed: port is already allocated"}, "Port 80 is already in use on this server. Choose another port, or stop what uses it, then try again."},
+		{"Dockwell's own", alive, errors.New("the network back isn't on this server, so web can't join it. Add it to the environment"), "The network back isn't on this server, so web can't join it. Add it to the environment."},
+		{"said already", expired, resource.Plainly("Said already.", errors.New("raw")), "Said already."},
 		// A step's time running out, as an agent may answer before the control plane's own deadline.
-		{context.DeadlineExceeded, "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again."},
-		{fmt.Errorf("can't read it: %w", context.DeadlineExceeded), "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again."},
+		{"the step's time", expired, context.DeadlineExceeded, "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again."},
+		{"the step's time, wrapped", expired, timedOut, "The step's time ran out before web started, so Dockwell stopped waiting. A long pull may have used it up, so try again."},
+		{"a wait inside, with the step's time left", alive, timedOut, "web didn't start, as a wait on this server ran out with the step's own time left: can't read it: context deadline exceeded. Check what web waits on, such as Docker, on this server, then try again."},
+		{"a wait inside, saying no more", alive, context.DeadlineExceeded, "web didn't start, as a wait on this server ran out with the step's own time left. Check what web waits on, such as Docker, on this server, then try again."},
+		{"called off", calledOff, fmt.Errorf("can't read it: %w", context.Canceled), "Dockwell stopped starting web, as the step was called off: its change was cancelled, the control plane stopped waiting, or the agent stopped. Run the change again if you still want it."},
 	} {
-		if plain, _ := resource.Explain(explained(at, tt.err)); plain != tt.want {
-			t.Errorf("%v reads %q, want %q", tt.err, plain, tt.want)
+		if plain, _ := resource.Explain(explained(tt.ctx, at, tt.err)); plain != tt.want {
+			t.Errorf("%s: %v reads %q, want %q", tt.name, tt.err, plain, tt.want)
 		}
 	}
-	if err := explained(at, nil); err != nil {
+	if err := explained(alive, at, nil); err != nil {
 		t.Errorf("no failure reads %v", err)
+	}
+}
+
+// Docker not answering in time, with the step's own time left, says so in Docker's
+// words, with how to check it, never as the step's time running out, as #606's
+// Docker run read of a step 30 s into its 10 min (#612).
+func TestDockerNotAnsweringWithTheStepsTimeLeftSaysSo(t *testing.T) {
+	e := dockertest.New(t)
+	e.Intercept(func(r *http.Request) error {
+		<-r.Context().Done()
+		return r.Context().Err()
+	})
+	d := &Docker{Client: e.Client(), Settle: time.Millisecond, Poll: time.Millisecond}
+	step, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	wait, stop := context.WithTimeout(resource.WithStep(step), 100*time.Millisecond)
+	defer stop()
+	err := d.Run(wait, Target{Name: "env_01-web-1", Project: "env_01", Service: "web", Scoped: true}, &resourcev1.Container{Image: "web:1"}, resource.Decision{})
+	plain, _ := resource.Explain(err)
+	if !strings.HasPrefix(plain, "Docker isn't answering on "+e.Socket) || strings.Contains(plain, "The step's time") {
+		t.Errorf("reads %q, want Docker's words", plain)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("err = %v, want it to stay a deadline", err)
 	}
 }
 
