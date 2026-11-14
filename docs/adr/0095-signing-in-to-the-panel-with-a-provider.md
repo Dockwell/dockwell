@@ -31,7 +31,7 @@ What has to hold:
 `SigninProvider` gains `panel` (9), "People sign in to Dockwell with it", off by default.
 
 - Turning it on is an admin's edit, a change with a plan like the provider's other fields. It lets nobody in by itself, as only a linked member can sign in with it. So it isn't an opening (`ACCESS_OPENED`) on its own.
-- Once it's on, the provider's sheet shows the address to register at the provider, with Copy: `https://<panel domain>/auth/provider/callback`. This is beside the routes' redirect addresses, which a provider takes as several.
+- Once it's on, the provider's sheet shows the address to register at the provider, with Copy: `https://<panel domain>/auth/provider/callback`. It's the address the server answers, port and all, from `GetAuthState`'s `provider_redirect` (251). This is beside the routes' redirect addresses, which a provider takes as several.
 
 ### Only on the panel's own HTTPS domain
 
@@ -55,7 +55,7 @@ The sign-in page shows "Sign in with <display name>" for each provider with `pan
   - The panel then goes to the provider.
 - **The callback,** a GET at `/auth/provider/callback`:
   1. The state must match the flow cookie and a flow on the server, which is then used up.
-  2. The code is exchanged for tokens, at most 4 exchanges at once and 30 a minute across the install, as [ADR 0087](0087-private-routes.md) bounds a route.
+  2. A way back with no code is refused before it spends anything. The code is exchanged for tokens, at most 4 exchanges at once and 30 a minute across the install, and 5 a minute from one address, as [ADR 0087](0087-private-routes.md) bounds a route and its visitors. So one address can't spend everyone's exchanges on made-up callbacks.
   3. The ID token is checked as the agent checks one: the same code, moved to `internal/oidc` for both.
   4. The (issuer, `sub`) pair must be linked to a member who still has a role.
 - **Signed in:** a session starts with method `provider` (`SIGN_IN_METHOD_PROVIDER`, 7), audited as `auth.sign_in` with the provider's name.
@@ -84,8 +84,10 @@ A link signs someone in only while its provider is there, has `panel` on, and ha
 - **The plan says so** on the provider's row, as a note that doesn't stop it: "3 members sign in with it. They'd sign in with their passkeys instead."
 - **Once it applies, the sessions those links began end,** as an admin who deletes a provider may be doing it because the provider can't be trusted.
   - Sign-in checks the providers itself, read again at most every 5 seconds, wherever a session begun with a link is used: a session whose link no longer counts is refused and ended there, audited with why.
+  - So a request is refused within 5 seconds of the change applying. A stream such a session holds open, such as a terminal or a log, checks every 5 seconds, so it ends within 10. Unlinking ends the link's sessions and their streams at once, as signing out does.
+  - The providers are read outside any transaction, one read at a time: a request reads its session, then the providers, never both at once, as a pool's connections each held by a transaction waiting for a second would wait forever. While one read runs, a request that has the providers read before goes on with them.
   - So it holds however the change applied: from the plan, an approval, an undo or a rollback. The revision engine writes no sessions.
-- **Deleting the provider deletes its links,** at that same check, as a provider's ID is never used again and there's nothing for them to come back to.
+- **Deleting the provider deletes its links,** at the next read of the providers, as a provider's ID is never used again and there's nothing for them to come back to. So the provider added again at the same issuer, as a new one, takes those accounts again. Only links made more than a second before the read go, as one made since may be to a provider the read began too soon to see.
 - **Turning `panel` off, or changing the issuer, keeps the links but they stop counting.**
   - Profile and security marks each one "Stopped working", with why: "<provider> no longer signs people in to Dockwell", or "<provider> moved to another issuer".
   - The member can unlink it and link again.
@@ -100,9 +102,9 @@ Only a linked member gets in, so a route's `any_account` and who-may lists don't
 
 Everything goes through the public API, and nothing is the panel's alone.
 
-- `GetAuthState` gains `providers`: the ID and display name of each provider that signs in at this address.
+- `GetAuthState` gains `providers`: the ID and display name of each provider that signs in at this address. When the providers can't be read, it offers none and says so in the log, so a passkey still signs in.
 - `BeginProviderSignIn(provider)` returns the address to go to, and sets the flow cookie.
-- `ListProviderLinks` lists the member's own links, with their state.
+- `ListProviderLinks` lists the member's own links, with their state, and which began the session asking (`here`), whose Unlink says it signs you out here. It writes nothing.
 - `BeginLinkProvider(provider, proof)` returns the address to go to.
 - `DeleteProviderLink(id)` unlinks.
 - An admin's `ListMemberProviderLinks` and `DeleteMemberProviderLink` come with Members, in slice 2.
@@ -114,7 +116,9 @@ The callback is a plain GET, a browser's way back, as file transfers have REST p
 - `SigninProvider.panel` is 9.
 - `SIGN_IN_METHOD_PROVIDER` is 7.
 - `STEP_UP_ACTION_LINK_PROVIDER` is 250, in a block of 250 to 259 for this.
-- The links are a table of their own in a new migration, numbered after main's at the time.
+- `GetAuthStateResponse.providers` is 250, and its `provider_redirect` 251, in the same block.
+- `ProviderLink.here` is 8, in a message of this ADR's own.
+- The links are a table of their own in migration 0040, with an index on the sessions' `provider_link_id`, which unlinking finds them by.
 
 ### Slices
 

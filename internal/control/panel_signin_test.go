@@ -3,6 +3,8 @@
 package control
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -51,6 +53,10 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 	state, err := a.GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
 	if err != nil || len(state.Msg.GetProviders()) != 1 || state.Msg.GetProviders()[0].GetDisplayName() != "Ours" {
 		t.Fatalf("the auth state offers %v, %v", state.Msg.GetProviders(), err)
+	}
+	// The address to register is the one the panel answers, port and all (#646's review, L6).
+	if got := state.Msg.GetProviderRedirect(); got != origin+auth.ProviderCallbackPath {
+		t.Errorf("the auth state says to register %q", got)
 	}
 
 	// cameBack is what the panel's way back answered.
@@ -137,5 +143,15 @@ func TestThePanelSignsInWithAProvider(t *testing.T) {
 	_ = replay.Body.Close()
 	if replay.StatusCode != http.StatusBadRequest {
 		t.Errorf("a way back again answers %d", replay.StatusCode)
+	}
+
+	// Providers that can't be read leave the sign-in page as it is, with none offered,
+	// so a passkey still signs in (#646's review, M3).
+	srv.auth.UseProviders(func(context.Context) ([]auth.Provider, error) {
+		return nil, errors.New("the store didn't answer")
+	}, idp.Srv.Client())
+	state, err = a.GetAuthState(t.Context(), connect.NewRequest(&dockwellv1.GetAuthStateRequest{}))
+	if err != nil || len(state.Msg.GetProviders()) != 0 {
+		t.Errorf("with providers that can't be read, the auth state is %v, %v", state.Msg.GetProviders(), err)
 	}
 }

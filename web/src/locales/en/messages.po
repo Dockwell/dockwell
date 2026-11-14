@@ -5906,6 +5906,9 @@ msgstr "Stopped working: {provider} moved to another issuer"
 msgid "Stopped working: {provider} no longer signs people in to Dockwell"
 msgstr "Stopped working: {provider} no longer signs people in to Dockwell"
 
+msgid "This signs you out here"
+msgstr "This signs you out here"
+
 msgid "Unlink"
 msgstr "Unlink"
 

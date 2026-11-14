@@ -65,9 +65,11 @@ export function SigninProviderSheet({
   const [claim, setClaim] = useState(editing?.groupsClaim ?? "");
   const [anyAccount, setAnyAccount] = useState(editing?.anyAccount ?? false);
   const [panel, setPanel] = useState(editing?.panel ?? false);
-  // People sign in to Dockwell with it only on the panel's own domain (ADR 0095).
-  const panelDomain = useAuthState().data?.domain ?? "";
-  const panelRedirect = panelDomain ? `https://${panelDomain}/auth/provider/callback` : "";
+  // People sign in to Dockwell with it only on the panel's own domain (ADR 0095), and
+  // the provider brings them back to the address the server answers there.
+  const auth = useAuthState().data;
+  const panelDomain = auth?.domain ?? "";
+  const panelRedirect = auth?.providerRedirect ?? "";
   const [some, setSome] = useState((editing?.projects.length ?? 0) > 0);
   const [picked, setPicked] = useState<string[]>(editing?.projects ?? []);
   const [answer, setAnswer] = useState<CheckSigninProviderResponse>();

@@ -52,6 +52,15 @@ const (
 	// install exchanges, as ADR 0087 bounds a route's.
 	providerExchangesAtOnce  = 4
 	providerExchangesAMinute = 30
+	// providerExchangesAnAddress bounds one address's exchanges a minute, so one
+	// visitor can't spend the install's on made-up callbacks, as ADR 0087's routes
+	// bound a visitor's (#646's review, M2). maxExchangeAddresses bounds how many
+	// addresses are kept to tell them apart.
+	providerExchangesAnAddress = 5
+	maxExchangeAddresses       = 4096
+	// providerReadWait bounds a read of the providers, which those waiting on it
+	// wait for whoever leaves.
+	providerReadWait = 30 * time.Second
 )
 
 // Errors a sign-in or a link with a provider is refused with. Each says what to do.
@@ -64,17 +73,31 @@ var (
 	ErrProviderBusy        = errors.New("too many people are signing in with a provider at once. Wait a minute, then try again")
 )
 
-// providerSource reads the providers, kept for a few seconds, and bounds the codes
-// exchanged with them.
+// providerSource reads the providers, kept for a few seconds, one read at a time,
+// and bounds the codes exchanged with them.
 type providerSource struct {
 	mu     sync.Mutex
 	read   func(context.Context) ([]Provider, error)
 	client *oidc.Client
 	list   []Provider
 	at     time.Time
-	active int
-	recent []time.Time
+	// reading is the read under way, if one is; failed is what the last one met.
+	reading chan struct{}
+	failed  error
+	active  int
+	recent  []time.Time
+	// byAddress is each address's exchanges in the last minute.
+	byAddress map[string][]time.Time
 }
+
+// ProviderError is what a provider, or reaching it, said of a sign-in, which the
+// visitor may read: it names the provider and how to go on, and holds nothing of
+// Dockwell's own.
+type ProviderError struct{ Err error }
+
+func (e *ProviderError) Error() string { return e.Err.Error() }
+
+func (e *ProviderError) Unwrap() error { return e.Err }
 
 // UseProviders lets people sign in to the panel with the providers read reads, at
 // what client reaches. The control server sets it once, before it serves.
@@ -87,27 +110,111 @@ func (s *Service) UseProviders(read func(context.Context) ([]Provider, error), c
 }
 
 // allProviders is every provider saved, read again after providersFor, or now when
-// fresh.
+// fresh. It reads in a transaction of its own, so it's never called inside one: a
+// read pool's connections each held by a transaction waiting for a second would
+// wait forever (#646's review, H1). One read runs at a time. While it does, a caller
+// with a list goes on with it, and one that must read now waits for that read.
 func (s *Service) allProviders(ctx context.Context, fresh bool) ([]Provider, error) {
 	src := &s.providers
 	src.mu.Lock()
-	read, kept, at := src.read, src.list, src.at
-	src.mu.Unlock()
-	if read == nil {
+	if src.read == nil {
+		src.mu.Unlock()
 		return nil, nil
 	}
-	now := s.now()
-	if !fresh && !at.IsZero() && now.Sub(at) < providersFor {
-		return kept, nil
+	if !fresh && !src.at.IsZero() && s.now().Sub(src.at) < providersFor {
+		list := src.list
+		src.mu.Unlock()
+		return list, nil
 	}
-	list, err := read(ctx)
+	if wait := src.reading; wait != nil {
+		if !fresh && !src.at.IsZero() {
+			list := src.list
+			src.mu.Unlock()
+			return list, nil
+		}
+		src.mu.Unlock()
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		src.mu.Lock()
+		defer src.mu.Unlock()
+		if src.failed != nil {
+			return nil, src.failed
+		}
+		return src.list, nil
+	}
+	done := make(chan struct{})
+	src.reading = done
+	read := src.read
+	src.mu.Unlock()
+	started := s.now()
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), providerReadWait)
+	list, err := read(readCtx)
+	cancel()
 	if err != nil {
-		return nil, fmt.Errorf("can't read the sign-in providers: %w", err)
+		err = fmt.Errorf("can't read the sign-in providers: %w", err)
 	}
 	src.mu.Lock()
-	src.list, src.at = list, now
+	src.reading, src.failed = nil, err
+	if err == nil {
+		src.list, src.at = list, s.now()
+	}
 	src.mu.Unlock()
+	close(done)
+	if err != nil {
+		return nil, err
+	}
+	s.dropOrphanLinks(ctx, list, started)
 	return list, nil
+}
+
+// dropOrphanLinks deletes the links whose provider is gone, ending the sessions and
+// streams each began, as a provider's ID is never used again. Only a link made well
+// before the read that missed its provider goes, as one made since may be to a
+// provider the read began too soon to see, and a link's time is kept to the
+// millisecond (ADR 0095).
+func (s *Service) dropOrphanLinks(ctx context.Context, providers []Provider, before time.Time) {
+	var orphans []store.ProviderLink
+	err := s.db.View(ctx, func(tx *store.Tx) error {
+		links, err := tx.ListProviderLinks(ctx, "")
+		for i := range links {
+			l := &links[i]
+			if l.CreatedAt.Before(before.Add(-time.Second)) && !slices.ContainsFunc(providers, func(p Provider) bool { return p.ID == l.ProviderID }) {
+				orphans = append(orphans, *l)
+			}
+		}
+		return err
+	})
+	if err == nil && len(orphans) > 0 {
+		var ended []string
+		err = s.db.Update(ctx, func(tx *store.Tx) error {
+			ended = nil
+			for i := range orphans {
+				ids, err := s.dropLink(ctx, tx, orphans[i], "its provider was deleted")
+				if err != nil {
+					return err
+				}
+				ended = append(ended, ids...)
+			}
+			return nil
+		})
+		if err == nil {
+			s.endStreams(ended)
+		}
+	}
+	if err != nil {
+		s.logger.WarnContext(ctx, "can't delete the links of a sign-in provider that was deleted; they sign no one in, and the next read of the providers tries again",
+			slog.Any("error", err))
+	}
+}
+
+// endStreams ends the streams of sessions that ended, once what ended them commits.
+func (s *Service) endStreams(sessions []string) {
+	for _, id := range sessions {
+		s.streams.end(id)
+	}
 }
 
 // SignInProviders are the providers someone at client can sign in to the panel
@@ -151,6 +258,19 @@ func (s *Service) offered(ctx context.Context, providerID string) (Provider, err
 // redirectURI is where the provider brings someone back to, on site.
 func redirectURI(site Site) string { return site.Origin + ProviderCallbackPath }
 
+// ProviderRedirect is the address a provider brings someone back to, which an admin
+// registers there: as the panel answers on its domain, from client on it, and on its
+// usual port from anywhere else, such as the SSH tunnel. Empty with no domain.
+func (s *Service) ProviderRedirect(client Client) string {
+	switch {
+	case s.providerSite(client.Site):
+		return redirectURI(client.Site)
+	case s.sites.Domain != "":
+		return "https://" + s.sites.Domain + ProviderCallbackPath
+	}
+	return ""
+}
+
 // BeginProviderSignIn starts signing in with a provider. It spends from the same
 // allowance for client's address as starting a passkey sign-in. It returns the
 // address to go to, and the flow the cookie holds.
@@ -176,10 +296,17 @@ func (s *Service) BeginLinkProvider(ctx context.Context, client Client, p Princi
 	if _, err := s.offered(ctx, providerID); err != nil {
 		return "", "", err
 	}
-	if err := s.UseStepUp(ctx, client, p, proof, StepUpLinkProvider, providerID); err != nil {
+	// The proof is held, and given back if the provider can't be reached, so trying
+	// again doesn't take the passkey again (#646's review, L2).
+	giveBack, err := s.HoldStepUp(ctx, client, p, proof, StepUpLinkProvider, providerID)
+	if err != nil {
 		return "", "", err
 	}
-	return s.beginProvider(ctx, client, providerID, &ceremony{user: p.User, sessionID: p.Session.ID})
+	target, flow, err = s.beginProvider(ctx, client, providerID, &ceremony{user: p.User, sessionID: p.Session.ID})
+	if err != nil {
+		giveBack()
+	}
+	return target, flow, err
 }
 
 // beginProvider keeps cer as the flow, and says where the provider is.
@@ -193,7 +320,7 @@ func (s *Service) beginProvider(ctx context.Context, client Client, providerID s
 	s.providers.mu.Unlock()
 	doc, err := op.Discover(ctx, provider.Issuer)
 	if err != nil {
-		return "", "", fmt.Errorf("can't reach %s to sign in: %w. Try again in a minute, or sign in with your passkey", provider.Label(), err)
+		return "", "", &ProviderError{fmt.Errorf("can't reach %s to sign in: %w. Try again in a minute, or sign in with your passkey", provider.Label(), err)}
 	}
 	now := s.now()
 	cer.kind, cer.site, cer.expires = ceremonyProvider, client.Site, now.Add(ProviderFlowTTL)
@@ -225,7 +352,11 @@ func (s *Service) FinishProvider(ctx context.Context, client Client, flow string
 		return ProviderDone{}, ErrCeremonyExpired
 	}
 	if said := query.Get("error"); said != "" {
-		return ProviderDone{}, fmt.Errorf("the provider said %q. Try again, or sign in with your passkey", clip(said, 80))
+		return ProviderDone{}, &ProviderError{fmt.Errorf("the provider said %q. Try again, or sign in with your passkey", clip(said, 80))}
+	}
+	// No code spends nothing of the install's exchanges (#646's review, M2).
+	if query.Get("code") == "" {
+		return ProviderDone{}, &ProviderError{errors.New("the provider sent no code. Try again, or sign in with your passkey")}
 	}
 	provider, err := s.offered(ctx, cer.provider)
 	if err != nil {
@@ -234,7 +365,7 @@ func (s *Service) FinishProvider(ctx context.Context, client Client, flow string
 	if provider.Issuer != cer.issuer {
 		return ProviderDone{}, ErrCeremonyExpired
 	}
-	release, ok := s.providerExchange()
+	release, ok := s.providerExchange(sourceKey(client.Addr))
 	if !ok {
 		return ProviderDone{}, ErrProviderBusy
 	}
@@ -248,7 +379,7 @@ func (s *Service) FinishProvider(ctx context.Context, client Client, flow string
 	})
 	release()
 	if err != nil {
-		return ProviderDone{}, fmt.Errorf("signing in with %s didn't finish: %w", provider.Label(), err)
+		return ProviderDone{}, &ProviderError{fmt.Errorf("signing in with %s didn't finish: %w", provider.Label(), err)}
 	}
 	if cer.sessionID != "" {
 		return s.finishLink(ctx, client, cer, provider, claims)
@@ -338,18 +469,34 @@ func (s *Service) finishLink(ctx context.Context, client Client, cer *ceremony, 
 	return ProviderDone{Linked: &link, Provider: provider.Label()}, nil
 }
 
-// providerExchange takes a place for one code's exchange, or says there's none.
-func (s *Service) providerExchange() (release func(), ok bool) {
+// providerExchange takes a place for one code's exchange from address, or says
+// there's none: at once and in a minute for the install, and in a minute for one
+// address.
+func (s *Service) providerExchange(address string) (release func(), ok bool) {
 	src := &s.providers
 	src.mu.Lock()
 	defer src.mu.Unlock()
 	now := s.now()
-	src.recent = slices.DeleteFunc(src.recent, func(t time.Time) bool { return now.Sub(t) >= time.Minute })
-	if src.active >= providerExchangesAtOnce || len(src.recent) >= providerExchangesAMinute {
+	old := func(t time.Time) bool { return now.Sub(t) >= time.Minute }
+	src.recent = slices.DeleteFunc(src.recent, old)
+	if src.byAddress == nil {
+		src.byAddress = map[string][]time.Time{}
+	}
+	if len(src.byAddress) >= maxExchangeAddresses {
+		for a, times := range src.byAddress {
+			if times = slices.DeleteFunc(times, old); len(times) == 0 {
+				delete(src.byAddress, a)
+			}
+		}
+	}
+	mine := slices.DeleteFunc(src.byAddress[address], old)
+	if src.active >= providerExchangesAtOnce || len(src.recent) >= providerExchangesAMinute ||
+		len(mine) >= providerExchangesAnAddress || len(src.byAddress) >= maxExchangeAddresses {
 		return nil, false
 	}
 	src.active++
 	src.recent = append(src.recent, now)
+	src.byAddress[address] = append(mine, now)
 	return func() {
 		src.mu.Lock()
 		src.active--
@@ -374,10 +521,12 @@ type LinkView struct {
 	store.ProviderLink
 	Provider string
 	State    LinkState
+	// Here says it began the session asking, so unlinking it signs them out here.
+	Here bool
 }
 
 // stateOf is what providers leave link, and whether its provider is gone.
-func stateOf(link store.ProviderLink, providers []Provider) (Provider, LinkState, bool) {
+func stateOf(link *store.ProviderLink, providers []Provider) (Provider, LinkState, bool) {
 	i := slices.IndexFunc(providers, func(p Provider) bool { return p.ID == link.ProviderID })
 	switch {
 	case i < 0:
@@ -390,62 +539,66 @@ func stateOf(link store.ProviderLink, providers []Provider) (Provider, LinkState
 	return providers[i], LinkWorks, false
 }
 
-// ListProviderLinks lists p's links, oldest first, with whether each works. A link
-// whose provider was deleted is deleted here, as its provider never comes back.
+// ListProviderLinks lists p's links, oldest first, with whether each works. It
+// writes nothing: a link whose provider is gone is left out, as reading the
+// providers deletes it (#646's review, L3).
 func (s *Service) ListProviderLinks(ctx context.Context, p Principal) ([]LinkView, error) {
 	providers, err := s.allProviders(ctx, false)
 	if err != nil {
 		return nil, err
 	}
 	var out []LinkView
-	err = s.db.Update(ctx, func(tx *store.Tx) error {
+	err = s.db.View(ctx, func(tx *store.Tx) error {
 		out = nil
 		links, err := tx.ListProviderLinks(ctx, p.User.ID)
-		if err != nil {
-			return err
-		}
 		for i := range links {
 			l := &links[i]
-			provider, state, gone := stateOf(*l, providers)
-			if gone {
-				if err := s.dropLink(ctx, tx, *l, "its provider was deleted"); err != nil {
-					return err
-				}
-				continue
+			if provider, state, gone := stateOf(l, providers); !gone {
+				out = append(out, LinkView{ProviderLink: *l, Provider: provider.Label(), State: state, Here: l.ID == p.Session.ProviderLinkID})
 			}
-			out = append(out, LinkView{ProviderLink: *l, Provider: provider.Label(), State: state})
 		}
-		return nil
+		return err
 	})
 	return out, err
 }
 
-// DeleteProviderLink unlinks one of p's accounts, and ends every session it began.
-// It needs no passkey, as it only takes a way in away.
+// DeleteProviderLink unlinks one of p's accounts, and ends every session it began,
+// and their streams, at once. It needs no passkey, as it only takes a way in away.
 func (s *Service) DeleteProviderLink(ctx context.Context, p Principal, linkID string) error {
 	if p.Token != nil || p.Session.ID == "" {
 		return ErrNeedsSession
 	}
-	return s.db.Update(ctx, func(tx *store.Tx) error {
+	var ended []string
+	err := s.db.Update(ctx, func(tx *store.Tx) error {
 		link, err := tx.GetProviderLink(ctx, linkID)
 		if err != nil || link.UserID != p.User.ID {
 			return fmt.Errorf("provider link %s: %w", linkID, store.ErrNotFound)
 		}
-		if err := tx.DeleteProviderLink(ctx, p.User.ID, linkID, s.now()); err != nil {
+		if ended, err = tx.DeleteProviderLink(ctx, p.User.ID, linkID, s.now()); err != nil {
 			return err
 		}
 		return s.audit(ctx, tx, p.Actor(), "provider_link.delete", p.User.ID,
 			fmt.Sprintf("%s, link %s, which ends the sessions it began", link.Account, link.ID))
 	})
-}
-
-// dropLink deletes a link whose provider is gone, ending its sessions, and says so
-// in the audit log.
-func (s *Service) dropLink(ctx context.Context, tx *store.Tx, l store.ProviderLink, why string) error {
-	if err := tx.DeleteProviderLink(ctx, "", l.ID, s.now()); err != nil && !errors.Is(err, store.ErrNotFound) {
+	if err != nil {
 		return err
 	}
-	return s.audit(ctx, tx, "system", "provider_link.delete", l.UserID, fmt.Sprintf("%s, link %s: %s", l.Account, l.ID, why))
+	s.endStreams(ended)
+	return nil
+}
+
+// dropLink deletes a link whose provider is gone, ending its sessions, says so in
+// the audit log, and says which sessions ended, for their streams to end once it
+// commits.
+func (s *Service) dropLink(ctx context.Context, tx *store.Tx, l store.ProviderLink, why string) ([]string, error) {
+	ended, err := tx.DeleteProviderLink(ctx, "", l.ID, s.now())
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ended, s.audit(ctx, tx, "system", "provider_link.delete", l.UserID, fmt.Sprintf("%s, link %s: %s", l.Account, l.ID, why))
 }
 
 // errLinkStopped is a session whose link no longer signs anyone in, which
@@ -460,49 +613,53 @@ func (e *errLinkStopped) Error() string {
 	return "the session's provider link stopped working: " + e.why
 }
 
-// checkLink says whether the link a session began from still signs its person in:
-// its provider is there, signs people in to Dockwell, and has the link's issuer.
-func (s *Service) checkLink(ctx context.Context, tx *store.Tx, sess store.Session) error {
-	link, err := tx.GetProviderLink(ctx, sess.ProviderLinkID)
-	if errors.Is(err, store.ErrNotFound) {
-		return ErrUnauthenticated
-	}
-	if err != nil {
-		return err
-	}
-	providers, err := s.allProviders(ctx, false)
-	if err != nil {
-		return err
-	}
+// linkStops says why a session's link no longer signs its person in, or nil while it
+// does: its provider is there, signs people in to Dockwell, and has the link's
+// issuer. It reads nothing, so the providers are read outside any transaction.
+func linkStops(link *store.ProviderLink, providers []Provider) *errLinkStopped {
 	switch _, state, gone := stateOf(link, providers); {
 	case gone:
-		return &errLinkStopped{link: link, why: "its provider was deleted", deleted: true}
+		return &errLinkStopped{link: *link, why: "its provider was deleted", deleted: true}
 	case state == LinkProviderOff:
-		return &errLinkStopped{link: link, why: "its provider no longer signs people in to Dockwell"}
+		return &errLinkStopped{link: *link, why: "its provider no longer signs people in to Dockwell"}
 	case state == LinkIssuerMoved:
-		return &errLinkStopped{link: link, why: "its provider moved to another issuer"}
+		return &errLinkStopped{link: *link, why: "its provider moved to another issuer"}
 	}
 	return nil
 }
 
-// endStoppedLink ends the sessions a link that stopped working began, and deletes
-// it where its provider is gone, as Authenticate finds it.
+// sessionLinkStops reads the providers, outside any transaction, and says whether
+// the link a session began from still signs its person in.
+func (s *Service) sessionLinkStops(ctx context.Context, link *store.ProviderLink) (*errLinkStopped, error) {
+	providers, err := s.allProviders(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	return linkStops(link, providers), nil
+}
+
+// endStoppedLink ends the sessions a link that stopped working began, and their
+// streams, and deletes it where its provider is gone, as Authenticate finds it.
 func (s *Service) endStoppedLink(ctx context.Context, stopped *errLinkStopped) {
+	var ended []string
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
+		var err error
 		if stopped.deleted {
-			return s.dropLink(ctx, tx, stopped.link, stopped.why)
+			ended, err = s.dropLink(ctx, tx, stopped.link, stopped.why)
+			return err
 		}
-		n, err := tx.EndProviderLinkSessions(ctx, stopped.link.ID, s.now())
-		if err != nil || n == 0 {
+		if ended, err = tx.EndProviderLinkSessions(ctx, stopped.link.ID, s.now()); err != nil || len(ended) == 0 {
 			return err
 		}
 		return s.audit(ctx, tx, "system", "auth.sessions_ended", stopped.link.UserID,
-			fmt.Sprintf("%d begun with %s, link %s: %s", n, stopped.link.Account, stopped.link.ID, stopped.why))
+			fmt.Sprintf("%d begun with %s, link %s: %s", len(ended), stopped.link.Account, stopped.link.ID, stopped.why))
 	})
 	if err != nil {
 		s.logger.WarnContext(ctx, "can't end the sessions of a provider link that stopped working; each is refused all the same",
 			slog.String("link", stopped.link.ID), slog.Any("error", err))
+		return
 	}
+	s.endStreams(ended)
 }
 
 // clip keeps what a provider says to a length a record holds.

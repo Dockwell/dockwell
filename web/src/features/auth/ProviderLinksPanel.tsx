@@ -151,6 +151,7 @@ function LinkRow({ link, now, onUnlinked }: { link: ProviderLink; now: number; o
       </div>
       {confirming ? (
         <div className="profile-row-confirm">
+          {link.here ? <span className="profile-row-warn">{t`This signs you out here`}</span> : null}
           <Button size="sm" variant="danger" loading={busy} onClick={() => void unlink()}>
             <Trans>Unlink</Trans>
           </Button>

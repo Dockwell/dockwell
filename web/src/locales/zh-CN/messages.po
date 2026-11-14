@@ -5906,6 +5906,9 @@ msgstr "已失效：{provider} 换了另一个签发方"
 msgid "Stopped working: {provider} no longer signs people in to Dockwell"
 msgstr "已失效：{provider} 不再用于登录 Dockwell"
 
+msgid "This signs you out here"
+msgstr "这会让你在这里退出登录"
+
 msgid "Unlink"
 msgstr "取消关联"
 

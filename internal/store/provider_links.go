@@ -109,61 +109,52 @@ func (t *Tx) UseProviderLink(ctx context.Context, id string, at time.Time) error
 	return nil
 }
 
-// DeleteProviderLink deletes one of a person's links, or everyone's for an empty
-// userID, and ends the sessions it began. It reports ErrNotFound for a link that
-// isn't there, or isn't theirs.
-func (t *Tx) DeleteProviderLink(ctx context.Context, userID, id string, at time.Time) error {
+// DeleteProviderLink deletes one of a person's links, or anyone's for an empty
+// userID, ends the sessions it began, and says which, so their streams end too
+// once it commits. It reports ErrNotFound for a link that isn't there, or isn't
+// theirs.
+func (t *Tx) DeleteProviderLink(ctx context.Context, userID, id string, at time.Time) ([]string, error) {
 	q, args := `DELETE FROM provider_links WHERE id = ?`, []any{id}
 	if userID != "" {
 		q, args = `DELETE FROM provider_links WHERE id = ? AND user_id = ?`, []any{id, userID}
 	}
 	res, err := t.exec(ctx, q, args...)
 	if err != nil {
-		return fmt.Errorf("can't delete provider link %s: %w", id, err)
+		return nil, fmt.Errorf("can't delete provider link %s: %w", id, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("provider link %s: %w", id, ErrNotFound)
+		return nil, fmt.Errorf("provider link %s: %w", id, ErrNotFound)
 	}
-	_, err = t.EndProviderLinkSessions(ctx, id, at)
-	return err
+	return t.EndProviderLinkSessions(ctx, id, at)
 }
 
-// EndProviderLinkSessions ends every open session a link began, and says how many.
-func (t *Tx) EndProviderLinkSessions(ctx context.Context, linkID string, at time.Time) (int, error) {
+// EndProviderLinkSessions ends every open session a link began, and says which, so
+// their streams end too once it commits.
+func (t *Tx) EndProviderLinkSessions(ctx context.Context, linkID string, at time.Time) ([]string, error) {
 	if linkID == "" {
-		return 0, nil
+		return nil, nil
 	}
-	res, err := t.exec(ctx, `UPDATE sessions SET revoked_at = ? WHERE provider_link_id = ? AND revoked_at IS NULL`, millis(at), linkID)
+	rows, err := t.query(ctx, `SELECT id FROM sessions WHERE provider_link_id = ? AND revoked_at IS NULL`, linkID)
 	if err != nil {
-		return 0, fmt.Errorf("can't end the sessions provider link %s began: %w", linkID, err)
+		return nil, fmt.Errorf("can't list the sessions provider link %s began: %w", linkID, err)
 	}
-	n, _ := res.RowsAffected()
-	return int(n), nil
-}
-
-// DeleteProviderLinksOf deletes every link to a provider, ending the sessions each
-// began, and says how many it deleted.
-func (t *Tx) DeleteProviderLinksOf(ctx context.Context, providerID string, at time.Time) (int, error) {
-	rows, err := t.query(ctx, `SELECT id FROM provider_links WHERE provider_id = ?`, providerID)
-	if err != nil {
-		return 0, fmt.Errorf("can't list the links to provider %s: %w", providerID, err)
-	}
-	var ids []string
+	var ended []string
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			_ = rows.Close()
-			return 0, err
+			return nil, err
 		}
-		ids = append(ids, id)
+		ended = append(ended, id)
 	}
 	if err := rows.Close(); err != nil {
-		return 0, err
+		return nil, err
 	}
-	for _, id := range ids {
-		if err := t.DeleteProviderLink(ctx, "", id, at); err != nil {
-			return 0, err
-		}
+	if len(ended) == 0 {
+		return nil, nil
 	}
-	return len(ids), nil
+	if _, err := t.exec(ctx, `UPDATE sessions SET revoked_at = ? WHERE provider_link_id = ? AND revoked_at IS NULL`, millis(at), linkID); err != nil {
+		return nil, fmt.Errorf("can't end the sessions provider link %s began: %w", linkID, err)
+	}
+	return ended, nil
 }

@@ -627,6 +627,10 @@ message GetAuthStateResponse {
   // own domain, those an admin turned that on for (ADR 0095). Numbered in its
   // block, 250 to 259.
   repeated SignInProvider providers = 250;
+  // The address a sign-in provider brings someone back to, which an admin
+  // registers at it, as the panel answers it on its own domain (ADR 0095). Empty
+  // while the panel has no domain.
+  string provider_redirect = 251;
 }
 
 // SignInProvider is a sign-in provider someone can sign in to Dockwell with.
@@ -674,6 +678,8 @@ message ProviderLink {
   google.protobuf.Timestamp last_used_time = 6;
   // Whether it signs you in now.
   ProviderLinkState state = 7;
+  // Whether it began the session asking, so unlinking it signs you out here.
+  bool here = 8;
 }
 
 // ProviderLinkState is whether a linked account signs its person in.

@@ -206,7 +206,14 @@ describe("Signing in to Dockwell with a provider (ADR 0095)", () => {
     const proposed = planned();
     const api = (domain: string) => ({
       ...base,
-      auth: { getAuthState: () => authState({ domain, rpId: domain || "localhost" }) },
+      auth: {
+        getAuthState: () =>
+          authState({
+            domain,
+            rpId: domain || "localhost",
+            providerRedirect: domain ? `https://${domain}:8443/auth/provider/callback` : "",
+          }),
+      },
       domains: {
         listSigninProviders: () => ({ providers: [authentik] }),
         checkSigninProvider: () => ({
@@ -234,7 +241,8 @@ describe("Signing in to Dockwell with a provider (ADR 0095)", () => {
     renderAt("/settings/integrations", api("panel.example.com"));
     sheet = await manage();
     await user.click(within(sheet).getByRole("switch", { name: /People sign in to Dockwell with it/ }));
-    expect(sheet).toHaveTextContent("https://panel.example.com/auth/provider/callback");
+    // The address the server answers, port and all, not one the panel makes up.
+    expect(sheet).toHaveTextContent("https://panel.example.com:8443/auth/provider/callback");
     expect(within(sheet).getByRole("button", { name: "Copy Dockwell's redirect address" })).toBeEnabled();
     const review = within(sheet).getByRole("button", { name: "Review plan" });
     await waitFor(() => expect(review).toBeEnabled(), { timeout: 3000 });

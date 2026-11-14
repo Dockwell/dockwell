@@ -618,9 +618,13 @@ type GetAuthStateResponse struct {
 	// The sign-in providers that sign people in at this address: on the panel's
 	// own domain, those an admin turned that on for (ADR 0095). Numbered in its
 	// block, 250 to 259.
-	Providers     []*SignInProvider `protobuf:"bytes,250,rep,name=providers,proto3" json:"providers,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Providers []*SignInProvider `protobuf:"bytes,250,rep,name=providers,proto3" json:"providers,omitempty"`
+	// The address a sign-in provider brings someone back to, which an admin
+	// registers at it, as the panel answers it on its own domain (ADR 0095). Empty
+	// while the panel has no domain.
+	ProviderRedirect string `protobuf:"bytes,251,opt,name=provider_redirect,json=providerRedirect,proto3" json:"provider_redirect,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetAuthStateResponse) Reset() {
@@ -728,6 +732,13 @@ func (x *GetAuthStateResponse) GetProviders() []*SignInProvider {
 		return x.Providers
 	}
 	return nil
+}
+
+func (x *GetAuthStateResponse) GetProviderRedirect() string {
+	if x != nil {
+		return x.ProviderRedirect
+	}
+	return ""
 }
 
 // SignInProvider is a sign-in provider someone can sign in to Dockwell with.
@@ -976,7 +987,9 @@ type ProviderLink struct {
 	CreateTime   *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
 	LastUsedTime *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_used_time,json=lastUsedTime,proto3" json:"last_used_time,omitempty"`
 	// Whether it signs you in now.
-	State         ProviderLinkState `protobuf:"varint,7,opt,name=state,proto3,enum=dockwell.v1.ProviderLinkState" json:"state,omitempty"`
+	State ProviderLinkState `protobuf:"varint,7,opt,name=state,proto3,enum=dockwell.v1.ProviderLinkState" json:"state,omitempty"`
+	// Whether it began the session asking, so unlinking it signs you out here.
+	Here          bool `protobuf:"varint,8,opt,name=here,proto3" json:"here,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1058,6 +1071,13 @@ func (x *ProviderLink) GetState() ProviderLinkState {
 		return x.State
 	}
 	return ProviderLinkState_PROVIDER_LINK_STATE_UNSPECIFIED
+}
+
+func (x *ProviderLink) GetHere() bool {
+	if x != nil {
+		return x.Here
+	}
+	return false
 }
 
 // BeginLinkProviderRequest names the provider to link an account at.
@@ -4597,7 +4617,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x04role\x18\x04 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12;\n" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\"\x15\n" +
-	"\x13GetAuthStateRequest\"\xb9\x03\n" +
+	"\x13GetAuthStateRequest\"\xe7\x03\n" +
 	"\x14GetAuthStateResponse\x12\x18\n" +
 	"\aclaimed\x18\x01 \x01(\bR\aclaimed\x12%\n" +
 	"\x04user\x18\x02 \x01(\v2\x11.dockwell.v1.UserR\x04user\x12\x1d\n" +
@@ -4612,7 +4632,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\finstall_name\x18\t \x01(\tR\vinstallName\x12.\n" +
 	"\x06grants\x18\n" +
 	" \x03(\v2\x16.dockwell.v1.RoleGrantR\x06grants\x12:\n" +
-	"\tproviders\x18\xfa\x01 \x03(\v2\x1b.dockwell.v1.SignInProviderR\tproviders\"C\n" +
+	"\tproviders\x18\xfa\x01 \x03(\v2\x1b.dockwell.v1.SignInProviderR\tproviders\x12,\n" +
+	"\x11provider_redirect\x18\xfb\x01 \x01(\tR\x10providerRedirect\"C\n" +
 	"\x0eSignInProvider\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\"8\n" +
@@ -4622,7 +4643,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x03url\x18\x01 \x01(\tR\x03url\"\x1a\n" +
 	"\x18ListProviderLinksRequest\"L\n" +
 	"\x19ListProviderLinksResponse\x12/\n" +
-	"\x05links\x18\x01 \x03(\v2\x19.dockwell.v1.ProviderLinkR\x05links\"\xb3\x02\n" +
+	"\x05links\x18\x01 \x03(\v2\x19.dockwell.v1.ProviderLinkR\x05links\"\xc7\x02\n" +
 	"\fProviderLink\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vprovider_id\x18\x02 \x01(\tR\n" +
@@ -4632,7 +4653,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\x12@\n" +
 	"\x0elast_used_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\flastUsedTime\x124\n" +
-	"\x05state\x18\a \x01(\x0e2\x1e.dockwell.v1.ProviderLinkStateR\x05state\"L\n" +
+	"\x05state\x18\a \x01(\x0e2\x1e.dockwell.v1.ProviderLinkStateR\x05state\x12\x12\n" +
+	"\x04here\x18\b \x01(\bR\x04here\"L\n" +
 	"\x18BeginLinkProviderRequest\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05proof\x18\x02 \x01(\tR\x05proof\"-\n" +

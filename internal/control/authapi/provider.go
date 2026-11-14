@@ -35,6 +35,7 @@ func ProviderCallback(svc *auth.Service, logger *slog.Logger) http.Handler {
 			return
 		}
 		done, err := svc.FinishProvider(r.Context(), client, c.Value, r.URL.Query())
+		var said *auth.ProviderError
 		switch {
 		case err == nil && done.SignedIn != nil:
 			cookie, err := done.SignedIn.Cookie(client.Site)
@@ -60,11 +61,17 @@ func ProviderCallback(svc *auth.Service, logger *slog.Logger) http.Handler {
 				"The session you began linking it in has ended. Sign in, then link it again.", "Sign in", "/", false)
 		case errors.Is(err, auth.ErrProviderBusy), errors.Is(err, auth.ErrProviderNotOffered):
 			signin.Page(w, http.StatusServiceUnavailable, "Sign-in didn't finish", sentence(err.Error()), "Sign in", "/", false)
-		default:
-			// What the provider or the exchange said, which names the provider and
-			// how to go on, and holds nothing of the flow's.
+		case errors.As(err, &said):
+			// What the provider or reaching it said, which names the provider and how
+			// to go on, and holds nothing of the flow's or Dockwell's own.
 			logger.InfoContext(r.Context(), "a sign-in with a provider didn't finish", slog.String("from", client.Addr), slog.Any("error", err))
-			signin.Page(w, http.StatusBadGateway, "Sign-in didn't finish", sentence(err.Error()), "Sign in", "/", false)
+			signin.Page(w, http.StatusBadGateway, "Sign-in didn't finish", sentence(said.Error()), "Sign in", "/", false)
+		default:
+			// Dockwell's own, such as the database's, which goes in the log alone
+			// (#646's review, L7).
+			logger.ErrorContext(r.Context(), "a sign-in with a provider failed in Dockwell", slog.String("from", client.Addr), slog.Any("error", err))
+			signin.Page(w, http.StatusInternalServerError, "Sign-in didn't finish",
+				"Dockwell couldn't finish it. Try again, or sign in with your passkey.", "Sign in", "/", false)
 		}
 	})
 }

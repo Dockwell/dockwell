@@ -20,3 +20,5 @@ CREATE UNIQUE INDEX provider_links_account ON provider_links (issuer, subject);
 CREATE UNIQUE INDEX provider_links_person ON provider_links (user_id, provider_id);
 
 ALTER TABLE sessions ADD COLUMN provider_link_id TEXT NOT NULL DEFAULT '';
+-- Unlinking ends the sessions a link began, found by it.
+CREATE INDEX sessions_provider_link ON sessions (provider_link_id);

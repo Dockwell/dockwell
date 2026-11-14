@@ -70,10 +70,14 @@ func TestAProviderLinkIsOneAccountForOnePerson(t *testing.T) {
 			if s, err := tx.GetSession(ctx, "ses_by_link"); err != nil || s.ProviderLinkID != "plk_mira" {
 				t.Errorf("the session reads %+v, %v", s, err)
 			}
-			if err := tx.DeleteProviderLink(ctx, "usr_ada", "plk_mira", now); !errors.Is(err, store.ErrNotFound) {
+			if _, err := tx.DeleteProviderLink(ctx, "usr_ada", "plk_mira", now); !errors.Is(err, store.ErrNotFound) {
 				t.Errorf("someone else deletes the link: %v", err)
 			}
-			return tx.DeleteProviderLink(ctx, "usr_mira", "plk_mira", now.Add(2*time.Minute))
+			ended, err := tx.DeleteProviderLink(ctx, "usr_mira", "plk_mira", now.Add(2*time.Minute))
+			if err == nil && (len(ended) != 1 || ended[0] != "ses_by_link") {
+				t.Errorf("deleting the link ends the sessions %v", ended)
+			}
+			return err
 		})
 		if err != nil {
 			t.Fatal(err)

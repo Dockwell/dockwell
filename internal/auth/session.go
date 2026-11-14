@@ -170,6 +170,7 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 	}
 	now := s.now()
 	var p Principal
+	var link *store.ProviderLink
 	err := s.db.View(ctx, func(tx *store.Tx) error {
 		sess, err := tx.GetSessionByTokenHash(ctx, hashToken(token))
 		if errors.Is(err, store.ErrNotFound) {
@@ -181,11 +182,8 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 		if !live(sess, client.Site, now) {
 			return ErrUnauthenticated
 		}
-		// A session begun with a provider lasts while its link signs anyone in (ADR 0095).
-		if sess.ProviderLinkID != "" {
-			if err := s.checkLink(ctx, tx, sess); err != nil {
-				return err
-			}
+		if link, err = sessionLink(ctx, tx, sess); err != nil {
+			return err
 		}
 		user, err := tx.GetUser(ctx, sess.UserID)
 		if errors.Is(err, store.ErrNotFound) {
@@ -197,12 +195,21 @@ func (s *Service) Authenticate(ctx context.Context, client Client, token string)
 		p = Principal{User: user, Session: sess}
 		return nil
 	})
-	if stopped := (*errLinkStopped)(nil); errors.As(err, &stopped) {
-		s.endStoppedLink(ctx, stopped)
-		return Principal{}, ErrUnauthenticated
-	}
 	if err != nil {
 		return Principal{}, err
+	}
+	// A session begun with a provider lasts while its link signs anyone in (ADR 0095).
+	// The providers are read once the session's transaction is over: a read inside it
+	// would wait on a second connection from the same pool (#646's review, H1).
+	if link != nil {
+		stopped, err := s.sessionLinkStops(ctx, link)
+		if err != nil {
+			return Principal{}, err
+		}
+		if stopped != nil {
+			s.endStoppedLink(ctx, stopped)
+			return Principal{}, ErrUnauthenticated
+		}
 	}
 	ip := client.remoteIP()
 	if now.Sub(p.Session.LastSeenAt) >= touchEvery || ip != p.Session.LastIP {
@@ -366,8 +373,14 @@ func (s *Service) track(ctx context.Context, client Client, p Principal, use boo
 		cancel()
 	}
 	done := make(chan struct{})
+	// A stream from a session begun with a provider checks every providersFor, so it
+	// ends within twice that of a change to the provider (#646's review, M1).
+	every := s.recheck
+	if p.Session.ProviderLinkID != "" {
+		every = min(every, providersFor)
+	}
 	go func() {
-		t := time.NewTicker(s.recheck)
+		t := time.NewTicker(every)
 		defer t.Stop()
 		for {
 			select {
@@ -404,21 +417,29 @@ func (s *Service) stillLive(ctx context.Context, client Client, p Principal, use
 	}
 	sessionID := p.Session.ID
 	var sess store.Session
+	var link *store.ProviderLink
 	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
-		if sess, err = tx.GetSession(ctx, sessionID); err != nil || sess.ProviderLinkID == "" {
+		if sess, err = tx.GetSession(ctx, sessionID); err != nil {
 			return err
 		}
-		return s.checkLink(ctx, tx, sess)
+		link, err = sessionLink(ctx, tx, sess)
+		return err
 	})
-	stopped := (*errLinkStopped)(nil)
 	switch {
-	case errors.As(err, &stopped):
-		s.endStoppedLink(ctx, stopped)
-		return false
 	case errors.Is(err, store.ErrNotFound), errors.Is(err, ErrUnauthenticated):
 		return false
 	case err != nil:
 		return true // a failed read isn't a reason to close; the next check decides
+	}
+	if link != nil {
+		stopped, err := s.sessionLinkStops(ctx, link)
+		if err != nil {
+			return true // as a failed read above
+		}
+		if stopped != nil {
+			s.endStoppedLink(ctx, stopped)
+			return false
+		}
 	}
 	now := s.now()
 	if !live(sess, client.Site, now) {
@@ -503,4 +524,20 @@ func (s *streams) end(sessionID string) {
 	for _, cancel := range cancels {
 		cancel()
 	}
+}
+
+// sessionLink reads the link a session began from, in tx, or nil for a session that
+// didn't begin with a provider. A link that's gone has ended the session.
+func sessionLink(ctx context.Context, tx *store.Tx, sess store.Session) (*store.ProviderLink, error) {
+	if sess.ProviderLinkID == "" {
+		return nil, nil
+	}
+	link, err := tx.GetProviderLink(ctx, sess.ProviderLinkID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, ErrUnauthenticated
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &link, nil
 }

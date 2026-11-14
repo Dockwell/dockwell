@@ -6,7 +6,10 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"runtime"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +27,8 @@ type providerStand struct {
 	owner Principal
 	mu    sync.Mutex
 	saved []Provider
+	// provider is the one the helpers sign in and link with.
+	provider string
 }
 
 func newProviderStand(t *testing.T, backend store.Backend) *providerStand {
@@ -34,7 +39,7 @@ func newProviderStand(t *testing.T, backend store.Backend) *providerStand {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := &providerStand{fixture: f, idp: oidctest.NewProvider(t), owner: owner}
+	s := &providerStand{fixture: f, idp: oidctest.NewProvider(t), owner: owner, provider: "sip_ours"}
 	s.saved = []Provider{{
 		ID: "sip_ours", Name: "ours", DisplayName: "Our Authentik", Issuer: s.idp.Issuer(),
 		ClientID: oidctest.Client, ClientSecret: oidctest.Secret, Panel: true,
@@ -84,18 +89,24 @@ func (s *providerStand) through(t *testing.T, target, subject string) url.Values
 // signIn signs in with the provider as the account Mira linked, or tries to.
 func (s *providerStand) signIn(t *testing.T) (ProviderDone, error) {
 	t.Helper()
-	target, flow, err := s.svc.BeginProviderSignIn(t.Context(), onDomain, "sip_ours")
+	return s.signInFrom(t, onDomain)
+}
+
+// signInFrom is signIn from client.
+func (s *providerStand) signInFrom(t *testing.T, client Client) (ProviderDone, error) {
+	t.Helper()
+	target, flow, err := s.svc.BeginProviderSignIn(t.Context(), client, s.provider)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return s.svc.FinishProvider(t.Context(), onDomain, flow, s.through(t, target, "248289761001"))
+	return s.svc.FinishProvider(t.Context(), client, flow, s.through(t, target, "248289761001"))
 }
 
 // link links the owner's account with subject, confirmed with their passkey.
 func (s *providerStand) link(t *testing.T, subject string) (ProviderDone, error) {
 	t.Helper()
-	proof := s.stepUpAt(t, onDomain, s.owner, s.passkeys, StepUpLinkProvider, "sip_ours").Proof
-	target, flow, err := s.svc.BeginLinkProvider(t.Context(), onDomain, s.owner, "sip_ours", proof)
+	proof := s.stepUpAt(t, onDomain, s.owner, s.passkeys, StepUpLinkProvider, s.provider).Proof
+	target, flow, err := s.svc.BeginLinkProvider(t.Context(), onDomain, s.owner, s.provider, proof)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,5 +301,219 @@ func testStartingAProviderSignInIsBounded(t *testing.T, backend store.Backend) {
 	}
 	if _, err := s.svc.BeginSignIn(t.Context(), onDomain); !errors.Is(err, ErrTooManyRequests) {
 		t.Errorf("after them, a passkey sign-in starts: %v", err)
+	}
+}
+
+func TestProviderSessionsNeverNestReads(t *testing.T) {
+	storetest.Each(t, testProviderSessionsNeverNestReads)
+}
+
+// Many requests at once on a session begun with a provider, while the providers are
+// read again, never wait on a second connection from the read pool their own
+// transaction holds one of: each reads the providers once its transaction is over,
+// and one read serves them all. A read of the providers that reaches the database,
+// and more callers than the read pool holds, would otherwise wait forever (#646's
+// review, H1).
+func testProviderSessionsNeverNestReads(t *testing.T, backend store.Backend) {
+	s := newProviderStand(t, backend)
+	if _, err := s.link(t, "248289761001"); err != nil {
+		t.Fatal(err)
+	}
+	done, err := s.signIn(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reads atomic.Int32
+	s.svc.UseProviders(func(ctx context.Context) ([]Provider, error) {
+		reads.Add(1)
+		// A real read, which takes a while, as decrypting the saved providers does.
+		err := s.db.View(ctx, func(tx *store.Tx) error {
+			_, err := tx.ListUsers(ctx)
+			time.Sleep(20 * time.Millisecond)
+			return err
+		})
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return append([]Provider(nil), s.saved...), err
+	}, s.idp.Srv.Client())
+	callers := 3 * max(4, runtime.GOMAXPROCS(0))
+	wave := func(what string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+		defer cancel()
+		var wg sync.WaitGroup
+		failed := make(chan error, callers)
+		for range callers {
+			wg.Go(func() {
+				if _, err := s.svc.Authenticate(ctx, onDomain, done.SignedIn.Token); err != nil {
+					failed <- err
+				}
+			})
+		}
+		wg.Wait()
+		close(failed)
+		for err := range failed {
+			t.Fatalf("%s, %d requests at once on the provider's session: %v", what, callers, err)
+		}
+	}
+	wave("with no providers read yet")
+	s.clock.advance(providersFor + time.Second)
+	wave("with the providers read too long ago")
+	if n := reads.Load(); n > 4 {
+		t.Errorf("two waves of %d requests read the providers %d times, want one read each", callers, n)
+	}
+
+	// With every read connection but one held, a request that needed two at once,
+	// one for its session and one for the providers, would wait forever: it reads
+	// one, then the other.
+	s.clock.advance(providersFor + time.Second)
+	hold, held := make(chan struct{}), make(chan struct{})
+	var holding sync.WaitGroup
+	for range max(4, runtime.GOMAXPROCS(0)) - 1 {
+		holding.Go(func() {
+			_ = s.db.View(t.Context(), func(*store.Tx) error {
+				held <- struct{}{}
+				<-hold
+				return nil
+			})
+		})
+	}
+	for range max(4, runtime.GOMAXPROCS(0)) - 1 {
+		<-held
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	_, err = s.svc.Authenticate(ctx, onDomain, done.SignedIn.Token)
+	cancel()
+	close(hold)
+	holding.Wait()
+	if err != nil {
+		t.Errorf("with one read connection free, the provider's session reads %v", err)
+	}
+}
+
+func TestUnlinkingEndsItsStreamsAtOnce(t *testing.T) {
+	storetest.Each(t, testUnlinkingEndsItsStreamsAtOnce)
+}
+
+// Unlinking ends the streams of the sessions the link began at once, as signing out
+// does, and says which link began the session asking (#646's review, M1 and L4).
+func testUnlinkingEndsItsStreamsAtOnce(t *testing.T, backend store.Backend) {
+	s := newProviderStand(t, backend)
+	linked, err := s.link(t, "248289761001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done, err := s.signIn(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.svc.Authenticate(t.Context(), onDomain, done.SignedIn.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if links, err := s.svc.ListProviderLinks(t.Context(), p); err != nil || len(links) != 1 || !links[0].Here {
+		t.Errorf("from the provider's session, the links read %+v, %v", links, err)
+	}
+	if links, err := s.svc.ListProviderLinks(t.Context(), s.owner); err != nil || len(links) != 1 || links[0].Here {
+		t.Errorf("from a passkey's session, the links read %+v, %v", links, err)
+	}
+	stream, stop := s.svc.Track(t.Context(), onDomain, p)
+	defer stop()
+	if err := s.svc.DeleteProviderLink(t.Context(), s.owner, linked.Linked.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-stream.Done():
+	case <-time.After(2 * time.Second):
+		t.Error("unlinking leaves the stream of the session the link began open")
+	}
+}
+
+func TestOneAddressCantSpendTheExchanges(t *testing.T) {
+	storetest.Each(t, testOneAddressCantSpendTheExchanges)
+}
+
+// A way back with no code spends nothing of the exchanges, and one address
+// exchanges at most 5 codes a minute, leaving the rest of the install's for
+// everyone else (#646's review, M2).
+func testOneAddressCantSpendTheExchanges(t *testing.T, backend store.Backend) {
+	s := newProviderStand(t, backend)
+	if _, err := s.link(t, "248289761001"); err != nil {
+		t.Fatal(err)
+	}
+	for range 8 {
+		target, flow, err := s.svc.BeginProviderSignIn(t.Context(), onDomain, s.provider)
+		if err != nil {
+			t.Fatal(err)
+		}
+		back := s.through(t, target, "248289761001")
+		back.Del("code")
+		if _, err := s.svc.FinishProvider(t.Context(), onDomain, flow, back); !errors.As(err, new(*ProviderError)) {
+			t.Fatalf("a way back with no code reads %v", err)
+		}
+	}
+	// Linking spent one of the address's exchanges.
+	for i := range providerExchangesAnAddress - 1 {
+		if _, err := s.signIn(t); err != nil {
+			t.Fatalf("sign-in %d from one address: %v", i+1, err)
+		}
+	}
+	if _, err := s.signIn(t); !errors.Is(err, ErrProviderBusy) {
+		t.Errorf("a sixth exchange in a minute from one address reads %v", err)
+	}
+	other := onDomain
+	other.Addr = "203.0.113.9:4000"
+	if _, err := s.signInFrom(t, other); err != nil {
+		t.Errorf("then another address can't sign in: %v", err)
+	}
+}
+
+func TestADeletedProviderLetsItsIssuerComeBack(t *testing.T) {
+	storetest.Each(t, testADeletedProviderLetsItsIssuerComeBack)
+}
+
+// A provider deleted and added again at the same issuer, as a new provider, takes
+// the accounts its old links held: reading the providers deletes the links whose
+// provider is gone, so the account links again and signs in (#646's review, L1).
+func testADeletedProviderLetsItsIssuerComeBack(t *testing.T, backend store.Backend) {
+	s := newProviderStand(t, backend)
+	if _, err := s.link(t, "248289761001"); err != nil {
+		t.Fatal(err)
+	}
+	// Deleted, and a while later added again: a new provider, at the same issuer.
+	s.clock.advance(time.Minute)
+	s.mu.Lock()
+	again := s.saved[0]
+	again.ID = "sip_again"
+	s.saved = []Provider{again}
+	s.mu.Unlock()
+	s.provider = "sip_again"
+	if linked, err := s.link(t, "248289761001"); err != nil || linked.Linked == nil {
+		t.Fatalf("at the provider added again, the account links: %+v, %v", linked, err)
+	}
+	if done, err := s.signIn(t); err != nil || done.SignedIn == nil {
+		t.Errorf("then it signs in: %+v, %v", done, err)
+	}
+	if got := s.auditDetails(t, "provider_link.delete"); len(got) != 1 || !strings.Contains(got[0], "its provider was deleted") {
+		t.Errorf("the old link's deletion is audited as %v", got)
+	}
+}
+
+func TestAProofOutlastsAProviderOutOfReach(t *testing.T) {
+	storetest.Each(t, testAProofOutlastsAProviderOutOfReach)
+}
+
+// Linking holds the passkey's proof, and gives it back when the provider can't be
+// reached, so trying again doesn't take the passkey again (#646's review, L2).
+func testAProofOutlastsAProviderOutOfReach(t *testing.T, backend store.Backend) {
+	s := newProviderStand(t, backend)
+	proof := s.stepUpAt(t, onDomain, s.owner, s.passkeys, StepUpLinkProvider, s.provider).Proof
+	s.edit(func(p *Provider) { p.Issuer = "https://127.0.0.1:1/" })
+	if _, _, err := s.svc.BeginLinkProvider(t.Context(), onDomain, s.owner, s.provider, proof); !errors.As(err, new(*ProviderError)) {
+		t.Fatalf("linking at a provider out of reach reads %v", err)
+	}
+	s.edit(func(p *Provider) { p.Issuer = s.idp.Issuer() })
+	if _, _, err := s.svc.BeginLinkProvider(t.Context(), onDomain, s.owner, s.provider, proof); err != nil {
+		t.Errorf("once it's back, the same proof links: %v", err)
 	}
 }

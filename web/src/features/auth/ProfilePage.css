@@ -275,3 +275,10 @@
   gap: var(--space-2);
   justify-content: flex-end;
 }
+
+/* Unlinking the account behind this session signs you out here, said beside the confirm (ADR 0095). */
+.profile-row-warn {
+  color: var(--warning);
+  font-size: 13px;
+  align-self: center;
+}

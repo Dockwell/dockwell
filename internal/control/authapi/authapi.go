@@ -104,9 +104,13 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 		msg.ClaimCommand = h.claimCommand
 	}
 	// The providers that sign people in here, on the panel's own domain (ADR 0095).
+	// One that can't be read leaves the rest of signing in as it is: a passkey still
+	// works (#646's review, M3).
+	msg.ProviderRedirect = h.auth.ProviderRedirect(client)
 	providers, err := h.auth.SignInProviders(ctx, client)
 	if err != nil {
-		return nil, h.rpcError(ctx, err)
+		h.logger.WarnContext(ctx, "can't read the sign-in providers, so the sign-in page offers none; passkeys and codes work as before",
+			slog.Any("error", err))
 	}
 	for i := range providers {
 		msg.Providers = append(msg.Providers, &dockwellv1.SignInProvider{Id: providers[i].ID, DisplayName: providers[i].Label()})
@@ -556,7 +560,7 @@ func (h *Handler) ListProviderLinks(ctx context.Context, _ *connect.Request[dock
 		l := &links[i]
 		link := &dockwellv1.ProviderLink{
 			Id: l.ID, ProviderId: l.ProviderID, ProviderName: l.Provider, Account: l.Account,
-			CreateTime: timestamppb.New(l.CreatedAt), State: linkStateProto(l.State),
+			CreateTime: timestamppb.New(l.CreatedAt), State: linkStateProto(l.State), Here: l.Here,
 		}
 		if l.LastUsedAt != nil {
 			link.LastUsedTime = timestamppb.New(*l.LastUsedAt)
@@ -851,6 +855,12 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 // AuthError is an error of the auth package as the API answers it, with its
 // reason, for other services that call it, as MemberService does to invite.
 func AuthError(ctx context.Context, logger *slog.Logger, err error) error {
+	// What a provider, or reaching it, said: the caller may read it (ADR 0095).
+	if said := (*auth.ProviderError)(nil); errors.As(err, &said) {
+		cerr := connect.NewError(connect.CodeUnavailable, said)
+		cerr.Meta().Set(ReasonKey, "provider_failed")
+		return cerr
+	}
 	var slow *auth.SlowDown
 	if errors.As(err, &slow) {
 		cerr := connect.NewError(connect.CodeResourceExhausted, slow)

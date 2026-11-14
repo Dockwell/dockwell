@@ -294,6 +294,7 @@ describe("ProfilePage", () => {
             account: "mira@example.com",
             createTime: minutesAgo(60),
             state: ProviderLinkState.ISSUER_MOVED,
+            here: true,
           }),
         ],
       }),
@@ -317,6 +318,8 @@ describe("ProfilePage", () => {
     );
     await userEvent.click(within(panel).getByRole("button", { name: "Unlink mira@example.com" }));
     expect(deleteProviderLink).not.toHaveBeenCalled();
+    // It began this session, so unlinking signs you out here, which the confirm says.
+    expect(panel).toHaveTextContent("This signs you out here");
     await userEvent.click(within(panel).getByRole("button", { name: "Unlink" }));
     await waitFor(() =>
       expect(deleteProviderLink).toHaveBeenCalledWith(expect.objectContaining({ id: "plk_1" }), expect.anything()),
