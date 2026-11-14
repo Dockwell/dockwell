@@ -7,10 +7,13 @@ package cli
 import (
 	"cmp"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -32,6 +35,8 @@ import (
 	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
+	"github.com/dockwell/dockwell/internal/control/certificates"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	controlhealth "github.com/dockwell/dockwell/internal/control/health"
 	"github.com/dockwell/dockwell/internal/control/identity"
@@ -49,7 +54,9 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/catalogsource"
+	"github.com/dockwell/dockwell/internal/resource/certificate"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
 	serverhost "github.com/dockwell/dockwell/internal/resource/host"
@@ -432,6 +439,13 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		CatalogSources: filepath.Join(dir.Control(), "catalog-sources"),
 		// A test asks no host it doesn't run, so a source moves only when asked.
 		CatalogFollow: !isSet(stdio.Getenv(envTest)),
+		DNSAPI:        dnsAPI(stdio.Getenv, logger),
+		// Certificates by DNS come from the panel's CA, and a test with none of its
+		// own gets none (ADR 0088).
+		CertificateCA:          f.acmeDirector,
+		CertificateClient:      caClient(stdio.Getenv(envACMERoots)),
+		CertificatePropagation: certificatePropagation(stdio.Getenv),
+		CertificatesOff:        isSet(stdio.Getenv(envTest)) && f.acmeDirector == "",
 	})
 	if err != nil {
 		closeAll()
@@ -590,7 +604,7 @@ func refuseClaimedDomain(ctx context.Context, db *store.DB, domain string) error
 // is the panel's domain, which no route may claim. The firewall's driver comes
 // later.
 func controlKinds(domain string, saved func() string) *resource.Registry {
-	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, catalogsource.Type{}, link.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
+	return resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Reserved: domain, Saved: saved}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, dnsprovider.Type{}, certificate.Type{}, catalogsource.Type{}, link.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &serverhost.Driver{})
 }
 
 // openState opens the control plane's key, its state and its identity,
@@ -987,4 +1001,53 @@ func serviceManager(getenv func(string) string, readFile func(string) ([]byte, e
 		}
 	}
 	return dockwellv1.ServiceManager_SERVICE_MANAGER_NONE
+}
+
+// envTestCloudflare names, in a test, a stand-in for Cloudflare's API, the only DNS
+// provider a test's control plane reaches (ADR 0088).
+const envTestCloudflare = "DOCKWELL_TEST_CLOUDFLARE"
+
+// dnsAPI is how the control plane reaches a DNS provider's API: the provider's own,
+// unless this is a test, which reaches only the stand-in DOCKWELL_TEST_CLOUDFLARE
+// names, and none without one.
+func dnsAPI(getenv func(string) string, logger *slog.Logger) func(token string) dnsproviders.API {
+	if !isSet(getenv(envTest)) {
+		return nil
+	}
+	base := getenv(envTestCloudflare)
+	if base != "" {
+		logger.Info("this is a test, so the control plane writes DNS through the stand-in for Cloudflare's API that "+envTestCloudflare+" names, and reaches no DNS provider", "stand_in", base)
+	}
+	return func(token string) dnsproviders.API {
+		if base == "" {
+			return dnsproviders.Off("this is a test, so Dockwell reaches no DNS provider here. Set " + envTestCloudflare + " to a stand-in for Cloudflare's API")
+		}
+		return &dnsproviders.Cloudflare{Token: token, Base: base, Client: &http.Client{Timeout: 15 * time.Second}}
+	}
+}
+
+// caClient reaches the CA certificates by DNS come from, trusting the roots in the
+// PEM file roots names as well as the system's, where it names one.
+func caClient(roots string) *http.Client {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	if roots != "" {
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if b, err := os.ReadFile(roots); err == nil { //nolint:gosec // the operator's own file, as for the panel's CA
+			pool.AppendCertsFromPEM(b)
+		}
+		tr.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+	}
+	return &http.Client{Transport: tr, Timeout: time.Minute}
+}
+
+// certificatePropagation waits for each challenge record on the zone's own
+// nameservers, unless this is a test, whose CA reads its own DNS.
+func certificatePropagation(getenv func(string) string) certificates.Waiter {
+	if isSet(getenv(envTest)) {
+		return nil
+	}
+	return certificates.Nameservers{}
 }

@@ -299,6 +299,11 @@ func main() {
 	if addr := os.Getenv("FAKEDOCKER_REGISTRY"); addr != "" {
 		serveRegistry(addr)
 	}
+	// Cloudflare's API, for the control plane to write DNS through, where a test
+	// names one (DOCKWELL_TEST_CLOUDFLARE, ADR 0088).
+	if addr := os.Getenv("FAKEDOCKER_CLOUDFLARE"); addr != "" {
+		serveCloudflare(addr)
+	}
 	e.BindError = func(source string) string {
 		if strings.HasPrefix(source, "/readonly") {
 			return "mkdir " + source + ": read-only file system"

@@ -401,6 +401,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessHTTPSOff:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF,
 	resource.AccessBackupOf:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF,
 	resource.AccessServerShell:    dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL,
+	resource.AccessCertificateKey: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY,
 }
 
 // HostAccess converts what a resource reaches on its server.

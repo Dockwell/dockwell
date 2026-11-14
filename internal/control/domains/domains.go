@@ -23,6 +23,8 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/certificates"
+	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -53,6 +55,10 @@ type Handler struct {
 	// Lookup resolves a name for CheckDomain. Nil means the control server's resolver.
 	Lookup  func(ctx context.Context, name string) ([]netip.Addr, error)
 	callers *callers
+	// DNS are the DNS providers an admin connected (ADR 0088); nil has none.
+	DNS *dnsproviders.Providers
+	// Certificates are the certificates by DNS (ADR 0088); nil has none.
+	Certificates *certificates.Manager
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)

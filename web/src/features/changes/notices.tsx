@@ -122,6 +122,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.TAKES_ON]: 3,
   [HostAccessKind.BACKUP_OF]: 0,
   [HostAccessKind.SERVER_SHELL]: 0,
+  [HostAccessKind.CERTIFICATE_KEY]: 2,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
   [HostAccessKind.TRUSTED_PROXY]: 4,
@@ -302,6 +303,17 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
             t`Dockwell didn't make that volume, and won't delete it. Whatever else mounts it shares what it holds.`,
           ),
         };
+      case HostAccessKind.CERTIFICATE_KEY: {
+        // A shared certificate's names, which its key serves from that server too.
+        const names = access.detail;
+        return {
+          key,
+          title: names
+            ? t`${name} sends the key of the shared certificate for ${names} to ${server} for the first time`
+            : t`${name} sends a certificate's key for ${path} to ${server} for the first time`,
+          more: t`The control plane proves ${path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey.`,
+        };
+      }
       case HostAccessKind.SERVER_SHELL:
         return {
           key,

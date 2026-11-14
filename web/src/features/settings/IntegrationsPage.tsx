@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type BackupDestinationInfo, ChangeService, type RegistryLoginInfo } from "@dockwell/api";
+import { type BackupDestinationInfo, ChangeService, type DnsProviderInfo, type RegistryLoginInfo } from "@dockwell/api";
 import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -11,6 +11,8 @@ import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { DestinationSheet } from "../backups/DestinationSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
+import { DnsProviderSheet } from "../dns/DnsProviderSheet";
+import { useDnsProviders } from "../dns/dns";
 import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
 import { REGISTRY_NAMES, registryKind, useRegistryLogins } from "../registries/registries";
 import { useControlPlaneNow } from "../servers/useFleet";
@@ -38,6 +40,10 @@ export function IntegrationsPage() {
   // A registry login to add, from a card's registry, or to change.
   const [login, setLogin] = useState<{ host?: string; editing?: RegistryLoginInfo }>();
   const loginList = logins.data?.logins ?? [];
+  const dns = useDnsProviders();
+  const dnsList = dns.data?.providers ?? [];
+  // A DNS provider to connect, or to change (ADR 0088).
+  const [provider, setProvider] = useState<{ editing?: DnsProviderInfo }>();
   // A destination belongs to no project, so connecting one is an admin's: off, with why, otherwise (ADR 0059).
   const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   const read = destinations.data !== undefined;
@@ -212,20 +218,31 @@ export function IntegrationsPage() {
           <span className="settings-meta">{t`in front of a server's routes`}</span>
         </div>
         <div className="integrations-grid">
-          <Card
-            icon="globe"
-            name="Cloudflare"
-            state={<span className="settings-meta">{t`Works in front of routes`}</span>}
-            text={t`A route can sit behind its proxy or a Tunnel.`}
-            action={
-              <a href={CLOUDFLARE} target="_blank" rel="noreferrer" className="dw-btn dw-btn-secondary dw-btn-sm">
-                <Icon name="external" size={14} />
-                <span>
-                  <Trans>How to route behind it</Trans>
-                </span>
-              </a>
-            }
-          />
+          {dnsList.map((p) => (
+            <ProviderCard key={p.id} provider={p} onManage={() => setProvider({ editing: p })} manage={mayPlan.off} />
+          ))}
+          {/* Not connected only once the list says so, never while it loads. */}
+          {dnsList.length > 0 || (!dns.data && !dns.error) ? null : (
+            <Card
+              icon="globe"
+              name="Cloudflare"
+              state={<span className="settings-meta">{t`Not connected`}</span>}
+              text={t`Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel.`}
+              action={
+                <div className="integrations-actions">
+                  <Button size="sm" icon="plus" onClick={() => setProvider({})} {...mayPlan.off}>
+                    <Trans>Connect</Trans>
+                  </Button>
+                  <a href={CLOUDFLARE} target="_blank" rel="noreferrer" className="dw-btn dw-btn-ghost dw-btn-sm">
+                    <Icon name="external" size={14} />
+                    <span>
+                      <Trans>How to route behind it</Trans>
+                    </span>
+                  </a>
+                </div>
+              }
+            />
+          )}
           <Card
             icon="link"
             name={t`Domains`}
@@ -247,6 +264,9 @@ export function IntegrationsPage() {
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}
       {adding ? <DestinationSheet existing={list} onClose={() => setAdding(false)} /> : null}
+      {provider ? (
+        <DnsProviderSheet existing={dnsList} editing={provider.editing} onClose={() => setProvider(undefined)} />
+      ) : null}
       {login ? (
         <RegistryLoginSheet
           existing={loginList}
@@ -374,6 +394,41 @@ function LoginCard({
           </Trans>
           <span className="integrations-sub">
             <code>{l.registry}</code>
+          </span>
+        </>
+      }
+      action={
+        <Button size="sm" variant="secondary" icon="settings" onClick={onManage} {...manage}>
+          <Trans>Manage</Trans>
+        </Button>
+      }
+    />
+  );
+}
+
+/** A DNS provider an admin connected, with the zones it writes in. */
+function ProviderCard({
+  provider: p,
+  onManage,
+  manage,
+}: {
+  provider: DnsProviderInfo;
+  onManage: () => void;
+  manage: { off?: string; disabled?: true };
+}) {
+  const { t } = useLingui();
+  return (
+    <Card
+      icon="globe"
+      name="Cloudflare"
+      state={<StatusBadge status="healthy" label={t`Connected`} />}
+      text={
+        <>
+          <Trans>
+            <code>{p.name}</code> proves names by DNS
+          </Trans>
+          <span className="integrations-sub">
+            <code>{p.zones.join(", ")}</code>
           </span>
         </>
       }

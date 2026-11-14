@@ -98,7 +98,10 @@ DatabaseService.ChangeDatabasePassword         plan         developer  developer
 DatabaseService.CreateDatabaseUser             plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
+DomainService.CheckDnsProvider                 plan         admin      admin      install  session
 DomainService.CheckDomain                      plan         developer  developer  named
+DomainService.ListCertificates                 read         viewer     viewer     named
+DomainService.ListDnsProviders                 read         viewer     viewer     named
 DomainService.ListDomains                      read         viewer     viewer     project
 EventService.ListEvents                        read         viewer     viewer     project
 EventService.WatchEvents                       read         viewer     viewer     project

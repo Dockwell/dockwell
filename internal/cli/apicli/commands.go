@@ -307,7 +307,7 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 	if err != nil {
 		return nil, err
 	}
-	what := strings.ReplaceAll(string(kind), ".", " ")
+	what := kindWords(kind)
 	if parent == nil {
 		o = &options{}
 		parent = &cobra.Command{
@@ -492,7 +492,7 @@ func (r *runner) kind(cmd *cobra.Command, req *dockwellv1.ProposeChangeRequest, 
 		return r.explain(err)
 	}
 	c := res.GetChange()
-	what := strings.ReplaceAll(string(kind), ".", " ")
+	what := kindWords(kind)
 	for _, pr := range c.GetPlan().GetResources() {
 		if pr.GetResource().GetName() != name || pr.GetResource().GetKind() != string(kind) {
 			continue

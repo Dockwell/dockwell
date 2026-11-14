@@ -574,6 +574,10 @@ const (
 	// 0053): the same as root. Numbered in the block scheduled tasks hold, as open
 	// work adds to this enum.
 	HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL HostAccessKind = 150
+	// A certificate's key, proven by DNS by the control plane, going to the server
+	// for the first time, for the domain in path (ADR 0088). An admin confirms it
+	// with a passkey. Numbered in the block DNS-01 holds, 120 to 129.
+	HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY HostAccessKind = 120
 )
 
 // Enum value maps for HostAccessKind.
@@ -599,6 +603,7 @@ var (
 		17:  "HOST_ACCESS_KIND_TAKES_ON",
 		18:  "HOST_ACCESS_KIND_BACKUP_OF",
 		150: "HOST_ACCESS_KIND_SERVER_SHELL",
+		120: "HOST_ACCESS_KIND_CERTIFICATE_KEY",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":      0,
@@ -621,6 +626,7 @@ var (
 		"HOST_ACCESS_KIND_TAKES_ON":         17,
 		"HOST_ACCESS_KIND_BACKUP_OF":        18,
 		"HOST_ACCESS_KIND_SERVER_SHELL":     150,
+		"HOST_ACCESS_KIND_CERTIFICATE_KEY":  120,
 	}
 )
 
@@ -8781,7 +8787,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x18INTENT_KIND_PUBLISH_PORT\x10\x02\x12\x19\n" +
 	"\x15INTENT_KIND_ROLL_BACK\x10\x03\x12\x16\n" +
 	"\x12INTENT_KIND_REPULL\x10\x04\x12\x17\n" +
-	"\x13INTENT_KIND_UPGRADE\x10\x05*\xbe\x05\n" +
+	"\x13INTENT_KIND_UPGRADE\x10\x05*\xe4\x05\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -8803,7 +8809,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	" HOST_ACCESS_KIND_EXTERNAL_VOLUME\x10\x10\x12\x1d\n" +
 	"\x19HOST_ACCESS_KIND_TAKES_ON\x10\x11\x12\x1e\n" +
 	"\x1aHOST_ACCESS_KIND_BACKUP_OF\x10\x12\x12\"\n" +
-	"\x1dHOST_ACCESS_KIND_SERVER_SHELL\x10\x96\x01*\xd3\x01\n" +
+	"\x1dHOST_ACCESS_KIND_SERVER_SHELL\x10\x96\x01\x12$\n" +
+	" HOST_ACCESS_KIND_CERTIFICATE_KEY\x10x*\xd3\x01\n" +
 	"\x10DetectionProblem\x12!\n" +
 	"\x1dDETECTION_PROBLEM_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dDETECTION_PROBLEM_NO_PROVIDER\x10\x01\x12\x1d\n" +

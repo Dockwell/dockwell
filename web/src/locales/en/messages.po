@@ -754,8 +754,14 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Checked a DNS provider"
+msgstr "Checked a DNS provider"
+
 msgid "Checked that a backup of {volume} restores"
 msgstr "Checked that a backup of {volume} restores"
+
+msgid "Checked the DNS provider {name}, writing in its zones"
+msgstr "Checked the DNS provider {name}, writing in its zones"
 
 msgid "Claimed this install"
 msgstr "Claimed this install"
@@ -987,6 +993,12 @@ msgstr "Saved {path} on {server}"
 
 msgid "Saved {path} on {server}, which can let someone back in"
 msgstr "Saved {path} on {server}, which can let someone back in"
+
+msgid "Sent a certificate's key, proven by DNS, to a server"
+msgstr "Sent a certificate's key, proven by DNS, to a server"
+
+msgid "Sent a certificate's key, proven by DNS, to {name}"
+msgstr "Sent a certificate's key, proven by DNS, to {name}"
 
 msgid "Sent a test to a new {kind} channel at {host}, which arrived"
 msgstr "Sent a test to a new {kind} channel at {host}, which arrived"
@@ -8817,6 +8829,9 @@ msgstr "That's what the server kept on {taken}, {size}."
 msgid "The catalog shows no apps from this commit."
 msgstr "The catalog shows no apps from this commit."
 
+msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
+msgstr "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
+
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
 
@@ -9115,6 +9130,12 @@ msgstr "{name} runs with the latest value of {names}"
 
 msgid "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
 msgstr "{name} runs {image} as revision {revision} ran it, {digest}, even if the tag has moved since"
+
+msgid "{name} sends a certificate's key for {path} to {server} for the first time"
+msgstr "{name} sends a certificate's key for {path} to {server} for the first time"
+
+msgid "{name} sends the key of the shared certificate for {names} to {server} for the first time"
+msgstr "{name} sends the key of the shared certificate for {names} to {server} for the first time"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} shares {server}'s own network"
@@ -9550,6 +9571,9 @@ msgstr "What's in front gets a 404 for {where}, so visitors see whatever it show
 msgid "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 msgstr "a backup of a volume that reached {path}, which can hold what's there, as good as root"
 
+msgid "a certificate's key for {path}, proven by DNS, going to this server for the first time"
+msgstr "a certificate's key for {path}, proven by DNS, going to this server for the first time"
+
 msgid "a shell command on the server, which runs as root"
 msgstr "a shell command on the server, which runs as root"
 
@@ -9606,6 +9630,9 @@ msgstr "the group {path}, which is the same as root"
 
 msgid "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
 msgstr "the group {path}, which is the same as root if it is the group that owns Docker's socket on the server"
+
+msgid "the key of the shared certificate for {names}, proven by DNS, going to this server for the first time, for {path}"
+msgstr "the key of the shared certificate for {names}, proven by DNS, going to this server for the first time, for {path}"
 
 msgid "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
 msgstr "the network {path}, which is on the server already, where it answers to its name and to {detail}: whatever else is on that network, other projects' services too, can reach it, and it can reach them"
@@ -10175,6 +10202,67 @@ msgstr "{failedAt}, which failed: {failedWhy}"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"
+
+msgid "An API token with Zone:Read and DNS:Edit for your zones."
+msgstr "An API token with Zone:Read and DNS:Edit for your zones."
+
+#. placeholder {0}: zones[0]
+msgid "Can write DNS for {0}"
+msgstr "Can write DNS for {0}"
+
+#. placeholder {0}: zones.length
+msgid "Can write DNS for {0} zones"
+msgstr "Can write DNS for {0} zones"
+
+msgid "Can't reach Cloudflare"
+msgstr "Can't reach Cloudflare"
+
+msgid "Can't write DNS"
+msgstr "Can't write DNS"
+
+msgid "Change the DNS provider {name}"
+msgstr "Change the DNS provider {name}"
+
+msgid "Connect Cloudflare"
+msgstr "Connect Cloudflare"
+
+#. placeholder {0}: editing.name
+msgid "DNS provider {0}"
+msgstr "DNS provider {0}"
+
+msgid "Kept unless you paste one"
+msgstr "Kept unless you paste one"
+
+msgid "Make a token at Cloudflare"
+msgstr "Make a token at Cloudflare"
+
+msgid "Not checked"
+msgstr "Not checked"
+
+msgid "Prove names by DNS through Cloudflare"
+msgstr "Prove names by DNS through Cloudflare"
+
+msgid "Remove the DNS provider {name}"
+msgstr "Remove the DNS provider {name}"
+
+msgid "Scope it to these zones"
+msgstr "Scope it to these zones"
+
+#. placeholder {0}: answer?.reaches.length ?? 0
+msgid "The token reaches {0} zones."
+msgstr "The token reaches {0} zones."
+
+msgid "Token works · pick its zones"
+msgstr "Token works · pick its zones"
+
+msgid "What a certificate names it by, in the CLI."
+msgstr "What a certificate names it by, in the CLI."
+
+msgid "Wrong token"
+msgstr "Wrong token"
+
+msgid "Zones"
+msgstr "Zones"
 
 msgid "A domain sends people to an app, so run one first."
 msgstr "A domain sends people to an app, so run one first."
@@ -11798,9 +11886,6 @@ msgstr "Kept unless you type one"
 
 msgid "Not a registry, or can't reach it"
 msgstr "Not a registry, or can't reach it"
-
-msgid "Not checked"
-msgstr "Not checked"
 
 msgid "Only some projects"
 msgstr "Only some projects"
@@ -14091,11 +14176,12 @@ msgstr "1 project"
 msgid "<0>{0}</0> for {who}"
 msgstr "<0>{0}</0> for {who}"
 
+#. placeholder {0}: p.name
+msgid "<0>{0}</0> proves names by DNS"
+msgstr "<0>{0}</0> proves names by DNS"
+
 msgid "A backup didn't get here {when}"
 msgstr "A backup didn't get here {when}"
-
-msgid "A route can sit behind its proxy or a Tunnel."
-msgstr "A route can sit behind its proxy or a Tunnel."
 
 msgid "Any DNS provider"
 msgstr "Any DNS provider"
@@ -14103,6 +14189,9 @@ msgstr "Any DNS provider"
 #. placeholder {0}: d.bucket
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
+
+msgid "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
+msgstr "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
 
 msgid "Connect a registry"
 msgstr "Connect a registry"
@@ -14173,9 +14262,6 @@ msgstr "S3-compatible storage"
 
 msgid "Values your apps use live in <0>Variables and secrets</0>"
 msgstr "Values your apps use live in <0>Variables and secrets</0>"
-
-msgid "Works in front of routes"
-msgstr "Works in front of routes"
 
 msgid "in front of a server's routes"
 msgstr "in front of a server's routes"

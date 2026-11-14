@@ -345,6 +345,8 @@ func accessClass(a resource.Access) string {
 		return "a backup of what reached a server path"
 	case resource.AccessServerShell:
 		return "a shell command on the server"
+	case resource.AccessCertificateKey:
+		return "a certificate's key going to the server"
 	case resource.AccessCapability:
 		return "the capability " + a.Path
 	case resource.AccessGroup:
