@@ -7,9 +7,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -589,43 +591,82 @@ func TestAPausedContainerPassesNoCheck(t *testing.T) {
 // Waiting for health is bounded twice: by HealthWait, and by the step's
 // own time. Each is blamed only when it is what ran out. A wait above it running
 // out with the step's time left says so, and so does the step being called off
-// (#612).
+// (#612). Each but the health wait's own ends while the health wait is under way,
+// as the fake holds its answer, never by a timer that could end in a call before
+// it, which a busy machine makes likely.
 func TestHealthWaitsAreTold(t *testing.T) {
-	e := dockertest.New(t)
-	images(e)
 	ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "slow"}
 	spec := &resourcev1.Container{Image: "slow:1"}
 	if err := container.Validate(spec); err != nil {
 		t.Fatal(err)
 	}
+	// ended is a context that ends by hand, with a cause, as a deadline would.
+	ended := func(t *testing.T, parent context.Context) (context.Context, func(error)) {
+		ctx, cancel := context.WithCancelCause(parent)
+		t.Cleanup(func() { cancel(nil) })
+		return ctx, cancel
+	}
 	for name, tc := range map[string]struct {
 		wait time.Duration
-		// step is the context the step runs in, and what the driver is given under it.
-		step      func(t *testing.T) context.Context
+		// step is the context the driver is given, and how it ends once the health
+		// wait is under way; nil for the health wait's own time.
+		step      func(t *testing.T) (context.Context, func())
 		want, not string
 	}{
 		"its own": {
-			50 * time.Millisecond, func(t *testing.T) context.Context { return within(t.Context(), t, time.Minute) },
+			50 * time.Millisecond,
+			func(t *testing.T) (context.Context, func()) { return within(t.Context(), t, time.Minute), nil },
 			"slow didn't pass its health check within 0.05 s", "",
 		},
-		"the step's": {
-			time.Minute, func(t *testing.T) context.Context { return within(t.Context(), t, 100*time.Millisecond) },
-			"the step's time ran out before slow passed its health check", "",
-		},
-		"a wait above it, with the step's time left": {time.Minute, func(t *testing.T) context.Context {
-			return within(resource.WithStep(within(t.Context(), t, time.Minute)), t, 100*time.Millisecond)
+		"the step's": {time.Minute, func(t *testing.T) (context.Context, func()) {
+			step, end := ended(t, t.Context())
+			return resource.WithStep(step), func() { end(context.DeadlineExceeded) }
+		}, "the step's time ran out before slow passed its health check", ""},
+		"a wait above it, with the step's time left": {time.Minute, func(t *testing.T) (context.Context, func()) {
+			wait, end := ended(t, resource.WithStep(within(t.Context(), t, time.Minute)))
+			return wait, func() { end(context.DeadlineExceeded) }
 		}, "a wait ran out before slow passed its health check, with the step's own time left", "the step's time ran out"},
-		"called off": {time.Minute, func(t *testing.T) context.Context {
-			ctx, cancel := context.WithCancel(t.Context())
-			t.Cleanup(cancel)
-			time.AfterFunc(100*time.Millisecond, cancel)
-			return resource.WithStep(ctx)
+		"called off": {time.Minute, func(t *testing.T) (context.Context, func()) {
+			step, end := ended(t, t.Context())
+			return resource.WithStep(step), func() { end(context.Canceled) }
 		}, "stopped waiting for", "time ran out"},
 	} {
 		t.Run(name, func(t *testing.T) {
+			e := dockertest.New(t)
+			images(e)
+			ctx, end := tc.step(t)
+			if end != nil {
+				// After the container starts, Verify reads its instances, which inspects it
+				// once by ID, and the health wait inspects it next: that answer is held until
+				// the context ends, which this test does once it's there.
+				var started atomic.Bool
+				var inspected atomic.Int32
+				waiting := make(chan struct{}, 1)
+				byID := regexp.MustCompile(`/containers/[0-9a-f]{64}/json$`)
+				e.Intercept(func(r *http.Request) error {
+					switch {
+					case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/start"):
+						started.Store(true)
+					case r.Method == http.MethodGet && started.Load() && byID.MatchString(r.URL.Path) && inspected.Add(1) >= 2:
+						select {
+						case waiting <- struct{}{}:
+						default:
+						}
+						<-r.Context().Done()
+						return r.Context().Err()
+					}
+					return nil
+				})
+				go func() {
+					select {
+					case <-waiting:
+						end()
+					case <-t.Context().Done():
+					}
+				}()
+			}
 			rt := &container.Docker{Client: e.Client(), Poll: time.Millisecond, Soak: -1, HealthWait: tc.wait}
 			d := &container.Driver{Runtime: rt}
-			ctx := tc.step(t)
 			err := d.Apply(ctx, resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionCreate}}, spec)
 			if err == nil {
 				err = d.Verify(ctx, ref, spec)
