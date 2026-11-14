@@ -30,6 +30,9 @@ jobs:
       - name: Whether this change needs this job
         id: pick
         run: scripts/ci-jobs.sh needs chaos
+      # Docker Hub's images through mirror.gcr.io, before the job pulls any (#651).
+      - uses: ./.github/actions/docker-hub-mirror
+        if: steps.pick.outputs.run == 'true'
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.pick.outputs.run == 'true'
         with:
