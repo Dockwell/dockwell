@@ -156,7 +156,10 @@ type agent struct {
 func agentOn(client *docker.Client, dir string) *agent {
 	m := &ingress.Manager{
 		Client: client, Proxy: fileProxy{path: filepath.Join(dir, "routes.json")}, Dir: dir,
-		Holders: &ingress.Holders{Client: client}, DrainPoll: time.Millisecond,
+		// The kernel's tables of the scene's own server, which has none: on a shared
+		// machine, the real ones say what else runs there, such as another test's
+		// proxy on 443, which this scene's routes would then read as held.
+		Holders: &ingress.Holders{Client: client, Proc: filepath.Join(dir, "proc"), PID: 1}, DrainPoll: time.Millisecond,
 	}
 	rt := &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, HealthWait: 2 * time.Second, ListenWait: 2 * time.Second, Ingress: listening{m}}
 	c := container.Driver{Runtime: rt}
