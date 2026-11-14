@@ -5690,8 +5690,14 @@ msgstr "Light"
 msgid "Light, whatever your device uses"
 msgstr "Light, whatever your device uses"
 
+msgid "Notifications"
+msgstr "Notifications"
+
 msgid "Preferences"
 msgstr "Preferences"
+
+msgid "Same as this browser ({browser})"
+msgstr "Same as this browser ({browser})"
 
 msgctxt "theme"
 msgid "System"
@@ -5702,6 +5708,12 @@ msgstr "System follows your device"
 
 msgid "Theme"
 msgstr "Theme"
+
+msgid "This browser only"
+msgstr "This browser only"
+
+msgid "Which alerts reach you, and where"
+msgstr "Which alerts reach you, and where"
 
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "Add a passkey for {rpId} now, so you can sign in here next time without another link."
@@ -15054,9 +15066,6 @@ msgstr "Only this browser changes. Your other browsers, and the command line, ke
 
 msgid "Patch updates, daily from 03:00"
 msgstr "Patch updates, daily from 03:00"
-
-msgid "Same as this browser ({browser})"
-msgstr "Same as this browser ({browser})"
 
 msgid "Saved. It's on Activity."
 msgstr "Saved. It's on Activity."

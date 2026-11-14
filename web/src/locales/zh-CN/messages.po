@@ -5690,8 +5690,14 @@ msgstr "浅色"
 msgid "Light, whatever your device uses"
 msgstr "浅色，不论设备用哪种"
 
+msgid "Notifications"
+msgstr "通知"
+
 msgid "Preferences"
 msgstr "偏好设置"
+
+msgid "Same as this browser ({browser})"
+msgstr "与此浏览器相同（{browser}）"
 
 msgctxt "theme"
 msgid "System"
@@ -5702,6 +5708,12 @@ msgstr "跟随设备的设置"
 
 msgid "Theme"
 msgstr "主题"
+
+msgid "This browser only"
+msgstr "仅此浏览器"
+
+msgid "Which alerts reach you, and where"
+msgstr "哪些告警会通知你，以及通过哪里"
 
 msgid "Add a passkey for {rpId} now, so you can sign in here next time without another link."
 msgstr "现在为 {rpId} 添加一个通行密钥，下次在这里登录就不再需要链接。"
@@ -15054,9 +15066,6 @@ msgstr "只更改此浏览器。你的其他浏览器和命令行保持各自的
 
 msgid "Patch updates, daily from 03:00"
 msgstr "补丁更新，每天 03:00 起"
-
-msgid "Same as this browser ({browser})"
-msgstr "与此浏览器相同（{browser}）"
 
 msgid "Saved. It's on Activity."
 msgstr "已保存，并已记入动态。"
