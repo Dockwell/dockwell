@@ -40,7 +40,7 @@ func TestMakingADokploySwarmAppAgain(t *testing.T) {
 		t.Fatalf("shop reads %v", step)
 	}
 	planned := res.Msg.GetChange()
-	if !noteSays(planned, "remakes_dokploy", "Dokploy scales each to none first") {
+	if !noteSays(planned, "remakes_dokploy", "Dockwell scales each to none in Dokploy first, and takes it off its ports and networks") {
 		t.Errorf("the plan's notes are %v", planned.GetPlan().GetNotes())
 	}
 	var kinds []string
@@ -311,5 +311,22 @@ func TestMakingADokployStackAgain(t *testing.T) {
 		if policy != want {
 			t.Errorf("the copy of %s restarts %q, not %q", service, policy, want)
 		}
+	}
+}
+
+// A container that shares a Swarm task's network would lose it as the copy takes
+// the task's place, so the app stays where it is, saying what leans on it.
+func TestWhatLeansOnATaskKeepsItsApp(t *testing.T) {
+	d := dokployShop(t)
+	runByHand(t, d.e, "shop-sidecar", func(r *docker.CreateRequest) {
+		r.HostConfig.PortBindings, r.HostConfig.Binds = nil, nil
+		r.HostConfig.NetworkMode = "container:shop-k2m4.1.x7k2"
+	})
+	res, err := d.ic.ImportDokploy(t.Context(), connect.NewRequest(&dockwellv1.ImportDokployRequest{ServerId: d.id}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if step := panelSteps(res.Msg)["IMPORT_KIND_APP shop"]; step.GetAction() != dockwellv1.ImportAction_IMPORT_ACTION_LEAVE || !strings.Contains(step.GetReason(), "shop-sidecar shares its network") {
+		t.Errorf("shop reads %v", step)
 	}
 }

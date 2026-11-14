@@ -155,15 +155,15 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 			// project of the stack's own, named as the stack named them.
 			step.Action = dockwellv1.ImportAction_IMPORT_ACTION_MAKE
 			step.Becomes = fmt.Sprintf("its services, %s, made again as they run, on their volumes", human.List(stackServices(a)))
-			step.Reason = fmt.Sprintf("%s runs it as a Swarm stack, which Swarm keeps running whatever happens to its containers, so it's made again: %s scales each service to none as Dockwell's copy starts, with a moment down.", w.name, w.name)
+			step.Reason = fmt.Sprintf("%s runs it as a Swarm stack, which Swarm keeps running whatever happens to its containers, so it's made again: Dockwell scales each of its services to none in %s, then starts its copy, with a moment down.", w.name, w.name)
 		case a.GetSwarm() && a.GetKind() != "stack" && allTasks(a):
 			// One Swarm service, read from its running task, comes again in Dockwell
 			// as it runs; the project it comes into is the plan's to name.
 			step.Action = dockwellv1.ImportAction_IMPORT_ACTION_MAKE
 			step.Becomes = fmt.Sprintf("the service %s, made again as it runs, on its volumes", containers.Label(a.GetId()))
-			step.Reason = fmt.Sprintf("%s runs it as a Swarm service, which Swarm keeps running whatever happens to its container, so it's made again: %s scales it to none as Dockwell's copy starts, with a moment down.", w.name, w.name)
+			step.Reason = fmt.Sprintf("%s runs it as a Swarm service, which Swarm keeps running whatever happens to its container, so it's made again: Dockwell scales it to none in %s, then starts its copy, with a moment down.", w.name, w.name)
 		case a.GetSwarm():
-			leave(step, fmt.Sprintf("%s runs it as a Swarm service, and no task of it runs now, so there's nothing to read it from. Start it in %s, then import again.", w.name, w.name))
+			leave(step, fmt.Sprintf("%s runs it as a Swarm service, and no task of it runs now, so there's nothing to make it again from. It stays as it is, in %s.", w.name, w.name))
 		case a.GetComposeProject() == "":
 			leave(step, fmt.Sprintf("Docker runs none of its containers through docker compose, so there's nothing to take on as it runs. It stays as it is, in %s.", w.name))
 		default:
@@ -411,7 +411,7 @@ func (h *Handler) planPanel(ctx context.Context, srv *dockwellv1.Server, w panel
 			Panel: &resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: parts},
 		})
 		also.Notes = append(also.Notes, revision.Note{Reason: "remakes_" + w.from, Message: fmt.Sprintf(
-			"Makes again in Dockwell what %s runs as Swarm services: %s, as each runs, on the same volumes. %s scales each to none first, so each is down for a moment until Dockwell's copy starts. Undoing this deletes Dockwell's copies and scales each back",
+			"Makes again in Dockwell what %s runs as Swarm services: %s, as each runs, on the same volumes. Dockwell scales each to none in %s first, and takes it off its ports and networks, so each is down for a moment until its copy starts. Undoing this deletes the copies and puts each back as it was",
 			w.name, human.List(made), w.name)})
 	}
 	return h.changes.Propose(ctx, "Take on what "+w.name+" runs on "+srv.GetName(), edits, nil, also)

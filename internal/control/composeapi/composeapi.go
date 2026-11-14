@@ -682,9 +682,8 @@ func (h *Handler) ReadMakingAgain(ctx context.Context, r *containers.Running, li
 		if err != nil {
 			return nil, nil, err
 		}
-		// Its old copy stops before this one starts, so what leans on it now is
-		// what reaches the new one by its name.
-		found.LeanedOn = nil
+		// What leans on it, such as a container sharing its network, would be cut
+		// off as its copy takes its place, so that's refused as for a take-on.
 		// What Swarm gives a task's container that its copy doesn't carry isn't
 		// dropped without a word: it's Swarm's, not the app's.
 		found.Refused = slices.DeleteFunc(found.Refused, swarmOnly)
