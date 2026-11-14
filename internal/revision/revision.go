@@ -4323,14 +4323,16 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		last, guarded := lastAccess[q.server]
 		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
-		desired := it.desiredOn(q.server)
+		// The call to its agent is what a wave's servers wait on side by side. What
+		// it's given is read first, as another server's step may change the item
+		// once the lock is let go.
+		step, desired := *q.step, it.desiredOn(q.server)
 		if q.backupOnly {
 			// A deletion's backup reads the volume as it is.
 			desired = it.current
 		}
-		// The call to its agent is what a wave's servers wait on side by side.
 		mu.Unlock()
-		err := agent.Apply(callCtx, *q.step, desired)
+		err := agent.Apply(callCtx, step, desired)
 		mu.Lock()
 		called()
 		if q.step.Unit != nil && e.onUnit != nil {
