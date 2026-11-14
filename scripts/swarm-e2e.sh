@@ -69,8 +69,7 @@ cleanup() {
   docker stack rm forum-q1 >/dev/null 2>&1 || true
   docker rm --force dokploy-traefik >/dev/null 2>&1 || true
   # Dockwell's copies, by the projects the import made.
-  docker ps --all --quiet --filter label=com.docker.compose.project=store | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
-  docker ps --all --quiet --filter label=com.docker.compose.project=forum | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
+  docker ps --all --format '{{.Names}}' | grep -E '^(store|forum)\.' | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
   [[ -z "$pid" ]] || priv kill "$pid" 2>/dev/null || true
   wait 2>/dev/null || true
   # The stack's tasks take a moment to go, and the network and volumes with them.
@@ -100,8 +99,9 @@ fail() {
 replicas() { docker service inspect --format '{{.Spec.Mode.Replicated.Replicas}}' "$1"; }
 # running_tasks lists the containers that run for a Swarm service on this node.
 running_tasks() { docker ps --quiet --filter "label=com.docker.swarm.service.name=$1"; }
-# copy_of names Dockwell's container of a service, in its project.
-copy_of() { docker ps --all --format '{{.Names}}' --filter "label=com.docker.compose.project=$1" --filter "label=com.docker.compose.service=$2" | head -1; }
+# copy_of names Dockwell's container of a service, in its project, which Dockwell
+# names <project>.<environment>.<service>-1.
+copy_of() { docker ps --all --format '{{.Names}}' | grep -E "^$1\.[a-z0-9-]+\.$2-1\$" | head -1 || true; }
 # wait_until waits up to $1 seconds for a command to succeed.
 wait_until() {
   local secs=$1
