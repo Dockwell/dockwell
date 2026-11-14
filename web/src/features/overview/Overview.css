@@ -170,8 +170,25 @@
 }
 
 .overview-fleet-map {
+  display: flex;
   flex: 3 1 560px;
+  flex-direction: column;
   min-width: 0;
+}
+
+/*
+ * Beside a taller list of changes, the tiles stay at the top and the line naming a server sits at the panel's foot, as
+ * Overview-Fleet draws it, rather than a gap under both.
+ */
+.overview-fleet-map > .dw-panel-body,
+.overview-fleet-map .dw-fleet {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.overview-fleet-map .dw-fleet-readout {
+  margin-top: auto;
 }
 
 .overview-fleet-changes {

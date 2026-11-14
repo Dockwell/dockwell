@@ -157,11 +157,15 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
   const navigate = useNavigate();
   const unknown = useFleetUnread() !== undefined;
   const tiles = useServerTiles(servers, unknown);
+  // The server to look at first, named under the tiles until another is hovered, as
+  // Overview-Fleet draws it: one that's down, then one that's degraded.
+  const first = tiles.find((s) => s.status === "down") ?? tiles.find((s) => s.status === "degraded");
   const grid = (
     <FleetGrid
       servers={tiles}
       size={compact || servers.length > 200 ? "sm" : "md"}
       readout={!compact}
+      selectedId={first?.id}
       onSelect={(server) => void navigate({ to: "/servers/$serverId", params: { serverId: server.id } })}
     />
   );
