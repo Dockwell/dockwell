@@ -5,6 +5,7 @@ package ingress
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -16,8 +17,16 @@ import (
 type Asker interface {
 	// Ask sends a GET for domain and path to the proxy on this server's loopback, over
 	// plain HTTP or HTTPS, with header and nothing else, and follows no redirect. It
-	// says the status it answered with, or why nothing answered.
-	Ask(ctx context.Context, domain, path string, plain bool, header http.Header) (status int, said string, err error)
+	// says what it answered, or why nothing answered.
+	Ask(ctx context.Context, domain, path string, plain bool, header http.Header) (Answer, error)
+}
+
+// Answer is what a proxy answered a stranger: its status, in words, and where a
+// redirect sends them.
+type Answer struct {
+	Status   int
+	Said     string
+	Location string
 }
 
 // strangerAddress is who a stranger is when a request reaches a route through a
@@ -68,6 +77,11 @@ func stranger(r Route) (header http.Header, who, cantTell string) {
 		return nil, "", "it answers only the proxies it names, and this server isn't one of them"
 	}
 	header, who = http.Header{}, asksFrom
+	if r.SignIn != "" {
+		// As a browser navigates, so sign-in sends them to their provider, as a script
+		// would get 401.
+		header.Set("Accept", "text/html")
+	}
 	if Covers(r.TrustedProxies, asksFrom+"/32") {
 		// The route believes this server on who its visitor is, as for a tunnel here.
 		header.Set("X-Forwarded-For", strangerAddress)
@@ -86,7 +100,7 @@ func AskStrangers(ctx context.Context, asker Asker, routes []Route) map[string][
 	down := ""
 	for i := range routes {
 		r := &routes[i]
-		if r.Edited || len(r.Allow)+len(r.Users) == 0 {
+		if r.Edited || !keepsOut(*r) {
 			continue
 		}
 		check := &dockwellv1.StrangerCheck{Path: r.Path}
@@ -101,21 +115,26 @@ func AskStrangers(ctx context.Context, asker Asker, routes []Route) map[string][
 			if path == "" {
 				path = "/"
 			}
-			status, said, err := asker.Ask(ctx, r.Domain, path, r.Plain, header)
+			got, err := asker.Ask(ctx, r.Domain, path, r.Plain, header)
 			if err != nil {
 				down = "Nothing answered: " + err.Error()
 				check.Outcome, check.Said = dockwellv1.StrangerOutcome_STRANGER_OUTCOME_OTHER, down
 				break
 			}
-			check.Status, check.Said, check.Outcome = uint32(status), said, outcomeOf(status) //nolint:gosec // an HTTP status, 100 to 599
+			check.Status, check.Said, check.Outcome = uint32(got.Status), got.Said, outcomeOf(got.Status) //nolint:gosec // an HTTP status, 100 to 599
+			// A route that signs people in sends a stranger's navigation to its provider,
+			// another origin, which is where they're sent (ADR 0087).
+			if at := signsInAt(*r, got); at != "" {
+				check.Said, check.Outcome = at, dockwellv1.StrangerOutcome_STRANGER_OUTCOME_SENT_TO_SIGN_IN
+			}
 			// A route's other spellings, which an app may read as its path, should keep a
 			// stranger out as well (#606's review, H2).
 			for _, spelling := range Spellings(r.Path, pathsOn(routes, r)) {
 				if check.GetOutcome() == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
 					break
 				}
-				if status, said, err := asker.Ask(ctx, r.Domain, spelling, r.Plain, header); err == nil && outcomeOf(status) == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN {
-					check.Status, check.Said, check.Outcome = uint32(status), said+" at "+spelling, dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN //nolint:gosec // an HTTP status
+				if got, err := asker.Ask(ctx, r.Domain, spelling, r.Plain, header); err == nil && outcomeOf(got.Status) == dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN && signsInAt(*r, got) == "" {
+					check.Status, check.Said, check.Outcome = uint32(got.Status), got.Said+" at "+spelling, dockwellv1.StrangerOutcome_STRANGER_OUTCOME_LET_IN //nolint:gosec // an HTTP status
 				}
 			}
 		}
@@ -134,6 +153,22 @@ func AskStrangers(ctx context.Context, asker Asker, routes []Route) map[string][
 	}
 	return out
 }
+
+// signsInAt is the host a route that signs people in sends a stranger to, from a
+// redirect to another origin, or "" for anything else.
+func signsInAt(r Route, got Answer) string {
+	if r.SignIn == "" || got.Status < http.StatusMultipleChoices || got.Status >= http.StatusBadRequest {
+		return ""
+	}
+	u, err := url.Parse(got.Location)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || strings.EqualFold(u.Hostname(), r.Domain) {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// keepsOut reports a route that keeps anyone out: with a list, users or sign-in.
+func keepsOut(r Route) bool { return len(r.Allow)+len(r.Users) > 0 || r.SignIn != "" }
 
 // pathsOn is the paths of the routes beside r on its domain, each once, so the
 // stranger check asks r's spellings from below them too.

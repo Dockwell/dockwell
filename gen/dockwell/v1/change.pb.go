@@ -6331,9 +6331,14 @@ type PlanStep struct {
 	// keys under its prefix, such as "shop:*", or "*" for every key it wrote, which
 	// nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
 	// the block connectable apps hold in other messages, 80 to 89.
-	KeysLeft      string `protobuf:"bytes,81,opt,name=keys_left,json=keysLeft,proto3" json:"keys_left,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	KeysLeft string `protobuf:"bytes,81,opt,name=keys_left,json=keysLeft,proto3" json:"keys_left,omitempty"`
+	// The routes on the host of a route that signs people in that were edited by
+	// hand, by domain and path, which applying it doesn't write again, so they may
+	// pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
+	// and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
+	HandEditedBeside []string `protobuf:"bytes,110,rep,name=hand_edited_beside,json=handEditedBeside,proto3" json:"hand_edited_beside,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PlanStep) Reset() {
@@ -6679,6 +6684,13 @@ func (x *PlanStep) GetKeysLeft() string {
 		return x.KeysLeft
 	}
 	return ""
+}
+
+func (x *PlanStep) GetHandEditedBeside() []string {
+	if x != nil {
+		return x.HandEditedBeside
+	}
+	return nil
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or
@@ -9314,7 +9326,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x86\x10\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xb4\x10\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -9367,7 +9379,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\fbuild_logins\x18e \x03(\tR\vbuildLogins\x120\n" +
 	"\x14build_login_versions\x18f \x03(\tR\x12buildLoginVersions\x12?\n" +
 	"\rdatabase_move\x18\x84\x02 \x01(\v2\x19.dockwell.v1.DatabaseMoveR\fdatabaseMove\x12\x1b\n" +
-	"\tkeys_left\x18Q \x01(\tR\bkeysLeft\"\x9c\x02\n" +
+	"\tkeys_left\x18Q \x01(\tR\bkeysLeft\x12,\n" +
+	"\x12hand_edited_beside\x18n \x03(\tR\x10handEditedBeside\"\x9c\x02\n" +
 	"\tBuildPlan\x12\x10\n" +
 	"\x03url\x18\x01 \x01(\tR\x03url\x12\x10\n" +
 	"\x03ref\x18\x02 \x01(\tR\x03ref\x12\x16\n" +

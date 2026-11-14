@@ -85,6 +85,16 @@ export function useFieldRows(): FieldRows {
       // Which of its own values an app shows, which Dockwell keeps beside them (ADR 0081).
       shown_env: t`shows the values of`,
     };
+    // How a route signs people in (ADR 0087), apart from labels, as a route with them
+    // never reads as one row.
+    const signInLabels: Readonly<Record<string, string>> = {
+      "access.sign_in.provider": t`signs in with`,
+      "access.sign_in.emails": t`lets sign in`,
+      "access.sign_in.email_domains": t`lets sign in anyone at`,
+      "access.sign_in.groups": t`lets sign in the groups`,
+      "access.sign_in.session_hours": t`a sign-in lasts, in hours`,
+      "access.sign_in.generation": t`sign-in generation`,
+    };
     // What a person reads a value as, where the value itself is long: a commit in 7 digits, a branch by its own name, and an image Dockwell built as its commit.
     const readers: Readonly<Record<string, (value: string) => string>> = {
       "build.git.commit": (value) => value.slice(0, 7),
@@ -303,8 +313,21 @@ export function useFieldRows(): FieldRows {
       keepsData = false,
       restores = false,
     }: FieldSource): PlanChange[] => {
-      const fields = changes.map((change) => ({ path: change.path.replace(/^app\./, ""), change }));
+      // What a route that signs people in has of its provider is the provider's, as
+      // saved, which its own plan says: one row says the route takes it (ADR 0087).
+      const fromProvider = changes.some((c) => c.path.startsWith(FILLED));
+      const fields = changes
+        .filter((c) => !c.path.startsWith(FILLED))
+        .map((change) => ({ path: change.path.replace(/^app\./, ""), change }));
       const rows: PlanChange[] = [];
+      if (fromProvider) {
+        rows.push({
+          path: "access.sign_in.filled",
+          label: t`its provider's settings`,
+          to: t`as the provider has them now`,
+          tone: "change",
+        });
+      }
       // Data it takes away isn't a field of any spec, and leads whatever else changes.
       if (keptPaths.length > 0) {
         rows.push({ path: "data", label: t`data taken out of use`, to: keptPaths.join(", "), tone: "critical" });
@@ -366,7 +389,7 @@ export function useFieldRows(): FieldRows {
           ? keyed(path, entry[1] ?? "", entry[2] ?? "", change, kind)
           : used
             ? uses(path, used[1] ?? "", used[2] ?? "", change)
-            : plain(path, change, labels[path] ?? humanize(path), readers[path] ?? yesNo);
+            : plain(path, change, labels[path] ?? signInLabels[path] ?? humanize(path), readers[path] ?? yesNo);
         const tone = change.op === FieldOp.REMOVED ? undefined : reaching(path, hostAccess);
         rows.push(tone ? { ...row, tone } : row);
       }
@@ -378,6 +401,9 @@ export function useFieldRows(): FieldRows {
     return Object.assign(rows, { kindWord: (kind: string) => kinds[kind] });
   }, [t]);
 }
+
+/** Where a route keeps what it has of its sign-in provider, which the control plane fills in. */
+const FILLED = "access.sign_in.filled.";
 
 /** The order a person reads a resource in: what puts it at risk, what it runs, how it is reached, what it keeps and knows. */
 function rank(row: PlanChange): number {

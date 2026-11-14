@@ -27,6 +27,10 @@ service DomainService {
     name: "dns-providers"
     help: "What writes a DNS zone's records, so the control plane can prove a name by DNS-01 and get its certificate, behind NAT or for a wildcard. A provider is install-wide: an admin connects it as a change, with a plan. Its token stays on the control plane and goes to no server. CheckDnsProvider writes and deletes a TXT record without saving anything. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md."
   };
+  option (dockwell.v1.nouns) = {
+    name: "signin-providers"
+    help: "OpenID Connect providers people sign in to private routes with, such as an Authentik you run, or Google. A provider is install-wide: an admin saves it as a change, with a plan, and decides which projects' routes may use it. CheckSigninProvider reads an issuer's discovery document without saving anything. See docs/adr/0087-private-routes.md."
+  };
   // ListDomains returns the domains of the routes that exist now, sorted by
   // name, with each one's routes and where its certificate and DNS stand on
   // each server. A domain whose certificate is on its way answers over HTTPS
@@ -101,6 +105,100 @@ service DomainService {
       body: "*"
     };
   }
+  // ListSigninProviders lists the providers people sign in to private routes with
+  // (ADR 0087): an admin's, every provider with everything but its secret; below an
+  // admin, those the caller's projects may use, by name and display name alone.
+  rpc ListSigninProviders(ListSigninProvidersRequest) returns (ListSigninProvidersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_NAMED;
+    option (google.api.http) = {get: "/v1/signinProviders"};
+  }
+  // CheckSigninProvider reads an issuer's discovery document from the control
+  // server, as saving a provider does, and saves nothing. It says what it found, or
+  // why Dockwell can't sign people in with it: an issuer other than the one asked
+  // for, an endpoint that isn't HTTPS, no authorization code flow, no PKCE with
+  // S256, or no signing algorithm Dockwell takes. An admin's, signed in, as a
+  // provider is install-wide. See docs/adr/0087-private-routes.md.
+  rpc CheckSigninProvider(CheckSigninProviderRequest) returns (CheckSigninProviderResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/signinProviders:check"};
+  }
+}
+
+// ListSigninProvidersRequest asks for the sign-in providers the caller may use.
+message ListSigninProvidersRequest {
+  // Only the providers this project's routes may use, by ID.
+  string project = 1;
+}
+
+// ListSigninProvidersResponse lists sign-in providers.
+message ListSigninProvidersResponse {
+  repeated SigninProviderInfo providers = 1;
+}
+
+// SigninProviderInfo is a sign-in provider, without its secret.
+message SigninProviderInfo {
+  // Its ID, such as "sip_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string id = 1;
+  // Its name, which a route names it by.
+  string name = 2;
+  // What the panel calls it.
+  string display_name = 3;
+  // Its issuer. Empty below an admin.
+  string issuer = 4;
+  // The client Dockwell is at the provider. Empty below an admin.
+  string client_id = 5;
+  // Whether it has a client secret, which is never shown. False below an admin.
+  bool has_secret = 6;
+  // What sign-in asks for beyond "openid email profile".
+  repeated string scopes = 7;
+  // The claim that lists someone's groups.
+  string groups_claim = 8;
+  // Whether every account at the provider is your team's.
+  bool any_account = 9;
+  // The projects whose routes may use it, by ID. Empty for every project.
+  repeated string projects = 10;
+}
+
+// CheckSigninProviderRequest is an issuer to read.
+message CheckSigninProviderRequest {
+  // The issuer, as typed: "auth.example.com" reads as https://auth.example.com.
+  string issuer = 1;
+}
+
+// SigninProviderState is what reading an issuer's discovery document found.
+enum SigninProviderState {
+  SIGNIN_PROVIDER_STATE_UNSPECIFIED = 0;
+  // Dockwell can sign people in with it.
+  SIGNIN_PROVIDER_STATE_FOUND = 1;
+  // Its discovery document couldn't be read: detail says why.
+  SIGNIN_PROVIDER_STATE_UNREACHABLE = 2;
+  // It answered, with what Dockwell can't sign people in with: detail says what.
+  SIGNIN_PROVIDER_STATE_UNUSABLE = 3;
+}
+
+// CheckSigninProviderResponse says what an issuer's discovery document holds.
+message CheckSigninProviderResponse {
+  SigninProviderState state = 1;
+  // The issuer as its document says it, which is what a provider saves.
+  string issuer = 2;
+  // The issuer's host, such as "auth.example.com".
+  string host = 3;
+  // The signing algorithms it uses that Dockwell takes, such as "ES256".
+  repeated string algorithms = 4;
+  // Why it can't be used, in a sentence, when it can't.
+  string detail = 5;
+  // Whether anyone can have an account there, as at Google's or Entra's common
+  // issuer, so a route needs someone named.
+  bool public = 6;
 }
 
 // ListCertificatesRequest asks for every certificate by DNS-01.
@@ -288,6 +386,10 @@ message DomainRoute {
   // or its hash, is never shown: an edit that names a user with no password
   // keeps theirs.
   repeated string users = 111;
+  // How people sign in to it with a provider, if they do: the provider by name and
+  // who may, with nothing of the provider's own, which the control plane fills in as
+  // it plans (ADR 0087).
+  dockwell.resource.v1alpha1.RouteSignIn sign_in = 112;
 }
 
 // DomainServer is where a domain stands on one server.
@@ -390,6 +492,9 @@ enum StrangerOutcome {
   // The server can't tell what a stranger gets from where it asks: said says
   // why.
   STRANGER_OUTCOME_CANT_TELL = 5;
+  // A redirect to the provider's own origin: a stranger is sent to sign in there,
+  // and said names the provider's host.
+  STRANGER_OUTCOME_SENT_TO_SIGN_IN = 6;
 }
 
 // Certificate is where a domain's certificate stands on a server.

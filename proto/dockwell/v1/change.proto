@@ -1740,6 +1740,11 @@ message PlanStep {
   // nothing tells apart. Taking the user away deletes no key (ADR 0084). Numbered in
   // the block connectable apps hold in other messages, 80 to 89.
   string keys_left = 81;
+  // The routes on the host of a route that signs people in that were edited by
+  // hand, by domain and path, which applying it doesn't write again, so they may
+  // pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
+  // and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
+  repeated string hand_edited_beside = 110;
 }
 
 // BuildPlan is what a step builds: a commit of a repository, with its Dockerfile or

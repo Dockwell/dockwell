@@ -126,7 +126,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(ResourceService, { listResources: () => ({}), ...api.resources });
       service(VariableService, api.variables ?? {});
       service(VolumeService, api.volumes ?? {});
-      service(DomainService, { listDomains: () => ({}), ...api.domains });
+      service(DomainService, { listDomains: () => ({}), listSigninProviders: () => ({}), ...api.domains });
       service(ServiceService, { listServices: () => ({}), ...api.services });
       service(ComposeService, api.compose ?? {});
       service(CatalogService, {

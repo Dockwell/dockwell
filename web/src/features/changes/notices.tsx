@@ -1121,6 +1121,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       const out: Notice[] = [];
       const returning = words.returning(step.returningContainers, server.serverName);
       if (returning) out.push({ key: `returning-${key}`, title: returning });
+      const handEdited = words.handEdited(step.handEditedBeside, server.serverName);
+      if (handEdited) out.push({ key: `hand-edited-${key}`, title: handEdited });
       // What DNS said as this was planned stops mattering once the domain serves.
       const dns = serving.includes(step.domainCheck?.domain ?? "") ? "" : words.domain(step.domainCheck);
       if (dns) out.push({ key: `dns-${key}`, title: dns });

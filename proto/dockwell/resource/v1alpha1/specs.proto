@@ -1220,6 +1220,50 @@ message RouteAccess {
   // asked, with 401. An edit that names a user without a password keeps the one
   // they have.
   repeated RouteUser users = 2;
+  // Who may sign in as themselves, with a provider an admin saved (ADR 0087).
+  // Anyone else navigating is sent to the provider, and anything else gets 401.
+  // With users too, a request with Basic credentials is checked against them, and
+  // any other goes to sign in. It needs HTTPS at the browser.
+  RouteSignIn sign_in = 3;
+}
+
+// RouteSignIn is who may sign in to a private route with a provider, as themselves.
+// Someone must be named, by email, domain or group, unless the provider says every
+// account at it is your team's.
+message RouteSignIn {
+  // The sign-in provider, by name: one the route's project may use.
+  string provider = 1;
+  // Who may sign in, by email, as the provider says it, verified.
+  repeated string emails = 2;
+  // Or anyone at a domain, such as "example.com".
+  repeated string email_domains = 3;
+  // Or anyone in a group, from the provider's groups claim.
+  repeated string groups = 4;
+  // How long a sign-in lasts, in hours. 0 takes 24, and it takes 720 at most.
+  uint32 session_hours = 5;
+  // Raising it signs everyone out, and leaves the provider alone.
+  uint64 generation = 6;
+  // What the route's server needs of the provider, which the control plane fills
+  // in from the provider as it plans: what a client sets here is replaced.
+  RouteSignInProvider filled = 7;
+}
+
+// RouteSignInProvider is what a route's server needs of its sign-in provider.
+message RouteSignInProvider {
+  // The provider's issuer, as saved.
+  string issuer = 1;
+  // The client Dockwell is at the provider.
+  string client_id = 2;
+  // The client's secret, sealed, and empty for a public client.
+  string client_secret = 3 [(sensitive) = true];
+  // What sign-in asks for beyond "openid email profile".
+  repeated string scopes = 4;
+  // The claim that lists someone's groups.
+  string groups_claim = 5;
+  // Whether every account at the provider is your team's.
+  bool any_account = 6;
+  // The provider's revision, so a plan made with another reads as stale.
+  int64 revision = 7;
 }
 
 // RouteUser is someone who may sign in to a private route.
@@ -1355,6 +1399,10 @@ message Spec {
     // names the internet can't reach, kind "certificate" (ADR 0088). Numbered in
     // the block DNS-01 holds, 120 to 129.
     DnsCertificate certificate = 121;
+    // A provider people sign in to private routes with, kind "signin.provider"
+    // (ADR 0087). Numbered in the block private routes hold, 110 to 119, past the
+    // alerts' 110 to 113.
+    SigninProvider signin_provider = 114;
   }
 }
 
@@ -1433,6 +1481,35 @@ message RegistryLoginEcr {
   string secret_key = 2 [(sensitive) = true];
   // The region the registry is in, such as "eu-west-1".
   string region = 3;
+}
+
+// SigninProvider is an OpenID Connect provider that people sign in to private
+// routes with, kind "signin.provider" (ADR 0087): a self-hosted Authentik,
+// Authelia, Keycloak, Pocket ID or Zitadel, or Google or Microsoft Entra. It's
+// install-wide: an admin saves it as a change, with a plan, and names the projects
+// whose routes may use it. The control plane checks its issuer live as it's saved.
+message SigninProvider {
+  // What the panel calls it, such as "Our Authentik".
+  string display_name = 1;
+  // The provider's issuer, exactly as its discovery document says it, such as
+  // "https://auth.example.com/application/o/dockwell/". It's HTTPS, with no query
+  // or fragment.
+  string issuer = 2;
+  // The client Dockwell is at the provider.
+  string client_id = 3;
+  // The client's secret. Unset for a public client, which PKCE protects alone.
+  // Leave it out of an update to keep it.
+  string client_secret = 4 [(sensitive) = true];
+  // What sign-in asks for beyond "openid email profile", such as "groups".
+  repeated string scopes = 5;
+  // The claim of an ID token that lists someone's groups. Empty takes "groups".
+  string groups_claim = 6;
+  // Every account at this provider is your team's, as at an Authentik you run, so
+  // a route may let in anyone who signs in. Refused for an issuer anyone can have
+  // an account at, such as Google's or Entra's common one.
+  bool any_account = 7;
+  // The projects whose routes may use it, by ID. Empty for every project.
+  repeated string projects = 8;
 }
 
 // Task is work that runs on a schedule, on each server it's placed on, kind "task"

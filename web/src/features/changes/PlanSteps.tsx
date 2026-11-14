@@ -187,6 +187,7 @@ function StepRow({
   const opens = step.hostAccess.filter((a) => a.kind === HostAccessKind.ACCESS_OPENED);
   const dns = words.domain(step.domainCheck);
   const returning = words.returning(step.returningContainers, server);
+  const handEdited = words.handEdited(step.handEditedBeside, server);
   const buildLogins = step.buildLogins.join(", ");
   const activity = live?.state === StepState.RUNNING ? live.activity : "";
   // Why it waits is the step's own to say; every other state its badge says, and a failure is said above.
@@ -281,6 +282,7 @@ function StepRow({
             <span key={line}>{line}</span>
           ))}
           {returning ? <span className="plan-step-warn">{returning}</span> : null}
+          {handEdited ? <span className="plan-step-warn">{handEdited}</span> : null}
           {dns ? <span className="plan-step-warn">{dns}</span> : null}
           {step.unencrypted ? <span className="plan-step-notice">{words.unencrypted(server)}</span> : null}
           {step.goes ? <span className="plan-step-notice">{words.goes(step.goes)}</span> : null}

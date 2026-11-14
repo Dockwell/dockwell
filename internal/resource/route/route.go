@@ -66,6 +66,12 @@ type Ingress interface {
 	ReadyKey() any
 }
 
+// handEdited is an Ingress that says which routes beside one that signs people in
+// it won't write again, as they were edited by hand (ADR 0087).
+type handEdited interface {
+	HandEditedBeside(ctx context.Context, ref resource.Ref, spec *resourcev1.Route) []string
+}
+
 // Driver is the route kind. Reserved is the panel's domain, on the control
 // plane and on the agent beside it: no route may claim it or a name under it.
 // Saved, on the control plane, is a domain saved for the panel and not served
@@ -506,6 +512,9 @@ func (d *Driver) Judge(ctx context.Context, ref resource.Ref, actual, desired pr
 	}
 	dec.Ingress, dec.Domain = effect, check
 	dec.Returning = d.Ingress.Returning(ctx, ref, spec, resource.DesiredIn(ctx))
+	if b, ok := d.Ingress.(handEdited); ok {
+		dec.HandEditedBeside = b.HandEditedBeside(ctx, ref, spec)
+	}
 	if spec == nil {
 		if goes := d.Ingress.Goes(ctx, ref, resource.DesiredIn(ctx)); goes != nil {
 			dec.Goes = goes

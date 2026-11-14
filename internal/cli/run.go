@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -34,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/agent/onepanel"
 	"github.com/dockwell/dockwell/internal/agent/panels"
+	"github.com/dockwell/dockwell/internal/agent/signin"
 	"github.com/dockwell/dockwell/internal/agent/system"
 	"github.com/dockwell/dockwell/internal/agent/terminal"
 	"github.com/dockwell/dockwell/internal/agent/updates"
@@ -46,6 +48,7 @@ import (
 	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
+	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
@@ -425,8 +428,10 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	// directory, Docker's, and where symlinks lead.
 	paths := &container.Paths{Client: client, DataDir: dir.Root, Files: filepath.Join(dir.Agent(), "files")}
 	proxy := &caddy.Container{Client: client, Dir: dir.Ingress(), Mirror: stdio.Getenv(envIngressImage)}
+	signIns := &signin.Keep{Dir: filepath.Join(dir.Agent(), "signin-keys")}
+	go serveSignIn(ctx, logger, dir, signIns)
 	routes := &ingress.Manager{
-		Client: client, Dir: dir.Ingress(), Panel: panel, OwnPorts: ownPorts, Logger: logger, KeeperImage: proxy.Reference(), Certs: certs,
+		Client: client, Dir: dir.Ingress(), Panel: panel, OwnPorts: ownPorts, Logger: logger, KeeperImage: proxy.Reference(), Certs: certs, SignIns: signIns,
 		Proxy: &caddy.Caddy{
 			Dir: dir.Ingress(), Runtime: proxy,
 			ACMEDirectory: stdio.Getenv(envACMEDirectory), ACMERoots: stdio.Getenv(envACMERoots),
@@ -604,4 +609,52 @@ func testPlainRegistry(getenv func(string) string) string {
 		return ""
 	}
 	return u.Host
+}
+
+// signInReadWait bounds reading what the proxy asks of who signed in.
+const signInReadWait = 10 * time.Second
+
+// serveSignIn answers what the proxy asks of who signed in to a route that signs
+// people in, on a socket beside the panel's, which only root and the proxy's user
+// reach (ADR 0087). Until it listens, such a route answers 502: closed, never open.
+func serveSignIn(ctx context.Context, logger *slog.Logger, dir datadir.Dir, keep *signin.Keep) {
+	path := caddy.SignInSocket(dir.Ingress())
+	ln := listenWhenItCan(path, ingressListenRetry, listenWords{
+		cant: func(path string, err error, every time.Duration) {
+			logger.Warn("can't listen for what the ingress asks of who signed in, so a route that signs people in answers 502 until the agent can. "+
+				"This is tried again. If it goes on, something keeps taking the socket: look at what's running in the ingress's container",
+				slog.String("socket", path), slog.String("error", err.Error()), slog.Duration("every", every))
+		},
+		again: func(path string) {
+			logger.Info("listening for what the ingress asks of who signed in, so routes that sign people in answer again", slog.String("socket", path))
+		},
+	}, func() (net.Listener, error) {
+		if err := caddy.EnsureDirs(dir.Ingress()); err != nil {
+			return nil, err
+		}
+		if err := caddy.ClearSocket(path); err != nil {
+			return nil, err
+		}
+		var lc net.ListenConfig
+		l, err := lc.Listen(ctx, "unix", path)
+		if err != nil {
+			return nil, fmt.Errorf("can't listen on %s for what the ingress asks of who signed in: %w", path, err)
+		}
+		if err := caddy.OwnSocket(path); err != nil {
+			_ = l.Close()
+			return nil, err
+		}
+		return l, nil
+	})
+	// A provider is read from this server, as the control plane read it when it was
+	// saved: on a private network an admin named, never this server's own addresses,
+	// a link-local one or a metadata service.
+	answer := &signin.Server{Routes: keep.Route, Client: netguard.Client(netguard.Options{Private: true, MaxBody: signin.MaxAnswer})}
+	go func() {
+		<-ctx.Done()
+		_ = ln.Close()
+	}()
+	if err := signin.Serve(ln, answer, signInReadWait, logger); !errors.Is(err, net.ErrClosed) {
+		logger.Warn("stopped answering what the ingress asks of who signed in, so routes that sign people in answer 502. Restart the agent", slog.String("error", err.Error()))
+	}
 }

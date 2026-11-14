@@ -1566,6 +1566,14 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 						return err
 					}
 				}
+				// What a route that signs people in needs of its provider is the provider's
+				// as it's saved now, whatever the edit says, before anything checks it, as
+				// who must be named depends on it (ADR 0087).
+				if rt, ok := it.spec.(*resourcev1.Route); ok {
+					if err := e.fillSignIn(ctx, tx, items, ed.Ref, rt); err != nil {
+						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
+					}
+				}
 				if err := e.kinds.Validate(ed.Ref.Kind, it.spec); err != nil {
 					return fault.New(ErrInvalid, "%s isn't valid: %w", ed.Ref, err)
 				}
@@ -1617,6 +1625,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			return err
 		}
 		if items, err = e.withTiesGoing(ctx, tx, items, seen); err != nil {
+			return err
+		}
+		if items, err = e.withRoutesSigningIn(ctx, tx, items, seen); err != nil {
 			return err
 		}
 		// What uses a value the change changes joins it, and once pinned, what uses

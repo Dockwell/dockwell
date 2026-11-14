@@ -27,7 +27,8 @@ export function frontOf(noCertificate: boolean, inFront: InFront, proxies: strin
     case "proxy":
       return { tls: "off", trustedProxies: proxies };
     case "anyone":
-      return { tls: "off", plainForAnyone: true };
+      // Nothing in front, so nothing is believed on who a visitor is.
+      return { tls: "off", trustedProxies: [], plainForAnyone: true };
   }
 }
 

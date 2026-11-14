@@ -833,6 +833,9 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 			if line := returningWords(st.GetReturningContainers(), s.GetServerName()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if line := handEditedWords(st.GetHandEditedBeside(), s.GetServerName()); line != "" {
+				fmt.Fprintln(tw, "      "+line)
+			}
 			if line := domainWords(st.GetDomainCheck()); line != "" {
 				fmt.Fprintln(tw, "      "+line)
 			}
@@ -1250,6 +1253,17 @@ func returningWords(names []string, server string) string {
 	}
 	return fmt.Sprintf("Docker starts %s again when %s next restarts, which may take port 80 or 443 from the proxy, and stop this route answering. Keep it stopped with docker update --restart=no %s.",
 		human.List(names), server, strings.Join(names, " "))
+}
+
+// handEditedWords names the routes edited by hand beside one that signs people in,
+// which applying it doesn't write again, so they may pass its cookies on. It never
+// stops a plan (ADR 0087).
+func handEditedWords(paths []string, server string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s on %s were edited by hand, so this doesn't write them again, and they may pass its sign-in cookies on to their apps. Edit them in Dockwell, or remove them.",
+		human.List(paths), server)
 }
 
 // domainWords says what DNS said of a route's domain as this was planned, if

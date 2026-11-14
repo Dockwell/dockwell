@@ -4692,6 +4692,9 @@ msgstr "A stranger gets {said}"
 msgid "A stranger is asked for a password"
 msgstr "A stranger is asked for a password"
 
+msgid "A stranger is sent to sign in at {at}"
+msgstr "A stranger is sent to sign in at {at}"
+
 msgid "Add a user"
 msgstr "Add a user"
 
@@ -4791,17 +4794,26 @@ msgstr "On {on}, a stranger gets {said}"
 msgid "On {on}, a stranger is asked for a password"
 msgstr "On {on}, a stranger is asked for a password"
 
+msgid "On {on}, a stranger is sent to sign in at {at}"
+msgstr "On {on}, a stranger is sent to sign in at {at}"
+
 msgid "Once applied, a stranger gets 403 Forbidden"
 msgstr "Once applied, a stranger gets 403 Forbidden"
 
 msgid "Once applied, a stranger is asked for a password"
 msgstr "Once applied, a stranger is asked for a password"
 
+msgid "Once applied, a stranger is sent to sign in"
+msgstr "Once applied, a stranger is sent to sign in"
+
 msgid "Once applied, anyone who reaches it gets in"
 msgstr "Once applied, anyone who reaches it gets in"
 
 msgid "Only these addresses"
 msgstr "Only these addresses"
+
+msgid "Other paths of {domainName} share its origin and can reach it"
+msgstr "Other paths of {domainName} share its origin and can reach it"
 
 msgid "Other ways in let anyone reach this app"
 msgstr "Other ways in let anyone reach this app"
@@ -4876,6 +4888,64 @@ msgstr "your network"
 
 msgid "{on} can't tell from where it asks"
 msgstr "{on} can't tell from where it asks"
+
+msgid "Add a sign-in provider"
+msgstr "Add a sign-in provider"
+
+msgid "Add an email, a domain or a group"
+msgstr "Add an email, a domain or a group"
+
+msgid "Add anyone at {ownDomain}"
+msgstr "Add anyone at {ownDomain}"
+
+msgid "Add someone who may sign in."
+msgstr "Add someone who may sign in."
+
+msgid "Copy the redirect address"
+msgstr "Copy the redirect address"
+
+msgid "No sign-in provider is here yet. An admin adds one in Settings."
+msgstr "No sign-in provider is here yet. An admin adds one in Settings."
+
+msgid "Redirect address at the provider"
+msgstr "Redirect address at the provider"
+
+msgid "Redirect address copied"
+msgstr "Redirect address copied"
+
+msgid "Sign in with"
+msgstr "Sign in with"
+
+msgid "Sign in with a provider"
+msgstr "Sign in with a provider"
+
+msgid "Take {who} off"
+msgstr "Take {who} off"
+
+msgid "Visitors reach it over plain HTTP, where a sign-in can't be kept."
+msgstr "Visitors reach it over plain HTTP, where a sign-in can't be kept."
+
+msgid "Who may sign in"
+msgstr "Who may sign in"
+
+msgid "Write an email, a domain or a group, in ASCII, such as mira@example.com or example.com."
+msgstr "Write an email, a domain or a group, in ASCII, such as mira@example.com or example.com."
+
+msgctxt "a domain on who may sign in"
+msgid "anyone at"
+msgstr "anyone at"
+
+msgctxt "a kind of who may sign in"
+msgid "email"
+msgstr "email"
+
+msgctxt "a kind of who may sign in"
+msgid "group"
+msgstr "group"
+
+msgctxt "an email on who may sign in, that is yours"
+msgid "you"
+msgstr "you"
 
 msgid "Change {name}'s version"
 msgstr "Change {name}'s version"
@@ -8675,6 +8745,9 @@ msgstr "<0>{source}</0>, read-only"
 msgid "SELinux label"
 msgstr "SELinux label"
 
+msgid "a sign-in lasts, in hours"
+msgstr "a sign-in lasts, in hours"
+
 msgid "action"
 msgstr "action"
 
@@ -8683,6 +8756,9 @@ msgstr "allow <0>{port}</0>, {proto}, from <1>{from}</1>"
 
 msgid "allow <0>{port}</0>, {proto}, from anywhere"
 msgstr "allow <0>{port}</0>, {proto}, from anywhere"
+
+msgid "as the provider has them now"
+msgstr "as the provider has them now"
 
 msgid "block <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgstr "block <0>{port}</0>, {proto}, from <1>{from}</1>"
@@ -8738,11 +8814,23 @@ msgstr "health check timeout"
 msgid "internal"
 msgstr "internal"
 
+msgid "its provider's settings"
+msgstr "its provider's settings"
+
 msgid "kept 7 days, then deleted"
 msgstr "kept 7 days, then deleted"
 
 msgid "label"
 msgstr "label"
+
+msgid "lets sign in"
+msgstr "lets sign in"
+
+msgid "lets sign in anyone at"
+msgstr "lets sign in anyone at"
+
+msgid "lets sign in the groups"
+msgstr "lets sign in the groups"
 
 msgctxt "an app's need, met"
 msgid "link"
@@ -8804,6 +8892,12 @@ msgstr "shared memory"
 
 msgid "shows the values of"
 msgstr "shows the values of"
+
+msgid "sign-in generation"
+msgstr "sign-in generation"
+
+msgid "signs in with"
+msgstr "signs in with"
 
 msgid "sources"
 msgstr "sources"
@@ -10010,6 +10104,15 @@ msgstr "environment {environment}"
 msgid "firewall rule"
 msgstr "firewall rule"
 
+msgid "lets in anyone at {named}"
+msgstr "lets in anyone at {named}"
+
+msgid "lets in anyone in the group {inGroup}"
+msgstr "lets in anyone in the group {inGroup}"
+
+msgid "lets in every account at its provider"
+msgstr "lets in every account at its provider"
+
 msgid "lets in {named}"
 msgstr "lets in {named}"
 
@@ -10025,6 +10128,18 @@ msgstr "project {project}"
 msgid "read-write"
 msgstr "read-write"
 
+msgid "reads groups from the claim {named}"
+msgstr "reads groups from the claim {named}"
+
+msgid "signs people in as the client {named}"
+msgstr "signs people in as the client {named}"
+
+msgid "signs people in at {named}"
+msgstr "signs people in at {named}"
+
+msgid "signs people in with {named}"
+msgstr "signs people in with {named}"
+
 msgid "something else on the server"
 msgstr "something else on the server"
 
@@ -10033,6 +10148,9 @@ msgstr "takes off its list of addresses"
 
 msgid "takes off its passwords"
 msgstr "takes off its passwords"
+
+msgid "takes off signing in"
+msgstr "takes off signing in"
 
 msgid "the Linux capability {path}"
 msgstr "the Linux capability {path}"
@@ -10132,6 +10250,9 @@ msgstr "{domain} has no DNS record yet, so its certificate can't come until it h
 
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an {record} record at {either}; it comes once you do"
 msgstr "{domain} has no DNS record yet, so its certificate can't come. Point an {record} record at {either}; it comes once you do"
+
+msgid "{list} on {server} were edited by hand, so this doesn't write them again, and they may pass its sign-in cookies on to their apps. Edit them in Dockwell, or remove them"
+msgstr "{list} on {server} were edited by hand, so this doesn't write them again, and they may pass its sign-in cookies on to their apps. Edit them in Dockwell, or remove them"
 
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, one {a network} other {# networks}}"
@@ -14792,7 +14913,11 @@ msgstr "1 login · for images a registry keeps private"
 msgid "1 project"
 msgstr "1 project"
 
+msgid "1 provider · for private routes"
+msgstr "1 provider · for private routes"
+
 #. placeholder {0}: l.name
+#. placeholder {0}: p.name
 msgid "<0>{0}</0> for {who}"
 msgstr "<0>{0}</0> for {who}"
 
@@ -14803,6 +14928,9 @@ msgstr "<0>{0}</0> proves names by DNS"
 msgid "A backup didn't get here {when}"
 msgstr "A backup didn't get here {when}"
 
+msgid "Add a provider"
+msgstr "Add a provider"
+
 msgid "Any DNS provider"
 msgstr "Any DNS provider"
 
@@ -14812,6 +14940,9 @@ msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
 
 msgid "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
 msgstr "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
+
+msgid "Client <0>{clientId}</0>"
+msgstr "Client <0>{clientId}</0>"
 
 msgid "Connect a registry"
 msgstr "Connect a registry"
@@ -14824,6 +14955,9 @@ msgstr "DNS and proxies"
 
 msgid "Dockwell can't list its registry logins"
 msgstr "Dockwell can't list its registry logins"
+
+msgid "Dockwell can't list its sign-in providers"
+msgstr "Dockwell can't list its sign-in providers"
 
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell can't list where backups go"
@@ -14843,6 +14977,9 @@ msgstr "Integrations"
 msgid "Loading registry logins"
 msgstr "Loading registry logins"
 
+msgid "Loading sign-in providers"
+msgstr "Loading sign-in providers"
+
 msgid "Loading where backups go"
 msgstr "Loading where backups go"
 
@@ -14860,6 +14997,9 @@ msgstr "Object storage"
 
 msgid "Open Domains"
 msgstr "Open Domains"
+
+msgid "People sign in to private routes as themselves, with Authentik, Google or another."
+msgstr "People sign in to private routes as themselves, with Authentik, Google or another."
 
 msgid "Private images from GitHub, such as those Actions push."
 msgstr "Private images from GitHub, such as those Actions push."
@@ -14880,6 +15020,12 @@ msgstr "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
 msgid "S3-compatible storage"
 msgstr "S3-compatible storage"
 
+msgid "Sign-in"
+msgstr "Sign-in"
+
+msgid "Sign-in provider"
+msgstr "Sign-in provider"
+
 msgid "Values your apps use live in <0>Variables and secrets</0>"
 msgstr "Values your apps use live in <0>Variables and secrets</0>"
 
@@ -14891,6 +15037,7 @@ msgid "{0} logins · for images a registry keeps private"
 msgstr "{0} logins · for images a registry keeps private"
 
 #. placeholder {0}: l.projects.length
+#. placeholder {0}: p.projects.length
 msgid "{0} projects"
 msgstr "{0} projects"
 
@@ -14899,6 +15046,9 @@ msgstr "{connected} buckets · where backups go beside each server's disk"
 
 msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
 msgstr "{connected} connected · the services Dockwell sends backups to and routes behind"
+
+msgid "{signinCount} providers · for private routes"
+msgstr "{signinCount} providers · for private routes"
 
 msgid "1 browser"
 msgstr "1 browser"
@@ -15076,9 +15226,6 @@ msgstr "Revoke the invite for {0}: its link stops working"
 #. placeholder {0}: sent.email
 msgid "Send this link to {0}"
 msgstr "Send this link to {0}"
-
-msgid "Sign-in"
-msgstr "Sign-in"
 
 msgid "Signed in on"
 msgstr "Signed in on"
@@ -15693,6 +15840,63 @@ msgstr "Fleet actions"
 
 msgid "Scheduled tasks"
 msgstr "Scheduled tasks"
+
+msgid "A route may then let in anyone who signs in."
+msgstr "A route may then let in anyone who signs in."
+
+msgid "Any account here is your team's"
+msgstr "Any account here is your team's"
+
+msgid "Anyone can have an account at {answerHost}."
+msgstr "Anyone can have an account at {answerHost}."
+
+msgid "Can't read {answerHost}"
+msgstr "Can't read {answerHost}"
+
+msgid "Can't sign in with {answerHost}"
+msgstr "Can't sign in with {answerHost}"
+
+msgid "Change the sign-in provider {name}"
+msgstr "Change the sign-in provider {name}"
+
+msgid "Client ID"
+msgstr "Client ID"
+
+msgid "Client secret"
+msgstr "Client secret"
+
+msgid "Found {answerHost} · signs with {strongest}"
+msgstr "Found {answerHost} · signs with {strongest}"
+
+msgid "Groups claim"
+msgstr "Groups claim"
+
+msgid "Issuer"
+msgstr "Issuer"
+
+msgid "More scopes"
+msgstr "More scopes"
+
+msgid "None, for a public client"
+msgstr "None, for a public client"
+
+msgid "Remove the sign-in provider {name}"
+msgstr "Remove the sign-in provider {name}"
+
+msgid "Shown as {shown}"
+msgstr "Shown as {shown}"
+
+msgid "Sign in to private routes with {display}"
+msgstr "Sign in to private routes with {display}"
+
+msgid "Sign-in provider {editingName}"
+msgstr "Sign-in provider {editingName}"
+
+msgid "Their routes alone may use it."
+msgstr "Their routes alone may use it."
+
+msgid "What a route names it by, in the CLI."
+msgstr "What a route names it by, in the CLI."
 
 msgid "Copied the command"
 msgstr "Copied the command"

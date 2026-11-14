@@ -4692,6 +4692,9 @@ msgstr "陌生人会收到 {said}"
 msgid "A stranger is asked for a password"
 msgstr "陌生人会被要求输入密码"
 
+msgid "A stranger is sent to sign in at {at}"
+msgstr "陌生人会被引导到 {at} 登录"
+
 msgid "Add a user"
 msgstr "添加用户"
 
@@ -4791,17 +4794,26 @@ msgstr "在 {on} 上，陌生人会收到 {said}"
 msgid "On {on}, a stranger is asked for a password"
 msgstr "在 {on} 上，陌生人会被要求输入密码"
 
+msgid "On {on}, a stranger is sent to sign in at {at}"
+msgstr "在 {on} 上，陌生人会被引导到 {at} 登录"
+
 msgid "Once applied, a stranger gets 403 Forbidden"
 msgstr "应用后，陌生人会收到 403 Forbidden"
 
 msgid "Once applied, a stranger is asked for a password"
 msgstr "应用后，陌生人会被要求输入密码"
 
+msgid "Once applied, a stranger is sent to sign in"
+msgstr "应用后，陌生人会被引导去登录"
+
 msgid "Once applied, anyone who reaches it gets in"
 msgstr "应用后，任何能访问到它的人都可以进入"
 
 msgid "Only these addresses"
 msgstr "仅限这些地址"
+
+msgid "Other paths of {domainName} share its origin and can reach it"
+msgstr "{domainName} 的其他路径与它同源，可以访问它"
 
 msgid "Other ways in let anyone reach this app"
 msgstr "其他入口让任何人都能访问这个应用"
@@ -4876,6 +4888,64 @@ msgstr "你的网络"
 
 msgid "{on} can't tell from where it asks"
 msgstr "{on} 从发起检查的位置无法判断"
+
+msgid "Add a sign-in provider"
+msgstr "添加登录提供方"
+
+msgid "Add an email, a domain or a group"
+msgstr "添加邮箱、域名或组"
+
+msgid "Add anyone at {ownDomain}"
+msgstr "添加 {ownDomain} 的任何人"
+
+msgid "Add someone who may sign in."
+msgstr "添加可以登录的人。"
+
+msgid "Copy the redirect address"
+msgstr "复制重定向地址"
+
+msgid "No sign-in provider is here yet. An admin adds one in Settings."
+msgstr "这里还没有登录提供方。管理员可在设置中添加。"
+
+msgid "Redirect address at the provider"
+msgstr "提供方处的重定向地址"
+
+msgid "Redirect address copied"
+msgstr "已复制重定向地址"
+
+msgid "Sign in with"
+msgstr "登录方式"
+
+msgid "Sign in with a provider"
+msgstr "通过提供方登录"
+
+msgid "Take {who} off"
+msgstr "移除 {who}"
+
+msgid "Visitors reach it over plain HTTP, where a sign-in can't be kept."
+msgstr "访问者通过明文 HTTP 访问它，无法保持登录。"
+
+msgid "Who may sign in"
+msgstr "可以登录的人"
+
+msgid "Write an email, a domain or a group, in ASCII, such as mira@example.com or example.com."
+msgstr "请用 ASCII 写邮箱、域名或组，例如 mira@example.com 或 example.com。"
+
+msgctxt "a domain on who may sign in"
+msgid "anyone at"
+msgstr "该域的任何人"
+
+msgctxt "a kind of who may sign in"
+msgid "email"
+msgstr "邮箱"
+
+msgctxt "a kind of who may sign in"
+msgid "group"
+msgstr "组"
+
+msgctxt "an email on who may sign in, that is yours"
+msgid "you"
+msgstr "你"
 
 msgid "Change {name}'s version"
 msgstr "更改 {name} 的版本"
@@ -8675,6 +8745,9 @@ msgstr "<0>{source}</0>，只读"
 msgid "SELinux label"
 msgstr "SELinux 标签"
 
+msgid "a sign-in lasts, in hours"
+msgstr "登录持续时间（小时）"
+
 msgid "action"
 msgstr "动作"
 
@@ -8683,6 +8756,9 @@ msgstr "允许 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
 
 msgid "allow <0>{port}</0>, {proto}, from anywhere"
 msgstr "允许 <0>{port}</0>，{proto}，来源不限"
+
+msgid "as the provider has them now"
+msgstr "与提供方当前的设置一致"
 
 msgid "block <0>{port}</0>, {proto}, from <1>{from}</1>"
 msgstr "阻止 <0>{port}</0>，{proto}，来源 <1>{from}</1>"
@@ -8738,11 +8814,23 @@ msgstr "健康检查超时"
 msgid "internal"
 msgstr "内部"
 
+msgid "its provider's settings"
+msgstr "其提供方的设置"
+
 msgid "kept 7 days, then deleted"
 msgstr "保留 7 天，然后删除"
 
 msgid "label"
 msgstr "标签"
+
+msgid "lets sign in"
+msgstr "允许登录"
+
+msgid "lets sign in anyone at"
+msgstr "允许以下域的任何人登录"
+
+msgid "lets sign in the groups"
+msgstr "允许以下组登录"
 
 msgctxt "an app's need, met"
 msgid "link"
@@ -8804,6 +8892,12 @@ msgstr "共享内存"
 
 msgid "shows the values of"
 msgstr "显示这些值"
+
+msgid "sign-in generation"
+msgstr "登录代数"
+
+msgid "signs in with"
+msgstr "登录方式"
 
 msgid "sources"
 msgstr "来源"
@@ -10010,6 +10104,15 @@ msgstr "环境 {environment}"
 msgid "firewall rule"
 msgstr "防火墙规则"
 
+msgid "lets in anyone at {named}"
+msgstr "放行 {named} 的任何人"
+
+msgid "lets in anyone in the group {inGroup}"
+msgstr "放行 {inGroup} 组中的任何人"
+
+msgid "lets in every account at its provider"
+msgstr "放行其提供方的所有账号"
+
 msgid "lets in {named}"
 msgstr "放行 {named}"
 
@@ -10025,6 +10128,18 @@ msgstr "项目 {project}"
 msgid "read-write"
 msgstr "读写"
 
+msgid "reads groups from the claim {named}"
+msgstr "从声明 {named} 读取组"
+
+msgid "signs people in as the client {named}"
+msgstr "以客户端 {named} 登录"
+
+msgid "signs people in at {named}"
+msgstr "在 {named} 登录"
+
+msgid "signs people in with {named}"
+msgstr "使用 {named} 登录"
+
 msgid "something else on the server"
 msgstr "服务器上的其他内容"
 
@@ -10033,6 +10148,9 @@ msgstr "取消其地址列表"
 
 msgid "takes off its passwords"
 msgstr "取消其密码"
+
+msgid "takes off signing in"
+msgstr "取消登录"
 
 msgid "the Linux capability {path}"
 msgstr "Linux 能力 {path}"
@@ -10132,6 +10250,9 @@ msgstr "{domain} 还没有 DNS 记录，在添加之前无法获取证书。{poi
 
 msgid "{domain} has no DNS record yet, so its certificate can't come. Point an {record} record at {either}; it comes once you do"
 msgstr "{domain} 还没有 DNS 记录，因此无法获取证书。请添加指向 {either} 的 {record} 记录，添加后即可获取证书"
+
+msgid "{list} on {server} were edited by hand, so this doesn't write them again, and they may pass its sign-in cookies on to their apps. Edit them in Dockwell, or remove them"
+msgstr "{server} 上的 {list} 曾被手动编辑，因此这次不会重写它们，它们可能把登录 Cookie 传给自己的应用。请在 Dockwell 中编辑它们，或删除它们"
 
 msgid "{networks, plural, one {a network} other {# networks}}"
 msgstr "{networks, plural, other {# 个网络}}"
@@ -14792,7 +14913,11 @@ msgstr "1 个登录 · 用于镜像仓库设为私有的镜像"
 msgid "1 project"
 msgstr "1 个项目"
 
+msgid "1 provider · for private routes"
+msgstr "1 个提供方 · 用于私有路由"
+
 #. placeholder {0}: l.name
+#. placeholder {0}: p.name
 msgid "<0>{0}</0> for {who}"
 msgstr "<0>{0}</0>，用于{who}"
 
@@ -14803,6 +14928,9 @@ msgstr "<0>{0}</0> 通过 DNS 证明域名"
 msgid "A backup didn't get here {when}"
 msgstr "{when}有一份备份未能送达"
 
+msgid "Add a provider"
+msgstr "添加提供方"
+
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
 
@@ -14812,6 +14940,9 @@ msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
 
 msgid "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
 msgstr "通过 DNS 获取证书，适用于 NAT 之后或通配符域名。路由也可以位于其代理或 Tunnel 之后。"
+
+msgid "Client <0>{clientId}</0>"
+msgstr "客户端 <0>{clientId}</0>"
 
 msgid "Connect a registry"
 msgstr "连接镜像仓库"
@@ -14824,6 +14955,9 @@ msgstr "DNS 和代理"
 
 msgid "Dockwell can't list its registry logins"
 msgstr "Dockwell 无法列出镜像仓库登录"
+
+msgid "Dockwell can't list its sign-in providers"
+msgstr "Dockwell 无法列出登录提供方"
 
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
@@ -14843,6 +14977,9 @@ msgstr "集成"
 msgid "Loading registry logins"
 msgstr "正在加载镜像仓库登录"
 
+msgid "Loading sign-in providers"
+msgstr "正在加载登录提供方"
+
 msgid "Loading where backups go"
 msgstr "正在加载备份去向"
 
@@ -14860,6 +14997,9 @@ msgstr "对象存储"
 
 msgid "Open Domains"
 msgstr "打开域名"
+
+msgid "People sign in to private routes as themselves, with Authentik, Google or another."
+msgstr "成员以自己的身份登录私有路由，可使用 Authentik、Google 或其他提供方。"
 
 msgid "Private images from GitHub, such as those Actions push."
 msgstr "来自 GitHub 的私有镜像，例如 Actions 推送的镜像。"
@@ -14880,6 +15020,12 @@ msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前�
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
 
+msgid "Sign-in"
+msgstr "登录"
+
+msgid "Sign-in provider"
+msgstr "登录提供方"
+
 msgid "Values your apps use live in <0>Variables and secrets</0>"
 msgstr "应用使用的值保存在<0>变量和机密</0>中"
 
@@ -14891,6 +15037,7 @@ msgid "{0} logins · for images a registry keeps private"
 msgstr "{0} 个登录 · 用于镜像仓库设为私有的镜像"
 
 #. placeholder {0}: l.projects.length
+#. placeholder {0}: p.projects.length
 msgid "{0} projects"
 msgstr "{0} 个项目"
 
@@ -14899,6 +15046,9 @@ msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的�
 
 msgid "{connected} connected · the services Dockwell sends backups to and routes behind"
 msgstr "已连接 {connected} 个 · Dockwell 发送备份的服务，以及路由所在的服务"
+
+msgid "{signinCount} providers · for private routes"
+msgstr "{signinCount} 个提供方 · 用于私有路由"
 
 msgid "1 browser"
 msgstr "1 个浏览器"
@@ -15076,9 +15226,6 @@ msgstr "撤销给 {0} 的邀请：其链接将失效"
 #. placeholder {0}: sent.email
 msgid "Send this link to {0}"
 msgstr "把此链接发给 {0}"
-
-msgid "Sign-in"
-msgstr "登录"
 
 msgid "Signed in on"
 msgstr "已登录于"
@@ -15693,6 +15840,63 @@ msgstr "集群操作"
 
 msgid "Scheduled tasks"
 msgstr "计划任务"
+
+msgid "A route may then let in anyone who signs in."
+msgstr "这样路由就可以放行任何登录的人。"
+
+msgid "Any account here is your team's"
+msgstr "这里的每个账号都属于你的团队"
+
+msgid "Anyone can have an account at {answerHost}."
+msgstr "任何人都可以在 {answerHost} 注册账号。"
+
+msgid "Can't read {answerHost}"
+msgstr "无法读取 {answerHost}"
+
+msgid "Can't sign in with {answerHost}"
+msgstr "无法用 {answerHost} 登录"
+
+msgid "Change the sign-in provider {name}"
+msgstr "修改登录提供方 {name}"
+
+msgid "Client ID"
+msgstr "客户端 ID"
+
+msgid "Client secret"
+msgstr "客户端密钥"
+
+msgid "Found {answerHost} · signs with {strongest}"
+msgstr "已找到 {answerHost} · 使用 {strongest} 签名"
+
+msgid "Groups claim"
+msgstr "用户组声明"
+
+msgid "Issuer"
+msgstr "签发方"
+
+msgid "More scopes"
+msgstr "更多范围"
+
+msgid "None, for a public client"
+msgstr "无，适用于公开客户端"
+
+msgid "Remove the sign-in provider {name}"
+msgstr "移除登录提供方 {name}"
+
+msgid "Shown as {shown}"
+msgstr "显示为 {shown}"
+
+msgid "Sign in to private routes with {display}"
+msgstr "使用 {display} 登录私有路由"
+
+msgid "Sign-in provider {editingName}"
+msgstr "登录提供方 {editingName}"
+
+msgid "Their routes alone may use it."
+msgstr "只有这些项目的路由可以使用它。"
+
+msgid "What a route names it by, in the CLI."
+msgstr "路由在 CLI 中用这个名称指代它。"
 
 msgid "Copied the command"
 msgstr "已复制命令"

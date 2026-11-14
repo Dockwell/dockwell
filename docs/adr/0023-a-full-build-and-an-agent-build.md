@@ -17,7 +17,7 @@ The options:
 
 And for how to make two builds:
 
-- **Build tags.** One main package, built with or without `-tags agent`. The split lives in `internal/cli`, where the commands are, and in `internal/buildinfo`, which says which build it is. Every other package is either in the agent build or not. `go build ./cmd/dockwell` keeps making today's binary.
+- **Build tags.** One main package, built with or without `-tags agent`. The split lives in `internal/cli`, where the commands are, and in `internal/buildinfo`, which says which build it is. Every other package is either in the agent build or not. `go build ./cmd/dockwell` keeps making today's binary. [ADR 0093](0093-what-the-agent-build-leaves-out-of-its-code.md) adds the public API's generated files the agent's protocol doesn't reach, tagged by `scripts/agent-api.sh`.
 - **Two main packages.** No tags, but `internal/cli` would have to become two packages, one for the commands both builds have and one for the rest, and its tests would move with them. Rejected as the larger change for the same result.
 
 ## Decision

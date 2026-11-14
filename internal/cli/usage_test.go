@@ -52,16 +52,17 @@ func TestHelpReadsAsTheTemplateWroteIt(t *testing.T) {
 	seen := map[string]bool{}
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
-		c.LocalFlags() // as cobra does before it writes help: the parents' persistent flags join
+		// writeUsage first, on the command as cobra built it: it merges the parents'
+		// persistent flags itself, as cobra did before it ran the template.
 		var want, got strings.Builder
-		if err := tmpl.Execute(&want, c); err != nil {
-			t.Fatalf("%s: %v", c.CommandPath(), err)
-		}
 		c.SetOut(&got)
 		if err := writeUsage(c); err != nil {
 			t.Fatalf("%s: %v", c.CommandPath(), err)
 		}
 		c.SetOut(nil)
+		if err := tmpl.Execute(&want, c); err != nil {
+			t.Fatalf("%s: %v", c.CommandPath(), err)
+		}
 		if got.String() != want.String() {
 			t.Errorf("%s's help reads\n%s\nwhere the template wrote\n%s", c.CommandPath(), got.String(), want.String())
 		}
