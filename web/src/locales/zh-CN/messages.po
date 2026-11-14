@@ -853,6 +853,9 @@ msgstr "结束了告警规则 {rule} 的静音"
 msgid "Ended the mute of {server}'s alerts"
 msgstr "结束了 {server} 告警的静音"
 
+msgid "Ended the sessions of a sign-in provider that stopped"
+msgstr "结束了已失效登录提供方的会话"
+
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
 
@@ -866,6 +869,9 @@ msgstr "已在 {server} 上强制结束 {what}（PID {pid}），因为它在 10 
 
 msgid "Let everyone choose how often their passkey is asked for"
 msgstr "允许每个人自行选择多久验证一次通行密钥"
+
+msgid "Linked an account at a sign-in provider"
+msgstr "关联了登录提供方的账户"
 
 msgid "Made a join ticket for a new server"
 msgstr "为新服务器生成了加入票据"
@@ -1113,6 +1119,9 @@ msgstr "撤销：{reverted}"
 
 msgid "Unhealthy"
 msgstr "不健康"
+
+msgid "Unlinked an account at a sign-in provider"
+msgstr "取消关联了登录提供方的账户"
 
 msgid "Unlocked codes for {name}"
 msgstr "为 {name} 解锁了验证码"

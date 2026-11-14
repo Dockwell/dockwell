@@ -853,6 +853,9 @@ msgstr "Ended the mute of the alert rule {rule}"
 msgid "Ended the mute of {server}'s alerts"
 msgstr "Ended the mute of {server}'s alerts"
 
+msgid "Ended the sessions of a sign-in provider that stopped"
+msgstr "Ended the sessions of a sign-in provider that stopped"
+
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"
 
@@ -866,6 +869,9 @@ msgstr "Killed {what} (PID {pid}) on {server}, as it didn't stop within 10 s"
 
 msgid "Let everyone choose how often their passkey is asked for"
 msgstr "Let everyone choose how often their passkey is asked for"
+
+msgid "Linked an account at a sign-in provider"
+msgstr "Linked an account at a sign-in provider"
 
 msgid "Made a join ticket for a new server"
 msgstr "Made a join ticket for a new server"
@@ -1113,6 +1119,9 @@ msgstr "Undo: {reverted}"
 
 msgid "Unhealthy"
 msgstr "Unhealthy"
+
+msgid "Unlinked an account at a sign-in provider"
+msgstr "Unlinked an account at a sign-in provider"
 
 msgid "Unlocked codes for {name}"
 msgstr "Unlocked codes for {name}"

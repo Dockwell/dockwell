@@ -152,5 +152,10 @@ The callback is a plain GET, a browser's way back, as file transfers have REST p
 - **The panel:**
   - the sign-in page's buttons only on the domain;
   - Link and Unlink in Profile and security;
-  - "Stopped working";
-  - an e2e flow against a fake provider, to the panel signed in.
+  - "Stopped working".
+- **End to end, in Go:** the control server on its domain over HTTPS, with a fake provider:
+  - an admin turns the provider on in a change;
+  - the owner links their account with a passkey, signs out, and signs in with the provider;
+  - the way back answers a page that goes on, with the session cookie, and clears the flow's.
+
+  A browser flow waits on an e2e stand that reaches a fake provider, as the control server never reads this machine's own addresses.

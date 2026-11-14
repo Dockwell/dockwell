@@ -550,6 +550,13 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           };
         case "passkey.remove":
           return { title: name ? t`Removed the passkey ${name}` : t`Removed a passkey`, icon: "key" };
+        case "provider_link.create":
+          return { title: t`Linked an account at a sign-in provider`, icon: "link" };
+        case "provider_link.delete":
+          return { title: t`Unlinked an account at a sign-in provider`, icon: "link" };
+        case "auth.sessions_ended":
+          // A provider stopped signing people in to Dockwell, so what it began ended (ADR 0095).
+          return { title: t`Ended the sessions of a sign-in provider that stopped`, icon: "logout", tone: "warning" };
         case "totp.enable":
           return { title: t`Turned on codes from an authenticator app`, icon: "lock" };
         case "totp.disable":
