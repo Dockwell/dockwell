@@ -13348,9 +13348,6 @@ msgstr "Its port"
 msgid "Limit"
 msgstr "Limit"
 
-msgid "Note"
-msgstr "Note"
-
 #. placeholder {0}: server.name
 msgid "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables or iptables rules that could."
 msgstr "Nothing filters what comes in to {0}: it has no ufw, firewalld, nftables or iptables rules that could."
@@ -13464,6 +13461,14 @@ msgstr "{0, plural, one {# port} other {# ports}}"
 msgid "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
 msgstr "{0, plural, one {Docker's DOCKER-USER chain holds # rule, which filters these, and which Dockwell doesn't weigh.} other {Docker's DOCKER-USER chain holds # rules, which filter these, and which Dockwell doesn't weigh one by one.}}"
 
+#. placeholder {0}: closed.length
+msgid "{0, plural, one {Its one port is closed by a firewall.} other {All # are closed by a firewall.}}"
+msgstr "{0, plural, one {Its one port is closed by a firewall.} other {All # are closed by a firewall.}}"
+
+#. placeholder {0}: closed.length
+msgid "{0, plural, one {Show # closed port} other {Show # closed ports}}"
+msgstr "{0, plural, one {Show # closed port} other {Show # closed ports}}"
+
 #. placeholder {0}: server.name
 msgid "{0} isn't reporting, so what filters its traffic can't be read now."
 msgstr "{0} isn't reporting, so what filters its traffic can't be read now."
@@ -13534,6 +13539,9 @@ msgstr "Let in what no rule drops on {name}"
 
 msgid "Name a port from 1 to 65535, such as 443."
 msgstr "Name a port from 1 to 65535, such as 443."
+
+msgid "Note"
+msgstr "Note"
 
 msgid "Nothing listens"
 msgstr "Nothing listens"

@@ -67,7 +67,7 @@ async function renderFirewall(
   const rendered = renderAt("/servers/srv_1/firewall", {
     ...api,
     servers: { watchServers: watch.stream },
-    firewall: { getServerFirewall },
+    firewall: { ...api.firewall, getServerFirewall },
   });
   await screen.findByRole("heading", { level: 1, name: "hz-1" });
   return { ...rendered, getServerFirewall };
@@ -85,18 +85,42 @@ afterEach(() => {
 });
 
 describe("a server's Firewall tab", () => {
-  it("lists the firewall already there, read-only, with its default and its rules as ufw says them", async () => {
-    await renderFirewall({ tools: [ufw], published });
+  it("lists the firewall already there, read-only, with its default, its rules as ufw says them, and what uses each", async () => {
+    const withShop = {
+      ...ufw,
+      rules: [...ufw.rules, { verdict: FirewallVerdict.ALLOW, port: "8000:8100/tcp" }],
+    };
+    await renderFirewall(
+      {
+        tools: [withShop],
+        published,
+        listening: [
+          { address: "0.0.0.0", port: 22, protocol: "tcp", reach: ListenerReach.OPEN, decidedBy: "ufw" },
+          { address: "::", port: 5432, protocol: "tcp", reach: ListenerReach.SOME, decidedBy: "ufw" },
+        ],
+      },
+      hz1,
+      { firewall: { getServerSsh: () => ({ ssh: { ports: [22] } }) } },
+    );
     const panel = await screen.findByRole("region", { name: "ufw" });
     expect(panel).toHaveTextContent("On · read-only, as Dockwell didn't make it");
     expect(panel).toHaveTextContent("It drops what no rule lets in.");
-    expect(rowsOf(panel)).toEqual([
-      "Allow22/tcp (OpenSSH)Anywhere",
-      "Allow80,443/tcpAnywhereweb",
-      "Allow443/tcp on eth0Anywhere",
-      "Allow203.0.113.5 9000/tcpAnywhere",
-      "Allow5432/tcp203.0.113.0/24",
-    ]);
+    expect(
+      within(panel)
+        .getAllByRole("columnheader")
+        .map((h) => h.textContent),
+    ).toEqual(["Action", "Port", "From", "Used by"]);
+    // A rule's note sits under where it lets in from.
+    await waitFor(() =>
+      expect(rowsOf(panel)).toEqual([
+        "Allow22/tcp (OpenSSH)AnywhereSSH",
+        "Allow80,443/tcpAnywherewebNothing listens",
+        "Allow443/tcp on eth0AnywhereNothing listens",
+        "Allow203.0.113.5 9000/tcpAnywhereNothing listens",
+        "Allow5432/tcp203.0.113.0/24The server itself",
+        "Allow8000:8100/tcpAnywhereshop-web-1",
+      ]),
+    );
     expect(screen.getByRole("link", { name: "Firewall" })).toHaveAttribute("aria-current", "page");
   });
 
@@ -147,7 +171,6 @@ describe("a server's Firewall tab", () => {
       "68/udpEvery IPv4 addressOpen to what ufw always lets in on this port: DHCP replies, or local discovery",
       "443/tcp10.0.0.5Only on eth0, as ufw says",
       "5432/tcpEvery addressOnly from 203.0.113.0/24, as ufw says",
-      "3306/tcp10.0.0.5Closed by ufw",
       "6379/tcpEvery IPv4 addressOpen: nothing here closes it",
       "7000/tcpEvery IPv4 addressCan't tell: a ufw rule names an app profile without saying its ports",
       "7001/tcpEvery IPv4 addressCan't tell: firewalld lets in a service Dockwell doesn't know the ports of",
@@ -158,6 +181,10 @@ describe("a server's Firewall tab", () => {
       "7006/tcpEvery IPv4 addressCan't tell: rules in nftables inet filter may drop it, and Dockwell doesn't weigh them one by one",
       "7007/tcpEvery IPv4 addressCan't tell: Docker isn't answering, and this may be a port it publishes, which ufw doesn't cover",
     ]);
+    // What a firewall closes needs no look, so it's a step away, after the rest.
+    await userEvent.setup().click(within(panel).getByRole("button", { name: "Show 1 closed port" }));
+    expect(rowsOf(panel).at(-1)).toBe("3306/tcp10.0.0.5Closed by ufw");
+    expect(within(panel).queryByRole("button", { name: /closed port/ })).toBeNull();
   });
 
   it("says a socket on :: takes IPv6 alone as the agent says, with Docker's IPv4 socket left out as published", async () => {
@@ -177,6 +204,8 @@ describe("a server's Firewall tab", () => {
       ],
     });
     const panel = await screen.findByRole("region", { name: "What listens on hz-1" });
+    expect(panel).toHaveTextContent("Its one port is closed by a firewall.");
+    await userEvent.setup().click(within(panel).getByRole("button", { name: "Show 1 closed port" }));
     expect(rowsOf(panel)).toEqual(["8080/tcpEvery IPv6 addressClosed by firewalld"]);
   });
 
