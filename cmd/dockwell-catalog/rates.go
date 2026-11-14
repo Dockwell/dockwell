@@ -85,7 +85,7 @@ var fetchStore = func(ctx context.Context, store convert.Store, repo, commit str
 	defer got.Close()
 	converting, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	return convert.OnServer(converting, store, got.Listing, got.Source, got.Time)
+	return convert.OnServer(converting, store, got.Listing, got.Source, got.Time, 0)
 }
 
 // headOf is the commit a repository's default branch is at.

@@ -19,7 +19,7 @@ import (
 func TestOnServerReadsRuntipisStore(t *testing.T) {
 	store := storeOf(t, FormatRuntipi)
 	src := Source{Name: store.Name, Repository: "https://example.com/appstore", Commit: strings.Repeat("a", 40), License: store.License}
-	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/runtipi", nil), src, committed)
+	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/runtipi", nil), src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -87,7 +87,7 @@ var committed = time.Date(2026, 11, 11, 11, 34, 37, 0, time.UTC)
 func TestOnServerConvertsWithoutAPerson(t *testing.T) {
 	store := storeOf(t, FormatOnePanel)
 	src := Source{Name: store.Name, Repository: "https://example.com/appstore", Commit: strings.Repeat("a", 40), License: "GPL-3.0-only"}
-	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/onepanel", nil), src, committed)
+	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/onepanel", nil), src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestOnServerBoundsHostileFiles(t *testing.T) {
 		"templates/compose/local.yaml":   local,
 		"templates/compose/quoted.yaml":  quoted,
 	})
-	run, err := OnServer(t.Context(), store, l, src, committed)
+	run, err := OnServer(t.Context(), store, l, src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestOnServerBoundsHostileFiles(t *testing.T) {
 		"blueprints/nested/docker-compose.yml": "services:\n  web:\n    image: nginx:1.27\n",
 		"blueprints/nested/template.toml":      "a = " + strings.Repeat("[", 100) + strings.Repeat("]", 100) + "\n",
 	})
-	run, err = OnServer(t.Context(), dokploy, l, Source{Name: dokploy.Name, Repository: "https://example.com/dokploy", Commit: strings.Repeat("c", 40), License: "MIT"}, committed)
+	run, err = OnServer(t.Context(), dokploy, l, Source{Name: dokploy.Name, Repository: "https://example.com/dokploy", Commit: strings.Repeat("c", 40), License: "MIT"}, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +185,7 @@ func TestOnServerBoundsHostileFiles(t *testing.T) {
 func TestOnServerRefusesAStoreItCantRead(t *testing.T) {
 	store := storeOf(t, FormatCoolify)
 	src := Source{Name: store.Name, Repository: "https://example.com/x", Commit: strings.Repeat("d", 40)}
-	if _, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), map[string]string{"blueprints/a/template.toml": "x"}), src, committed); err == nil ||
+	if _, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), map[string]string{"blueprints/a/template.toml": "x"}), src, committed, 0); err == nil ||
 		!strings.Contains(err.Error(), "it has no folder templates/compose, where Coolify's templates keeps its apps") {
 		t.Errorf("a folder of another store's: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestOnServerRefusesAStoreItCantRead(t *testing.T) {
 	for i := range MaxApps + 1 {
 		many["templates/compose/app"+strconv.Itoa(i)+".yaml"] = "x"
 	}
-	if _, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), many), src, committed); err == nil || !strings.Contains(err.Error(), "it holds over 2000 apps, more than a source reads") {
+	if _, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), many), src, committed, 0); err == nil || !strings.Contains(err.Error(), "it holds over 2000 apps, more than a source reads") {
 		t.Errorf("more apps than a source reads: %v", err)
 	}
 }
@@ -277,7 +277,7 @@ func TestOnServerStopsAnAliasBombByItsBytes(t *testing.T) {
 	l := listingOf(t, store, t.TempDir(), map[string]string{"templates/compose/bomb.yaml": bomb})
 	var run Run
 	var err error
-	used := allocated(func() { run, err = OnServer(t.Context(), store, l, src, committed) })
+	used := allocated(func() { run, err = OnServer(t.Context(), store, l, src, committed, 0) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestOnServerStopsAFanOutTemplate(t *testing.T) {
 		"blueprints/fan/template.toml":      vars.String(),
 	})
 	src := Source{Name: store.Name, Repository: "https://example.com/dokploy", Commit: strings.Repeat("f", 40), License: "MIT"}
-	run, err := OnServer(t.Context(), store, l, src, committed)
+	run, err := OnServer(t.Context(), store, l, src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func TestOnServerBoundsWhatACommitConvertsTo(t *testing.T) {
 	for i := range 90 {
 		more[fmt.Sprintf("templates/compose/app%d.yaml", i)] = "# port: 80\nservices:\n  web:\n    image: nginx:1.27\n    environment:\n      - NOTE=" + strings.Repeat("n", 200<<10) + "\n"
 	}
-	_, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), more), src, committed)
+	_, err := OnServer(t.Context(), store, listingOf(t, store, t.TempDir(), more), src, committed, 0)
 	if err == nil || !strings.Contains(err.Error(), "comes to over 16 MiB") {
 		t.Errorf("a commit that converts to 18 MiB: %v", err)
 	}
@@ -386,7 +386,7 @@ func TestOnServerIsDeterministicAndSaysWhereItsFrom(t *testing.T) {
 	src := Source{Name: store.SourceName("https://github.com/acme/templates"), Repository: "https://github.com/acme/templates", Commit: strings.Repeat("b", 40), License: "Apache-2.0"}
 	future := time.Now().AddDate(10, 0, 0)
 	for range 3 {
-		run, err := OnServer(t.Context(), store, l, src, future)
+		run, err := OnServer(t.Context(), store, l, src, future, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -428,7 +428,7 @@ func TestOnServerTakesATagThatMoves(t *testing.T) {
 		"templates/compose/stable.yaml":   strings.Replace(plain, "nginx:1.27", "acme/web:stable", 1),
 		"templates/compose/variable.yaml": strings.Replace(plain, "nginx:1.27", "acme/web:${TAG:-latest}", 1),
 	})
-	run, err := OnServer(t.Context(), store, l, src, committed)
+	run, err := OnServer(t.Context(), store, l, src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,7 @@ func TestOnServerReadsTheFilesAnAppMounts(t *testing.T) {
 	if _, read := l.Read["apps/shipped/2.0.0/conf/app.conf"]; read {
 		t.Fatal("the adapter's own rounds read the shipped file, so this proves nothing")
 	}
-	run, err := OnServer(t.Context(), store, l, src, committed)
+	run, err := OnServer(t.Context(), store, l, src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -529,7 +529,7 @@ func TestOnServerReadsTheFilesAnAppMounts(t *testing.T) {
 		}
 		return out, nil
 	}
-	run, err = OnServer(t.Context(), store, l, src, committed)
+	run, err = OnServer(t.Context(), store, l, src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,5 +538,41 @@ func TestOnServerReadsTheFilesAnAppMounts(t *testing.T) {
 	}
 	if r := resultsByID(run)["shipped"]; r.Entry == nil || !strings.Contains(r.Entry.GetCompose(), "listen = 80") {
 		t.Errorf("with a round for it: %v, %q", r.Entry, r.LeftOut)
+	}
+}
+
+// A commit dated after now counts from now, and from after the release the source had
+// before, as that one may have counted from now in the same second: two such commits
+// never share a release, so the later one is an upgrade (#640). A commit dated before
+// now keeps its date, whatever came before it.
+func TestACommitDatedAfterNowComesAfterTheReleaseBefore(t *testing.T) {
+	store := storeOf(t, FormatCoolify)
+	app := "# slogan: An app.\n# port: 80\nservices:\n  web:\n    image: nginx:1.27\n"
+	l := listingOf(t, store, t.TempDir(), map[string]string{"templates/compose/my-app.yaml": app})
+	src := Source{Name: store.SourceName("https://github.com/acme/templates"), Repository: "https://github.com/acme/templates", Commit: strings.Repeat("b", 40), License: "Apache-2.0"}
+	release := func(committed time.Time, before uint32) uint32 {
+		t.Helper()
+		run, err := OnServer(t.Context(), store, l, src, committed, before)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(run.Results) != 1 || run.Results[0].Entry.GetRelease() != run.Release {
+			t.Fatalf("the run's release %d isn't its entry's: %v", run.Release, run.Results)
+		}
+		return run.Release
+	}
+	future := time.Now().Add(time.Hour)
+	// As one read a moment ago that counted from now, and the one before it.
+	before := uint32(time.Now().Unix()) + 5
+	if got := release(future, before); got != before+1 {
+		t.Errorf("a commit dated after now, after release %d, has release %d", before, got)
+	}
+	start := time.Now().Unix()
+	if got := int64(release(future, 0)); got < start || got > time.Now().Unix() {
+		t.Errorf("a commit dated after now, first, has release %d, not now", got)
+	}
+	past := time.Now().Add(-time.Hour)
+	if got := release(past, before); int64(got) != past.Unix() {
+		t.Errorf("a commit dated %v has release %d, not its date", past, got)
 	}
 }

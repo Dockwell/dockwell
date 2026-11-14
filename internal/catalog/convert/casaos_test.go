@@ -18,7 +18,7 @@ import (
 func TestOnServerReadsCasaOSsStore(t *testing.T) {
 	store := storeOf(t, FormatCasaOS)
 	src := Source{Name: store.Name, Repository: "https://example.com/appstore", Commit: strings.Repeat("a", 40), License: store.License}
-	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/casaos", nil), src, committed)
+	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/casaos", nil), src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestOnServerReadsUmbrelsStore(t *testing.T) {
 		t.Error("Umbrel's store is one a person adds in one click")
 	}
 	src := Source{Name: store.Name, Repository: "https://example.com/umbrel-apps", Commit: strings.Repeat("a", 40), License: "NONE"}
-	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/umbrel", nil), src, committed)
+	run, err := OnServer(t.Context(), store, listingOf(t, store, "testdata/umbrel", nil), src, committed, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

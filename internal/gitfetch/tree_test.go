@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/dockwell/dockwell/internal/gitfetch"
 	"github.com/dockwell/dockwell/internal/gitfetch/gitfetchtest"
@@ -44,7 +43,7 @@ func TestTreesReadsOnlyWhatsAsked(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer snap.Close()
-			if time.Since(snap.Time) > time.Hour || snap.Time.After(time.Now().Add(time.Minute)) {
+			if !snap.Time.Equal(r.When(commit)) {
 				t.Errorf("Time = %v, want when it was committed", snap.Time)
 			}
 			listed, err := snap.Walk("apps", func(p string, depth int) bool { return depth <= 3 && !strings.HasSuffix(p, "/deep") })

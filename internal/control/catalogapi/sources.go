@@ -280,6 +280,33 @@ func (s *Sources) staleKept(spec *resourcev1.CatalogSource) (commitFiles, bool) 
 	return files, err == nil
 }
 
+// releaseBefore is the highest release of the commits of spec's repository, folder
+// and format kept, for a source or a plan, other than spec's: what a commit that
+// counts from now follows (#640).
+func (s *Sources) releaseBefore(spec *resourcev1.CatalogSource) uint32 {
+	if s.Dir == "" {
+		return 0
+	}
+	var most uint32
+	for _, set := range []string{"kept", "plans"} {
+		dir := filepath.Join(s.Dir, set, keyOf(spec))
+		commits, _ := os.ReadDir(dir)
+		for _, c := range commits {
+			if !c.IsDir() || c.Name() == spec.GetCommit() {
+				continue
+			}
+			raw, err := os.ReadFile(filepath.Join(dir, c.Name(), leftOutFile)) //nolint:gosec // what this kept, under the control plane's own folder
+			if err != nil {
+				continue
+			}
+			if rec, ok := readLeftOut(raw, formatOf(spec)); ok {
+				most = max(most, rec.Release)
+			}
+		}
+	}
+	return most
+}
+
 // fetchOne fetches a commit's files once the slot is free, within fetchWait of
 // asking, and keeps them for a plan. Another store's commit is fetched and converted
 // within budgets of their own (convertOne).

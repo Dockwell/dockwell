@@ -102,7 +102,7 @@ Dockwell's own catalog keeps its 14 days, where it's built.
 
 ### Releases
 
-- **A converted entry's release is when its commit was made,** in seconds, so a later commit's entry is a higher release, whichever commit Dockwell read first. Pinning an older commit gives a lower one, which no upgrade goes to. A commit dated after now, as a fork can date one, counts from when it's converted, so it can't outrank every later commit.
+- **A converted entry's release is when its commit was made,** in seconds, so a later commit's entry is a higher release, whichever commit Dockwell read first. Pinning an older commit gives a lower one, which no upgrade goes to. A commit dated after now, as a fork can date one, counts from when it's converted, so it can't outrank every later commit, and comes after the highest release kept of the source's other commits, so two such commits converted within a second don't share one (#640). What's kept of each converted commit records its release for that.
 
 ### The same app in several catalogs
 

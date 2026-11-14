@@ -340,6 +340,8 @@ func LicenseOf(text []byte) string {
 type Run struct {
 	// Results are each app's, sorted by ID.
 	Results []Result
+	// Release is the release the commit's entries have.
+	Release uint32
 }
 
 // OnServer converts a store's apps from a commit the control plane fetched, held in
@@ -350,7 +352,8 @@ type Run struct {
 // for any install. Its images stay named by tag, and are pinned when an install is
 // planned. Each entry's release is when the commit was made, so a later commit's
 // entry is a higher release, and an upgrade is offered only where its file changes.
-func OnServer(ctx context.Context, store Store, l *Listing, src Source, committed time.Time) (Run, error) {
+// before is the release the source's entries had before this commit, or 0.
+func OnServer(ctx context.Context, store Store, l *Listing, src Source, committed time.Time, before uint32) (Run, error) {
 	t := &tree{mem: l}
 	if !t.isDir(store.Root) {
 		return Run{}, fmt.Errorf("it has no folder %s, where %s keeps its apps", store.Root, store.Name)
@@ -377,16 +380,21 @@ func OnServer(ctx context.Context, store Store, l *Listing, src Source, committe
 		return Run{}, fmt.Errorf("it holds %d apps, more than the %d a source reads", len(apps), MaxApps)
 	}
 	// A commit dated after now, as a fork can date one, would outrank every later
-	// commit's releases, so it counts from now.
+	// commit's releases, so it counts from now, and from after the release before it,
+	// so two such commits read within a second don't share one (#640).
+	capped := false
 	if now := time.Now(); committed.After(now) {
-		committed = now
+		committed, capped = now, true
 	}
 	release := uint32(1)
 	if secs := committed.Unix(); secs > 0 && secs <= int64(^uint32(0)) {
 		release = uint32(secs)
 	}
+	if capped && before < ^uint32(0) && release <= before {
+		release = before + 1
+	}
 	c := &Converter{Source: src, OnServer: true, Release: release, Now: committed}
-	var run Run
+	run := Run{Release: release}
 	for i := range apps {
 		if err := ctx.Err(); err != nil {
 			return Run{}, err
