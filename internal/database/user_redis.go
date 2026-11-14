@@ -98,16 +98,17 @@ func redisRules(hash string, shared bool, prefix string, srv redisServer) string
 }
 
 // redisInfo reads what the server says of itself: its version and its modules, and
-// the users that can sign in, but its default user, by name. A user's rules can't say
+// the users that can sign in, but its default user, by name, each with its line of
+// ACL LIST, which says what it may do as the server has it now. A user's rules can't say
 // it keeps to its keys, whoever made it, so who's there is all that counts. refuse
 // says to refuse one an app's user would mean nothing on: any user that asks no
 // password, as the default does when the server requires none, since any app on its
 // network signs in as it; or a Redis before 6.2, which has no channel rules, so a user
 // reaches every other's messages. One that doesn't say its version is refused too, as
 // its users' rules can't be made for it.
-func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engine, refuse bool) (redisServer, []string, error) {
+func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engine, refuse bool) (redisServer, map[string]string, error) {
 	srv := redisServer{Subcommands: e.Kind != dockwellv1.DatabaseEngine_DATABASE_ENGINE_REDIS}
-	var users []string
+	users := map[string]string{} // each that can sign in, but the default, by name: its line of ACL LIST
 	said, err := d.redisAsk(ctx, c, e, "ACL LIST\nINFO server\nMODULE LIST\n")
 	if err != nil {
 		return srv, nil, err
@@ -126,7 +127,7 @@ func (d *UserDriver) redisInfo(ctx context.Context, c *docker.Container, e *Engi
 				return srv, nil, fmt.Errorf("%s has a user %s that asks no password, so any app on its network signs in as it, and a user of its own keeps no one out. Give %s a password, or turn it off, then try again", e.Name, fields[1], fields[1])
 			}
 			if on && fields[1] != "default" {
-				users = append(users, fields[1])
+				users[fields[1]] = line
 			}
 		case strings.HasPrefix(line, "redis_version:"):
 			version = strings.TrimPrefix(line, "redis_version:")
@@ -278,10 +279,11 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 		return
 	}
 	type server struct {
-		c   *docker.Container
-		e   *Engine
-		srv redisServer
-		err error
+		c     *docker.Container
+		e     *Engine
+		srv   redisServer
+		lines map[string]string
+		err   error
 	}
 	servers := map[string]*server{}
 	seen := map[string]bool{}
@@ -300,7 +302,7 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 		if !ok {
 			s = &server{c: c, e: Recognise(c.Config.Image)}
 			if s.e != nil {
-				s.srv, _, s.err = d.redisInfo(ctx, c, s.e, false)
+				s.srv, s.lines, s.err = d.redisInfo(ctx, c, s.e, false)
 			}
 			servers[c.ID] = s
 		}
@@ -308,10 +310,11 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 			failed[c.ID] = true
 			continue
 		}
-		if started[c.ID].Equal(c.State.StartedAt) && g.MadeFor == s.srv {
+		// A user changed, or made anew, by hand since says otherwise of itself.
+		if started[c.ID].Equal(c.State.StartedAt) && g.MadeFor == s.srv && (g.Line == "" || s.lines[g.User] == g.Line) {
 			continue
 		}
-		if err := d.putRedisUserBack(ctx, c, s.e, key, s.srv); err != nil {
+		if err := d.putRedisUserBack(ctx, c, s.e, key, s.srv, s.lines[g.User]); err != nil {
 			failed[c.ID] = true
 		}
 	}
@@ -328,8 +331,10 @@ func (d *UserDriver) putRedisUsersBack(ctx context.Context, started map[string]t
 }
 
 // putRedisUserBack gives a server the user its record keeps, made for srv, if the
-// record still keeps it and the server hasn't it, or has it made for another server.
-func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, e *Engine, key string, srv redisServer) error {
+// record still keeps it and the server hasn't it, has it made for another server, or
+// has it otherwise than the agent left it, as line says it has it now; and keeps
+// its line as the server has it then.
+func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, e *Engine, key string, srv redisServer, line string) error {
 	d.redisMu.Lock()
 	defer d.redisMu.Unlock()
 	d.mu.Lock()
@@ -343,7 +348,7 @@ func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, 
 		return nil // dropped meanwhile
 	}
 	has, err := d.redisHas(ctx, c, e, g.User)
-	if err != nil || has && g.MadeFor == srv {
+	if err != nil || has && g.MadeFor == srv && (g.Line == "" || line == g.Line) {
 		return err
 	}
 	if g.Hash != "" {
@@ -352,6 +357,23 @@ func (d *UserDriver) putRedisUserBack(ctx context.Context, c *docker.Container, 
 	if err := d.redisSet(ctx, c, e, g.User, g.Redis); err != nil {
 		return err
 	}
+	if g.Line, err = d.redisLine(ctx, c, e, g.User); err != nil {
+		return err
+	}
 	g.MadeFor = srv
 	return d.recordKey(key, &g)
+}
+
+// redisLine is a user's line of ACL LIST, as the server has it now, or "".
+func (d *UserDriver) redisLine(ctx context.Context, c *docker.Container, e *Engine, user string) (string, error) {
+	said, err := d.redisAsk(ctx, c, e, "ACL LIST\n")
+	if err != nil {
+		return "", err
+	}
+	for _, line := range said {
+		if line = strings.TrimSpace(line); strings.HasPrefix(line, "user "+user+" ") {
+			return line, nil
+		}
+	}
+	return "", nil
 }
