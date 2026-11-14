@@ -7,6 +7,8 @@ export interface CatalogSearch {
   catalog?: string | undefined;
   /** Only the apps installed here (ADR 0092). */
   installed?: boolean | undefined;
+  /** By name rather than the default, the apps most people start with first, then the most installed. */
+  sort?: "name" | undefined;
 }
 
 /** Carry browsing filters through app details, installation and the way back. */
@@ -17,5 +19,6 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
     if (typeof value === "string" && value !== "") out[key] = value;
   }
   if (search["installed"] === true || search["installed"] === "1" || search["installed"] === 1) out.installed = true;
+  if (search["sort"] === "name") out.sort = "name";
   return out;
 }

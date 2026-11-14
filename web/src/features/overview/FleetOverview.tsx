@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { EventKind, type Server } from "@dockwell/api";
-import { cx, FleetGrid, Metric, type MetricProps, Panel, PHONE_QUERY, useMediaQuery, useUIStrings } from "@dockwell/ui";
+import {
+  cx,
+  FleetGrid,
+  type FleetServer,
+  Metric,
+  type MetricProps,
+  Panel,
+  PHONE_QUERY,
+  type Status,
+  StatusBadge,
+  useMediaQuery,
+  useUIStrings,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -148,6 +160,20 @@ function FleetMetrics({ servers, compact }: { servers: readonly Server[]; compac
   );
 }
 
+/** Up to this many servers, the panel names each on a line of its own under the tiles. */
+const FEW_SERVERS = 6;
+
+/** The order a few servers are listed in: what needs a look first. */
+const NEED: Record<Status, number> = {
+  down: 0,
+  unknown: 1,
+  stopped: 2,
+  degraded: 3,
+  deploying: 4,
+  running: 5,
+  healthy: 6,
+};
+
 /**
  * Every server as a tile, as Overview-Fleet draws them, each opening its page.
  * One group: servers have no region to group them by yet (#319).
@@ -157,11 +183,21 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
   const navigate = useNavigate();
   const unknown = useFleetUnread() !== undefined;
   const tiles = useServerTiles(servers, unknown);
+  // A few servers leave the tiles room to spare beside the changes: each gets the line the
+  // readout would give one, so the panel says how every server is without a hover.
+  const few = !compact && tiles.length <= FEW_SERVERS;
+  // Otherwise the server to look at first, named under the tiles until another is hovered,
+  // as Overview-Fleet draws it: one that's down, then one that's degraded.
+  const readout = !compact && !few;
+  const first = readout
+    ? (tiles.find((s) => s.status === "down") ?? tiles.find((s) => s.status === "degraded"))
+    : undefined;
   const grid = (
     <FleetGrid
       servers={tiles}
       size={compact || servers.length > 200 ? "sm" : "md"}
-      readout={!compact}
+      readout={readout}
+      selectedId={first?.id}
       onSelect={(server) => void navigate({ to: "/servers/$serverId", params: { serverId: server.id } })}
     />
   );
@@ -178,6 +214,38 @@ function FleetMap({ servers, compact }: { servers: readonly Server[]; compact: b
       }
     >
       {grid}
+      {few ? <FewServers tiles={tiles} /> : null}
     </Panel>
+  );
+}
+
+/** A few servers, a line each, worst first, each opening its page. */
+function FewServers({ tiles }: { tiles: readonly FleetServer[] }) {
+  const { t } = useLingui();
+  const strings = useUIStrings();
+  const ordered = [...tiles].sort((a, b) => NEED[a.status] - NEED[b.status]);
+  return (
+    <ul className="overview-fleet-few" aria-label={t`Each server`}>
+      {ordered.map((s) => (
+        <li key={s.id}>
+          <Link to="/servers/$serverId" params={{ serverId: s.id }} className="overview-fleet-few-row">
+            <StatusBadge status={s.status} label={s.name} />
+            <span aria-hidden="true">{strings.status[s.status]}</span>
+            {s.cpu != null ? (
+              <span>
+                {strings.fleetGrid.cpu} <b>{s.cpu}%</b>
+              </span>
+            ) : null}
+            {s.mem != null ? (
+              <span>
+                {strings.fleetGrid.memory} <b>{s.mem}%</b>
+              </span>
+            ) : null}
+            {s.ip ? <code>{s.ip}</code> : null}
+            {s.note ? <span>{s.note}</span> : null}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

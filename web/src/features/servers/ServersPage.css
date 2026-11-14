@@ -334,9 +334,22 @@
   color: var(--tone, var(--ink-muted));
 }
 
-/* The server chosen, held above the tab bar. */
+/*
+ * The server chosen, held above the tab bar. With few servers it still sits at the foot, as M-Servers draws it, rather
+ * than right under the list with the screen's lower half empty: the page fills the room above the tab bar.
+ */
+.shell-main:has(.servers-phone-chosen) {
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-main:has(.servers-phone-chosen) > .page {
+  flex: 1 0 auto;
+}
+
 .servers-phone-chosen {
   position: sticky;
+  margin-top: auto;
   bottom: calc(var(--tabbar-height) + var(--space-3));
   z-index: 1;
   display: flex;

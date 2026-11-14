@@ -805,7 +805,13 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
         const word = words.state(state);
         return (
           <span className="apps-record">
-            {row.service ? revisionName(row.service.revision) : <span aria-hidden="true">—</span>}
+            {row.service ? (
+              revisionName(row.service.revision)
+            ) : (
+              <span aria-hidden="true" className="apps-record-none">
+                —
+              </span>
+            )}
             {recordSaysMore(state) ? (
               <StatusBadge status={state.status} label={word} labelIsState className="apps-record-state" title={word} />
             ) : null}

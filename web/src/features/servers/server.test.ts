@@ -124,6 +124,18 @@ describe("fleetView", () => {
     expect(after.counts.docker).toBe(0);
     expect(after.servers?.[1]?.dockerUnreadableSince).toBeUndefined();
   });
+
+  it("counts a server that can't read Docker and is strained once, for Docker, as its row says", () => {
+    const both = aServer({
+      ...hz2,
+      dockerUnreadableSince: timestampFromDate(new Date(Date.now() - 60_000)),
+      strainedSince: timestampFromDate(new Date(Date.now() - 60_000)),
+      strain: ServerStrain.CPU,
+    });
+    const strained = aServer({ ...hz1, strainedSince: timestampFromDate(new Date()), strain: ServerStrain.MEMORY });
+    const view = fleetView({ status: "live", servers: [strained, both] });
+    expect(view.counts).toEqual({ connected: 2, down: 0, waiting: 0, unknown: 0, docker: 1, strained: 1 });
+  });
 });
 
 describe("serverStatus", () => {

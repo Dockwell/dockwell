@@ -116,7 +116,21 @@ export function OverviewBackups() {
   if (volumes.length === 0 && (backups?.length ?? 0) === 0) {
     return (
       <Panel title={t`Backups`}>
-        <EmptyState icon="archive" title={<Trans>Nothing to back up yet</Trans>}>
+        <EmptyState
+          icon="archive"
+          title={<Trans>Nothing to back up yet</Trans>}
+          action={
+            // The two ways a volume comes, as Backups offers them: a database, or an app that keeps one.
+            <>
+              <RouterButtonLink to="/catalog" search={{ category: "databases" }} icon="database">
+                <Trans>Install a database</Trans>
+              </RouterButtonLink>
+              <RouterButtonLink to="/apps/new" variant="ghost" icon="plus">
+                <Trans>New app</Trans>
+              </RouterButtonLink>
+            </>
+          }
+        >
           <p>
             <Trans>No app keeps data.</Trans>
           </p>

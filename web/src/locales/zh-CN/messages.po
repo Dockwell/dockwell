@@ -6875,6 +6875,9 @@ msgstr "你已安装的应用"
 msgid "{0, plural, one {# installation} other {# installations}}"
 msgstr "{0, plural, other {# 个已安装实例}}"
 
+msgid "By name"
+msgstr "按名称"
+
 msgid "Categories"
 msgstr "分类"
 
@@ -6918,6 +6921,12 @@ msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。
 msgid "Nothing from the catalog is installed yet"
 msgstr "还没有安装应用目录中的应用"
 
+msgid "Order"
+msgstr "排序"
+
+msgid "Popular first"
+msgstr "热门优先"
+
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "也可以从 Git 仓库中的目录读取应用。<0>来源</0>"
 
@@ -6941,9 +6950,6 @@ msgstr "有更新"
 
 msgid "Upgrade to {latest}"
 msgstr "升级到 {latest}"
-
-msgid "View app"
-msgstr "查看应用"
 
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
@@ -11832,6 +11838,9 @@ msgstr "{name} 没有上报数据"
 
 msgid "Across {cpus} vCPU"
 msgstr "{cpus} 个 vCPU 合计"
+
+msgid "Each server"
+msgstr "每台服务器"
 
 msgid "Every server is reporting"
 msgstr "每台服务器都在上报数据"

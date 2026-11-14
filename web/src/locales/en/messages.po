@@ -6875,6 +6875,9 @@ msgstr "Your installations"
 msgid "{0, plural, one {# installation} other {# installations}}"
 msgstr "{0, plural, one {# installation} other {# installations}}"
 
+msgid "By name"
+msgstr "By name"
+
 msgid "Categories"
 msgstr "Categories"
 
@@ -6918,6 +6921,12 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgid "Nothing from the catalog is installed yet"
 msgstr "Nothing from the catalog is installed yet"
 
+msgid "Order"
+msgstr "Order"
+
+msgid "Popular first"
+msgstr "Popular first"
+
 msgid "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 msgstr "Read apps from a catalog in a Git repository too. <0>Sources</0>"
 
@@ -6941,9 +6950,6 @@ msgstr "Update out"
 
 msgid "Upgrade to {latest}"
 msgstr "Upgrade to {latest}"
-
-msgid "View app"
-msgstr "View app"
 
 #. placeholder {0}: list(also.map(named))
 msgid "also in {0}"
@@ -11832,6 +11838,9 @@ msgstr "{name} isn't reporting"
 
 msgid "Across {cpus} vCPU"
 msgstr "Across {cpus} vCPU"
+
+msgid "Each server"
+msgstr "Each server"
 
 msgid "Every server is reporting"
 msgstr "Every server is reporting"
