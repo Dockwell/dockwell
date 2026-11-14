@@ -91,7 +91,8 @@ function SystemServices({ server }: { server: Server }) {
       server={server}
     >{t`It's older than the control plane, so it can't list system services.`}</AgentOutdated>
   ) : (
-    <p className="procs-note">{sentence(error)}</p>
+    // What the server said, which says why and what to do, as an alert does rather than a line of small print.
+    <Callout tone="warning">{sentence(error)}</Callout>
   );
   // What shows when no row does: nothing typed in Failed is a server with nothing failed.
   const none =
@@ -137,29 +138,32 @@ function SystemServices({ server }: { server: Server }) {
       <h2 className="dw-sr" id="sys-title">
         {t`System services`}
       </h2>
-      <div className="procs-bar">
-        <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
-        <span className="procs-spacer" />
-        {connected && list && !error ? (
-          <span className="procs-live">
-            <span className="dw-live">
-              <span className="dw-live-dot" />
-              <Trans>Live</Trans>
+      {/* The views and the filter, wherever there's a list to narrow, or one on its way, so it doesn't move in. */}
+      {connected && (list ? list.init !== SystemInit.OTHER : !error) ? (
+        <div className="procs-bar">
+          <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
+          <span className="procs-spacer" />
+          {connected && list && !error ? (
+            <span className="procs-live">
+              <span className="dw-live">
+                <span className="dw-live-dot" />
+                <Trans>Live</Trans>
+              </span>
+              <Trans>every 10 s</Trans>
             </span>
-            <Trans>every 10 s</Trans>
-          </span>
-        ) : null}
-        <div className="procs-filter">
-          <TextField
-            size="sm"
-            icon="search"
-            placeholder={t`Filter by name or description`}
-            aria-label={t`Filter system services`}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          ) : null}
+          <div className="procs-filter">
+            <TextField
+              size="sm"
+              icon="search"
+              placeholder={t`Filter by name or description`}
+              aria-label={t`Filter system services`}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
       {list ? failure : null}
       {body}
       {opened && list ? (
