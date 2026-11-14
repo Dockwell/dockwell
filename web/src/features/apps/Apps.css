@@ -2540,7 +2540,8 @@
   min-width: 0;
 }
 
-.apps-record-state {
+.apps-record-state,
+.apps-record-none {
   font-family: var(--font-sans);
 }
 
