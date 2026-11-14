@@ -42,6 +42,9 @@ type ServiceSpec struct {
 			// Mounts are what its tasks mount: a volume with no source is made
 			// anew for each task.
 			Mounts []ServiceMount `json:"Mounts,omitempty"`
+			// StopGracePeriod is how long a task has to stop before Swarm kills it,
+			// in nanoseconds; Docker's 10 s where it's unset.
+			StopGracePeriod *int64 `json:"StopGracePeriod,omitempty"`
 		} `json:"ContainerSpec"`
 		// Networks are the networks its tasks join, as Docker has them, kept raw
 		// so they go back exactly.
@@ -56,6 +59,43 @@ type ServiceSpec struct {
 	EndpointSpec struct {
 		Ports []ServicePort `json:"Ports"`
 	} `json:"EndpointSpec"`
+	// Networks is where an old client named a service's networks, beside its
+	// task template; Docker still reads it where it's set.
+	Networks json.RawMessage `json:"Networks,omitempty"`
+}
+
+// Task is one of a Swarm service's tasks, as the tasks API has it.
+type Task struct {
+	ID     string `json:"ID"`
+	NodeID string `json:"NodeID"`
+	Status struct {
+		// State is where it is: new, pending, assigned, accepted, preparing,
+		// starting, running, then complete, shutdown, failed, rejected, remove or
+		// orphaned once it's over.
+		State string `json:"State"`
+	} `json:"Status"`
+	DesiredState string `json:"DesiredState"`
+}
+
+// Over says a task has ended, or never will run: nothing of it runs or starts.
+func (t Task) Over() bool {
+	switch t.Status.State {
+	case "complete", "shutdown", "failed", "rejected", "remove", "orphaned":
+		return true
+	}
+	return false
+}
+
+// ListTasks lists a Swarm service's tasks, on every node, whatever their state.
+func (c *Client) ListTasks(ctx context.Context, service string) ([]Task, error) {
+	q, err := listQuery(map[string][]string{"service": {service}})
+	if err != nil {
+		return nil, err
+	}
+	q.Del("all")
+	var out []Task
+	err = c.do(ctx, http.MethodGet, "/tasks", q, nil, &out)
+	return out, err
 }
 
 // ServicePort is a port a Swarm service publishes: on every node through Swarm's

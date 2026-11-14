@@ -3,6 +3,8 @@
 package panels
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -314,7 +316,72 @@ func TestAScaleWaitsForItsTaskToStop(t *testing.T) {
 	}
 	e.TaskShutdown = time.Hour
 	s.TaskWait = 300 * time.Millisecond
-	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil || !strings.Contains(err.Error(), "still runs a task") {
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil || !strings.Contains(err.Error(), "still has a task that isn't over") {
 		t.Errorf("a task that doesn't stop = %v", err)
+	}
+}
+
+// A stop that resumes, after the agent restarted mid-wait, finds the service asking
+// for none with a task not over, here one starting on another node: that isn't
+// done, so it plans the step again, and the step waits for it. A start waits for
+// such a task too, as Swarm's scale up starts one at once.
+func TestAStopThatResumesWaitsForWhatIsntOver(t *testing.T) {
+	e := dockertest.New(t)
+	n := uint64(0)
+	svc := docker.Service{ID: "s1"}
+	svc.Spec.Name, svc.Spec.Labels = "db-k2m4", map[string]string{"dokploy.application": "db", "dokploy.project": "store"}
+	svc.Spec.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &n}
+	e.Services = []docker.Service{svc}
+	var starting docker.Task
+	starting.ID, starting.NodeID, starting.Status.State = "t2", "node-2", "starting"
+	e.Tasks = map[string][]docker.Task{"db-k2m4": {starting}}
+	s := Stopper{Docker: e.Client(), TaskWait: 300 * time.Millisecond}
+	ask := resource.PanelAsked{Kind: resource.PanelDokploy, Apps: true, Parts: []resource.PanelPart{{Name: "db-k2m4", Swarm: true, WasRunning: true, WasReplicas: 1}}}
+	plan, left, err := s.PlanPanel(t.Context(), ask)
+	if err != nil || !left {
+		t.Fatalf("a stop resumed with a task starting = %v, %v", left, err)
+	}
+	if err := s.ApplyPanel(t.Context(), *plan, func(string) {}); err == nil || !strings.Contains(err.Error(), "isn't over") {
+		t.Errorf("the stop with a task starting = %v", err)
+	}
+	back, _ := plan.Undone()
+	start, _, err := s.PlanPanel(t.Context(), back)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err == nil || !strings.Contains(err.Error(), "isn't over") {
+		t.Errorf("a start with a task not over = %v", err)
+	}
+	// Once it's over, the stop is done, and the start scales up.
+	e.Tasks = nil
+	if _, left, err := s.PlanPanel(t.Context(), ask); err != nil || left {
+		t.Errorf("with nothing left, the stop = %v, %v", left, err)
+	}
+	if err := s.ApplyPanel(t.Context(), *start, func(string) {}); err != nil {
+		t.Error(err)
+	}
+}
+
+// The wait is the service's own grace period and a minute more, not a fixed one.
+func TestTheWaitFollowsTheGracePeriod(t *testing.T) {
+	e := dockertest.New(t)
+	n, grace := uint64(0), int64(2*time.Hour)
+	svc := docker.Service{ID: "s1"}
+	svc.Spec.Name = "db-k2m4"
+	svc.Spec.Mode.Replicated = &struct {
+		Replicas *uint64 `json:"Replicas,omitempty"`
+	}{Replicas: &n}
+	svc.Spec.TaskTemplate.ContainerSpec.StopGracePeriod = &grace
+	e.Services = []docker.Service{svc}
+	var running docker.Task
+	running.ID, running.Status.State = "t1", "running"
+	e.Tasks = map[string][]docker.Task{"db-k2m4": {running}}
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	err := Stopper{Docker: e.Client()}.untilNoTask(ctx, "db-k2m4", func(string) {})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("with a grace period of two hours, the wait ended %v", err)
 	}
 }

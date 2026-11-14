@@ -36,15 +36,19 @@ const stopWait = 30 * time.Second
 // of its own is one each, and a start asks no more than a stop read.
 const mostReplicas = 16
 
-// taskWait is how long a Swarm service's tasks have to stop once it's scaled to
-// none: each container's own stop, and Swarm's moment to act on the new spec.
-const taskWait = stopWait + 60*time.Second
+// defaultGrace is how long Docker gives a task to stop where its service doesn't
+// say, and taskMargin how much longer a scale to none waits for it to be over: for
+// Swarm to act on the new spec, and to kill what didn't stop.
+const (
+	defaultGrace = 10 * time.Second
+	taskMargin   = time.Minute
+)
 
 // Stopper stops and starts a panel's own containers and services, with Docker.
 type Stopper struct {
 	Docker *docker.Client
-	// TaskWait is how long a scale to none waits for the service's tasks to stop,
-	// taskWait where it's zero; a test sets less.
+	// TaskWait is how long a scale waits for the service's tasks to be over, its
+	// grace period and taskMargin where it's zero; a test sets less.
 	TaskWait time.Duration
 }
 
@@ -152,10 +156,16 @@ func (s Stopper) planApps(ctx context.Context, ask resource.PanelAsked) (*resour
 			}
 			part.WasRunning, part.WasReplicas, part.WasPorts, part.WasNetworks = p.WasRunning, p.WasReplicas, p.WasPorts, p.WasNetworks
 		}
+		live, err := s.tasksLive(ctx, p.Name)
+		if err != nil {
+			return nil, false, err
+		}
 		if ask.Start {
 			left = left || n != part.WasReplicas
 		} else {
-			left = left || n != 0
+			// Asking for none isn't done while a task isn't over: a stop that
+			// resumes after a restart waits again, as its copy would start beside it.
+			left = left || n != 0 || live > 0
 		}
 		plan.Parts = append(plan.Parts, part)
 	}
@@ -173,8 +183,13 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 		var err error
 		switch {
 		case part.Swarm && p.Start && p.Apps:
-			say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published and the networks it joined", part.Name, part.WasReplicas))
-			err = s.Docker.PlaceService(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts), json.RawMessage(part.WasNetworks))
+			// What took its place stops first, and nothing of its own may still be
+			// stopping: Swarm's scale up starts a task at once.
+			err = s.untilNoTask(ctx, part.Name, say)
+			if err == nil {
+				say(fmt.Sprintf("Scaling the service %s to %d, with the ports it published and the networks it joined", part.Name, part.WasReplicas))
+				err = s.Docker.PlaceService(ctx, part.Name, part.WasReplicas, servicePorts(part.WasPorts), json.RawMessage(part.WasNetworks))
+			}
 		case part.Swarm && p.Start:
 			say(fmt.Sprintf("Scaling the service %s to %d", part.Name, part.WasReplicas))
 			err = s.Docker.ScaleService(ctx, part.Name, part.WasReplicas)
@@ -248,35 +263,44 @@ func servicePorts(ports []resource.PanelPort) []docker.ServicePort {
 	return out
 }
 
-// tasksRunning counts the containers of a Swarm service's tasks that run on this
-// node, as Swarm labels them.
-func (s Stopper) tasksRunning(ctx context.Context, service string) (int, error) {
-	list, err := s.Docker.ListContainers(ctx, map[string][]string{"label": {"com.docker.swarm.service.name=" + service}})
+// tasksLive counts a Swarm service's tasks that aren't over, on every node: one
+// running, starting or about to, as Swarm's tasks API has them, so a copy that
+// takes its place never starts beside one, nor during its grace period.
+func (s Stopper) tasksLive(ctx context.Context, service string) (int, error) {
+	tasks, err := s.Docker.ListTasks(ctx, service)
 	if err != nil {
 		return 0, fmt.Errorf("can't list the tasks of the service %s: %w", service, err)
 	}
 	n := 0
-	for i := range list {
-		if list[i].State == "running" {
+	for i := range tasks {
+		if !tasks[i].Over() {
 			n++
 		}
 	}
 	return n, nil
 }
 
-// untilNoTask waits for a service scaled to none to have no task running, and
-// fails where one still runs once TaskWait has passed.
+// untilNoTask waits for a Swarm service to have no task that isn't over, and fails
+// where one still is once its stop's grace period and taskMargin more have passed,
+// or TaskWait where a test sets it.
 func (s Stopper) untilNoTask(ctx context.Context, service string, say func(string)) error {
-	wait := cmp.Or(s.TaskWait, taskWait)
+	wait := s.TaskWait
+	if wait == 0 {
+		grace := defaultGrace
+		if svc, err := s.Docker.InspectService(ctx, service); err == nil && svc.Spec.TaskTemplate.ContainerSpec.StopGracePeriod != nil {
+			grace = time.Duration(*svc.Spec.TaskTemplate.ContainerSpec.StopGracePeriod)
+		}
+		wait = grace + taskMargin
+	}
 	deadline := time.Now().Add(wait)
 	said := false
 	for {
-		n, err := s.tasksRunning(ctx, service)
+		n, err := s.tasksLive(ctx, service)
 		if err != nil || n == 0 {
 			return err
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("the service %s still runs a task %s after it was scaled to none, so nothing takes its place", service, wait.Round(time.Second))
+			return fmt.Errorf("the service %s still has a task that isn't over %s after it was scaled to none, so nothing takes its place", service, wait.Round(time.Second))
 		}
 		if !said {
 			say(fmt.Sprintf("Waiting for the task of %s to stop", service))
@@ -413,7 +437,7 @@ func (s Stopper) stands(ctx context.Context, p resource.PanelPart) (standing, er
 			return standing{}, fmt.Errorf("can't read the service %s: %w", p.Name, err)
 		}
 		n, _ := svc.Spec.Mode.Replicas()
-		tasks, err := s.tasksRunning(ctx, p.Name)
+		tasks, err := s.tasksLive(ctx, p.Name)
 		if err != nil {
 			return standing{}, err
 		}

@@ -97,7 +97,10 @@ type Engine struct {
 	// changes. A scale back up starts them again.
 	TaskShutdown time.Duration
 	// SwarmNodes is how many nodes /info says the swarm has.
-	SwarmNodes  int
+	SwarmNodes int
+	// Tasks are tasks of Swarm services beside those of the containers labelled
+	// as one's, by service name, such as one starting on another node.
+	Tasks       map[string][]docker.Task
 	memoryKills []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
@@ -489,6 +492,8 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, e.Services)
+	case path == "/tasks" && r.Method == http.MethodGet:
+		e.listTasks(w, r)
 	case parts[0] == "services" && len(parts) == 2 && r.Method == http.MethodGet:
 		e.inspectService(w, parts[1])
 	case parts[0] == "services" && len(parts) == 3 && parts[2] == "update" && r.Method == http.MethodPost:
@@ -2549,6 +2554,43 @@ func (e *Engine) updateService(w http.ResponseWriter, r *http.Request, id string
 	svc.Version.Index++
 	e.scaleTasks(spec.Name)
 	writeJSON(w, http.StatusOK, map[string]any{"Warnings": nil})
+}
+
+// listTasks answers the tasks API for a service named in its filters: a task for
+// each container labelled as one of the service's, running, starting where it's
+// made and not started, and shut down where it stopped, and those in Tasks.
+func (e *Engine) listTasks(w http.ResponseWriter, r *http.Request) {
+	var filters map[string]map[string]bool
+	_ = json.Unmarshal([]byte(r.URL.Query().Get("filters")), &filters)
+	out := []docker.Task{}
+	for name := range filters["service"] {
+		svc := e.service(name)
+		if svc == nil {
+			continue
+		}
+		for _, c := range e.containers {
+			if c.Config.Labels["com.docker.swarm.service.name"] != svc.Spec.Name {
+				continue
+			}
+			var t docker.Task
+			t.ID, t.NodeID = c.ID[:12], "node-1"
+			switch {
+			case c.State.Running:
+				t.Status.State = "running"
+			case c.State.Status == "created" || c.State.Status == "":
+				t.Status.State = "starting"
+			default:
+				t.Status.State = "shutdown"
+			}
+			t.DesiredState = "running"
+			if n, _ := svc.Spec.Mode.Replicas(); n == 0 {
+				t.DesiredState = "shutdown"
+			}
+			out = append(out, t)
+		}
+		out = append(out, e.Tasks[svc.Spec.Name]...)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // scaleTasks has a service's task containers follow its replicas, as Swarm does:
