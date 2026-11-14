@@ -555,6 +555,51 @@ describe("the list of domains", () => {
     expect(edits[0]?.spec?.kind.value).toMatchObject({ domain: "app.example.com", service: "web", tls: "off" });
   });
 
+  it("moves a private route behind what's in front with who gets in, and held, as they are", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const signIn = { provider: "ours", emails: ["mira@example.com"], sessionHours: 12, generation: 2n };
+    renderAt(
+      "/domains",
+      api(
+        [
+          aDomain({
+            name: "app.example.com",
+            certificate: certificate(
+              CertificateState.FAILED,
+              "A certificate authority can't reach app.example.com. If a tunnel or a proxy ends TLS in front of this server, set tls to off on its routes.",
+            ),
+            route: { held: true, allow: ["203.0.113.0/24"], users: ["mira"], signIn, trustedProxies: ["10.0.0.0/8"] },
+          }),
+        ],
+        {
+          more: {
+            changes: {
+              watchChange: feed<WatchChangeResponse>().stream,
+              discardChange: () => ({}),
+              proposeChange: (req) => {
+                edits.push(...req.edits);
+                return { change: webPlanned() };
+              },
+            },
+          },
+        },
+      ),
+    );
+    const row = await rowOf(/app\.example\.com/);
+    await user.click(within(row).getByRole("button", { name: "It's behind a tunnel or a proxy" }));
+    const sheet = await screen.findByRole("dialog", { name: "Move app.example.com behind what's in front" });
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      domain: "app.example.com",
+      held: true,
+      tls: "off",
+      trustedProxies: ["127.0.0.1"],
+      access: { allow: ["203.0.113.0/24"], users: [{ name: "mira" }], signIn },
+    });
+  });
+
   it("visits a domain over HTTPS behind a tunnel, as a visitor does, and only once it serves", async () => {
     renderAt(
       "/domains",
@@ -1784,6 +1829,188 @@ describe("who gets in to a route (ADR 0087)", () => {
       ["shop-admin", ["srv_2"]],
     ]);
     expect(edits[1]?.spec?.kind.value).toMatchObject({ domain: "shop.example.com", path: "/admin" });
+  });
+
+  it("says a private path shares its origin with the rest of its host, and the whole domain doesn't (#598's review, M4)", async () => {
+    const domain = () =>
+      aDomain({
+        name: "shop.example.com",
+        certificate: issued,
+        routes: [
+          { id: "rte_shop-example-com", name: "shop-example-com", service: "web", port: 80 },
+          { id: "rte_shop-admin", name: "shop-admin", path: "/admin", service: "web", port: 80 },
+        ],
+      });
+    const shared = "Other paths of shop.example.com share its origin and can reach it";
+    const { unmount } = renderAt("/domains?private=rte_shop-admin", privateApi([domain()], "198.51.100.23", []));
+    const path = await screen.findByRole("dialog", { name: /private/ });
+    expect(within(path).getByRole("region", { name: "What a stranger gets" })).toHaveTextContent(shared);
+    unmount();
+    renderAt("/domains?private=rte_shop-example-com", privateApi([domain()], "198.51.100.23", []));
+    const whole = await screen.findByRole("dialog", { name: "Make shop.example.com private" });
+    expect(whole).not.toHaveTextContent(shared);
+  });
+
+  it("offers anyone at your domain only where that isn't anyone at all (#598's final check, L3)", async () => {
+    const user = userEvent.setup();
+    const domains = [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })];
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      api(domains, {
+        more: {
+          auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "198.51.100.23", current: true }] }) },
+          domains: {
+            listDomains: () => ({ domains }),
+            listSigninProviders: () => ({
+              providers: [
+                { name: "google", displayName: "Google", issuer: "https://accounts.google.com" },
+                { name: "ours", displayName: "Our Authentik", issuer: "https://auth.example.com/" },
+              ],
+            }),
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    await user.click(within(sheet).getByRole("checkbox", { name: "Sign in with a provider" }));
+    const provider = within(sheet).getByRole("combobox", { name: "Sign in with" });
+    await waitFor(() => expect(provider).toHaveValue("google"));
+    expect(within(sheet).queryByRole("button", { name: /^Add anyone at/ })).toBeNull();
+    await user.selectOptions(provider, "ours");
+    expect(within(sheet).getByRole("button", { name: "Add anyone at acme.dev" })).toBeEnabled();
+  });
+
+  it("signs a route in with a provider: your email first, your domain a click away, and the address to register (ADR 0087)", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const domains = [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })];
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      api(domains, {
+        more: {
+          auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "198.51.100.23", current: true }] }) },
+          domains: {
+            listDomains: () => ({ domains }),
+            listSigninProviders: () => ({ providers: [{ name: "ours", displayName: "Our Authentik" }] }),
+          },
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...req.edits);
+              return { change: webPlanned() };
+            },
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    await user.click(within(sheet).getByRole("checkbox", { name: "Only these addresses" }));
+    await user.click(within(sheet).getByRole("checkbox", { name: "Sign in with a provider" }));
+    const who = within(sheet).getByRole("list", { name: "Who may sign in" });
+    expect(who).toHaveTextContent("mira@acme.devyou");
+    await waitFor(() => expect(within(sheet).getByRole("combobox", { name: "Sign in with" })).toHaveValue("ours"));
+    expect(sheet).toHaveTextContent("https://app.example.com/.dockwell/signin/callback");
+    expect(within(sheet).getByRole("button", { name: "Copy the redirect address" })).toBeEnabled();
+    expect(sheet).toHaveTextContent("Once applied, a stranger is sent to sign in");
+    await user.click(within(sheet).getByRole("button", { name: "Add anyone at acme.dev" }));
+    const field = within(sheet).getByLabelText("Add an email, a domain or a group");
+    await user.type(field, "ops{Enter}");
+    // An address in letters outside ASCII is spelled more than one way, so it isn't taken.
+    await user.type(field, "eve@b\u00fccher.example{Enter}");
+    expect(sheet).toHaveTextContent("Write an email, a domain or a group, in ASCII");
+    await user.clear(field);
+    expect(who).toHaveTextContent("acme.devanyone at");
+    expect(who).toHaveTextContent("opsgroup");
+    await expectAccessible(document.body);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      access: {
+        allow: [],
+        users: [],
+        signIn: { provider: "ours", emails: ["mira@acme.dev"], emailDomains: ["acme.dev"], groups: ["ops"] },
+      },
+    });
+  });
+
+  it("through loopback, takes off the password it would make once you sign in with a provider (ADR 0087)", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const domains = [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })];
+    renderAt(
+      "/domains?private=rte_app-example-com",
+      api(domains, {
+        more: {
+          auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "127.0.0.1", current: true }] }) },
+          domains: {
+            listDomains: () => ({ domains }),
+            listSigninProviders: () => ({ providers: [{ name: "ours", displayName: "Our Authentik" }] }),
+          },
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...req.edits);
+              return { change: webPlanned() };
+            },
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Make app.example.com private" });
+    const password = within(sheet).getByRole("checkbox", { name: "Ask for a password" });
+    await waitFor(() => expect(password).toBeChecked());
+    await user.click(within(sheet).getByRole("checkbox", { name: "Sign in with a provider" }));
+    expect(password).not.toBeChecked();
+    await waitFor(() => expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeEnabled());
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      access: { users: [], signIn: { provider: "ours", emails: ["mira@acme.dev"] } },
+    });
+  });
+
+  it("says a stranger is sent to sign in, and keeps how a route signs in as its domain moves (ADR 0087)", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const signIn = { provider: "ours", emails: ["mira@acme.dev"], sessionHours: 12, generation: 2n };
+    renderAt(
+      "/domains?private=rte_shop-example-com",
+      privateApi(
+        [
+          aDomain({
+            name: "shop.example.com",
+            certificate: issued,
+            routes: [{ id: "rte_shop-example-com", name: "shop-example-com", service: "web", port: 80, signIn }],
+            servers: [
+              {
+                serverId: SERVER,
+                serverName: "hz-1",
+                status: {
+                  domain: "shop.example.com",
+                  certificate: issued,
+                  strangers: [{ path: "", outcome: StrangerOutcome.SENT_TO_SIGN_IN, said: "auth.example.com" }],
+                },
+              },
+              { serverId: "srv_2", serverName: "hz-2" },
+            ],
+          }),
+        ],
+        "198.51.100.23",
+        edits,
+      ),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Who gets in to shop.example.com" });
+    expect(within(sheet).getByRole("region", { name: "What a stranger gets" })).toHaveTextContent(
+      "On hz-1, a stranger is sent to sign in at auth.example.com",
+    );
+    expect(within(sheet).getByRole("checkbox", { name: "Sign in with a provider" })).toBeChecked();
+    await user.click(within(sheet).getByRole("button", { name: "Move the whole domain to hz-2" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      access: { signIn: { provider: "ours", emails: ["mira@acme.dev"], sessionHours: 12 } },
+    });
   });
 
   it("asks for no password where a browser would send it over plain HTTP, and offers HTTPS", async () => {

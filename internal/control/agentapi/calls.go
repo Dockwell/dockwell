@@ -484,7 +484,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), checksPanelDomains: hello.GetChecksPanelDomains(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
@@ -632,6 +632,9 @@ type Session struct {
 	// keepsRoutesPrivate says the agent's proxy keeps out who a route's access
 	// doesn't let in (ADR 0087).
 	keepsRoutesPrivate bool
+	// signsIn says the agent answers its proxy of who signed in to a route with a
+	// provider (ADR 0087).
+	signsIn bool
 	// ownSettings says the agent sets what a container asks of itself, and
 	// writesFiles that it writes the files a container mounts, and ownsVolumes that
 	// it gives a volume's empty folder its owner (ADR 0085).
@@ -1779,7 +1782,14 @@ func (s *Session) checkAllWrites(desired []resource.Desired) error {
 // keeps strangers out: it would serve the route to anyone, as if it had none.
 func (s *Session) checkPrivate(ref resource.Ref, spec proto.Message) error {
 	r, ok := spec.(*resourcev1.Route)
-	if s.keepsRoutesPrivate || !ok || len(r.GetAccess().GetAllow())+len(r.GetAccess().GetUsers()) == 0 {
+	if !ok {
+		return nil
+	}
+	if r.GetAccess().GetSignIn() != nil && !s.signsIn {
+		return fmt.Errorf("%w: the agent on %s is from before Dockwell signed people in to a route with a provider, which %s asks for. Update the agent on %s",
+			resource.ErrAgentTooOld, s.name, ref.Name, s.name)
+	}
+	if s.keepsRoutesPrivate || len(r.GetAccess().GetAllow())+len(r.GetAccess().GetUsers()) == 0 {
 		return nil
 	}
 	return fmt.Errorf("%w: the agent on %s is from before Dockwell kept strangers out of a route, which %s asks for, so it would let anyone in. Update the agent on %s",

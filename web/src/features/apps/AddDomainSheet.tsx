@@ -40,6 +40,7 @@ import { DomainRecord } from "./DomainRecord";
 import { formRefusal, proxyList, refusedField, routeName } from "./domains";
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
+import { routeAsItIs } from "./PrivateSheet";
 import { useServices } from "./useServices";
 
 /** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
@@ -253,13 +254,17 @@ export function AddDomainSheet({
                   kind: {
                     case: "route" as const,
                     value: {
-                      domain: wanted,
-                      path: route.path,
-                      service: route.service,
+                      // Who gets in and whether it's held stay as they are, so moving it opens
+                      // nothing: a front that's plain for anyone the plan refuses to a route with
+                      // a password or a sign-in (#598's final check, M2).
+                      ...routeAsItIs(wanted, route),
                       // A person's own port is for the route they asked from. The rest stay as they are.
                       ...(route.hostPort
                         ? { hostPort: route.name === start.route ? Number(port) : route.hostPort }
                         : { port: route.name === start.route ? Number(port) : route.port }),
+                      // What's in front is the sheet's to say: a certificate, or what it names.
+                      tls: "",
+                      plainForAnyone: false,
                       ...(noCertificate ? front() : {}),
                     },
                   },

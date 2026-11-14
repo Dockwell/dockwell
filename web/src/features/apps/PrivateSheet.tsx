@@ -17,9 +17,11 @@ import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { onApple } from "../../lib/platform";
 import type { Offer } from "../auth/may";
+import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { appOf } from "./app";
 import { routeWhere } from "./domains";
+import { PrivateSignIn, type SignInChoice, signInChoiceOf, signInSpec } from "./PrivateSignIn";
 import "./Apps.css";
 import "./Private.css";
 
@@ -174,6 +176,17 @@ export function useStrangerWords(): (domain: Domain, route: DomainRoute) => Stra
               text: on ? t`On ${on}, a stranger is asked for a password` : t`A stranger is asked for a password`,
             },
           ];
+        case StrangerOutcome.SENT_TO_SIGN_IN: {
+          const at = check.said;
+          return [
+            {
+              tone: "ok",
+              text: on
+                ? t`On ${on}, a stranger is sent to sign in at ${at}`
+                : t`A stranger is sent to sign in at ${at}`,
+            },
+          ];
+        }
         case StrangerOutcome.LET_IN:
           return [{ tone: "warning", text: on ? t`On ${on}, a stranger gets in` : t`A stranger gets in` }];
         case StrangerOutcome.CANT_TELL:
@@ -223,7 +236,9 @@ export function PrivateSheet({
   const sessions = useQuery(AuthService.method.listSessions, {});
   const address = sessions.data?.sessions.find((s) => s.current)?.address ?? "";
   const own = ownEntries(address);
-  const wasPrivate = route.allow.length + route.users.length > 0;
+  const wasPrivate = isPrivate(route);
+  const ownEmail = useSignedInUser()?.email ?? "";
+  const [signIn, setSignIn] = useState<SignInChoice>(() => signInChoiceOf(route.signIn));
   const [listOn, setListOn] = useState(route.allow.length > 0 || (!wasPrivate && !blocked));
   const [entries, setEntries] = useState<string[]>(route.allow);
   const [listTouched, setListTouched] = useState(route.allow.length > 0);
@@ -268,12 +283,22 @@ export function PrivateSheet({
   const names = users.map((u) => u.name.trim());
   const nameMissing = asks && names.some((n) => n === "");
   const listEmpty = keepsList && entries.length === 0;
-  // Turning both off on a route that lets in anyone already changes nothing.
-  const changes = wasPrivate || keepsList || asks;
+  // Sign-in goes nowhere a browser reaches over plain HTTP, as its cookie can't be kept.
+  const signsIn = signIn.on && !plainHere;
+  const signInUnready = signsIn && (signIn.provider === "" || signIn.people.length === 0);
+  // Turning them all off on a route that lets in anyone already changes nothing.
+  const changes = wasPrivate || keepsList || asks || signsIn;
   // A private route's domain runs from one server, or a path left behind would fall to
   // the route above it there, which the server refuses (ADR 0087).
   const split = domain.servers.length > 1;
-  const ready = changes && !nameMissing && (made.length === 0 || kept) && !listEmpty && !split;
+  const ready = changes && !nameMissing && (made.length === 0 || kept) && !listEmpty && !split && !signInUnready;
+
+  // Signing in takes the place of a password Dockwell would make, on a route with none
+  // of its own yet; a password beside it, for a script, is a click away.
+  const changeSignIn = (next: SignInChoice) => {
+    if (next.on && !signIn.on && route.users.length === 0) setUsersOn(false);
+    setSignIn(next);
+  };
 
   const addEntry = (entry: string) => {
     const value = entry.trim();
@@ -288,20 +313,7 @@ export function PrivateSheet({
     setTypedError(undefined);
   };
 
-  /** Each of the domain's routes as it is, for an edit that changes one thing of them all. */
-  const asItIs = (r: DomainRoute) => ({
-    domain: domain.name,
-    path: r.path,
-    service: r.service,
-    ...(r.hostPort ? { hostPort: r.hostPort } : { port: r.port }),
-    tls: r.tls,
-    trustedProxies: r.trustedProxies,
-    plainForAnyone: r.plainForAnyone,
-    held: r.held,
-    ...(r.allow.length + r.users.length > 0
-      ? { access: { allow: r.allow, users: r.users.map((name) => ({ name })) } }
-      : {}),
-  });
+  const asItIs = (r: DomainRoute) => routeAsItIs(domain.name, r);
   const moveTo = (serverId: string, serverName: string) =>
     setPlan({
       kind: "propose",
@@ -340,8 +352,9 @@ export function PrivateSheet({
     const access = {
       allow: keepsList ? entries : [],
       users: asks ? users.map((u) => ({ name: u.name.trim(), password: u.password ?? "" })) : [],
+      ...(signsIn ? { signIn: signInSpec(signIn, route.signIn) } : {}),
     };
-    const opens = access.allow.length + access.users.length === 0;
+    const opens = access.allow.length + access.users.length === 0 && !signsIn;
     setPlan({
       kind: "propose",
       summary: opens
@@ -385,9 +398,11 @@ export function PrivateSheet({
 
   const expected = keepsList
     ? t`Once applied, a stranger gets 403 Forbidden`
-    : asks
-      ? t`Once applied, a stranger is asked for a password`
-      : t`Once applied, anyone who reaches it gets in`;
+    : signsIn
+      ? t`Once applied, a stranger is sent to sign in`
+      : asks
+        ? t`Once applied, a stranger is asked for a password`
+        : t`Once applied, anyone who reaches it gets in`;
 
   return (
     <Sheet
@@ -445,6 +460,11 @@ export function PrivateSheet({
               </p>
             )}
             <p className="private-now-next">{expected}</p>
+            {route.path ? (
+              // A path shares its origin with the rest of its host, whose pages can reach
+              // it as whoever signed in (#598's review, M4).
+              <p className="private-now-line is-muted">{t`Other paths of ${domainName} share its origin and can reach it`}</p>
+            ) : null}
           </div>
         </section>
         <OpenWays ways={openWaysOf(domain, route, service, all)} service={service} onOther={onOther} />
@@ -671,6 +691,15 @@ export function PrivateSheet({
             </>
           ) : null}
         </fieldset>
+
+        <PrivateSignIn
+          choice={signIn}
+          onChange={changeSignIn}
+          ownEmail={ownEmail}
+          domain={domain.name}
+          path={route.path}
+          plainHere={plainHere}
+        />
       </form>
     </Sheet>
   );
@@ -678,7 +707,33 @@ export function PrivateSheet({
 
 /** Whether a route keeps anyone out. */
 export function isPrivate(route: DomainRoute): boolean {
-  return route.allow.length + route.users.length > 0;
+  return route.allow.length + route.users.length > 0 || route.signIn !== undefined;
+}
+
+/**
+ * A route as it is, for an edit that changes one thing of a domain's routes: who gets
+ * in, whether it's held and what's in front stay, so an Apply changes only that thing.
+ */
+export function routeAsItIs(domain: string, r: DomainRoute) {
+  return {
+    domain,
+    path: r.path,
+    service: r.service,
+    ...(r.hostPort ? { hostPort: r.hostPort } : { port: r.port }),
+    tls: r.tls,
+    trustedProxies: r.trustedProxies,
+    plainForAnyone: r.plainForAnyone,
+    held: r.held,
+    ...(isPrivate(r)
+      ? {
+          access: {
+            allow: r.allow,
+            users: r.users.map((name) => ({ name })),
+            ...(r.signIn ? { signIn: r.signIn } : {}),
+          },
+        }
+      : {}),
+  };
 }
 
 /** The way from a route to who gets in to it, beside the way to open it. */

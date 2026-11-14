@@ -50,6 +50,12 @@ const (
 	// DomainServiceCheckDnsProviderProcedure is the fully-qualified name of the DomainService's
 	// CheckDnsProvider RPC.
 	DomainServiceCheckDnsProviderProcedure = "/dockwell.v1.DomainService/CheckDnsProvider"
+	// DomainServiceListSigninProvidersProcedure is the fully-qualified name of the DomainService's
+	// ListSigninProviders RPC.
+	DomainServiceListSigninProvidersProcedure = "/dockwell.v1.DomainService/ListSigninProviders"
+	// DomainServiceCheckSigninProviderProcedure is the fully-qualified name of the DomainService's
+	// CheckSigninProvider RPC.
+	DomainServiceCheckSigninProviderProcedure = "/dockwell.v1.DomainService/CheckSigninProvider"
 )
 
 // DomainServiceClient is a client for the dockwell.v1.DomainService service.
@@ -83,6 +89,17 @@ type DomainServiceClient interface {
 	// zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
 	// deletes it. An admin's, signed in, as a provider is install-wide.
 	CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error)
+	// ListSigninProviders lists the providers people sign in to private routes with
+	// (ADR 0087): an admin's, every provider with everything but its secret; below an
+	// admin, those the caller's projects may use, by name and display name alone.
+	ListSigninProviders(context.Context, *connect.Request[v1.ListSigninProvidersRequest]) (*connect.Response[v1.ListSigninProvidersResponse], error)
+	// CheckSigninProvider reads an issuer's discovery document from the control
+	// server, as saving a provider does, and saves nothing. It says what it found, or
+	// why Dockwell can't sign people in with it: an issuer other than the one asked
+	// for, an endpoint that isn't HTTPS, no authorization code flow, no PKCE with
+	// S256, or no signing algorithm Dockwell takes. An admin's, signed in, as a
+	// provider is install-wide. See docs/adr/0087-private-routes.md.
+	CheckSigninProvider(context.Context, *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error)
 }
 
 // NewDomainServiceClient constructs a client for the dockwell.v1.DomainService service. By default,
@@ -130,16 +147,32 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(domainServiceMethods.ByName("CheckDnsProvider")),
 			connect.WithClientOptions(opts...),
 		),
+		listSigninProviders: connect.NewClient[v1.ListSigninProvidersRequest, v1.ListSigninProvidersResponse](
+			httpClient,
+			baseURL+DomainServiceListSigninProvidersProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("ListSigninProviders")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		checkSigninProvider: connect.NewClient[v1.CheckSigninProviderRequest, v1.CheckSigninProviderResponse](
+			httpClient,
+			baseURL+DomainServiceCheckSigninProviderProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("CheckSigninProvider")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // domainServiceClient implements DomainServiceClient.
 type domainServiceClient struct {
-	listDomains      *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
-	checkDomain      *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
-	listCertificates *connect.Client[v1.ListCertificatesRequest, v1.ListCertificatesResponse]
-	listDnsProviders *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
-	checkDnsProvider *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
+	listDomains         *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
+	checkDomain         *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
+	listCertificates    *connect.Client[v1.ListCertificatesRequest, v1.ListCertificatesResponse]
+	listDnsProviders    *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
+	checkDnsProvider    *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
+	listSigninProviders *connect.Client[v1.ListSigninProvidersRequest, v1.ListSigninProvidersResponse]
+	checkSigninProvider *connect.Client[v1.CheckSigninProviderRequest, v1.CheckSigninProviderResponse]
 }
 
 // ListDomains calls dockwell.v1.DomainService.ListDomains.
@@ -165,6 +198,16 @@ func (c *domainServiceClient) ListDnsProviders(ctx context.Context, req *connect
 // CheckDnsProvider calls dockwell.v1.DomainService.CheckDnsProvider.
 func (c *domainServiceClient) CheckDnsProvider(ctx context.Context, req *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error) {
 	return c.checkDnsProvider.CallUnary(ctx, req)
+}
+
+// ListSigninProviders calls dockwell.v1.DomainService.ListSigninProviders.
+func (c *domainServiceClient) ListSigninProviders(ctx context.Context, req *connect.Request[v1.ListSigninProvidersRequest]) (*connect.Response[v1.ListSigninProvidersResponse], error) {
+	return c.listSigninProviders.CallUnary(ctx, req)
+}
+
+// CheckSigninProvider calls dockwell.v1.DomainService.CheckSigninProvider.
+func (c *domainServiceClient) CheckSigninProvider(ctx context.Context, req *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error) {
+	return c.checkSigninProvider.CallUnary(ctx, req)
 }
 
 // DomainServiceHandler is an implementation of the dockwell.v1.DomainService service.
@@ -198,6 +241,17 @@ type DomainServiceHandler interface {
 	// zone asked for writes a TXT record, _dockwell-check-<random>.<zone>, then
 	// deletes it. An admin's, signed in, as a provider is install-wide.
 	CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error)
+	// ListSigninProviders lists the providers people sign in to private routes with
+	// (ADR 0087): an admin's, every provider with everything but its secret; below an
+	// admin, those the caller's projects may use, by name and display name alone.
+	ListSigninProviders(context.Context, *connect.Request[v1.ListSigninProvidersRequest]) (*connect.Response[v1.ListSigninProvidersResponse], error)
+	// CheckSigninProvider reads an issuer's discovery document from the control
+	// server, as saving a provider does, and saves nothing. It says what it found, or
+	// why Dockwell can't sign people in with it: an issuer other than the one asked
+	// for, an endpoint that isn't HTTPS, no authorization code flow, no PKCE with
+	// S256, or no signing algorithm Dockwell takes. An admin's, signed in, as a
+	// provider is install-wide. See docs/adr/0087-private-routes.md.
+	CheckSigninProvider(context.Context, *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error)
 }
 
 // NewDomainServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -241,6 +295,20 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(domainServiceMethods.ByName("CheckDnsProvider")),
 		connect.WithHandlerOptions(opts...),
 	)
+	domainServiceListSigninProvidersHandler := connect.NewUnaryHandler(
+		DomainServiceListSigninProvidersProcedure,
+		svc.ListSigninProviders,
+		connect.WithSchema(domainServiceMethods.ByName("ListSigninProviders")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	domainServiceCheckSigninProviderHandler := connect.NewUnaryHandler(
+		DomainServiceCheckSigninProviderProcedure,
+		svc.CheckSigninProvider,
+		connect.WithSchema(domainServiceMethods.ByName("CheckSigninProvider")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DomainService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DomainServiceListDomainsProcedure:
@@ -253,6 +321,10 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 			domainServiceListDnsProvidersHandler.ServeHTTP(w, r)
 		case DomainServiceCheckDnsProviderProcedure:
 			domainServiceCheckDnsProviderHandler.ServeHTTP(w, r)
+		case DomainServiceListSigninProvidersProcedure:
+			domainServiceListSigninProvidersHandler.ServeHTTP(w, r)
+		case DomainServiceCheckSigninProviderProcedure:
+			domainServiceCheckSigninProviderHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -280,4 +352,12 @@ func (UnimplementedDomainServiceHandler) ListDnsProviders(context.Context, *conn
 
 func (UnimplementedDomainServiceHandler) CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckDnsProvider is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) ListSigninProviders(context.Context, *connect.Request[v1.ListSigninProvidersRequest]) (*connect.Response[v1.ListSigninProvidersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.ListSigninProviders is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) CheckSigninProvider(context.Context, *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckSigninProvider is not implemented"))
 }

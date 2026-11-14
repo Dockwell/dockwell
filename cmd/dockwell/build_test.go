@@ -45,6 +45,7 @@ var agentPackages = []string{
 	"internal/agent/onepanel",   // reading what 1Panel keeps, for an import (ADR 0056)
 	"internal/agent/panels",     // reading what Coolify or Dokploy runs, for an import (ADR 0089)
 	"internal/agent/sqlitefile", // reading 1Panel's SQLite records, read-only, without SQLite (ADR 0056)
+	"internal/agent/signin",     // a route's sign-in with its provider, which the agent answers Caddy for (ADR 0087)
 	"internal/agent/terminal",   // a server's terminals, for a person (ADR 0037)
 	"internal/agent/system",     // a server's system services, read with its init's own tools (ADR 0067)
 	"internal/agent/updates",    // a server's package updates, read with its own package manager (ADR 0043)

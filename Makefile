@@ -19,9 +19,13 @@ GOTOOL    := go tool -modfile=tools/go.mod
 BIN       := bin/dockwell
 AGENT_BIN := bin/dockwell-agent
 # The packages the agent build links, which vet, lint and test again with its
-# tag. go list finds them once per make run, the first time a target needs
-# them: that expansion makes AGENT_PKGS simply expanded, holding what it found.
-# A make run that needs none, such as make build, never runs it.
+# tag, and fullapi beside it: two of them start a control plane in their tests,
+# which needs the public API's files the agent build leaves out. So go build or go
+# vet with -tags agent alone fails outside cmd/dockwell, and agent-tagged work
+# there takes -tags agent,fullapi (ADR 0093). go list finds them once per make
+# run, the first time a target needs them: that expansion makes AGENT_PKGS simply
+# expanded, holding what it found. A make run that needs none, such as make build,
+# never runs it.
 AGENT_PKGS = $(eval AGENT_PKGS := $$(shell scripts/agent-packages.sh))$(AGENT_PKGS)
 GENERATED := gen packages/api/src/gen internal/cli/apicmd internal/cli/apinames internal/control/apidoc/openapi.yaml packages/ui/src/tokens.ts packages/ui/src/styles/tokens.css web/src/routeTree.gen.ts
 # The OpenAPI document for the REST paths (docs/adr/0015-rest-and-openapi-from-the-schema.md).
@@ -79,7 +83,7 @@ generate: deps ## Regenerate code and the OpenAPI document from proto/, and the 
 # generate on its own deletes gen/LICENSE; scripts/check-spdx.sh names it then.
 	cp proto/LICENSE gen/LICENSE
 # The public API's files the agent's protocol doesn't reach stay out of the agent
-# build, but in the tests of its packages (ADR 0060).
+# build, but in the tests of its packages (ADR 0093).
 	scripts/agent-api.sh
 # The TypeScript generated from googleapis carries Google's Apache-2.0 notice
 # but no SPDX line, which every source file has (ADR 0012); it goes on top.

@@ -78,6 +78,7 @@ import (
 	serviceapi "github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/control/serviceupdates"
 	"github.com/dockwell/dockwell/internal/control/settings"
+	"github.com/dockwell/dockwell/internal/control/signinproviders"
 	"github.com/dockwell/dockwell/internal/control/system"
 	"github.com/dockwell/dockwell/internal/control/tasks"
 	"github.com/dockwell/dockwell/internal/control/terminals"
@@ -109,6 +110,10 @@ type Config struct {
 	// DNSLookup resolves names for DomainService.CheckDomain. Nil means the control
 	// server's resolver.
 	DNSLookup func(ctx context.Context, name string) ([]netip.Addr, error)
+	// SigninClient reads issuers' discovery documents for DomainService's sign-in
+	// providers. Nil means netguard's client, which a test with a provider on
+	// loopback replaces.
+	SigninClient signinproviders.Doer
 	// Sources reads what a build's branch names (ADR 0046). Nil asks each
 	// repository over Git's smart HTTP protocol (package gitref).
 	Sources revision.Sources
@@ -537,6 +542,12 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
 		domainHandler.DNS, domainHandler.Certificates = cfg.dns, cfg.certificates
 		domainHandler.Lookup = cfg.DNSLookup
+		if cfg.Secrets != nil {
+			domainHandler.Providers = signinproviders.New(cfg.Store, cfg.Secrets)
+			if cfg.SigninClient != nil {
+				domainHandler.Providers.Client = cfg.SigninClient
+			}
+		}
 		handle(dockwellv1connect.NewDomainServiceHandler(domainHandler, opts...))
 		if cfg.Fleet != nil {
 			var releases *updates.Releases

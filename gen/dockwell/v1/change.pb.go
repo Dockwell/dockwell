@@ -6914,9 +6914,14 @@ type PlanStep struct {
 	// How a step that makes a volume takes its data from another on its server, as
 	// moving an app to another project does (ADR 0084, #572). Numbered in the block
 	// connectable apps hold in other messages, 80 to 89.
-	VolumeMove    *VolumeMove `protobuf:"bytes,80,opt,name=volume_move,json=volumeMove,proto3" json:"volume_move,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	VolumeMove *VolumeMove `protobuf:"bytes,80,opt,name=volume_move,json=volumeMove,proto3" json:"volume_move,omitempty"`
+	// The routes on the host of a route that signs people in that were edited by
+	// hand, by domain and path, which applying it doesn't write again, so they may
+	// pass its sign-in cookies on to their apps (ADR 0087). It never stops a plan,
+	// and the fingerprint leaves it out. Numbered in #598's block, 110 to 119.
+	HandEditedBeside []string `protobuf:"bytes,110,rep,name=hand_edited_beside,json=handEditedBeside,proto3" json:"hand_edited_beside,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PlanStep) Reset() {
@@ -7274,6 +7279,13 @@ func (x *PlanStep) GetAgentUpgrade() *HostAgentUpgrade {
 func (x *PlanStep) GetVolumeMove() *VolumeMove {
 	if x != nil {
 		return x.VolumeMove
+	}
+	return nil
+}
+
+func (x *PlanStep) GetHandEditedBeside() []string {
+	if x != nil {
+		return x.HandEditedBeside
 	}
 	return nil
 }
@@ -10028,7 +10040,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aremoved\x18\x04 \x01(\bR\aremoved\x125\n" +
 	"\bdowntime\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\bdowntime\x12+\n" +
 	"\x05steps\x18\x06 \x03(\v2\x15.dockwell.v1.PlanStepR\x05steps\x12>\n" +
-	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\x85\x11\n" +
+	"\runtil_healthy\x18\a \x01(\v2\x19.google.protobuf.DurationR\funtilHealthy\"\xb3\x11\n" +
 	"\bPlanStep\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x124\n" +
@@ -10084,7 +10096,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\tkeys_left\x18Q \x01(\tR\bkeysLeft\x12C\n" +
 	"\ragent_upgrade\x18\x96\x01 \x01(\v2\x1d.dockwell.v1.HostAgentUpgradeR\fagentUpgrade\x128\n" +
 	"\vvolume_move\x18P \x01(\v2\x17.dockwell.v1.VolumeMoveR\n" +
-	"volumeMove\"\x83\x01\n" +
+	"volumeMove\x12,\n" +
+	"\x12hand_edited_beside\x18n \x03(\tR\x10handEditedBeside\"\x83\x01\n" +
 	"\n" +
 	"VolumeMove\x12\x1f\n" +
 	"\vfrom_volume\x18\x01 \x01(\tR\n" +

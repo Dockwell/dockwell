@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type BackupDestinationInfo, ChangeService, type DnsProviderInfo, type RegistryLoginInfo } from "@dockwell/api";
+import {
+  type BackupDestinationInfo,
+  ChangeService,
+  type DnsProviderInfo,
+  type RegistryLoginInfo,
+  type SigninProviderInfo,
+} from "@dockwell/api";
 import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -17,6 +23,8 @@ import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
 import { REGISTRY_NAMES, registryKind, useRegistryLogins } from "../registries/registries";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
+import { issuerHost, useSigninProviders } from "../signin/providers";
+import { SigninProviderSheet } from "../signin/SigninProviderSheet";
 import "../backups/Backups.css";
 import "./Settings.css";
 import { useMay } from "../auth/may";
@@ -40,6 +48,11 @@ export function IntegrationsPage() {
   // A registry login to add, from a card's registry, or to change.
   const [login, setLogin] = useState<{ host?: string; editing?: RegistryLoginInfo }>();
   const loginList = logins.data?.logins ?? [];
+  const signins = useSigninProviders();
+  // A sign-in provider to add, or to change.
+  const [signin, setSignin] = useState<{ editing?: SigninProviderInfo }>();
+  const signinList = signins.data?.providers ?? [];
+  const signinCount = signinList.length;
   const dns = useDnsProviders();
   const dnsList = dns.data?.providers ?? [];
   // A DNS provider to connect, or to change (ADR 0088).
@@ -276,6 +289,68 @@ export function IntegrationsPage() {
         </section>
       </div>
 
+      <section className="integrations-section" aria-labelledby="integrations-signin">
+        <div className="cp-section-head">
+          <h2 id="integrations-signin" className="dw-text-heading">
+            <Trans>Sign-in</Trans>
+          </h2>
+          {signins.data ? (
+            <span className="settings-meta">
+              {signinList.length === 1
+                ? t`1 provider · for private routes`
+                : t`${signinCount} providers · for private routes`}
+            </span>
+          ) : null}
+          {signinList.length > 0 ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="plus"
+              className="integrations-more"
+              onClick={() => setSignin({})}
+              {...mayPlan.off}
+            >
+              <Trans>Add a provider</Trans>
+            </Button>
+          ) : null}
+        </div>
+        {signins.error && !signins.data ? (
+          <ReadFailed
+            error={signins.error}
+            title={t`Dockwell can't list its sign-in providers`}
+            actions={
+              <Button size="sm" icon="refresh" loading={signins.isFetching} onClick={() => void signins.refetch()}>
+                <Trans>Try again</Trans>
+              </Button>
+            }
+          />
+        ) : !signins.data ? (
+          <div className="integrations-grid" aria-busy="true">
+            <div className="dw-panel integrations-card integrations-skeleton" />
+            <span className="dw-sr">{t`Loading sign-in providers`}</span>
+          </div>
+        ) : (
+          <div className="integrations-grid">
+            {signinList.map((p) => (
+              <SigninCard key={p.id} provider={p} onManage={() => setSignin({ editing: p })} manage={mayPlan.off} />
+            ))}
+            {signinList.length > 0 ? null : (
+              <Card
+                icon="lock"
+                name={t`Sign-in provider`}
+                state={<span className="settings-meta">{t`Not connected`}</span>}
+                text={t`People sign in to private routes as themselves, with Authentik, Google or another.`}
+                action={
+                  <Button size="sm" icon="plus" onClick={() => setSignin({})} {...mayPlan.off}>
+                    <Trans>Connect</Trans>
+                  </Button>
+                }
+              />
+            )}
+          </div>
+        )}
+      </section>
+
       <p className="settings-meta integrations-later">{t`Git providers and cloud providers come later.`}</p>
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
@@ -291,6 +366,9 @@ export function IntegrationsPage() {
           host={login.host}
           onClose={() => setLogin(undefined)}
         />
+      ) : null}
+      {signin ? (
+        <SigninProviderSheet existing={signinList} editing={signin.editing} onClose={() => setSignin(undefined)} />
       ) : null}
     </Page>
   );
@@ -447,6 +525,53 @@ function ProviderCard({
           <span className="integrations-sub">
             <code>{p.zones.join(", ")}</code>
           </span>
+        </>
+      }
+      action={
+        <Button size="sm" variant="secondary" icon="settings" onClick={onManage} {...manage}>
+          <Trans>Manage</Trans>
+        </Button>
+      }
+    />
+  );
+}
+
+/** A sign-in provider: what the panel calls it, its issuer's host, its name, and which projects may use it. */
+function SigninCard({
+  provider: p,
+  onManage,
+  manage,
+}: {
+  provider: SigninProviderInfo;
+  onManage: () => void;
+  manage: { off?: string; disabled?: true };
+}) {
+  const { t } = useLingui();
+  const who =
+    p.projects.length === 0
+      ? t`every project`
+      : p.projects.length === 1
+        ? t`1 project`
+        : t`${p.projects.length} projects`;
+  const host = issuerHost(p.issuer);
+  const clientId = p.clientId;
+  return (
+    <Card
+      icon="lock"
+      name={p.displayName || p.name}
+      state={host ? <code className="settings-meta">{host}</code> : null}
+      text={
+        <>
+          <Trans>
+            <code>{p.name}</code> for {who}
+          </Trans>
+          {p.clientId ? (
+            <span className="integrations-sub">
+              <Trans>
+                Client <code>{clientId}</code>
+              </Trans>
+            </span>
+          ) : null}
         </>
       }
       action={
