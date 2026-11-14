@@ -13,10 +13,12 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/backup/seal"
 	"github.com/dockwell/dockwell/internal/human"
+	ids "github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 )
@@ -53,6 +55,19 @@ func (d *Destination) key(m *Manifest) string {
 // doesn't open as that one.
 func binding(ref resource.Ref, id string) string {
 	return ref.Scope + "/" + ref.Name + "/" + id
+}
+
+// sealedAs is the volume a copy at key was sealed as: its environment and name when
+// it was sent, which its key names (Destination.key) and moving the app since
+// doesn't change, so it opens as that while it lands as ref's (the review of #572,
+// its N1). A key laid out otherwise is ref's.
+func sealedAs(ref resource.Ref, key string) resource.Ref {
+	dir := path.Dir(key)
+	env, name := path.Base(path.Dir(dir)), path.Base(dir)
+	if !strings.HasPrefix(env, ids.Environment+"_") || name != ref.Name {
+		return ref
+	}
+	return resource.Ref{Kind: ref.Kind, Scope: env, Name: name}
 }
 
 // Copied is what became of a backup's copy on its destination.
@@ -213,7 +228,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 		}
 	}
 	bucket := d.bucket(r)
-	bound := binding(ref, id)
+	bound := binding(sealedAs(ref, key), id)
 	said, err := bucket.Get(ctx, key+".json")
 	if err != nil {
 		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", refused(err))

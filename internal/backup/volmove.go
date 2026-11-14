@@ -116,7 +116,11 @@ func (r *Runner) JudgeMoveData(ctx context.Context, from string, t volume.Target
 		// that makes a disk, would make the new one a new disk, empty, and the old
 		// one's would go once the change's week is up (the review of #572, its M2).
 		if !reachesElsewhere(src) {
-			return move, false, fmt.Errorf("%s is made by the %s driver with options that may not reach the same data from another volume, so moving it could leave the app an empty one, and nothing stopped. Copy its data into a volume of the new project by hand, or leave the app where it is", from, src.Driver)
+			storage := src.Driver + " storage"
+			if src.Driver == "local" {
+				storage = "local storage with options of its own"
+			}
+			return move, false, fmt.Errorf("its volume %s is on %s, which Dockwell can't move between projects yet", from, storage)
 		}
 		if !sameVolume(src, spec) {
 			return move, false, fmt.Errorf("%s reaches its data through its options, so %s takes it by reaching the same, and needs the same driver and options", from, t.Name)

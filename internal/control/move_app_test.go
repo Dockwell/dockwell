@@ -602,3 +602,35 @@ func TestDeletingWhatOthersUseNeedsARoleWhereTheyAre(t *testing.T) {
 		t.Errorf("a developer of both deleting it = %v", err)
 	}
 }
+
+// A copy sent before the app moved is fetched after it, with its server's copy gone:
+// it opens as what it was sealed as, its environment then, and lands as the moved
+// volume's (the review of #572, its N1).
+func TestACopySentBeforeAMoveIsFetchedAfterIt(t *testing.T) {
+	s := startSending(t, store.SQLite)
+	b := s.sent(t)
+	if b.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE || b.GetCopyError() != "" {
+		t.Fatalf("the copy before the move: %v", b)
+	}
+	svc := dockwellv1connect.NewServiceServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	res, err := svc.MoveService(t.Context(), connect.NewRequest(&dockwellv1.MoveServiceRequest{Id: "web", NewProject: "elsewhere"}))
+	if err != nil || len(res.Msg.GetBlocks()) != 0 {
+		t.Fatalf("moving web = %v, blocks %v", err, res.Msg.GetBlocks())
+	}
+	applyReviewed(t, s.c, res.Msg.GetChange())
+	moved := s.get(t, b.GetId())
+	if moved.GetEnvironmentId() == b.GetEnvironmentId() {
+		t.Fatalf("the backup stayed in %s", moved.GetEnvironmentId())
+	}
+	s.lost(t, moved)
+	if _, err := s.bc.FetchBackup(t.Context(), connect.NewRequest(&dockwellv1.FetchBackupRequest{Id: b.GetId()})); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the fetch to end", func() bool { return s.said(t, "backup.fetched") != nil || s.said(t, "backup.fetch_failed") != nil })
+	if failed := s.said(t, "backup.fetch_failed"); failed != nil {
+		t.Fatalf("fetching the copy sent before the move: %v", failed)
+	}
+	if got := s.get(t, b.GetId()); got.GetFetchError() != "" || got.GetEnvironmentId() != moved.GetEnvironmentId() {
+		t.Errorf("fetched, the backup is %v", got)
+	}
+}
