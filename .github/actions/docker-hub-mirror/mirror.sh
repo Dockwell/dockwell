@@ -5,16 +5,18 @@
 #
 #   .github/actions/docker-hub-mirror/mirror.sh <mirror>
 #
-# It restarts the daemon, before the job runs anything on it. A reload would read
-# the mirror too, but Docker 28 loses host-gateway's address on one, and then a
+# It restarts the daemon once, before the job runs anything on it. A reload would
+# read the mirror too, but Docker 28 loses host-gateway's address on one, and then a
 # container that maps host-gateway can't start. One small pull with no login, as
-# Dockwell's own are, with the daemon's debug log on for it alone, then shows which
-# registry served it, in the daemon's own words. Nothing here fails the job:
-# without the mirror, its pulls go to Docker Hub, as they did before.
+# Dockwell's own are, then shows whether the mirror served it: Docker tries the
+# mirror first, and says at info level when it goes on to another registry, and why.
 #
-# A pull that carries a Docker Hub login, as the runner's docker CLI may have, goes
-# to Docker Hub under that login: the daemon hands the mirror the login too, and the
+# A pull that carries a Docker Hub login, as the runner's docker CLI has, goes to
+# Docker Hub under that login: the daemon hands the mirror the login too, and the
 # mirror refuses one it doesn't know.
+#
+# Nothing here fails the job, and it ends with the daemon up: on the mirror, or, if
+# Docker won't run with it, on the config the job started with.
 set -euo pipefail
 
 mirror=${1:?usage: mirror.sh <mirror>}
@@ -23,12 +25,10 @@ probe=hello-world:latest
 
 warn() { echo "::warning title=Docker Hub mirror::$*"; }
 
-# configure writes the daemon's config as jq's filter $1 makes it from $before,
-# and restarts the daemon on it.
-configure() {
+# write writes the daemon's config as jq's filter $1 makes it from $before.
+write() {
   jq --arg mirror "$mirror" "$1" <<<"${before:-"{}"}" | sudo -n tee "$config.new" >/dev/null &&
-    sudo -n mv "$config.new" "$config" &&
-    sudo -n systemctl restart docker
+    sudo -n mv "$config.new" "$config"
 }
 
 # says waits until docker info, in the format $1, holds $2, for 30 seconds at most.
@@ -41,59 +41,65 @@ says() {
   return 1
 }
 
+# start starts the daemon on the config as it's written. systemd refuses a fourth
+# start within a minute, and the runner's own start may be one, so its count goes
+# back to nothing first.
+start() {
+  sudo -n systemctl reset-failed docker.service docker.socket 2>/dev/null || true
+  sudo -n systemctl restart docker
+}
+
+# why prints what systemd and the daemon said, for a start that didn't come up.
+why() {
+  echo "::group::Why Docker didn't come up"
+  sudo -n systemctl status docker --no-pager -l 2>&1 | tail -n 20 || true
+  sudo -n journalctl -u docker -n 30 --no-pager -o cat 2>&1 || true
+  echo "::endgroup::"
+}
+
 sudo -n mkdir -p "$(dirname "$config")"
 before=$(sudo -n cat "$config" 2>/dev/null) || before=""
 # shellcheck disable=SC2016 # $mirror is jq's, from --arg
-add='.["registry-mirrors"] = ((.["registry-mirrors"] // []) - [$mirror] + [$mirror])'
-if ! configure "$add | .debug = true" || ! says '{{json .RegistryConfig.Mirrors}}' "$mirror" || ! says '{{.Debug}}' true; then
-  # A config the daemon didn't take would stop it the next time it starts.
-  configure '.' || true
-  says '{{.ServerVersion}}' . || true
-  warn "Docker didn't take $mirror as a mirror, so this job pulls from Docker Hub, as before."
-  sudo -n journalctl -u docker -n 20 --no-pager -o cat || true
-  exit 0
+if ! write '.["registry-mirrors"] = ((.["registry-mirrors"] // []) - [$mirror] + [$mirror])' ||
+  ! start || ! says '{{json .RegistryConfig.Mirrors}}' "$mirror"; then
+  why
+  # Once more as it is, as a start can fail for reasons of its own, then on the
+  # config the job started with.
+  if start && says '{{json .RegistryConfig.Mirrors}}' "$mirror"; then
+    echo "Docker came up with $mirror on a second start."
+  else
+    write '.' || true
+    start || true
+    if says '{{.ServerVersion}}' .; then
+      warn "Docker didn't run with $mirror as a mirror, so it runs as it did, and this job pulls from Docker Hub."
+    else
+      why
+      warn "Docker didn't come back, with $mirror or without it."
+    fi
+    exit 0
+  fi
 fi
 
-start=$(date +%s)
+start_time=$(date +%s)
 had=$(docker image ls -q "$probe")
 pulled=true
 anonymous=$(mktemp -d)
 DOCKER_CONFIG=$anonymous docker pull -q "$probe" >/dev/null || pulled=false
 rm -rf "$anonymous"
-name=${probe%%:*}
-# What the daemon said of this pull: each registry it tried, and why it went on
-# from one.
-said=$(sudo -n journalctl -u docker --since "@$start" --no-pager -o cat 2>/dev/null |
-  grep -E "Trying to pull $name from|Attempting next endpoint|[Ee]rror.*($name|pull)" || true)
+# Where the daemon went on from the mirror, and why.
+fell=$(sudo -n journalctl -u docker --since "@$start_time" --no-pager -o cat 2>/dev/null |
+  grep "Attempting next endpoint" || true)
 [[ -n "$had" ]] || docker image rm "$probe" >/dev/null 2>&1 || true
 
-# The debug log back as it was, with the mirror kept.
-restore="$add | del(.debug)"
-if jq -e 'has("debug")' <<<"${before:-"{}"}" >/dev/null; then
-  restore=$add
-fi
-if ! configure "$restore" || ! says '{{json .RegistryConfig.Mirrors}}' "$mirror"; then
-  warn "Docker didn't come back with $mirror after its debug log went back as it was."
-fi
-
-case "$pulled:$said" in
-false:*)
+if ! $pulled; then
   warn "$probe couldn't be pulled to try $mirror. The daemon still has it as a mirror."
-  ;;
-*"Trying to pull $name from https://registry-1.docker.io"*)
+elif [[ -n "$fell" ]]; then
   warn "$mirror didn't serve $probe, so Docker Hub did. This job's pulls may still meet Docker Hub's limit."
-  ;;
-*"Trying to pull $name from $mirror"*)
-  echo "Docker Hub's images come through $mirror, which served $probe to a pull with no login."
-  ;;
-*)
-  echo "Docker Hub's images come through $mirror. The daemon's log doesn't say which registry served $probe."
-  ;;
-esac
-if [[ -n "$said" ]]; then
-  echo "::group::What the daemon said of pulling $probe"
-  echo "$said"
-  echo "::endgroup::"
+  echo "$fell"
+elif docker info --format '{{json .DriverStatus}}' 2>/dev/null | grep -q containerd.snapshotter; then
+  echo "Docker Hub's images come through $mirror. This daemon's image store doesn't say which registry served $probe."
+else
+  echo "Docker Hub's images come through $mirror, which served $probe to a pull with no login: Docker tries it first, and went on to no other registry."
 fi
 # Which registries the runner's docker CLI has logins for, by name alone.
 logins=$(jq -r '[(.auths // {} | keys[]), (.credHelpers // {} | keys[])] | unique | join(", ")' \
@@ -101,4 +107,4 @@ logins=$(jq -r '[(.auths // {} | keys[]), (.credHelpers // {} | keys[])] | uniqu
 if [[ "$logins" == *docker.io* ]]; then
   echo "The runner's docker CLI has a login for Docker Hub, so its own pulls, as docker run and compose make, go to Docker Hub under it."
 fi
-echo "Registry mirrors: $(docker info --format '{{json .RegistryConfig.Mirrors}}')"
+echo "Registry mirrors: $(docker info --format '{{json .RegistryConfig.Mirrors}}' 2>/dev/null)"
