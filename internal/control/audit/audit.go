@@ -153,7 +153,14 @@ func (h *Handler) changes(ctx context.Context, tx *store.Tx, page []store.Event,
 	}
 	out := make(map[string]*dockwellv1.Change, len(records))
 	for _, r := range records {
-		out[r.ID] = changes.Proto(r, look.Actor)
+		c := changes.Proto(r, look.Actor)
+		// What it changed, which a row names in place of its ID. Only an admin reads
+		// the audit log, so nothing here is left out for the reader (ListAuditEvents is
+		// NEEDS_ADMIN, REACH_INSTALL).
+		for _, ref := range r.Brief.Touched {
+			c.Touches = append(c.Touches, &dockwellv1.ResourceRef{Kind: string(ref.Kind), Scope: ref.Scope, Name: ref.Name})
+		}
+		out[r.ID] = c
 	}
 	return out, nil
 }

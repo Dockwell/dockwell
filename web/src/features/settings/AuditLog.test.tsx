@@ -11,7 +11,6 @@ import {
   ChangeState,
   EventKind,
   type ListAuditEventsRequest,
-  PlanAction,
   Role,
   Surface,
   TokenScope,
@@ -23,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { fileDay } from "../../lib/format";
 import { expectAccessible } from "../../test/a11y";
+import { ENV, places } from "../../test/apps";
 import { onPhone, renderAt } from "../../test/render";
 import { auditCSV, csvLine, MOST_EXPORTED } from "./AuditLogPage";
 
@@ -45,11 +45,13 @@ function anEvent(init: MessageInitShape<typeof AuditEventSchema>): AuditEvent {
   return create(AuditEventSchema, { surface: Surface.PANEL, time: ago(1), ...init });
 }
 
+// As the audit log sends a change: its plan in brief, with no resources, and what it touched apart (#659).
 const deployWeb = {
   id: "chg_1",
   summary: "Deploy web",
   state: ChangeState.APPLIED,
-  plan: { resources: [{ action: PlanAction.UPDATE, resource: { kind: "service", name: "web", scope: "production" } }] },
+  plan: { summary: { change: 1 } },
+  touches: [{ kind: "service", name: "web", scope: ENV }],
 };
 
 const events = [
@@ -101,7 +103,7 @@ describe("Audit log", () => {
       void req;
       return { events };
     });
-    const { container } = renderAt("/settings/audit-log", { audit: { listAuditEvents } });
+    const { container } = renderAt("/settings/audit-log", { audit: { listAuditEvents }, resources: places() });
     expect(await screen.findByRole("heading", { level: 1, name: "Audit log" })).toBeVisible();
     expect(
       within(screen.getByRole("navigation", { name: "Settings" })).getByRole("link", { name: "Audit log" }),
