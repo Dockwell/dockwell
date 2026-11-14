@@ -17256,6 +17256,13 @@ components:
                     description: |-
                         When Swarm starts each of its services' tasks again, in the order of
                          containers: "any", "on-failure" or "none". Its copy restarts the same way.
+                swarmLeft:
+                    type: string
+                    description: |-
+                        Why its Swarm services can't be made again as one container each on this
+                         server, or empty where they can: more than one replica, a task on every
+                         node, a swarm of more than one node, a Swarm secret or config, or an
+                         anonymous volume.
             description: |-
                 PanelApp is something a panel runs for people: an app, a service from its
                  templates, or a database.

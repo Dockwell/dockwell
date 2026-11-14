@@ -3,6 +3,7 @@
 package panels
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -289,5 +290,54 @@ func TestAStacksTasksStayWithTheirServices(t *testing.T) {
 	if len(apps) != 1 || !slices.Equal(apps[0].GetContainers(), []string{"forum-q1_db", "forum-q1_web"}) ||
 		!slices.Equal(apps[0].GetTasks(), []string{"forum-q1_db.1.tdb", "forum-q1_web.1.teb"}) {
 		t.Errorf("the stack reads %v", apps)
+	}
+}
+
+// What a copy can't carry keeps a Swarm-run app where it is, saying why: a copy is
+// one container on this server, with no Swarm to give it secrets, configs or a
+// volume made anew for each task.
+func TestWhatASwarmAppCantCarry(t *testing.T) {
+	read := func(nodes int, edit func(*docker.ServiceSpec)) string {
+		e := dockertest.New(t)
+		e.SwarmNodes = nodes
+		var s docker.ServiceSpec
+		one := uint64(1)
+		s.Name, s.Labels = "shop-k2m4", map[string]string{"dokploy.project": "store", "dokploy.application": "shop"}
+		s.Mode.Replicated = &struct {
+			Replicas *uint64 `json:"Replicas,omitempty"`
+		}{Replicas: &one}
+		edit(&s)
+		e.Services = []docker.Service{{ID: "s1", Spec: s}}
+		got, err := Reader{Docker: e.Client()}.Read(t.Context(), dockwellv1.PanelKind_PANEL_KIND_DOKPLOY)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got.GetFound().GetApps()[0].GetSwarmLeft()
+	}
+	if got := read(1, func(*docker.ServiceSpec) {}); got != "" {
+		t.Errorf("a plain service on one node reads %q", got)
+	}
+	two := uint64(2)
+	for want, why := range map[string]string{
+		"shop-k2m4 runs 2 replicas, and a copy would be one": read(1, func(s *docker.ServiceSpec) {
+			s.Mode.Replicated.Replicas = &two
+		}),
+		"shop-k2m4 runs a task on every node": read(1, func(s *docker.ServiceSpec) {
+			s.Mode.Replicated, s.Mode.Global = nil, &struct{}{}
+		}),
+		"the swarm has 3 nodes, and a copy runs on this server alone": read(3, func(*docker.ServiceSpec) {}),
+		"shop-k2m4 reads a Swarm secret, which only Swarm's tasks can": read(1, func(s *docker.ServiceSpec) {
+			s.TaskTemplate.ContainerSpec.Secrets = []json.RawMessage{json.RawMessage(`{"SecretName":"db-password"}`)}
+		}),
+		"shop-k2m4 reads a Swarm config, which only Swarm's tasks can": read(1, func(s *docker.ServiceSpec) {
+			s.TaskTemplate.ContainerSpec.Configs = []json.RawMessage{json.RawMessage(`{"ConfigName":"nginx.conf"}`)}
+		}),
+		"shop-k2m4 keeps data in an anonymous volume at /data, which a copy wouldn't find": read(1, func(s *docker.ServiceSpec) {
+			s.TaskTemplate.ContainerSpec.Mounts = []docker.ServiceMount{{Type: "volume", Source: "shop-data", Target: "/srv"}, {Type: "volume", Target: "/data"}}
+		}),
+	} {
+		if why != want {
+			t.Errorf("read %q, want %q", why, want)
+		}
 	}
 }

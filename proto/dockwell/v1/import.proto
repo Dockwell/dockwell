@@ -276,6 +276,11 @@ message PanelApp {
   // When Swarm starts each of its services' tasks again, in the order of
   // containers: "any", "on-failure" or "none". Its copy restarts the same way.
   repeated string restarts = 17;
+  // Why its Swarm services can't be made again as one container each on this
+  // server, or empty where they can: more than one replica, a task on every
+  // node, a swarm of more than one node, a Swarm secret or config, or an
+  // anonymous volume.
+  string swarm_left = 18;
 }
 
 // PanelPort is a port a Swarm service publishes.

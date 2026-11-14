@@ -886,7 +886,12 @@ type PanelApp struct {
 	Published []*PanelPort `protobuf:"bytes,16,rep,name=published,proto3" json:"published,omitempty"`
 	// When Swarm starts each of its services' tasks again, in the order of
 	// containers: "any", "on-failure" or "none". Its copy restarts the same way.
-	Restarts      []string `protobuf:"bytes,17,rep,name=restarts,proto3" json:"restarts,omitempty"`
+	Restarts []string `protobuf:"bytes,17,rep,name=restarts,proto3" json:"restarts,omitempty"`
+	// Why its Swarm services can't be made again as one container each on this
+	// server, or empty where they can: more than one replica, a task on every
+	// node, a swarm of more than one node, a Swarm secret or config, or an
+	// anonymous volume.
+	SwarmLeft     string `protobuf:"bytes,18,opt,name=swarm_left,json=swarmLeft,proto3" json:"swarm_left,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1031,6 +1036,13 @@ func (x *PanelApp) GetRestarts() []string {
 		return x.Restarts
 	}
 	return nil
+}
+
+func (x *PanelApp) GetSwarmLeft() string {
+	if x != nil {
+		return x.SwarmLeft
+	}
+	return ""
 }
 
 // PanelPort is a port a Swarm service publishes.
@@ -2546,7 +2558,7 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\rknown_version\x18\x03 \x01(\bR\fknownVersion\x12\x16\n" +
 	"\x06folder\x18\x04 \x01(\tR\x06folder\x12)\n" +
 	"\x04apps\x18\x05 \x03(\v2\x15.dockwell.v1.PanelAppR\x04apps\x12-\n" +
-	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\"\xc2\x03\n" +
+	"\x03own\x18\x06 \x03(\v2\x1b.dockwell.v1.PanelContainerR\x03own\"\xe1\x03\n" +
 	"\bPanelApp\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04kind\x18\x02 \x01(\tR\x04kind\x12\x18\n" +
@@ -2566,7 +2578,9 @@ const file_dockwell_v1_import_proto_rawDesc = "" +
 	"\bfrom_git\x18\r \x01(\bR\afromGit\x12\x14\n" +
 	"\x05tasks\x18\x0f \x03(\tR\x05tasks\x124\n" +
 	"\tpublished\x18\x10 \x03(\v2\x16.dockwell.v1.PanelPortR\tpublished\x12\x1a\n" +
-	"\brestarts\x18\x11 \x03(\tR\brestarts\"s\n" +
+	"\brestarts\x18\x11 \x03(\tR\brestarts\x12\x1d\n" +
+	"\n" +
+	"swarm_left\x18\x12 \x01(\tR\tswarmLeft\"s\n" +
 	"\tPanelPort\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\rR\x04port\x12\x1c\n" +

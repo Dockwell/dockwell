@@ -148,6 +148,8 @@ func panelSteps(w panel, found *dockwellv1.Panel) ([]*dockwellv1.ImportStep, []*
 		switch {
 		case a.GetPreview():
 			leave(step, fmt.Sprintf("It's a pull request's preview, which %s makes and removes with its pull request.", w.name))
+		case a.GetSwarm() && a.GetSwarmLeft() != "":
+			leave(step, fmt.Sprintf("%s runs it as a Swarm service, and %s, so Dockwell can't make it again here. It stays as it is, in %s.", w.name, a.GetSwarmLeft(), w.name))
 		case a.GetSwarm() && a.GetKind() == "stack" && allTasks(a):
 			// A stack's services, read from their running tasks, come again in a
 			// project of the stack's own, named as the stack named them.

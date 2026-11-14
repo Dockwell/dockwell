@@ -96,7 +96,9 @@ type Engine struct {
 	// after the update, not with it, as a real task shuts down after its spec
 	// changes. A scale back up starts them again.
 	TaskShutdown time.Duration
-	memoryKills  []memoryKill
+	// SwarmNodes is how many nodes /info says the swarm has.
+	SwarmNodes  int
+	memoryKills []memoryKill
 	// ahead is how far the engine's clock is ahead of this machine's, for what it
 	// stamps its events and its containers' states with (SetClockAhead).
 	ahead time.Duration
@@ -479,7 +481,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		for _, r := range e.Registries {
 			index[r] = map[string]any{"Secure": false}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}})
+		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes}})
 	case path == "/services" && r.Method == http.MethodGet:
 		// An engine that isn't a swarm's manager says so, as Docker does.
 		if e.Services == nil {

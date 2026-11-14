@@ -36,6 +36,12 @@ type ServiceSpec struct {
 		ContainerSpec struct {
 			Image  string            `json:"Image"`
 			Labels map[string]string `json:"Labels"`
+			// Secrets and Configs are Swarm's, which only its tasks read.
+			Secrets []json.RawMessage `json:"Secrets,omitempty"`
+			Configs []json.RawMessage `json:"Configs,omitempty"`
+			// Mounts are what its tasks mount: a volume with no source is made
+			// anew for each task.
+			Mounts []ServiceMount `json:"Mounts,omitempty"`
 		} `json:"ContainerSpec"`
 		// Networks are the networks its tasks join, as Docker has them, kept raw
 		// so they go back exactly.
@@ -59,6 +65,13 @@ type ServicePort struct {
 	TargetPort    uint32 `json:"TargetPort"`
 	PublishedPort uint32 `json:"PublishedPort"`
 	PublishMode   string `json:"PublishMode"`
+}
+
+// ServiceMount is something a Swarm service's tasks mount.
+type ServiceMount struct {
+	Type   string `json:"Type"`
+	Source string `json:"Source,omitempty"`
+	Target string `json:"Target"`
 }
 
 // ServiceMode is how a Swarm service places its tasks: a number of replicas, or one
